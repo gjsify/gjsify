@@ -1052,8 +1052,9 @@ jobs:
   # ── Examples: build + type-check ────────────────────────────────────
   # Were the last four steps of `build` (396 s build + 179 s check, run
   # 36433926348), so every job that `needs: build` waited for them — `check`,
-  # `test`, `e2e`, the ship legs — though only `examples` and the example-dist
-  # e2e suite read what they produce. Now only those two wait.
+  # `test`, `e2e`, the ship legs — though only `examples` and one e2e suite
+  # read what they produce. Now only `examples` waits, and that suite runs in
+  # this job (see "E2E suites that read example dist").
   #
   # The package tree is the `build` job's own (`build-tree-fedora<v>`, see
   # "Pack the built tree"), extracted over what `gjsify-setup` restored, so
@@ -1126,6 +1127,15 @@ jobs:
       # exist only after a full build. The built-tree artifact carries them.
       - name: Check examples
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run check:examples'
+
+      # The `test:e2e` suites that assert built example dist (lint-engines), run
+      # where that dist is made instead of on an e2e shard that would have to wait
+      # for this job. Gated on the `e2e` job's own condition — this job's gate is
+      # a superset of it. `scripts/e2e-shard.mjs` keeps the list and leaves these
+      # suites out of every shard, so each suite still runs exactly once.
+      - name: E2E suites that read example dist
+        if: ${{ needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs --example-dist'
 
       # Hand the freshly-built example dist to the e2e + examples jobs. They
       # CANNOT rebuild examples themselves (build:examples needs the full
@@ -1518,8 +1528,8 @@ jobs:
   # lint-engines suite asserts every example has built output). Gated when an
   # `e2e` path was touched OR on a full run.
   e2e:
-    needs: [changes, setup, build, examples-build]
-    if: ${{ always() && needs.build.result == 'success' && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1541,18 +1551,27 @@ jobs:
           fedora-version: ${{ matrix.fedora.v }}
           # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
           bootstrap-bundles: 'true'
-      # Only shard 1 runs lint-engines (the suite that asserts example dist),
-      # so only it needs the artifact — skip the download on the other shards.
-      - name: Download example build output
-        if: ${{ matrix.shard == 1 }}
-        uses: actions/download-artifact@v8
-        with:
-          name: example-dist-fedora${{ matrix.fedora.v }}
-      - name: Fix example dist ownership for testuser
-        if: ${{ matrix.shard == 1 }}
-        run: chown -R testuser:testuser showcases examples
+      # No example dist here: the one suite that reads it (lint-engines) runs in
+      # `examples-build`, so no shard waits for the examples build.
+      #
+      # Shards are balanced by recorded duration (`scripts/e2e-shard-timings.json`),
+      # and every shard records this run's durations for the next refresh — the
+      # upload below. `E2E_TIMINGS_OUT` crosses `su`, which keeps the environment.
       - name: E2E tests (shard ${{ matrix.shard }}/4)
+        env:
+          E2E_TIMINGS_OUT: .gjsify-cache/e2e-timings
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
+      # `always()`: a red shard's durations are as good a weight as a green one's.
+      # `warn`: a shard that died before its first suite recorded nothing, and the
+      # step above already says why.
+      - name: Upload the recorded e2e durations
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-timings-fedora${{ matrix.fedora.v }}-shard${{ matrix.shard }}
+          path: .gjsify-cache/e2e-timings
+          retention-days: 14
+          if-no-files-found: warn
 
       # ── the one ledgered suite that needs a DISPLAY and a session bus ─────
       #
