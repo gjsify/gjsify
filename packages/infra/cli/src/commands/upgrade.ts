@@ -426,10 +426,7 @@ export function reportInexactRanges(groups: readonly DependencyGroup[]): number 
  * @param cwd working directory
  * @returns number of violations
  */
-export function checkLockfileRangeViolations(
-    groups: readonly DependencyGroup[],
-    cwd: string,
-): number {
+export function checkLockfileRangeViolations(groups: readonly DependencyGroup[], cwd: string): number {
     const lockPath = join(cwd, 'gjsify-lock.json');
     if (!existsSync(lockPath)) return 0;
 
