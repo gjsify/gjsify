@@ -54,6 +54,19 @@ if (!existsSync(resolve(ROOT, '.git'))) {
     process.exit(0);
 }
 
+// Same reasoning one step further: a checkout whose environment has no `git`
+// on PATH still cannot have hooks configured, and it is still an ordinary place
+// to run `gjsify install` — the win32 CI container is exactly that. Without
+// this, `gitConfig()` below softens only `err.status === 1` (key unset), so the
+// ENOENT from a missing binary falls through to `throw` and kills the install
+// that was only ever trying to add a developer convenience.
+try {
+    execFileSync('git', ['--version'], { cwd: ROOT, stdio: 'ignore' });
+} catch {
+    log('no `git` on PATH — nothing to configure (hooks are a developer convenience)');
+    process.exit(0);
+}
+
 function gitConfig(args) {
     try {
         return execFileSync('git', ['config', ...args], { cwd: ROOT, encoding: 'utf-8' }).trim();
