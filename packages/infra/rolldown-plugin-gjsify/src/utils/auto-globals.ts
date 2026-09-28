@@ -147,10 +147,13 @@ function detectedToRegisterPaths(detected: Set<string>): Set<string> {
  * GI-backed. Prefix match against `GJS_GI_BACKED_REGISTERS` so one entry per
  * package covers every granular subpath (`…/register/document`, `…/register/canvas`).
  */
-function giNamespacesForRegister(registerPath: string): readonly string[] | null {
-    for (const prefix of Object.keys(GI_BACKED)) {
-        if (registerPath === prefix || registerPath.startsWith(prefix + '/register/')) {
-            return GI_BACKED[prefix];
+export function giNamespacesForRegister(registerPath: string): readonly string[] | null {
+    for (const [register, namespaces] of Object.entries(GI_BACKED)) {
+        // The map is keyed by the FULL `<pkg>/register` path, so a granular subpath is
+        // `register` plus `/…` — matching on `register + '/register/'` could never hit
+        // and every `./register/document` &c. silently reported "not GI-backed".
+        if (registerPath === register || registerPath.startsWith(register + '/')) {
+            return namespaces;
         }
     }
     return null;
