@@ -11,7 +11,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { rolldown } from 'rolldown';
 
 import { nodeBinary } from './utils/run-node.js';
@@ -127,34 +127,34 @@ export default async () => {
 
     // The rewriter is the other half: a bundled package that reads files next to itself.
     await describe('rewriteContents: import.meta.dirname / import.meta.filename', async () => {
+        const path = '/proj/node_modules/pkg/dist/index.js';
+        const src = 'const d = import.meta.dirname;\nconst f = import.meta.filename;\nexport { d, f };\n';
+
+        // Exact output on purpose: a substring check (`new URL`, `import.meta.url`) also
+        // passes for a rewrite anchored at the BUNDLE, which is the bug this guards.
+        // The URL literals carry the host's own `relative()` spelling (`..\node_modules\…`
+        // on win32, which a file: URL resolves the same way), so they are derived here with
+        // the same call — still an exact match, never a substring one.
         await it('routes both through the package location, never the bundle', async () => {
-            const path = '/proj/node_modules/pkg/dist/index.js';
-            const src = 'const d = import.meta.dirname;\nconst f = import.meta.filename;\nexport { d, f };\n';
-            // Test legacy build-relative mode (runtimeResolve=false)
             const out = rewriteContents({ path }, src, '/proj/dist', false);
-            expect(out === null).toBe(false);
-            const code = out?.code ?? '';
-            expect(code.includes('import.meta.dirname')).toBe(false);
-            expect(code.includes('import.meta.filename')).toBe(false);
-            // Legacy mode uses new URL() with relative paths from bundleDir
-            expect(code.includes('new URL')).toBe(true);
-            expect(code.includes('import.meta.url')).toBe(true);
+            const dir = JSON.stringify(relative('/proj/dist', '/proj/node_modules/pkg/dist') + '/');
+            const file = JSON.stringify(relative('/proj/dist', path));
+            expect(out?.code).toBe(
+                'import { fileURLToPath as __gjsifyFileURLToPath } from "node:url";\n' +
+                    `var __dirname = __gjsifyFileURLToPath(new URL(${dir}, import.meta.url)).replace(/[\\\\/]$/, "");\n` +
+                    `var __filename = __gjsifyFileURLToPath(new URL(${file}, import.meta.url));\n` +
+                    'const d = __dirname;\nconst f = __filename;\nexport { d, f };\n',
+            );
         });
 
-        await it('routes both through runtime module-resolve shim when runtimeResolve=true', async () => {
-            const path = '/proj/node_modules/pkg/dist/index.js';
-            const src = 'const d = import.meta.dirname;\nconst f = import.meta.filename;\nexport { d, f };\n';
-            // Test runtime-resolve mode (runtimeResolve=true)
+        await it('routes both through the module-resolve shim when runtimeResolve=true', async () => {
             const out = rewriteContents({ path }, src, '/proj/dist', true);
-            expect(out === null).toBe(false);
-            const code = out?.code ?? '';
-            expect(code.includes('import.meta.dirname')).toBe(false);
-            expect(code.includes('import.meta.filename')).toBe(false);
-            // Runtime mode uses the module-resolve shim
-            expect(code.includes('__gjsifyModuleDir')).toBe(true);
-            expect(code.includes('__gjsifyModuleFile')).toBe(true);
-            expect(code.includes('__gjsifyModuleUrl')).toBe(true);
-            expect(code.includes('@gjsify/rolldown-plugin-gjsify/shims/module-resolve')).toBe(true);
+            expect(out?.code).toBe(
+                'import { __gjsifyModuleUrl, __gjsifyModuleDir, __gjsifyModuleFile } from "@gjsify/rolldown-plugin-gjsify/shims/module-resolve";\n' +
+                    'const d = __gjsifyModuleDir("pkg/dist/index.js");\n' +
+                    'const f = __gjsifyModuleFile("pkg/dist/index.js");\n' +
+                    'export { d, f };\n',
+            );
         });
     });
 };

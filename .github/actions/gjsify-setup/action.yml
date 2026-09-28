@@ -543,21 +543,23 @@ runs:
     # for the same rule read the other way: `showcases/` and `examples/` are
     # siblings at the repo root, so their LCA IS the root.)
     #
-    # The GJS bootstrap bundles — the transport that replaces `git` for the two
-    # big bundles (ADR 0002). Every downstream job boots `dist/cli.gjs.mjs` (≈17
-    # e2e suites do), and once it is untracked a checkout no longer carries it.
+    # Because that coupling is invisible from either side, the next step
+    # ASSERTS the files landed rather than trusting it — add a path outside
+    # `packages/infra` to the upload and this fails loudly instead of leaving
+    # every downstream job booting a checkout that has no bundle.
     #
-    # This download is OPTIONAL: on a completely fresh CI run (no previous run
-    # artifacts), the artifact won't exist yet. The build will bootstrap itself
-    # via `install.mjs` + `build:infra` and then upload new bundles for the next
-    # run. `if-no-files-found: warn` allows the job to continue and self-bootstrap.
+    # There is no "fresh run" case to tolerate: artifacts are scoped to ONE
+    # workflow run, never inherited from a previous one, and every job that sets
+    # `bootstrap-bundles: 'true'` gates on `needs.build.result == 'success'` —
+    # a build that uploads these two files unconditionally with
+    # `if-no-files-found: error`. If this step runs, the artifact exists; a
+    # missing file here is always drift, never a first run.
     - name: Restore the GJS bootstrap bundles
       if: ${{ inputs.bootstrap-bundles == 'true' }}
       uses: actions/download-artifact@v8
       with:
         name: bootstrap-bundles-fedora${{ inputs.fedora-version }}
         path: packages/infra
-        if-no-files-found: warn
 
     - name: Hand the restored bundles to testuser
       if: ${{ inputs.bootstrap-bundles == 'true' }}
@@ -566,8 +568,11 @@ runs:
         set -euo pipefail
         for f in packages/infra/cli/dist/cli.gjs.mjs packages/infra/tsc/dist/tsc.gjs.mjs; do
           if [ ! -f "$f" ]; then
-            echo "::warning::$f missing after download-artifact (artifact may not exist on first run). Self-bootstrap will build it."
-            exit 0
+            echo "::error::$f missing after download-artifact. The archive is rooted at the"
+            echo "::error::least common ancestor of the producer's paths; if that moved, the"
+            echo "::error::download's \`path:\` has to move with it (.github/workflows/main.yml)."
+            find . -maxdepth 4 -name '*.gjs.mjs' -not -path './node_modules/*' | head -20
+            exit 1
           fi
         done
         # `download-artifact` writes as root; every later step runs as testuser.
