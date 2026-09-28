@@ -1,4 +1,4 @@
-# ADR 0083: OS axis second derivation signal
+# ADR 0083 — OS axis second derivation signal
 
 ## Status
 
