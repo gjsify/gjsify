@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// E2E shard runner — splits the EXACT suite set of the `test:e2e` npm script
+// E2E shard runner — splits the EXACT suite set `scripts/e2e-suites.mjs` discovers
 // across N parallel CI jobs, balanced by measured duration.
 //
 //   node scripts/e2e-shard.mjs <index> <total>     # run shard <index> of <total> (1-based)
@@ -8,14 +8,13 @@
 //   E2E_TIMINGS_OUT=<dir> node scripts/e2e-shard.mjs …   # also record per-suite durations into <dir>
 //   node scripts/e2e-shard.mjs --refresh-timings <dir>…  # fold recorded durations into the timing file
 //
-// The suite set is parsed from `package.json#scripts.test:e2e`, NOT globbed from
-// tests/e2e/*: some suite dirs are deliberately absent from it (the ledger is
-// `scripts/e2e-unlisted-suites.mjs`) and a glob would run them anyway. Shape:
-//   node --test --test-concurrency=4 <parallel .mjs...> && node --test <serial> && node --test <serial>
-// Segment 0 is the parallel batch (incl. tests/lint-engines.mjs); each later
-// segment is a serial suite that must run ALONE because it owns global machine
-// state (flatpak-sdk-extension drives flatpak-builder, self-host rebuilds the
-// workspace). Serial suites run one at a time after their shard's batch.
+// The suite set comes from `listE2eSuites()`, which walks `tests/e2e/*/` and applies
+// the two ledgers (`e2e-unlisted-suites.mjs`, `e2e-serial-suites.mjs`) — NOT a glob run
+// here, so a suite dir deliberately excluded stays excluded. `parallel` runs together in
+// one `node --test --test-concurrency=4`; each `serial` suite must run ALONE because it
+// owns global machine state (flatpak-sdk-extension drives flatpak-builder, self-host
+// rebuilds the workspace) — see `e2e-serial-suites.mjs` for the reasons. Serial suites
+// run one at a time after their shard's batch.
 //
 // BALANCED BY DURATION, not by list position. Round-robin over the sorted list
 // measured shard 4 at 824 s against shard 3 at ~570 s (run 36433926348): the
@@ -36,12 +35,14 @@
 //   gh run download <run-id> --repo gjsify/gjsify -p 'e2e-timings-*' -D tmp/e2e-timings
 //   E2E_TIMINGS_SOURCE='run <run-id>' node scripts/e2e-shard.mjs --refresh-timings tmp/e2e-timings
 // A refresh replaces the measured suites, keeps the old figure for any suite that
-// run did not measure, and drops suites no longer in `test:e2e`.
+// run did not measure, and drops suites `listE2eSuites()` no longer discovers.
 
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+
+import { LINT_ENGINES_SUITE, listE2eSuites } from './e2e-suites.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TIMINGS_FILE = join(ROOT, 'scripts', 'e2e-shard-timings.json');
@@ -53,7 +54,7 @@ const PARALLEL_CONCURRENCY = 4;
 // lint-engines asserts every example package has built dist, so it needs the
 // example-dist artifact. It runs in `main.yml`'s `examples-build` job, where that
 // dist is produced, so no e2e shard has to wait for the examples build.
-const EXAMPLE_DIST_SUITES = ['tests/lint-engines.mjs'];
+const EXAMPLE_DIST_SUITES = [LINT_ENGINES_SUITE];
 
 function fatal(msg) {
     console.error(`e2e-shard: ${msg}`);
@@ -61,21 +62,10 @@ function fatal(msg) {
 }
 
 function readSuites() {
-    const script = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts?.['test:e2e'];
-    if (!script) fatal('no "test:e2e" script in package.json.');
-    // `&&`-separated commands: segment 0 = the parallel batch, the rest = serial.
-    const segments = script.split('&&').map((s) => s.trim());
-    const extractPaths = (seg) => seg.match(/tests\/\S+?\.mjs/g) ?? [];
-    const allParallel = [...extractPaths(segments[0])].sort();
-    const serial = segments.slice(1).flatMap(extractPaths); // order preserved
-    const missing = EXAMPLE_DIST_SUITES.filter((p) => !allParallel.includes(p));
-    if (missing.length) {
-        fatal(`${missing.join(', ')} left the parallel batch of test:e2e — update EXAMPLE_DIST_SUITES.`);
-    }
-    return {
-        parallel: allParallel.filter((p) => !EXAMPLE_DIST_SUITES.includes(p)),
-        serial,
-    };
+    // `listE2eSuites()` walks `tests/e2e/*/` only, so the example-dist suites (outside
+    // it) are never in `parallel`; they run through `--example-dist` instead.
+    const { parallel, serial } = listE2eSuites({ root: ROOT });
+    return { parallel: [...parallel].sort(), serial }; // serial: already sorted
 }
 
 function readTimings() {
@@ -108,7 +98,7 @@ function assignShards({ parallel, serial }, weights, total) {
     }
     for (const s of shards) {
         s.parallel.sort();
-        // Serial suites keep their `test:e2e` order within a shard.
+        // Serial suites keep their discovered order within a shard.
         s.serial.sort((a, b) => serial.indexOf(a) - serial.indexOf(b));
     }
     const unknown = [...parallel, ...serial].filter((p) => !(p in weights));
@@ -120,7 +110,9 @@ function assertPartition({ parallel, serial }, shards) {
     for (const s of shards) for (const p of [...s.parallel, ...s.serial]) seen.set(p, (seen.get(p) ?? 0) + 1);
     const bad = [...parallel, ...serial].filter((p) => seen.get(p) !== 1);
     if (bad.length || seen.size !== parallel.length + serial.length) {
-        fatal(`shard assignment is not a partition of test:e2e (offending: ${bad.join(', ') || 'extra entries'}).`);
+        fatal(
+            `shard assignment is not a partition of the discovered suites (offending: ${bad.join(', ') || 'extra entries'}).`,
+        );
     }
 }
 
@@ -184,7 +176,6 @@ if (argv[0] === '--refresh-timings') {
 }
 
 if (argv[0] === '--example-dist') {
-    readSuites(); // asserts the suites are still listed in test:e2e
     console.log(`[e2e-shard] example-dist suites: ${EXAMPLE_DIST_SUITES.join(', ')}`);
     if (listOnly) process.exit(0);
     process.exit(nodeTest(EXAMPLE_DIST_SUITES, 'example-dist') ? 0 : 1);
