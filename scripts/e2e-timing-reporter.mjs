@@ -26,7 +26,7 @@ export default async function* e2eTimingReporter(source) {
     }
     const rounded = Object.fromEntries(
         Object.entries(perFile)
-            .sort(([a], [b]) => a.localeCompare(b))
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
             .map(([f, ms]) => [f, Math.round(ms)]),
     );
     yield `${JSON.stringify(rounded, null, 4)}\n`;

@@ -98,7 +98,7 @@ function assignShards({ parallel, serial }, weights, total) {
     const items = [
         ...parallel.map((p) => ({ path: p, serial: false, cost: weightOf(p) / PARALLEL_CONCURRENCY })),
         ...serial.map((p) => ({ path: p, serial: true, cost: weightOf(p) })),
-    ].sort((a, b) => b.cost - a.cost || a.path.localeCompare(b.path));
+    ].sort((a, b) => b.cost - a.cost || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     const shards = Array.from({ length: total }, () => ({ load: 0, parallel: [], serial: [] }));
     for (const item of items) {
         let best = 0;

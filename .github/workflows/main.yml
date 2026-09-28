@@ -1157,9 +1157,11 @@ jobs:
         if: ${{ needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs --example-dist'
 
-      # Hand the freshly-built example dist to the e2e + examples jobs. They
-      # CANNOT rebuild examples themselves (build:examples needs the full
-      # package tree), so the dist travels as an artifact instead.
+      # Hand the freshly-built example dist to the `examples` job. It CANNOT
+      # rebuild examples itself (build:examples needs the full package tree),
+      # so the dist travels as an artifact instead. `e2e` no longer needs
+      # this: the one suite that read it (lint-engines) runs above, in this
+      # job, via `scripts/e2e-shard.mjs --example-dist`.
       - name: Upload example build output
         uses: actions/upload-artifact@v7
         with:
@@ -1544,9 +1546,9 @@ jobs:
 
   # ── E2E tests ───────────────────────────────────────────────────────
   # Exercises the CLI end-to-end (install, build, dlx, publish, …) in its own
-  # parallel job. Downloads the example dist the build job produced (its
-  # lint-engines suite asserts every example has built output). Gated when an
-  # `e2e` path was touched OR on a full run.
+  # parallel job. Needs only `build`: the one suite that reads example dist
+  # (lint-engines) moved to `examples-build`, so no shard waits for it here.
+  # Gated when an `e2e` path was touched OR on a full run.
   e2e:
     needs: [changes, setup, build]
     if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
