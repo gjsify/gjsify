@@ -37,7 +37,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
-import { parse } from '@gjsify/semver';
+import { parse, satisfies } from '@gjsify/semver';
 import { DEFAULT_REGISTRY, fetchPackument, parseNpmrc, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
