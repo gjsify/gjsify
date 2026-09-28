@@ -52,7 +52,7 @@ const { auditPrebuildLibc, platformPackageDirName } = await import(
  * Derived through `platformPackageDirName()` rather than composed here, because a
  * composed path string never appears as a literal to grep for — the `<os>-<arch>`
  * unification had to sweep nine such fixtures by hand and missed one
- * (`status/open-todos.md`), and all four of this file's strings broke on the split.
+ * (`status/open-todos/README.md`), and all four of this file's strings broke on the split.
  */
 const realPrebuild = (pillar, bridge, target) =>
     join(MONOREPO_ROOT, 'packages', pillar, platformPackageDirName(bridge, target), 'prebuilds', target);

@@ -3156,7 +3156,7 @@ jobs:
       # `nodew.exe`, so a GUI launch of this artifact pops a console window — and
       # every Windows leg starts the app from a shell and therefore inherits one,
       # which is why this is a PRINTED number and not a check anywhere. Recorded in
-      # `status/open-todos.md`; do not add a leg that appears to cover it.
+      # `status/open-todos/README.md`; do not add a leg that appears to cover it.
       - name: Record the interpreter's PE subsystem (the console-window gap)
         working-directory: tests/e2e/ship-macos/fixtures/window-app
         run: |

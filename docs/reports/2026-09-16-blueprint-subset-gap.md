@@ -271,7 +271,7 @@ UTF-8 byte sequence** compiles here — the emitter writes U+FFFD into the prope
 does not even reach an error message, it crashes with `UnicodeDecodeError: 'utf-8' codec can't
 decode byte 0xff in position 34: invalid start byte`. Neither is in `refused/` and neither has a
 rule file, so nothing in this repository would notice either today. They are recorded in
-`status/open-todos.md` with the oracle's exact words; they need a `refused/` file each, not parser
+`status/open-todos/README.md` with the oracle's exact words; they need a `refused/` file each, not parser
 features (§ 5).
 
 ## 4. Cost per construct

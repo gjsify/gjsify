@@ -497,7 +497,7 @@ jobs:
         run: su testuser -c 'node scripts/check-blueprint-census.mjs'
 
       # The same class one file over. The corpus sizes are restated in prose in several
-      # places — `status/open-todos.md`, the package README, the manifest's own header —
+      # places — `status/open-todos/README.md`, the package README, the manifest's own header —
       # and nothing held them to the tree, so #1698 corrected them and #1700 made every one
       # of them wrong again within hours. This sweeps the tree for a stated count and holds
       # each to the listing it describes; a dated measurement keeps its number and says so in
@@ -744,13 +744,13 @@ jobs:
       # because `files` never named the gitignored build output. Runs here and
       # not in the packer because the superset needs `declaredPaths()` from the
       # still-`private` `@gjsify/manifest-conformance` (see the script's header
-      # and `status/open-todos.md`). Post-condition: it reads the CLI's built
+      # and `status/open-todos/README.md`). Post-condition: it reads the CLI's built
       # `lib/`, so it must follow the build.
       - name: Verify declared entry points are in the tarball
         run: su testuser -c 'node scripts/verify-tarball-outputs.mjs'
 
       # The SHOWCASES, as a separate scope. Held back until now for one honest
-      # reason recorded in `status/open-todos.md`: it red-lined on a real finding
+      # reason recorded in `status/open-todos/README.md`: it red-lined on a real finding
       # — 13 declared entry points across 6 of the 8 published showcases, every
       # one present on disk and absent from the tarball because `files` was
       # `["dist"]` while the export names `./src/…`. Wiring it while it failed
@@ -1916,7 +1916,7 @@ jobs:
   # Closing that needs a `kind: 'app'` subject — `tests/e2e/ship/run.mjs`'s
   # `scaffold()` is one, once it is lifted into a `fixture.mjs` both callers can
   # import (a second copy of it here would be the exact duplication AGENTS.md
-  # names). Tracked in `status/open-todos.md`.
+  # names). Tracked in `status/open-todos/README.md`.
   ship-stage:
     needs: [changes, setup, build]
     # The same gate `e2e` carries, and it is safe for this leg specifically:
@@ -2168,7 +2168,7 @@ jobs:
       # every artifact assertion below would still pass — green, and it never
       # exercised the handoff.
       #
-      # `status/open-todos.md` item 3 names the proof: "stage into a tmpdir,
+      # `status/open-todos/README.md` item 3 names the proof: "stage into a tmpdir,
       # DELETE THE PROJECT TREE, pack from the stage". No checkout is that
       # deletion, expressed as job shape. The job's three inputs — the tool, the
       # payload, the readers — each arrive as their own artifact into their own

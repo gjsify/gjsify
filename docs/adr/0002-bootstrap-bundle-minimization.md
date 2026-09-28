@@ -76,7 +76,7 @@ better: `cli.gjs.mjs` is now **250 commits** on `main`'s history (373 across all
 refs) at 6,605,536 B, and the three bundles together are ~135 MiB of an 883 MiB
 packed object store — roughly **15 % of the repository's entire history, from
 three generated files**. Since this ADR was accepted, `main` shipped a
-non-reproducing bundle twice (`status/open-todos.md`), and the failure lands on
+non-reproducing bundle twice (`status/open-todos/README.md`), and the failure lands on
 whoever pushes next rather than on whoever caused it.
 
 What changes is **decision 2**, and the correction is not a detail — the obvious

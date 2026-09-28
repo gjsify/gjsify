@@ -5,7 +5,7 @@
 // became `/usr`, a `--prefix` tree, `/app`, `Contents/Resources` or a Windows program directory.
 // This is the side that reads it. It lives in the host layer rather than in each application
 // because otherwise every consumer that ships a face writes the same loop (ADR 0038 § "What this
-// does NOT decide", and `status/open-todos.md`).
+// does NOT decide", and `status/open-todos/README.md`).
 //
 // WHY THE CALL EXISTS AT ALL, since two of the three operating systems reach the directory without
 // it. On LINUX the stock `fonts.conf` finds the staged faces on its own — `<dir>/usr/share/fonts</dir>`

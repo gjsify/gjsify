@@ -275,4 +275,4 @@ Three changes, in the only order that works, plus the proof:
 | 3 | `blueprintPlugin()` on the `nativescript` target; the retired comment quoted where it stood; `platformResolvePlugin` stands down on a query specifier. | the platform-resolve suite's query row, on both chains — and, before it existed, every `--app nativescript` build of a `?shared-tree` import |
 | 4 | `blueprint-tree.spec.ts` in `adwaita-web`: a shipped, lossless `.blp` mounted in a browser, with two `it.failing` cases for the slot gap. | a node that stops arriving; a caption that stops rendering; and, the day `slot` gets a reader, the two failing cases themselves |
 
-Follow-ups are tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+Follow-ups are tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.

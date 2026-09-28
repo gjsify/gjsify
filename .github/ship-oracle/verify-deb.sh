@@ -257,7 +257,7 @@ echo "  none of the gated tags fired"
 
 ERROR_TAGS=$(grep '^E:' <<<"$LINTIAN_OUT" || true)
 if [ -n "$ERROR_TAGS" ]; then
-    echo "::warning title=Ship .deb::lintian reports error-severity tags this leg does not gate on yet. Each is a real Debian Policy gap in the hand-written writer — ledger it in status/open-todos.md or fix it; do not let the set grow silently."
+    echo "::warning title=Ship .deb::lintian reports error-severity tags this leg does not gate on yet. Each is a real Debian Policy gap in the hand-written writer — ledger it in status/open-todos/README.md or fix it; do not let the set grow silently."
     printf '%s\n' "$ERROR_TAGS"
 fi
 

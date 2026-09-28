@@ -227,4 +227,4 @@ else by default: this module already pulls the whole descriptor table through
 
 **Option B is not taken and is not dead** — a `@gjsify/devtools` D-Bus method is what
 answers a composition that goes wrong after startup, which this does not. It is in
-`status/open-todos.md` with what A leaves open.
+`status/open-todos/README.md` with what A leaves open.

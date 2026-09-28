@@ -104,7 +104,7 @@ export interface GiRendererOptions {
  * passes `--gi-renderer`, so the arm never composes there and this text cannot reach them
  * — measured, nothing under `tests/` names the flag but `gi-renderer-arms` itself. Making
  * that suite's two assertions import-shaped would retire this rule outright; the argument,
- * the other twelve sites and the retirement condition are in `status/open-todos.md`.
+ * the other twelve sites and the retirement condition are in `status/open-todos/README.md`.
  */
 export function giRendererShimSource(options: GiRendererOptions, namespace: string, version: string): string {
     return (

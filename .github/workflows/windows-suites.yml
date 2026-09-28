@@ -74,7 +74,7 @@
 #
 # WHY cmd.exe, AND WHY THE PATH IS STRIPPED
 #
-# `status/open-todos.md` records the measurement: Git for Windows puts
+# `status/open-todos/README.md` records the measurement: Git for Windows puts
 # `C:\Program Files\Git\usr\bin` on PATH, which supplies a real `chmod`, `cp`,
 # `rm`, `sed` and `which`, and every process spawned from that shell inherits
 # them. npm, however, runs package scripts through `%COMSPEC%`, where none of

@@ -198,7 +198,7 @@ export class TLSSocket extends Socket {
      * runtime's own native module (e.g. `@gjsify/node-gi`'s consumer harness,
      * which forces `runtimes.node === "native"` deps onto their polyfill body
      * but `@gjsify/net` declares `"none"`, so it stays native — see
-     * status/open-todos.md). Generic-Duplex support is tracked there too.
+     * status/open-todos/README.md). Generic-Duplex support is tracked there too.
      *
      * ONE guard for every claim site: this method for the two client
      * ones, {@link claimGjsifyConnection} directly for `TLSServer`'s
@@ -852,14 +852,14 @@ function _upgradeRaceError(): Error & { code: string } {
  * connection (`_claimConnection`/`_detachReader` missing). Node's real
  * `tls.connect({socket})` accepts any Duplex; adopting a foreign one needs
  * a Duplex→Gio.IOStream adapter this package doesn't have yet — tracked in
- * status/open-todos.md, next to the SNI-peek entry.
+ * status/open-todos/README.md, next to the SNI-peek entry.
  */
 export function foreignSocketError(): Error & { code: string } {
     const err = new Error(
         'tls.connect({socket}) / new tls.TLSSocket(socket, …) can only upgrade a @gjsify/net ' +
             "Socket today — the given socket doesn't carry the Gio connection needed to build a " +
             "Gio.TlsClientConnection. Generic Duplex support (Node's real contract) is tracked in " +
-            'status/open-todos.md.',
+            'status/open-todos/README.md.',
     ) as Error & { code: string };
     err.code = 'ERR_GJSIFY_TLS_FOREIGN_SOCKET';
     return err;

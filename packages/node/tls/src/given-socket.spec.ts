@@ -16,7 +16,7 @@
 // for the actual plaintext-then-upgrade shape). Also runs, a third way,
 // under `@gjsify/node-gi`'s consumer harness — this polyfill's `tls.connect`
 // driven by a `net.Socket` that ISN'T this polyfill's (see `isForeignSocket`
-// below and status/open-todos.md): the two data-round-trip cases decide
+// below and status/open-todos/README.md): the two data-round-trip cases decide
 // which outcome to expect from the socket itself, BEFORE calling
 // `tls.connect` — never from whichever outcome happens to come back — so a
 // real regression can't silently slide into the "foreign socket" branch.

@@ -77,7 +77,7 @@ packages the install itself would not have placed there.
 shape and more. It needs a record of what the prefix was ASSEMBLED FROM, and no prefix carries one:
 the global prefix has no lockfile, no `package.json` and no root list. Adding that record is a
 separate change, and until it exists an orphan sweep would be guessing. Tracked in
-`status/open-todos.md`.
+`status/open-todos/README.md`.
 
 **`gjsify uninstall`** does not prune. An uninstall is precisely when a dependency closure becomes
 unreachable — which is the reachability rule, deferred above. Its handler is also synchronous and

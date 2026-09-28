@@ -234,7 +234,7 @@ export default async () => {
             // Assert the STORAGE CLASS per row rather than the JS value. Reading the
             // values back would test the reader, not the binding: a typeless column
             // holding a mix of types is one libgda types as string wholesale (see
-            // status/open-todos.md), so `rows[1].a` comes back as "42.0" here and as 42 on
+            // status/open-todos/README.md), so `rows[1].a` comes back as "42.0" here and as 42 on
             // Node. `typeof(a)` is a text column either way, so it reads the same on both.
             const rows = db.prepare('SELECT typeof(a) AS ty FROM t ORDER BY rowid').all() as Record<string, unknown>[];
             expect(rows.length).toBe(3);

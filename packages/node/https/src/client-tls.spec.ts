@@ -9,7 +9,7 @@
 //
 // The server differs per runtime, the assertions do not: Node uses https.createServer;
 // on GJS a TLS Soup.Server, because @gjsify/https's Server does not terminate TLS yet
-// (status/open-todos.md).
+// (status/open-todos/README.md).
 
 import { describe, it, expect } from '@gjsify/unit';
 import { isGJS } from '@gjsify/runtime';

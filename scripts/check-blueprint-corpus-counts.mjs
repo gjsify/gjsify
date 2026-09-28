@@ -4,7 +4,7 @@
 // WHY THIS EXISTS. The corpus sizes — rule files, reality probes, goldens, refusals — are
 // restated in prose in several files. Nothing held them to the tree, so every corpus change
 // invalidated them in silence. It failed twice in one day: #1698 corrected the counts in
-// `status/open-todos.md`, and #1700 added rule files and refusals hours later and left every
+// `status/open-todos/README.md`, and #1700 added rule files and refusals hours later and left every
 // one of them wrong again. #1698 built exactly this gate one file over, for ADR 0053's census;
 // this is the same class, and a gate is the only difference between a rule and a preference.
 //

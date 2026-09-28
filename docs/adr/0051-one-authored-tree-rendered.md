@@ -41,7 +41,7 @@ declares itself one, and prints the distance every run. ADR 0034 owns that half.
 16 ledgered as divergent; 7 agree today
 ```
 
-**Do the renderers BEHAVE the same on that tree?** Held by nothing. `status/open-todos.md`
+**Do the renderers BEHAVE the same on that tree?** Held by nothing. `status/open-todos/README.md`
 already says it in the entry that census wrote: *"the shared source is compared as DATA
 rather than as a rendered tree"*. Seven blocks are authored once, and nothing builds them.
 
@@ -233,7 +233,7 @@ Stages 1–4 need no new package and no change to any adapter. Stage 5 is the on
 touches the website's authored fences, and it is last because the two stages before it are
 what make its result readable.
 
-Follow-up is tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+Follow-up is tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.
 
 ## Amendment 1 — the second driver is `adwaita-web`, and stage 2 as written cannot exist
 
@@ -332,7 +332,7 @@ matter to the decision.
   construction. Both Adwaita ports implement the pspec default, so the same authored banner
   is markup-on in the browser and markup-off in GTK. A tree driver therefore cannot read a
   pspec-default table off a built widget; what the ports should do about the divergence is a
-  rendering change with its own blast radius and is tracked in `status/open-todos.md`.
+  rendering change with its own blast radius and is tracked in `status/open-todos/README.md`.
 - **A localized rendering is a fact about the runner.** `SHORTCUT_LABEL_VECTORS` spells
   `<Control>C` as `[Ctrl][C]`; `Adw.ShortcutLabel` draws `gtk_accelerator_get_label`, which
   is translated — measured as `["Strg","C"]` on this de_DE host and `["Ctrl","C"]` under

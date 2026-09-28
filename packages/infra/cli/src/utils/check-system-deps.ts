@@ -938,7 +938,7 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
 // table plus `isDegenerate`, and a deliberate false NEGATIVE: a library genuinely
 // at exactly `<namespace>.0` is skipped rather than risk a false alarm. Closing
 // that gap needs the installed library's own `.gir`, which the bundles do not ship
-// (`status/open-todos.md`) — it is not reachable from this field.
+// (`status/open-todos/README.md`) — it is not reachable from this field.
 
 interface TypePackageBinding {
     /** pkg-config module whose `--modversion` is the runtime truth. */

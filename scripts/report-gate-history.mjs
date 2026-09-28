@@ -7,7 +7,7 @@
 // OS legs on `packages/node-gi/**`, so on a consumer-only change they resolve to
 // `skipped`, and the last run that executed that leg was two PRs earlier. A green tick
 // on `main` said nothing about it, and the investigation nearly blamed the change that
-// happened to be on top. `status/open-todos.md`: "a `skipped` leg is indistinguishable
+// happened to be on top. `status/open-todos/README.md`: "a `skipped` leg is indistinguishable
 // from a green one in the checks UI".
 //
 // WHAT THIS ANSWERS, at the two granularities that hide the same thing.

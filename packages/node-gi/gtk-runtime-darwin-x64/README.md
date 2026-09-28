@@ -110,7 +110,7 @@ npm install @gjsify/node-gi @gjsify/gtk-runtime-darwin-x64
   built the display-free variant, so the published tarball carried
   `Adw-1.typelib` with no libadwaita, no GSettings schemas and no icon themes.
 - **NOT yet covered:** the `--windowing` GUI proof (`macos-gtk-windowing-runtime` →
-  `macos-gtk-windowing`) runs on arm64 only. Tracked in `status/open-todos.md`.
+  `macos-gtk-windowing`) runs on arm64 only. Tracked in `status/open-todos/README.md`.
 
 `macos-15-intel` is the last x86_64 macOS image GitHub Actions offers (through
 August 2027), which puts a horizon on this package's CI coverage.

@@ -434,7 +434,7 @@ function resolveSlot(rec, target) {
             // in this state, so `--app nativescript` could not build ANY of them,
             // unnoticed because no CI job built them (`tests/e2e/ns-bridge-bundles`).
             // The warn-once stays — the DECLARATION is still wrong, and settling
-            // that vocabulary is its own change (`status/open-todos.md`).
+            // that vocabulary is its own change (`status/open-todos/README.md`).
             warnOnce(
                 `${rec.name}-${target}-native-missing-globals`,
                 `${rec.name} declares runtimes.${target}="native" but ships no globals.mjs — resolving it normally for --app ${target} builds.`,

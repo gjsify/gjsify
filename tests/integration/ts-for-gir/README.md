@@ -37,7 +37,7 @@ yarn test:gjs
 yarn workspace @gjsify/integration-ts-for-gir test
 ```
 
-## Out of scope (tracked in `status/open-todos.md`)
+## Out of scope (tracked in `status/open-todos/README.md`)
 
 - `@ts-for-gir/lib` — `TypeExpression`, `TypeIdentifier`, `TupleType`, ...
 - Generator pipeline (real GIR → `.d.ts` snapshot)

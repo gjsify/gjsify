@@ -17,7 +17,7 @@
 ADR 0053 made Blueprint a second READER of `SharedNode` and said, twice, that it was not
 deciding what the shape should hold: *"whether `SharedNode` grows to hold the portable
 values of ADRs 0042, 0046 and 0047, or a translatable marker … belongs to the ADR that
-needs it"*. `status/open-todos.md` has carried the question since, with the standing rule
+needs it"*. `status/open-todos/README.md` has carried the question since, with the standing rule
 beside it — deciding the authored form belongs to whoever brings a measurement.
 
 This is the measurement, and the decision it makes cheap to take.
@@ -234,7 +234,7 @@ would produce. Run through the same parse and projection:
 
 The two clean ones are `Adw.Avatar` and `Adw.Spinner`. The refusal is `Adw.AlertDialog`,
 whose `responses` block carries a response flag the AST has no field for — already a named
-refusal in `status/open-todos.md`, and reached here from a second direction.
+refusal in `status/open-todos/README.md`, and reached here from a second direction.
 
 **The 165 `_()` calls are not 165 marked props, and the field's reach is the smaller
 number.** 137 of them sit on a scalar property and are exactly what a `translatable` field
@@ -365,7 +365,7 @@ counted down by `check-vocabulary-alignment.mjs`.
 `adwaita-gallery-shared-trees.mjs`'s own comment on the two ledger entries records the
 second kind beside it — *"a different value kind besides (`string[]` against
 `Set<string>`)"*. So a converged NAME does not hand the shared corpus a value all three
-surfaces read; that is the class `status/open-todos.md` files under "A property can agree
+surfaces read; that is the class `status/open-todos/README.md` files under "A property can agree
 on its NAME and disagree on its VALUE KIND", and `rebuild()` copies `props` through with no
 transform, so nothing downstream would reconcile it. Both halves have to close. Neither is
 a `SharedNode` field.
@@ -399,7 +399,7 @@ every shipped file are GtkBuilder addressing the other two surfaces cannot consu
 
 ADR 0051 Decision 1 keeps `ADWAITA_GALLERY_SHARED_TREES` the authored form and this ADR does
 not touch it. The decision above is what the shape should hold when a `.blp` EMITTER is
-built; the authored-form question stays open in `status/open-todos.md` with the price
+built; the authored-form question stays open in `status/open-todos/README.md` with the price
 measured above, which is the first time it has had one.
 
 ## Consequences
@@ -474,4 +474,4 @@ measured above, which is the first time it has had one.
   first place a new field is lost; both driver specs read the corpus through it.
 - Clause 3's guard is independent of all of that and can land alone, since it makes a claim
   about the widget table rather than about the projection.
-- Follow-up is tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+- Follow-up is tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.

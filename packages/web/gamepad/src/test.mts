@@ -5,7 +5,7 @@ import testSuiteGamepad from './gamepad.spec.js';
 // convention. It must NOT make the bundle require `gi://Manette` at LOAD — the
 // suite has to be runnable on a host with no Manette typelib, which is the very
 // situation this package is about. See the header of `register.spec.ts` for how
-// that is kept true, and `status/open-todos.md` for the measurement.
+// that is kept true, and `status/open-todos/README.md` for the measurement.
 import testSuiteRegister from './register.spec.js';
 // The device-source seam (ADR 0075), driven by fakes — no controller, no typelib.
 import testSuiteSource from './source.spec.js';

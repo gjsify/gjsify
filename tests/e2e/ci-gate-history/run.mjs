@@ -104,7 +104,7 @@ const run = (fixture, overrides = {}) =>
     gateHistoryReport({ api: fixture.api, repo: REPO, shas: [fixture.headSha], maxRunsBack: 5, ...overrides });
 
 describe('the incident: a skipped leg that last executed some commits ago', () => {
-    // Reconstructed from the measurement in status/open-todos.md — the leg was skipped on
+    // Reconstructed from the measurement in status/open-todos/README.md — the leg was skipped on
     // every recent main push and the last run that EXECUTED it was two PRs earlier, so
     // reading main as the baseline blamed the change on top.
     const fixture = fakeApi({

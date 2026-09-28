@@ -59,7 +59,7 @@ The method-built widgets get NO model type. Their gallery refusal is
 `uncurated-placement` — a `packages/framework/gtk-host/src/descriptors/` gap, which
 `scripts/adwaita-gallery-trees.mjs` already says is "a property of the descriptor table on
 `main`, not of the widget" — and a portable model would not unblock a single one of them.
-That half is filed in `status/open-todos.md` with its measurement rather than half-built.
+That half is filed in `status/open-todos/README.md` with its measurement rather than half-built.
 
 ### 2. The item vocabulary keeps its published names, and moves to one module
 
@@ -176,7 +176,7 @@ edge on `@gjsify/adwaita-core` and a `coerce` branch turning an authored array i
 NOT in this change: `packages/framework/gtk-host/**` is being reworked concurrently, and a
 speculative edit there would land as a merge conflict rather than as a feature. So the two
 gallery blocks stay refused, with half their reason now gone: what is missing is no longer
-a VALUE but the seam. `status/open-todos.md` carries it under "A portable list model
+a VALUE but the seam. `status/open-todos/README.md` carries it under "A portable list model
 reaches every renderer except GTK", with what closes it.
 
 ## Consequences
@@ -369,5 +369,5 @@ ledger, before the trees replacing them existed.
 **Deliberately left open.** `GtkListView`, `GtkGridView` and `GtkColumnView` keep their
 `Gtk.SelectionModel`-typed `model` un-widened; a portable SELECTION model is the layering
 "What this does NOT decide" declined and this amendment declines again. The method-built
-widgets are unchanged: `status/open-todos.md` carries them under "The list widgets GTK
+widgets are unchanged: `status/open-todos/README.md` carries them under "The list widgets GTK
 builds with a METHOD have no portable collection", and the seam is not the fix for them.

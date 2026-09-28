@@ -396,7 +396,7 @@ buys the green and hides the divergence it was built to surface.
   Three things bound it: the artifact ships only in an `os: ["darwin"]` package,
   macOS provably has no other provider (§ Context), and `@gjsify/iframe` is the
   only consumer. A macOS host that built WebKitGTK from source is the case this
-  gets wrong, and it is listed in `status/open-todos.md` rather than defended
+  gets wrong, and it is listed in `status/open-todos/README.md` rather than defended
   against speculatively.
 - **A new published `@gjsify/*` name costs a manual bootstrap.** npm Trusted
   Publishing requires the package to already exist, so the first publish is a

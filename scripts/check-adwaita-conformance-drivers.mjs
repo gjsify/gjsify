@@ -227,7 +227,7 @@ const NO_DRIVER_LEDGER = 'adwaita-core modules whose only vector table is core-o
 /**
  * Core modules with no conformance file named after them and none importing them for VALUE.
  * `table` — its vectors live in another file under that name; `gap` — the named `###` heading
- * must be an open item in `status/open-todos.md`, so the gap has a place to be closed from.
+ * must be an open item in `status/open-todos/README.md`, so the gap has a place to be closed from.
  * Both, where the vectors exist but no renderer drives THEM either — different facts, and an
  * entry that states only the first reads as explained while the module is held to nothing.
  */

@@ -196,7 +196,7 @@ Still not collected: the `gdk-pixbuf` loader modules + `loaders.cache` (they are
 dylibs needing `@loader_path` relocation from a nested dir, unlike win32's flat DLL
 copy), so SVG symbolic icons can render blank; and Fontconfig config/cache, which
 macOS text rendering does not need (Pango uses the CoreText backend). Both are
-tracked in `status/open-todos.md`.
+tracked in `status/open-todos/README.md`.
 
 **Env-free mechanism (macOS):** because dyld captures
 `DYLD_FALLBACK_LIBRARY_PATH` only at launch, node-gi re-execs once with it set (see

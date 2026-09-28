@@ -1014,7 +1014,7 @@ async function auditReachability(meta) {
  * user confirm + split PRs). Part of the gap is not closable in a `globals.mjs` at ALL —
  * no `globals.mjs` in the tree imports its own package body, so a name with no
  * runtime-native source needs a platform entry rather than a re-export. Tracked in
- * `status/open-todos.md`.
+ * `status/open-todos/README.md`.
  *
  * @returns {Promise<string[]|null>} the missing value exports, or `null` when the slot
  *          does not route here / there is nothing to compare.
@@ -1036,7 +1036,7 @@ async function nativeGlobalsGap(rec, srcDir) {
     // module AND has a root export that module does not carry is skipped too, so its real
     // gap is invisible here. Closing it means asking the runtime for the star target's
     // export set — runtime EVALUATION, which this audit must not do (it would crash on a
-    // browser-only re-export). Recorded in `status/open-todos.md`.
+    // browser-only re-export). Recorded in `status/open-todos/README.md`.
     if (/^export\s*\*\s*from\s*['"](?!\.)/m.test(globalsSrc)) return 'star';
     const rootExports = await collectValueExports(rootEntry);
     const globalsExports = await collectValueExports(globalsFile);

@@ -291,7 +291,7 @@ test('the backend the bundle selects is the backend it gets, or the gap is named
     );
     console.log(
         `PANGOCAIRO_BACKEND=fc is INERT here: pango lists [${backends}], which carries no fontconfig ` +
-            'backend to select. #1668 is NOT fixed on this platform; see status/open-todos.md.',
+            'backend to select. #1668 is NOT fixed on this platform; see status/open-todos/README.md.',
     );
 });
 

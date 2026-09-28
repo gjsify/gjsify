@@ -4,7 +4,7 @@ A step-back pass over one day of parallel agent work in `gjsify/gjsify`: **eleve
 (`bc78d1b689..3e12aefe1a` — eleven commits, eleven distinct PR refs: #1682-#1691 and #1693) plus
 a `ts-for-gir` v5.2.0 release. This file is the
 *why + priority* record for the refactor that follows; the ADRs are the decisions and
-`status/open-todos.md` tracks the work.
+`status/open-todos/README.md` tracks the work.
 
 > **Every reading below is measured at `3b796bf95e`**, and every `file:line` is relative to that
 > one commit. Where something was *not* measured it says so on the spot and again in § 8.
@@ -164,7 +164,7 @@ consumer whose `.blp` uses one of those. That trade is defensible — it is clau
 design — but it is a downstream-visible behaviour change that the corpus cannot speak to,
 because the corpus contains no third-party file by construction (clause 6 forbids it).
 
-**`status/open-todos.md` already states this as the open decision** — the paragraph beginning
+**`status/open-todos/README.md` already states this as the open decision** — the paragraph beginning
 "The flip is the part with a decision in it" (`:6249-6254`, was `:6247-6252` before #1698 moved
 it), which says "the flip has to say what a build does when a real file trips one" — and it
 remains unanswered. It is the one question in the flip that no measurement settles.
@@ -218,7 +218,7 @@ The MSYS2 branch is real, but it lives in two places clause 7 does not name:
 
 So item 3 is not a third deletion. It is **item 1's content, counted twice under a wrong
 address**, plus one genuine consumer update in `check-system-deps.ts` that clause 7 never lists.
-`status/open-todos.md:6268` repeats the same wrong address, having inherited it — the sentence
+`status/open-todos/README.md:6268` repeats the same wrong address, having inherited it — the sentence
 "and the MSYS2 branch of `gjsify system-check`".
 
 Correcting this matters beyond tidiness: a deletion list is a completion test, and an item
@@ -227,7 +227,7 @@ naming a file that cannot contain it can never be checked off honestly.
 **CLOSED — #1698 merged (`9d7b0d4b99`) and fixed the address in both places.** ADR 0053 clause 7
 now reads "This clause once named 'the MSYS2 branch of `gjsify system-check`' as a THIRD item.
 That was one deletion counted twice under an address that never held it" and names the real
-location. `status/open-todos.md:6270-6271` carries the identical correction in the same words.
+location. `status/open-todos/README.md:6270-6271` carries the identical correction in the same words.
 
 ### 2.2 The deletion list understates its own blast radius — P2
 
@@ -237,9 +237,9 @@ Clause 7 reads as four independent items. Items 1 and 3 are one deletion with fo
 blueprint-compiler here: it is checked by `checkBlueprintCompiler()`…") — which becomes dead prose
 the moment the build stops needing the binary.
 
-### 2.3 `status/open-todos.md` disagrees with the ADR about the storybook window — P3
+### 2.3 `status/open-todos/README.md` disagrees with the ADR about the storybook window — P3
 
-`status/open-todos.md:6269` lists "the programmatic storybook window" **inside** the
+`status/open-todos/README.md:6269` lists "the programmatic storybook window" **inside** the
 deletion list (the paragraph beginning "Done is a deletion list, not a feature list"). ADR 0053
 clause 7 says the opposite in as many words: it "is a DIFFERENT item … what it needs is a scoping
 decision and not a deletion". The todo entry turns a scoping question
@@ -402,22 +402,22 @@ thirteenth `.blp` cannot leave this stale again the way a twelfth did. The regen
 23 `using` lines (was 22), 83 `Adw.HeaderBar` (was 81), 208 `title:` (was 197) — all now measured
 across twelve files.
 
-### 4.4 `status/open-todos.md` carried a corpus count stale in both halves — CLOSED, then reopened by #1700 — P3
+### 4.4 `status/open-todos/README.md` carried a corpus count stale in both halves — CLOSED, then reopened by #1700 — P3
 
-`status/open-todos.md` used to read "**45 of the 46** corpus files are byte-equal and
+`status/open-todos/README.md` used to read "**45 of the 46** corpus files are byte-equal and
 `corpus/divergences.mjs` holds one entry on one line" — wrong in the denominator (46, not
 35 rules + 12 probes = 47) and the numerator (`SHADOW_DIVERGENCES` is `[]`, so no entry is
 excused; the reading should have been 47 of 47).
 
-**#1698 merged (`9d7b0d4b99`) and fixed both halves**: `status/open-todos.md:6235-6236` came to
+**#1698 merged (`9d7b0d4b99`) and fixed both halves**: `status/open-todos/README.md:6235-6236` came to
 read "all 47 corpus files (35 rule files + 12 real `.blp`) are byte-equal … and the 15 refusals
 each name their construct and line."
 
 **#1700 merged after it (`3b796bf95e`) and made the same sentence stale again, the same way.**
 It grew the corpus to 38 rules + 19 refusals = 50 goldens (§ 1.5) without touching this line, so
-`status/open-todos.md:6235-6236` still reads 47/35/15 where the tree is now 50/38/19. Not a new
+`status/open-todos/README.md:6235-6236` still reads 47/35/15 where the tree is now 50/38/19. Not a new
 defect — the identical failure class recurring in the sentence that was just corrected for it.
-Out of scope for this survey to fix: `status/open-todos.md` is generated status prose, noted
+Out of scope for this survey to fix: `status/open-todos/README.md` is generated status prose, noted
 here rather than audited.
 
 ### 4.5 Two ADR header formats were invented on the same day — P3
@@ -725,7 +725,7 @@ doesNotExist;` — used to pass through `scalarText`→`identText` unchecked; `o
 different function and is unaffected: `resolveIdent` (`src/resolve-ident.mjs:268`, was cited at
 `:249`) throws on a bad enum/flags member via `lookupMember` (`:211`). That leaves (c) narrower
 than this survey first had it: #1700's own commit message names the three divergences that
-remain, "each measured and each recorded in `status/open-todos.md` rather than guessed at" — a
+remain, "each measured and each recorded in `status/open-todos/README.md` rather than guessed at" — a
 boolean setter takes the literal, a reference of the wrong TYPE still resolves, and an unknown
 property name still passes.
 

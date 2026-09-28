@@ -67,7 +67,7 @@ here too.
 
 ## Migrated from a single file
 
-This directory replaces `status/open-todos.md` (removed 2026-09-25, see
+This directory replaces `status/open-todos/README.md` (removed 2026-09-25, see
 `docs/status-changelog.md` and the PR that made this split). Every entry that existed
 in the old file still exists, unchanged, in exactly one of these files — verified at
 migration time by a line-multiset diff, not an ongoing check.

@@ -346,7 +346,7 @@ from TN3126 rather than measured, because the darwin leg signs `--target macos-a
 only and nothing signs `macos-app-zip`, unzips it and re-verifies. It needs no
 credential and is the next measurement. Past it: `notarytool`, which needs an Apple
 account; `xcrun stapler`, which needs a ticket; `signtool`, which needs a
-certificate; and § A16 in both directions. `status/open-todos.md` carries all of
+certificate; and § A16 in both directions. `status/open-todos/README.md` carries all of
 them.
 
 ## Consequences
@@ -369,7 +369,7 @@ them.
 - **Still open, and named rather than implied:** `signtool` has still never run
   (ADR 0024 § A5 — no ad-hoc mode on Windows, so it needs a certificate);
   `notarytool` has still never run; and § A16's library-validation question is still
-  unmeasured in both directions. `status/open-todos.md` carries all three.
+  unmeasured in both directions. `status/open-todos/README.md` carries all three.
 
 ## Implementation
 

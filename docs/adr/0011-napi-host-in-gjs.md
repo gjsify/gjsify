@@ -30,7 +30,7 @@ ABI + marshalling + teardown expertise from the consumer side.
 
 Full engineering plan (kept out of the repo per the werkstatt no-dev-plans rule):
 maintainer's `~/.claude/plans/napi-over-gjs.md`; the working roadmap lives in
-`status/open-todos.md` (new axis).
+`status/open-todos/README.md` (new axis).
 
 ## Decision
 

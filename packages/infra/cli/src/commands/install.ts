@@ -10,7 +10,7 @@
 // `node_modules/` and symlinks `workspace:` refs to their source. Members with
 // conflicting ranges of the same external still share ONE hoisted copy; the
 // resolver warns naming both ranges, both requesters and the winner (per-member
-// dedup is the open Phase D.8 item in status/open-todos.md).
+// dedup is the open Phase D.8 item in status/open-todos/README.md).
 //
 // Concurrency (ADR 0001): every prefix mutation runs under a per-prefix
 // cross-process lock (utils/install-lock.ts), so installs into different
@@ -724,7 +724,7 @@ function syncLockfileRequested(cwd: string, specs: string[]): void {
  *
  * Hoisting is deliberately minimal — members with conflicting ranges of the same
  * dep share one hoisted copy and the resolver warns. Per-member dedup and nested
- * `node_modules/` are the open Phase D.8 item in status/open-todos.md.
+ * `node_modules/` are the open Phase D.8 item in status/open-todos/README.md.
  */
 async function workspaceInstall(cwd: string, args: InstallOptions, signal?: AbortSignal): Promise<void> {
     // Held for the WHOLE flow: bin shims, workspace symlinks and the external

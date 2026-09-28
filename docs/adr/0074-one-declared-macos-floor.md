@@ -98,7 +98,7 @@ How it is checked — from the bytes, twice, never from the workflow text:
   (`audit-runtimes.mjs` passes `darwinDeploymentTarget: 'report'`): every violation is
   printed as a note on every run, and nothing fails. Flipping it to `'enforce'` is a
   one-line follow-up once `commit-prebuilds` has landed the rebuilt artifacts, tracked in
-  `status/open-todos.md`. Report mode is chosen over a per-package exemption because the
+  `status/open-todos/README.md`. Report mode is chosen over a per-package exemption because the
   exemption would have had to live in 14 GENERATED manifests and be cleared by the same
   commit that lands the artifacts — machinery this one-off transition does not justify.
   Outside this repository the rule enforces by default.

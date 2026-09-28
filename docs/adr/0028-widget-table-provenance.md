@@ -121,7 +121,7 @@ coercer and the verifier.**
    elements — an independent source, which is the part that can actually go red.
 
    Two things the measurement did justify, neither of them a validator, both
-   tracked in `status/open-todos.md`: `blueprint-compiler lint` is advisory today
+   tracked in `status/open-todos/README.md`: `blueprint-compiler lint` is advisory today
    and `vite-plugin-blueprint` runs only `compile`, so making lint fatal is a
    contained change with its own triage; and `AdwWindow` dispatches `<child>` on
    the child's GType while ignoring `type=`, which no field in `ChildPolicy`

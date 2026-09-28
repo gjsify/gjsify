@@ -1006,7 +1006,7 @@ export default async () => {
                 // object alive and answers `false`, and on node-gi
                 // `gtk_window_destroy()` drops GTK's reference and the same read is
                 // `TypeError: invalid GObject handle` — a divergence the node leg
-                // found and `status/open-todos.md` carries. The toplevel list is
+                // found and `status/open-todos/README.md` carries. The toplevel list is
                 // read off `Gtk.Window`, not off the corpse.
                 expect(unmapped).toBe(1);
                 expect(vetoed).toBe(1);

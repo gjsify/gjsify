@@ -281,7 +281,7 @@ const stop = watchDesktopAppearance((next) => broadcast(JSON.stringify(next))); 
 ```
 
 A web server must `listen()` before the module's first top-level await. On GJS a server
-started after one exits as soon as the module settles; see `status/open-todos.md`.
+started after one exits as soon as the module settles; see `status/open-todos/README.md`.
 [`examples/node/net-adwaita-appearance`](../../../examples/node/net-adwaita-appearance)
 serves a complete page that way.
 

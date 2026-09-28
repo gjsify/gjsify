@@ -115,7 +115,7 @@ version we test against.
 6. A SCRAM-SHA-1 channel-binding test: assert
    `getFinished()` returns a non-empty `Buffer` on TLS 1.2,
    degrades to `tls-exporter` bytes on TLS 1.3.
-7. Update `status/open-todos.md` — DELETE the Phase 2 entry (a resolved TODO is
+7. Update `status/open-todos/README.md` — DELETE the Phase 2 entry (a resolved TODO is
    removed; its record is the commit + CHANGELOG).
 8. Update `CLAUDE.md`'s `tls-native` row — promote from "Scaffold" to
    "Full".
