@@ -22,7 +22,7 @@ import { createNodeError, deferEmit } from '@gjsify/utils/core';
 import { parseClientHelloSni } from './internal/sni-parser.js';
 import { checkHostMatch, splitHost } from './internal/hostname.js';
 import { createSecureContext, type SecureContext, type SecureContextOptions } from './secure-context.js';
-import { TLSSocket, type SocketInternals } from './tls-socket.js';
+import { TLSSocket, claimGjsifyConnection, foreignSocketError, type SocketInternals } from './tls-socket.js';
 
 export type SNICallback = (servername: string, cb: (err: Error | null, ctx?: SecureContext) => void) => void;
 
@@ -143,7 +143,16 @@ export class TLSServer extends Server {
      * `Server._handleConnection`'s `autoStartReading` parameter).
      */
     private _upgradeTls(socket: Socket): void {
-        const claimed = (socket as unknown as SocketInternals)._claimConnection();
+        const claimed = claimGjsifyConnection(socket);
+        if (!claimed) {
+            // Not a `@gjsify/net` Socket (e.g. `node:net` left on a runtime's
+            // own module): there is no Gio connection to hand to
+            // Gio.TlsServerConnection. Report it like any other per-client
+            // failure instead of throwing out of the 'connection' listener.
+            this.emit('tlsClientError', foreignSocketError(), socket);
+            socket.destroy();
+            return;
+        }
         const rawConnection = claimed.connection;
         if (!rawConnection) {
             const err = new Error('Cannot upgrade socket: no underlying connection');
