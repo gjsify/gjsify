@@ -412,9 +412,6 @@ export function reportInexactRanges(groups: readonly DependencyGroup[]): number 
     return total;
 }
 
-<<<<<<< Updated upstream
-function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
-=======
 /**
  * Check that every lockfile resolution satisfies the ranges declared for it.
  *
@@ -498,7 +495,7 @@ export function checkLockfileRangeViolations(
 }
 
 function runCheckMode(groups: readonly DependencyGroup[], exact = false, cwd = process.cwd()): void {
->>>>>>> Stashed changes
+    const lockfileViolations = checkLockfileRangeViolations(groups, cwd);
     const inexact = exact ? reportInexactRanges(groups) : 0;
     const inconsistencies = findInconsistencies(groups);
     if (inconsistencies.length === 0 && inexact > 0) {
