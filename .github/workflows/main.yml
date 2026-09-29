@@ -355,7 +355,7 @@ jobs:
     needs: [setup]
     # No classifier gate anywhere in this expression, deliberately. The cost is
     # one install on a docs-only PR, and it is the price of the claim.
-    if: ${{ always() && needs.setup.result == 'success' }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -574,7 +574,7 @@ jobs:
   # otherwise rebuild only the affected closure.
   build:
     needs: [changes, setup]
-    if: ${{ always() && needs.changes.outputs.skip-all != 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1044,7 +1044,7 @@ jobs:
   # make it pass.
   verify-bundles:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1088,7 +1088,7 @@ jobs:
   # parallelism.
   examples-build:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -1180,7 +1180,7 @@ jobs:
   # change (the cache always has the unchanged packages' .d.ts here).
   check:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1235,7 +1235,7 @@ jobs:
   # a global/main run the full suite is split 4 ways.
   test:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1330,7 +1330,7 @@ jobs:
   #      shape as the CLI: build ONE engine-agnostic bundle, run it three times.
   cross-runtime:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -1463,7 +1463,7 @@ jobs:
   # is a signal rather than a merge blocker.
   macos:
     needs: [setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.setup.outputs.macos-enabled == 'true' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.setup.outputs.macos-enabled == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1551,7 +1551,7 @@ jobs:
   # Gated when an `e2e` path was touched OR on a full run.
   e2e:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1682,7 +1682,7 @@ jobs:
   # duplicate of the `build` job's own cold-tree step.
   cold-bootstrap:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1795,7 +1795,7 @@ jobs:
   # opt-in, including the ones known to fail.
   integration:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1853,7 +1853,7 @@ jobs:
   # full run).
   examples:
     needs: [changes, setup, build, examples-build]
-    if: ${{ always() && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    if: ${{ !cancelled() && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -1931,7 +1931,7 @@ jobs:
   # not pay for that download.
   browser:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -2097,7 +2097,7 @@ jobs:
     # as `.github/ship-oracle/**` falls through to the full-run bail-out. So the
     # leg cannot skip on the PR that changes it, which is the #1183 class this
     # workflow already paid for once (`tree-checks`' header).
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
     name: Ship stage (assemble)
     runs-on: ubuntu-latest
     permissions:
@@ -2318,7 +2318,7 @@ jobs:
     # for the stage itself. `build` and `changes` are reached through ship-stage,
     # and listing them again would only make this job wait on them twice.
     needs: [setup, ship-stage]
-    if: ${{ always() && needs.ship-stage.result == 'success' }}
+    if: ${{ !cancelled() && needs.ship-stage.result == 'success' }}
     name: Ship pack + install (bare ubuntu, real dpkg)
     runs-on: ubuntu-latest
     permissions:
@@ -2656,7 +2656,7 @@ jobs:
     # `setup` for the Fedora version in the CLI bundle's artifact name;
     # `ship-stage` for the darwin stage and the file count to check it against.
     needs: [setup, ship-stage]
-    if: ${{ always() && needs.ship-stage.result == 'success' }}
+    if: ${{ !cancelled() && needs.ship-stage.result == 'success' }}
     name: Ship pack .dmg (macos-latest, real hdiutil)
     runs-on: macos-latest
     permissions:
@@ -2832,7 +2832,7 @@ jobs:
   # this milestone needs no Dockerfile change at all.
   ship-read-dmg:
     needs: [ship-stage, ship-pack-dmg]
-    if: ${{ always() && needs.ship-pack-dmg.result == 'success' }}
+    if: ${{ !cancelled() && needs.ship-pack-dmg.result == 'success' }}
     name: Ship read .dmg back (bare ubuntu, 7z + dmg2img + fsck.hfsplus)
     runs-on: ubuntu-latest
     permissions:
@@ -3003,9 +3003,15 @@ jobs:
   # cancel: by then most of the minutes are spent, and cancelling hides every
   # further failure the author would otherwise fix in the same push.
   #
-  # Cancelling the run makes the `always()` jobs run on cancelled needs, so
-  # `CI gate (GJS)` ends RED (the failed early job is scored as `failure`,
-  # the cut-off ones as `cancelled`). The gate does not wait for these two:
+  # EVERY OTHER JOB GATES ON `!cancelled()`, NEVER `always()`. An `always()`
+  # job ignores a run cancel: it keeps running, and a queued one still starts.
+  # Measured on #1888's first proof run (36531726252): the cancel was
+  # accepted, `build` ran on to success and all 17 downstream jobs queued,
+  # because every one of them read `always() && …`. The same pattern made
+  # `cancel-in-progress` just as toothless for a superseded push. Only
+  # `gate` and `ci-summary` keep `always()`, so they run on the cancelled
+  # run: `CI gate (GJS)` then ends RED (the failed early job is scored as
+  # `failure`, the cut-off ones as `cancelled`). The gate does not wait for these two:
   # they are utilities that only ever run once the gate is already red, and
   # its coverage self-check names them as such.
   #

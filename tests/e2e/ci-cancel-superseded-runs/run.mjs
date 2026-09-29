@@ -674,3 +674,20 @@ describe("main.yml's cancel-on-early-failure jobs", () => {
         assert.match(job('cancel-on-build-failure'), /^ {4}steps: \*cancel-pr-head-runs$/m);
     });
 });
+
+describe("main.yml's jobs can be cancelled at all", () => {
+    it('no job but the gate and the summary gates on always()', () => {
+        // `always()` ignores a run cancel, so a single `always() && …` job keeps
+        // running after the cancel above. Measured on #1888 (run 36531726252):
+        // the cancel was accepted, and all 17 downstream jobs still queued.
+        const yaml = readFileSync(join(MONOREPO_ROOT, '.github', 'workflows', 'main.yml'), 'utf8');
+        const offenders = [];
+        let job = '';
+        for (const line of yaml.split('\n')) {
+            const key = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
+            if (key) job = key[1];
+            if (/^    if: .*\balways\(\)/.test(line) && job !== 'gate' && job !== 'ci-summary') offenders.push(job);
+        }
+        assert.deepEqual(offenders, [], 'use `!cancelled()`: an always() job survives a run cancel');
+    });
+});
