@@ -12,7 +12,7 @@
 // therefore fails the moment this decision returns the wrong answer.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { needsSelfShim, pathWithoutSelfShim, selfShimScanRoot } from './gjsify-shim.js';
+import { buildSelfShimScript, needsSelfShim, pathWithoutSelfShim, selfShimScanRoot } from './gjsify-shim.js';
 
 export default async () => {
     await describe('needsSelfShim', async () => {
