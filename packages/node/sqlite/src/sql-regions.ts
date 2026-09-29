@@ -23,11 +23,13 @@ export interface SqlRegion {
 
 /**
  * Split `sql` into alternating code and inert regions, in source order and covering it
- * exactly — the first and last are always `code`, and a region is never empty.
+ * exactly — a region is never empty, and no two regions touch. Neither end is
+ * necessarily `code`: SQL beginning with a comment yields a first region of that kind, and
+ * so does SQL ending in one, so a caller that walks the list must not assume either.
  *
- * A line comment ends BEFORE its terminating newline, so that newline lands in the
- * following code region: removing the comment must leave the line break that separates
- * two statements.
+ * A line comment ends BEFORE its terminating newline, so the newline is CODE and the next
+ * statement is found from it. That is SQLite's own rule, and it is what lets a consumer
+ * write `EXISTS -- why\n(SELECT …)` and have the parenthesis still be the sub-SELECT's.
  *
  * An unterminated quoted region or comment runs to the end of the input, which is what
  * SQLite's own tokenizer does with the same input.
