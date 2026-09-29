@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { externalParserFor, parseJsonc, scanForNativeSkips } from './native-skip-scan.js';
 
@@ -21,7 +21,8 @@ function tree(files: Record<string, string>): string {
     return dir;
 }
 
-const names = (dir: string, files: string[]): string[] => files.map((f) => f.slice(dir.length + 1)).sort();
+const names = (dir: string, files: string[]): string[] =>
+    files.map((f) => relative(dir, f).split(sep).join('/')).sort();
 
 export default async () => {
     await describe('scanForNativeSkips', async () => {
