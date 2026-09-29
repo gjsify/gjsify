@@ -55,14 +55,27 @@ and resolves it at RUN time from the bundle's own location.
    leaves its package, so a `.node` that `dlopen`s a sibling `.so` or reads a data file beside
    itself keeps working.
 
-4. **A bundle beside no `node_modules` falls back to `<bundle dir>/addons/<package>/<subpath>`** —
-   the declared layout a packaging step fills. Nothing fills it yet; wiring `gjsify ship` and
-   `gjsify install` to copy the addon PACKAGE (not the bare `.node`, per clause 3) into it is a
-   follow-up.
+4. **A bundle beside no `node_modules` REFUSES, naming the layout a packaging step would
+   fill** — `<bundle dir>/addons/<package>/<subpath>`. It does not return that path: the
+   directory is a declaration nothing fills yet, so the path reaches `loadAddon` as a bare
+   ENOENT naming neither the package nor the remedy, where an error naming both and the two
+   ways out is strictly better. Wiring `gjsify ship` and `gjsify install` to copy the addon
+   PACKAGE (not the bare `.node`, per clause 3) into it is a follow-up.
 
-5. **No banner, no rewrite of the decision.** `--library cjs` under GJS emits no bundle-URL
-   banner, so there is no anchor; those builds keep the absolute path, exactly as the path
-   rewriter's case 4b does. `gjsify build --app gjs` always has the banner.
+5. **A `.node` under no `node_modules` keeps its absolute path, and says so.** A locally
+   built addon no package owns has no identity to record, so the build writes the path itself
+   and the resolver returns it unchanged. This is not a return to the defect: before this ADR
+   the path was baked in and the file loaded, and it still does. What it gives up is
+   RELOCATABILITY, and one build warning per entry says so rather than shipping it silently.
+   Identity-based resolution is the improvement, not a precondition.
+
+6. **No banner, no rewrite of the decision.** `--library cjs` under GJS emits no bundle-URL
+   banner, so there is no anchor, and the plugin DECLINES every shape with one warning naming
+   the reason — it does not keep the absolute path. Emitting one would reintroduce exactly the
+   defect this ADR removes, for a mode that cannot anchor at run time anyway; a
+   knowingly-unloadable artifact is worse than an unrewritten one, and the untouched module
+   still gets default resolution. A `--library cjs` build is a library for a consumer's own
+   toolchain, which resolves its addons itself. `gjsify build --app gjs` always has the banner.
 
 The build-time probe stays, narrowed to a GATE: a package with no compiled `.node` anywhere is
 still `AddonNotBuiltError` at build time, because failing then is better than failing at launch.
@@ -91,9 +104,9 @@ still `AddonNotBuiltError` at build time, because failing then is better than fa
   Solves relocation and the no-`node_modules` case in one step, and is the obvious answer — but
   it picks the platform at build time, so cross-builds and multi-platform packages stay broken;
   it breaks every addon that loads a sibling library or data file relative to itself (copying the
-  siblings too is just "keep the package", i.e. clause 4); and it puts tens of megabytes into
-  every `dist/` whether or not the deployment needs it. Kept as the SHAPE of clause 4's fallback
-  directory, but as a packaging step, not a build-time default.
+  siblings too is just "keep the package", i.e. clause 3); and it puts tens of megabytes into
+  every `dist/` whether or not the deployment needs it. Kept as the SHAPE of clause 4's
+   declared `addons/` layout, but as a packaging step, not a build-time default.
 - **Copy plus runtime fallback.** The union of both mechanisms' cost with none of the copy's
   advantages once clause 4 exists: the copy is what a packaging step does, not what every build
   does.
