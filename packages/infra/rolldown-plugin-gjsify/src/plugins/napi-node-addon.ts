@@ -369,10 +369,7 @@ export class AddonNotBuiltError extends Error {
  * Returns an empty record when no `.node` exists anywhere — the caller then
  * throws {@link AddonNotBuiltError} as a build-time gate.
  */
-export function enumerateAddonTargets(
-    pkgRoot: string,
-    pkg: AddonPackageJson,
-): Record<string, string> {
+export function enumerateAddonTargets(pkgRoot: string, pkg: AddonPackageJson): Record<string, string> {
     const targets: Record<string, string> = {};
     const pkgName = typeof pkg.name === 'string' && pkg.name ? pkg.name : null;
     if (!pkgName) return targets;

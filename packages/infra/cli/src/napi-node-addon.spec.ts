@@ -350,7 +350,9 @@ export default async () => {
         await it('directNodeShim: ESM default via __gjsifyAddonResolve, no baked absolute path', () => {
             const code = directNodeShim(TABLE);
             expect(code).toContain(`import { loadAddon } from "@gjsify/napi"`);
-            expect(code).toContain(`import { __gjsifyAddonResolve } from "@gjsify/rolldown-plugin-gjsify/shims/addon-resolve"`);
+            expect(code).toContain(
+                `import { __gjsifyAddonResolve } from "@gjsify/rolldown-plugin-gjsify/shims/addon-resolve"`,
+            );
             expect(code).toContain(`export default loadAddon(${resolveCall})`);
             expect(code).not.toContain('/abs/');
         });
