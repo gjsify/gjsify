@@ -358,17 +358,18 @@ export class DatabaseSync {
         // so split-relevant tokens inside those regions never produce a spurious
         // boundary.
         //
-        // Comments are then DROPPED rather than handed to the parser: libgda cannot parse
-        // a statement containing a /* … */ block comment. Under parseSql() that is a plain
-        // error rather than the process abort it used to be (see parse-sql.ts), but the
-        // statement would still fail — so the stripping stays load-bearing. It is
+        // BLOCK comments are then DROPPED rather than handed to the parser: libgda cannot
+        // parse a statement containing a /* … */ block comment. Under parseSql() that is a
+        // plain error rather than the process abort it used to be (see parse-sql.ts), but
+        // the statement would still fail — so the stripping stays load-bearing. It is
         // semantically transparent: SQL comments are inert except inside quoted regions,
         // which we keep verbatim.
-        // A line comment is removed but its terminating newline is left in place;
-        // a block comment is replaced by a single space so tokens that abutted it
-        // stay separated (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to
-        // nothing (a standalone or trailing comment) trims to empty and is
-        // dropped, matching node:sqlite which silently ignores such comments.
+        // A LINE comment is kept verbatim — libgda parses `--` without trouble, and it
+        // carries the author's own explanation of the statement. A BLOCK comment is
+        // replaced by a single space so tokens that abutted it stay separated
+        // (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to nothing (a standalone or
+        // trailing block comment) trims to empty and is dropped, matching node:sqlite which
+        // silently ignores such comments.
         //
         // `sqlRegions()` is the one place that knows where each of those regions ends,
         // shared with the EXISTS rewrite (see exists-subquery.ts) so the two cannot
