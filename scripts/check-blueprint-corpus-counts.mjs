@@ -123,6 +123,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CATEGORIES, findClaims, looseRegions, readText } from './blueprint-count-claims.mjs';
+import { reportFailure } from './lib/ci-report.mjs';
 
 const CORPUS = 'packages/infra/blueprint/corpus';
 
@@ -522,6 +523,12 @@ async function main() {
             console.error(
                 `    tree: ${counts[claim.key]} ${CATEGORIES[claim.key].label}(s), where the line says "${claim.text}"\n`,
             );
+            reportFailure({
+                title: 'check-blueprint-corpus-counts: stale count',
+                file,
+                line: at,
+                message: `tree holds ${counts[claim.key]} ${CATEGORIES[claim.key].label}(s), doc says "${claim.text}"`,
+            });
         }
     }
 
@@ -534,6 +541,12 @@ async function main() {
                 '  Give it one: a `SITES` entry when the document is live, a `SNAPSHOTS` or ledger entry\n' +
                 '  with the reason written down when the number is dated or counts something else.\n',
         );
+        reportFailure({
+            title: 'check-blueprint-corpus-counts: ungated count claim',
+            file,
+            line: at,
+            message: `states ${claims.map((c) => `${c.stated} ${CATEGORIES[c.key].label}(s)`).join(', ')} with nothing checking it`,
+        });
     }
 
     for (const site of SITES) {
