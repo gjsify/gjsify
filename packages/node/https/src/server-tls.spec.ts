@@ -129,6 +129,9 @@ d1RM4KGCfg+BA8tqtkmqB/c=
 
 const BODY = 'hello over tls';
 
+/** True on real GJS — the same signal `@gjsify/unit` gates its host hooks on. */
+const IS_GJS = typeof (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs === 'string';
+
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 
 /** Answers every request with BODY plus what `req.socket.encrypted` said. */
@@ -213,6 +216,60 @@ function plainGet(port: number): Promise<number | 'error'> {
     });
 }
 
+/**
+ * The two ways a server that cannot serve TLS still says so. Both are OUR behaviour and both
+ * differ from Node, so each carries an xfail marker scoped to the Node leg: the assertion runs
+ * everywhere and the day the host starts satisfying it, the run turns red instead of the spec
+ * quietly agreeing with whatever it does.
+ */
+async function noCertificateSpecs(): Promise<void> {
+    await it.failing(
+        'a server with no certificate refuses to listen',
+        async () => {
+            const calls = { count: 0 };
+            // No options at all — the shape a caller reaches for before it has a key.
+            const server = createServer(helloHandler(calls));
+            const error = await new Promise<unknown>((resolve) => {
+                server.once('error', resolve);
+                server.listen(0, '127.0.0.1');
+            });
+            expect(error instanceof Error).toBe(true);
+            expect((error as Error).message).toContain('no certificate');
+        },
+        'Node listens in clear text and fails every handshake; refusing to listen is the GJS ' +
+            'answer to that, and must not be relaxed back into serving plain text.',
+        { when: !IS_GJS },
+    );
+
+    await it.failing(
+        'a key that does not match the certificate fails only at the handshake',
+        async () => {
+            const calls = { count: 0 };
+            // CLIENT_KEY is a valid PEM key — just not SERVER_CERT's. Node rejects such a pair
+            // in the constructor (ERR_OSSL_X509_KEY_VALUES_MISMATCH); new_from_pem parses both
+            // halves and never compares them, so the mismatch can only surface at the handshake.
+            const server = createServer({ key: CLIENT_KEY, cert: SERVER_CERT }, helloHandler(calls));
+            const port = await listen(server);
+            try {
+                let error: unknown = null;
+                try {
+                    await exchange(port, { ca: SERVER_CERT });
+                } catch (err) {
+                    error = err;
+                }
+                expect(error instanceof Error).toBe(true);
+                expect(calls.count).toBe(0);
+            } finally {
+                await close(server);
+            }
+        },
+        'The construction-time check is Node behaviour we do not implement: rejecting the pair ' +
+            'means proving the key belongs to the cert, and a wrong guess there would break ' +
+            'valid pairs. Pinned so the day GIO checks it, this reds.',
+        { when: !IS_GJS },
+    );
+}
+
 export default async () => {
     await describe('https.createServer TLS termination', async () => {
         await it('presents the configured certificate and serves HTTP over it', async () => {
@@ -283,6 +340,7 @@ export default async () => {
         await it('throws on a certificate that is not PEM', async () => {
             expect(() => createServer({ key: 'not a key', cert: 'not a certificate' })).toThrow();
         });
+        await noCertificateSpecs();
     });
 
     await describe('https.createServer client certificates (requestCert)', async () => {

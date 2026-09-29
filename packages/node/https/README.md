@@ -37,8 +37,9 @@ server.listen(8443);
 libsoup performs the handshake. `key`/`cert` take PEM strings or Buffers (a chain may follow the
 leaf in `cert`). For client certificates, set `requestCert: true` and `ca` to the anchors they must
 chain to; `rejectUnauthorized: false` lets unverified clients through, as on Node. Not yet
-supported on GJS: `pfx`, an encrypted `key` with `passphrase`, and `SNICallback`. Without a
-certificate `listen()` emits `'error'` instead of serving plain text.
+supported on GJS: `pfx`, an encrypted `key` with `passphrase`, and `SNICallback`. A `key` that does
+not match its `cert` is not rejected at construction as it is on Node — libsoup only fails the
+handshake. Without a certificate `listen()` emits `'error'` instead of serving plain text.
 
 ## License
 

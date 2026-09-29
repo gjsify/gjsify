@@ -423,6 +423,9 @@ export class Server extends EventEmitter {
         if (tls.clientCa.length > 0) {
             const trust = createTrustDatabase(tls.clientCa);
             soup.tls_database = trust.database;
+            // listen() a second time without close() would otherwise overwrite the handle and
+            // strand the previous file: only close() and _destroy remove it, and neither runs.
+            if (this._trustFile) removeFile(this._trustFile);
             this._trustFile = trust.file;
         }
         if (tls.authenticationMode !== Gio.TlsAuthenticationMode.NONE) {

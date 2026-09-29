@@ -10,12 +10,17 @@ import { createSecureContext } from '@gjsify/tls';
 
 type PemInput = string | Uint8Array | Array<string | Uint8Array>;
 
-/** The `https.createServer()` options that shape the listener. */
+/**
+ * The `https.createServer()` options that shape the listener.
+ *
+ * No `passphrase`: `Gio.TlsCertificate.new_from_pem` takes no passphrase, so declaring one here
+ * would claim a decryption nobody performs. `secure-context.ts` accepts the field and ignores it
+ * for the same reason; the honest place to name the gap is the https README's list.
+ */
 export interface ServerTlsOptions {
     key?: PemInput;
     cert?: PemInput;
     ca?: PemInput;
-    passphrase?: string;
     requestCert?: boolean;
     rejectUnauthorized?: boolean;
 }
