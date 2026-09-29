@@ -79,6 +79,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
+import { reportFailure } from './lib/ci-report.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const inActions = Boolean(process.env.GITHUB_ACTIONS);
@@ -279,8 +280,14 @@ function gjsifyStep(argv) {
     return resolved;
 }
 
-function fail(msg) {
-    console.error(inActions ? `::error::${msg}` : `ERROR: ${msg}`);
+function fail(msg, file) {
+    // The ad hoc `::error::${msg}` this replaced escaped nothing — a `%`, a real
+    // newline (a spawned rebuild's captured stderr can carry either) corrupted or
+    // truncated the annotation `ci-why` (docs/ci-selective.md) reads. `reportFailure`
+    // is the one place that escapes correctly, so it owns emitting the annotation;
+    // off CI this prints the same plain `ERROR: …` line as before.
+    if (inActions) reportFailure({ title: 'verify-committed-bundles', file, message: msg });
+    else console.error(`ERROR: ${msg}`);
 }
 
 /**
@@ -452,11 +459,11 @@ try {
 
             for (const p of missing) {
                 failures++;
-                fail(`${p} is committed but the rebuild did not produce it.`);
+                fail(`${p} is committed but the rebuild did not produce it.`, p);
             }
             for (const p of extra) {
                 failures++;
-                fail(`${p} is produced by the build but is NOT committed.`);
+                fail(`${p} is produced by the build but is NOT committed.`, p);
             }
 
             let matched = 0;
@@ -470,13 +477,14 @@ try {
                 }
                 failures++;
                 const off = firstDiffOffset(expected, actual);
-                fail(`${p} is STALE — rebuilding it from the source at HEAD does not reproduce the committed file.`);
+                fail(`${p} is STALE — rebuilding it from the source at HEAD does not reproduce the committed file.`, p);
                 fail(
                     `  committed: ${expected.length} B · rebuilt: ${actual.length} B · first difference at byte ${off}`,
+                    p,
                 );
                 console.error(`  committed …${excerpt(expected, off)}…`);
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
-                fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
+                fail(`  Refresh locally: ${recipe.hint}, then commit it.`, p);
                 // …and keep the bytes THIS run produced, because "refresh
                 // locally" is not always advice a contributor can take. The known
                 // cause — fast-glob's raced entry order leaking into `--library`

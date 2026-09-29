@@ -46,6 +46,7 @@ import { spawnSync } from 'node:child_process';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TIMINGS_FILE = join(ROOT, 'scripts', 'e2e-shard-timings.json');
 const REPORTER = join(ROOT, 'scripts', 'e2e-timing-reporter.mjs');
+const ANNOTATE_REPORTER = join(ROOT, 'scripts', 'e2e-annotate-reporter.mjs');
 // The 2-core runner's default concurrency is 1, so the explicit flag is what gives
 // any speedup at all. The balancer's cost model reads the same constant.
 const PARALLEL_CONCURRENCY = 4;
@@ -158,15 +159,28 @@ function refreshTimings(dirs) {
 
 function nodeTest(paths, label, extraArgs = []) {
     const out = process.env.E2E_TIMINGS_OUT;
-    const reporterArgs = [];
+    // Adding ANY `--test-reporter` drops Node's own TTY-based default entirely —
+    // every reporter wanted then has to be named, or the run prints nothing
+    // human-readable at all (measured: `annotate` alone on a failing file
+    // produced the `::error::` line and NOTHING else, not even a pass/fail
+    // total). So the human reporter is always explicit now, replicating exactly
+    // what Node would have picked implicitly (`spec` on a TTY, `tap` otherwise —
+    // `stdio: 'inherit'` means this process's own stdout IS the child's, so the
+    // check is accurate for it too) — except the timing-capture branch, which
+    // already forced `spec` on purpose (see its own comment below).
+    const humanReporter = out ? 'spec' : process.stdout.isTTY ? 'spec' : 'tap';
+    const reporterArgs = [
+        `--test-reporter=${humanReporter}`,
+        '--test-reporter-destination=stdout',
+        // Failing-suite annotations (scripts/e2e-annotate-reporter.mjs → the shared
+        // scripts/lib/ci-report.mjs): a no-op off `GITHUB_ACTIONS`, so this adds
+        // nothing to a local run's output beyond the reporter subscribing.
+        `--test-reporter=${ANNOTATE_REPORTER}`,
+        '--test-reporter-destination=stdout',
+    ];
     if (out) {
         mkdirSync(out, { recursive: true });
-        reporterArgs.push(
-            '--test-reporter=spec',
-            '--test-reporter-destination=stdout',
-            `--test-reporter=${REPORTER}`,
-            `--test-reporter-destination=${join(out, `${label}.json`)}`,
-        );
+        reporterArgs.push(`--test-reporter=${REPORTER}`, `--test-reporter-destination=${join(out, `${label}.json`)}`);
     }
     const r = spawnSync('node', ['--test', ...extraArgs, ...reporterArgs, ...paths.map((p) => join(ROOT, p))], {
         cwd: ROOT,
