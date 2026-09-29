@@ -77,8 +77,15 @@ export const GJS_IMPORTS_GUARD_RE = /\.imports\??\.gi\b/;
  * binding, moved into the one helper every bridge now loads through: it reads
  * `imports?.gi` itself and yields null off GJS. A bridge whose source spells
  * neither `gi://` nor `imports.gi` any more is still GJS-bound through it.
+ *
+ * The opening quote is required so a COMMENT naming the function does not count
+ * as a call: the three engine loaders describe themselves in prose ("open the
+ * library with `openNativeLibrary(…)` right after") while still resolving
+ * `imports.gi` themselves, and a gate that reads prose as code is a gate whose
+ * verdict a reworded comment can flip.
  */
-export const NATIVE_LIBRARY_LOADER_RE = /\b(?:loadOptionalNativeModule|openNativeLibrary)\s*(?:<[^>]*>)?\s*\(/;
+export const NATIVE_LIBRARY_LOADER_RE =
+    /\b(?:loadOptionalNativeModule|openNativeLibrary)\s*(?:<[^>]*>)?\s*\(\s*['"]/;
 
 export const IMPORT_RE = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?[^;'"]*?from\s*['"]([^'"]+)['"]/g;
 export const SIDE_EFFECT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
