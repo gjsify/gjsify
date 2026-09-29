@@ -66,6 +66,22 @@ X25519 cases. They run on both GJS and Node.
 
 A library that picks its code path by checking `typeof crypto.diffieHellman === 'function'` now
 takes the `node:crypto` path on GJS. npm `libsignal`, used by Baileys, is one of them.
+
+## `gjsify link` hides its override in a git worktree too
+
+`.gjsify-link.json` stays out of git through the repository's own `info/exclude`, which `gjsify
+link` writes and `gjsify unlink` removes again. In a git worktree that file went to the wrong
+directory: git SHARES `info/exclude` across a repository's worktrees, and the entry landed under the
+worktree's own git directory, in `worktrees/daemon/info/exclude`, which git never reads. `git status`
+in the worktree kept listing `?? .gjsify-link.json`, so the next `git add -A` committed the very
+override `link` exists to keep out of every commit — measured on a worktree of a submodule.
+
+Both commands now follow the `commondir` file that git records in the worktree git directory,
+whether it holds a relative path (what `git worktree add` writes) or an absolute one. A plain clone
+and a submodule have no `commondir` and behave exactly as before. A `commondir` that names nothing —
+blank, a directory, or a path that is not there, all three of which real git exits 128 on — is
+reported as `unreadable-git` rather than guessed at.
+
 ## New
 
 ### `gjsify exec` runs an installed npm bin on the runtime gjsify runs on

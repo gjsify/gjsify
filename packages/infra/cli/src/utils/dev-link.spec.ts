@@ -19,6 +19,7 @@
 // broken, which is how both shipped.
 
 import { describe, it, expect } from '@gjsify/unit';
+import { execFileSync } from 'node:child_process';
 import {
     existsSync,
     lstatSync,
@@ -433,6 +434,126 @@ export default async () => {
             writeFileSync(join(consumer, '.git'), `gitdir: ${realGitDir}\n`);
             expect(ensureLocallyIgnored(consumer)).toBe('added');
             expect(readFileSync(join(realGitDir, 'info', 'exclude'), 'utf-8')).toContain(DEV_LINK_FILE);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('follows `commondir` to the dir whose `info/exclude` a worktree SHARES', async () => {
+            // MEASURED, not reasoned. `git worktree add` leaves the checkout's
+            // `.git` a POINTER at `<common>/worktrees/<name>` and records the
+            // shared dir in a `commondir` file there (`../..`). `info/exclude` is
+            // shared across a repository's worktrees (git-worktree(1)), so an
+            // entry written beside the pointer hides NOTHING: measured on a real
+            // worktree, `git status --porcelain` still printed `?? .gjsify-link.json`
+            // with the entry in `<common>/.git/worktrees/<name>/info/exclude`, and
+            // the next `git add -A` committed the override rule 1 exists to keep
+            // out of every commit.
+            const root = scratch();
+            const commonGitDir = join(root, 'repo', '.git');
+            const worktreeGitDir = join(commonGitDir, 'worktrees', 'daemon');
+            const consumer = join(root, 'repo', 'daemon');
+            mkdirSync(worktreeGitDir, { recursive: true });
+            mkdirSync(consumer, { recursive: true });
+            writeFileSync(join(consumer, '.git'), `gitdir: ${worktreeGitDir}\n`);
+            writeFileSync(join(worktreeGitDir, 'commondir'), '../..\n');
+            const before = '# git ls-files --others\n*.tmp\n';
+            mkdirSync(join(commonGitDir, 'info'), { recursive: true });
+            writeFileSync(join(commonGitDir, 'info', 'exclude'), before);
+
+            expect(ensureLocallyIgnored(consumer)).toBe('added');
+            expect(readFileSync(join(commonGitDir, 'info', 'exclude'), 'utf-8')).toContain(DEV_LINK_FILE);
+            // Nowhere beside the POINTER: that file is not one git reads.
+            expect(existsSync(join(worktreeGitDir, 'info'))).toBe(false);
+            // `unlink` resolves the same way, so the block leaves where it was
+            // written — and the shared file comes back byte for byte.
+            expect(removeLocalIgnore(consumer)).toBe('removed');
+            expect(readFileSync(join(commonGitDir, 'info', 'exclude'), 'utf-8')).toBe(before);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('honours an ABSOLUTE `commondir` — git writes the relative one', async () => {
+            // `../..` is what `git worktree add` records, but the format does not
+            // forbid an absolute path (a moved or hand-repaired repository), and
+            // resolving such a path against the gitdir would name a directory that
+            // is not there.
+            const root = scratch();
+            const commonGitDir = join(root, 'repo', '.git');
+            const worktreeGitDir = join(commonGitDir, 'worktrees', 'daemon');
+            const consumer = join(root, 'wt', 'daemon');
+            mkdirSync(worktreeGitDir, { recursive: true });
+            mkdirSync(consumer, { recursive: true });
+            writeFileSync(join(consumer, '.git'), `gitdir: ${worktreeGitDir}\n`);
+            writeFileSync(join(worktreeGitDir, 'commondir'), `${commonGitDir}\n`);
+
+            expect(ensureLocallyIgnored(consumer)).toBe('added');
+            expect(readFileSync(join(commonGitDir, 'info', 'exclude'), 'utf-8')).toContain(DEV_LINK_FILE);
+            expect(existsSync(join(worktreeGitDir, 'info'))).toBe(false);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('refuses to guess where a `commondir` names nothing', async () => {
+            // THREE shapes, one answer, and every one of them MEASURED against
+            // real git: blank → "error reading …/commondir", a directory → the
+            // same, a path that is not there → "not a git repository". All three
+            // exit 128, so this is not a state in which the shared exclude can be
+            // located at all — and `no-git` here would announce "nothing here can
+            // commit the file" about a repository that just refused to be one.
+            const root = scratch();
+            const commonGitDir = join(root, 'repo', '.git');
+            const worktreeGitDir = join(commonGitDir, 'worktrees', 'daemon');
+            const consumer = join(root, 'repo', 'daemon');
+            mkdirSync(worktreeGitDir, { recursive: true });
+            mkdirSync(consumer, { recursive: true });
+            writeFileSync(join(consumer, '.git'), `gitdir: ${worktreeGitDir}\n`);
+            const commondir = join(worktreeGitDir, 'commondir');
+
+            writeFileSync(commondir, '   \n');
+            expect(ensureLocallyIgnored(consumer)).toBe('unreadable-git');
+            // Both halves answer alike: a cleanup that cannot find the block it
+            // wrote must not report one it did not remove.
+            expect(removeLocalIgnore(consumer)).toBe('unreadable-git');
+
+            rmSync(commondir, { recursive: true, force: true });
+            mkdirSync(commondir, { recursive: true });
+            expect(ensureLocallyIgnored(consumer)).toBe('unreadable-git');
+
+            rmSync(commondir, { recursive: true, force: true });
+            writeFileSync(commondir, '../nowhere\n');
+            expect(ensureLocallyIgnored(consumer)).toBe('unreadable-git');
+
+            // And nothing was written anywhere on the way to saying so.
+            expect(existsSync(join(worktreeGitDir, 'info'))).toBe(false);
+            expect(existsSync(join(commonGitDir, 'info'))).toBe(false);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('hides the override in a REAL `git worktree add` checkout', async () => {
+            // The layout above is transcribed from git; this row is the layout
+            // MEASURED, and it is asserted through git itself, because the whole
+            // claim is about what git READS: `git status --porcelain` lists the
+            // override until the entry sits in the common dir, and lists nothing
+            // after.
+            const root = scratch();
+            const repo = join(root, 'repo');
+            const worktree = join(root, 'wt');
+            mkdirSync(repo, { recursive: true });
+            const git = (cwd: string, ...args: string[]): string =>
+                execFileSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=t', ...args], {
+                    cwd,
+                    encoding: 'utf-8',
+                });
+            git(repo, 'init', '-q');
+            writeFileSync(join(repo, 'a.txt'), 'a\n');
+            git(repo, 'add', '-A');
+            git(repo, 'commit', '-q', '-m', 'base');
+            git(repo, 'worktree', 'add', '-q', worktree, '-b', 'linked');
+
+            writeFileSync(join(worktree, DEV_LINK_FILE), JSON.stringify({ version: 1, checkout: repo, packages: [] }));
+            // The measured state before: untracked, and one `git add -A` away.
+            expect(git(worktree, 'status', '--porcelain')).toContain(DEV_LINK_FILE);
+            expect(ensureLocallyIgnored(worktree)).toBe('added');
+            expect(git(worktree, 'status', '--porcelain')).not.toContain(DEV_LINK_FILE);
+            // Named, so the row states WHICH ignore file git read.
+            expect(git(worktree, 'check-ignore', '-v', DEV_LINK_FILE)).toContain(join('info', 'exclude'));
             rmSync(root, { recursive: true, force: true });
         });
 

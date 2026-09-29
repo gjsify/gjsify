@@ -555,11 +555,14 @@ const IGNORE_COMMENT = '# gjsify link — local development override, never comm
 /**
  * Make `.gjsify-link.json` invisible to git WITHOUT editing a tracked file.
  *
- * `.git/info/exclude` is git's own per-clone ignore list: it is not committed and
- * not shared, which is exactly the lifetime of the thing it hides. Writing to
- * `.gitignore` instead would put a developer's local override into everyone
- * else's diff — the manifest edit this whole feature exists to avoid, one file
- * over.
+ * `info/exclude` is git's own per-clone ignore list: it is not committed and
+ * not shared between clones, which is exactly the lifetime of the thing it
+ * hides. Writing to `.gitignore` instead would put a developer's local override
+ * into everyone else's diff — the manifest edit this whole feature exists to
+ * avoid, one file over. A WORKTREE is the case to get right: the file is
+ * written under the repository's COMMON dir, because `info/exclude` is shared
+ * across a repository's worktrees and the worktree's own gitdir is not read
+ * (see {@link resolveGitDir}).
  *
  * Returns what it did, so the caller can say so. A consumer that is not a git
  * repository is not an error: nothing can commit the file there either. A
@@ -568,10 +571,10 @@ const IGNORE_COMMENT = '# gjsify link — local development override, never comm
  */
 export function ensureLocallyIgnored(consumerRoot: string): 'added' | 'already-ignored' | 'no-git' | 'unreadable-git' {
     const found = resolveGitDir(consumerRoot);
-    if (!found.gitDir) return found.why;
+    if (!found.commonDir) return found.why;
     const gitignore = join(consumerRoot, '.gitignore');
     if (existsSync(gitignore) && fileMentionsPattern(gitignore, DEV_LINK_FILE)) return 'already-ignored';
-    const excludePath = join(found.gitDir, 'info', 'exclude');
+    const excludePath = join(found.commonDir, 'info', 'exclude');
     if (existsSync(excludePath) && fileMentionsPattern(excludePath, DEV_LINK_FILE)) return 'already-ignored';
     mkdirSync(dirname(excludePath), { recursive: true });
     const existing = existsSync(excludePath) ? readFileSync(excludePath, 'utf-8') : '';
@@ -583,7 +586,7 @@ export function ensureLocallyIgnored(consumerRoot: string): 'added' | 'already-i
 /**
  * Undo {@link ensureLocallyIgnored} — the other half of `unlink`.
  *
- * Measured: the `.git/info/exclude` block outlived `gjsify unlink` (idempotently,
+ * Measured: the `info/exclude` block outlived `gjsify unlink` (idempotently,
  * so it never grew — it just never left). A command that promises to undo itself
  * and leaves a line behind is not an undo, and the leftover is a rule about a file
  * that no longer exists, which the next reader has to research to delete.
@@ -594,8 +597,8 @@ export function ensureLocallyIgnored(consumerRoot: string): 'added' | 'already-i
  */
 export function removeLocalIgnore(consumerRoot: string): 'removed' | 'absent' | 'no-git' | 'unreadable-git' {
     const found = resolveGitDir(consumerRoot);
-    if (!found.gitDir) return found.why;
-    const excludePath = join(found.gitDir, 'info', 'exclude');
+    if (!found.commonDir) return found.why;
+    const excludePath = join(found.commonDir, 'info', 'exclude');
     let text: string;
     try {
         text = readFileSync(excludePath, 'utf-8');
@@ -636,43 +639,89 @@ function fileMentionsPattern(file: string, pattern: string): boolean {
     });
 }
 
-/** Where a consumer's git directory is, or WHY there is none. */
-interface GitDirLookup {
-    gitDir: string | null;
-    /** Only meaningful when `gitDir` is null. */
+/** Where a consumer's SHARED git directory is, or WHY there is none. */
+interface GitCommonDirLookup {
+    commonDir: string | null;
+    /** Only meaningful when `commonDir` is null. */
     why: 'no-git' | 'unreadable-git';
 }
 
 /**
- * The `.git` directory for `root` — following the `gitdir:` pointer file a
- * worktree or submodule has in place of a directory. Skipping that indirection
- * would write an `info/exclude` inside a plain file's parent and silently ignore
- * nothing at all.
+ * The COMMON dir of `root`'s repository — the one whose `info/exclude` git
+ * actually reads. Two indirections get there, and in a worktree neither the
+ * repository root nor the gitdir it points at IS that directory.
+ *
+ * The first is `.git`: a directory in a clone, a `gitdir:` pointer file in a
+ * submodule, and a `gitdir:` pointer to `<common>/worktrees/<name>` in a worktree.
+ * Skipping that indirection would write an `info/exclude` inside a plain file's
+ * parent and silently ignore nothing at all.
+ *
+ * The second is `commondir`, and it is the one that was missed: `info/exclude` is
+ * SHARED across a repository's worktrees (git-worktree(1)), so in a worktree the
+ * pointer leads AWAY from the file git reads. Measured: with the entry written
+ * under `<common>/worktrees/<name>/info/exclude`, `git status` in the worktree
+ * still printed `?? .gjsify-link.json` and `git check-ignore` named no rule — one
+ * `git add -A` from committing the override this feature exists to keep out.
  *
  * TWO outcomes, not one. "There is no repository here" and "there is one and its
  * pointer does not parse" call for opposite reactions — the first is fine, the
  * second leaves the override exposed to the next `git add -A` — and answering
  * both with `null` made the second announce the first.
  */
-function resolveGitDir(root: string): GitDirLookup {
+function resolveGitDir(root: string): GitCommonDirLookup {
     const dotGit = join(root, '.git');
     let stat;
     try {
         stat = statSync(dotGit);
     } catch {
-        return { gitDir: null, why: 'no-git' };
+        return { commonDir: null, why: 'no-git' };
     }
-    if (stat.isDirectory()) return { gitDir: dotGit, why: 'no-git' };
+    if (stat.isDirectory()) return { commonDir: dotGit, why: 'no-git' };
     let pointer: string;
     try {
         pointer = readFileSync(dotGit, 'utf-8').trim();
     } catch {
-        return { gitDir: null, why: 'unreadable-git' };
+        return { commonDir: null, why: 'unreadable-git' };
     }
     const match = /^gitdir:\s*(.+)$/.exec(pointer);
     const target = match?.[1]?.trim();
-    if (!target) return { gitDir: null, why: 'unreadable-git' };
-    return { gitDir: isAbsolute(target) ? target : resolve(root, target), why: 'no-git' };
+    if (!target) return { commonDir: null, why: 'unreadable-git' };
+    return followCommondir(isAbsolute(target) ? target : resolve(root, target));
+}
+
+/**
+ * The shared directory of the gitdir a `gitdir:` pointer named.
+ *
+ * A plain clone and a submodule have no `commondir` file: there the gitdir IS the
+ * common dir, and nothing changes. A worktree has one — `../..`, relative to the
+ * worktree gitdir, is what `git worktree add` writes — and an absolute path is
+ * honored rather than resolved against the gitdir, where it would name a
+ * directory that does not exist.
+ *
+ * A `commondir` that names NOTHING is not read as absent, which is the decision
+ * this shape exists to force. Measured against real git, all three such shapes
+ * exit 128: blank → "error reading …/commondir", a directory → the same, a path
+ * that is not there → "not a git repository". So there is no answer to fall back
+ * to, and `no-git` would announce "nothing here can commit the file" about a
+ * repository that just refused to be one — the same "I could not tell" that is not
+ * a "yes", as everywhere else in this file.
+ */
+function followCommondir(gitDir: string): GitCommonDirLookup {
+    const file = join(gitDir, 'commondir');
+    if (!existsSync(file)) return { commonDir: gitDir, why: 'no-git' };
+    let raw: string;
+    try {
+        raw = readFileSync(file, 'utf-8');
+    } catch {
+        return { commonDir: null, why: 'unreadable-git' };
+    }
+    const target = raw.trim();
+    if (!target) return { commonDir: null, why: 'unreadable-git' };
+    const commonDir = isAbsolute(target) ? target : resolve(gitDir, target);
+    // The third shape git refuses: writing an `info/exclude` under a directory that
+    // is not there would create a tree that nothing ever reads.
+    if (!existsSync(commonDir)) return { commonDir: null, why: 'unreadable-git' };
+    return { commonDir, why: 'no-git' };
 }
 
 /**
