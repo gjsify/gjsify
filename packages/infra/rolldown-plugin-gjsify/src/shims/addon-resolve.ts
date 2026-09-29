@@ -27,24 +27,28 @@
 //     resolve the PACKAGE ROOT and join the subpath literally, which no
 //     `exports` map can block.
 //
-//  3. *No filesystem work.* libc is read from `process.env.LIBC`, not
-//     probed — the shim does no filesystem work. On a musl host with an
-//     unset `LIBC` the lookup falls through to the libc-agnostic entry,
-//     which is what node-gyp-build's own untagged prebuilds assume; a package
-//     shipping a glibc-only and a musl prebuild under one tuple is served the
-//     glibc one, which `LIBC=musl` fixes.
+//  3. *libc is a variable, not a probe.* It is read from `process.env.LIBC`,
+//     never sniffed off the filesystem. On a musl host with an unset `LIBC`
+//     the lookup falls through to the libc-agnostic entry, which is what
+//     node-gyp-build's own untagged prebuilds assume; a package shipping a
+//     glibc-only and a musl prebuild under one tuple is served the glibc one,
+//     which `LIBC=musl` fixes. (The one `package.json` read in this file is on
+//     the `exports`-blocked root fallback, not on the libc decision.)
 //
 // The `addons/` layout the resolver names when the package is not installed is
 // the declared destination a packaging step would fill. `gjsify ship` does not
 // fill it yet — see ADR 0084 § Consequences for the measurement.
 //
-// @ts-ignore — `node:{module,url,path}` are resolved by the consumer's
-// `gjsify build` run (aliased to `@gjsify/{module,url,path}`), not by tsc here.
+// @ts-ignore — `node:{module,url,path,fs}` are resolved by the consumer's
+// `gjsify build` run (aliased to `@gjsify/{module,url,path,fs}`), not by tsc here.
 import { createRequire } from 'node:module';
 // @ts-ignore — see above.
 import { fileURLToPath } from 'node:url';
 // @ts-ignore — see above.
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
+// @ts-ignore — see above. Read on the `exports`-blocked fallback only; see
+// `declaresPackage`. The no-filesystem rule above is about libc, not this.
+import { readFileSync } from 'node:fs';
 
 import { hostAddonKeys, selectAddonTarget } from '../utils/addon-platform.js';
 
@@ -86,23 +90,48 @@ function splitPackageSpec(spec: string): { pkg: string; subpath: string } {
  * `package.json` is resolvable for nearly every package and points straight at
  * the root. When a strict `exports` map blocks it, fall back to the package's
  * main entry (always an export) and derive the root from the
- * `node_modules/<pkg>` boundary in its path. Returns null when `pkg` is not
- * installed.
+ * `node_modules/<pkg>` boundary in its path.
+ *
+ * A WORKSPACE-LINKED package resolves to its real path, which carries no
+ * `node_modules/<pkg>/` segment, and answering `dirname(main)` there named the
+ * directory the entry sits in — `packages/typedoc/dist` — so the subpath was
+ * joined onto `dist/` and the addon was reported missing at a path that never
+ * existed. The boundary is therefore only a shortcut; the fallback walks up to
+ * the nearest ancestor whose own `package.json` declares `pkg`, which is the
+ * root by definition. Returns null when `pkg` is not installed.
  */
 function resolvePackageRoot(pkg: string): string | null {
     try {
         const require = createRequire(bundleAnchorUrl());
         return dirname(require.resolve(`${pkg}/package.json`));
     } catch {
-        try {
-            const require = createRequire(bundleAnchorUrl());
-            const main = require.resolve(pkg);
-            const marker = `/node_modules/${pkg}/`;
-            const idx = main.lastIndexOf(marker);
-            return idx >= 0 ? main.slice(0, idx + marker.length - 1) : dirname(main);
-        } catch {
-            return null;
-        }
+        /* strict `exports`: fall through to the entry point */
+    }
+    let main: string;
+    try {
+        main = createRequire(bundleAnchorUrl()).resolve(pkg);
+    } catch {
+        return null;
+    }
+    const marker = `/node_modules/${pkg}/`;
+    const idx = main.lastIndexOf(marker);
+    if (idx >= 0) return main.slice(0, idx + marker.length - 1);
+    for (let dir = dirname(main), i = 0; i < 64; i++) {
+        if (declaresPackage(dir, pkg)) return dir;
+        const parent = dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+    return null;
+}
+
+/** Does the `package.json` in `dir` declare `name: pkg`? The root test, read not inferred. */
+function declaresPackage(dir: string, pkg: string): boolean {
+    try {
+        const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { name?: unknown };
+        return manifest.name === pkg;
+    } catch {
+        return false;
     }
 }
 
@@ -135,10 +164,30 @@ export function __gjsifyAddonResolve(targets: Record<string, string>): string {
                 `Install the platform package or build the addon for this host.`,
         );
     }
+    // A `.node` outside every `node_modules` has no package IDENTITY to resolve
+    // by, and `packageSpecFor` recorded the path itself. Splitting it as a
+    // specifier made the first segment the package name and the rest the subpath,
+    // so a direct import of a locally built addon resolved a package named ``
+    // and threw naming neither the file nor the remedy. There is nothing to
+    // resolve — the build's path is the only answer — so it is returned, and the
+    // build warns once that this entry does not travel with the bundle.
+    if (isAbsolute(spec)) return spec;
     const { pkg, subpath } = splitPackageSpec(spec);
     const root = resolvePackageRoot(pkg);
     if (root !== null) {
-        return subpath ? join(root, subpath) : root;
+        if (subpath === '') return root;
+        // The subpath is the build's own `relative()` today, so this cannot
+        // reject a table this plugin wrote. It is here because this is the
+        // function that decides which file gets dlopen'd: a table naming `..`
+        // would otherwise walk out of the package it claims to belong to.
+        const target = resolve(root, subpath);
+        if (target !== root && !target.startsWith(root + sep)) {
+            throw new Error(
+                `gjsify-napi-addon: the addon table names '${subpath}', which leaves the package ` +
+                    `root '${root}'. A package cannot provide a file outside itself.`,
+            );
+        }
+        return target;
     }
     // The package is not installed where this bundle can see it. `<bundle
     // dir>/addons/<package>/` is the declared layout a packaging step would

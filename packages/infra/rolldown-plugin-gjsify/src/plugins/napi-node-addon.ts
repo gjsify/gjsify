@@ -801,15 +801,26 @@ export function hostNapiRsTriple(): string | null {
  * The `<package>/<subpath>` spec for an absolute `.node` file path — the part
  * after the LAST `node_modules/` segment, which is what the runtime resolver
  * feeds to `createRequire(...).resolve`. Always a module SPECIFIER, so always
- * `/`-separated. A path not under `node_modules/` (a direct import of a local
- * file) returns the path itself — an edge case that was already broken (the
- * absolute path was baked in before ADR 0084).
+ * `/`-separated.
+ *
+ * A path under no `node_modules` (a direct import of a locally built `.node`)
+ * has no package identity to record, so the path itself is the spec and the
+ * resolver returns it unchanged. That is the one case ADR 0084's premise does
+ * not reach, and it is not a regression: before this ADR the absolute path was
+ * baked in and the bundle loaded the file. It only stops being RELOCATABLE, so
+ * the build says so once rather than shipping it silently.
  */
-function packageSpecFor(absPath: string): string {
+function packageSpecFor(absPath: string, warn?: (msg: string) => void): string {
     const normalized = process.platform === 'win32' ? absPath.replaceAll('\\', '/') : absPath;
     const marker = 'node_modules/';
     const idx = normalized.lastIndexOf(marker);
-    return idx < 0 ? normalized : normalized.slice(idx + marker.length);
+    if (idx >= 0) return normalized.slice(idx + marker.length);
+    warn?.(
+        `[gjsify-napi-addon] '${absPath}' is not inside a node_modules, so the bundle carries its ` +
+            'ABSOLUTE path and only loads where it was built. Move the addon into a package (or ' +
+            'install one that ships it) for a bundle that travels.',
+    );
+    return normalized;
 }
 
 /**
@@ -836,7 +847,7 @@ async function enumerateNapiRsEntryTargets(
             continue;
         }
         if (!resolved || !resolved.id.endsWith('.node') || !existsSync(resolved.id)) continue;
-        const spec = packageSpecFor(resolved.id);
+        const spec = packageSpecFor(resolved.id, (m) => warnSafe(ctx, m));
         // Extract the triple from the sibling name (`<prefix>-<triple>`).
         const match = dep.match(NAPI_RS_TRIPLE_RE);
         const triple = match ? match[0].slice(1) : null;
@@ -850,7 +861,7 @@ async function enumerateNapiRsEntryTargets(
     if (binaryName && triple) {
         const local = join(pkgRoot, `${binaryName}.${triple}.node`);
         if (existsSync(local)) {
-            const spec = packageSpecFor(local);
+            const spec = packageSpecFor(local, (m) => warnSafe(ctx, m));
             targets[normalizeNapiRsTriple(triple)] = spec;
         }
     }
@@ -1038,7 +1049,7 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                         const abs = await resolveNodeFile(ctx, source, importer);
                         if (abs === null) return null; // unresolvable — let the default chain error
                         if (!(await ensureNapiAvailable(ctx, importer))) return null;
-                        const spec = packageSpecFor(abs);
+                        const spec = packageSpecFor(abs, (m) => warnSafe(ctx, m));
                         return { id: encodeVirtual('direct', JSON.stringify({ '*': spec })) };
                     }
 
@@ -1047,7 +1058,7 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                         const resolved = await ctx.resolve(source, importer, { skipSelf: true });
                         if (!resolved || !resolved.id.endsWith('.node')) return null; // not a native sibling
                         if (!(await ensureNapiAvailable(ctx, importer))) return null;
-                        const spec = packageSpecFor(resolved.id);
+                        const spec = packageSpecFor(resolved.id, (m) => warnSafe(ctx, m));
                         return { id: encodeVirtual('napi-rs', JSON.stringify({ '*': spec })) };
                     }
 
