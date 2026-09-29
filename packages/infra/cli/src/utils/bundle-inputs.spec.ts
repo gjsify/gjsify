@@ -3,7 +3,7 @@
 // `gjsify test`'s freshness set the package walk cannot see.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -50,6 +50,109 @@ export default async () => {
                 // the case the package walk is blind to, by construction.
                 expect(inputs).toContain(signal);
                 expect(inputs).toContain(entry);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('strips a query or hash off an id, which is part of the SPECIFIER', async () => {
+            const root = fixture();
+            try {
+                const raw = file(root, 'src/main.blp');
+                const rawCss = file(root, 'src/x.css');
+                const recorder = createBundleInputsRecorder(join(root, 'dist', 'test.node.mjs'));
+                // `main-window.blp?shared-tree` is the blueprint plugin's exit,
+                // `x.css?raw` a loader convention: both stat as ENOENT, and
+                // dropping the id would drop the file with it.
+                observe(recorder, [`${raw}?shared-tree`, `${rawCss}?raw`, `${raw}#frag`]);
+                expect(recorder.inputs()).toContain(raw);
+                expect(recorder.inputs()).toContain(rawCss);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('takes the engine watch list, the only account of a file no graph names', async () => {
+            const root = fixture();
+            try {
+                const entry = file(root, 'app/src/test.mts');
+                const imported = file(root, 'packages/theme/src/base.css');
+                const recorder = createBundleInputsRecorder(join(root, 'app', 'dist', 'test.node.mjs'));
+                // What a plugin declares with `this.addWatchFile` — a stylesheet's
+                // `@import` target, which no module graph ever names.
+                recorder.addWatchFiles([imported, entry]);
+                expect(recorder.inputs()).toContain(imported);
+                expect(recorder.inputs()).toContain(entry);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('records the resolution files of each package, which are never modules', async () => {
+            const root = fixture();
+            try {
+                const manifest = file(root, 'packages/signal/package.json', '{}\n');
+                const tsconfig = file(root, 'packages/signal/tsconfig.json', '{}\n');
+                const mod = file(root, 'packages/signal/src/index.ts');
+                file(root, 'packages/signal/src/other.ts');
+                const recorder = createBundleInputsRecorder(join(root, 'dist', 'test.node.mjs'));
+                observe(recorder, [mod, join(root, 'packages/signal/src/other.ts')]);
+
+                const inputs = recorder.inputs();
+                // A `package.json#exports` edit moves what every bare specifier
+                // resolves to, and a `tsconfig.json` turns on `paths` — neither is
+                // a module, and both change the output.
+                expect(inputs).toContain(manifest);
+                expect(inputs).toContain(tsconfig);
+                // Deduplicated: two modules of one package contribute one pair.
+                expect(inputs.filter((abs) => abs === manifest)).toHaveLength(1);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('excludes the toolchain cache, whose entries are written AND deleted per build', async () => {
+            const root = fixture();
+            try {
+                const stub = file(root, 'node_modules/.cache/gjsify/auto-globals-abc123.mjs');
+                const real = file(root, 'src/lib.ts');
+                const recorder = createBundleInputsRecorder(join(root, 'dist', 'test.node.mjs'));
+                observe(recorder, [stub, real]);
+                const inputs = recorder.inputs();
+                expect(inputs).not.toContain(stub);
+                expect(inputs).toContain(real);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('keeps a project that happens to live under a temp dir', async () => {
+            // This suite's own fixtures do, and so does a CI checkout — a
+            // freshness check that went blind there would be the defect being
+            // fixed, reached from the other side.
+            const root = fixture();
+            try {
+                const mod = file(root, 'src/lib.ts');
+                const recorder = createBundleInputsRecorder(join(root, 'dist', 'test.node.mjs'));
+                observe(recorder, [mod]);
+                expect(recorder.inputs()).toContain(mod);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('leaves no temp file behind, and the manifest is what a reader gets', async () => {
+            const root = fixture();
+            try {
+                const outfile = join(root, 'dist', 'test.node.mjs');
+                const input = file(root, 'src/lib.ts');
+                const recorder = createBundleInputsRecorder(outfile);
+                observe(recorder, [input]);
+                recorder.write();
+                // Written to a sibling and renamed: a manifest is read by the
+                // NEXT process, and a half-written one parses as "no manifest".
+                expect(existsSync(`${bundleInputsPath(outfile)}.tmp`)).toBe(false);
+                expect(readBundleInputs(outfile)).toContain(input);
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }
@@ -138,11 +241,12 @@ export default async () => {
                 expect(newestBundleInputMtimeMs([older, newer])).toBeGreaterThan(newestBundleInputMtimeMs([older]));
                 expect(newestBundleInputMtimeMs([])).toBe(0);
 
-                // The build's own scratch does not outlive it (the globals-inject
-                // stub is a temp file), so a vanished input is not a change —
-                // treating it as one would rebuild on every run, forever.
+                // A recorded input we cannot read is not evidence that the
+                // artifact is current — the same rule the package walk applies,
+                // and the reason a deleted-but-still-imported source rebuilds
+                // instead of rerunning a bundle built from a file that is gone.
                 rmSync(gone);
-                expect(newestBundleInputMtimeMs([older, gone])).toBe(newestBundleInputMtimeMs([older]));
+                expect(newestBundleInputMtimeMs([older, gone])).toBe(Number.POSITIVE_INFINITY);
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }

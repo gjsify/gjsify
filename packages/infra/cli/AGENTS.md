@@ -45,11 +45,12 @@ what the package's own `clear` script says it PRODUCES), because every allow-lis
 question is wrong for a package that exists here — `dirname(<test entry>)` missed `src/**` and
 `gjsify test` reran the PREVIOUS bundle (#1651). The other half is `utils/bundle-inputs.ts`, what
 the build READ: the walk cannot see outside the package, so a workspace member behind a
-`node_modules` symlink (postbote: `app/` + `packages/*`) turned an edit into a STALE GREEN.
-The set is their UNION, from the bundler's own module graph — a `transform` observer, the one hook
-both engines run. Add a READER, never an answer.
-Both arms of a freshness test belong together: without "a file OUTSIDE the set must NOT rebuild",
-the suite also passes against an `isFresh` that always answers false.
+`node_modules` symlink (postbote) turned an edit into a STALE GREEN. The set is their UNION, from
+the bundler's own module graph: a `transform` observer PLUS the engine's `watchFiles`, the only
+account of a file a plugin read itself (a stylesheet's `@import` chain declares it). Add a READER,
+never an answer.
+Both arms of a freshness test belong together — or the suite also passes against an `isFresh`
+that always answers false.
 Incidents + measurements:
 [docs/build-artifacts.md](../../../docs/build-artifacts.md).
 

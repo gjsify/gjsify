@@ -236,7 +236,16 @@ async function buildTestBundle(
     } as never;
 
     const action = new BuildAction(configData);
-    await action.start({ app: runtime, library: false });
+    // `onWatchFiles` is the half the transform observer cannot reach: a file a
+    // plugin read itself and declared (a stylesheet's `@import` chain). The
+    // recorder takes the union — npm reports its module set too, the native
+    // engine reports nothing but the declarations, and each engine alone would
+    // leave a class of input unrecorded.
+    await action.start({
+        app: runtime,
+        library: false,
+        onWatchFiles: (ids) => recorder.addWatchFiles(ids),
+    });
     // Written AFTER the build resolves: the manifest describes the bundle that
     // now exists, and a run that failed to build leaves the previous one in
     // place rather than overwriting it with a half-recorded set.

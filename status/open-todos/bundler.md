@@ -402,3 +402,25 @@ failure are in `docs/bundled-toolchains.md` § `gjsify exec`. What stopped the o
 A fourth is diagnostic rather than functional: `@gjsify/rolldown-native` formats build errors
 with Rust's `Debug` (`BuildDiagnostic { …, .. }`), which drops file and line. On a Node host
 `gjsify exec --runtime gjs` gives the located form; under GJS nothing does.
+
+### A Sass file's partials are still an undeclared input
+
+`gjsify test` judges a test bundle against what its build READ, and the second
+half of that set is the files plugins declare with `this.addWatchFile` — the
+contract `gjsify-css-as-string` now uses for a stylesheet's `@import` chain.
+Sass partials are the one input of that shape still outside it: measured
+2026-09-29 with dart-sass 1.101, a relative `@use "./tokens"` is resolved by
+dart-sass's own filesystem importer BEFORE any custom importer is consulted
+(`importers[].findFileUrl` and `canonicalize` are called zero times), and a bare
+`@use "lib"` reaches a custom importer only on the way to being DECLINED — so the
+resolved path is never ours to declare. Declaring it would mean re-implementing
+dart-sass's loadPaths + partial-naming + extensions resolution, which is a second
+copy of a third party's algorithm and drifts.
+
+The honest close is upstream: a dart-sass that reports the files it loaded (or
+calls `findFileUrl` for relative loads), after which the same
+`this.addWatchFile(abs)` call this plugin already makes for `@import` covers
+partials with no new code. `css-as-string.spec.ts` asserts the current behaviour,
+so the day dart-sass changes it, that arm fails instead of quietly widening the
+gap. Sass is the narrow edge of this: `.scss` reaches a consumer only through
+this plugin's `load` hook, and the GJS-native backend never compiles Sass at all.

@@ -113,13 +113,40 @@ in the next build, and counting it errs towards one rebuild rather than towards 
 build read" (a file no current build imports yet), the manifest "what DID it read" (which
 reaches outside the package). A missing, corrupt or other-version manifest is NOT an answer: the
 walk then decides alone, so a bundle built before this shape existed behaves exactly as it did.
-|A recorded input that has since **vanished is skipped, not treated as a change**: the build's
-own scratch does not outlive it (`--app gjs` writes its globals-inject stub to a temp dir), and
-treating that as a change rebuilds on every run, forever. A file that no longer exists cannot
-have been edited, and a re-created one arrives with a fresh mtime the walk also sees.
+|a recorded input that has since **vanished COUNTS AS CHANGED**, exactly as the walk counts one
+that vanished mid-walk — a deleted-but-still-imported source must not leave a bundle that claims
+to be current. That is only safe because the toolchain's own scratch is never RECORDED: the
+globals-inject stub and the cached plugin bundles live under `node_modules/.cache/` and are deleted
+between builds, and counting their absence would rebuild on every run, forever. The obvious
+`tmpdir()` test is the wrong one and was measured wrong first — the stub is written into the
+project's cache dir (`utils/scan-globals.ts`), while a PROJECT under `/tmp` is a project (a CI
+job, a container, this suite's own fixtures), and a check that went blind there is this defect
+reached from the other side.
+|**a plugin's own reads are declared, not guessed** — the bundler is not the only party that
+reads an input. `gjsify-css-as-string` follows a stylesheet's `@import` chain with its own
+`readFile` (and lightningcss its own resolver on npm), and no graph names those files, so the
+recorder takes the engine's WATCH LIST as well: `build.watchFiles` on npm (its module set plus
+every `this.addWatchFile`) and, on the native engine, the declared half — `BundleResult` carries
+warnings and output only, and the plugin context had no `addWatchFile` at all, so
+`@gjsify/rolldown-native` grew one (a plugin that declares and then crashes at hook-call time is a
+build that fails for every consumer). Neither engine is a reason to drop the other: npm's list is
+a superset of the observed modules, native's is the complement, and the union costs a `stat` per
+redundant path against a stale green.
+|**an id's query/hash is part of the SPECIFIER, not the path** — `x.css?raw`,
+`main.blp?shared-tree` (`?`-suffixes are how the blueprint plugin's shared-tree exit and a loader
+convention name one file twice) and any `#frag` stat as ENOENT, and dropping the id silently drops
+the file with it. Stripped before recording. **the nearest `package.json` (and a `tsconfig.json`
+beside it) joins the set**: neither is ever a module, and a `package.json#exports` edit moves what
+every bare specifier in the app resolves to. Per package, deduplicated.
 |Deciding stays cheap: one write per build, one `stat` per recorded input per check — never a
-rebuild to find out whether a build is needed.
+rebuild to find out whether a build is needed. The manifest is written to a sibling and RENAMED: a
+half-written one is read by the next process, where it parses as "no manifest" and silently
+degrades the check to the walk.
 
-tests: unit `packages/infra/cli/src/utils/bundle-inputs.spec.ts`, and the second suite in
-`tests/e2e/test-freshness/` (app + a symlinked workspace package, both arms). Red before the fix
-at `an edit in packages/signal must invalidate the app bundle`; 7 of 7 green after.
+tests: unit `packages/infra/cli/src/utils/bundle-inputs.spec.ts` + the plugin's
+`css-as-string.spec.ts` (the declaration), and three suites in `tests/e2e/test-freshness/` (app +
+a symlinked workspace package; a stylesheet `@import` reached across a package boundary; a failed
+build leaving the set untouched). Red before the fixes at `an edit in packages/signal must
+invalidate the app bundle` and `an @import-ed stylesheet must invalidate the app bundle`; 10 of 10
+green after. The one input still outside the set is a Sass file's partials — measured, and
+tracked at `status/open-todos/bundler.md`.

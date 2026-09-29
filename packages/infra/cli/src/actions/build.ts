@@ -1,7 +1,7 @@
 import type { ConfigData, BundlerOptions } from '../types/index.js';
 import type { App, PluginOptions } from '@gjsify/rolldown-plugin-gjsify';
 import type { RolldownOutput, RolldownPluginOption } from 'rolldown';
-import { runBundle, runWatch, bundleToChunks } from '../bundler-pick.js';
+import { runBundle, runWatch, bundleToChunks, type RunBundleOptions } from '../bundler-pick.js';
 import {
     gjsifyPlugin,
     textLoaderPlugin,
@@ -725,7 +725,12 @@ export class BuildAction {
     /** Application mode */
     async buildApp(
         app: App = 'gjs',
-        opts: { watch?: boolean; preserveDefaultExport?: boolean; toolchainAnchor?: string } = {},
+        opts: {
+            watch?: boolean;
+            preserveDefaultExport?: boolean;
+            toolchainAnchor?: string;
+            onWatchFiles?: RunBundleOptions['onWatchFiles'];
+        } = {},
     ): Promise<RolldownOutput[]> {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
@@ -1011,7 +1016,7 @@ export class BuildAction {
             return [];
         }
 
-        const writeResult = await runBundle(finalOpts);
+        const writeResult = await runBundle(finalOpts, { onWatchFiles: opts.onWatchFiles });
 
         // GJS truncates module source at a raw U+0000 (it is handed to SpiderMonkey as a
         // NUL-terminated C string), so escape any the minifier emitted before anything else
@@ -1141,8 +1146,21 @@ export class BuildAction {
         await closed;
     }
 
-    async start(buildType: { library?: boolean; app?: App; watch?: boolean } = { app: 'gjs' }) {
+    async start(
+        buildType: {
+            library?: boolean;
+            app?: App;
+            watch?: boolean;
+            onWatchFiles?: RunBundleOptions['onWatchFiles'];
+        } = {
+            app: 'gjs',
+        },
+    ) {
         if (buildType.library) {
+            // `onWatchFiles` has no consumer here and is deliberately NOT
+            // forwarded: a `--library` build emits a published package, and
+            // nothing asks whether it is stale (`gjsify test` is the only
+            // freshness check, and it never builds a library).
             if (buildType.watch) {
                 throw new Error(
                     'gjsify build: --watch is not supported with --library (library mode would emit watcher rebuilds for every produced format; use --app gjs|node|browser instead).',
@@ -1150,7 +1168,10 @@ export class BuildAction {
             }
             return await this.buildLibrary();
         }
-        return await this.buildApp(buildType.app, { watch: buildType.watch });
+        return await this.buildApp(buildType.app, {
+            watch: buildType.watch,
+            onWatchFiles: buildType.onWatchFiles,
+        });
     }
 }
 

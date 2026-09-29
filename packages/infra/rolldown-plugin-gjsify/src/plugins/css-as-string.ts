@@ -17,7 +17,7 @@
 // `@import`s are resolved + inlined in JS first (`flattenCssImports`, so bare
 // node_modules specifiers work — the native `bundle()` FileProvider can't walk
 // node_modules), then the flattened CSS goes through the native `transform()`
-// for lowering. Both use the same `cssBundleResolver`. The `--app gjs`
+// for lowering. Both use the same resolver. The `--app gjs`
 // orchestrator passes `targets: { firefox: 60 << 16 }` so nesting + modern
 // selectors get flattened to GTK4-CSS-engine-compatible output. Targeting is
 // opt-in — a missing `targets` keeps the source pristine.
@@ -43,7 +43,7 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { Plugin } from 'rolldown';
+import type { Plugin, PluginContext } from 'rolldown';
 import type { Targets } from 'lightningcss';
 import { isGjs } from '../utils/runtime.js';
 
@@ -69,7 +69,49 @@ interface BundleResult {
     code: Uint8Array;
 }
 
-type Bundler = (filename: string, targets: Targets | undefined) => Promise<BundleResult>;
+/**
+ * "This file is an input of the output": `this.addWatchFile`, one layer down.
+ *
+ * A stylesheet's own `@import`/`@use` chain is read by US, not by the bundler —
+ * `flattenCssImports` on the GJS-native backend, lightningcss's own resolver on
+ * npm, dart-sass for its partials — so no module graph ever names those files and
+ * a consumer editing one rebuilt nothing. Declaring them is the standard
+ * contract, and it is the only account of them that exists.
+ */
+export type DeclareCssInput = (abs: string) => void;
+
+let _warnedNoWatchFile = false;
+
+/**
+ * `this.addWatchFile`, or one line saying it was missing.
+ *
+ * Feature-detected rather than called straight, because the engine is not
+ * necessarily the one next to this plugin: the GJS CLI resolves
+ * `@gjsify/rolldown-native` through several anchors, and a GLOBAL prefix copy
+ * (measured 2026-09-29 on a dev host whose project-local engine was the
+ * rebuilt one) answers first. An older engine has no such method on its plugin
+ * context, and calling it blind fails the GJS build of every consumer with that
+ * engine — a bookkeeping feature must not be able to break a build.
+ *
+ * A miss is not silent, though: the stylesheet's chain then reaches the build's
+ * freshness check only through the importing stylesheet, and the user is told
+ * once, with the engine to upgrade.
+ */
+function declareWatchFile(ctx: { addWatchFile?: (id: string) => void }, abs: string): void {
+    if (typeof ctx.addWatchFile === 'function') {
+        ctx.addWatchFile(abs);
+        return;
+    }
+    if (_warnedNoWatchFile) return;
+    _warnedNoWatchFile = true;
+    console.warn(
+        '[gjsify-css-as-string] this Rolldown engine has no `addWatchFile`, so an @import-ed ' +
+            'stylesheet is not declared as a build input \u2014 editing one may leave a `gjsify test` bundle ' +
+            'looking fresh. Upgrade `@gjsify/rolldown-native` (the GJS engine) to declare it.',
+    );
+}
+
+type Bundler = (filename: string, targets: Targets | undefined, declare: DeclareCssInput) => Promise<BundleResult>;
 
 let _bundlerPromise: Promise<Bundler> | null = null;
 
@@ -125,14 +167,14 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         const resolved = createRequire(import.meta.url).resolve(specifier);
         const mod = (await import(/* @vite-ignore */ pathToFileURL(resolved).href)) as NativeLightningcssSurface;
         if (!mod.hasNativeLightningcss()) return null;
-        return async (filename, targets) => {
+        return async (filename, targets, declare) => {
             // The native `@gjsify/lightningcss-native` `bundle()` resolves
             // `@import` chains through lightningcss's filesystem-backed
             // FileProvider, which walks relative + absolute paths but NOT
             // bare node_modules specifiers (`@import "@scope/pkg/x.css"`) —
             // a JS resolver callback can't cross the GI/Rust boundary. So we
             // do `@import` resolution in JS first, using the SAME
-            // `cssBundleResolver` the npm `bundleAsync` path uses (npm-package
+            // resolver the npm `bundleAsync` path uses (npm-package
             // + `exports`-map aware), and hand the fully-flattened CSS to the
             // native `transform()` for the GTK4 nesting/modern-syntax lowering
             // (`targets`). The native shim accepts a browserslist string; the
@@ -140,7 +182,7 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
             // (`firefox: 60 << 16` etc), so convert per browser key.
             let flattened: string;
             try {
-                flattened = await flattenCssImports(filename);
+                flattened = await flattenCssImports(filename, declare);
             } catch (err) {
                 // The native rolldown engine flattens a thrown plugin error to
                 // a generic "plugin `gjsify-css-as-string` threw an error"
@@ -192,13 +234,16 @@ async function loadNpmBundler(): Promise<Bundler> {
     // `dependency` of this package, so the runtime resolve finds it.
     const specifier = 'lightningcss';
     const { bundleAsync } = (await import(/* @vite-ignore */ specifier)) as typeof import('lightningcss');
-    return async (filename, targets) => {
+    return async (filename, targets, declare) => {
         const result = await bundleAsync({
             filename,
             targets,
             minify: false,
             errorRecovery: true,
-            resolver: cssBundleResolver,
+            // Per call, not a module singleton: the resolver is where every
+            // `@import` target is resolved, so it is where the declaration has
+            // to happen — and it must carry THIS load's sink.
+            resolver: createCssBundleResolver(declare),
         });
         return { code: result.code };
     };
@@ -233,34 +278,51 @@ function isAssetReference(specifier: string): boolean {
     return /^(data|https?|file):/i.test(specifier) || ASSET_REF_RE.test(specifier);
 }
 
-const cssBundleResolver = {
-    resolve(specifier: string, from: string): string {
-        if (isAbsolute(specifier)) return specifier;
-        if (specifier.startsWith('./') || specifier.startsWith('../')) {
-            return resolvePath(dirname(from), specifier);
-        }
-        // Bare specifier — walk node_modules and honor package.json exports.
-        // `createRequire` takes a file URL or path; passing the importer
-        // lets it scope its node_modules walk to the right starting point.
-        const req = createRequire(pathToFileURL(from).href);
-        try {
-            return req.resolve(specifier);
-        } catch (err) {
-            // Not an installed module. If it's a `url()`/asset reference,
-            // leave it verbatim so lightningcss keeps the `@font-face` /
-            // `url()` rule intact (the consumer serves the asset) instead of
-            // crashing the build. A genuine unresolvable CSS `@import`
-            // re-throws with actionable context so the missing dependency
-            // surfaces clearly on both backends (npm and native).
-            if (isAssetReference(specifier)) return specifier;
-            throw new Error(
-                `cannot resolve @import "${specifier}" from ${from} (${(err as Error).message}). ` +
-                    'If it is a workspace/npm package, ensure it is installed and exposes the CSS ' +
-                    'file via its package.json "exports".',
-            );
-        }
-    },
-};
+function createCssBundleResolver(declare: DeclareCssInput) {
+    return {
+        resolve(specifier: string, from: string): string {
+            // A relative `@import` is resolved here, but lightningcss reads the
+            // target itself — so the resolver is the only place its name is known.
+            if (isAbsolute(specifier)) {
+                declare(stripQuery(specifier));
+                return specifier;
+            }
+            if (specifier.startsWith('./') || specifier.startsWith('../')) {
+                const resolved = resolvePath(dirname(from), specifier);
+                declare(resolved);
+                return resolved;
+            }
+            // Bare specifier — walk node_modules and honor package.json exports.
+            // `createRequire` takes a file URL or path; passing the importer
+            // lets it scope its node_modules walk to the right starting point.
+            const req = createRequire(pathToFileURL(from).href);
+            try {
+                const resolved = req.resolve(specifier);
+                declare(resolved);
+                return resolved;
+            } catch (err) {
+                // Not an installed module. If it's a `url()`/asset reference,
+                // leave it verbatim so lightningcss keeps the `@font-face` /
+                // `url()` rule intact (the consumer serves the asset) instead of
+                // crashing the build. A genuine unresolvable CSS `@import`
+                // re-throws with actionable context so the missing dependency
+                // surfaces clearly on both backends (npm and native).
+                if (isAssetReference(specifier)) return specifier;
+                throw new Error(
+                    `cannot resolve @import "${specifier}" from ${from} (${(err as Error).message}). ` +
+                        'If it is a workspace/npm package, ensure it is installed and exposes the CSS ' +
+                        'file via its package.json "exports".',
+                );
+            }
+        },
+    };
+}
+
+/** `@scope/pkg/x.css?v=2` is a cache-busting convention; the file is the part before it. */
+function stripQuery(specifier: string): string {
+    const cut = specifier.search(/[?#]/);
+    return cut === -1 ? specifier : specifier.slice(0, cut);
+}
 
 // Matches a CSS `@import` at-rule and captures the specifier + any trailing
 // condition tokens (media query / `layer()` / `supports()`) before the `;`.
@@ -289,7 +351,7 @@ async function replaceAllAsync(
 
 /**
  * Recursively resolve + inline every bundleable `@import` in `entry`, using the
- * same {@link cssBundleResolver} the npm `bundleAsync` path uses. Returns a
+ * same resolver the npm `bundleAsync` path uses. Returns a
  * single flattened CSS string with no bundleable `@import` statements left — the
  * native `transform()` then applies GTK4 nesting/target lowering.
  *
@@ -302,18 +364,24 @@ async function replaceAllAsync(
  * URL) are kept verbatim (the resolver leaves them alone), matching the npm
  * path. A cycle inlines each file at most once.
  */
-async function flattenCssImports(entry: string): Promise<string> {
+async function flattenCssImports(entry: string, declare: DeclareCssInput): Promise<string> {
     const seen = new Set<string>();
+    const resolver = createCssBundleResolver(declare);
     const inline = async (file: string, isRoot: boolean): Promise<string> => {
-        const abs = isAbsolute(file) ? file : resolvePath(file);
+        const abs = isAbsolute(file) ? stripQuery(file) : resolvePath(file);
         if (seen.has(abs)) return ''; // @import cycle — inline once
         seen.add(abs);
+        // Declared at the READ, not at the resolution: the root stylesheet, and
+        // any import a form the regex does not match, are still inputs of the
+        // output — and a resolution declares nothing if lightningcss then
+        // decides not to read it.
+        declare(abs);
         let source = await readFile(abs, 'utf8');
         // `@charset` is only valid as the very first token of a stylesheet;
         // an inlined sub-file's `@charset` mid-stream would be invalid CSS.
         if (!isRoot) source = source.replace(/@charset[^;]*;/gi, '');
         return replaceAllAsync(source, IMPORT_RE, async (match, spec, condition) => {
-            const resolved = cssBundleResolver.resolve(spec, abs);
+            const resolved = resolver.resolve(spec, abs);
             // Asset-reference `@import` (rare): resolver returns it verbatim —
             // keep the at-rule intact.
             if (resolved === spec) return match;
@@ -360,13 +428,28 @@ export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
             // first (Sass already resolves its own `@use`/`@import`/partials and
             // flattens nesting, so no further lightningcss lowering is needed).
             filter: { id: /\.(css|s[ac]ss)$/ },
-            async handler(id: string) {
+            async handler(this: PluginContext & { addWatchFile?: (id: string) => void }, id: string) {
+                // Every file the backends read on our behalf, declared through
+                // the standard contract — `gjsify test`'s freshness check reads
+                // this list, and it is the only account of a stylesheet's
+                // `@import`/`@use` chain, which no module graph names.
+                const declare: DeclareCssInput = (abs) => declareWatchFile(this, abs);
+                // The entry itself is read here in every branch, and a Sass
+                // file's PARTIALS are not: dart-sass resolves a relative
+                // `@use "./x"` through its own filesystem importer before any
+                // custom importer is consulted (measured 2026-09-29 with
+                // dart-sass 1.101: `importers[].findFileUrl` and
+                // `canonicalize` are called zero times for a relative load, and
+                // for a bare one only on the way to being declined, so the path
+                // is never ours to declare). Tracking that:
+                // status/open-todos/bundler.md.
+                declare(stripQuery(id));
                 let code: string;
                 if (/\.s[ac]ss$/.test(id)) {
                     code = await compileSass(id);
                 } else {
                     code = bundle
-                        ? new TextDecoder('utf-8').decode(await loadAndBundleCss(id, targets))
+                        ? new TextDecoder('utf-8').decode(await loadAndBundleCss(id, targets, declare))
                         : await readFile(id, 'utf8');
                 }
                 return {
@@ -413,9 +496,13 @@ async function compileSass(filename: string): Promise<string> {
     }
 }
 
-async function loadAndBundleCss(filename: string, targets: Targets | undefined): Promise<Uint8Array> {
+async function loadAndBundleCss(
+    filename: string,
+    targets: Targets | undefined,
+    declare: DeclareCssInput,
+): Promise<Uint8Array> {
     if (!_bundlerPromise) _bundlerPromise = pickBundler();
     const bundler = await _bundlerPromise;
-    const { code } = await bundler(filename, targets);
+    const { code } = await bundler(filename, targets, declare);
     return code;
 }

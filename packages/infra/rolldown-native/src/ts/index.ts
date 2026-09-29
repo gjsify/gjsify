@@ -106,6 +106,12 @@ export type BundleOutputItem = BundleChunk | BundleAsset;
 export interface BundleResult {
     warnings: string[];
     output: BundleOutputItem[];
+    /**
+     * Files a plugin declared with `this.addWatchFile` — npm rolldown's
+     * `RolldownBuild.watchFiles`, collected here because this engine has no
+     * watcher to feed. Absent on a `bundle()` result that declares none.
+     */
+    watchedFiles?: string[];
 }
 
 function getGLib(): typeof GLib {
