@@ -28,9 +28,14 @@
 // own native `main` + a real host `.node` must resolve — and falls through to
 // normal resolution otherwise, never shimming over a missing file.
 //
-// `resolveAddonPath()` replicates node-gyp-build's OWN selection algorithm
-// (build/Release → build/Debug → prebuilds/<platform>-<arch>/<best tag>) so the
-// GJS build routes the SAME binary Node would load.
+// What is baked into the bundle is the addon's PACKAGE IDENTITY, never a path
+// (ADR 0084): `enumerateAddonTargets()` records every `.node` the addon package
+// ships, keyed by platform, and the run-time resolver
+// (`shims/addon-resolve.ts`) picks the entry for the host the bundle finds
+// itself on and resolves it through the bundle's own location. Per-tuple tag
+// selection stays node-gyp-build's (`selectPrebuildFile`), so the entry for the
+// build host is the binary Node would load; `resolveAddonPath()` remains the
+// single-file probe of that same order, kept as the public, build-host answer.
 //
 // The shims import `@gjsify/napi` by BARE SPECIFIER: it is a `gjs:polyfill`
 // package that bundles normally, and its native typelib is auto-added to
@@ -115,6 +120,21 @@ export interface NapiNodeAddonPluginOptions {
      * `@gjsify/napi` is not resolvable in the consumer graph. Default `true`.
      */
     warnOnMissingNapi?: boolean;
+    /**
+     * Is the output an ESM single-file build, i.e. does it carry the
+     * bundle-URL banner the run-time resolver anchors on? Default `true`;
+     * `app/gjs.ts` passes the same `format === 'esm'` the node-modules path
+     * rewriter gates its own runtime resolution on.
+     *
+     * `false` DECLINES every rewrite, with one warning naming the reason. It is
+     * a decline and not the pre-ADR baked path because there is no correct baked
+     * path left: the whole point of ADR 0084 is that a path chosen at build time
+     * is what made the artifact unusable off the build machine, so emitting one
+     * again would reintroduce the defect for a mode that cannot anchor at run
+     * time anyway. A `--library cjs` build is a library for a consumer's own
+     * toolchain, which resolves its addons itself.
+     */
+    runtimeResolve?: boolean;
 }
 
 // Addon `.node` path resolution — a faithful port of node-gyp-build's own
@@ -142,10 +162,36 @@ function isMusl(platform: string): boolean {
 function hostTarget(): HostTarget {
     const platform = process.env.npm_config_platform || process.platform;
     const arch = process.env.npm_config_arch || process.arch;
-    const abi = process.versions ? process.versions.modules : undefined;
+    return makeTarget(platform, arch, hostLibc(platform), process.versions ? process.versions.modules : undefined);
+}
+
+/**
+ * The host WITHOUT the `npm_config_*` override — the machine that is running
+ * the build, which is what `build/Release` and `build/Debug` are compiled FOR.
+ *
+ * Separate from {@link hostTarget} because a cross-build sets the override: a
+ * linux-arm64 bundle built on x64 selects its PREBUILDS for arm64 (that is the
+ * override's whole purpose, and it is what makes ADR 0084's cross-build clause
+ * work) while the binaries under `build/` are still x64. Keying those by the
+ * overridden target would have the bundle load an x64 `.node` on an arm64 host
+ * — a wrong claim rather than a missing one, which is the harder failure.
+ */
+function buildHostTarget(): HostTarget {
+    return makeTarget(
+        process.platform,
+        process.arch,
+        hostLibc(process.platform),
+        process.versions ? process.versions.modules : undefined,
+    );
+}
+
+function hostLibc(platform: string): 'glibc' | 'musl' {
+    return process.env.LIBC === 'musl' || isMusl(platform) ? 'musl' : 'glibc';
+}
+
+function makeTarget(platform: string, arch: string, libc: 'glibc' | 'musl', abi: string | undefined): HostTarget {
     const uv = ((process.versions && process.versions.uv) || '').split('.')[0] || '';
     const armv = process.env.ARM_VERSION || (arch === 'arm64' ? '8' : '') || '';
-    const libc: 'glibc' | 'musl' = process.env.LIBC === 'musl' || isMusl(platform) ? 'musl' : 'glibc';
     return { platform, arch, libc, abi, uv, armv, runtime: 'node' };
 }
 
@@ -223,6 +269,56 @@ function runtimeAgnostic(tags: Tags): boolean {
 }
 
 /**
+ * node-gyp-build's PER-TUPLE selection: the tags that match `host`, best first.
+ *
+ * ONE selector, and the reason it must be one: it is the whole correctness of
+ * the ADDON TABLE. The table is what the bundle loads at run time, so a tuple
+ * answered by anything weaker than node-gyp-build's own algorithm points the
+ * bundle at a binary Node would never load — and the failure is a `dlopen` at
+ * LAUNCH, on a user's machine, with the fix's own test suite green because the
+ * test asserts the table's SHAPE rather than its contents. Measured before this
+ * was extracted, on a `prebuilds/linux-x64/` holding one file of each kind:
+ *
+ *   electron.node + node.node         → table: electron.node    (node-gyp-build: node.node)
+ *   node.abi115.node + node.node      → table: node.abi115.node (node-gyp-build: node.node)
+ *
+ * Both because the previous enumeration sorted by SPECIFICITY alone: `electron`
+ * and `abi115` each score 1 and `node` scores 0, so the foreign-runtime binary
+ * outranked the right one. The filter below is node-gyp-build's `parseTags` +
+ * `matches`, ported verbatim, tolerant of a missing `abi`.
+ *
+ * The FILE NAME is the final tiebreak and is ours, not node-gyp-build's: its
+ * comparator ends in a `0`, so a same-specificity pair is decided by `readdir`
+ * order — which is a property of the FILESYSTEM, not of the tree. The table is
+ * `JSON.stringify`'d into the bundle, so an unsorted tie made the artifact's
+ * bytes vary by where it was built. Compared with `<`/`>`, never
+ * `localeCompare`: that would trade one filesystem dependency for a locale one.
+ */
+function selectPrebuildFile(files: (Tags | null)[], host: HostTarget): Tags | null {
+    return (
+        files
+            .filter((t): t is Tags => {
+                if (t === null) return false;
+                if (t.runtime && t.runtime !== host.runtime && !runtimeAgnostic(t)) return false;
+                // abi undefined (GJS host): reject an abi-pinned, non-napi prebuild —
+                // only runtime-agnostic napi prebuilds legitimately match.
+                if (t.abi && t.abi !== host.abi && !t.napi) return false;
+                if (t.uv && t.uv !== host.uv) return false;
+                if (t.armv && t.armv !== host.armv) return false;
+                if (t.libc && t.libc !== host.libc) return false;
+                return true;
+            })
+            // compareTags: matching runtime first, abi over napi, then specificity.
+            .sort((a, b) => {
+                if (a.runtime !== b.runtime) return a.runtime === host.runtime ? -1 : 1;
+                if (a.abi !== b.abi) return a.abi ? -1 : 1;
+                if (a.specificity !== b.specificity) return a.specificity > b.specificity ? -1 : 1;
+                return a.file < b.file ? -1 : a.file > b.file ? 1 : 0;
+            })[0] ?? null
+    );
+}
+
+/**
  * Resolve the best `prebuilds/<platform>-<arch>/<file>.node` for `pkgRoot`,
  * ported from node-gyp-build's `resolve(dir)` — tolerant of a missing `abi`.
  */
@@ -236,26 +332,7 @@ function resolvePrebuild(pkgRoot: string, host: HostTarget): string | null {
     if (!tuple) return null;
 
     const tupleDir = join(prebuildsDir, tuple.name);
-    const winner = readdirSafe(tupleDir)
-        .map(parseTags)
-        .filter((t): t is Tags => {
-            if (t === null) return false;
-            if (t.runtime && t.runtime !== host.runtime && !runtimeAgnostic(t)) return false;
-            // abi undefined (GJS host): reject an abi-pinned, non-napi prebuild —
-            // only runtime-agnostic napi prebuilds legitimately match.
-            if (t.abi && t.abi !== host.abi && !t.napi) return false;
-            if (t.uv && t.uv !== host.uv) return false;
-            if (t.armv && t.armv !== host.armv) return false;
-            if (t.libc && t.libc !== host.libc) return false;
-            return true;
-        })
-        // compareTags: matching runtime first, abi over napi, then specificity.
-        .sort((a, b) => {
-            if (a.runtime !== b.runtime) return a.runtime === host.runtime ? -1 : 1;
-            if (a.abi !== b.abi) return a.abi ? -1 : 1;
-            if (a.specificity !== b.specificity) return a.specificity > b.specificity ? -1 : 1;
-            return 0;
-        })[0];
+    const winner = selectPrebuildFile(readdirSafe(tupleDir).map(parseTags), host);
     return winner ? join(tupleDir, winner.file) : null;
 }
 
@@ -278,12 +355,16 @@ export class AddonNotBuiltError extends Error {
  *
  * The table has:
  *   - One entry per `prebuilds/<tuple>/` directory, keyed by the tuple's
- *     platform. Per-tuple tag selection stays node-gyp-build's (best tag by
- *     specificity), so the entry for the build host is the binary Node would
- *     load.
- *   - One entry per `build/Release` and `build/Debug` for the build host,
- *     overriding the prebuilds entry for the same key (node-gyp-build order:
- *     build/Release wins over prebuilds).
+ *     platform and EVERY architecture it declares, and per libc variant. Each
+ *     entry is chosen by {@link selectPrebuildFile} — node-gyp-build's own
+ *     algorithm, run for a synthetic host of that tuple — so the entry for the
+ *     build host is exactly the binary Node would load, and a foreign platform's
+ *     entry is the best one that host could load rather than the best-looking
+ *     file in the directory.
+ *   - One entry per `build/Release` and `build/Debug`, keyed by the BUILD host
+ *     ({@link buildHostTarget}, deliberately not the `npm_config_*` override
+ *     those files are not built for), overriding the prebuilds entry for the
+ *     same key: node-gyp-build's order has build/Release winning.
  *
  * Returns an empty record when no `.node` exists anywhere — the caller then
  * throws {@link AddonNotBuiltError} as a build-time gate.
@@ -296,38 +377,35 @@ export function enumerateAddonTargets(
     const pkgName = typeof pkg.name === 'string' && pkg.name ? pkg.name : null;
     if (!pkgName) return targets;
 
-    // 1. prebuilds/<tuple>/<best tag> per tuple (all platforms).
+    // 1. prebuilds/<tuple>/<best tag>, per tuple, per architecture, per libc.
+    //    `readdirSafe` is sorted: the table is `JSON.stringify`'d into the
+    //    bundle, so its key ORDER is part of the artifact's bytes and must come
+    //    from the tree rather than from the filesystem's directory order.
     const prebuildsDir = join(pkgRoot, 'prebuilds');
-    for (const tupleName of readdirSafe(prebuildsDir)) {
-        const tuple = parseTuple(tupleName);
-        if (!tuple) continue;
-        const tupleDir = join(prebuildsDir, tupleName);
-        const files = readdirSafe(tupleDir)
-            .map(parseTags)
-            .filter((t): t is Tags => t !== null);
-        if (files.length === 0) continue;
-
-        // Best file per libc variant (glibc, musl) + untagged.
-        // A tuple can be multi-arch (`linux-x64+arm64`); the key uses the
-        // first architecture (node-gyp-build's own selection picks one).
-        const arch = tuple.architectures[0];
-        for (const libc of ['glibc', 'musl'] as const) {
-            const matching = files.filter((t) => !t.libc || t.libc === libc);
-            if (matching.length === 0) continue;
-            const best = matching.sort((a, b) => b.specificity - a.specificity)[0];
-            const key = addonPlatformKey(tuple.platform, arch, libc);
-            targets[key] = `${pkgName}/${relative(pkgRoot, join(tupleDir, best.file))}`;
-        }
-        const untagged = files.filter((t) => !t.libc);
-        if (untagged.length > 0) {
-            const best = untagged.sort((a, b) => b.specificity - a.specificity)[0];
-            const key = addonPlatformKey(tuple.platform, arch);
-            targets[key] = `${pkgName}/${relative(pkgRoot, join(tupleDir, best.file))}`;
+    const tuples = readdirSafe(prebuildsDir)
+        .sort()
+        .map(parseTuple)
+        .filter((t): t is Tuple => t !== null);
+    for (const tuple of tuples) {
+        const files = readdirSafe(join(prebuildsDir, tuple.name)).map(parseTags);
+        if (!files.some((t) => t !== null)) continue;
+        for (const arch of tuple.architectures) {
+            for (const libc of ['glibc', 'musl'] as const) {
+                // `abi: undefined` on purpose: the only prebuilds a FOREIGN
+                // platform can be served are the runtime-agnostic ones. An
+                // `abi<N>.node` matching this build's Node would be selected
+                // otherwise, and it is not loadable by that host's runtime at
+                // all — the wrong binary beats a missing one.
+                const best = selectPrebuildFile(files, makeTarget(tuple.platform, arch, libc, undefined));
+                if (best === null) continue;
+                targets[addonPlatformKey(tuple.platform, arch, libc)] =
+                    `${pkgName}/${relative(pkgRoot, join(prebuildsDir, tuple.name, best.file))}`;
+            }
         }
     }
 
-    // 2. build/Release + build/Debug for the build host (overrides prebuilds).
-    const host = hostTarget();
+    // 2. build/Release + build/Debug for the BUILD host (overrides prebuilds).
+    const host = buildHostTarget();
     const hostKey = addonPlatformKey(host.platform, host.arch, host.libc);
     for (const flavor of ['Release', 'Debug']) {
         const dir = join(pkgRoot, 'build', flavor);
@@ -722,12 +800,6 @@ export function hostNapiRsTriple(): string | null {
     }
 }
 
-/** Decode a napi virtual id back to its raw `.node` path (safety net for a resolve hit). */
-function rawAddonPath(id: string): string {
-    const decoded = decodeVirtual(id);
-    return decoded ? decoded.addonTable : id;
-}
-
 /**
  * The `<package>/<subpath>` spec for an absolute `.node` file path — the part
  * after the LAST `node_modules/` segment, which is what the runtime resolver
@@ -788,60 +860,6 @@ async function enumerateNapiRsEntryTargets(
     return Object.keys(targets).length > 0 ? targets : null;
 }
 
-/**
- * Resolve the current-platform compiled `.node` for a napi-rs generated-loader
- * package: the current-triple sibling package (whose own `main` IS the `.node`),
- * then a local `pkg.<triple>.node`. `skipSelf` bypasses this plugin's own
- * napi-rs-candidate interception so a raw `.node` id comes back. Returns null when
- * no current-platform binary is present, so the caller never shims a missing file.
- */
-async function resolveNapiRsEntryAddon(
-    ctx: AddonResolveContext,
-    pkgRoot: string,
-    pkg: AddonPackageJson,
-    importer: string,
-): Promise<string | null> {
-    const siblings = Object.keys(pkg.optionalDependencies ?? {}).filter((dep) => isNapiRsSibling(pkg, dep));
-    const triple = hostNapiRsTriple();
-    // HOST TRIPLE ONLY whenever we can name it — never "the first sibling that
-    // resolves". `gjsify install` materialises EVERY platform package, so on a Linux
-    // box `lightningcss`'s `darwin-x64` sibling also resolves, and taking it bakes a
-    // Mach-O `.node` into a linux GJS bundle that `loadAddon` can only fail on at
-    // runtime. Host-triple selection is what node-gyp-build and napi-rs' own
-    // generated loaders do, so this matches the binary Node would have loaded.
-    const ordered = triple === null ? siblings : siblings.filter((dep) => dep.endsWith(`-${triple}`));
-    for (const dep of ordered) {
-        // This resolve is a QUESTION ("is a host-triple binary installed?") that can
-        // THROW instead of answering: `skipSelf` skips only THIS plugin, so the
-        // `unresolved-workspace-import` guard still runs at `order:'post'` and
-        // (correctly, for a real import) makes an unresolvable bare `@gjsify/*`
-        // FATAL. A misread sibling name would then kill the build instead of
-        // declining — measured on darwin. `isNapiRsSibling` is the fix; catching here
-        // keeps the class from ever being fatal again.
-        let resolved: { id: string } | null = null;
-        try {
-            resolved = await ctx.resolve(dep, importer, { skipSelf: true });
-        } catch (err) {
-            warnSafe(
-                ctx,
-                `[gjsify-napi] probing the platform sibling "${dep}" of "${pkg.name ?? pkgRoot}" failed; not rewriting its entry (${err instanceof Error ? err.message.split('\n')[0] : String(err)})`,
-            );
-            continue;
-        }
-        if (!resolved) continue;
-        const abs = rawAddonPath(resolved.id);
-        if (abs.endsWith('.node') && existsSync(abs)) return abs;
-    }
-    // Local in-package binary (`<binaryName>.<host-triple>.node`) — deterministic
-    // host-triple match so a wrong-platform local file is never picked.
-    const binaryName = napiBinaryName(pkg);
-    if (binaryName && triple) {
-        const local = join(pkgRoot, `${binaryName}.${triple}.node`);
-        if (existsSync(local)) return local;
-    }
-    return null;
-}
-
 /** Minimal shape of the Rolldown PluginContext bits this plugin uses. */
 interface AddonResolveContext {
     resolve(source: string, importer?: string, options?: { skipSelf?: boolean }): Promise<{ id: string } | null>;
@@ -886,7 +904,9 @@ async function resolveNodeFile(
  */
 export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): Plugin {
     const warnOnMissingNapi = options.warnOnMissingNapi !== false;
+    const runtimeResolve = options.runtimeResolve !== false;
     let missingNapiChecked = false;
+    let unanchoredChecked = false;
 
     // Memoized per resolved file: the `index.*` filter fires the handler for every
     // package's index entry on every build pass, so this bounds the package.json
@@ -993,6 +1013,26 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                 // `dirname(null)` then took the whole GJS build down as an
                 // UNHANDLEABLE_ERROR. Normalise once, at the boundary.
                 const importer = typeof rawImporter === 'string' ? rawImporter : undefined;
+
+                // One gate ahead of the `@gjsify/napi` gate: without the
+                // bundle-URL banner the run-time resolver has nothing to anchor
+                // on and would throw at LOAD. Declining leaves the module to
+                // normal resolution, which is the same shape as the missing-napi
+                // decline below and for the same reason — a knowingly
+                // unloadable artifact is worse than an unrewritten one.
+                if (!runtimeResolve) {
+                    if (warnOnMissingNapi && !unanchoredChecked) {
+                        unanchoredChecked = true;
+                        warnSafe(
+                            ctx,
+                            `[gjsify-napi-addon] leaving native addons to normal resolution — the run-time ` +
+                                `addon resolver needs an ESM single-file build (gjsify build --app gjs), and ` +
+                                'this output carries no bundle-URL anchor.',
+                        );
+                    }
+                    return null;
+                }
+
                 const cls = classifySpecifier(source);
 
                 if (cls !== null) {

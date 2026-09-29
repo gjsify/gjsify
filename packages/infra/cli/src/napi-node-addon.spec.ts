@@ -14,6 +14,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     napiNodeAddonPlugin,
     resolveAddonPath,
+    enumerateAddonTargets,
     nearestPackageRoot,
     classifySpecifier,
     directNodeShim,
@@ -179,6 +180,129 @@ export default async () => {
         });
     });
 
+    // ADR 0084: the ADDON TABLE is what the bundle actually loads at run time,
+    // so "which file is in it" is the load-bearing question — the shape is
+    // covered above. Every assertion here is on table VALUES, not keys, so the
+    // suite says the same thing on a musl host (two keys, one file) as on glibc.
+    await describe('napi-node-addon: enumerateAddonTargets (the runtime table)', async () => {
+        /** The `<pkg>/<subpath>` spec of `rel` inside the fixture root. */
+        const specOf = (rel: string): string => `fixture-addon/${rel.split('\\').join('/')}`;
+
+        await it('never puts a FOREIGN-runtime prebuild in the table', async () => {
+            // Measured before the fix: the enumeration sorted by tag SPECIFICITY
+            // alone, and `electron` scores 1 where a plain `node` scores 0 — so a
+            // table that pointed a GJS bundle at an Electron-built `.node` passed
+            // every shape assertion in this file and failed at `dlopen` on a
+            // user's machine. node-gyp-build rejects it; the table must too.
+            const root = makeFixture((r) => {
+                touch(join(r, 'prebuilds', 'linux-x64'), 'electron.node');
+                touch(join(r, 'prebuilds', 'linux-x64'), 'node.node');
+            });
+            const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
+            expect(Object.values(table)).toContain(specOf('prebuilds/linux-x64/node.node'));
+            expect(Object.values(table).some((v) => v.endsWith('electron.node'))).toBe(false);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('never puts an ABI-PINNED prebuild in the table', async () => {
+            // Same shape, same cause: `abi115` scores 1, plain `node` scores 0.
+            // An abi-pinned binary is tied to ONE Node ABI and is not loadable by
+            // another runtime at all — a wrong binary, not a missing one.
+            const root = makeFixture((r) => {
+                touch(join(r, 'prebuilds', 'linux-x64'), 'node.abi115.node');
+                touch(join(r, 'prebuilds', 'linux-x64'), 'node.node');
+            });
+            const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
+            expect(Object.values(table)).toContain(specOf('prebuilds/linux-x64/node.node'));
+            expect(Object.values(table).some((v) => v.includes('abi115'))).toBe(false);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it("agrees with node-gyp-build on the BUILD HOST's file", async () => {
+            // The table's host entry and `resolveAddonPath` are two answers to
+            // one question; they must not drift, or one of them is a lie.
+            for (const files of [
+                ['electron.node', 'node.napi.node'],
+                ['node.abi115.node', 'node.napi.node'],
+                ['addon.glibc.node'],
+                ['node.node'],
+            ]) {
+                const root = makeFixture((r) => {
+                    for (const f of files) touch(join(r, 'prebuilds', `${process.platform}-${process.arch}`), f);
+                });
+                const picked = resolveAddonPath(root);
+                expect(Object.values(enumerateAddonTargets(root, { name: 'fixture-addon' }))).toContain(
+                    specOf(picked.slice(root.length + 1)),
+                );
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it("serves a FOREIGN platform the runtime-agnostic prebuild, not this host's abi", async () => {
+            // A cross-build can only serve another platform the binary that
+            // platform's runtime can load, so the abi is passed as `undefined`
+            // for a foreign tuple even when this build's Node has one.
+            const root = makeFixture((r) => {
+                touch(join(r, 'prebuilds', 'darwin-arm64'), 'node.abi115.node');
+                touch(join(r, 'prebuilds', 'darwin-arm64'), 'addon.napi.node');
+            });
+            const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
+            expect(table['darwin-arm64']).toBe(specOf('prebuilds/darwin-arm64/addon.napi.node'));
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('emits one key per ARCHITECTURE of a multi-arch tuple', async () => {
+            // `linux-x64+arm64` is a FAT binary, valid on both. Keying it by the
+            // first architecture alone (as the enumeration did) left an arm64
+            // cross-build of such a package with no entry at all.
+            const root = makeFixture((r) => touch(join(r, 'prebuilds', 'linux-x64+arm64'), 'addon.napi.node'));
+            const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
+            expect(table['linux-x64']).toBe(specOf('prebuilds/linux-x64+arm64/addon.napi.node'));
+            expect(table['linux-arm64']).toBe(specOf('prebuilds/linux-x64+arm64/addon.napi.node'));
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('serializes the same table for the same tree however it was created', async () => {
+            // The table is `JSON.stringify`'d into the bundle, so its KEY ORDER is
+            // part of the artifact's bytes. `readdir` order is a property of the
+            // filesystem, not of the tree; two checkouts on different filesystems
+            // must still produce the same artifact. (On this host the readdir
+            // order did not vary, so the guard is the sort, not the measurement.)
+            const tuples = ['darwin-arm64', 'linux-arm64', 'linux-x64', 'win32-x64'];
+            const build = (order: string[]): Record<string, string> => {
+                const root = makeFixture((r) => {
+                    for (const t of order) touch(join(r, 'prebuilds', t), 'a.napi.node');
+                });
+                const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
+                rmSync(root, { recursive: true, force: true });
+                return table;
+            };
+            expect(JSON.stringify(build(tuples))).toBe(JSON.stringify(build([...tuples].reverse())));
+        });
+
+        await it('keys build/Release by the BUILD host, not by the cross-build target', async () => {
+            // `npm_config_*` says which platform's PREBUILDS to select — that is
+            // the point of a cross-build. `build/Release` was compiled HERE, so
+            // keying it by the target made the table claim an x64 binary for an
+            // arm64 host: a wrong answer where a missing one would be survivable.
+            const before = { p: process.env.npm_config_platform, a: process.env.npm_config_arch };
+            try {
+                process.env.npm_config_platform = 'darwin';
+                process.env.npm_config_arch = 'arm64';
+                const root = makeFixture((r) => touch(join(r, 'build', 'Release'), 'x.node'));
+                const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
+                expect(Object.values(table)).toContain(specOf('build/Release/x.node'));
+                expect(Object.keys(table).some((k) => k === 'darwin-arm64')).toBe(false);
+                rmSync(root, { recursive: true, force: true });
+            } finally {
+                if (before.p === undefined) delete process.env.npm_config_platform;
+                else process.env.npm_config_platform = before.p;
+                if (before.a === undefined) delete process.env.npm_config_arch;
+                else process.env.npm_config_arch = before.a;
+            }
+        });
+    });
+
     await describe('napi-node-addon: nearestPackageRoot', async () => {
         await it('walks up from a nested importer to the package root', () => {
             const root = makeFixture((r) => touch(join(r, 'lib', 'deep'), 'binding.js'));
@@ -321,6 +445,37 @@ export default async () => {
                 '/nm/consumer/index.js',
             );
             expect(miss).toBe(null);
+        });
+
+        await it('declines EVERY shape when the output carries no bundle-URL anchor', async () => {
+            // `runtimeResolve: false` is `app/gjs.ts` passing the same
+            // `format === 'esm'` gate the path rewriter carries. The shim reads
+            // `globalThis.__gjsifyBundleUrl`, which only the ESM output's
+            // byte-0 banner sets, so a `--library cjs` build would emit a shim
+            // that throws at LOAD. Declining is the same shape as the
+            // missing-napi decline: an unrewritten module still resolves, a
+            // knowingly unloadable artifact does not. The warning fires once.
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-napi-unanchored-'));
+            writeFileSync(
+                join(root, 'package.json'),
+                JSON.stringify({ name: '@node-rs/argon2', main: 'index.js', napi: { binaryName: 'argon2' } }),
+            );
+            writeFileSync(join(root, 'index.js'), '// generated by NAPI-RS');
+            touch(join(root, 'build', 'Release'), 'argon2.node');
+
+            const plugin = napiNodeAddonPlugin({ runtimeResolve: false });
+            const handler = handlerOf(plugin);
+            const ctx = mockCtx();
+            expect(await handler.call(ctx, 'bindings', join(root, 'index.js'))).toBe(null);
+            expect(await handler.call(ctx, './argon2.node', join(root, 'index.js'))).toBe(null);
+            expect(await handler.call(ctx, '@node-rs/argon2', join(root, 'index.js'))).toBe(null);
+            expect(await handler.call(ctx, 'lodash', join(root, 'index.js'))).toBe(null);
+            const unanchored = ctx.warnings.filter((w) => w.includes('bundle-URL anchor'));
+            expect(unanchored.length).toBe(1);
+            // The gate is BEFORE the napi gate, so a resolvable @gjsify/napi
+            // must not turn it into a warning about the wrong thing.
+            expect(ctx.warnings.some((w) => w.includes('gjsify install @gjsify/napi'))).toBe(false);
+            rmSync(root, { recursive: true, force: true });
         });
 
         await it('returns null for ordinary specifiers', async () => {

@@ -30,11 +30,13 @@
 //  3. *No filesystem work.* libc is read from `process.env.LIBC`, not
 //     probed — the shim does no filesystem work. On a musl host with an
 //     unset `LIBC` the lookup falls through to the libc-agnostic entry,
-//     which is what node-gyp-build's own untagged prebuilds assume.
+//     which is what node-gyp-build's own untagged prebuilds assume; a package
+//     shipping a glibc-only and a musl prebuild under one tuple is served the
+//     glibc one, which `LIBC=musl` fixes.
 //
-// The fallback `<bundle dir>/addons/<package>/<subpath>` is the declared
-// layout a packaging step fills. Nothing fills it yet; wiring `gjsify ship`
-// and `gjsify install` to copy the addon PACKAGE into it is a follow-up.
+// The `addons/` layout the resolver names when the package is not installed is
+// the declared destination a packaging step would fill. `gjsify ship` does not
+// fill it yet — see ADR 0084 § Consequences for the measurement.
 //
 // @ts-ignore — `node:{module,url,path}` are resolved by the consumer's
 // `gjsify build` run (aliased to `@gjsify/{module,url,path}`), not by tsc here.
@@ -110,11 +112,17 @@ function resolvePackageRoot(pkg: string): string | null {
  * `targets` maps platform keys (`linux-x64`, `linux-x64-musl`, …) to
  * `<package>/<subpath>` specs. The host keys are tried most-specific first
  * (exact, then libc-agnostic, then `*`). The package root is resolved at run
- * time through the bundle-URL anchor; when the package is not installed (no
- * `node_modules`), the fallback `<bundle dir>/addons/<package>/<subpath>` is
- * returned — the declared layout a packaging step fills.
+ * time through the bundle-URL anchor, which is what makes the bundle relocatable
+ * (ADR 0084).
  *
- * Throws when no entry matches the running host or the table is empty.
+ * Throws when no entry matches the running host, when the table is empty, and
+ * when the addon package is not installed next to the bundle. The last one is
+ * a LIMIT, not an oversight: identity-based resolution needs the package to be
+ * somewhere on disk, so a bundle shipped with no `node_modules` around it cannot
+ * load a third-party addon. It throws rather than returning
+ * `<bundle dir>/addons/…` because that directory is a declared layout nothing
+ * fills yet, and a path that cannot exist reaches `loadAddon` as a bare ENOENT
+ * that names neither the package nor the remedy. Both facts are in the message.
  */
 export function __gjsifyAddonResolve(targets: Record<string, string>): string {
     const keys = hostAddonKeys(process.platform, process.arch, process.env.LIBC);
@@ -132,8 +140,15 @@ export function __gjsifyAddonResolve(targets: Record<string, string>): string {
     if (root !== null) {
         return subpath ? join(root, subpath) : root;
     }
-    // Fallback: <bundle dir>/addons/<package>/<subpath> — the declared layout
-    // a packaging step fills. Nothing fills it yet.
-    const bundleDir = dirname(fileURLToPath(bundleAnchorUrl()));
-    return join(bundleDir, 'addons', pkg, subpath);
+    // The package is not installed where this bundle can see it. `<bundle
+    // dir>/addons/<package>/` is the declared layout a packaging step would
+    // fill — `gjsify ship` does not yet — so name it and the two remedies.
+    const staged = join(dirname(fileURLToPath(bundleAnchorUrl())), 'addons', pkg, subpath);
+    throw new Error(
+        `gjsify-napi-addon: cannot find the addon package '${pkg}' from this bundle. ` +
+            `A GJS bundle finds its addon by package identity, so '${pkg}' must be installed in a ` +
+            `node_modules reachable from the bundle's own location, or staged at ` +
+            `'${staged}' (a layout no gjsify step fills yet). Run the bundle next to its ` +
+            "project's node_modules, or rebuild where the package is installed.",
+    );
 }

@@ -278,8 +278,11 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // from `@gjsify/napi`, which is BUNDLED, not external. Order matters:
         // after aliasPlugin so a user alias pinning an addon's native entry wins,
         // before externalsPlugin so the acquisition is claimed first. Inert
-        // otherwise; `--app gjs` only.
-        napiNodeAddonPlugin(),
+        // otherwise; `--app gjs` only. `runtimeResolve` is the SAME `format ===
+        // 'esm'` gate the path rewriter below carries: the shim resolves the
+        // addon from the bundle's own URL, which only the ESM output's
+        // bundle-URL banner records (ADR 0084).
+        napiNodeAddonPlugin({ runtimeResolve: format === 'esm' }),
         // Externals policy as a resolveId hook — the only form BOTH engines
         // honour. Runs after the alias plugin's `pre` resolveId so aliases apply
         // first.
