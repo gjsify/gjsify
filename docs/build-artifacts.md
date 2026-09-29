@@ -123,15 +123,28 @@ project's cache dir (`utils/scan-globals.ts`), while a PROJECT under `/tmp` is a
 job, a container, this suite's own fixtures), and a check that went blind there is this defect
 reached from the other side.
 |**a plugin's own reads are declared, not guessed** — the bundler is not the only party that
-reads an input. `gjsify-css-as-string` follows a stylesheet's `@import` chain with its own
-`readFile` (and lightningcss its own resolver on npm), and no graph names those files, so the
-recorder takes the engine's WATCH LIST as well: `build.watchFiles` on npm (its module set plus
-every `this.addWatchFile`) and, on the native engine, the declared half — `BundleResult` carries
-warnings and output only, and the plugin context had no `addWatchFile` at all, so
-`@gjsify/rolldown-native` grew one (a plugin that declares and then crashes at hook-call time is a
-build that fails for every consumer). Neither engine is a reason to drop the other: npm's list is
-a superset of the observed modules, native's is the complement, and the union costs a `stat` per
-redundant path against a stale green.
+reads an input, and two plugins read one: `gjsify-css-as-string` follows a stylesheet's `@import`
+chain (its own `readFile` on the GJS-native backend, lightningcss's resolver on npm), and
+`gjsify-node-modules-path-rewrite` folds a package's `readFileSync(new URL(..., import.meta.url))`
+into a LITERAL, so the file's bytes are in the bundle while no graph names it. Both declare every
+file they actually read through `this.addWatchFile` (`utils/declare-build-input.ts`, the one place
+that call is issued from), and the recorder takes the engine's WATCH LIST as its second half:
+`build.watchFiles` on npm (its module set plus every declaration) and, on the native engine, the
+declared half — `BundleResult` carried warnings and output only and the plugin context had no
+`addWatchFile` at all, so `@gjsify/rolldown-native` grew one. Neither engine is a reason to drop the
+other: npm's list is a superset of the observed modules, native's is the complement, and the union
+costs a `stat` per redundant path against a stale green.
+|**and a bundle whose build could not SEE plugin reads is never fresh.** The declaration is
+feature-detected, because the engine is not necessarily the one beside the plugin: it is resolved
+through several anchors and the answer is not always the project's (measured 2026-09-29 — a stale
+`node_modules` above a fixture pointed at a DIFFERENT worktree's engine). An engine without
+`addWatchFile` cannot report a watch list at all, and then the input set is missing exactly the
+files no graph names — so `isFresh` REFUSES such a bundle (the manifest carries
+`watchList: false` across processes) and the run rebuilds on every invocation instead. Measured on
+that engine: `watchList: false` in the manifest, an untouched tree reporting `building →` rather
+than `bundle is up-to-date`, and the skew named twice (once by the plugin, once by
+`bundler-pick.ts`, which is where the engine is in hand). A reader cannot reach a stale green on a
+line of prose.
 |**an id's query/hash is part of the SPECIFIER, not the path** — `x.css?raw`,
 `main.blp?shared-tree` (`?`-suffixes are how the blueprint plugin's shared-tree exit and a loader
 convention name one file twice) and any `#frag` stat as ENOENT, and dropping the id silently drops
@@ -144,9 +157,11 @@ half-written one is read by the next process, where it parses as "no manifest" a
 degrades the check to the walk.
 
 tests: unit `packages/infra/cli/src/utils/bundle-inputs.spec.ts` + the plugin's
-`css-as-string.spec.ts` (the declaration), and three suites in `tests/e2e/test-freshness/` (app +
-a symlinked workspace package; a stylesheet `@import` reached across a package boundary; a failed
-build leaving the set untouched). Red before the fixes at `an edit in packages/signal must
+`css-as-string.spec.ts` and the CLI's `inline-static-reads.spec.ts` (the declarations), and four
+suites in `tests/e2e/test-freshness/` (app + a symlinked workspace package; a stylesheet `@import`
+reached across a package boundary; a failed build leaving the set untouched; a deleted recorded
+input; and — through the real `gjs -m` CLI, the only arm that reaches the native engine's
+`watchedFiles` — an inlined read under `--app gjs`). Red before the fixes at `an edit in packages/signal must
 invalidate the app bundle` and `an @import-ed stylesheet must invalidate the app bundle`; 10 of 10
 green after. The one input still outside the set is a Sass file's partials — measured, and
 tracked at `status/open-todos/bundler.md`.

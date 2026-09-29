@@ -46,6 +46,7 @@ import { pathToFileURL } from 'node:url';
 import type { Plugin, PluginContext } from 'rolldown';
 import type { Targets } from 'lightningcss';
 import { isGjs } from '../utils/runtime.js';
+import { declareBuildInput, type DeclareBuildInput } from '../utils/declare-build-input.js';
 
 export interface CssAsStringOptions {
     /**
@@ -78,40 +79,7 @@ interface BundleResult {
  * a consumer editing one rebuilt nothing. Declaring them is the standard
  * contract, and it is the only account of them that exists.
  */
-export type DeclareCssInput = (abs: string) => void;
-
-let _warnedNoWatchFile = false;
-
-/**
- * `this.addWatchFile`, or one line saying it was missing.
- *
- * Feature-detected rather than called straight, because the engine is not
- * necessarily the one next to this plugin: the GJS CLI resolves
- * `@gjsify/rolldown-native` through several anchors, and a GLOBAL prefix copy
- * (measured 2026-09-29 on a dev host whose project-local engine was the
- * rebuilt one) answers first. An older engine has no such method on its plugin
- * context, and calling it blind fails the GJS build of every consumer with that
- * engine — a bookkeeping feature must not be able to break a build.
- *
- * A miss is not silent, though: the stylesheet's chain then reaches the build's
- * freshness check only through the importing stylesheet, and the user is told
- * once, with the engine to upgrade.
- */
-function declareWatchFile(ctx: { addWatchFile?: (id: string) => void }, abs: string): void {
-    if (typeof ctx.addWatchFile === 'function') {
-        ctx.addWatchFile(abs);
-        return;
-    }
-    if (_warnedNoWatchFile) return;
-    _warnedNoWatchFile = true;
-    console.warn(
-        '[gjsify-css-as-string] this Rolldown engine has no `addWatchFile`, so an @import-ed ' +
-            'stylesheet is not declared as a build input \u2014 editing one may leave a `gjsify test` bundle ' +
-            'looking fresh. Upgrade `@gjsify/rolldown-native` (the GJS engine) to declare it.',
-    );
-}
-
-type Bundler = (filename: string, targets: Targets | undefined, declare: DeclareCssInput) => Promise<BundleResult>;
+type Bundler = (filename: string, targets: Targets | undefined, declare: DeclareBuildInput) => Promise<BundleResult>;
 
 let _bundlerPromise: Promise<Bundler> | null = null;
 
@@ -278,7 +246,7 @@ function isAssetReference(specifier: string): boolean {
     return /^(data|https?|file):/i.test(specifier) || ASSET_REF_RE.test(specifier);
 }
 
-function createCssBundleResolver(declare: DeclareCssInput) {
+function createCssBundleResolver(declare: DeclareBuildInput) {
     return {
         resolve(specifier: string, from: string): string {
             // A relative `@import` is resolved here, but lightningcss reads the
@@ -364,7 +332,7 @@ async function replaceAllAsync(
  * URL) are kept verbatim (the resolver leaves them alone), matching the npm
  * path. A cycle inlines each file at most once.
  */
-async function flattenCssImports(entry: string, declare: DeclareCssInput): Promise<string> {
+async function flattenCssImports(entry: string, declare: DeclareBuildInput): Promise<string> {
     const seen = new Set<string>();
     const resolver = createCssBundleResolver(declare);
     const inline = async (file: string, isRoot: boolean): Promise<string> => {
@@ -432,8 +400,9 @@ export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
                 // Every file the backends read on our behalf, declared through
                 // the standard contract — `gjsify test`'s freshness check reads
                 // this list, and it is the only account of a stylesheet's
-                // `@import`/`@use` chain, which no module graph names.
-                const declare: DeclareCssInput = (abs) => declareWatchFile(this, abs);
+                // `@import`/`@use` chain, which no module graph names. Why the
+                // call is feature-detected: `utils/declare-build-input.ts`.
+                const declare: DeclareBuildInput = (abs) => declareBuildInput(this, abs);
                 // The entry itself is read here in every branch, and a Sass
                 // file's PARTIALS are not: dart-sass resolves a relative
                 // `@use "./x"` through its own filesystem importer before any
@@ -499,7 +468,7 @@ async function compileSass(filename: string): Promise<string> {
 async function loadAndBundleCss(
     filename: string,
     targets: Targets | undefined,
-    declare: DeclareCssInput,
+    declare: DeclareBuildInput,
 ): Promise<Uint8Array> {
     if (!_bundlerPromise) _bundlerPromise = pickBundler();
     const bundler = await _bundlerPromise;

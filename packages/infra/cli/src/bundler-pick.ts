@@ -365,17 +365,42 @@ export async function runWatch(finalOpts: BundlerOptions): Promise<RolldownWatch
     return mod.watch({ ...finalOpts, output });
 }
 
+/** What one build reported about the files its output depends on. */
+export interface BuildWatchList {
+    /**
+     * The engine's watch list: npm rolldown's `RolldownBuild.watchFiles` (its
+     * module set plus every `this.addWatchFile`), the native facade's
+     * `watchedFiles` (the declared half — the native engine reports no modules,
+     * hence the two halves rather than either). Read BEFORE `close()`, which is
+     * where the npm getter is still alive.
+     */
+    files: readonly string[];
+    /**
+     * `false` when the engine CANNOT report one at all (a `@gjsify/rolldown-native`
+     * older than `addWatchFile`). A caller that judges a build's inputs on this
+     * list has to refuse to trust it — the file a plugin read itself is then
+     * invisible, and a stale bundle would read as current.
+     */
+    reportedByEngine: boolean;
+}
+
 /** Where a build's own input list goes. Absent → the caller does not want it. */
 export interface RunBundleOptions {
-    /**
-     * Called once with the engine's watch list: npm rolldown's
-     * `RolldownBuild.watchFiles` (its module set plus every
-     * `this.addWatchFile`), the native facade's `watchedFiles` (the declared
-     * half — the native engine reports no modules, hence the two halves
-     * rather than either). Read BEFORE `close()`, which is where the npm
-     * getter is still alive.
-     */
-    onWatchFiles?: (ids: readonly string[]) => void;
+    onWatchFiles?: (watch: BuildWatchList) => void;
+}
+
+let _warnedNoWatchList = false;
+
+function warnNoNativeWatchList(): void {
+    if (_warnedNoWatchList) return;
+    _warnedNoWatchList = true;
+    console.warn(
+        '[gjsify] this `@gjsify/rolldown-native` build reports no watch list: it predates ' +
+            '`addWatchFile`, so a file a plugin read itself (a stylesheet\u2019s `@import` chain, an ' +
+            'inlined `readFileSync`) cannot be declared as a build input. `gjsify test` will rebuild ' +
+            'the affected bundles on every run rather than trust a set it cannot see. Upgrade the ' +
+            'engine (it ships in the same release train as the CLI).',
+    );
 }
 
 /**
@@ -390,7 +415,9 @@ export async function runBundle(finalOpts: BundlerOptions, options: RunBundleOpt
     const build = await rolldown(finalOpts);
     try {
         const output = await build.write(finalOpts.output ?? {});
-        if (options.onWatchFiles) options.onWatchFiles(await build.watchFiles);
+        if (options.onWatchFiles) {
+            options.onWatchFiles({ files: await build.watchFiles, reportedByEngine: true });
+        }
         return output;
     } finally {
         await build.close();
@@ -576,7 +603,19 @@ async function runNativeBundle(finalOpts: BundlerOptions, options: RunBundleOpti
     }
     const result = await native.bundleWithPlugins(bundlerOpts as unknown as Record<string, unknown>, nativePlugins);
     reportNativeWarnings(result, finalOpts as unknown as Record<string, unknown>);
-    if (options.onWatchFiles && result.watchedFiles !== undefined) options.onWatchFiles(result.watchedFiles);
+    if (options.onWatchFiles) {
+        if (result.watchedFiles === undefined) {
+            // NOT a silent drop. A version-skewed engine has no `addWatchFile` on
+            // its plugin context, so nothing a plugin declares can reach the
+            // build's input set — and a caller judging freshness on that set
+            // would call a stale bundle current. Say so here, where the engine is
+            // in hand, and report `reportedByEngine: false` so the caller refuses.
+            warnNoNativeWatchList();
+            options.onWatchFiles({ files: [], reportedByEngine: false });
+        } else {
+            options.onWatchFiles({ files: result.watchedFiles, reportedByEngine: true });
+        }
+    }
 
     // The native facade returns the BundleOutput shape but doesn't
     // write files — replicate `.write()` here so callers see the same

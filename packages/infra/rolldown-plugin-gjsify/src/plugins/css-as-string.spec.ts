@@ -97,6 +97,27 @@ export default async () => {
             }
         });
 
+        await it('does NOT throw on an engine without addWatchFile, and says so once', async () => {
+            // Measured: the engine the GJS CLI loads is resolved through several
+            // anchors, and one of them answered with a build that has no such
+            // method. A build must not fail over bookkeeping — but the reader
+            // must not be left with prose, either.
+            const root = fixture({ 'src/index.css': '.plain { color: red; }\n' });
+            const entry = join(root, 'src', 'index.css');
+            const hook = cssAsStringPlugin().load as { handler: (this: unknown, id: string) => Promise<unknown> };
+            const seen: string[] = [];
+            const original = console.warn;
+            console.warn = (msg: string) => seen.push(msg);
+            try {
+                const result = await hook.handler.call({}, entry);
+                expect(JSON.stringify(result)).toContain('plain');
+            } finally {
+                console.warn = original;
+                rmSync(root, { recursive: true, force: true });
+            }
+            expect(seen.join('\n')).toContain('addWatchFile');
+        });
+
         await it('declares nothing beyond the entry when there is no chain', async () => {
             const root = fixture({ 'src/plain.css': '.plain { color: red; }\n' });
             try {

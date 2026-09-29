@@ -244,11 +244,16 @@ async function buildTestBundle(
     await action.start({
         app: runtime,
         library: false,
-        onWatchFiles: (ids) => recorder.addWatchFiles(ids),
+        onWatchFiles: (watch) => recorder.addWatchFiles(watch),
     });
-    // Written AFTER the build resolves: the manifest describes the bundle that
-    // now exists, and a run that failed to build leaves the previous one in
-    // place rather than overwriting it with a half-recorded set.
+    // Written AFTER the build resolves, and that ordering is the whole of what
+    // a failure leaves behind: a build that fails BEFORE writing an artifact
+    // (parse, resolve, a plugin hook) throws out of `start()` and never reaches
+    // this line, so the previous manifest still describes the previous bundle.
+    // A failure in a POST-WRITE gate is the other case and is not ours to
+    // paper over: `actions/build.ts` has already replaced the bundle, the
+    // manifest is rewritten beside it, and both then describe the same build —
+    // the next run re-runs the failing bundle rather than the one before it.
     recorder.write();
 }
 
@@ -301,9 +306,16 @@ export function isFresh(outfile: string, entry: string, cwd: string, outdir: str
         const outdirRel = relative(cwd, outdir).split(sep).join('/');
         if (outdirRel !== '' && !outdirRel.startsWith('../')) extraOutputs.push(outdirRel);
         const bundleInputs = readBundleInputs(outfile);
+        // A build whose engine could report NO watch list never entered a file
+        // only a PLUGIN read — a stylesheet's `@import` chain, an inlined
+        // `readFileSync` — into the set below, and no mtime comparison can
+        // recover it. Judging such a bundle fresh IS the stale green, so the
+        // answer is no: rebuild, on every run, and say why. `bundler-pick.ts`
+        // prints the skew once; the manifest carries it across processes.
+        if (bundleInputs !== null && !bundleInputs.watchList) return false;
         const newest = Math.max(
             newestInputMtimeMs(packageBuildInputs(cwd, { extraOutputs })),
-            bundleInputs === null ? 0 : newestBundleInputMtimeMs(bundleInputs),
+            bundleInputs === null ? 0 : newestBundleInputMtimeMs(bundleInputs.inputs),
             statSync(entry).mtimeMs,
             // A dependency bump changes no file in the package — and that is
             // the shape #1651 was found in. `node_modules` is far too large

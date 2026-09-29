@@ -31,13 +31,32 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writ
 import { dirname, join, sep } from 'node:path';
 import type { RolldownPluginOption } from 'rolldown';
 
-/** Bumped when the shape changes; a manifest of any other version is ignored. */
-export const BUNDLE_INPUTS_VERSION = 1;
+/**
+ * Bumped when the shape changes; a manifest of any other version is ignored.
+ *
+ * v2 adds `watchList`. A v1 manifest says nothing about whether the engine that
+ * wrote it could report a watch list at all, and the safe reading of "unknown"
+ * is "do not trust it": see {@link readBundleInputs}.
+ */
+export const BUNDLE_INPUTS_VERSION = 2;
 
 interface BundleInputsManifest {
     version: number;
     /** Absolute paths, sorted. */
     inputs: string[];
+    /**
+     * `false` when the engine that built this bundle could report NO watch list
+     * — so a file only a plugin read (a stylesheet's `@import` chain, an inlined
+     * `readFileSync`) is not in `inputs` and no amount of stat-ing can find it.
+     */
+    watchList: boolean;
+}
+
+/** What a manifest says, once parsed. */
+export interface BundleInputs {
+    inputs: string[];
+    /** `false` = this bundle's build could not see plugin-read inputs at all. */
+    watchList: boolean;
 }
 
 /** The manifest that belongs to `outfile`. */
@@ -55,7 +74,7 @@ export interface BundleInputsRecorder {
      * CSS plugin follows a stylesheet's `@import` chain with its own `readFile`,
      * and no graph mentions the imported file.
      */
-    addWatchFiles(ids: readonly string[]): void;
+    addWatchFiles(watch: { files: readonly string[]; reportedByEngine: boolean }): void;
     /** The recorded inputs so far: sorted, deduplicated, existing files only. */
     inputs(): string[];
     /**
@@ -78,7 +97,21 @@ export interface BundleInputsRecorder {
 function idToPath(id: string): string | null {
     if (id === '' || id.startsWith('\0')) return null;
     const cut = id.search(/[?#]/);
-    return cut === -1 ? id : id.slice(0, cut);
+    if (cut === -1) return id;
+    const stripped = id.slice(0, cut);
+    // The fallback is not a nicety: `?` and `#` are LEGAL in a Linux filename,
+    // and `a?b.blp` is that file's whole name. Stripping turned it into `a`,
+    // which does not exist, and the input was dropped. So the unstripped id gets
+    // its turn — and when neither is a file, `inputs()` drops it as before.
+    return isFile(stripped) ? stripped : id;
+}
+
+function isFile(abs: string): boolean {
+    try {
+        return statSync(abs).isFile();
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -150,6 +183,10 @@ function resolutionFilesFor(abs: string): string[] {
  */
 export function createBundleInputsRecorder(outfile: string): BundleInputsRecorder {
     const seen = new Set<string>();
+    // Sticky, and pessimistic: ONE pass without a watch list is enough to know
+    // the build cannot see a plugin-read input, and the artifact must not be
+    // judged fresh on the strength of the passes that could.
+    let watchList = true;
     const record = (raw: string): void => {
         const abs = idToPath(raw);
         if (abs !== null) seen.add(abs);
@@ -186,13 +223,14 @@ export function createBundleInputsRecorder(outfile: string): BundleInputsRecorde
 
     return {
         plugin,
-        addWatchFiles(ids: readonly string[]): void {
-            for (const id of ids) record(id);
+        addWatchFiles(watch: { files: readonly string[]; reportedByEngine: boolean }): void {
+            if (!watch.reportedByEngine) watchList = false;
+            for (const id of watch.files) record(id);
         },
         inputs,
         write(): void {
             const path = bundleInputsPath(outfile);
-            const manifest: BundleInputsManifest = { version: BUNDLE_INPUTS_VERSION, inputs: inputs() };
+            const manifest: BundleInputsManifest = { version: BUNDLE_INPUTS_VERSION, inputs: inputs(), watchList };
             const tmp = `${path}.tmp`;
             try {
                 mkdirSync(dirname(path), { recursive: true });
@@ -223,7 +261,7 @@ export function createBundleInputsRecorder(outfile: string): BundleInputsRecorde
  * error: a bundle built by an older CLI, or copied in from elsewhere, has no
  * manifest and is judged by the package walk alone.
  */
-export function readBundleInputs(outfile: string): string[] | null {
+export function readBundleInputs(outfile: string): BundleInputs | null {
     let parsed: Partial<BundleInputsManifest>;
     try {
         parsed = JSON.parse(readFileSync(bundleInputsPath(outfile), 'utf-8')) as Partial<BundleInputsManifest>;
@@ -231,7 +269,13 @@ export function readBundleInputs(outfile: string): string[] | null {
         return null;
     }
     if (parsed?.version !== BUNDLE_INPUTS_VERSION || !Array.isArray(parsed.inputs)) return null;
-    return parsed.inputs.filter((abs): abs is string => typeof abs === 'string');
+    return {
+        inputs: parsed.inputs.filter((abs): abs is string => typeof abs === 'string'),
+        // v2 only, so a missing flag cannot be v2 — but the pessimistic reading
+        // is kept anyway: a manifest that does not vouch for its engine's watch
+        // list is not one to judge freshness on.
+        watchList: parsed.watchList === true,
+    };
 }
 
 /**

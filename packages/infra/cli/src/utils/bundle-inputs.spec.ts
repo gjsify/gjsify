@@ -72,6 +72,21 @@ export default async () => {
             }
         });
 
+        await it('keeps a file whose NAME carries the character it strips at', async () => {
+            const root = fixture();
+            try {
+                // `?` is a legal filename character on Linux, and this id has no
+                // query at all — stripping at the first `?` turned it into `a`,
+                // which does not exist, and the input was dropped.
+                const odd = file(root, 'src/a?b.blp');
+                const recorder = createBundleInputsRecorder(join(root, 'dist', 'test.node.mjs'));
+                observe(recorder, [odd]);
+                expect(recorder.inputs()).toContain(odd);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
         await it('takes the engine watch list, the only account of a file no graph names', async () => {
             const root = fixture();
             try {
@@ -80,7 +95,7 @@ export default async () => {
                 const recorder = createBundleInputsRecorder(join(root, 'app', 'dist', 'test.node.mjs'));
                 // What a plugin declares with `this.addWatchFile` — a stylesheet's
                 // `@import` target, which no module graph ever names.
-                recorder.addWatchFiles([imported, entry]);
+                recorder.addWatchFiles({ files: [imported, entry], reportedByEngine: true });
                 expect(recorder.inputs()).toContain(imported);
                 expect(recorder.inputs()).toContain(entry);
             } finally {
@@ -152,7 +167,7 @@ export default async () => {
                 // Written to a sibling and renamed: a manifest is read by the
                 // NEXT process, and a half-written one parses as "no manifest".
                 expect(existsSync(`${bundleInputsPath(outfile)}.tmp`)).toBe(false);
-                expect(readBundleInputs(outfile)).toContain(input);
+                expect(readBundleInputs(outfile)?.inputs).toContain(input);
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }
@@ -195,10 +210,51 @@ export default async () => {
                 observe(recorder, [input]);
                 recorder.write();
 
-                expect(readBundleInputs(outfile)).toStrictEqual([input]);
+                expect(readBundleInputs(outfile)?.inputs).toStrictEqual([input]);
                 expect(JSON.parse(readFileSync(bundleInputsPath(outfile), 'utf-8')).version).toBe(
                     BUNDLE_INPUTS_VERSION,
                 );
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('records that the engine reported NO watch list, so no reader may call that fresh', async () => {
+            const root = fixture();
+            try {
+                const outfile = join(root, 'dist', 'test.node.mjs');
+                const input = file(root, 'src/lib.ts');
+                const recorder = createBundleInputsRecorder(outfile);
+                observe(recorder, [input]);
+                // What a version-skewed engine reports: no watch list at all, so
+                // a file only a PLUGIN read never reaches the set, and claiming
+                // freshness on that set is the stale green. The manifest has to
+                // carry the fact across processes, because that is where the
+                // next run decides.
+                recorder.addWatchFiles({ files: [], reportedByEngine: false });
+                recorder.write();
+
+                const read = readBundleInputs(outfile);
+                expect(read?.watchList).toBe(false);
+                expect(read?.inputs).toContain(input);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('reads a manifest that does not vouch for its engine as NOT having a watch list', async () => {
+            const root = fixture();
+            try {
+                const outfile = join(root, 'dist', 'test.node.mjs');
+                mkdirSync(join(root, 'dist'), { recursive: true });
+                // A v2 manifest without the flag is malformed, and the pessimistic
+                // reading is the one that costs a rebuild instead of a stale green.
+                writeFileSync(
+                    bundleInputsPath(outfile),
+                    JSON.stringify({ version: BUNDLE_INPUTS_VERSION, inputs: [] }),
+                    'utf-8',
+                );
+                expect(readBundleInputs(outfile)?.watchList).toBe(false);
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }
