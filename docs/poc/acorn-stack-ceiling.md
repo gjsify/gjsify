@@ -3,6 +3,9 @@
 **Reproduction**: [`acorn-stack-ceiling.gjs.mjs`](acorn-stack-ceiling.gjs.mjs) —
 `gjs -m docs/poc/acorn-stack-ceiling.gjs.mjs` (`--quick` for a short sweep)
 
+**AST depth probe**: [`acorn-ast-depth.gjs.mjs`](acorn-ast-depth.gjs.mjs) —
+`gjs -m docs/poc/acorn-ast-depth.gjs.mjs <bundle-file>`
+
 Measured on **gjs 1.88.1 / SpiderMonkey 140** (the pairing CI uses), Linux, 2026-09-28.
 Every row is a fresh process — the header explains why that is load-bearing rather than
 tidiness.
@@ -78,16 +81,22 @@ effect is large and unambiguous.
 
 ## What is falsified, by measurement
 
-The two obvious candidates for "which generated file", both built and measured here:
+The three obvious candidates for "which generated file", built and measured with the probe below:
 
 | candidate | bytes | lines | max AST depth | verdict |
 |---|---|---|---|---|
-| gjsify plugin bundle for GJS (`--app gjs` of `rolldown-plugin-gjsify`) | 6.3 MB | 602 | **67** | not it — far below the ceiling |
-| `@gjsify/tls` test bundle, `--app gjs` | 289 kB | 180 | **50** | not it |
-| `@gjsify/tls` test bundle, `--app node` | 84 kB | 172 | **50** | not it |
+| gjsify plugin bundle for GJS (`--app gjs` of `rolldown-plugin-gjsify`) | 6.3 MB | 602 | **66** | not it — far below the ceiling |
+| `@gjsify/tls` test bundle, `--app gjs` | 289 kB | 180 | **49** | not it |
+| `@gjsify/tls` test bundle, `--app node` | 84 kB | 172 | **49** | not it |
 
-Depth is measured with an iterative acorn walk (`docs/poc/` ships the probe; the walk must be
-iterative, or it measures the measuring script's stack instead of the file's).
+Depth is measured with an iterative acorn walk ([`acorn-ast-depth.gjs.mjs`](acorn-ast-depth.gjs.mjs); the walk must be
+iterative, or it measures the measuring script's stack instead of the file's). Run:
+
+```bash
+gjs -m docs/poc/acorn-ast-depth.gjs.mjs packages/infra/rolldown-plugin-gjsify/plugin.gjs.mjs
+gjs -m docs/poc/acorn-ast-depth.gjs.mjs packages/node/tls/test.gjs.mjs
+gjs -m docs/poc/acorn-ast-depth.gjs.mjs packages/node/tls/test.node.mjs
+```
 
 So **neither the plugin bundle nor either test bundle is over the limit**, which removes the
 two theories this issue was built on. What remains is some other acorn call site over some

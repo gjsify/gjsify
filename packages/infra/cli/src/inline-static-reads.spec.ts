@@ -36,6 +36,42 @@ import {
 
 export default async () => {
     await describe('inline-static-reads', async () => {
+        await it('DECLARES every file whose bytes it inlined', () => {
+            // The inliner bakes a file's CONTENTS into the bundle, so that file
+            // is an input of the output while no module graph names it — the
+            // `gjsify test` freshness check sees it only through a declaration.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-inline-declare-'));
+            try {
+                const reader = join(dir, 'pkg', 'src');
+                mkdirSync(reader, { recursive: true });
+                writeFileSync(join(dir, 'pkg', 'package.json'), '{}\n');
+                writeFileSync(join(reader, 'token.txt'), 'TOKEN\n');
+                const declared: string[] = [];
+                const src = `
+                    import { readFileSync } from 'node:fs';
+                    export const TOKEN = readFileSync(new URL('./token.txt', import.meta.url), 'utf8');
+                `;
+                const out = inlineStaticReads(src, join(reader, 'index.js'), (abs) => declared.push(abs));
+                expect(out.inlined).toBe(1);
+                expect(declared).toStrictEqual([join(reader, 'token.txt')]);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('declares nothing for a read it DECLINED (the bytes are not in the bundle)', () => {
+            const src = `
+                import { readFileSync } from 'node:fs';
+                export const OUT = readFileSync(new URL('/etc/hostname', import.meta.url), 'utf8');
+            `;
+            const declared: string[] = [];
+            const out = inlineStaticReads(src, '/home/dev/repo/packages/infra/cli/src/probe.js', (abs) =>
+                declared.push(abs),
+            );
+            expect(out.inlined).toBe(0);
+            expect(declared).toStrictEqual([]);
+        });
+
         await it('does NOT inline readdirSync when first arg is Array.prototype.join', () => {
             // Mirrors typedoc's discoverFiles: `dir` is a string[][] local,
             // `dir.join('/')` is Array.prototype.join(), NOT path.join().

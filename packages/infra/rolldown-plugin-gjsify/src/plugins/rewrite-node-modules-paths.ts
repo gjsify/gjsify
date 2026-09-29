@@ -30,6 +30,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import type { Plugin } from 'rolldown';
 
 import { inlineStaticReads, parseSource } from '../utils/inline-static-reads.js';
+import { declareBuildInput, type WatchFileCapableContext } from '../utils/declare-build-input.js';
 import { hasZipSegment } from '../utils/zip-path.js';
 
 export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
@@ -465,10 +466,11 @@ export function rewriteContents(
     srcInput: string,
     bundleDir: string,
     runtimeResolve: boolean,
+    declare?: (abs: string) => void,
 ): RewriteResult | null {
     if (!shouldRewrite(args.path)) return null;
 
-    const inlined = inlineStaticReads(srcInput, args.path);
+    const inlined = inlineStaticReads(srcInput, args.path, declare);
     const src = inlined.contents;
 
     const flags: TokenFlags = {
@@ -532,9 +534,15 @@ export function nodeModulesPathRewritePlugin(options: NodeModulesPathRewriteOpti
         transform: {
             order: 'post' as const,
             filter: { id: REWRITE_FILTER },
-            handler(code: string, id: string) {
+            handler(this: WatchFileCapableContext, code: string, id: string) {
+                // What the inliner FOLDS into the bundle is an input of the
+                // output and no module graph names it, so it is declared through
+                // the standard contract — the same one `css-as-string` uses.
+                // Feature-detected, and the reason is measured: see
+                // `utils/declare-build-input.ts`.
+                const declare = (abs: string) => declareBuildInput(this, abs);
                 if (id.includes('node_modules')) {
-                    const result = rewriteContents({ path: id }, code, options.bundleDir, runtimeResolve);
+                    const result = rewriteContents({ path: id }, code, options.bundleDir, runtimeResolve, declare);
                     if (!result) return null;
                     return { code: result.code, map: null };
                 }
@@ -542,7 +550,7 @@ export function nodeModulesPathRewritePlugin(options: NodeModulesPathRewriteOpti
                 // nothing else. `import.meta.url` here is not rewritten — that
                 // is the node_modules question this plugin was written for.
                 if (!shouldInline(id)) return null;
-                const inlined = inlineStaticReads(code, id);
+                const inlined = inlineStaticReads(code, id, declare);
                 return inlined.inlined > 0 ? { code: inlined.contents, map: null } : null;
             },
         },

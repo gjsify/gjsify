@@ -37,7 +37,7 @@
 // A refresh replaces the measured suites, keeps the old figure for any suite that
 // run did not measure, and drops suites `listE2eSuites()` no longer discovers.
 
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -47,6 +47,7 @@ import { LINT_ENGINES_SUITE, listE2eSuites } from './e2e-suites.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TIMINGS_FILE = join(ROOT, 'scripts', 'e2e-shard-timings.json');
 const REPORTER = join(ROOT, 'scripts', 'e2e-timing-reporter.mjs');
+const ANNOTATE_REPORTER = join(ROOT, 'scripts', 'e2e-annotate-reporter.mjs');
 // The 2-core runner's default concurrency is 1, so the explicit flag is what gives
 // any speedup at all. The balancer's cost model reads the same constant.
 const PARALLEL_CONCURRENCY = 4;
@@ -55,6 +56,9 @@ const PARALLEL_CONCURRENCY = 4;
 // example-dist artifact. It runs in `main.yml`'s `examples-build` job, where that
 // dist is produced, so no e2e shard has to wait for the examples build.
 const EXAMPLE_DIST_SUITES = [LINT_ENGINES_SUITE];
+if (!existsSync(LINT_ENGINES_SUITE)) {
+    fatal(`LINT_ENGINES_SUITE path "${LINT_ENGINES_SUITE}" does not exist; cannot run example-dist shard.`);
+}
 
 function fatal(msg) {
     console.error(`e2e-shard: ${msg}`);
@@ -150,15 +154,28 @@ function refreshTimings(dirs) {
 
 function nodeTest(paths, label, extraArgs = []) {
     const out = process.env.E2E_TIMINGS_OUT;
-    const reporterArgs = [];
+    // Adding ANY `--test-reporter` drops Node's own default entirely — every
+    // reporter wanted then has to be named, or the run prints nothing
+    // human-readable at all (measured: `annotate` alone on a failing file
+    // produced the `::error::` line and NOTHING else, not even a pass/fail
+    // total). So the human reporter is always explicit — and it is `spec` on
+    // BOTH sides of the TTY: Node's default is `spec` whether or not stdout is a
+    // terminal (measured with `node --test <file> | cat` on the local v24.19.0 and
+    // on v26.10.0, the version `.github/actions/gjsify-setup` installs), so naming
+    // it reproduces the pre-existing output for a terminal and for CI's pipe alike.
+    const humanReporter = 'spec';
+    const reporterArgs = [
+        `--test-reporter=${humanReporter}`,
+        '--test-reporter-destination=stdout',
+        // Failing-suite annotations (scripts/e2e-annotate-reporter.mjs → the shared
+        // scripts/lib/ci-report.mjs): a no-op off `GITHUB_ACTIONS`, so this adds
+        // nothing to a local run's output beyond the reporter subscribing.
+        `--test-reporter=${ANNOTATE_REPORTER}`,
+        '--test-reporter-destination=stdout',
+    ];
     if (out) {
         mkdirSync(out, { recursive: true });
-        reporterArgs.push(
-            '--test-reporter=spec',
-            '--test-reporter-destination=stdout',
-            `--test-reporter=${REPORTER}`,
-            `--test-reporter-destination=${join(out, `${label}.json`)}`,
-        );
+        reporterArgs.push(`--test-reporter=${REPORTER}`, `--test-reporter-destination=${join(out, `${label}.json`)}`);
     }
     const r = spawnSync('node', ['--test', ...extraArgs, ...reporterArgs, ...paths.map((p) => join(ROOT, p))], {
         cwd: ROOT,

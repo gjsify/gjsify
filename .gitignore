@@ -107,6 +107,12 @@ packages/infra/cli/dist/*
 !packages/infra/tsc/lib/
 !packages/infra/tsc/lib/*.d.ts
 
+# `scripts/lib/` is HAND-WRITTEN source (shared helpers for repo-root scripts,
+# e.g. `ci-report.mjs`), not a build output — the global `lib/` rule above
+# matches by directory NAME at any depth, with no way to mean "except this
+# one", so it needs the same explicit re-include as `packages/infra/tsc/lib/`.
+!scripts/lib/
+
 packages/**/*/test.*.js
 packages/**/*/test.*.js.map
 packages/**/*/test.*.cjs

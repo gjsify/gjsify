@@ -85,6 +85,13 @@ interface InlineContext {
     sourceUrl: string;
     /** The tree this module's own resources live in — see `resourceRootFor`. */
     resourceRoot: string;
+    /**
+     * Every file whose bytes (or whose existence) this pass folded into the
+     * output. Optional, and called ONLY where a read actually happened: a
+     * declined read leaves the call in the bundle, so its file is not an input
+     * of the output and declaring it would be a lie in the safe direction.
+     */
+    declare?: (abs: string) => void;
 }
 
 /**
@@ -162,7 +169,11 @@ function forEachCallExpression(root: unknown, visit: (node: acorn.CallExpression
     }
 }
 
-export function inlineStaticReads(src: string, sourceFilePath: string): { contents: string; inlined: number } {
+export function inlineStaticReads(
+    src: string,
+    sourceFilePath: string,
+    declare?: (abs: string) => void,
+): { contents: string; inlined: number } {
     if (!src.includes('readFileSync') && !src.includes('readdirSync') && !src.includes('existsSync')) {
         return { contents: src, inlined: 0 };
     }
@@ -181,6 +192,7 @@ export function inlineStaticReads(src: string, sourceFilePath: string): { conten
     const ctx: InlineContext = {
         sourceUrl: pathToFileURL(sourceFilePath).href,
         resourceRoot: resourceRootFor(sourceFilePath),
+        declare,
     };
     const edits: Edit[] = [];
 
@@ -273,6 +285,7 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
         if (path && existsSync(path) && isDirectorySafe(path)) {
             try {
                 const names = readdirSync(path);
+                ctx.declare?.(path);
                 return {
                     start: node.start,
                     end: node.end,
@@ -287,11 +300,11 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
     if (calleeName === 'existsSync') {
         const path = evalPathExpr(node.arguments[0], ctx);
         if (path !== undefined) {
-            return {
-                start: node.start,
-                end: node.end,
-                replacement: existsSync(path) ? 'true' : 'false',
-            };
+            // The ANSWER is in the bundle, so the file's existence is an input
+            // of the output — a file that appears changes the emitted literal.
+            const present = existsSync(path);
+            ctx.declare?.(path);
+            return { start: node.start, end: node.end, replacement: present ? 'true' : 'false' };
         }
     }
 
@@ -318,6 +331,9 @@ function tryInlineCall(node: acorn.CallExpression, ctx: InlineContext, _src: str
         //    time but the path doesn't exist under GJS at runtime).
         const isZip = path !== undefined && hasZipSegment(path);
         if (path !== undefined && (isZip || !existsSync(path))) {
+            // The stub-vs-real choice reads the file's existence too, so the
+            // same declaration applies to the branch that replaces the call.
+            ctx.declare?.(path);
             return {
                 start: node.start,
                 end: node.end,
@@ -362,12 +378,14 @@ function tryInlineReadFile(
     try {
         if (encoding) {
             const text = readFileSync(path, encoding as BufferEncoding);
+            ctx.declare?.(path);
             return jsStringLiteral(text);
         } else {
             // Binary read → emit a Uint8Array constructor over a number array.
             // Buffer-vs-Uint8Array semantic difference is mostly irrelevant in
             // bundled GJS code (Buffer is polyfilled on top of Uint8Array).
             const bytes = readFileSync(path);
+            ctx.declare?.(path);
             return `new Uint8Array([${Array.from(bytes).join(',')}])`;
         }
     } catch {

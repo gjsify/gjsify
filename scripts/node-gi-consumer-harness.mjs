@@ -49,6 +49,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdir
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCommandSpawn, resolveGjsifySpawn } from './resolve-gjsify.mjs';
+import { reportFailure } from './lib/ci-report.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -425,16 +426,22 @@ const formatFailure = (f) => (f.name && f.message ? `${f.name} — ${f.message}`
  * marker set (`❌ ⏱ ✗ ✘`), and a reporter emitting anything else produces an empty
  * list. Silence there means "the collector missed it", not "no failures".
  */
-function formatGateFailure(r) {
+function gateFailureParts(r) {
     const node = r.runtimes?.node;
     const verdict = r.build?.ok ? (node?.status ?? 'no-node-run') : `build ${r.build?.reason}`;
+    const counts = node && node.total !== undefined ? node : null;
+    const samples = (node?.samples?.length ? node.samples : r.build?.samples) ?? [];
+    return { verdict, counts, samples };
+}
+
+function formatGateFailure(r) {
+    const { verdict, counts, samples } = gateFailureParts(r);
     const lines = [`  ${r.name} — ${verdict}`];
-    if (node && node.total !== undefined) {
+    if (counts) {
         lines.push(
-            `      ${node.passed}/${node.total} passed, ${node.failed} failed · bucket: ${node.reason ?? 'n/a'}`,
+            `      ${counts.passed}/${counts.total} passed, ${counts.failed} failed · bucket: ${counts.reason ?? 'n/a'}`,
         );
     }
-    const samples = (node?.samples?.length ? node.samples : r.build?.samples) ?? [];
     for (const s of samples) lines.push(`      ✖ ${s}`);
     if (!samples.length) {
         lines.push(`      (no failure samples captured — collectFailures matches ❌ ⏱ ✗ ✘ only)`);
@@ -769,6 +776,19 @@ function main() {
                 `\n✗ --require-pass: ${notPassing.length} package(s) did not PASS on node:\n` +
                     notPassing.map(formatGateFailure).join('\n'),
             );
+            // One check-run annotation per failing package — test names + error,
+            // the same evidence `formatGateFailure` prints to the log, so `ci-why`
+            // (docs/ci-selective.md) can name the cause without a log-tail guess.
+            for (const r of notPassing) {
+                const { verdict, counts, samples } = gateFailureParts(r);
+                const message = [
+                    counts ? `${counts.passed}/${counts.total} passed, ${counts.failed} failed` : verdict,
+                    ...samples.slice(0, 2),
+                ]
+                    .filter(Boolean)
+                    .join(' — ');
+                reportFailure({ title: `node-gi consumer harness: ${r.name}`, message });
+            }
             process.exit(1);
         }
         console.log(`\n✓ --require-pass: all ${results.length} package(s) pass on node.`);

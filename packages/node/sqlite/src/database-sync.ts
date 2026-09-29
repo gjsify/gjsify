@@ -17,6 +17,8 @@ import {
 import { executeStatement } from './execution.ts';
 import { convertParameterSyntax } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
+import { rewriteExistsSubqueries } from './exists-subquery.ts';
+import { sqlRegions } from './sql-regions.ts';
 import { StatementSync } from './statement-sync.ts';
 import type { DatabaseSyncOptions, StatementSyncOptions } from './types.ts';
 
@@ -244,7 +246,7 @@ export class DatabaseSync {
             // than Statements — and it carries the same `remain` hazard (see #parseSql).
             const statements = this.#splitStatements(sql);
             for (const stmtSql of statements) {
-                const [stmt] = this.#parseSql(stmtSql);
+                const [stmt] = this.#parseSql(rewriteExistsSubqueries(stmtSql));
                 executeStatement(this.#connection!, stmt, null, () => undefined);
             }
         } catch (e: unknown) {
@@ -271,7 +273,7 @@ export class DatabaseSync {
         // types are not known yet, and libgda only needs the SHAPE to parse.
         const [probeSql, paramMap] = convertParameterSyntax(sql);
         try {
-            this.#parseSql(probeSql);
+            this.#parseSql(rewriteExistsSubqueries(probeSql));
         } catch (e: unknown) {
             if (isNodeSqliteError(e)) {
                 throw e;
@@ -356,21 +358,24 @@ export class DatabaseSync {
         // so split-relevant tokens inside those regions never produce a spurious
         // boundary.
         //
-        // Comments are then DROPPED rather than handed to the parser: libgda cannot parse
-        // a statement containing a /* … */ block comment. Under parseSql() that is a plain
-        // error rather than the process abort it used to be (see parse-sql.ts), but the
-        // statement would still fail — so the stripping stays load-bearing. It is
+        // BLOCK comments are then DROPPED rather than handed to the parser: libgda cannot
+        // parse a statement containing a /* … */ block comment. Under parseSql() that is a
+        // plain error rather than the process abort it used to be (see parse-sql.ts), but
+        // the statement would still fail — so the stripping stays load-bearing. It is
         // semantically transparent: SQL comments are inert except inside quoted regions,
         // which we keep verbatim.
-        // A line comment is removed but its terminating newline is left in place;
-        // a block comment is replaced by a single space so tokens that abutted it
-        // stay separated (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to
-        // nothing (a standalone or trailing comment) trims to empty and is
-        // dropped, matching node:sqlite which silently ignores such comments.
+        // A LINE comment is kept verbatim — libgda parses `--` without trouble, and it
+        // carries the author's own explanation of the statement. A BLOCK comment is
+        // replaced by a single space so tokens that abutted it stay separated
+        // (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to nothing (a standalone or
+        // trailing block comment) trims to empty and is dropped, matching node:sqlite which
+        // silently ignores such comments.
+        //
+        // `sqlRegions()` is the one place that knows where each of those regions ends,
+        // shared with the EXISTS rewrite (see exists-subquery.ts) so the two cannot
+        // disagree about what counts as code.
         const stmts: string[] = [];
         let current = '';
-        const n = sql.length;
-        let i = 0;
 
         const flush = () => {
             const trimmed = current.trim();
@@ -380,66 +385,25 @@ export class DatabaseSync {
             current = '';
         };
 
-        while (i < n) {
-            const ch = sql[i];
-            const next = sql[i + 1];
-
-            // -- line comment: drop it; the terminating newline is left in place.
-            if (ch === '-' && next === '-') {
-                let j = i + 2;
-                while (j < n && sql[j] !== '\n') {
-                    j++;
+        for (const region of sqlRegions(sql)) {
+            if (region.kind === 'code') {
+                // Each ';' in a code region is a top-level boundary. The chunk after the
+                // LAST one is left open: the region can end there, and what follows — a
+                // literal, a comment — continues the same statement. The final flush()
+                // below is what cuts it.
+                const chunks = sql.slice(region.start, region.end).split(';');
+                current += chunks[0];
+                for (const chunk of chunks.slice(1)) {
+                    flush();
+                    current += chunk;
                 }
-                i = j;
-                continue;
-            }
-
-            // /* … */ block comment: drop it (replaced by a single space),
-            // consuming through the closing delimiter or to the end of input.
-            if (ch === '/' && next === '*') {
-                let j = i + 2;
-                while (j < n && !(sql[j] === '*' && sql[j + 1] === '/')) {
-                    j++;
-                }
-                i = j < n ? j + 2 : n;
+            } else if (region.kind === 'block-comment') {
                 current += ' ';
-                continue;
+            } else {
+                // Quoted regions are inert, and a line comment's terminating newline is
+                // in the next code region rather than in this one.
+                current += sql.slice(region.start, region.end);
             }
-
-            // Quoted regions, kept verbatim: '…' literal, "…"/`…` identifiers
-            // (doubled-quote escape), and [ … ] identifier (first ']' ends it).
-            if (ch === "'" || ch === '"' || ch === '`' || ch === '[') {
-                const close = ch === '[' ? ']' : ch;
-                const doubled = ch !== '['; // brackets have no escape sequence
-                let j = i + 1;
-                current += ch;
-                while (j < n) {
-                    if (sql[j] === close) {
-                        if (doubled && sql[j + 1] === close) {
-                            current += close + close;
-                            j += 2;
-                            continue;
-                        }
-                        current += close;
-                        j++;
-                        break;
-                    }
-                    current += sql[j];
-                    j++;
-                }
-                i = j;
-                continue;
-            }
-
-            // Top-level statement boundary.
-            if (ch === ';') {
-                flush();
-                i++;
-                continue;
-            }
-
-            current += ch;
-            i++;
         }
         flush();
         return stmts;

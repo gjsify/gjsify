@@ -87,3 +87,81 @@ answer.**
 |**the third copy is still out there and it is not TypeScript**: CI's `actions/cache` key hashes `packages/*/*/src/**/*.{ts,mts,cts}` plus the manifests (`.github/actions/gjsify-setup/action.yml`), which has exactly the same blind spot — incident #821 is that spot, and the workflow comment says so. A YAML `hashFiles()` glob cannot import `packageBuildInputs`, so closing it needs a generated key input rather than a call. Tracked in `status/open-todos/ci.md`.
 |**not a conformance rule**, and that was measured before deciding: "declares a `build` script and has no `src/`" matches 71 packages, 70 of them prebuild stubs with nothing to rebuild — a gate demanding a declaration nobody needs. The honest trigger is "reads inputs outside `src/`", which nothing can decide from a manifest — and with the deny-list it no longer has to.
 |tests: unit `packages/infra/cli/src/utils/package-inputs.spec.ts` (the rules), e2e `tests/e2e/test-freshness/` (the real command, twice, over a tree that already has a bundle). **Both arms belong to the same suite**: without the negative one — a file OUTSIDE the input set must NOT force a rebuild — the suite also passes against an `isFresh` that always answers false, which is not a fix but the freshness check deleted. A/B on the e2e: 4 of 5 red before the change (the one that passes is the negative arm, which the old code satisfied by never rebuilding at all), 5 of 5 green after.
+
+#### …and it cannot see outside the package — `bundle-inputs.ts` is the other half
+
+`packageBuildInputs` walks the package. A workspace member is not inside it, and one consumer's
+test bundle is a workspace member's whole dependency graph: postbote is `app/` + `packages/*`, the
+app symlinks them into `app/node_modules`, and an edit to `packages/signal/src/receiver.ts` left
+`isFresh` answering "fresh" — two runs executing the PREVIOUS bundle and reporting ✅ on source
+that was no longer on disk. The only remedy the reporter had was `rm -rf app/dist`, which is the
+tell: a freshness check you cannot satisfy by editing code is not a cache, it is a coin toss.
+
+So `gjsify test` records what the build **read** — `utils/bundle-inputs.ts` rides the plugin
+chain as a `transform` observer and writes the ids beside the bundle as `<outfile>.inputs.json`;
+`isFresh` stats them. Three properties of that choice are load-bearing:
+
+|**the bundler's own module graph, not a list of likely dirs** — a bare specifier's resolution
+through a `node_modules` symlink is known to the bundler and to nobody else, and a directory list
+would be the FOURTH allow-list this file already records failing (`src/**` missed
+`resolve-npm/lib`; `dirname(entry)` missed `src/**`). **`transform` rather than `getModuleIds` /
+`getModuleInfo`**: it is the one hook both engines run, and the native bridge translates it
+verbatim (`bundler-pick.ts` picks it; the context methods that bridge does not implement fail at
+hook-call time). **a module that is loaded and then tree-shaken away is still an input** — it is
+in the next build, and counting it errs towards one rebuild rather than towards a stale green.
+|**the two halves are a union, not a replacement** — the walk answers "what MAY this package's
+build read" (a file no current build imports yet), the manifest "what DID it read" (which
+reaches outside the package). A missing, corrupt or other-version manifest is NOT an answer: the
+walk then decides alone, so a bundle built before this shape existed behaves exactly as it did.
+|a recorded input that has since **vanished COUNTS AS CHANGED**, exactly as the walk counts one
+that vanished mid-walk — a deleted-but-still-imported source must not leave a bundle that claims
+to be current. That is only safe because the toolchain's own scratch is never RECORDED: the
+globals-inject stub and the cached plugin bundles live under `node_modules/.cache/` and are deleted
+between builds, and counting their absence would rebuild on every run, forever. The obvious
+`tmpdir()` test is the wrong one and was measured wrong first — the stub is written into the
+project's cache dir (`utils/scan-globals.ts`), while a PROJECT under `/tmp` is a project (a CI
+job, a container, this suite's own fixtures), and a check that went blind there is this defect
+reached from the other side.
+|**a plugin's own reads are declared, not guessed** — the bundler is not the only party that
+reads an input, and two plugins read one: `gjsify-css-as-string` follows a stylesheet's `@import`
+chain (its own `readFile` on the GJS-native backend, lightningcss's resolver on npm), and
+`gjsify-node-modules-path-rewrite` folds a package's `readFileSync(new URL(..., import.meta.url))`
+into a LITERAL, so the file's bytes are in the bundle while no graph names it. Both declare every
+file they actually read through `this.addWatchFile` (`utils/declare-build-input.ts`, the one place
+that call is issued from), and the recorder takes the engine's WATCH LIST as its second half:
+`build.watchFiles` on npm (its module set plus every declaration) and, on the native engine, the
+declared half — `BundleResult` carried warnings and output only and the plugin context had no
+`addWatchFile` at all, so `@gjsify/rolldown-native` grew one. Neither engine is a reason to drop the
+other: npm's list is a superset of the observed modules, native's is the complement, and the union
+costs a `stat` per redundant path against a stale green.
+|**and a bundle whose build could not SEE plugin reads is never fresh.** The declaration is
+feature-detected, because the engine is not necessarily the one beside the plugin: it is resolved
+through several anchors and the answer is not always the project's (measured 2026-09-29 — a stale
+`node_modules` above a fixture pointed at a DIFFERENT worktree's engine). An engine without
+`addWatchFile` cannot report a watch list at all, and then the input set is missing exactly the
+files no graph names — so `isFresh` REFUSES such a bundle (the manifest carries
+`watchList: false` across processes) and the run rebuilds on every invocation instead. Measured on
+that engine: `watchList: false` in the manifest, an untouched tree reporting `building →` rather
+than `bundle is up-to-date`, and the skew named twice (once by the plugin, once by
+`bundler-pick.ts`, which is where the engine is in hand). A reader cannot reach a stale green on a
+line of prose.
+|**an id's query/hash is part of the SPECIFIER, not the path** — `x.css?raw`,
+`main.blp?shared-tree` (`?`-suffixes are how the blueprint plugin's shared-tree exit and a loader
+convention name one file twice) and any `#frag` stat as ENOENT, and dropping the id silently drops
+the file with it. Stripped before recording. **the nearest `package.json` (and a `tsconfig.json`
+beside it) joins the set**: neither is ever a module, and a `package.json#exports` edit moves what
+every bare specifier in the app resolves to. Per package, deduplicated.
+|Deciding stays cheap: one write per build, one `stat` per recorded input per check — never a
+rebuild to find out whether a build is needed. The manifest is written to a sibling and RENAMED: a
+half-written one is read by the next process, where it parses as "no manifest" and silently
+degrades the check to the walk.
+
+tests: unit `packages/infra/cli/src/utils/bundle-inputs.spec.ts` + the plugin's
+`css-as-string.spec.ts` and the CLI's `inline-static-reads.spec.ts` (the declarations), and four
+suites in `tests/e2e/test-freshness/` (app + a symlinked workspace package; a stylesheet `@import`
+reached across a package boundary; a failed build leaving the set untouched; a deleted recorded
+input; and — through the real `gjs -m` CLI, the only arm that reaches the native engine's
+`watchedFiles` — an inlined read under `--app gjs`). Red before the fixes at `an edit in packages/signal must
+invalidate the app bundle` and `an @import-ed stylesheet must invalidate the app bundle`; 10 of 10
+green after. The one input still outside the set is a Sass file's partials — measured, and
+tracked at `status/open-todos/bundler.md`.

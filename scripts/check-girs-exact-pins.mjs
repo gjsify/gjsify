@@ -21,6 +21,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { reportFailure } from './lib/ci-report.mjs';
 
 const root = process.cwd();
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
@@ -123,10 +124,21 @@ if (offenders.length === 0 && byVersion.size > 1) {
     console.error(
         `check-girs-exact-pins: FAIL. ${declarations} @girs declaration(s) name ${byVersion.size} different versions.\n`,
     );
-    for (const [version, sites] of versions) {
+    // The majority (`versions[0]`, already sorted by site count) is not itself a
+    // violation — only the minority version(s) are what a reader has to change.
+    for (const [i, [version, sites]] of versions.entries()) {
         console.error(`  ${version} — ${sites.length} declaration(s)`);
         for (const site of sites.slice(0, 8)) console.error(`      ${site}`);
         if (sites.length > 8) console.error(`      … and ${sites.length - 8} more`);
+        if (i === 0) continue;
+        for (const site of sites) {
+            const [file, name] = site.split('  ');
+            reportFailure({
+                title: 'check-girs-exact-pins: version drift',
+                file,
+                message: `${name} pins ${version}, off the majority`,
+            });
+        }
     }
     console.error(
         `\nA @girs package requires its siblings at its own exact version, so a mixed tree\n` +
@@ -140,7 +152,14 @@ if (offenders.length > 0) {
     console.error(
         `check-girs-exact-pins: FAIL. ${offenders.length} of ${declarations} @girs declaration(s) are not exact:\n`,
     );
-    for (const o of offenders) console.error(`  ${o.file}  ${o.field}.${o.name}  ${o.range}`);
+    for (const o of offenders) {
+        console.error(`  ${o.file}  ${o.field}.${o.name}  ${o.range}`);
+        reportFailure({
+            title: 'check-girs-exact-pins',
+            file: o.file,
+            message: `${o.field}.${o.name} pinned to "${o.range}", not an exact version`,
+        });
+    }
     console.error(
         `\nFix: \`gjsify upgrade --latest --exact --filter @girs\` covers the workspace set;\n` +
             `packages/napi and packages/node-gi sit outside it and are pinned by hand.`,

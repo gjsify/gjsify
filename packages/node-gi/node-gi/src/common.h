@@ -176,6 +176,8 @@ const ForeignStructOps* ForeignOpsForInfo(GIBaseInfo* iface);
 // from addon.cc's Init; sets the `__cairo` export + registers Context/Surface/
 // Pattern foreign converters.
 void InitCairo(Napi::Env env, Napi::Object exports);
+// win32: probeHostOpenGL / preloadOpenGL / currentGLStrings (opengl-win32.cc); a no-op elsewhere.
+void InitOpenGLWin32(Napi::Env env, Napi::Object exports);
 
 // ---- GJS-exact 64-bit integer marshalling helpers (shared) -------------------
 //

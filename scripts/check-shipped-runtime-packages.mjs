@@ -212,6 +212,10 @@ function packagesUnder(dir, match) {
 const families = [
     { label: 'node-runtime', packages: packagesUnder('packages/node-runtime', (n) => n.startsWith('node-runtime-')) },
     { label: 'gtk-runtime', packages: packagesUnder('packages/node-gi', (n) => n.startsWith('gtk-runtime-')) },
+    // Resolved by name by node-gi's loader rather than by `gjsify ship` — the optional Mesa
+    // OpenGL for driverless win32 hosts (#1097) — and owed the same four answers: a consumer
+    // told to add it must be able to install it.
+    { label: 'gl-runtime', packages: packagesUnder('packages/node-gi', (n) => n.startsWith('gl-runtime-')) },
 ];
 
 // The control. A refactor that moves either family elsewhere must not leave this check

@@ -79,9 +79,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
+import { inActions, reportFailure } from './lib/ci-report.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const inActions = Boolean(process.env.GITHUB_ACTIONS);
 
 /**
  * How each committed artifact is regenerated, and what it covers.
@@ -279,8 +279,17 @@ function gjsifyStep(argv) {
     return resolved;
 }
 
-function fail(msg) {
-    console.error(inActions ? `::error::${msg}` : `ERROR: ${msg}`);
+function fail(msg, file) {
+    // The ad hoc `::error::${msg}` this replaced escaped nothing — a `%`, a real
+    // newline (a spawned rebuild's captured stderr can carry either) corrupted or
+    // truncated the annotation `ci-why` (docs/ci-selective.md) reads, and it used a
+    // second, looser CI gate (`Boolean(GITHUB_ACTIONS)`, true for "false") that this
+    // branch then shared. `inActions()` IS `reportFailure`'s gate, so the annotation
+    // and the plain off-CI line below can no longer disagree about which world we
+    // are in. (`packages/gjs/unit`'s own formatter escapes only `%`/CR/LF in titles —
+    // a follow-up, not this PR.)
+    if (inActions()) reportFailure({ title: 'verify-committed-bundles', file, message: msg });
+    else console.error(`ERROR: ${msg}`);
 }
 
 /**
@@ -452,11 +461,11 @@ try {
 
             for (const p of missing) {
                 failures++;
-                fail(`${p} is committed but the rebuild did not produce it.`);
+                fail(`${p} is committed but the rebuild did not produce it.`, p);
             }
             for (const p of extra) {
                 failures++;
-                fail(`${p} is produced by the build but is NOT committed.`);
+                fail(`${p} is produced by the build but is NOT committed.`, p);
             }
 
             let matched = 0;
@@ -470,13 +479,14 @@ try {
                 }
                 failures++;
                 const off = firstDiffOffset(expected, actual);
-                fail(`${p} is STALE — rebuilding it from the source at HEAD does not reproduce the committed file.`);
+                fail(`${p} is STALE — rebuilding it from the source at HEAD does not reproduce the committed file.`, p);
                 fail(
                     `  committed: ${expected.length} B · rebuilt: ${actual.length} B · first difference at byte ${off}`,
+                    p,
                 );
                 console.error(`  committed …${excerpt(expected, off)}…`);
                 console.error(`  rebuilt   …${excerpt(actual, off)}…`);
-                fail(`  Refresh locally: ${recipe.hint}, then commit it.`);
+                fail(`  Refresh locally: ${recipe.hint}, then commit it.`, p);
                 // …and keep the bytes THIS run produced, because "refresh
                 // locally" is not always advice a contributor can take. The known
                 // cause — fast-glob's raced entry order leaking into `--library`
@@ -516,7 +526,7 @@ if (failures > 0) {
         console.error(
             `\nThe ${rebuiltSaved.length} rebuilt artifact(s) THIS run produced were kept under tmp/rebuilt-bundles/:\n` +
                 rebuiltSaved.map((p) => `  ${p}`).join('\n') +
-                (inActions
+                (inActions()
                     ? '\n\nRebuild locally and commit the result:\n' +
                       '  gjsify workspace @gjsify/cli build --with-dependencies\n' +
                       '  gjsify workspace @gjsify/cli build:affected-bundle\n' +

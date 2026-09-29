@@ -225,8 +225,9 @@ console.log(action.get_name());    // 'greet'   (method)
 action.enabled = false;            // property set → set_property
 
 const c = new Gio.Cancellable();
-c.connect('cancelled', () => console.log('cancelled'));
+c.connect_after('cancelled', () => console.log('cancelled'));
 c.cancel();                        // fires the signal
+// (plain `connect` is Cancellable's OWN g_cancellable_connect(cb), as on gjs)
 
 // enums, flags and constants (GJS-style UPPER_CASE members)
 console.log(GLib.PRIORITY_DEFAULT);        // 0
@@ -871,3 +872,38 @@ mapped `Gtk.DrawingArea`'s live `GdkFrameClock` stays an active GLib source afte
 program that must terminate exits explicitly (`process.exit(0)`), whereas `gjs -m`
 exits on module completion.
 
+
+## Signals: a colliding class method is not a signal (#1810)
+
+`connect`/`disconnect`/`emit` resolve an OWN introspected method of that name first,
+gjs-style, and fall to the GObject signal API only when neither a prototype nor an
+interface method answers. The instance Proxy hardcoded them as the signal API
+unconditionally, so a class introspecting its own same-named method never ran it:
+`Soup.Server.disconnect()` is `soup_server_disconnect`, zero-arg, while
+`Gio.Cancellable.connect(callback)` is `g_cancellable_connect` — a DIFFERENT id space
+from a signal handler. `Http2SecureServer.close()`'s `soupServer.disconnect()` threw
+`disconnectSignal(handle, handlerId: number)` instead of closing the listener.
+
+Measured against gjs 1.88.1 before changing anything: `Soup.Server.prototype.disconnect`
+IS the introspected method there, and `cancellable.connect('sig', cb)` ALREADY throws on
+gjs — so the old shortcut was never gjs-faithful for a colliding name. `wrapInstance`'s
+`get` trap (gi.js) tries `findProtoDescriptor`, then `instanceHasMethod` for an INTERFACE
+method on a private type (`socks5.connect` IS `g_proxy_connect` on gjs), and only then
+the signal shortcut. `connect_after` stays uncollided — there is no
+`g_cancellable_connect_after`. Conformance `signal-api-name-collision`.
+
+## Callbacks: a callback's own arguments can be containers too (#1810)
+
+`GIArgumentToJs`'s switch (marshal.cc) has no ARRAY/GLIST/GSLIST/GHASH arm — that
+dispatch is `ReadOutOrReturn`, used for return/OUT values. The callback trampoline
+(calls.cc) called `GIArgumentToJs` directly on every argument, so ANY callback carrying
+a container argument threw on EVERY invocation, before the JS handler ran:
+`Soup.ServerCallback`'s trailing `query: GHashTable` raised
+`Unsupported return type tag 19 (milestone 1)`. It failed silently for a `scope=call`
+request handler — the connection just closed with no response.
+
+The trampoline routes through `ReadOutOrReturn` now, WITH a `slots` vector of the ffi
+args: without it a length-annotated C array reads as EMPTY (a JS `vfunc_write_fn` got
+`[]` for 3 bytes, so a 0-byte write `write_all` spins on), and the length companion is
+withheld from JS as in gjs so later args keep their positions. Conformance
+`callback-array-length-arg`.

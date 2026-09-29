@@ -1,0 +1,44 @@
+{
+  "name": "@gjsify/gl-runtime-win32-x64",
+  "version": "0.52.0",
+  "description": "Optional OpenGL implementation for the Windows x64 GTK runtime — Mesa's WGL build (opengl32.dll + libgallium_wgl.dll) that @gjsify/node-gi preloads on a host with no OpenGL driver of its own (VMs, RDP sessions, CI), so Gtk.GLArea and GSK's GL renderer work there. Opt in by adding it as a dependency. Platform-gated (win32/x64 only).",
+  "type": "module",
+  "license": "SEE LICENSE IN bin/THIRD-PARTY-NOTICES.md",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./bin/*": "./bin/*"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin"
+  ],
+  "gjsify": {
+    "runtimes": {
+      "gjs": "none",
+      "node": "polyfill",
+      "browser": "none",
+      "nativescript": "none"
+    },
+    "tier": 3
+  },
+  "scripts": {
+    "build:bundle": "node scripts/build-gl-runtime.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "packages/node-gi/gl-runtime-win32-x64"
+  }
+}
