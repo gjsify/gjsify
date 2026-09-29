@@ -65,7 +65,10 @@ export function globToRegexSource(glob: string): string {
                     negate = true;
                     body = body.slice(1);
                 }
-                body = body.replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+                // Gitignore class escapes (`\-`, `\\`, `\]`) are already valid
+                // regex class escapes — doubling the backslashes would turn
+                // `[a\-z]` into a range.
+                body = body.replace(/\]/g, '\\]');
                 out += `[${negate ? '^/' : ''}${body}]`;
                 i = close;
             }
@@ -116,7 +119,7 @@ function parseLine(raw: string): Rule | null {
     const anchored = line.includes('/');
     if (line.startsWith('/')) line = line.slice(1);
     const src = globToRegexSource(line);
-    const prefix = anchored || line.startsWith('**/') ? '' : '(?:.*/)?';
+    const prefix = anchored ? '' : '(?:.*/)?';
     return { re: new RegExp(`^${prefix}${src}$`), negate, dirOnly };
 }
 

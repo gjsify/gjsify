@@ -64,6 +64,16 @@ export default async () => {
             expect(m.matched(at('comment'), false)).toBe(null);
         });
 
+        // gitignore treats `\-` inside a class as a literal `-`; doubling the
+        // backslash for the regex would turn `[a\-z]` into a range.
+        await it('keeps an escaped dash inside a class literal, not a range', async () => {
+            const m = compileGitignore(['[a\\-z].md'], BASE);
+            expect(m.matched(at('a.md'), false)).toBe('ignore');
+            expect(m.matched(at('z.md'), false)).toBe('ignore');
+            expect(m.matched(at('-.md'), false)).toBe('ignore');
+            expect(m.matched(at('b.md'), false)).toBe(null);
+        });
+
         await it('never decides a path outside its base', async () => {
             const m = compileGitignore(['*.md'], BASE);
             expect(m.matched('/elsewhere/a.md', false)).toBe(null);

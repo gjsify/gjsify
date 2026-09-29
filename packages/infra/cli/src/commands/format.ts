@@ -7,9 +7,10 @@
 // optionalDependency, keeping the Node-free runtime promise for the bundled
 // CLI intact (the formatter runs in dev/CI, not in shipped GJS apps).
 //
-// oxfmt formats JS/TS (+TOML) only. CSS/JSON formatting that the old Biome
-// toolchain handled is intentionally DROPPED in the oxc migration — no other
-// formatter is wired up for those file types.
+// oxfmt formats JS/TS, JSON, TOML, CSS and GraphQL in both builds; the
+// languages it hands to its Prettier host (Markdown, HTML, Vue, YAML, …) are
+// napi-only — the native GJS build drops them, which the skip scan below
+// reports.
 //
 // A BARE `gjsify format` WRITES. `--check` is the read-only CI mode and
 // `--no-write` the read-only local one; there is no flagless report mode.
@@ -51,7 +52,7 @@ interface FormatOptions {
 
 export const formatCommand: Command<unknown, FormatOptions> = {
     command: 'format [paths..]',
-    description: 'Format JS/TS source files via oxfmt (CSS/JSON formatting is not supported).',
+    description: 'Format source files via oxfmt (Markdown/YAML/HTML/Vue need the napi build).',
     builder: (yargs) => {
         return yargs
             .positional('paths', {

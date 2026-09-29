@@ -150,6 +150,21 @@ export default async () => {
             rmSync(dir, { recursive: true, force: true });
         });
 
+        // oxfmt matches CLI globs with fast_glob::glob_match, which expands
+        // `{a,b}` brace groups; globToRegexSource escapes them instead, so the
+        // scan must expand them before compiling.
+        await it('expands brace groups in CLI globs', async () => {
+            const dir = tree({
+                'src/a.md': '# x',
+                'src/b.yml': 'a: 1',
+                'src/c.ts': 'const x = 1;',
+                'docs/d.md': '# x',
+            });
+            const result = scanForNativeSkips(['**/*.{md,yml}'], dir);
+            expect(names(dir, result.skipped)).toStrictEqual(['docs/d.md', 'src/a.md', 'src/b.yml']);
+            rmSync(dir, { recursive: true, force: true });
+        });
+
         await it('returns empty for non-existent paths', async () => {
             const dir = tree({});
             const result = scanForNativeSkips([join(dir, 'does-not-exist')], dir);

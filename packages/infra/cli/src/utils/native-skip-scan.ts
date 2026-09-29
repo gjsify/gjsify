@@ -38,8 +38,19 @@ const parsers = (parser: string, keys: string[]): Record<string, string> =>
 // `get_external_parser_name`. Matched case-sensitively, as oxfmt does.
 const EXTERNAL_BY_EXTENSION: Record<string, string> = {
     ...parsers('yaml', ['yml', 'mir', 'reek', 'rviz', 'sublime-syntax', 'syntax', 'yaml', 'yaml-tmlanguage']),
-    ...parsers('markdown', ['md', 'livemd', 'markdown', 'mdown', 'mdwn', 'mkd', 'mkdn', 'mkdown', 'ronn', 'scd']),
-    ...parsers('markdown', ['workbook']),
+    ...parsers('markdown', [
+        'md',
+        'livemd',
+        'markdown',
+        'mdown',
+        'mdwn',
+        'mkd',
+        'mkdn',
+        'mkdown',
+        'ronn',
+        'scd',
+        'workbook',
+    ]),
     ...parsers('html', ['html', 'hta', 'htm', 'inc', 'xht', 'xhtml']),
     ...parsers('glimmer', ['handlebars', 'hbs']),
     mdx: 'mdx',
@@ -131,6 +142,19 @@ export function scanForNativeSkips(
     const nested = explicitConfig === null;
     const scopeFor = (dir: string): OxfmtScope | null => (nested ? nearestScope(dir, rootScope) : rootScope);
 
+    // oxfmt matches CLI globs with fast_glob::glob_match, which expands `{a,b}`
+    // brace groups (nested too); globToRegexSource — the gitignore translator —
+    // escapes the braces instead, so a brace glob would match nothing. Expand
+    // them into alternatives first. Gitignore patterns never carry braces, so
+    // this stays a CLI-glob-only translation.
+    const expandBraces = (glob: string): string[] => {
+        const m = /\{([^{}]*)\}/.exec(glob);
+        if (!m) return [glob];
+        return m[1]
+            .split(',')
+            .flatMap((alt) => expandBraces(glob.slice(0, m.index) + alt + glob.slice(m.index + m[0].length)));
+    };
+
     // An argument that names nothing on disk but carries glob characters is a
     // pattern: oxfmt then walks cwd and keeps the files it matches.
     const globs: RegExp[] = [];
@@ -139,7 +163,9 @@ export function scanForNativeSkips(
         if (p.startsWith('!')) continue;
         const abs = resolve(cwd, p);
         if (/[*?[{]/.test(p) && !existsSync(abs)) {
-            globs.push(new RegExp(`^${globToRegexSource(p.includes('/') ? p : `**/${p}`)}$`));
+            for (const alt of expandBraces(p)) {
+                globs.push(new RegExp(`^${globToRegexSource(alt.includes('/') ? alt : `**/${alt}`)}$`));
+            }
         } else {
             targets.add(abs);
         }
