@@ -99,10 +99,10 @@ function idToPath(id: string): string | null {
     const cut = id.search(/[?#]/);
     if (cut === -1) return id;
     const stripped = id.slice(0, cut);
-    // The fallback is not a nicety: `?` and `#` are LEGAL in a Linux filename,
-    // and `a?b.blp` is that file's whole name. Stripping turned it into `a`,
-    // which does not exist, and the input was dropped. So the unstripped id gets
-    // its turn — and when neither is a file, `inputs()` drops it as before.
+    // The fallback is not a nicety: `#` is LEGAL in a Linux filename, and
+    // `a#b.blp` is that file's whole name. Stripping turned it into `a`, which
+    // does not exist, and the input was dropped. So the unstripped id gets its
+    // turn — and when neither is a file, `inputs()` drops it as before.
     return isFile(stripped) ? stripped : id;
 }
 

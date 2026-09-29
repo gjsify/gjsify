@@ -75,10 +75,12 @@ export default async () => {
         await it('keeps a file whose NAME carries the character it strips at', async () => {
             const root = fixture();
             try {
-                // `?` is a legal filename character on Linux, and this id has no
-                // query at all — stripping at the first `?` turned it into `a`,
-                // which does not exist, and the input was dropped.
-                const odd = file(root, 'src/a?b.blp');
+                // `#` is a legal filename character everywhere (measured: `?` is
+                // NOT — the win32 leg died with ENOENT on `a?b.blp`, a path it
+                // cannot even name), and this id has no fragment at all:
+                // stripping at the `#` turned it into `a`, which does not exist,
+                // and the input was dropped.
+                const odd = file(root, 'src/a#b.blp');
                 const recorder = createBundleInputsRecorder(join(root, 'dist', 'test.node.mjs'));
                 observe(recorder, [odd]);
                 expect(recorder.inputs()).toContain(odd);
