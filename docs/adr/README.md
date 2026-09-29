@@ -101,6 +101,7 @@ the TODO records the *what's left*.
 | [0081](0081-auto-globals-skips-process-stub.md) | `--globals auto` skips the process stub banner | Accepted |
 | [0082](0082-format-check-warns-on-skipped-files.md) | `gjsify format --check` warns about files skipped by oxfmt-native | Accepted |
 | [0083](0083-os-axis-derived-data.md) | OS axis second derivation signal — `gjsify.osDerived` for build outputs that encode platform-specific data | Proposed |
+| [0084](0084-an-addon-is-found-by-package-identity.md) | A GJS bundle finds its addon by package IDENTITY, resolved at run time (ADR 0084) |
 | [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
 | [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
 
