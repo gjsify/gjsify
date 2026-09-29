@@ -105,7 +105,7 @@ fi
 musl_gap_reason() {
     case "$1" in
     lightningcss-native-linux-*)
-        echo "gnu_get_libc_version is referenced by a crates.io dependency of the pinned refs/lightningcss build, not by our own source, so it cannot be removed the way sab-native's fcntl64/__cmsg_nxthdr were. Options are an upstream change or a musl-built sibling package; tracked in status/open-todos.md."
+        echo "gnu_get_libc_version is referenced by a crates.io dependency of the pinned refs/lightningcss build, not by our own source, so it cannot be removed the way sab-native's fcntl64/__cmsg_nxthdr were. Options are an upstream change or a musl-built sibling package; tracked in status/open-todos/README.md."
         ;;
     *) echo '' ;;
     esac
@@ -136,7 +136,7 @@ musl_gap_reason() {
 # there, exactly the shape a libnice-gated nice plugin produces.
 # Do not extend this into an element check on that basis — it would be an accepted
 # gap on day one with nothing we can do about it. It is recorded in
-# status/open-todos.md so a green line here is not read as "works on musl".
+# status/open-todos/README.md so a green line here is not read as "works on musl".
 echo "--- installing the system libraries the committed bridges link against"
 apk add --no-cache \
     libepoxy gdk-pixbuf json-glib libsoup3 gnutls gstreamer gst-plugins-base gst-plugins-bad

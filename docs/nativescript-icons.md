@@ -115,4 +115,4 @@ a widget whose caller passed none. iOS rasterising is UNVERIFIED ON DEVICE (#105
 - **`Adw.AboutDialog.applicationIcon` takes a text glyph**, not a name: it paints a `Label`, not
   a `GtkImage`, so a theme name there is widget work rather than a lookup.
 - **`AdwPreferencesPage.iconName` is stored and never drawn**, which is why
-  `status/open-todos.md` records its value kind as undetermined.
+  `status/open-todos/README.md` records its value kind as undetermined.

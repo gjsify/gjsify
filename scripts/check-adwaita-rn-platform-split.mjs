@@ -640,11 +640,25 @@ for (const platform of PLATFORMS) namespaceCheck(platform.barrel, platform.build
 const widgetClassName = (widget) => `Adw${namespaceMember(widget)}`;
 /** `export { A, B as C }` and `export type { … }` — a clause, and both halves of a name. */
 const EXPORT_CLAUSE = /export\s*(?:type\s*)?\{([^}]*)\}/g;
+/** `export * from './module.js'` — the wildcard re-export that puts every name back on the root. */
+const EXPORT_STAR = /export\s*\*\s*from\s*['"]([^'"]+)['"]/g;
+/**
+ * Resolve a relative specifier from a barrel file to an absolute path.
+ * Adds `.js` extension if missing. Returns null if the file does not exist.
+ */
+const resolveRelative = (specifier, fromPath) => {
+    if (!specifier.startsWith('.')) return null;
+    const dir = dirname(fromPath);
+    let resolved = resolve(dir, specifier);
+    if (!resolved.endsWith('.js')) resolved += '.js';
+    return existsSync(resolved) ? resolved : null;
+};
 const flatWidgetCheck = (barrel) => {
     const path = join(PACKAGE_DIR, 'src', barrel);
     if (!existsSync(path)) return; // rule 6 already failed for this barrel
     const classes = new Map([...widgets].map((widget) => [widgetClassName(widget), widget]));
-    for (const [, names] of withoutComments(read(path)).matchAll(EXPORT_CLAUSE)) {
+    const text = withoutComments(read(path));
+    for (const [, names] of text.matchAll(EXPORT_CLAUSE)) {
         for (const entry of names.split(',')) {
             const name = entry.trim().replace(/^type\s+/, '');
             if (name === '') continue;
@@ -665,6 +679,34 @@ const flatWidgetCheck = (barrel) => {
                         `\`src/widgets/${widget}.ts\` and on the \`./widgets/${widget}\` subpath, which is a ` +
                         "different question — there it is the widget's only name.",
                 );
+            }
+        }
+    }
+    // `export * from './widgets/clamp.js'` puts every name that module exports back on
+    // the package root — the cheapest possible way to reintroduce the flat spelling.
+    // Resolve the module, read its exports, and check each against the widget set.
+    for (const [, specifier] of text.matchAll(EXPORT_STAR)) {
+        const resolved = resolveRelative(specifier, path);
+        if (resolved === null) continue;
+        const moduleText = withoutComments(read(resolved));
+        for (const [, names] of moduleText.matchAll(EXPORT_CLAUSE)) {
+            for (const entry of names.split(',')) {
+                const name = entry.trim().replace(/^type\s+/, '');
+                if (name === '') continue;
+                const halves = name.split(/\s+as\s+/).map((half) => half.trim());
+                const exported = halves.find((half) => classes.has(half)) ?? halves[halves.length - 1];
+                const widget = classes.get(exported);
+                if (widget !== undefined) {
+                    fail(
+                        'flat',
+                        `\`src/${barrel}\` re-exports \`${exported}\` flat via \`export * from '${specifier}'\`, beside ` +
+                            `\`Adw.${namespaceMember(widget)}\`. ADR 0034 § Amendment 8 removed that spelling from the ` +
+                            'package root: two names for one widget is the second vocabulary clause 1 exists to remove, ' +
+                            `and the namespace is where this one lives. The component keeps the identifier \`${exported}\` ` +
+                            `in \`src/widgets/${widget}.ts\` and on the \`./widgets/${widget}\` subpath, which is a ` +
+                            "different question — there it is the widget's only name.",
+                    );
+                }
             }
         }
     }

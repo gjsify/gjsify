@@ -95,7 +95,7 @@ value turns every caller's catch-and-recover path into dead code — six of
 the same source threw and recovered on gjs. One measured leniency kept: node-gi
 accepts BOTH `null` and `undefined` as a NULL string/object (gjs refuses
 `undefined` everywhere and `null` for non-nullable args) — see
-`status/open-todos.md`.
+`status/open-todos/README.md`.
 
 **Too FEW arguments is a REFUSAL, not a pad.** A call supplying fewer than the
 callable's JS arity throws gjs's own `TypeError` before any marshalling —
@@ -321,7 +321,7 @@ reports is by construction the arity a call consumes. A rest-args thunk
 reported 0 for everything, which @gjsify/gtk-host's descriptor conformance
 read as `add_titled() takes 3 argument(s), but GtkStack's takes 0`. Pinned by
 the `callable-arity` conformance program. Two shapes still diverge because
-their CALLING CONVENTION diverges (see `status/open-todos.md`): a
+their CALLING CONVENTION diverges (see `status/open-todos/README.md`): a
 variable-length caller-allocates OUT array (`Gio.InputStream.read`: gjs 2,
 node-gi 1) and a GDestroyNotify with no closure index
 (`Gio.MemoryInputStream.add_data`: gjs 1, node-gi 2).
@@ -466,7 +466,7 @@ freezes its member object, so nothing can be attached after the fact — a lazy 
 there was tried and is impossible. An enum the typelib does not register carries no
 `$gtype` at all rather than an undefined one.
 
-Two `$gtype` shapes still diverge from GJS and are tracked in `status/open-todos.md`:
+Two `$gtype` shapes still diverge from GJS and are tracked in `status/open-todos/README.md`:
 the struct path answers a static-method thunk, and the handle itself has no
 `toString`, so `String(Gio.Application.$gtype)` throws where GJS prints
 `[object GType for 'GApplication']`.

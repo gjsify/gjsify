@@ -173,7 +173,7 @@ export default async () => {
             "macOS publishes per-CPU tick counters only through Mach's " +
                 'host_processor_info(PROCESSOR_CPU_LOAD_INFO), which GJS cannot call without a native ' +
                 'bridge; no userland tool prints the cumulative per-core totals Node returns, so ' +
-                'src/darwin.ts reports the documented all-zero contract (status/open-todos.md). ' +
+                'src/darwin.ts reports the documented all-zero contract (status/open-todos/README.md). ' +
                 'This runs under NATIVE Node too, where it must keep passing — the predicate is the ' +
                 'GJS-on-darwin combination, not the platform.',
             { when: isDarwin() && typeof process.versions.gjs === 'string' },

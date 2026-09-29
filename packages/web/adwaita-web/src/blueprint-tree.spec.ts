@@ -33,7 +33,7 @@
 // `title-widget:` are GtkBuilder's names, this renderer's are the unnamed slot, `top` and
 // `center`, and a table mapping one to the other inside one renderer is the per-surface
 // translator ADR 0051 § Alternatives rejected turned down on a measurement. Tracked in
-// `status/open-todos.md`.
+// `status/open-todos/README.md`.
 
 import { describe, expect, it } from '@gjsify/unit';
 

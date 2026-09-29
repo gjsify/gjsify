@@ -124,7 +124,7 @@ repo.prepend_library_path(dir);  // replaces DYLD_/LD_LIBRARY_PATH
 ```
 
 — measured on the macOS 15.7.9 VM under `env -u DYLD_FALLBACK_LIBRARY_PATH -u
-DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH` (`status/open-todos.md`, the third shape). ADR 0021 has
+DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH` (`status/open-todos/README.md`, the third shape). ADR 0021 has
 already decided this direction one layer down for prebuilds: resolution happens in-process and
 the launcher is an optimisation. A shipped `.app` is the same decision applied to the app's own
 runtime.
@@ -238,7 +238,7 @@ models. Until then the flatpak commands keep working unchanged.
 `buildsystem: simple` + `cp -a stage/.`, and meson is gone from inside the sandbox. The nine
 SUBCOMMANDS have not: `gjsify flatpak <sub>` is unchanged, because `flatpak ci`, `deps`, `sources`,
 `diff`, `release` and `sync-flathub` are Flathub-submission tooling with nothing to do with a
-staged payload, and moving them is a rename with its own alias problem (`status/open-todos.md`).
+staged payload, and moving them is a rename with its own alias problem (`status/open-todos/README.md`).
 Splitting the two is what let the deprecation window be HONEST rather than blanket: the six BUILD
 keys moved to `gjsify.ship.flatpak` and warn from the old spelling, the `AppMetadata` half is an
 alias and is not deprecated, and the toolchain keys are untouched because their commands have not
@@ -259,7 +259,7 @@ Making it honestly needs a relocatable **Linux** runtime closure, and the tree's
 that this is a project rather than a target: the bundles exist for `darwin-arm64`, `darwin-x64`
 and `win32-x64` (`packages/node-gi/gtk-runtime-*`) and there is no Linux one, deliberately — on
 Linux GTK has always come from the distro. Building one drags in the relocation work § 4
-describes for macOS, plus the licensing question `status/open-todos.md` already logs against the
+describes for macOS, plus the licensing question `status/open-todos/README.md` already logs against the
 existing bundles (*"The GTK bundles declare `license: MIT` while shipping an LGPL closure"*),
 which for a redistributed single file is a compliance item rather than a note.
 
@@ -330,7 +330,7 @@ Staged, each stage independently useful and independently mergeable:
    have landed. Landed — see § Implementation status.
 7. **`@gjsify/gjs-runtime-darwin-<arch>`**, after which § 4's macOS row can change to GJS.
 
-Follow-up work lands in `status/open-todos.md` per governance; this ADR records the why.
+Follow-up work lands in `status/open-todos/README.md` per governance; this ADR records the why.
 
 ## Implementation status
 
@@ -546,7 +546,7 @@ the same shape as stage 4 and the differences are all the OS's:
   the same for v24.19.0) and the win-x64 release contains exactly one `.exe` — there is no
   `nodew.exe`. So a GUI launch of this artifact pops a console window, and every Windows CI leg
   starts the app from a shell and therefore inherits one: no leg can observe it. The assemble leg
-  PRINTS the subsystem it read off the real binary; `status/open-todos.md` carries the gap.
+  PRINTS the subsystem it read off the real binary; `status/open-todos/README.md` carries the gap.
 
 **What M3 does not claim.** The Linux half — `tests/e2e/ship-windows` — reads every staged PE back
 with `binary.mjs`, and there it stops: a PE records its imports in a data directory reached through
@@ -1348,7 +1348,7 @@ sequence is submit → assess → staple, and only the first of the three is imp
 file-shaped darwin artifact `gjsify ship` produces is a `.zip`, and whether `stapler` accepts one is
 not measured anywhere in this tree. Adding a call that may refuse the single artifact it would ever
 run on is code no run has exercised, deciding something it cannot justify — so it is an open item
-with its measurement attached (`status/open-todos.md`) rather than a line of code. The same holds
+with its measurement attached (`status/open-todos/README.md`) rather than a line of code. The same holds
 one level up: `notarytool submit` itself has never run here, because notarisation needs an Apple
 account and § A17's whole argument is that M6 does not.
 
@@ -1452,7 +1452,7 @@ per target; the BUNDLE is still one path (`gjsify.ship.bundle`, falling back to 
 project that is GJS on Linux and Node on Windows builds two bundles — `dist/<name>.gjs.js` beside
 `dist/<name>.node.mjs` is the layout this tree documents as normal, and `discoverPayload` stages
 both — but every layout's launcher names the same one of them. That is the next axis, and it is a
-separate question with a separate config surface; `status/open-todos.md` carries it.
+separate question with a separate config surface; `status/open-todos/README.md` carries it.
 
 ## Amendment, 2026-09-04 — the runtime and the payload are ONE decision
 
@@ -1690,7 +1690,7 @@ Measured rather than read off `--help`, because none of them is in it:
    architectures this image does not pin a capability they do have — they produce correct
    containers — for a property they never had. It is § A24's own rule applied to the other half of
    the artifact: declare rather than imply. Pinning those three is one `curl` each on the day a leg
-   exists to run them (`status/open-todos.md`).
+   exists to run them (`status/open-todos/README.md`).
 2. **It cannot guess our architecture.** appimagetool reads the AppDir's ELF binaries to decide,
    and a `--app gjs` payload is JavaScript and a `/bin/sh` launcher. `ARCH` in the environment is
    therefore required, not a hint, and its value is the format row's `archName` so the label inside

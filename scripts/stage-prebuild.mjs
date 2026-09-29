@@ -101,7 +101,7 @@ function detectHostLibc() {
  * The exact target name a build on THIS host stages into.
  *
  * Exported so nothing has to recompose it: nine e2e fixtures still build the
- * name themselves (`status/open-todos.md`), and the last vocabulary change swept
+ * name themselves (`status/open-todos/README.md`), and the last vocabulary change swept
  * eight of them by hand — a composed string never appears as a literal to grep
  * for. The libc suffix makes that worse, so the token gets one definition here.
  */

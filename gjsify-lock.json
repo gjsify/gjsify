@@ -106,7 +106,8 @@
     "gettext-parser@^9.0.2",
     "@types/gettext-parser@^9.0.0",
     "@nativescript/types@~9.0.0",
-    "@noble/hashes@^2.2.0",
+    "@noble/curves@^2.4.0",
+    "@noble/hashes@^2.4.0",
     "@types/diffie-hellman@^5.0.3",
     "@girs/gda-6.0@5.4.0",
     "@types/inherits@^2.0.0",
@@ -140,7 +141,6 @@
     "parse5-htmlparser2-tree-adapter@^7.1.0",
     "dotenv@^17.4.2",
     "@modelcontextprotocol/inspector@^0.22.0",
-    "zod@4.3.6",
     "@rollup/pluginutils@^5.3.0",
     "@types/streamx@^2.9.5",
     "streamx@^2.27.0",
@@ -3293,10 +3293,18 @@
       "resolved": "https://registry.npmjs.org/@nativescript/types-ios/-/types-ios-9.0.0.tgz",
       "integrity": "sha512-A13VLFFKNrkYqS7JU0V+R4wxKIE66VvYiHK1+vrVXqiK6l+95BxgEgRPD8FlXN7W2iXXqYLapo8nVMtWArpscg=="
     },
+    "node_modules/@noble/curves": {
+      "version": "2.4.0",
+      "resolved": "https://registry.npmjs.org/@noble/curves/-/curves-2.4.0.tgz",
+      "integrity": "sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew==",
+      "dependencies": {
+        "@noble/hashes": "2.4.0"
+      }
+    },
     "node_modules/@noble/hashes": {
-      "version": "2.2.0",
-      "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-2.2.0.tgz",
-      "integrity": "sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg=="
+      "version": "2.4.0",
+      "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-2.4.0.tgz",
+      "integrity": "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="
     },
     "node_modules/@nodable/entities": {
       "version": "2.2.0",
@@ -16982,9 +16990,9 @@
       "integrity": "sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug=="
     },
     "node_modules/zod": {
-      "version": "4.3.6",
-      "resolved": "https://registry.npmjs.org/zod/-/zod-4.3.6.tgz",
-      "integrity": "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="
+      "version": "4.4.3",
+      "resolved": "https://registry.npmjs.org/zod/-/zod-4.4.3.tgz",
+      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
     },
     "node_modules/zod-to-json-schema": {
       "version": "3.25.2",

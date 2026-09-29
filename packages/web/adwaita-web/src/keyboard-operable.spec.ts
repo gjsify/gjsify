@@ -270,7 +270,7 @@ export const AdwKeyboardOperableTest = async () => {
                 // because `<adw-header-bar>` builds the section it goes in from its own
                 // `connectedCallback`. Without this the dialog measures as having no
                 // focusable control at all — which is also what its initial focus sees,
-                // ledgered in status/open-todos.md.
+                // ledgered in status/open-todos/README.md.
                 await Promise.resolve();
 
                 const surface = modal.surface(el);
@@ -620,7 +620,7 @@ export const AdwKeyboardOperableTest = async () => {
             // inside and Left/Right propagates, so the axis has to follow the attribute.
             //
             // Prose cannot hold that: this line fails the commit that adds it.
-            // `<adw-inline-view-switcher>` has the same gap (status/open-todos.md).
+            // `<adw-inline-view-switcher>` has the same gap (status/open-todos/README.md).
             // `active-name` joined the list without touching the axis: it picks a toggle.
             expect([...AdwToggleGroup.observedAttributes]).toStrictEqual(['active', 'active-name', 'flat', 'round']);
         });
@@ -632,7 +632,7 @@ export const AdwKeyboardOperableTest = async () => {
             // entry, and this is the line that fails when it stops being true — the first
             // disabled toggle is otherwise a `focus()` the browser refuses, with nothing
             // in the walk to step over it. Grow this list and add the filter and its spec
-            // in the same change (status/open-todos.md, `<adw-toggle>` has no `enabled`).
+            // in the same change (status/open-todos/README.md, `<adw-toggle>` has no `enabled`).
             expect([...AdwToggle.observedAttributes]).toStrictEqual(['label', 'icon-name']);
         });
 

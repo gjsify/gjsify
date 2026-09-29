@@ -184,6 +184,45 @@ function needsFilenameDecl(src: string, flags: TokenFlags): boolean {
     return flags.hasFilename && !FILENAME_DECL_RE.test(src);
 }
 
+// The local name the file-URL → path conversion is imported under. Prefixed so it
+// cannot collide with a `fileURLToPath` the dep declares itself.
+const URL_TO_PATH = '__gjsifyFileURLToPath';
+
+/**
+ * A path expression for the file URL `url`, with `fileURLToPath` semantics.
+ *
+ * It used to be `new URL(…).pathname`, which is a URL PATH, not a filesystem path, and
+ * the two part ways twice: percent-escapes stay encoded (`/my%20app/x.js` on any OS),
+ * and on win32 the drive comes out as `/C:/…`, which no Windows API accepts. Every
+ * target has a `fileURLToPath` behind `node:url` (Node's own; `@gjsify/url` on GJS and
+ * in the browser), and the case-1 shim already relies on it.
+ *
+ * `dir` strips the trailing separator the directory URL leaves behind — either one,
+ * since win32 answers `\`.
+ */
+function urlToPathExpr(url: string, dir = false): string {
+    const path = `${URL_TO_PATH}(${url})`;
+    return dir ? `${path}.replace(/[\\\\/]$/, "")` : path;
+}
+
+/**
+ * The import the {@link urlToPathExpr} expressions need, when any of them survive.
+ *
+ * A non-empty `preamble` is NOT the condition. When a file declares its OWN `__dirname`,
+ * {@link routeMetaPaths} declines the declaration and hands back the raw expression, so
+ * `import.meta.dirname` is still rewritten to a `__gjsifyFileURLToPath(…)` call while the
+ * preamble stays EMPTY — and a header keyed on `preamble.length` leaves that call bound to
+ * nothing. Measured: a node_modules dep with `var __dirname = "MINE"` beside
+ * `import.meta.dirname` emitted a bare `__gjsifyFileURLToPath(…)` and died on the
+ * ReferenceError at first use. `substitutes` is the same `import.meta` test the callers
+ * already branch on, so the header tracks what the output actually references.
+ */
+function urlToPathHeader(preamble: readonly string[], substitutes: boolean): string | undefined {
+    return preamble.length > 0 || substitutes
+        ? `import { fileURLToPath as ${URL_TO_PATH} } from "node:url";`
+        : undefined;
+}
+
 /**
  * Route `import.meta.dirname`/`filename` the way the caller routes a bare
  * `__dirname`/`__filename`: ONE `var` in the preamble, every occurrence referencing it.
@@ -334,8 +373,8 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
     const relDirWithSlash = (relative(bundleDir, dirname(path)) || '.') + '/';
 
     const route = routeMetaPaths(src, flags, {
-        dirname: `new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url).pathname.replace(/\\/$/, "")`,
-        filename: `new URL(${JSON.stringify(relPath)}, import.meta.url).pathname`,
+        dirname: urlToPathExpr(`new URL(${JSON.stringify(relDirWithSlash)}, import.meta.url)`, true),
+        filename: urlToPathExpr(`new URL(${JSON.stringify(relPath)}, import.meta.url)`),
     });
 
     const code = replaceImportMeta(src, path, {
@@ -343,7 +382,11 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
         dirname: route.dirname,
         filename: route.filename,
     });
-    return { code: withPreamble(code, route.preamble), moduleType: moduleTypeForPath(path) };
+    const substitutes = /\bimport\.meta\.(?:dirname|filename)\b/.test(src);
+    return {
+        code: withPreamble(code, route.preamble, urlToPathHeader(route.preamble, substitutes)),
+        moduleType: moduleTypeForPath(path),
+    };
 }
 
 /**
@@ -352,15 +395,20 @@ function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, fl
  */
 function rewriteZipResident(src: string, path: string, flags: TokenFlags): RewriteResult {
     const route = routeMetaPaths(src, flags, {
-        dirname: `new URL(".", import.meta.url).pathname.replace(/\\/$/, "")`,
-        filename: `new URL(import.meta.url).pathname`,
+        dirname: urlToPathExpr('new URL(".", import.meta.url)', true),
+        filename: urlToPathExpr('import.meta.url'),
     });
+
     // `import.meta.url` keeps case 3's rule (the bundle's own URL); only the two
     // members GJS does not define are routed through the declarations.
-    const code = /\bimport\.meta\.(?:dirname|filename)\b/.test(src)
+    const substitutes = /\bimport\.meta\.(?:dirname|filename)\b/.test(src);
+    const code = substitutes
         ? replaceImportMeta(src, path, { url: 'import.meta.url', dirname: route.dirname, filename: route.filename })
         : src;
-    return { code: withPreamble(code, route.preamble), moduleType: moduleTypeForPath(path) };
+    return {
+        code: withPreamble(code, route.preamble, urlToPathHeader(route.preamble, substitutes)),
+        moduleType: moduleTypeForPath(path),
+    };
 }
 
 /**

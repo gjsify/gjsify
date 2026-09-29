@@ -26,7 +26,7 @@ export const E2E_UNLISTED_SUITES = {
         'WHY the name is lost in the container is NOT yet understood, so this entry records a',
         'measured environmental dependency together with an OPEN QUESTION — it is not a settled',
         'exemption, and the right fix is a precondition in the suite’s own SKIP gate so it skips',
-        'there and still runs where it can. Tracked in status/open-todos.md.',
+        'there and still runs where it can. Tracked in status/open-todos/README.md.',
     ].join(' '),
     'react-native-devtools': [
         'Needs a DISPLAY as well as a session bus. The suite asserts that the application window',

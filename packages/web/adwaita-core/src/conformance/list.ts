@@ -59,7 +59,7 @@ export interface ListNormalizeVector {
  *
  * The NativeScript widgets take the same input and NOTHING there asserts it. That
  * package's specs reach `ComboState` and never the widget class, for the reason
- * `drop-down.spec.ts`' own header gives, and the gap is filed in `status/open-todos.md`
+ * `drop-down.spec.ts`' own header gives, and the gap is filed in `status/open-todos/README.md`
  * under "The NativeScript list-model setter is held by core's vectors, not by a widget
  * test". This docblock used to say "every surface that takes a `model` … must answer
  * these rows: … the NativeScript widgets through theirs", which reads as coverage for a

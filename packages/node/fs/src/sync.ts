@@ -103,7 +103,7 @@ export function readdirSync(
         const childPath = join(pathStr, entry.name);
 
         if (options?.withFileTypes) {
-            result.push(new Dirent(childPath, entry.name, entry.type));
+            result.push(new Dirent(childPath, entry.name, entry.type, undefined, pathStr));
         } else {
             result.push(entry.name);
         }
@@ -495,7 +495,7 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
  * would introduce a divergence rather than close one. That asymmetry is Node's
  * own, it is not a security shape (an existing destination means the file was
  * already there), and reproducing it exactly needs its own measurement pass —
- * `status/open-todos.md` carries the numbers.
+ * `status/open-todos/README.md` carries the numbers.
  */
 function stripPrivilegeBitsAfterCopy(destFile: Gio.File, srcStr: string, destStr: string): void {
     const S_ISUID = 0o4000;

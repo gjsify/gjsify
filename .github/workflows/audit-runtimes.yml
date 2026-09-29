@@ -2,6 +2,11 @@ name: Audit runtimes
 
 on:
   pull_request:
+  # `Detect runtime-triplet drift` is a required check, so a merge queue waits
+  # for it on the queue's own commit, which only this trigger produces. Nothing
+  # below reads PR context except `github.base_ref`, which falls back to `main`
+  # — the queue's base.
+  merge_group:
   push:
     branches:
       - main
@@ -117,6 +122,20 @@ jobs:
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
       - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
+
+      # `gjsify foreach build -tp` (the concurrent, topologically-ordered sweep
+      # `gjsify run build` runs after `build:infra`) orders off declared
+      # `dependencies`/`peerDependencies` only — the same blind spot rule 4 above
+      # closed for the `build:infra` chain, one layer down. `@gjsify/tsc` bundles
+      # upstream `typescript`'s `_tsc.js` under `--app gjs`, which reaches six
+      # Node builtins (`fs`, `crypto`, `inspector`, `os`, `path`, `perf_hooks`)
+      # through the alias substitution layer without declaring any of their
+      # `@gjsify/*` targets — invisible to the sweep's graph, so on a narrow-core
+      # runner (`cpus().length` concurrency) `@gjsify/tsc` could start before
+      # `@gjsify/fs` finished: `UnresolvedWorkspaceImportError: cannot resolve
+      # @gjsify/fs`. Incident + what this checks in the script header.
+      - name: Check --app gjs builtin substitutions are declared deps
+        run: node scripts/check-builtin-substitution-deps.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
       # asks a different question on darwin and win32, and CANNOT fail on Linux —
@@ -262,20 +281,30 @@ jobs:
       # Same failure mode one level up: an AGENTS.md is loaded on EVERY agent turn, and
       # the root file reached 277 KB before it was split, one defensible paragraph at a
       # time. Past 32 KiB (`project_doc_max_bytes`) Codex truncates the tail with no
-      # warning, so the end of an oversized file is not read at all. Per-file ceilings
-      # are MEASURED for the same reason as above: two files are over the 20 KB target
-      # AGENTS.md sets itself, and a flat gate would have been waived on arrival.
+      # warning, so the end of an oversized file is not read at all — that cap is
+      # unconditional, every PR, no history needed.
       #
-      # The ceilings are EXACT, so a file BELOW its ceiling fails here too and the fix is
-      # `--update` plus the ledger in the same commit. That is not pedantry: a required
-      # check reads `main` plus ONE branch and `strict_required_status_checks_policy` is
-      # false, so any slack a committed number carries can be spent in full by two
-      # branches at once. Probe-merged in #1157 — a 48-byte window left by an
-      # un-re-baselined cleanup took `main` to 979 over a ceiling of 955 with both PRs
-      # green. At zero slack the two spenders collide in the ledger and git stops them.
-      # Reasoning + the residual: docs/governance.md § Concurrent PRs.
+      # Growth is checked against the PR's OWN BASE instead: an exact committed ledger
+      # (`status/agent-context-budget.json`, one line per file, re-baselined by
+      # `--update` on every touch including a pure shrink) used to hold this, and #1157
+      # is why it was exact — any slack a committed number carries can be spent in full
+      # by two branches at once, since a required check reads `main` plus ONE branch and
+      # `strict_required_status_checks_policy` is false. But the ledger line became the
+      # thing every AGENTS.md edit collided over: 77 commits since 2026-09-01 touched
+      # nothing else. Comparing to base needs no such line — a shrink needs no companion
+      # edit, and two branches growing the SAME file past tolerance each fail on their
+      # OWN diff. What #1157's shape can still do is narrower (two branches each growing
+      # one file by the same amount, both within tolerance) and this second run — BASE
+      # is the immediately preceding `main` commit on `push` — is what catches that,
+      # on the very next touch rather than silently. Needs history the default shallow
+      # checkout does not have, deepened here rather than for the whole job.
+      # Reasoning + the residual: docs/governance.md § Agent context budget.
       - name: Check agent context file sizes
-        run: node scripts/check-agent-context-size.mjs --check
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: |
+          git fetch --no-tags --quiet --deepen=200 origin "$BASE_REF" 2>/dev/null || true
+          node scripts/check-agent-context-size.mjs --check
 
       # The published API tables told readers to install `@gjsify/streams` and
       # `@gjsify/globals`, five rows between them, neither name ever a package
@@ -316,7 +345,7 @@ jobs:
       # This is the SAME script and the same enumeration as `verify-release-closure` in
       # release.yml, one round earlier — not a second checker. Its detection was never
       # missing, only late: that job sits after the tag and the release record, the
-      # shape `status/sections/priorities.md` § 2 calls out as reading identically to a
+      # shape `status/priorities/02-make-gates-prove-claims.md` § 2 calls out as reading identically to a
       # check that passed. The phase selects the ASSERTIONS, not the wording — the
       # registry predicate relaxes to "the NAME exists" and the
       # `status/pending-npm-bootstrap.json` ledger keeps the policy's "or queued as the
@@ -1189,6 +1218,20 @@ jobs:
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
       - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
+
+      # `gjsify foreach build -tp` (the concurrent, topologically-ordered sweep
+      # `gjsify run build` runs after `build:infra`) orders off declared
+      # `dependencies`/`peerDependencies` only — the same blind spot rule 4 above
+      # closed for the `build:infra` chain, one layer down. `@gjsify/tsc` bundles
+      # upstream `typescript`'s `_tsc.js` under `--app gjs`, which reaches six
+      # Node builtins (`fs`, `crypto`, `inspector`, `os`, `path`, `perf_hooks`)
+      # through the alias substitution layer without declaring any of their
+      # `@gjsify/*` targets — invisible to the sweep's graph, so on a narrow-core
+      # runner (`cpus().length` concurrency) `@gjsify/tsc` could start before
+      # `@gjsify/fs` finished: `UnresolvedWorkspaceImportError: cannot resolve
+      # @gjsify/fs`. Incident + what this checks in the script header.
+      - name: Check --app gjs builtin substitutions are declared deps
+        run: node scripts/check-builtin-substitution-deps.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
       # asks a different question on darwin and win32, and CANNOT fail on Linux —

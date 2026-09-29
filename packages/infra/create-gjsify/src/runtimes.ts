@@ -42,6 +42,20 @@ export const INSTALL_ARGV: Record<PackageManager, readonly string[]> = {
 };
 
 /**
+ * The install as ONE shell command line, for `spawnSync(line, { shell: true })`.
+ *
+ * The shell is what finds the `.cmd` shims npm/yarn/pnpm/gjsify are on Windows (see
+ * `createProject`). Handing it an argv array as well is Node's DEP0190: with
+ * `shell: true` the array is only concatenated, never escaped, so Node 24 warns on
+ * every call and a later major refuses it. Joining here is safe because every token
+ * is a fixed flag from {@link INSTALL_ARGV}, and the spec holds each one to a
+ * character set neither `sh` nor `cmd.exe` gives a meaning to.
+ */
+export function installCommandLine(manager: PackageManager): string {
+    return [manager, ...INSTALL_ARGV[manager]].join(' ');
+}
+
+/**
  * How each manager spells "run the package script `<name>`" — six managers, four
  * spellings. Printing the one the user's manager accepts is why the choice is
  * threaded this far: `npm run dev` is a dead end for someone who installed with

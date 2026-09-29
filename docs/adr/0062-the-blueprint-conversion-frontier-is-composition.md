@@ -354,4 +354,4 @@ rests on the count.
   module-level assembly site, with the scaffold as its fixture. That PR is **#1690**, already open.
 - `$extern` is its own PR against `corpus/refused/extern-type.blp`, promoting it to a rule file
   with a golden, per ADR 0053 clause 6.
-- Follow-ups are tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+- Follow-ups are tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.

@@ -237,7 +237,7 @@ per case. Source read at `refs/libadwaita/src/adw-dialog.c` — `adw_dialog_root
 Case K was measured and is deliberately NOT acted on HERE: a `Gtk.Window` appended to a
 rooted `Gtk.Box` is accepted **silently** (`win.get_parent()` is the box, exit 0). That
 is a different defect from this one — a toplevel in a child list, not an abort — and it
-belongs to whoever owns window chrome. It is recorded in `status/open-todos.md` rather
+belongs to whoever owns window chrome. It is recorded in `status/open-todos/README.md` rather
 than fixed here, because acting on it means deciding what a `<Window>` element is, which
 is a routing decision this ADR has no business making.
 

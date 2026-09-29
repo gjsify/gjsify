@@ -14,7 +14,7 @@ repo, (b) changes a published contract (versioning, tiering, artifact strategy),
 MADR-style, one file per decision: `NNNN-<slug>.md` with `Status` / `Context` /
 `Decision` / `Consequences` / `Implementation` sections. Statuses: `Proposed`,
 `Accepted`, `Superseded by NNNN`, `Rejected`. An accepted ADR's follow-up work is
-tracked in `status/open-todos.md` (per governance); the ADR records the *why*,
+tracked in `status/open-todos/README.md` (per governance); the ADR records the *why*,
 the TODO records the *what's left*.
 
 ## Index
@@ -96,6 +96,11 @@ the TODO records the *what's left*.
 | [0074](0074-one-declared-macos-floor.md) | Every shipped darwin binary targets one declared macOS floor: 15.0 | Accepted |
 | [0075](0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) | The darwin gamepad backend is SDL3 behind a GObject shim, reached through a device-source seam (Amendment 1: SDL3 on every OS) | Proposed |
 | [0076](0076-a-node-bin-is-rebuilt-for-the-host-runtime.md) | A Node bin is rebuilt for the runtime gjsify runs on, and never silently run on another (`gjsify exec`) | Accepted |
+| [0079](0079-window-follows-the-runtime.md) | `window` follows the runtime: no define on Node, an EventTarget on GJS | Accepted |
+| [0080](0080-tsc-declares-builtin-deps.md) | `@gjsify/tsc` declares its builtin substitution dependencies | Accepted |
+| [0081](0081-auto-globals-skips-process-stub.md) | `--globals auto` skips the process stub banner | Accepted |
+| [0082](0082-format-check-warns-on-skipped-files.md) | `gjsify format --check` warns about files skipped by oxfmt-native | Accepted |
+| [0083](0083-os-axis-derived-data.md) | OS axis second derivation signal — `gjsify.osDerived` for build outputs that encode platform-specific data | Proposed |
 | [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
 | [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
 

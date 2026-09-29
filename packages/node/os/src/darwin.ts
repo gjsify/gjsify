@@ -112,7 +112,7 @@ const sysctl = (key: string): string | null => {
  * fired once PER CORE per call. Same trade as `@gjsify/v8`'s heap reader, which
  * reports `0` for the figures `ps(1)` has no column for.
  *
- * Tracked in `status/open-todos.md`; `index.spec.ts` carries the matching
+ * Tracked in `status/open-todos/README.md`; `index.spec.ts` carries the matching
  * `it.failing(…, { when: isDarwin() })` so the day a reader exists, the
  * expectation retires itself.
  */

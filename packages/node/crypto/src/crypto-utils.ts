@@ -62,3 +62,10 @@ export function toBuffer(input: string | Buffer | Uint8Array | DataView | ArrayB
     }
     return Buffer.from(input);
 }
+
+/** An error carrying a Node `code` (`ERR_*`), thrown where Node throws the same code. */
+export function codedError(code: string, message: string, Ctor: ErrorConstructor = Error): Error & { code: string } {
+    const err = new Ctor(message) as Error & { code: string };
+    err.code = code;
+    return err;
+}

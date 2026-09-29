@@ -122,7 +122,7 @@ Page.adw-window {
  *
  * It is also the first of `_labels.scss`'s utility set to land here; the rest
  * (`.title-1`…`.title-4`, `.accent`/`.success`/`.warning`, `.heading`, `.numeric`, …)
- * is an open entry in status/open-todos.md. */
+ * is an open entry in status/open-todos/README.md. */
 .dimmed {
     opacity: 0.55;
 }

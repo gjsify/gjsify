@@ -269,7 +269,7 @@ bool ensure_napi_symbols_global(JSContext* cx) {
                 ".def export configuration");
     }
     g_debug("gjsify-napi: shim exports the napi ABI (Windows: addon binding "
-            "relies on the delay-load host model — see status/open-todos.md)");
+            "relies on the delay-load host model — see status/open-todos/README.md)");
     return true;
 #else
     void* ours = reinterpret_cast<void*>(&napi_create_reference);

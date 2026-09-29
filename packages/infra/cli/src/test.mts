@@ -83,6 +83,7 @@ import promptKeySuite from './utils/prompt.spec.js';
 import inlineStaticReadsSuite from './inline-static-reads.spec.js';
 import resolveNpmPackageSuite from './utils/resolve-npm-package.spec.js';
 import oxcResolveSuite from './utils/oxc-resolve.spec.js';
+import nativeSkipScanSuite from './utils/native-skip-scan.spec.js';
 import buildCacheSuite from './utils/build-cache.spec.js';
 import packageInputsSuite from './utils/package-inputs.spec.js';
 import htmlEntrySuite from './utils/html-entry.spec.js';
@@ -232,6 +233,8 @@ const skip: Record<string, string> = {};
 if (!hasGit()) {
     skip['a pure MOVE out of a workspace still seeds that workspace (git diff --no-renames)'] =
         'no git on PATH — this row runs the command against a real scratch repository';
+    skip['hides the override in a REAL `git worktree add` checkout'] =
+        'no git on PATH — this row asks a real worktree what `git status` lists';
 }
 
 if (!canCreateFileSymlink()) {
@@ -340,6 +343,7 @@ run(
         inlineStaticReadsSuite,
         resolveNpmPackageSuite,
         oxcResolveSuite,
+        nativeSkipScanSuite,
         buildCacheSuite,
         packageInputsSuite,
         htmlEntrySuite,

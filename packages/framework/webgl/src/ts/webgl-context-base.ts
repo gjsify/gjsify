@@ -265,7 +265,7 @@ export abstract class WebGLContextBase {
         // Headless-gl-style drawing-buffer pre-allocation is intentionally not
         // wired up because GtkGLArea owns the underlying surface. Re-enable
         // `_allocateDrawingBuffer(width, height)` only if/when we add a non-GTK
-        // output path. Tracked in status/open-todos.md under WebGL Workstream D:
+        // output path. Tracked in status/open-todos/README.md under WebGL Workstream D:
         // optional headless drawing-buffer pre-allocation.
 
         this.bindBuffer(this.ARRAY_BUFFER, null);

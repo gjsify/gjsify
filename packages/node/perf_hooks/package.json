@@ -49,7 +49,7 @@
             "gjs": "polyfill",
             "node": "native",
             "browser": "native",
-            "nativescript": "none"
+            "nativescript": "native"
         },
         "tier": 1
     },

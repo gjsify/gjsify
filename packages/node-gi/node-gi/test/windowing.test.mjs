@@ -332,7 +332,7 @@ test("the runtime bundle's UI faces reach the font map", { skip }, () => {
             `fonts: ${faces.length} bundled face(s) from ${fontDir} were ALL declined by ` +
                 `${fontMap.constructor?.name ?? 'this font map'} — it implements no runtime registration ` +
                 '(macOS/CoreText). The faces ship and cannot be registered this way; see the darwin row in ' +
-                'status/open-todos.md. Nothing about the typeface is proven on this platform.',
+                'status/open-todos/README.md. Nothing about the typeface is proven on this platform.',
         );
         return;
     }

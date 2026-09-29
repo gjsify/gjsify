@@ -248,7 +248,7 @@ test('run_dispose: a surviving object keeps no freed record in its qdata', { ...
 // on the re-wrap). The re-wrap also adds a SECOND toggle ref, and glib delivers a
 // toggle notify only while there is exactly one, so that wrapper never goes weak
 // and the GObject is immortal. Kept on purpose — the alternative is a
-// use-after-free — and owned by status/open-todos.md, which carries the tombstone
+// use-after-free — and owned by status/open-todos/README.md, which carries the tombstone
 // design that would retire all of it. If this flips back to `===`, the vehicle
 // stopped working and 4c is no longer measuring anything.
 test('run_dispose costs wrapper identity (the price 4c pays)', () => {

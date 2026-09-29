@@ -243,7 +243,7 @@ RUN curl -fsSL -o /usr/local/bin/appimagetool \
 # of the other three still works and is ANNOUNCED as unpinned by `gjsify ship` —
 # `appImageRuntimeNotice` in `utils/ship/appimage.ts`, the declare-rather-than-
 # imply rule the host-requirement list already follows. Pinning those three is one
-# `curl` each on the day a leg exists to run them (`status/open-todos.md`).
+# `curl` each on the day a leg exists to run them (`status/open-todos/README.md`).
 ARG APPIMAGE_RUNTIME_VERSION=20251108
 ARG APPIMAGE_RUNTIME_X86_64_SHA256=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
 RUN mkdir -p /usr/local/share/gjsify/appimage-runtime \

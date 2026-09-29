@@ -28,7 +28,7 @@
 //     SLOT_CANDIDATES and SINCE — eight names, not one of them a method table.
 //     `SLOT_CANDIDATES` is DERIVED from methods (ADR 0029 § 4's one-widget-argument
 //     rule) and carries the slot it derived, not the verb. Adding `OWN_METHODS` there is
-//     an upstream ts-for-gir change plus a release (`status/open-todos.md`), and when it
+//     an upstream ts-for-gir change plus a release (`status/open-todos/README.md`), and when it
 //     lands this generator's INPUT changes and its output does not; that is why the
 //     artifact's shape is the durable half — the same reason `generate-enum-values.mjs`
 //     gives for enum values.

@@ -56,11 +56,16 @@ export class Dirent implements OriginalDirent {
      * `info` is the lookup `fileType` came from, where the caller has one.
      * Passing it is what makes `fstatSync` answer about the FILE and not about
      * the procfs link that names its descriptor — see {@link _classifySpecialFile}.
+     *
+     * `parentPath` is the directory AS THE CALLER SPELLED IT, which is what Node
+     * reports for `opendir`/`readdir` entries (`'/a/b/'` stays `'/a/b/'`). Derived
+     * from `path` instead, it came back normalised — and whatever separator the
+     * caller glued the name on with decided the rest.
      */
-    constructor(path: string, filename?: string, fileType?: Gio.FileType, info?: Gio.FileInfo) {
+    constructor(path: string, filename?: string, fileType?: Gio.FileType, info?: Gio.FileInfo, parentPath?: string) {
         if (!filename) filename = basename(path);
         this.name = filename;
-        this.parentPath = dirname(path);
+        this.parentPath = parentPath ?? dirname(path);
         this._file = Gio.File.new_for_path(path);
         const type = fileType ?? this._file.query_file_type(Gio.FileQueryInfoFlags.NONE, null);
 

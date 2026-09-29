@@ -1034,7 +1034,7 @@ export default async () => {
                     expect(problems).toStrictEqual([]);
                     expect(chainProbe.withInterfaces > 0).toBe(true);
                 },
-                'GObject.type_interfaces() answers nothing over the node-gi bridge — every type, so the interface half of ANCESTRY cannot be held there. Tracked in status/open-todos.md; this marker retires itself the day the bridge answers.',
+                'GObject.type_interfaces() answers nothing over the node-gi bridge — every type, so the interface half of ANCESTRY cannot be held there. Tracked in status/open-todos/README.md; this marker retires itself the day the bridge answers.',
                 { when: chainProbe.withInterfaces === 0 },
             );
 
@@ -1085,7 +1085,7 @@ export default async () => {
                     }
                     expect(problems).toStrictEqual([]);
                 },
-                'The node-gi bridge and the darwin closure do not put the GJS host verbs on GObject.Object.prototype — connect, connect_after, connect_object, disconnect, emit and set are absent there rather than inherited. Tracked in status/open-todos.md; this marker retires itself the day the prototype carries them.',
+                'The node-gi bridge and the darwin closure do not put the GJS host verbs on GObject.Object.prototype — connect, connect_after, connect_object, disconnect, emit and set are absent there rather than inherited. Tracked in status/open-todos/README.md; this marker retires itself the day the prototype carries them.',
                 { when: !verbsOnPrototype },
             );
 

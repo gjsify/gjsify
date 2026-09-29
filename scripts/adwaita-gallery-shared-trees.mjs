@@ -400,7 +400,7 @@ export const ADWAITA_GALLERY_TREE_DIVERGENCES = {
     'Adw.WrapBox':
         'content: eight chips in the block preview, the framework tabs and all three storybooks, six in the NativeScript template. Nothing in the port forces the shorter list. Beside it the `label`/`cssClasses` against `text`/`variant` names, whose second half does not converge by renaming.',
     'Gtk.Button':
-        'content: five buttons in the preview and the framework tabs, four in the NativeScript template — the icon-only circular one is missing, and its icon would be an SVG SOURCE there rather than a name (see status/open-todos.md, "A property can agree on its NAME and disagree on its VALUE KIND"). Beside it a `GtkBox` against a `StackLayout`.',
+        'content: five buttons in the preview and the framework tabs, four in the NativeScript template — the icon-only circular one is missing, and its icon would be an SVG SOURCE there rather than a name (see status/open-todos/README.md, "A property can agree on its NAME and disagree on its VALUE KIND"). Beside it a `GtkBox` against a `StackLayout`.',
     // A framework tree since the ParamSpec seam took the portable adjustment (ADR 0047
     // § Amendment); the NativeScript template predates it and drew its own example.
     'Adw.SpinRow':

@@ -19,6 +19,7 @@ import {
     RUNTIME_PACKAGE_MANAGERS,
     defaultRuntimeFor,
     hostRuntime,
+    installCommandLine,
     isKnownRuntime,
     packageManagersForRuntime,
     runScriptCommand,
@@ -99,6 +100,18 @@ export default async () => {
             // Read off each tool's `--help`: a bare `bun install` / `deno install`
             // means "install what package.json lists" — NOT deno's `--global` mode.
             for (const manager of PACKAGE_MANAGERS) expect(INSTALL_ARGV[manager][0]).toBe('install');
+        });
+
+        await it('hands the shell ONE install line whose tokens need no quoting', () => {
+            // `spawnSync(manager, argv, { shell: true })` is DEP0190: Node only
+            // concatenates the array. The line is joined unquoted, which is sound
+            // only while no token carries a character `sh` or `cmd.exe` interprets.
+            for (const manager of PACKAGE_MANAGERS) {
+                const line = installCommandLine(manager);
+                expect(line).toBe([manager, ...INSTALL_ARGV[manager]].join(' '));
+                for (const token of line.split(' ')) expect(/^[A-Za-z0-9_.=-]+$/.test(token)).toBe(true);
+            }
+            expect(installCommandLine('npm')).toBe('npm install --no-audit --no-fund');
         });
 
         await it('spells `run a script` with the manager binary first', () => {

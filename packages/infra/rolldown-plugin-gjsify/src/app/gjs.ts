@@ -191,8 +191,13 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             target: 'firefox140',
             define: {
                 global: 'globalThis',
+                // An identity, unlike on `--app node` (ADR 0079): GJS itself defines `window`
+                // as a non-configurable alias of the global, so `typeof window` is 'object'
+                // with or without it. What a browser branch then calls on it comes from
+                // `dom-events/register/global-event-target` (`addEventListener` & co.).
                 window: 'globalThis',
                 'process.env.READABLE_STREAM': '"disable"',
+                'process.env.NODE_ENV': '"production"',
             },
             // Rewrite bare `console` to a named import from our shim. Rolldown's
             // `inject` (not a register-style global write) because GJS defines

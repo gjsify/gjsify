@@ -132,6 +132,7 @@ import {
     TS_SOURCE_EXTENSIONS,
     sourceExtensionRe,
 } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+import { readOpenTodos } from './generate-status.mjs';
 
 // Every repo-relative path below is COMPARED against a `/`-spelled literal and printed into a
 // finding. On win32 `relative()` hands back `packages\web\…`, so the module arm matched nothing
@@ -151,7 +152,10 @@ const RENDERERS = [
     { label: 'adwaita-web', dir: join(ROOT, 'packages/web/adwaita-web/src') },
     { label: 'nativescript', dir: join(ROOT, 'packages/nativescript-bridge/adwaita/src') },
 ];
-const OPEN_TODOS = join(ROOT, 'status/open-todos.md');
+// `status/open-todos.md` was split one-file-per-area into `status/open-todos/`
+// (nearly every PR touched the single file, DIRTYing every other open PR on
+// merge); read through the shared helper so this file and
+// `generate-status.mjs` cannot disagree about which area files count.
 
 /**
  * THE THIRD KIND OF DRIVER — a TREE driver (ADR 0051).
@@ -223,11 +227,15 @@ const NO_DRIVER_LEDGER = 'adwaita-core modules whose only vector table is core-o
 /**
  * Core modules with no conformance file named after them and none importing them for VALUE.
  * `table` — its vectors live in another file under that name; `gap` — the named `###` heading
- * must be an open item in `status/open-todos.md`, so the gap has a place to be closed from.
+ * must be an open item in `status/open-todos/README.md`, so the gap has a place to be closed from.
  * Both, where the vectors exist but no renderer drives THEM either — different facts, and an
  * entry that states only the first reads as explained while the module is held to nothing.
  */
 const MODULE_REASONS = {
+    // Input interpretation, not widget behaviour: it turns macOS's `AppleAccentColor` into
+    // an accent NAME, which the renderers then paint through `accent.ts` (tabled). Its only
+    // caller is `@gjsify/adwaita-app/system-accent`, a reader outside every renderer.
+    'apple-accent': { gap: NO_TABLE_LEDGER },
     breakpoint: { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
@@ -899,7 +907,7 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
 // reported "156 tables, every one driven or explained" said nothing about any of them.
 const conformanceFiles = walk(CONFORMANCE_DIR);
 const conformanceSource = conformanceFiles.map((file) => readFileSync(file, 'utf8')).join('\n');
-const openTodos = readFileSync(OPEN_TODOS, 'utf8');
+const openTodos = readOpenTodos(ROOT);
 
 /** Does this module export anything a renderer could be held to? */
 const HAS_BEHAVIOUR = /^export\s+(?:async\s+)?(?:const|function|class|let|var|enum|default)\b/m;

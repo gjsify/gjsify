@@ -1,14 +1,6 @@
 // GLib MainLoop management: an implicit event loop analogous to Node's.
 
 import type GLib from '@girs/glib-2.0';
-// isGJS, not a raw `imports.gi` probe: @gjsify/node-gi injects that global on
-// Node too (the reverse bridge), where `GLib.MainLoop.prototype.runAsync` is
-// NOT implemented (node-gi special-cases `runAsync` for Gio.Application only) —
-// so `arm()` below threw `<loop>.runAsync is not a function` for every
-// net/http/http2 server that reached `listen()` under node-gi on Node.
-// `isGJS` already orders its probes so node-gi reads as Node (see
-// packages/gjs/runtime/src/detect.js).
-import { isGJS } from '@gjsify/runtime';
 
 /** The single loop this module owns. `null` until something first asks for one. */
 let _loop: GLib.MainLoop | null = null;
@@ -27,12 +19,28 @@ let _armed = false;
 /** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
 interface _GjsImports {
     imports?: { gi?: { GLib?: typeof GLib } };
+    process?: { versions?: { gjs?: string } };
 }
 
-/** The GJS `GLib` binding, or `undefined` when not running on the GJS engine. */
+/**
+ * The GJS `GLib` binding, or `undefined` when not running under GJS.
+ *
+ * Keyed on the RUNTIME, not on `imports.gi` being present: `@gjsify/node-gi`
+ * injects `imports.gi` on Node, Bun and Deno, whose own event loop already
+ * dispatches the default main context, so there is no loop to arm. Keyed on
+ * presence, `ensureMainLoop()` called GJS's `GLib.MainLoop.prototype.runAsync`
+ * there, an override node-gi does not have, and the TypeError surfaced as
+ * `EIO: e.runAsync is not a function` from `net.Server.listen()`.
+ */
 function glib(): typeof GLib | undefined {
-    if (!isGJS) return undefined;
-    return (globalThis as unknown as _GjsImports).imports?.gi?.GLib;
+    const host = globalThis as unknown as _GjsImports;
+    // `@gjsify/runtime`'s detectRuntime() GJS branches, inlined: this module
+    // sits in build:infra's bundler-free prefix, before @gjsify/runtime is
+    // built, and the CLI loads it. A bare GJS program has no `process`; one
+    // with @gjsify/process sets `versions.gjs`, which node-gi never does.
+    const isGjs = typeof host.process?.versions?.gjs === 'string' || host.process === undefined;
+    if (!isGjs) return undefined;
+    return host.imports?.gi?.GLib;
 }
 
 /** Register the GJS main-loop hook, once. */

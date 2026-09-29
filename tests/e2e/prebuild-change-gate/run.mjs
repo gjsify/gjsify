@@ -884,7 +884,7 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
         // steps. The cost is the interesting part: an unloadable workflow surfaces as a run
         // titled "This run likely failed because of a workflow file issue", attached to
         // whatever event it could not filter, and it is NOT a PR check — `gh pr checks`
-        // showed green. The standing hazard `status/open-todos.md` records; a file that
+        // showed green. The standing hazard `status/open-todos/README.md` records; a file that
         // cannot be parsed cannot check itself, so the check lives here.
         //
         // Scoped to job-level `env:`, the only place the mistake is available: step-level

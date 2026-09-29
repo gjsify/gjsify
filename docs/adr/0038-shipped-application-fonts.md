@@ -381,7 +381,7 @@ targets the file somebody put there meaning it to ship.
   this ADR is paying off; leaving it as prose over an absent mechanism was the
   defect.
 - `@gjsify/adwaita-fonts`' desktop TTFs now have a packaging destination. The
-  entry in `status/open-todos.md` about that package is unchanged — it is about
+  entry in `status/open-todos/README.md` about that package is unchanged — it is about
   the size of a *web* font in a browser bundle, which this does not touch.
 - One more `share/` directory means one more row a fourth OS's layout has to have
   an answer for. That cost is the same one `SHARE` was extracted to bound, and it
@@ -402,7 +402,7 @@ targets the file somebody put there meaning it to ship.
   (`PangoCairo.FontMap.get_default().add_font_file()` over `GJSIFY_FONT_DIR`), and
   it belongs in the GTK host layer (ADR 0027) rather than copy-pasted per app —
   but that is a second package's API, with its own tests, and putting it in this
-  PR would decide it without measuring it. `status/open-todos.md`.
+  PR would decide it without measuring it. `status/open-todos/README.md`.
 - **Whether a shipped `.app` resolves the family.** The plist key is declared and
   its EFFECT is unverified: no leg here runs a `.app`. Decision 6 prints it rather
   than letting the green stage imply otherwise.
@@ -413,7 +413,7 @@ targets the file somebody put there meaning it to ship.
   affects text — and the comment beside it implies fontconfig is sometimes in play,
   which is worse than the dead code. The Windows run this removal wanted behind it
   exists; what it does not have is a home in THIS workspace. That is
-  `@gjsify/node-gi`'s tree, with its own CI. `status/open-todos.md`.
+  `@gjsify/node-gi`'s tree, with its own CI. `status/open-todos/README.md`.
 - **`AddFontResourceEx` with `FR_PRIVATE`, permanently.** Not deferred — ruled
   out. It registers with GDI, and `pango_win32_font_map_init()` populates from
   DirectWrite alone. A GDI-private font cannot reach GTK4 text even if DirectWrite
@@ -504,7 +504,7 @@ call — no `@gjsify/*` package does yet"*, and § *What this does NOT decide* o
 Windows call has no home in `@gjsify/*` yet."* Both are retired by `initFonts()` in
 **`@gjsify/gtk-host/fonts`**.
 
-`@gjsify/gtk-host` rather than `@gjsify/adwaita-app`, which `status/open-todos.md` had proposed
+`@gjsify/gtk-host` rather than `@gjsify/adwaita-app`, which `status/open-todos/README.md` had proposed
 on the `initLocale` precedent. The host layer is what § *What this does NOT decide* named (ADR
 0027), and two facts settle it independently of the ancestry: `adwaita-app` declares
 `gjsify.runtimes.node: "none"` while Windows has no GJS host at all, so the call would live on a
@@ -544,7 +544,7 @@ stands in both directions. The call is now measured on Linux too — Fedora 44 /
 discriminator reproduced (a `Round9x13` layout measures 87x63 px before registration, identical
 to an invented family, and 66x50 px after). What no leg here still does is build a program
 directory or a `.app`, start it through the launcher this command wrote, and assert the family
-resolves in THAT process. `status/open-todos.md`.
+resolves in THAT process. `status/open-todos/README.md`.
 
 ## Amendment 2 (2026-09-11) — a second face directory, because the PLATFORM's typeface is missing too
 
@@ -594,7 +594,7 @@ ran" — is about an application's OWN faces in a `.app`, where `ATSApplicationF
 Nothing points that key at the runtime bundle's `gtk/share/fonts`. So the darwin bundles carry
 ~7.3 MB of faces no process can currently reach; `adwaitaUiFontAvailability()` answers `absent`
 there and a preferences dialog will not offer the `adwaita` policy. Both routes out are in
-`status/open-todos.md`.
+`status/open-todos/README.md`.
 
 **`@gjsify/gtk-host/fonts` also grew the SIZE half, which no face can fix.** GTK takes the system
 UI font from the shell, and measured as `ascent + descent` rather than in points — points are not
@@ -754,7 +754,7 @@ it selects.
 
 This swaps the font map for every consumer of the bundle, so text is rasterised by FreeType
 instead of CoreText or ClearType. Hinting and subpixel rendering change for all text, Latin
-included. `status/open-todos.md` argued from that exact cost — *"it changes text rendering for the
+included. `status/open-todos/README.md` argued from that exact cost — *"it changes text rendering for the
 whole application, which is not a decision a runtime bundle may take for its consumer"* — and this
 amendment overrules it: the bundle was already taking that decision, silently, by shipping a Pango
 whose compiled-in ordering picked the platform map. A different rasteriser is a preference, and
@@ -940,4 +940,4 @@ backend by hand keep their `it.failing` on CoreText — they measure the backend
 
 **Not decided here:** `@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default
 map on its own and swallows the decline; it inherits the adopted map when `initFonts()` ran first,
-and is tracked in `status/open-todos.md` otherwise.
+and is tracked in `status/open-todos/README.md` otherwise.

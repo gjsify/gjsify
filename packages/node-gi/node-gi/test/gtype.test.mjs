@@ -119,7 +119,7 @@ test('a GType array return reads each element as a GType handle', () => {
 
 test('a GType array FIELD reads with its sibling length', () => {
     // GSignalQuery.param_types is `array length=n_params` of GType; the field path used
-    // to answer undefined for the element (status/open-todos.md named it).
+    // to answer undefined for the element (status/open-todos/node-gi.md named it).
     const query = GObject.signal_query(GObject.signal_lookup('activate', Gio.SimpleAction.$gtype));
     assert.deepEqual(
         query.param_types.map((t) => GObject.type_name(t)),

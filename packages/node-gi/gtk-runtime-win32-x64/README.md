@@ -295,7 +295,7 @@ stall rather than an error. `AAC (ADTS)` stays a declared gap here, same as on d
   promotion that ships one). On a host with a vendor OpenGL ICD that is invisible;
   on a GPU-less one (VM, RDP, CI) every `Gtk.GLArea` fails with `No GL
   implementation is available`. Measured on the win11-gjsify VM; tracked as #1097,
-  with the reasoning in the webgl-on-win32 entry of `status/open-todos.md`.
+  with the reasoning in the webgl-on-win32 entry of `status/open-todos/README.md`.
 
   **Neither obvious way of closing it works as-is**, which is why the bundle still
   ships none — both measured on 0.34.0:

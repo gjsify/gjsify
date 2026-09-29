@@ -92,7 +92,7 @@ export interface AvatarViewState extends AvatarVisibilities {
  * unreachable is three assignments; no test here closes that.
  *
  * `hasCustomImage` is hard `false` because the port has no `custom-image` counterpart
- * (status/open-todos.md); when it lands, only this argument changes.
+ * (status/open-todos/README.md); when it lands, only this argument changes.
  */
 export function avatarViewState(input: { showInitials: boolean; text: string; iconName: string }): AvatarViewState {
     const mode = avatarMode({ hasCustomImage: false, showInitials: input.showInitials, text: input.text });

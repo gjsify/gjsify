@@ -13,6 +13,10 @@
         "./appearance": {
             "types": "./lib/types/appearance/index.d.ts",
             "default": "./lib/esm/appearance/index.js"
+        },
+        "./system-accent": {
+            "types": "./lib/types/system-accent.d.ts",
+            "default": "./lib/esm/system-accent.js"
         }
     },
     "files": [

@@ -249,7 +249,7 @@ dependency and becomes the oracle the parser is measured against.**
 - No AGENTS.md change lands with this ADR: nothing here changes a rule an agent follows
   today. The rule changes belong to the PR that earns them — the lint suppression and the
   fence gate's skip path both go when clause 7 is satisfied.
-- Follow-up work is tracked in `status/open-todos.md` per governance; this ADR records the
+- Follow-up work is tracked in `status/open-todos/README.md` per governance; this ADR records the
   *why*.
 
 ## Amendment 1, 2026-09-11 — emission needs introspection too, and it comes from `@girs`

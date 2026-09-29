@@ -194,7 +194,7 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
  * emptying both stay, so a cross-platform package's node bundle keeps loading on
  * plain Node without node-gi installed.
  *
- * KNOWN NARROWNESS (tracked in status/open-todos.md): a genuine GJS source whose
+ * KNOWN NARROWNESS (tracked in status/open-todos/README.md): a genuine GJS source whose
  * ONLY platform reach is `gi://` (no ambient global, no bare built-in) is not
  * recognised — its `@girs/*` and its registers are both emptied. A surviving
  * `gi://` import cannot simply become a third signal: its shim loads node-gi
@@ -328,7 +328,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
             target: 'node24',
             define: {
                 global: 'globalThis',
-                window: 'globalThis',
+                // NO `window` define (ADR 0079): Node has none, and a bundle must see the same
+                // `typeof window` as its source run. A reverse-bridge DOM app gets `window`
+                // from @gjsify/dom-elements/register/document, which defines it at runtime.
+                // NO `process.env.NODE_ENV` define either, unlike gjs/browser (#1355): Node
+                // has a real `process.env`, so a Node bundle reads NODE_ENV at run time like
+                // its source does. Baking "production" in selected React's production build,
+                // which has no `act`, in every `--app node` test bundle.
             },
         },
         output: {

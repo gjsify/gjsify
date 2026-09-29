@@ -128,7 +128,7 @@ export function checkServerIdentity(hostname: string, cert: PeerCertificate): Ce
     }
 
     if (!valid) {
-        const err = new Error(reason) as CertAltNameError;
+        const err = new Error(`Hostname/IP does not match certificate's altnames: ${reason}`) as CertAltNameError;
         err.reason = reason;
         err.host = hostname;
         err.cert = cert;

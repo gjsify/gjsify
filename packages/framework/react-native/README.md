@@ -93,7 +93,7 @@ NAME, with its own sentence, or by being absent from the list its route maps. Re
 only the first answered ACCEPTED for `box-none` until #1648 (ADR 0039 § Amendment).
 What is still not answered is the TYPE grain — `acceptsPropValue('Text',
 'selectable', 'yes')` is `true` while a render refuses the string — because that is a
-predicate rather than a list; `status/open-todos.md` carries what it would take.
+predicate rather than a list; `status/open-todos/README.md` carries what it would take.
 
 ## `<TextInput>`'s ref is a handle, not the widget
 

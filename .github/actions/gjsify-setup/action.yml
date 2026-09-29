@@ -547,6 +547,13 @@ runs:
     # ASSERTS the files landed rather than trusting it — add a path outside
     # `packages/infra` to the upload and this fails loudly instead of leaving
     # every downstream job booting a checkout that has no bundle.
+    #
+    # There is no "fresh run" case to tolerate: artifacts are scoped to ONE
+    # workflow run, never inherited from a previous one, and every job that sets
+    # `bootstrap-bundles: 'true'` gates on `needs.build.result == 'success'` —
+    # a build that uploads these two files unconditionally with
+    # `if-no-files-found: error`. If this step runs, the artifact exists; a
+    # missing file here is always drift, never a first run.
     - name: Restore the GJS bootstrap bundles
       if: ${{ inputs.bootstrap-bundles == 'true' }}
       uses: actions/download-artifact@v8

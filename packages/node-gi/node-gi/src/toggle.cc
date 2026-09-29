@@ -528,7 +528,7 @@ static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last
 // goes weak, and the GObject is immortal. The old code leaked the same toggle ref
 // and took a use-after-free with it. Pinned by gc-identity "run_dispose costs
 // wrapper identity"; the tombstone design that would retire this, and the
-// ref_count discriminator rejected for it, are in status/open-todos.md.
+// ref_count discriminator rejected for it, are in status/open-todos/README.md.
 static void OnGObjectFinalized(gpointer data, GObject* where_the_object_was) {
   NodeGiInstance* inst = static_cast<NodeGiInstance*>(data);
   bool enqueued = false;

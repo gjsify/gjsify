@@ -71,4 +71,4 @@ primitive, public Adw GObjects that are DATA rather than views, and markup or pr
 no upstream type of any kind (a GtkBuildable `<response>` child, a GtkWidget-typed property, a
 different library) — and for all three, which renderer wrapped the thing in an element of its own
 is a rendering idiom, not a missing port. The ones nobody can settle from outside the ports are
-gaps, and `status/open-todos.md` says what each is waiting on.
+gaps, and `status/open-todos/` says what each is waiting on.

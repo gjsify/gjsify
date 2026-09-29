@@ -2,7 +2,7 @@
 // no usable Node.
 //
 // The mechanism behind "A Node-less host cannot bootstrap a fresh CLONE"
-// (status/open-todos.md): the `node scripts/*.mjs` calls in `build:infra` import nothing but
+// (status/open-todos/README.md): the `node scripts/*.mjs` calls in `build:infra` import nothing but
 // `node:fs` / `node:path` / `node:url`, and were unrunnable under GJS only because GJS's ESM
 // loader cannot resolve `node:` specifiers for a file on disk.
 //

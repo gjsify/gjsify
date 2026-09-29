@@ -95,6 +95,6 @@ Keep adwaita-web **light-DOM** and harden it, rather than migrate to Shadow DOM.
   `scripts/check-adwaita-reset-components.mjs` (run in `audit-runtimes.yml`).
 - Validated on the real widgets: normal rendering unchanged; the hostile-host
   typography leak is blocked (before/after captured during review).
-- Follow-ups (`status/open-todos.md`): document the `--adw-*` token contract on the
+- Follow-ups (`status/open-todos/README.md`): document the `--adw-*` token contract on the
   website; consider lifting the boundary reset into `@gjsify/adwaita-core` if a second
   light-DOM renderer ever needs it.

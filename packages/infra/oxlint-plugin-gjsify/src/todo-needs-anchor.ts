@@ -22,9 +22,10 @@
 //
 //   `#123`                 a GitHub issue or PR — work needing discussion or a
 //                          third party
-//   `open-todos`           an entry in `status/open-todos.md`, which the
-//                          `status-data` conformance rule already validates on
-//                          every PR (it fails on resolved-TODO corpses)
+//   `open-todos`           an entry under `status/open-todos/` (one file per
+//                          area), which the `status-data` conformance rule
+//                          already validates on every PR (it fails on
+//                          resolved-TODO corpses)
 //   `fixed upstream in …`  the cross-repo shim note, removed at the next bump
 //
 // The anchor must sit in the SAME comment as the marker: an anchor a reader has
@@ -130,7 +131,7 @@ export const todoNeedsAnchorRule: Rule = {
                         `Untracked \`${marker[1]}\`. A deferral marker must name where it is tracked, or ` +
                         'nothing fails when the work is finished and nothing fails when it is dropped. ' +
                         'Pick the channel: fix it in THIS PR (the root-cause rule — preferred, and the ' +
-                        'reason this codebase has few of these); add an entry to `status/open-todos.md` ' +
+                        'reason this codebase has few of these); add an entry under `status/open-todos/` ' +
                         'and cite it here, which the `status-data` conformance rule then validates every ' +
                         'PR; or open an issue and cite `#<number>` when the work needs discussion or ' +
                         'somebody else. A cross-repo shim writes `// fixed upstream in gjsify: <one-line>` ' +

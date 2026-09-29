@@ -90,7 +90,7 @@ paths are symlinks to one directory, but the resolver keys on the path it walked
 wired to the loser reads zero forever. Observed: the shell's panes get the reading, a
 story's own `AdwToolbarView` gets none. The Android host-inset variant therefore refuses to
 release the page's top edge until it holds a non-zero reading to pay with — a guard around
-the duplication, not a fix for it (`status/open-todos.md`).
+the duplication, not a fix for it (`status/open-todos/README.md`).
 
 ## A count written by hand, next to a count that is derived
 

@@ -308,7 +308,7 @@ export function maybeReexecForGtkRuntime() {
     // gjs process, one hop earlier: `buildNativeEnv()` in `@gjsify/cli` puts
     // `systemGiLibraryDirs()` on the child's `DYLD_FALLBACK_LIBRARY_PATH` (its
     // `system-gi.ts` is the pinned mirror of this module's `system-gi.js`). A gjs
-    // launched by hand keeps the gap — tracked in `status/open-todos.md`.
+    // launched by hand keeps the gap — tracked in `status/open-todos/README.md`.
     // Same probe index.js uses for RUNTIME — as with the Bun/Deno pair above, the
     // check has to live here too because this runs before that const is defined.
     if (typeof globalThis.imports !== 'undefined' && typeof globalThis.print === 'function') return;

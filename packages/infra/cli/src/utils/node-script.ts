@@ -6,7 +6,7 @@
 // has no `node:` URI scheme and no node_modules walker, so `gjs -m <script>.mjs` dies on the
 // first import. That gap is why a Node-less host could install gjsify, resolve every native
 // prebuild, and then fail `build:infra` at `node scripts/process-template.mjs` (see
-// `status/open-todos.md`).
+// `status/open-todos/README.md`).
 //
 // Rejected alternative: commit a `dist/*.gjs.mjs` per script — one more artifact each under
 // the committed-bundle freshness gate, scaling with the number of scripts. This is ONE

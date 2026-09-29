@@ -37,7 +37,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
-import { parse } from '@gjsify/semver';
+import { parse, satisfies } from '@gjsify/semver';
 import { DEFAULT_REGISTRY, fetchPackument, parseNpmrc, type NpmrcConfig } from '@gjsify/npm-registry';
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
@@ -412,7 +412,87 @@ export function reportInexactRanges(groups: readonly DependencyGroup[]): number 
     return total;
 }
 
-function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
+/**
+ * Check that every lockfile resolution satisfies the ranges declared for it.
+ *
+ * `gjsify upgrade --check` compares declared ranges against each other across
+ * workspaces. It does NOT compare the resolution against any of them, so a
+ * lockfile entry that violates every declaration in the repo passes silently.
+ *
+ * This check reads the lockfile, resolves each entry's version, and verifies
+ * it satisfies at least one declared range for that dependency.
+ *
+ * @param groups dependency groups with declared ranges
+ * @param cwd working directory
+ * @returns number of violations
+ */
+export function checkLockfileRangeViolations(groups: readonly DependencyGroup[], cwd: string): number {
+    const lockPath = join(cwd, 'gjsify-lock.json');
+    if (!existsSync(lockPath)) return 0;
+
+    let lock: { packages?: Record<string, { version?: string }> };
+    try {
+        lock = JSON.parse(readFileSync(lockPath, 'utf-8'));
+    } catch {
+        return 0;
+    }
+
+    if (!lock.packages) return 0;
+
+    // Build a map: dep name -> set of declared ranges
+    const declaredRanges = new Map<string, Set<string>>();
+    for (const g of groups) {
+        const ranges = declaredRanges.get(g.name) ?? new Set<string>();
+        for (const occ of g.occurrences) {
+            ranges.add(occ.currentRange);
+        }
+        declaredRanges.set(g.name, ranges);
+    }
+
+    let violations = 0;
+    for (const [key, entry] of Object.entries(lock.packages)) {
+        if (!entry.version) continue;
+        // Only check direct dependencies — the single-segment "node_modules/<name>" form.
+        // A deep transitive resolution (e.g. "node_modules/a/node_modules/b") is pinned by
+        // its parent, not by the root's declared range, and must not be checked against it.
+        const parts = key.split('node_modules/');
+        if (parts.length !== 2) continue;
+        const depName = parts[1];
+        const ranges = declaredRanges.get(depName);
+        if (!ranges || ranges.size === 0) continue;
+
+        // Check if the resolved version satisfies at least one declared range
+        let satisfied = false;
+        for (const range of ranges) {
+            try {
+                if (entry.version && satisfies(entry.version, range)) {
+                    satisfied = true;
+                    break;
+                }
+            } catch {
+                // Invalid range, skip
+            }
+        }
+
+        if (!satisfied) {
+            console.error(
+                `  ${depName}: lockfile has ${entry.version}, but declared ranges are ${[...ranges].join(', ')}`,
+            );
+            violations++;
+        }
+    }
+
+    if (violations > 0) {
+        console.error(
+            `gjsify upgrade --check: FAIL. ${violations} lockfile entr${violations === 1 ? 'y' : 'ies'} violate declared ranges:\n`,
+        );
+    }
+
+    return violations;
+}
+
+function runCheckMode(groups: readonly DependencyGroup[], exact = false, cwd = process.cwd()): void {
+    const lockfileViolations = checkLockfileRangeViolations(groups, cwd);
     const inexact = exact ? reportInexactRanges(groups) : 0;
     const inconsistencies = findInconsistencies(groups);
     if (inconsistencies.length === 0 && inexact > 0) {

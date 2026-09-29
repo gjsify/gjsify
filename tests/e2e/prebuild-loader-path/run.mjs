@@ -65,7 +65,7 @@ const PAIRS = [
  * `linux-*-musl` is listed although nothing commits one yet: each loop below skips a target
  * whose library is absent, so the day a musl leg lands its artifacts are checked with no
  * fixture edit. One list also keeps the token shape out of three loop heads — the cheap half
- * of the "fixtures recompose the target name" item in `status/open-todos.md`.
+ * of the "fixtures recompose the target name" item in `status/open-todos/README.md`.
  */
 const TARGETS = ['linux-x64', 'linux-x64-musl', 'linux-arm64', 'linux-arm64-musl', 'darwin-arm64'];
 

@@ -14,7 +14,7 @@
 | Requires SharedArrayBuffer? | No | **Yes** — `WebAssembly.Memory({ shared: true, initial: 16384, maximum: 65536 })` (≥1 GiB shared addr space) |
 | Requires worker_threads? | No | **Yes** — `wasi-worker.mjs` for async work pool |
 | Host import surface | ~1 namespace (`env`) with napi + 2 custom fns | `wasi_snapshot_preview1` + `env` (napi) + emnapi worker IPC |
-| GJS viability (today) | **High** — single small shim | **Low** — SAB hole in stock GJS blocks mode 0 (see `status/open-todos.md`) |
+| GJS viability (today) | **High** — single small shim | **Low** — SAB hole in stock GJS blocks mode 0 (see `status/open-todos/README.md`) |
 
 **Strategic implication.** Rolldown-WASM under stock GJS is blocked by the SharedArrayBuffer disable in SpiderMonkey. We can either:
 - (a) Rebuild rolldown WASM without `wasi-threads` — single-threaded variant, smaller import surface, no SAB. Patches needed in `refs/rolldown/crates/rolldown_binding/`. **Untested upstream**.
