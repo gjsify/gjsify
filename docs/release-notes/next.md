@@ -30,6 +30,74 @@ A worked example is the v0.28.0 release body:
 https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 -->
 
+## Upgrading
+
+Every `@gjsify/*` package moves together (ADR 0008): compatibility is guaranteed
+only within one release, so upgrade the whole set with `gjsify upgrade --latest
+--filter @gjsify`, or repair drift with `gjsify upgrade --align`.
+
+### `node:sqlite` is safe in a long-lived process now
+
+Two defects made a long-running connection on GJS the wrong thing to rely on, and
+both are fixed. If you run a daemon that keeps one `DatabaseSync` open — a mail
+sync, an indexer, a queue worker — this is the release to move to.
+
+**The connection wore out.** Every statement a connection executed left libgda
+objects registered on it: a cached prepared statement per execution, a hidden
+`SELECT` libgda ran after every `INSERT`, and the data model of every read until
+the collector reached it. Each holds a weak reference to the SQLite provider, and
+GLib allows 65,535 of those per object. A connection that crossed the cap logged
+"Too many GWeakRef registered" and then answered reads wrongly without throwing —
+a wrong answer, not a crash, which is the harder failure to notice. A mail sync
+of roughly 5,000 messages was enough to get there, because each `run()` cost four
+references. Each execution now releases what it created before it returns, so a
+connection stays usable for as long as you keep it. A read libgda can no longer
+type throws instead of returning rows.
+
+**`EXISTS (SELECT …)` did not run at all.** libgda does not execute the SQL text
+it is given: it parses it into a statement tree and the SQLite provider re-renders
+that tree, so a statement can parse and still be rejected downstream on SQL Node
+accepts. `SELECT EXISTS (SELECT 1 FROM t)` was exactly that — it rendered as
+`SELECT EXISTS ((SELECT 1 FROM t))`, and the double parenthesis is a syntax error.
+The predicate is now restated in a form libgda can carry, and `S` is copied byte
+for byte, so every parameter, literal and identifier inside it keeps its position.
+Nesting and a comment between the keyword and its parenthesis are handled, and the
+word is left alone inside a string literal, a quoted identifier or a comment.
+
+### Native addons stay external in `--app node` bundles
+
+An addon finds its `.node` binary relative to its OWN files — `node-gyp-build`,
+`bindings`, napi-rs' `./x.linux-x64-gnu.node`. Bundled, that path is the bundle's
+directory and the lookup misses: `@signalapp/libsignal-client` threw "No native
+build was found" from a bundle that ran fine as source, and `bufferutil` fails
+SILENTLY, swapping the native build for the JS one.
+
+Addon packages are now detected from their manifest and layout (`binding.gyp`, a
+`gypfile`, a `binary` field, a loader dependency, napi-rs, a `.node` file under
+`prebuilds/` or `build/`) and kept external, so Node loads them from `node_modules`
+as it would without a bundler. The hard-coded name list is gone. An `--app node`
+bundle of a native dependency needs `node_modules` at runtime, like any installed
+program.
+
+### `node-gi` marshals a `GType` inside a C array
+
+A `GType` element in a C array fell through to the element predicate's default and
+was refused. That made every `SELECT` throw on `node-gi` before SQLite ran, because
+reading a column's type passes a zero-terminated `GType[]`. `GType` is now a sized
+cell in a C array in both directions. Lists and hashes still refuse it, and the
+refusal message names the actual tag instead of calling every unhandled tag a
+nested container.
+
+## `node:sqlite` reads 64-bit integers
+
+libgda types an `INTEGER` column, and an expression whose first value is an integer,
+as a 32-bit `gint`. Any value past 2,147,483,647 then failed the whole read, and on
+0.49.0 the failure was reported as an empty result — a millisecond timestamp was
+enough. Such columns are now read as their exact decimal digits and converted as
+`node:sqlite` does. A value that fits `Number.MAX_SAFE_INTEGER` becomes a Number,
+`readBigInts` returns a BigInt, anything larger throws `ERR_OUT_OF_RANGE`, and
+`lastInsertRowid` handles rowids past 2^31.
+
 ## `gjsify install` installs required peer dependencies
 
 npm 7 and later install every `peerDependencies` entry that `peerDependenciesMeta` does not
@@ -121,28 +189,6 @@ Rebuilding real bins found build defects that affect every `gjsify build --app g
 
 `util.parseEnv`, `fs/promises.constants`, `stream.promises`, `dns.promises` and
 `module.Module`.
-
-## `node:sqlite` connections no longer wear out
-
-On GJS, every statement a `DatabaseSync` connection executed left libgda objects registered on
-it: a cached prepared statement for each execution, a hidden `SELECT` that libgda ran after
-every `INSERT`, and the data model of every read until the garbage collector reached it. Each of
-those holds a weak reference to the SQLite provider, and GLib allows 65,535 of them per object.
-A connection that crossed the limit logged "Too many GWeakRef registered" and then answered
-reads wrongly without throwing. A mail sync of about 5,000 messages was enough, because each
-`run()` cost four references.
-
-Each execution now releases what it created before it returns, so a connection stays usable no
-matter how long it lives. A read that libgda can no longer type throws instead of returning rows.
-
-## `node:sqlite` reads 64-bit integers
-
-libgda types an `INTEGER` column, and an expression whose first value is an integer, as a
-32-bit `gint`. Any value past 2,147,483,647 then failed the whole read, and on 0.49.0 the
-failure was reported as an empty result. A millisecond timestamp was enough. Such columns
-are now read as their exact decimal digits and converted as `node:sqlite` does. A value that
-fits `Number.MAX_SAFE_INTEGER` becomes a Number, `readBigInts` returns a BigInt, and anything
-larger throws `ERR_OUT_OF_RANGE`. `lastInsertRowid` also handles rowids past 2^31.
 
 ## Web pages follow the desktop's accent
 
