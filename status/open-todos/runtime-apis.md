@@ -214,6 +214,31 @@ routing. Each site needs its own sentence — the guards do not all stand for th
 same reason — which is why this is a task and not a find-and-replace.
 
 
+### `@gjsify/sqlite`: a `WITH` clause, and why it is not rewritten like `EXISTS`
+
+`StatementSync` accepts `WITH c AS (SELECT …) SELECT …`, and the statement libgda hands back is
+CORRECT — classified `UNKNOWN` and rendered verbatim, so SQLite receives the caller's own text
+(`stmt.to_sql_extended()` returns it unchanged; measured). What fails is the SQLite provider's
+dispatch: it decides "does this yield rows" by prefix-matching the rendered string against
+`SELECT` / `PRAGMA` / `EXPLAIN` (`gda-sqlite-provider.c:3724` at LIBGDA_6_0_0), `WITH …` matches
+none of the three, so the statement is stepped once as a command, the row it returns is dropped,
+and the step reports something other than `SQLITE_DONE` — surfacing as `not an error`. All three
+of `statement_execute_select`, `batch_execute` and `statement_execute_select_full` answer it, and
+the identical query wrapped as `SELECT * FROM (WITH c AS ( … ) SELECT …)` returns its row, so the
+SQL is not the problem. Declared as `it.failing` in `subquery.spec.ts`.
+
+**A rewrite was considered and rejected**, and the reason is the general one: the EXISTS rewrite
+(`exists-subquery.ts`) is a statement-INTERNAL restatement — it replaces one predicate with an
+equivalent one and copies the sub-SELECT byte for byte, so it holds for any statement `EXISTS`
+appears in. There is no such restatement for `WITH`. The only shape that works wraps the WHOLE
+statement, which is a different statement type: `WITH … INSERT`/`UPDATE`/`DELETE` cannot be
+wrapped in a `SELECT` at all, and a `SELECT` wrapper would change what the derived table is
+visible as inside the statement body. A prefix-conditional `EXPLAIN`-style hack was measured
+(`EXPLAIN WITH …` executes) and is obviously wrong: it returns SQLite's bytecode programme, not
+the query's rows. So the honest state is a declared, self-retiring `it.failing` and an upstream
+row (`status/upstream-patch-candidates.md`, same file as the `parse_string` heap corruption): fix
+the provider to branch on the statement type rather than a text prefix.
+
 ### `@gjsify/sqlite` exec() compound-statement (CREATE TRIGGER) splitting
 
 `DatabaseSync.prototype.exec()`'s `#splitStatements()` is comment/quote-aware, but still a token-level scanner, not a parser — a compound statement whose body carries inner semicolons is shattered: `CREATE TRIGGER t … BEGIN INSERT …; … END;` splits at the `;` after the inner `INSERT`, yielding `incomplete input`. node:sqlite gets this right because SQLite's real parser knows `BEGIN…END`. **Clean fix = let libgda's own statement tokenizer do the splitting** — currently blocked because `Gda.SqlParser.parse_string()` used iteratively hits a double-free under GJS and `parse_string_as_batch()` returns `Gda.Batch` objects rather than `Gda.Statement`s. A heuristic port of SQLite's `sqlite3_complete()` state machine was considered and NOT taken (mis-handles `CASE…END;`, adds risk to the transaction `BEGIN; … COMMIT;` path). Revisit when the libgda `parse_string` limitation is resolved (then the hand-rolled splitter can be retired entirely).
