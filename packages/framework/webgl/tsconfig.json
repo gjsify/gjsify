@@ -40,6 +40,7 @@
   "exclude": [
     "src/ts/test.ts",
     "src/ts/test.conformance.ts",
+    "src/ts/test.hidpi.ts",
     "src/ts/**/*.spec.ts"
   ]
 }

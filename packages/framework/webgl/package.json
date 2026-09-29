@@ -41,7 +41,7 @@
         "tier": 1
     },
     "scripts": {
-        "clear": "gjsify clear lib tmp build test.gjs.mjs tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo",
+        "clear": "gjsify clear lib tmp build test.gjs.mjs test.hidpi.gjs.js tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "init:meson": "meson setup build .",
         "init:meson:wipe": "gjsify run init:meson --wipe",
@@ -54,7 +54,9 @@
         "build:conformance": "gjsify build src/ts/test.conformance.ts --app gjs --outfile conformance.gjs.js",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.js",
-        "test:conformance": "gjsify run build:gjsify && gjsify run build:conformance && gjsify run conformance.gjs.js"
+        "test:conformance": "gjsify run build:gjsify && gjsify run build:conformance && gjsify run conformance.gjs.js",
+        "build:hidpi": "gjsify build src/ts/test.hidpi.ts --app gjs --outfile test.hidpi.gjs.js",
+        "test:hidpi": "gjsify run build:gjsify && gjsify run build:hidpi && gjsify run test.hidpi.gjs.js"
     },
     "keywords": [
         "gjs",
