@@ -416,10 +416,17 @@ export default async () => {
             const importer = join(root, 'index.js');
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const handler = handlerOf(plugin);
-            const res = await handler.call(mockCtx(), './build/Release/x.node', importer);
+            const ctx = mockCtx();
+            const res = await handler.call(ctx, './build/Release/x.node', importer);
             // ADR 0084: a direct .node gets a `*` entry naming the file's package spec.
-            const table = { '*': abs };
+            // The spec is a MODULE SPECIFIER, so it is `/`-separated on every host:
+            // this file is under no `node_modules`, so the path itself IS the spec —
+            // with the host's separators normalised, or a win32 build writes `\`
+            // into the table and into the bundle's bytes.
+            const table = { '*': abs.split('\\').join('/') };
             expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:direct:${JSON.stringify(table)}` });
+            // The entry does not travel with the bundle, and the build says so.
+            expect(ctx.warnings.join('\n')).toMatch(/ABSOLUTE path/);
             const load = (plugin as { load?: (id: string) => { code: string } | null }).load;
             expect(load?.(res!.id)?.code).toContain('export default loadAddon');
             rmSync(root, { recursive: true, force: true });
