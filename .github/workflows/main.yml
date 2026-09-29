@@ -1151,7 +1151,7 @@ jobs:
       # The `test:e2e` suites that assert built example dist (lint-engines), run
       # where that dist is made instead of on an e2e shard that would have to wait
       # for this job. Gated on the `e2e` job's own condition — this job's gate is
-      # a superset of it. `scripts/e2e-shard.mjs` keeps the list and leaves these
+      # a superset of it. `scripts/e2e-suites.mjs` discovers suites by directory (via listE2eSuites) rather than a
       # suites out of every shard, so each suite still runs exactly once.
       - name: E2E suites that read example dist
         if: ${{ needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' }}
