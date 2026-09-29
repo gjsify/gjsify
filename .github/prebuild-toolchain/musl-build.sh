@@ -134,7 +134,7 @@ set -euo pipefail
 # it correct here is the same property as there — this job uploads its artifacts
 # and commits nothing. `--allow-undeclared` stays, because `linux-<arch>-musl`
 # is deliberately in no `gjsify.platforms` (see the workflow header), and it is
-# what `build-prebuilds-macos-experimental` pairs with `--scratch` for the same
+# what the removed `build-prebuilds-macos-experimental` paired with `--scratch` for the same
 # reason. A `-musl` suffix also cannot collide with the committed `linux-<arch>`
 # of the pre-ADR-0017 layout, and the guard below independently refuses a host
 # that does not resolve as this leg's own musl token.

@@ -7,8 +7,7 @@ tier: high
    a GObject shim on every OS, replacing libmanette on Linux once proven there) and its seam has
    landed, but the shim itself — a new native package — is not built; `@gjsify/webgl` now draws WebGL2 content on darwin
    and is measured HiDPI-correct on a Retina Mac, but two GLES 3.0 API spellings are still missing and no CI leg realizes
-   a GL context on darwin itself; two packages have no darwin target at
-   all; and the node-free toolchain on macOS is exercised only by e2e suites, never by a
+   a GL context on darwin itself; and the node-free toolchain on macOS is exercised only by e2e suites, never by a
    cold-tree `build:infra` with no Node. `win32-arm64` is measured as blocked upstream rather than on
    effort, so it is not on this list.
 

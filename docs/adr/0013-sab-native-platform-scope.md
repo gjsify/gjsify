@@ -248,3 +248,9 @@ The first darwin artifacts reach the repo the way every other darwin prebuild do
 `commit-prebuilds` lands them on main, and `clear-committed-platform-exemptions.mjs`
 drops the two per-target packages' `platformsUncommitted` entries in the same commit.
 
+The oldest macOS these binaries load on is **not** decided here. ADR 0074 owns that
+number (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and `prebuild-darwin-target.mjs` holds the
+committed bytes to it, so the `os_sync_*` calls above and the floor in one place are
+two decisions that happen to agree — set the floor here and the rule, not this
+amendment, is what a reader will check.
+
