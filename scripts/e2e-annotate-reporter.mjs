@@ -1,19 +1,23 @@
 // `node --test` reporter that turns a failing e2e SUITE FILE into ONE GitHub Actions
-// check-run annotation: the suite path plus its FIRST error — mirroring
-// `scripts/e2e-timing-reporter.mjs`'s shape (same event source, same "one thing
-// per top-level test" grouping), but for readability instead of shard balancing.
+// check-run annotation: the suite path plus its FIRST failing test — mirroring
+// `scripts/e2e-timing-reporter.mjs`'s shape (same event source, one entry per file),
+// but for readability instead of shard balancing.
 //
-// `scripts/e2e-shard.mjs` loads it on every `node --test` invocation, next to
-// whichever human reporter is running (`spec`/`tap`) — it is a NO-OP off CI
-// (`reportFailure` gates on `GITHUB_ACTIONS`), so a local `test:e2e` run sees
-// nothing extra.
+// `scripts/e2e-shard.mjs` loads it on every `node --test` invocation, next to the
+// human reporter (`spec`) — it is a NO-OP off CI (`reportFailure` gates on
+// `GITHUB_ACTIONS`), so a local `test:e2e` run sees nothing extra.
 //
-// FIRST error only, not every failing test in the file: an e2e suite is "one
-// suite per directory" (tests/AGENTS.md), so the file-level annotation is the
-// unit `ci-why` (docs/ci-selective.md) needs to name WHICH suite broke; every
-// later failure in the same file is usually a symptom of the first (a fixture
-// that failed to stage, a server that never started) and would only spend the
-// shared 10-per-process annotation budget faster.
+// FIRST failing LEAF, whatever its nesting. Every e2e suite wraps its tests in
+// `describe` (tests/AGENTS.md), and a child fails BEFORE its enclosing suite does,
+// so the first `test:fail` event in a file is the real failure. The first version
+// filtered to `nesting === 0` to mean "top-level", which in this repo is only the
+// SUITE WRAPPER: every annotation read "<suite>: 1 subtest failed" — no test name,
+// no error message, the half of the evidence a reader needs. ONE annotation per
+// file (the per-file `reported` set): the file path is the unit `ci-why`
+// (docs/ci-selective.md) needs to name WHICH suite broke, and every later failure
+// in the same file is usually a symptom of the first (a fixture that failed to
+// stage, a server that never started) and would only spend the shared
+// 10-per-process annotation budget faster.
 
 import { relative } from 'node:path';
 import { reportFailure } from './lib/ci-report.mjs';
@@ -23,8 +27,8 @@ export default async function* e2eAnnotateReporter(source) {
     const reported = new Set();
     for await (const event of source) {
         if (event.type !== 'test:fail') continue;
-        const { name, nesting, file, details } = event.data;
-        if (nesting !== 0 || !file) continue;
+        const { name, file, details } = event.data;
+        if (!file) continue;
         const key = relative(process.cwd(), file).split('\\').join('/');
         if (reported.has(key)) continue;
         reported.add(key);

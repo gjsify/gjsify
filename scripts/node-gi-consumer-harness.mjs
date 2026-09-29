@@ -429,7 +429,7 @@ const formatFailure = (f) => (f.name && f.message ? `${f.name} — ${f.message}`
 function gateFailureParts(r) {
     const node = r.runtimes?.node;
     const verdict = r.build?.ok ? (node?.status ?? 'no-node-run') : `build ${r.build?.reason}`;
-    const counts = node && node.total !== undefined ? { ...node } : null;
+    const counts = node && node.total !== undefined ? node : null;
     const samples = (node?.samples?.length ? node.samples : r.build?.samples) ?? [];
     return { verdict, counts, samples };
 }

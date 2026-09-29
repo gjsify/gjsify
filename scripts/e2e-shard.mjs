@@ -159,16 +159,16 @@ function refreshTimings(dirs) {
 
 function nodeTest(paths, label, extraArgs = []) {
     const out = process.env.E2E_TIMINGS_OUT;
-    // Adding ANY `--test-reporter` drops Node's own TTY-based default entirely —
-    // every reporter wanted then has to be named, or the run prints nothing
+    // Adding ANY `--test-reporter` drops Node's own default entirely — every
+    // reporter wanted then has to be named, or the run prints nothing
     // human-readable at all (measured: `annotate` alone on a failing file
     // produced the `::error::` line and NOTHING else, not even a pass/fail
-    // total). So the human reporter is always explicit now, replicating exactly
-    // what Node would have picked implicitly (`spec` on a TTY, `tap` otherwise —
-    // `stdio: 'inherit'` means this process's own stdout IS the child's, so the
-    // check is accurate for it too) — except the timing-capture branch, which
-    // already forced `spec` on purpose (see its own comment below).
-    const humanReporter = out ? 'spec' : process.stdout.isTTY ? 'spec' : 'tap';
+    // total). So the human reporter is always explicit — and it is `spec` on
+    // BOTH sides of the TTY: Node's default is `spec` whether or not stdout is a
+    // terminal (measured with `node --test <file> | cat` on the local v24.19.0 and
+    // on v26.10.0, the version `.github/actions/gjsify-setup` installs), so naming
+    // it reproduces the pre-existing output for a terminal and for CI's pipe alike.
+    const humanReporter = 'spec';
     const reporterArgs = [
         `--test-reporter=${humanReporter}`,
         '--test-reporter-destination=stdout',

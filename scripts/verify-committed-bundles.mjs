@@ -79,10 +79,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
-import { reportFailure } from './lib/ci-report.mjs';
+import { inActions, reportFailure } from './lib/ci-report.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const inActions = Boolean(process.env.GITHUB_ACTIONS);
 
 /**
  * How each committed artifact is regenerated, and what it covers.
@@ -283,10 +282,13 @@ function gjsifyStep(argv) {
 function fail(msg, file) {
     // The ad hoc `::error::${msg}` this replaced escaped nothing — a `%`, a real
     // newline (a spawned rebuild's captured stderr can carry either) corrupted or
-    // truncated the annotation `ci-why` (docs/ci-selective.md) reads. `reportFailure`
-    // is the one place that escapes correctly, so it owns emitting the annotation;
-    // off CI this prints the same plain `ERROR: …` line as before.
-    if (inActions) reportFailure({ title: 'verify-committed-bundles', file, message: msg });
+    // truncated the annotation `ci-why` (docs/ci-selective.md) reads, and it used a
+    // second, looser CI gate (`Boolean(GITHUB_ACTIONS)`, true for "false") that this
+    // branch then shared. `inActions()` IS `reportFailure`'s gate, so the annotation
+    // and the plain off-CI line below can no longer disagree about which world we
+    // are in. (`packages/gjs/unit`'s own formatter escapes only `%`/CR/LF in titles —
+    // a follow-up, not this PR.)
+    if (inActions()) reportFailure({ title: 'verify-committed-bundles', file, message: msg });
     else console.error(`ERROR: ${msg}`);
 }
 
@@ -524,7 +526,7 @@ if (failures > 0) {
         console.error(
             `\nThe ${rebuiltSaved.length} rebuilt artifact(s) THIS run produced were kept under tmp/rebuilt-bundles/:\n` +
                 rebuiltSaved.map((p) => `  ${p}`).join('\n') +
-                (inActions
+                (inActions()
                     ? '\n\nRebuild locally and commit the result:\n' +
                       '  gjsify workspace @gjsify/cli build --with-dependencies\n' +
                       '  gjsify workspace @gjsify/cli build:affected-bundle\n' +
