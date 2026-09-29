@@ -1,0 +1,6 @@
+SimpleAction signal api, activations: 1
+Cancellable.connect(cb) id > 0: true
+Cancellable.connect(signal, cb) throws: true
+cancel ran g_cancellable_connect cb: 1 signal handler: 1
+SocketClient.connect(signal, cb) throws: true
+socks5.connect: method Gio.Proxy.connect: At least 3 arguments required, but only 2 passed

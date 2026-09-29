@@ -1,0 +1,4 @@
+write_fn argc: 2
+buffer: [7,8,9]
+cancellable is 2nd arg: true
+write returned: 3

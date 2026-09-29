@@ -36,6 +36,19 @@ const USER_PROTO = Symbol('nodeGiUserProto');
 // make every wrapper look thenable).
 const RESERVED = new Set(['then', 'toString', 'valueOf', 'constructor', 'inspect']);
 
+// Names the instance wrapper's `get` trap otherwise shortcuts straight to the
+// GObject signal API (see wrapInstance below). A concrete class can introspect
+// its OWN method under one of these — `Soup.Server.disconnect(): void` is
+// `soup_server_disconnect`, zero-arg, nothing to do with a signal handler id —
+// and on gjs that own prototype property already shadows the inherited
+// override through ordinary JS lookup. This Proxy has no such chain, so
+// `wrapInstance` checks for an own introspected member under the name FIRST
+// and only falls through to the shortcut when the class declares none.
+// Regression: `Http2SecureServer.close()` called `this._soupServer.disconnect()`
+// (real libsoup API, zero args) and got `disconnectSignal(handle, handlerId:
+// number)` — the shortcut's `disconnect(id)` — under node-gi on Node.
+const SIGNAL_API_SHORTCUTS = new Set(['connect', 'connect_after', 'emit', 'disconnect']);
+
 // GJS accepts both snake_case and camelCase for methods/properties: map a JS accessor
 // to the GI method name (snake_case) and to a GObject property name (kebab-case); a
 // name already in the target case passes through.
@@ -1304,6 +1317,19 @@ function wrapInstance(handle, userProto) {
         get(t, prop) {
             if (prop === HANDLE) return handle;
             if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
+            if (SIGNAL_API_SHORTCUTS.has(prop)) {
+                const up = t[USER_PROTO];
+                const own = up !== undefined ? findProtoDescriptor(up, prop) : undefined;
+                if (own !== undefined) return typeof own.get === 'function' ? own.get.call(proxy) : own.value;
+                // An INTERFACE method under the name never reaches a class prototype
+                // when the concrete type is private: GSocks5Proxy wraps as its nearest
+                // introspectable ancestor (GObject.Object), yet on gjs 1.88.1
+                // `socks5.connect` IS g_proxy_connect (Gio.Proxy, 3 IN args) — measured.
+                // The same native walk the GI-method fallback below uses sees it.
+                if (instanceHasMethod(handle, prop)) {
+                    return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
+                }
+            }
             switch (prop) {
                 case '$typeName':
                     // The instance's concrete RUNTIME GType name —
