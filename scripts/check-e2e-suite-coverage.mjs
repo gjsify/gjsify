@@ -94,8 +94,9 @@ checkLedger('scripts/e2e-serial-suites.mjs', E2E_SERIAL_SUITES, 'scripts/e2e-unl
 
 // 4. A test FILE beside a suite's `run.mjs` that no discovered entry and no suite import
 // reaches — the same reachability test `listE2eSuites()` itself uses, run independently
-// here so a bug in that module's convention still gets caught rather than laundered
-// through the thing it is supposed to check.
+// here so a convention bug stays visible rather than being laundered through the thing
+// it is supposed to check. Shared limit: this only scans run.mjs's direct imports,
+// not transitive or sibling entries.
 const importsOf = (src) => {
     const specs = new Set();
     for (const m of src.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)) specs.add(m[1]);

@@ -37,7 +37,7 @@
 // A refresh replaces the measured suites, keeps the old figure for any suite that
 // run did not measure, and drops suites `listE2eSuites()` no longer discovers.
 
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -55,6 +55,9 @@ const PARALLEL_CONCURRENCY = 4;
 // example-dist artifact. It runs in `main.yml`'s `examples-build` job, where that
 // dist is produced, so no e2e shard has to wait for the examples build.
 const EXAMPLE_DIST_SUITES = [LINT_ENGINES_SUITE];
+if (!existsSync(LINT_ENGINES_SUITE)) {
+    fatal(`LINT_ENGINES_SUITE path "${LINT_ENGINES_SUITE}" does not exist; cannot run example-dist shard.`);
+}
 
 function fatal(msg) {
     console.error(`e2e-shard: ${msg}`);

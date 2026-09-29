@@ -45,7 +45,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** A root-relative path outside `tests/e2e/` that the parallel batch also runs. */
 export const LINT_ENGINES_SUITE = 'tests/lint-engines.mjs';
 
-/** Specifiers a `run.mjs` imports, relative-only (the shape a sibling entry uses). */
+/** Scan run.mjs's DIRECT imports only (not transitive or sibling entries). */
 function relativeImportsOf(src) {
     const specs = new Set();
     for (const m of src.matchAll(/\bfrom\s*['"](\.\/[^'"]+)['"]/g)) specs.add(m[1]);
