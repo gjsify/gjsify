@@ -11,7 +11,7 @@ import { sqlRegions, type SqlRegion } from './sql-regions.ts';
  * statement can parse and still be rejected downstream — by SQLite, on SQL that Node
  * accepts. `EXISTS (SELECT …)` was exactly that: `near "(": syntax error`.
  *
- * The cause is two parenthesis round the sub-SELECT. A function argument that is a
+ * The cause is two parentheses round the sub-SELECT. A function argument that is a
  * sub-SELECT is parenthesised once by the expression renderer
  * (`sqlite_render_expr()`, `libgda/sqlite/gda-sqlite-provider.c:2698`, and its
  * `default_render_expr()` twin at `libgda/gda-statement.c:1615` — each wraps the
@@ -36,6 +36,22 @@ import { sqlRegions, type SqlRegion } from './sql-regions.ts';
  * shape the tree CAN carry — see `rewriteExistsSubqueries()`.
  */
 
+const EXISTS = 'EXISTS';
+
+/** A case-insensitive `includes`. No `g` flag, so there is no `lastIndex` to reset. */
+const MENTIONS_EXISTS = /exists/i;
+
+/**
+ * A position in the SQL plus the region it sits in. Both are carried together because
+ * every step of the scan is "advance to the next region, or to the next character of this
+ * one", and re-deriving the region by searching the list each time would make the scan
+ * quadratic in the number of literals and comments.
+ */
+interface Cursor {
+    at: number;
+    region: number;
+}
+
 /**
  * `EXISTS (S)` → `(1 IN (SELECT 1 FROM (S)))`, for every `EXISTS (` in `sql`.
  *
@@ -58,29 +74,49 @@ import { sqlRegions, type SqlRegion } from './sql-regions.ts';
  *
  * A nested `EXISTS` inside `S` is rewritten too, and only occurrences in CODE are
  * touched: `sqlRegions()` is what keeps the word out of a string literal, a quoted
- * identifier and a comment. An `EXISTS` not followed by a `(` — a column, a function of
- * another name ending in it, prose in a comment — is left alone, as is an unterminated
- * `(`, which is a syntax error libgda should report in its own words.
+ * identifier and a comment. A comment BETWEEN the keyword and its parenthesis counts as
+ * nothing at all, because SQLite's own tokenizer skips it there — `EXISTS -- c\n(SELECT …)`
+ * is ONE statement and has to be rewritten as one. An `EXISTS` not followed by a `(` — a
+ * column, a longer identifier ending in it, prose in a comment — is left alone, as is an
+ * unterminated `(`, which is a syntax error libgda should report in its own words.
+ *
+ * The cost of the IN form, recorded so it is not "optimised" away: SQLite materialises `S`
+ * into an ephemeral index (a `LIST SUBQUERY` scan with a bloom filter, measured on 100k
+ * rows) where `EXISTS` stops at the first row, and `LIMIT 1` on `S` does NOT bring that
+ * plan back (measured). The faster scalar restatement, `(SELECT 1 FROM (S) LIMIT 1) = 1`,
+ * answers NULL instead of 0 in a projection when `S` is empty (measured) — so the IN form
+ * is the one that is correct in every position.
  */
 export function rewriteExistsSubqueries(sql: string): string {
+    // Every prepare/run/get/all calls this, and almost no statement names the keyword, so
+    // the common answer is one substring test that never reaches the scanner. Deliberately
+    // LOOSE: a false positive costs the scan below, which then rewrites nothing and hands
+    // back the very string it was given.
+    if (!MENTIONS_EXISTS.test(sql)) return sql;
+
     const regions = sqlRegions(sql);
     const out: string[] = [];
     let copiedTo = 0;
-    let region = 0;
+    const cursor: Cursor = { at: 0, region: 0 };
 
-    for (let i = 0; i < sql.length; i++) {
-        while (region < regions.length - 1 && regions[region].end <= i) region++;
-        if (regions[region].kind !== 'code') continue;
-        if (!isExistsAt(sql, i, regions)) continue;
+    while (cursor.at < sql.length) {
+        seekToCode(sql, regions, cursor);
+        if (cursor.at >= sql.length) break;
 
-        const open = openParenAfter(sql, i + EXISTS.length, regions);
-        const close = open < 0 ? -1 : matchingParen(sql, open, regions);
-        if (close < 0) continue;
-
-        const subquery = rewriteExistsSubqueries(sql.slice(open + 1, close));
-        out.push(sql.slice(copiedTo, i), '(1 IN (SELECT 1 FROM (', subquery, ')))');
-        copiedTo = close + 1;
-        i = close;
+        const start = cursor.at;
+        if (isExistsAt(sql, regions, cursor)) {
+            const open = openParenAfter(sql, regions, cursor);
+            const close = open < 0 ? -1 : matchingParen(sql, regions, open);
+            if (close >= 0) {
+                out.push(sql.slice(copiedTo, start), '(1 IN (SELECT 1 FROM (');
+                out.push(rewriteExistsSubqueries(sql.slice(open + 1, close)));
+                out.push(')))');
+                copiedTo = close + 1;
+                cursor.at = close + 1;
+                continue;
+            }
+        }
+        cursor.at = start + 1;
     }
 
     if (copiedTo === 0) return sql;
@@ -88,40 +124,75 @@ export function rewriteExistsSubqueries(sql: string): string {
     return out.join('');
 }
 
-const EXISTS = 'EXISTS';
-
-/** Is `EXISTS` the whole word starting at `at`? The character before it decides. */
-function isExistsAt(sql: string, at: number, regions: SqlRegion[]): boolean {
-    if (sql.slice(at, at + EXISTS.length).toUpperCase() !== EXISTS) return false;
-    // `my_exists(x)`: a letter, digit, `_` or `$` in front means EXISTS is only the tail
-    // of a longer identifier.
-    if (at > 0 && /[A-Za-z0-9_$]/.test(sql[at - 1])) return false;
-    return openParenAfter(sql, at + EXISTS.length, regions) >= 0;
+/**
+ * Advance `cursor` to the next character that is CODE, or to the end of the SQL.
+ *
+ * A comment region is stepped over whole — a `--` comment ends before its newline, so the
+ * newline it terminates is found as code on the next step.
+ */
+function seekToCode(sql: string, regions: SqlRegion[], cursor: Cursor): void {
+    while (cursor.at < sql.length) {
+        while (cursor.region < regions.length - 1 && regions[cursor.region].end <= cursor.at) cursor.region++;
+        if (regions[cursor.region].kind === 'code') return;
+        cursor.at = regions[cursor.region].end;
+    }
 }
 
-/** The index of the `(` after `from`, or -1. Whitespace may separate them. */
-function openParenAfter(sql: string, from: number, regions: SqlRegion[]): number {
-    let i = from;
-    while (i < sql.length && /\s/.test(sql[i])) i++;
-    return sql[i] === '(' && inCode(regions, i) ? i : -1;
+/**
+ * Is `EXISTS` the whole word at `cursor`, followed by a parenthesis?
+ *
+ * The character before it decides the first part: a letter, digit, `_` or `$` means the
+ * word is only the tail of a longer identifier (`my_exists(x)`).
+ */
+function isExistsAt(sql: string, regions: SqlRegion[], cursor: Cursor): boolean {
+    const at = cursor.at;
+    if (sql.slice(at, at + EXISTS.length).toUpperCase() !== EXISTS) return false;
+    if (at > 0 && /[A-Za-z0-9_$]/.test(sql[at - 1])) return false;
+    return openParenAfter(sql, regions, cursor) >= 0;
+}
+
+/**
+ * The index of the `(` that opens the sub-SELECT of the `EXISTS` at `cursor`, or -1.
+ *
+ * Whitespace and comments may sit between the keyword and the parenthesis: a comment is
+ * not a token, so `EXISTS` followed by a block comment and `(SELECT …)` is ONE statement
+ * whose sub-SELECT is right there. Anything else means this `EXISTS` opens no sub-SELECT,
+ * and the caller moves on.
+ */
+function openParenAfter(sql: string, regions: SqlRegion[], cursor: Cursor): number {
+    let at = cursor.at + EXISTS.length;
+    let region = cursor.region;
+
+    while (at < sql.length) {
+        while (region < regions.length - 1 && regions[region].end <= at) region++;
+        const here = regions[region];
+        if (here.kind === 'code') {
+            if (sql[at] === '(') return at;
+            if (!/\s/.test(sql[at])) return -1;
+            at++;
+        } else {
+            at = here.end;
+        }
+    }
+    return -1;
 }
 
 /**
  * The `)` closing the `(` at `open`, or -1 if the input runs out first.
  *
- * Only code counts: a `)` inside a literal does not close anything, and a `[` opens a
- * bracket identifier whose `]` is not a paren.
+ * Only code counts: a `)` inside a literal does not close anything, and neither do the
+ * parentheses inside a comment.
  */
-function matchingParen(sql: string, open: number, regions: SqlRegion[]): number {
+function matchingParen(sql: string, regions: SqlRegion[], open: number): number {
     let depth = 0;
-    for (let i = open; i < sql.length; i++) {
-        if (!inCode(regions, i)) continue;
-        if (sql[i] === '(') depth++;
-        else if (sql[i] === ')' && --depth === 0) return i;
+    const cursor: Cursor = { at: open, region: 0 };
+    while (cursor.at < sql.length) {
+        seekToCode(sql, regions, cursor);
+        if (cursor.at >= sql.length) break;
+        const ch = sql[cursor.at];
+        if (ch === '(') depth++;
+        else if (ch === ')' && --depth === 0) return cursor.at;
+        cursor.at++;
     }
     return -1;
-}
-
-function inCode(regions: SqlRegion[], at: number): boolean {
-    return regions.some((r) => r.kind === 'code' && at >= r.start && at < r.end);
 }
