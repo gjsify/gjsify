@@ -71,7 +71,7 @@ test('a signal handler receives the emitter as its first arg (GJS parity)', () =
     // 'activate' declares one param (the nullable GVariant parameter), so the
     // handler gets emitter + parameter — and the emitter is the SAME cached,
     // toggle-ref-canonical proxy as `action`.
-    assert.equal(argCount, 2, 'emitter plus the signal\'s own declared param');
+    assert.equal(argCount, 2, "emitter plus the signal's own declared param");
     assert.equal(sawEmitter, action, 'the emitter is the connected-to instance (identity)');
 
     // The no-param shape the pre-#1810 version of this test pinned: 'cancelled'
