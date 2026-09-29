@@ -160,11 +160,10 @@ function waitForError(socket: Socket): Promise<NodeJS.ErrnoException> {
  * the SAME feature-detection `tls-socket.ts` itself does before adopting.
  * Read from the socket BEFORE calling `tls.connect`, so the expectation is
  * decided from what we HAVE, not from whatever `tls.connect` happens to do
- * with it — see `status/open-todos.md`'s "only adopts a @gjsify/net
- * Socket" entry: hit for real by `@gjsify/node-gi`'s consumer harness,
- * whose `net.connect()` returns Node's own native socket because the
- * harness aliases `node:tls` onto this polyfill but leaves `node:net` on
- * that runtime's own module for the package under test.
+ * with it. Hit for real by `@gjsify/node-gi`'s consumer harness, which
+ * once aliased `node:tls` onto this polyfill but left `node:net` on the
+ * runtime's own module; it now honours `gjsify.polyfillPeers` and
+ * retargets `node:net` too. A consumer that mixes the two still lands here.
  */
 function isForeignSocket(socket: Socket): boolean {
     const internals = socket as unknown as { _claimConnection?: unknown; _detachReader?: unknown };
