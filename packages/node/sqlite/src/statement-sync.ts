@@ -12,6 +12,7 @@ import {
     sqliteErrorMessage,
 } from './errors.ts';
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
+import { rewriteExistsSubqueries } from './exists-subquery.ts';
 import { ColumnTypes, executeStatement, integerColumns } from './execution.ts';
 import { bindStringHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
@@ -322,7 +323,7 @@ export class StatementSync {
     ): T {
         const { sql, strings } = this.#buildStatement(args);
         try {
-            const [stmt, params] = parseSql(this.#connection, sql);
+            const [stmt, params] = parseSql(this.#connection, rewriteExistsSubqueries(sql));
             bindStringHolders(params, strings);
             return executeStatement(this.#connection, stmt, params, read, columns);
         } catch (e: unknown) {
