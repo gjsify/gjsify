@@ -87,3 +87,39 @@ answer.**
 |**the third copy is still out there and it is not TypeScript**: CI's `actions/cache` key hashes `packages/*/*/src/**/*.{ts,mts,cts}` plus the manifests (`.github/actions/gjsify-setup/action.yml`), which has exactly the same blind spot — incident #821 is that spot, and the workflow comment says so. A YAML `hashFiles()` glob cannot import `packageBuildInputs`, so closing it needs a generated key input rather than a call. Tracked in `status/open-todos/ci.md`.
 |**not a conformance rule**, and that was measured before deciding: "declares a `build` script and has no `src/`" matches 71 packages, 70 of them prebuild stubs with nothing to rebuild — a gate demanding a declaration nobody needs. The honest trigger is "reads inputs outside `src/`", which nothing can decide from a manifest — and with the deny-list it no longer has to.
 |tests: unit `packages/infra/cli/src/utils/package-inputs.spec.ts` (the rules), e2e `tests/e2e/test-freshness/` (the real command, twice, over a tree that already has a bundle). **Both arms belong to the same suite**: without the negative one — a file OUTSIDE the input set must NOT force a rebuild — the suite also passes against an `isFresh` that always answers false, which is not a fix but the freshness check deleted. A/B on the e2e: 4 of 5 red before the change (the one that passes is the negative arm, which the old code satisfied by never rebuilding at all), 5 of 5 green after.
+
+#### …and it cannot see outside the package — `bundle-inputs.ts` is the other half
+
+`packageBuildInputs` walks the package. A workspace member is not inside it, and one consumer's
+test bundle is a workspace member's whole dependency graph: postbote is `app/` + `packages/*`, the
+app symlinks them into `app/node_modules`, and an edit to `packages/signal/src/receiver.ts` left
+`isFresh` answering "fresh" — two runs executing the PREVIOUS bundle and reporting ✅ on source
+that was no longer on disk. The only remedy the reporter had was `rm -rf app/dist`, which is the
+tell: a freshness check you cannot satisfy by editing code is not a cache, it is a coin toss.
+
+So `gjsify test` records what the build **read** — `utils/bundle-inputs.ts` rides the plugin
+chain as a `transform` observer and writes the ids beside the bundle as `<outfile>.inputs.json`;
+`isFresh` stats them. Three properties of that choice are load-bearing:
+
+|**the bundler's own module graph, not a list of likely dirs** — a bare specifier's resolution
+through a `node_modules` symlink is known to the bundler and to nobody else, and a directory list
+would be the FOURTH allow-list this file already records failing (`src/**` missed
+`resolve-npm/lib`; `dirname(entry)` missed `src/**`). **`transform` rather than `getModuleIds` /
+`getModuleInfo`**: it is the one hook both engines run, and the native bridge translates it
+verbatim (`bundler-pick.ts` picks it; the context methods that bridge does not implement fail at
+hook-call time). **a module that is loaded and then tree-shaken away is still an input** — it is
+in the next build, and counting it errs towards one rebuild rather than towards a stale green.
+|**the two halves are a union, not a replacement** — the walk answers "what MAY this package's
+build read" (a file no current build imports yet), the manifest "what DID it read" (which
+reaches outside the package). A missing, corrupt or other-version manifest is NOT an answer: the
+walk then decides alone, so a bundle built before this shape existed behaves exactly as it did.
+|A recorded input that has since **vanished is skipped, not treated as a change**: the build's
+own scratch does not outlive it (`--app gjs` writes its globals-inject stub to a temp dir), and
+treating that as a change rebuilds on every run, forever. A file that no longer exists cannot
+have been edited, and a re-created one arrives with a fresh mtime the walk also sees.
+|Deciding stays cheap: one write per build, one `stat` per recorded input per check — never a
+rebuild to find out whether a build is needed.
+
+tests: unit `packages/infra/cli/src/utils/bundle-inputs.spec.ts`, and the second suite in
+`tests/e2e/test-freshness/` (app + a symlinked workspace package, both arms). Red before the fix
+at `an edit in packages/signal must invalidate the app bundle`; 7 of 7 green after.

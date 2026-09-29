@@ -38,18 +38,19 @@ where it was written first (`utils/watch-loop.ts`). WHAT to build is not re-decl
 `utils/dev-plan.ts` reads the project's own `build:gjs`/`build:node` script and puts the CLI
 flags on top, so the dev loop and `gjsify run build` cannot drift into different bundles.
 
-**"What are this package's build inputs" is ONE definition — `utils/package-inputs.ts` — and it
-was three.** `packageBuildInputs` is what the build cache hashes AND what `gjsify test` judges
-its bundle against; add a fourth READER, never a fourth answer. It is a DENY-list (not
-`node_modules`, not a dot-entry, not what the package's own `clear` script says it PRODUCES)
-because every allow-list written for the question is wrong for a package that exists here:
-`src/**` misses `@gjsify/adwaita-fonts` (no `src/` at all) and the tracked source in
-`resolve-npm/lib` + `manifest-conformance/lib` (#821), and `dirname(<test entry>)` missed
-`src/**` entirely — #1651, where `gjsify test` reran the PREVIOUS bundle and reported on it, in
-both directions, while CI stayed structurally blind because a fresh container has no `dist/` and
-therefore always builds. Both arms of that test belong together: without "a file OUTSIDE the set
-must NOT rebuild", the suite also passes against an `isFresh` that always answers false.
-Measurements + the copy still open (CI's `actions/cache` glob):
+**"What are this package's build inputs" is TWO definitions, and neither is an allow-list.**
+`packageBuildInputs` (`utils/package-inputs.ts`) is what the build cache hashes and half of what
+`gjsify test` judges its bundle against — a DENY-list (not `node_modules`, not a dot-entry, not
+what the package's own `clear` script says it PRODUCES), because every allow-list written for the
+question is wrong for a package that exists here — `dirname(<test entry>)` missed `src/**` and
+`gjsify test` reran the PREVIOUS bundle (#1651). The other half is `utils/bundle-inputs.ts`, what
+the build READ: the walk cannot see outside the package, so a workspace member behind a
+`node_modules` symlink (postbote: `app/` + `packages/*`) turned an edit into a STALE GREEN.
+The set is their UNION, from the bundler's own module graph — a `transform` observer, the one hook
+both engines run. Add a READER, never an answer.
+Both arms of a freshness test belong together: without "a file OUTSIDE the set must NOT rebuild",
+the suite also passes against an `isFresh` that always answers false.
+Incidents + measurements:
 [docs/build-artifacts.md](../../../docs/build-artifacts.md).
 
 **A command that SUPERVISES owes three things a one-shot command never does** — all three

@@ -86,6 +86,7 @@ import oxcResolveSuite from './utils/oxc-resolve.spec.js';
 import nativeSkipScanSuite from './utils/native-skip-scan.spec.js';
 import buildCacheSuite from './utils/build-cache.spec.js';
 import packageInputsSuite from './utils/package-inputs.spec.js';
+import bundleInputsSuite from './utils/bundle-inputs.spec.js';
 import htmlEntrySuite from './utils/html-entry.spec.js';
 // `@gjsify/rolldown-plugin-gjsify` has no test runner of its own; its
 // `isRegisterSubpath` regression coverage lives here in the CLI's
@@ -346,6 +347,7 @@ run(
         nativeSkipScanSuite,
         buildCacheSuite,
         packageInputsSuite,
+        bundleInputsSuite,
         htmlEntrySuite,
         autoGlobalsSuite,
         aliasPluginSuite,

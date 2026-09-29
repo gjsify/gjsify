@@ -8,6 +8,7 @@
 
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve, relative, sep } from 'node:path';
+import { newestBundleInputMtimeMs, readBundleInputs, createBundleInputsRecorder } from '../utils/bundle-inputs.js';
 import { newestDepSignalMtimeMs, newestInputMtimeMs, packageBuildInputs } from '../utils/package-inputs.js';
 import { isRuntimeAvailable, RUNTIMES } from '../utils/runtimes.js';
 import { nodeBinary } from '../utils/run-node.js';
@@ -220,14 +221,26 @@ async function buildTestBundle(
     // bundler.output.file from the surrounding project don't redirect the
     // bundle elsewhere.
     configData.library = { ...configData.library };
+    // Record what this build READ, so the next `isFresh` can judge against the
+    // bundle's real dependencies rather than this package's tree. A recorder
+    // rides the same plugin chain a user's `bundler.plugins` entry does, and
+    // the auto-globals pre-build pass therefore feeds it too — a superset of
+    // the final graph, which errs towards a rebuild and never towards a stale
+    // green. Appended last so it observes whatever the earlier hooks loaded.
+    const recorder = createBundleInputsRecorder(outfile);
     configData.bundler = {
         ...configData.bundler,
         input: [entry],
         output: { ...configData.bundler?.output, file: outfile },
+        plugins: [...(configData.bundler?.plugins ?? []), recorder.plugin],
     } as never;
 
     const action = new BuildAction(configData);
     await action.start({ app: runtime, library: false });
+    // Written AFTER the build resolves: the manifest describes the bundle that
+    // now exists, and a run that failed to build leaves the previous one in
+    // place rather than overwriting it with a half-recorded set.
+    recorder.write();
 }
 
 /** Run a single test bundle and reject on non-zero exit. */
@@ -248,16 +261,25 @@ async function runTestBundle(outfile: string, runtime: Runtime): Promise<void> {
 }
 
 /**
- * True when `outfile` is at least as new as every build input of the package
- * at `cwd`.
+ * True when `outfile` is at least as new as every input of the build that
+ * wrote it.
  *
- * The set is {@link packageBuildInputs}, the same one the build cache hashes.
- * It used to be `dirname(entry)` — `tests/` for any package whose suite lives
- * there, so `src/**` was never walked: a change to the code UNDER TEST left
- * the bundle "fresh" and `gjsify test` reran the previous build and reported
- * on it. That went both ways inside one dependency bump — a green run
- * measuring a version that was no longer installed, then a red one after the
- * source had already been repaired (#1651).
+ * The set is the union of two answers, because neither covers the question
+ * alone: {@link packageBuildInputs} — what may this PACKAGE's build read, the
+ * same walk the build cache hashes — and the manifest the build itself wrote
+ * beside `outfile` ({@link readBundleInputs}), what this build DID read. The
+ * second is what reaches a workspace package through a `node_modules` symlink
+ * into a sibling directory: the package walk is blind to it by construction,
+ * so an edit there left the bundle "fresh" and the run reported on code that
+ * was no longer on disk — a stale green, worse than a slow build. The first is
+ * what the walk alone never managed: it was `dirname(entry)`, `tests/` for any
+ * package whose suite lives there, so `src/**` was never seen and `gjsify test`
+ * reran the previous build and reported on it, in both directions inside one
+ * dependency bump (#1651).
+ *
+ * A missing manifest is NOT an answer: it is the pre-recorder shape, and the
+ * package walk then decides alone — never weaker than before, and the next
+ * build writes one.
  *
  * `outdir` is subtracted as this command's own output; `entry` is added
  * because `--entry ../shared/test.mts` may point outside the package.
@@ -269,8 +291,10 @@ export function isFresh(outfile: string, entry: string, cwd: string, outdir: str
         const extraOutputs: string[] = [];
         const outdirRel = relative(cwd, outdir).split(sep).join('/');
         if (outdirRel !== '' && !outdirRel.startsWith('../')) extraOutputs.push(outdirRel);
+        const bundleInputs = readBundleInputs(outfile);
         const newest = Math.max(
             newestInputMtimeMs(packageBuildInputs(cwd, { extraOutputs })),
+            bundleInputs === null ? 0 : newestBundleInputMtimeMs(bundleInputs),
             statSync(entry).mtimeMs,
             // A dependency bump changes no file in the package — and that is
             // the shape #1651 was found in. `node_modules` is far too large
