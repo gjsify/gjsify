@@ -2981,6 +2981,92 @@ jobs:
           python3 oracle/verify-dmg.py "$DMG" --extract control.img
           python3 oracle/verify-dmg.py control.img "$STAGE_DIR/.gjsify-ship-stage.json" --kind volume
 
+  # ── Cancel on early failure (PR only) ───────────────────────────────
+  # A PR whose lint, build or typecheck is red cannot merge, whatever the
+  # 4 test shards, 4 e2e shards, the ship legs and the sibling workflows
+  # (windows/macos suites, node-gi, …) go on to say — yet they keep their
+  # runners until they finish. These two jobs cancel the rest of the work for
+  # THIS PR HEAD the moment an early, deterministic job fails.
+  #
+  # TWO JOBS, not one, because a job's `if:` is evaluated only once EVERY
+  # need has finished. One job needing tree-checks AND check would see a lint
+  # failure at minute three only after the build and the typecheck had run,
+  # and by then the test and e2e shards have already started.
+  #
+  # `failure()`, not `always()`: it is true only when an ANCESTOR job failed,
+  # so a skipped need (a docs-only PR skips `build`) or a cancelled one (a
+  # newer push superseded this run) never fires it. `pull_request` only: on
+  # `main`, `merge_group`, the nightly and a dispatch the full picture is the
+  # point, and a push there must never cancel anything.
+  #
+  # Late failures (test, e2e, cross-runtime, examples, browser, ship) do NOT
+  # cancel: by then most of the minutes are spent, and cancelling hides every
+  # further failure the author would otherwise fix in the same push.
+  #
+  # Cancelling the run makes the `always()` jobs run on cancelled needs, so
+  # `CI gate (GJS)` ends RED (the failed early job is scored as `failure`,
+  # the cut-off ones as `cancelled`). The gate does not wait for these two:
+  # they are utilities that only ever run once the gate is already red, and
+  # its coverage self-check names them as such.
+  #
+  # The sibling cancels go through `scripts/cancel-superseded-runs.mjs` (checked
+  # out from the BASE sha, as in `cancel-pr-runs.yml`, so no head code runs
+  # next to the `actions: write` token), which force-cancels runs that never
+  # got a runner — a plain cancel leaves those queued (#1548). The selection is
+  # one server-side filter: `head_sha` of THIS PR (not `github.sha`, which is
+  # the merge commit), `event=pull_request`, not completed, not this run.
+  cancel-on-early-failure:
+    name: Cancel this PR head's runs (early failure)
+    needs: [setup, changes, tree-checks]
+    if: ${{ failure() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    timeout-minutes: 5
+    steps: &cancel-pr-head-runs
+      - name: Check out the cancel script (base sha)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/cancel-superseded-runs.mjs
+          sparse-checkout-cone-mode: false
+      - name: Cancel the other runs for this PR head, then this one
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}
+          CANCEL_REASON: cut off by an early CI failure
+        run: |
+          set -euo pipefail
+          # A fork PR's read-only token may refuse the listing; this is a cost
+          # control, so that is a notice, never a red job.
+          if ! ids=$(gh api -X GET "repos/${REPO}/actions/runs" \
+                  -f head_sha="${HEAD_SHA}" -f event=pull_request -f per_page=100 \
+                  --jq '.workflow_runs[] | select(.status != "completed" and (.id | tostring) != env.RUN_ID) | .id'); then
+            echo "::notice::could not list the runs for ${HEAD_SHA}; nothing cancelled."
+            exit 0
+          fi
+          node scripts/cancel-superseded-runs.mjs <<<"${ids}"
+          gh run cancel "${RUN_ID}" -R "${REPO}" \
+            || echo "::notice::could not cancel run ${RUN_ID}; it runs to the end."
+
+  cancel-on-build-failure:
+    name: Cancel this PR head's runs (build/check failure)
+    needs: [build, verify-bundles, check]
+    if: ${{ failure() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    timeout-minutes: 5
+    steps: *cancel-pr-head-runs
+
   # ── Coverage summary ────────────────────────────────────────────────
   # Answers the question a green PR does NOT answer on its own: what did this
   # run actually check, and what did it deliberately NOT check?
@@ -3212,7 +3298,15 @@ jobs:
             if (gateAt < 0 || !gateLine) { console.error("::error::cannot find the gate job’s `needs:` list"); process.exit(1); }
             const needs = [...gateLine.matchAll(/[A-Za-z0-9_-]+/g)].map((m) => m[0]).slice(1);
             // `gate` cannot need itself; `ci-summary` reports and never gates.
-            const expected = jobs.filter((j) => j !== "gate" && j !== "ci-summary");
+            // The cancel-on-* jobs only ever run once an early job has FAILED,
+            // i.e. once this gate is already red; waiting for them would add
+            // nothing but their runtime. Named, not matched by prefix, and each
+            // must still exist, so an exemption cannot outlive its job or
+            // quietly cover a new one.
+            const UTILITIES = ["ci-summary", "cancel-on-early-failure", "cancel-on-build-failure"];
+            const stale = UTILITIES.filter((j) => !jobs.includes(j));
+            if (stale.length) { console.error(`::error::the gate exempts jobs that do not exist: ${stale.join(", ")}`); process.exit(1); }
+            const expected = jobs.filter((j) => j !== "gate" && !UTILITIES.includes(j));
             const missing = expected.filter((j) => !needs.includes(j));
             if (missing.length) {
               console.error(`::error::CI gate does not cover: ${missing.join(", ")}. ` +

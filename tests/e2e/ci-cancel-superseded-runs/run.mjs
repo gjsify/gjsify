@@ -512,7 +512,7 @@ describe('what the cancel did, not what it posted', () => {
  * @param {string[]} ids run ids on stdin
  * @param {Record<string, string[]>} statuses id → the status each successive GET answers
  */
-function runCancelScript(ids, statuses, { cancel = 202, forceCancel = 202 } = {}) {
+function runCancelScript(ids, statuses, { cancel = 202, forceCancel = 202, env = {} } = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-cancel-cli-'));
     try {
         const eventPath = join(dir, 'event.json');
@@ -533,7 +533,7 @@ function runCancelScript(ids, statuses, { cancel = 202, forceCancel = 202 } = {}
         return spawnSync(process.execPath, ['--import', pathToFileURL(stub).href, CANCEL_SCRIPT], {
             cwd: MONOREPO_ROOT,
             encoding: 'utf8',
-            env: { ...process.env, GITHUB_EVENT_PATH: eventPath, REPO, GH_TOKEN: 'x' },
+            env: { ...process.env, GITHUB_EVENT_PATH: eventPath, REPO, GH_TOKEN: 'x', ...env },
             input: ids.join('\n'),
         });
     } finally {
@@ -572,6 +572,16 @@ describe('the annotation the workflow leaves behind', () => {
         });
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /::warning::1 of 2 run\(s\) .* stopped; 1 did not stop: 33857738939\./);
+    });
+
+    it('names the reason it was given instead of calling the runs superseded', () => {
+        // `main.yml`'s cancel-on-early-failure jobs cut off runs that nothing
+        // superseded; the annotation must say why they were cancelled.
+        const env = { CANCEL_REASON: 'cut off by an early CI failure' };
+        const result = runCancelScript(['33857585236'], { 33857585236: ['completed'] }, { env });
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout, /::notice::1 of 1 run\(s\) cut off by an early CI failure on PR #1568 stopped\./);
+        assert.doesNotMatch(result.stdout, /superseded/);
     });
 
     it('a fork PR, where nothing was accepted, stays a notice', () => {
@@ -629,5 +639,38 @@ describe('the workflow that runs the cancel', () => {
         // shell had taken the decision back.
         const yaml = readFileSync(WORKFLOW, 'utf8');
         assert.doesNotMatch(yaml, /::notice::cancelled/);
+    });
+});
+
+describe("main.yml's cancel-on-early-failure jobs", () => {
+    const yaml = readFileSync(join(MONOREPO_ROOT, '.github', 'workflows', 'main.yml'), 'utf8');
+    /** @param {string} name */
+    const job = (name) => {
+        const m = new RegExp(`^  ${name}:\\n((?:(?:    .*)?\\n)+)`, 'm').exec(yaml);
+        assert.ok(m, `main.yml has no \`${name}\` job`);
+        return m[1];
+    };
+
+    for (const name of ['cancel-on-early-failure', 'cancel-on-build-failure']) {
+        it(`${name} fires on a FAILED need of a pull_request run, and nowhere else`, () => {
+            // `always()` would fire on a skipped or cancelled need; a missing event
+            // guard would cut `main`'s full picture short.
+            assert.match(job(name), /^ {4}if: \$\{\{ failure\(\) && github\.event_name == 'pull_request' \}\}$/m);
+        });
+    }
+
+    it('only early, deterministic jobs can trigger a cancel', () => {
+        // A late e2e failure must not hide the failures after it.
+        assert.match(job('cancel-on-early-failure'), /^ {4}needs: \[setup, changes, tree-checks\]$/m);
+        assert.match(job('cancel-on-build-failure'), /^ {4}needs: \[build, verify-bundles, check\]$/m);
+    });
+
+    it('selects by the PR HEAD sha and hands the siblings to the force-capable cancel', () => {
+        // `github.sha` is the merge commit, which no sibling workflow's run carries.
+        const steps = job('cancel-on-early-failure');
+        assert.match(steps, /HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+        assert.match(steps, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
+        assert.match(steps, /node scripts\/cancel-superseded-runs\.mjs/);
+        assert.match(job('cancel-on-build-failure'), /^ {4}steps: \*cancel-pr-head-runs$/m);
     });
 });
