@@ -19,6 +19,13 @@ on:
   # `status/open-todos/README.md`, not here.
   push:
     branches: [main]
+  # `Lint commit messages` is a required check, so a merge queue waits for it on
+  # the queue's own commit, which only this trigger produces. On a merge_group
+  # the commit linter lints the queue's commits — for a squash queue that is the
+  # squash commit itself, the string that lands — and every PR-text step below is
+  # skipped, as on a push (`decide-commitlint-verdict.mjs` treats any event but
+  # `pull_request` that way, and `clear-superseded` runs on `pull_request` only).
+  merge_group:
 
 # DELIBERATELY NO `concurrency:` BLOCK.
 #

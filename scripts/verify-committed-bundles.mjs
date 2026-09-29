@@ -17,10 +17,12 @@
  *      so re-committing `cli.gjs.mjs` reds CI instead of quietly reinstating the
  *      class ADR 0002 removed.
  *
- * It also still BUILDS the uncommitted `cli.gjs.mjs` and `tsc.gjs.mjs`, which
- * `main.yml` uploads as the `bootstrap-bundles-fedora<v>` artifact every
- * downstream job restores — being built-but-ungrouped is what leaves them on
- * disk for that upload (see the `groups` comments).
+ * It also still BUILDS the uncommitted `cli.gjs.mjs` and `tsc.gjs.mjs` on the
+ * way (built-but-ungrouped, see the `groups` comments), and `--bootstrap` runs
+ * ONLY the steps that produce those two: that is how `main.yml`'s `build` job
+ * makes the `bootstrap-bundles-fedora<v>` artifact every downstream job restores
+ * when its own build did not already write them, while the byte comparison runs
+ * in the separate `verify-bundles` job off the critical path.
  *
  * The pre-existing check — that a bundle RUNS and REPORTS the expected version
  * (`.github/actions/gjsify-setup/action.yml`) — cannot see staleness: a bundle
@@ -59,6 +61,7 @@
  *   node scripts/verify-committed-bundles.mjs --list     # print the plan only
  *   node scripts/verify-committed-bundles.mjs --keep     # leave the rebuild in place
  *   node scripts/verify-committed-bundles.mjs --rebuild  # PRODUCE the artifacts, no compare
+ *   node scripts/verify-committed-bundles.mjs --bootstrap  # build ONLY cli.gjs.mjs + tsc.gjs.mjs
  *
  * `--rebuild` is what `.release-it.json`'s `after:bump` hook runs: a release
  * bumps the version, so the artifacts MUST differ from HEAD and comparing would
@@ -87,6 +90,9 @@ const inActions = Boolean(process.env.GITHUB_ACTIONS);
  * `groups` — what gets compared: a `file` group is one exact path, a `dir` group
  * compares the whole matching file SET, so an added/removed file counts as drift.
  * `hint` — printed verbatim on failure, so it must be runnable as-is.
+ * `bootstrap` — how many LEADING steps produce the recipe's uncommitted bootstrap
+ * bundle (`BOOTSTRAP_BUNDLES`), which is all `--bootstrap` runs. Counted off
+ * `steps` rather than listed again, so the two cannot disagree about a command.
  */
 const RECIPES = [
     {
@@ -104,11 +110,12 @@ const RECIPES = [
             ['@gjsify/cli', 'build:gjs-bundle'],
             ['@gjsify/cli', 'build:affected-bundle'],
         ],
+        bootstrap: 2,
         // `cli.gjs.mjs` is deliberately built but UNGROUPED: only grouped files
-        // are snapshotted and restored, so the step produces it for `main.yml`'s
-        // `bootstrap-bundles-fedora<v>` artifact and leaves it on disk for the
-        // upload. Adding it back to `groups` would restore the pre-run bytes and
-        // hand downstream jobs a stale bundle. (`build:affected-bundle` needs the
+        // are snapshotted and restored, so a run leaves the bundle it built on
+        // disk (`--rebuild` and `--bootstrap` rely on that). Adding it back to
+        // `groups` would restore the pre-run bytes — and it is not committed, so
+        // a group would fail as "produced but NOT committed" anyway. (`build:affected-bundle` needs the
         // same rebuilt closure anyway.)
         groups: [{ kind: 'file', path: 'packages/infra/cli/dist/affected.gjs.mjs' }],
         hint:
@@ -119,6 +126,9 @@ const RECIPES = [
     {
         id: '@gjsify/tsc',
         steps: [['@gjsify/tsc', 'build']],
+        // `env` is deliberately NOT applied under `--bootstrap`: the refresh rewrites the
+        // COMMITTED libs, and the bundle does not depend on it.
+        bootstrap: 1,
         // `pickLibSource()` normally KEEPS the committed `lib*.d.ts` (a refresh
         // would race concurrent `gjsify tsc` readers during a parallel build),
         // which would make comparing them a check that cannot fail. Forced here
@@ -135,6 +145,9 @@ const RECIPES = [
         hint: 'GJSIFY_TSC_REFRESH_LIBS=1 gjsify workspace @gjsify/tsc build',
     },
 ];
+
+/** The uncommitted bundles `--bootstrap` must leave on disk (ADR 0002's run artifact). */
+const BOOTSTRAP_BUNDLES = ['packages/infra/cli/dist/cli.gjs.mjs', 'packages/infra/tsc/dist/tsc.gjs.mjs'];
 
 /** @param {string[]} args */
 function git(args) {
@@ -315,6 +328,7 @@ const listOnly = args.has('--list');
 // restoring the pre-run bytes would undo exactly what it was asked to do.
 const rebuildOnly = args.has('--rebuild');
 const keep = args.has('--keep') || rebuildOnly;
+const bootstrapOnly = args.has('--bootstrap');
 
 const claimed = new Set(RECIPES.flatMap((r) => r.groups.filter((g) => g.kind === 'file').map((g) => g.path)));
 const discovered = discoverCommittedBundles();
@@ -339,6 +353,42 @@ if (listOnly) process.exit(0);
 {
     const probe = gjsifyStep([]);
     console.log(`Driving rebuilds with: gjsify (via ${probe.via})`);
+}
+
+// `--bootstrap`: produce the two uncommitted bundles and nothing else — no snapshot,
+// no comparison, and no recipe `env`, so no COMMITTED file is touched and there is
+// nothing to put back. Fails unless both files exist afterwards: a build that exits 0
+// without writing is the #67 shape, and a missing bundle here would surface only as a
+// download warning three jobs later.
+if (bootstrapOnly) {
+    const reason = ensureBuildableWorkspace();
+    if (reason) {
+        fail(reason);
+        process.exit(1);
+    }
+    for (const recipe of RECIPES) {
+        for (const [workspace, script, ...flags] of recipe.steps.slice(0, recipe.bootstrap ?? 0)) {
+            const label = ['workspace', workspace, script, ...flags].join(' ');
+            console.log(`\n[verify-bundles] bootstrap ${recipe.id}: gjsify ${label}`);
+            const step = gjsifyStep(['workspace', workspace, script, ...flags]);
+            const r = spawnSync(step.cmd, step.args, {
+                cwd: repoRoot,
+                stdio: 'inherit',
+                windowsVerbatimArguments: step.windowsVerbatimArguments,
+            });
+            if (r.status !== 0) {
+                fail(`${recipe.id}: \`gjsify ${label}\` failed (exit ${r.status}).`);
+                process.exit(1);
+            }
+        }
+    }
+    const absent = BOOTSTRAP_BUNDLES.filter((p) => !existsSync(join(repoRoot, p)));
+    if (absent.length > 0) {
+        fail(`--bootstrap finished but did not write: ${absent.join(', ')}.`);
+        process.exit(1);
+    }
+    for (const p of BOOTSTRAP_BUNDLES) console.log(`  → ${p} (${readFileSync(join(repoRoot, p)).length} B)`);
+    process.exit(0);
 }
 
 let failures = 0;
