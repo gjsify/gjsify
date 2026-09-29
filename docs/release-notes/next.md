@@ -75,9 +75,10 @@ SILENTLY, swapping the native build for the JS one.
 Addon packages are now detected from their manifest and layout (`binding.gyp`, a
 `gypfile`, a `binary` field, a loader dependency, napi-rs, a `.node` file under
 `prebuilds/` or `build/`) and kept external, so Node loads them from `node_modules`
-as it would without a bundler. The hard-coded name list is gone. An `--app node`
-bundle of a native dependency needs `node_modules` at runtime, like any installed
-program.
+as it would without a bundler. Only `@gjsify/node-gi` is still named explicitly,
+because the injected globals shim has to mark it external before any package is
+resolved. An `--app node` bundle of a native dependency needs `node_modules` at
+runtime, like any installed program.
 
 ### `node-gi` marshals a `GType` inside a C array
 
