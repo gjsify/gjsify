@@ -29,18 +29,13 @@ export function mesaDistWinUrl({ version, asset } = MESA_DIST_WIN) {
 }
 
 /**
- * Put the pinned Mesa DLLs into `out`, verified. A no-op when both are already there.
- * @param {{ out: string }} opts
+ * The pinned asset's digest, or a throw naming both. ONE check, and every path that gets
+ * bytes runs it — the "already there" shortcut included: a bin/ left behind by a DIFFERENT
+ * pin is exactly what this script exists to catch, and trusting its mere presence did not.
+ * @param {Buffer} bytes the downloaded asset
+ * @returns {string} the digest, which matched
  */
-export async function fetchGlImplementation({ out }) {
-    if (GL_IMPLEMENTATION_FILES.every((leaf) => existsSync(join(out, leaf)))) {
-        console.log(`fetch-gl-implementation: ${out} already holds ${GL_IMPLEMENTATION_FILES.join(' + ')}`);
-        return;
-    }
-    const url = mesaDistWinUrl();
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`fetch-gl-implementation: GET ${url} -> ${res.status}`);
-    const bytes = Buffer.from(await res.arrayBuffer());
+function assertPinnedDigest(bytes) {
     const digest = createHash('sha256').update(bytes).digest('hex');
     if (digest !== MESA_DIST_WIN.sha256) {
         throw new Error(
@@ -48,20 +43,47 @@ export async function fetchGlImplementation({ out }) {
                 'the asset under this tag changed; re-verify it before moving the pin',
         );
     }
-    const work = mkdtempSync(join(tmpdir(), 'mesa-dist-win-'));
-    const archive = join(work, MESA_DIST_WIN.asset);
-    writeFileSync(archive, bytes);
-    // 7-Zip is on every GitHub Windows image; x64/ is the only architecture the bundle needs.
-    execFileSync('7z', ['x', '-y', `-o${work}`, archive, ...GL_IMPLEMENTATION_FILES.map((f) => `x64/${f}`)], {
-        stdio: ['ignore', 'ignore', 'inherit'],
-    });
-    mkdirSync(out, { recursive: true });
-    for (const leaf of GL_IMPLEMENTATION_FILES) {
-        copyFileSync(join(work, 'x64', leaf), join(out, leaf));
-        console.log(`fetch-gl-implementation: ${leaf} (${(statSync(join(out, leaf)).size / 1048576).toFixed(1)} MiB)`);
+    return digest;
+}
+
+/**
+ * Put the pinned Mesa DLLs into `out`, verified. Extraction is skipped when both DLLs are
+ * already there; the VERIFY is not — the pinned asset is fetched and hashed on every run.
+ * @param {{ out: string }} opts
+ */
+export async function fetchGlImplementation({ out }) {
+    const url = mesaDistWinUrl();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`fetch-gl-implementation: GET ${url} -> ${res.status}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    assertPinnedDigest(bytes);
+    if (GL_IMPLEMENTATION_FILES.every((leaf) => existsSync(join(out, leaf)))) {
+        console.log(
+            `fetch-gl-implementation: ${out} already holds ${GL_IMPLEMENTATION_FILES.join(' + ')} (pin verified)`,
+        );
+        return;
     }
-    writeFileSync(join(out, 'mesa-dist-win.json'), `${JSON.stringify({ ...MESA_DIST_WIN, url }, null, 2)}\n`);
-    rmSync(work, { recursive: true, force: true });
+    const work = mkdtempSync(join(tmpdir(), 'mesa-dist-win-'));
+    try {
+        const archive = join(work, MESA_DIST_WIN.asset);
+        writeFileSync(archive, bytes);
+        // 7-Zip is on every GitHub Windows image; x64/ is the only architecture the bundle needs.
+        execFileSync('7z', ['x', '-y', `-o${work}`, archive, ...GL_IMPLEMENTATION_FILES.map((f) => `x64/${f}`)], {
+            stdio: ['ignore', 'ignore', 'inherit'],
+        });
+        mkdirSync(out, { recursive: true });
+        for (const leaf of GL_IMPLEMENTATION_FILES) {
+            copyFileSync(join(work, 'x64', leaf), join(out, leaf));
+            console.log(
+                `fetch-gl-implementation: ${leaf} (${(statSync(join(out, leaf)).size / 1048576).toFixed(1)} MiB)`,
+            );
+        }
+        writeFileSync(join(out, 'mesa-dist-win.json'), `${JSON.stringify({ ...MESA_DIST_WIN, url }, null, 2)}\n`);
+    } finally {
+        // A failed 7z leaves a 70 MiB temp dir behind, and the pinned bytes are already in
+        // memory — nothing in there outlives this call.
+        rmSync(work, { recursive: true, force: true });
+    }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

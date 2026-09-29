@@ -89,6 +89,22 @@ export function resolveGtkRuntimeBundle() {
     return null;
 }
 
+/**
+ * The bundle the GTK-in-use is served by, but only when it can open a WINDOW — the
+ * `share/glib-2.0/schemas/gschemas.compiled` marker the --windowing build produces.
+ * Null for no bundle, a system GTK, or the DEFAULT display-free bundle.
+ *
+ * ONE definition of that marker for both callers that need it: the windowing env
+ * wiring, which is a strict no-op without the data it locates, and the OpenGL advice
+ * below, which must not tell a headless process to add a GL package. Spelled twice the
+ * question "can this process show a window?" had two answers to drift apart.
+ * @returns {{ dir: string, libDir: string, typelibDir: string } | null}
+ */
+function windowingBundle() {
+    const bundle = gtkSource() === 'bundle' ? resolveGtkRuntimeBundle() : null;
+    return bundle && existsSync(join(bundle.dir, 'share', 'glib-2.0', 'schemas', 'gschemas.compiled')) ? bundle : null;
+}
+
 // ---- WHICH GTK WINS ---------------------------------------------------------
 //
 // Two GTKs can be reachable at once: a batteries-included bundle
@@ -415,13 +431,10 @@ export function maybeWireGtkWindowingEnv() {
     if (process.platform !== 'win32' && process.platform !== 'darwin') return;
     // Same gate as the DLL/dylib path: the runtime DATA belongs to the bundle, so
     // it is wired only when the bundle is the source the policy picked.
-    if (gtkSource() !== 'bundle') return;
-    const bundle = resolveGtkRuntimeBundle();
-    if (!bundle) return; // strict no-op when no bundle is present
+    const bundle = windowingBundle();
+    if (!bundle) return; // strict no-op without a windowing bundle
 
     const schemaDir = join(bundle.dir, 'share', 'glib-2.0', 'schemas');
-    // gschemas.compiled = the windowing-data marker; absent → display-free bundle.
-    if (!existsSync(join(schemaDir, 'gschemas.compiled'))) return;
 
     const pathSep = process.platform === 'win32' ? ';' : ':';
     // Recorded, not just written. On win32 `process.env.X = v` reaches ONE of the two
@@ -868,13 +881,19 @@ let openGL = null;
  * wins. MUST run before anything loads gtk-4-1.dll, which imports OPENGL32 statically —
  * index.js calls it right after the addon loads. Strict no-op off win32. Idempotent.
  * @param {{ probeHostOpenGL?: () => HostOpenGL, preloadOpenGL?: (p: string) => string }} native
+ * @param {object} [deps] the host facts this reads, so a spec can drive the win32 advice path
+ *   on a host that has neither win32 nor a bundle: `platform` (default `process.platform`),
+ *   `bundled` (the GL package's opengl32.dll, default `resolveGlRuntime()`), `windowing`
+ *   (default `hasWindowingRuntime()`). Every default is the real reading; no production caller
+ *   passes this — it exists so the warning and the preload fallback are executed by a test at all.
  * @returns {{ source: 'bundle' | 'system', reason: string, loadedFrom: string | null } | null}
  */
-export function activateBundledOpenGL(native) {
+export function activateBundledOpenGL(native, deps) {
     if (openGL !== null) return openGL || null;
     openGL = false;
-    if (process.platform !== 'win32' || typeof native?.probeHostOpenGL !== 'function') return null;
-    const candidate = resolveGlRuntime();
+    const platform = deps?.platform ?? process.platform;
+    if (platform !== 'win32' || typeof native?.probeHostOpenGL !== 'function') return null;
+    const candidate = deps?.bundled !== undefined ? deps.bundled : resolveGlRuntime();
     const host = native.probeHostOpenGL();
     const decision = decideOpenGLSource({ bundled: candidate, host, override: process.env.GJSIFY_OPENGL });
     if (decision.source === 'system') {
@@ -882,7 +901,8 @@ export function activateBundledOpenGL(native) {
         // alternative is a GLArea painting "No GL implementation is available" with nothing
         // naming the package. Only where a WINDOWING runtime is present: a headless process
         // never asks for GL, and this would be noise there.
-        if (decision.missing && hasWindowingRuntime()) {
+        const canOpenWindows = deps?.windowing ?? hasWindowingRuntime();
+        if (decision.missing && canOpenWindows) {
             process.emitWarning(decision.reason, { code: 'GJSIFY_OPENGL_MISSING' });
         }
         openGL = { ...decision, loadedFrom: host.loadedFrom || null };
@@ -901,10 +921,14 @@ export function activateBundledOpenGL(native) {
     return openGL;
 }
 
+/** TEST-ONLY: drop the memoized decision so a spec can run the activation again. */
+export function resetOpenGLForTests() {
+    openGL = null;
+}
+
 /** Whether the GTK in use can open windows — the bundle's windowing marker. */
 function hasWindowingRuntime() {
-    const bundle = gtkSource() === 'bundle' ? resolveGtkRuntimeBundle() : null;
-    return !!bundle && existsSync(join(bundle.dir, 'share', 'glib-2.0', 'schemas', 'gschemas.compiled'));
+    return !!windowingBundle();
 }
 
 /** What `activateBundledOpenGL` decided for this process, or null when it did not apply. */

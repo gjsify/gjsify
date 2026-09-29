@@ -75,6 +75,12 @@ export function prependLibraryPath(path: string): void;
 
 /** win32 only: the host's OpenGL ICDs (display driver / registry) and any opengl32 already loaded; each "" when absent. */
 export const probeHostOpenGL: (() => { wddmIcd: string; registryIcd: string; loadedFrom: string }) | undefined;
+/**
+ * win32 only: load an opengl32.dll by ABSOLUTE path and return the path the loaded module
+ * reports. THROWS when the loader refuses it (a missing sibling, a blocked file) — the reason
+ * is in the message, and the caller treats it as "this host has no usable GL", not a crash.
+ */
+export const preloadOpenGL: ((path: string) => string) | undefined;
 /** win32 only: GL_VENDOR/GL_RENDERER/GL_VERSION of the context current on this thread, or null without one. */
 export const currentGLStrings: (() => { vendor: string; renderer: string; version: string } | null) | undefined;
 
@@ -597,6 +603,7 @@ declare const native: {
     prependSearchPath: typeof prependSearchPath;
     prependLibraryPath: typeof prependLibraryPath;
     probeHostOpenGL: typeof probeHostOpenGL;
+    preloadOpenGL: typeof preloadOpenGL;
     currentGLStrings: typeof currentGLStrings;
     callFunction: typeof callFunction;
     callMethod: typeof callMethod;
