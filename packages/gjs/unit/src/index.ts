@@ -1070,7 +1070,7 @@ export const describe = async function (
     // parent's. The run is already failing loudly with a named suite timeout when
     // that happens, and routing a late registration back to its own describe needs
     // async context this package cannot have (`AsyncLocalStorage` lives in
-    // `@gjsify/async_hooks`, a higher tier). Recorded in `status/open-todos.md`.
+    // `@gjsify/async_hooks`, a higher tier). Recorded in `status/open-todos/README.md`.
     hookFrames.push({ before: [], after: [] });
     try {
         await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);

@@ -20,7 +20,7 @@
 // things in this repository and is read only inside a REGION that is about this corpus: the
 // package that is the corpus, a file whose path names it, or a markdown heading block that
 // names it. The boundary is measured, not preferred — reading the loose set over whole files
-// that merely mention the corpus turns `status/open-todos.md` into sixty findings that are e2e
+// that merely mention the corpus turns `status/open-todos/README.md` into sixty findings that are e2e
 // fixtures and lint rules, and a gate nobody reads twice gates nothing.
 
 import { readFileSync } from 'node:fs';
@@ -149,7 +149,7 @@ export const SUBJECT =
  * The byte ranges in which the LOOSE spellings may be read.
  *
  * A whole file when the file itself is the corpus's. Otherwise, for markdown, the heading
- * blocks that name it — which is what lets `status/open-todos.md` be held to all four counts
+ * blocks that name it — which is what lets `status/open-todos/README.md` be held to all four counts
  * with the full vocabulary while its other seven thousand lines are read for the plain
  * spellings only. That file went stale TWICE and was outside the loose set entirely until the
  * regions existed; its counts survived on one hand-rewritten sentence, which is the opposite of

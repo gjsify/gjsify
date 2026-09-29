@@ -790,7 +790,7 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
       // how an application POSTS the failure the bus accessors read back —
       // `GLib.propagate_error`, and the INOUT `err` of `GLib.prefix_error_literal`.
       // null/undefined → a NULL GError, the same leniency the object/boxed arms
-      // keep (gjs refuses both for a non-nullable arg — status/open-todos.md).
+      // keep (gjs refuses both for a non-nullable arg — status/open-todos/README.md).
       if (v.IsNull() || v.IsUndefined()) {
         out->v_pointer = nullptr;
         return true;

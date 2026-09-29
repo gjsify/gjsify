@@ -4,7 +4,7 @@
 # `status/priorities/` — the ordered priority list, one file per item
 
 This used to be a single `status/sections/priorities.md`. Together with
-`status/open-todos.md` it was one of the two files nearly every PR touched, so nearly
+`status/open-todos/README.md` it was one of the two files nearly every PR touched, so nearly
 every open PR went DIRTY on nearly every merge. It is now one file per item instead.
 
 ## Layout

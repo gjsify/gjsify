@@ -174,7 +174,7 @@ already has a GTK arm importing `gi://`, so the edge needed no new dependency in
 `@gjsify/gtk-host`. What is NOT built is a `coerce` branch in the host itself — a caller
 writing `<adw-spin-row adjustment={…}>` in gtk-host JSX still hands a real `Gtk.Adjustment`.
 That is the same open item ADR 0042 § 7 and ADR 0046 § 7 name, now with a third value
-waiting on it, and `status/open-todos.md` carries it.
+waiting on it, and `status/open-todos/README.md` carries it.
 
 ## Consequences
 

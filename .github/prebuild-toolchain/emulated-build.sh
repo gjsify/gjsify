@@ -286,4 +286,4 @@ build_pkg packages/infra/lightningcss-native
 # Multi-arch rolldown prebuilds wait for either (a) a coherent crates.io
 # publish so the cargo build doesn't pull the whole rolldown workspace, or
 # (b) cross-compilation via `cross` rather than qemu-user. Tracked in
-# status/open-todos.md.
+# status/open-todos/README.md.

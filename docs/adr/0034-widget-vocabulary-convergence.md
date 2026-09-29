@@ -376,7 +376,7 @@ grep -rn "164 widgets\|164 tags\|164 GTK tags" docs/ packages/framework/AGENTS.m
 warns *"a literal here drifted twice"* — and `scripts/check-vocabulary-alignment.mjs:37`.
 (That third one is gone as of 2026-08-30: the header now carries no count at all and the
 summary line derives every number it prints. The first two stand.)
-(`status/open-todos.md:181` also says 164 and is not wrong: it is explicitly framed *"at
+(`status/open-todos/README.md:181` also says 164 and is not wrong: it is explicitly framed *"at
 the time it landed"*.) One genuine generator nit alongside them: that header says *"the
 **two** tag maps"* while it emits four; a one-word fix in `emit-types.mts`, its own PR.
 
@@ -727,7 +727,7 @@ asking whether a mapped type agrees with its own source: it does, by constructio
   it against that surface's class set proves nothing. It must be held against the **GIR tag
   set**, which is the independent side. The same trap applies per surface, and it gets
   easier to fall into as more surfaces generate more artifacts.
-- **What no half proves.** Behaviour. `status/open-todos.md` already records the limit for
+- **What no half proves.** Behaviour. `status/open-todos/README.md` already records the limit for
   the web half — *"it asserts that `<adw-checkbox>` is declared to mean `gtk-check-button`,
   never that it behaves like one"* — and every other surface inherits it unchanged. The
   closing criterion stays ADR 0027 § 9's conformance vectors.
@@ -1026,7 +1026,7 @@ publishes on the next release cut; after that it is a fourth published surface a
 acquires the same shape as the rename this ADR rejects. **That expiry fired the next
 morning** — see § Amendment.
 
-Follow-up is tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+Follow-up is tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.
 
 ## Amendment, 2026-08-30 — the expiry fired, and the order it justified is now wrong
 
@@ -1131,7 +1131,7 @@ The rule in § 1, the four declaration kinds, and the refusal to rename anything
 Stage 1 keeps its place in the list; only its position moves. And the ADR's own § Risks
 entry — *"the cheap stage is skipped because it is the least urgent-looking"* — is now the
 live risk on this ADR rather than a hypothetical, so it is recorded in
-`status/open-todos.md` with the re-measured price rather than left to the reader.
+`status/open-todos/README.md` with the re-measured price rather than left to the reader.
 
 ## Amendment 2, 2026-08-30 — the properties are countable, and enrolment is a declaration
 
@@ -2187,7 +2187,7 @@ That gate has a blind spot underneath, and it is worth stating rather than fixin
 `isTracked` counts a name only when it starts with `adw-`. Today that is exactly right, since
 every style class this port emits is Adwaita's. It stops being right the day a widget emits a
 `gtk-`-prefixed class, and nothing would report it — the class would simply leave the gate's
-sight. Recorded in `status/open-todos.md`; not changed now, because a rule widened before it
+sight. Recorded in `status/open-todos/README.md`; not changed now, because a rule widened before it
 has a case to serve is a rule nobody can check.
 
 ## Amendment 11, 2026-09-05 — `openState` converged, and the reasoning that said it could not
@@ -2377,7 +2377,7 @@ emitted.
 wording of it could have turned them red. Measured — nothing under `tests/` names the flag but
 `gi-renderer-arms` itself. So the rule retires the moment that suite's own two assertions become
 import-shaped; the argument for changing all fourteen sites, and the one POSITIVE site that is
-the stronger reason, are in `status/open-todos.md`.
+the stronger reason, are in `status/open-todos/README.md`.
 
 **What the arm itself does distinguish is measured.** `fixtures/textual-mention.ts` carries the
 two specifiers the build-time refusals reject — `gi://Gio?version=2.0` and `gi://Adw?version=9`
@@ -2500,7 +2500,7 @@ nick lists, neither emits a number — and these gates run in a `checkout` + `se
 with no `@girs` install and no `refs/`. The pin is `construct-props.spec.ts`, which asserts
 the seven derived numbers literally on Node and on GJS, so the table cannot move without a
 test being edited to say so. The real fix is upstream and is recorded in
-`status/open-todos.md`: `@girs/*` now ships a `vocabulary` entry (ADR 0029) and gtk-host's
+`status/open-todos/README.md`: `@girs/*` now ships a `vocabulary` entry (ADR 0029) and gtk-host's
 generator already reads its `ENUM_NICKS` — an `ENUM_VALUES` beside it would make this
 derivable, and would retire the declaration.
 
@@ -2707,7 +2707,7 @@ genuinely different: the bag needs the CONCRETE class, the verb needs any `Obser
 Measured before it was built: no view base of `@nativescript/core@9.1.0-alpha.11` declares
 `connect` or `disconnect` (the one `disconnect(` in the package is `GesturesObserver`'s),
 and no runtime `.js` assigns either — the measurement the ambient slice cannot make in the
-other direction, recorded there and in `status/open-todos.md`. Held by arm 6 of
+other direction, recorded there and in `status/open-todos/README.md`. Held by arm 6 of
 `check-nativescript-xml-doors.mjs`, which prints the split and goes red on a bare platform
 base AND on a second wrap. The callback receives `(self, data)`: the widget first, as GJS
 passes it, then the NativeScript payload; a `GParamSpec` is not reconstructed.
@@ -2735,7 +2735,7 @@ one widget where libadwaita holds a box.
 public method of a NativeScript widget that its counterpart's chain has no method of that
 exact spelling for; the port side resolves the port's own abstract bases
 (`AdwSplitViewBase.set_content` is measured on both concrete split views), which is the
-blind side `status/open-todos.md` records for the property reader and this reader was
+blind side `status/open-todos/README.md` records for the property reader and this reader was
 built without. A method converges when both sides take the same KIND of argument and differ
 only in spelling — the § Amendment 7 rule — so `addTopBar(view)` beside `add_top_bar(child)`
 was a rename, and the twenty `gir` entries left are the ones where the kind differs: the
@@ -2783,7 +2783,7 @@ amendment converges; the signal NAMES a NativeScript widget emits for platform e
 - **The vocabulary gap upstream.** An `OWN_METHODS` export from ts-for-gir's surface
   generator would let gtk-host emit the method table in the same run as `props.ts` and
   `widgets.ts`, under one provenance, and would give the typelib reading a second source to
-  be held against. Recorded in `status/open-todos.md` in the shape the enum-values gap was.
+  be held against. Recorded in `status/open-todos/README.md` in the shape the enum-values gap was.
 
 ## Amendment 16, 2026-09-09 — the second pane stops being a tab, and stays a corpus
 
@@ -3154,7 +3154,7 @@ resolves. The alternative was parity bought by making both panes worse, which is
   a `GtkImage`, so a theme name there is a widget change rather than a lookup — the entry
   stays `property` either way, and its reason now says which.
 - **`AdwPreferencesPage.iconName` is still unrendered.** The port stores the string and
-  nothing draws it, which is why `status/open-todos.md` records its value kind as
+  nothing draws it, which is why `status/open-todos/README.md` records its value kind as
   undetermined rather than counting it on either side.
 - **Nothing here runs a pane on a phone.** The panes are compared as text, their properties
   are held against the port's source, and the resolution they depend on is covered by 40
@@ -3244,6 +3244,6 @@ name.
 
 **What is still declared.** `hexpand` / `vexpand` are held and read back, and no NativeScript
 parent in the port allocates spare space by them yet: `Gtk.Box` is a `StackLayout`, the same
-missing size negotiation `homogeneous` is ledgered for (`status/open-todos.md`). On the web the
+missing size negotiation `homogeneous` is ledgered for (`status/open-todos/README.md`). On the web the
 same names are attributes: `_widget.scss` places a child by auto margins and grows it along a
 `gtk-box`'s own axis, and the shared-tree builder writes the margins as inline style.

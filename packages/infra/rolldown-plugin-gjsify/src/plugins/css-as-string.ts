@@ -398,7 +398,7 @@ async function compileSass(filename: string): Promise<string> {
         // `import './x.scss'` fails with UNLOADABLE_DEPENDENCY. Resolving it to a file
         // first (`tryLoadNativeBundler`'s trick) does not help: `sass.default.js` then
         // imports a bare `immutable`. Only INLINING dart-sass works, and 3.6 MB minified
-        // onto a 6.6 MB CLI bundle is a carrier-package decision — status/open-todos.md
+        // onto a 6.6 MB CLI bundle is a carrier-package decision — status/open-todos/README.md
         // (#1053). dart-sass DOES run under GJS: `adwaita-web`'s `build:scss` does.
         _sassPromise = import(/* @vite-ignore */ 'sass') as unknown as Promise<SassSurface>;
     }

@@ -13,7 +13,7 @@
 //   - server {requestCert,rejectUnauthorized} collapse onto one Gio property,
 //     TlsServerConnection.authentication_mode.
 //
-// Gaps (status/open-todos.md): Gio-side OCSP stapling — the parser is surfaced
+// Gaps (status/open-todos/README.md): Gio-side OCSP stapling — the parser is surfaced
 // via ocsp.ts but responses never arrive over the handshake; custom DH/ECDH
 // params; ticket keys.
 

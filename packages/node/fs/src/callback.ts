@@ -814,7 +814,7 @@ export function mkdtemp(
         // it inside one, so a callback that throws is re-entered with its own
         // exception as the `err` argument — a second invocation the caller never
         // asked for. Not fixed for the siblings here; recorded in
-        // `status/open-todos.md` with the reproduction.
+        // `status/open-todos/README.md` with the reproduction.
         let made: string | Buffer;
         try {
             made = mkdtempSync(prefix, options as EncodingOption);

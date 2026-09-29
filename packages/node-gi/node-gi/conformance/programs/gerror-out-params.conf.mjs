@@ -40,7 +40,7 @@ print('inout source untouched:', propagated.message);
 // GLib.Error object and this is the same path as above; node-gi has two shapes
 // (the L1 JS class here, a boxed handle above) and this is the one an application
 // actually holds after a `catch`. `instanceof` is deliberately not printed — that
-// IS the divergence still open (status/open-todos.md), and a golden asserting it
+// IS the divergence still open (status/open-todos/README.md), and a golden asserting it
 // would freeze the wrong side.
 const built = new GLib.Error(DOMAIN, 9, 'constructed');
 const rebuilt = GLib.propagate_error(built);

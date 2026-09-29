@@ -1605,7 +1605,7 @@ jobs:
             # `@gjsify/webkit-native` is the first that does (its typelib
             # references `libgtk-4.1.dylib`), and it failed with GJS's own Gtk
             # override unable to load — the darwin bare-leaf gap in
-            # status/open-todos.md, surfacing in CI rather than in a consumer.
+            # status/open-todos/README.md, surfacing in CI rather than in a consumer.
             # `/usr/lib` is appended because setting the variable REPLACES dyld's
             # default fallback list.
             #
@@ -3044,7 +3044,7 @@ jobs:
   # WHAT WOULD STILL HAVE TO LAND FOR A COMMITTED `-musl` ARTIFACT: this leg
   # uploads and commits nothing, so nothing here promises a musl binary to a
   # consumer. That promotion is a separate change with its own prerequisites —
-  # `status/open-todos.md` carries them.
+  # `status/open-todos/README.md` carries them.
   #
   # WHY MUSL. postmarketOS v26.06 ("Alpen Avocado", 2026-06-21) is based on
   # Alpine 3.24, which is the target that makes a GJS/GNOME phone able to use
@@ -3200,7 +3200,7 @@ jobs:
   # whose prerequisites (a published musl-carrying platform package, and
   # `PLATFORM_RE`/`canonicalPlatform` learning the optional suffix — they are
   # libc-blind today, which `prebuild-libc.mjs` records as its own follow-up) are
-  # in `status/open-todos.md`. What this leg buys without any of that is the thing
+  # in `status/open-todos/README.md`. What this leg buys without any of that is the thing
   # it was always for: the npm `libc` policy — `@gjsify/<x>-linux-<arch>` is
   # installed on musl hosts BY DESIGN — rests on the claim that these sources
   # work when built against musl, and nothing else in CI compiles or runs
@@ -4112,7 +4112,7 @@ jobs:
       # likely failed because of a workflow file issue", raised as a `push`-event
       # run on a branch this workflow's `push` trigger does not even cover, because
       # a file GitHub cannot parse never gets its triggers evaluated. That is the
-      # failure mode `status/open-todos.md` records as "a workflow GitHub refuses to
+      # failure mode `status/open-todos/README.md` records as "a workflow GitHub refuses to
       # load reports the PR as GREEN": it is not a PR check, so `gh pr checks` does
       # not show it. `tests/e2e/prebuild-change-gate` now fails a `runner`/`steps`
       # reference in any job-level `env:` block, since the file cannot self-check.
@@ -4385,7 +4385,7 @@ jobs:
       #
       # Before this, a rejected push was the END of the run: the step failed and
       # every binary the run had downloaded was discarded with no retry (recorded
-      # in `status/open-todos.md` as "Two `commit-prebuilds` jobs can race" — the
+      # in `status/open-todos/README.md` as "Two `commit-prebuilds` jobs can race" — the
       # non-PR concurrency group is keyed by `run_id` with `cancel-in-progress:
       # false`, deliberately, so a `workflow_dispatch` run overlapping a `push` run
       # produces exactly that).

@@ -196,7 +196,7 @@ export class TLSServer extends Server {
         // 'G_IS_INPUT_STREAM (stream)' failed" even for a from-scratch
         // `tls.connect()` self-connect, with no SNI involved at all.
         // Fixing THAT composition for the SNI path is tracked separately
-        // (status/open-todos.md) — this fast path sidesteps it entirely
+        // (status/open-todos/README.md) — this fast path sidesteps it entirely
         // for every server that doesn't need per-hostname certs.
         if (this._sniContexts.size === 0 && !this._tlsOptions.SNICallback) {
             const certificate = this._tlsCertificate;
@@ -222,7 +222,7 @@ export class TLSServer extends Server {
         // @gjsify/http-soup-bridge), so this BufferedInputStream route is the
         // pure-TS substitute.
         //
-        // KNOWN ISSUE (status/open-todos.md): this composition has been
+        // KNOWN ISSUE (status/open-todos/README.md): this composition has been
         // observed to fail a real handshake the same way the fast path
         // above avoids — GBufferedInputStream likely isn't pollable, and
         // GnuTLS's async engine wants that. Kept as the least-bad option

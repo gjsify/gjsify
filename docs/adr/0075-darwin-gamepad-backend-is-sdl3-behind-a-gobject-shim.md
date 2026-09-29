@@ -3,7 +3,7 @@
 - Status: **Proposed** — amended 2026-09-25, see § Amendment 1 (SDL3 becomes the gamepad
   backend on every OS, not only darwin)
 - Scope: stage 1 (the seam and the honest darwin answer) ships with this ADR; stages 3 and 4
-  are open work in `status/open-todos.md`.
+  are open work in `status/open-todos/README.md`.
 - Date: 2026-09-25
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native package distribution)](0017-native-package-distribution.md),
@@ -14,7 +14,7 @@
 ## Context
 
 `@gjsify/gamepad` has exactly one backend: libmanette 0.2 via `gi://Manette`. libmanette is
-Linux-only by construction, and that is measured, not assumed (`status/open-todos.md` has the
+Linux-only by construction, and that is measured, not assumed (`status/open-todos/README.md` has the
 full audit). Its `meson.build` links `libevdev` with no `required:` switch, and libevdev is
 Linux/FreeBSD only. On the macOS 27 arm64 host this ADR was written on:
 
@@ -240,7 +240,7 @@ this section and the text above disagree, this section wins.
    controllers. `ManetteSource` and the libmanette dependency are deleted once the SDL source
    is proven on Linux with real controllers — not before, and not on the strength of the
    zero-device path CI can run. Until then Linux behaviour stays libmanette's. This also
-   retires the `Manette-1` migration in `status/open-todos.md`: there is no reason to port a
+   retires the `Manette-1` migration in `status/open-todos/README.md`: there is no reason to port a
    backend that is being removed.
 5. **WebHID is a noted future option, not implemented.** The same static HIDAPI build exposes
    `SDL_hid_*`, which is what `navigator.hid` would sit on. Its permission model —

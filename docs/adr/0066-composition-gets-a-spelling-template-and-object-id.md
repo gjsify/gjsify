@@ -283,4 +283,4 @@ tests are applied above and both are passed here rather than waived.
 - The expectation trees keep their hand-written character: the id VALUES and the template class
   names come from the `detail` prose the corpus already carried, and each one was cross-checked
   against what the projection produces before it was written into a tree.
-- Follow-ups are tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+- Follow-ups are tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.

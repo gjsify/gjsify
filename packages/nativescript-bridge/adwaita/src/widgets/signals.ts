@@ -34,7 +34,7 @@
 // `scripts/check-vocabulary-alignment.mjs` records that incident). The ambient slice in
 // `../ns-core.d.ts` cannot hold this in the other direction — a name a future core adds
 // would be shadowed by this mixin without a type error — so the measurement is written
-// here with its version, and `status/open-todos.md` carries the rest of that limit.
+// here with its version, and `status/open-todos/README.md` carries the rest of that limit.
 //
 // WHAT THE CALLBACK RECEIVES. GJS passes the emitting object FIRST, then the signal's own
 // arguments — `(self, pspec)` for a `notify::` signal. NativeScript passes one payload

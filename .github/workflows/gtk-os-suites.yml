@@ -208,7 +208,7 @@
 # GATES — there it means "probe the primitive rather than the wrapper".
 #
 # The standing cost of that arrangement, and what is still missing to retire each of the
-# three remaining flags, is an item in `status/open-todos.md`. NONE of them is now
+# three remaining flags, is an item in `status/open-todos/README.md`. NONE of them is now
 # waiting only on somebody re-reading a probe row, and the way that stopped being true
 # is the useful part: both conditions that had come true were acted on — the win32
 # conformance audit was promoted, and the darwin react-native probe was MEASURED first
@@ -545,7 +545,7 @@ jobs:
       #     red with size mismatches instead of the TypeError. Measured on a real macOS
       #     27 arm64 host: 649/655 on the published addon, 655/655 minus one host-only
       #     icon-theme row on a locally built one. The seventh, a GTK diagnostic under
-      #     `tabs`, did not reproduce there. Recorded in `status/open-todos.md`.
+      #     `tabs`, did not reproduce there. Recorded in `status/open-todos/README.md`.
       #   · darwin-x64 — the runner exits 1 with NO summary line, dying after "publishes the
       #     window chrome" (#1546/#1549). That is worse than a count, and it is not the same
       #     defect as arm64's.

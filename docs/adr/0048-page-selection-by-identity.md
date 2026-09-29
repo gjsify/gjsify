@@ -137,7 +137,7 @@ types, which TypeScript has allowed since 5.1, so `view.selectedPage = view.sele
 is a TYPE ERROR rather than a silent one. The alternative — `AdwTabPage | string | null` on
 the setter, which is what the core takes — makes the round-trip legal but is currently
 classified `json` by `check-nativescript-xml-doors` and turns the door red; that gate defect
-is in `status/open-todos.md`, and it is the thing to fix before revisiting this.
+is in `status/open-todos/README.md`, and it is the thing to fix before revisiting this.
 
 `selectedIndex` and `selectedId` stay as the getters they already are. Neither is a door.
 
@@ -245,7 +245,7 @@ surface where it is a promise about a page. So the two switcher bars translate t
   only be answered where the page list lives. A renderer-side guard was written first and
   measured wrong twice over: it is two copies, and its refusal is silent where C raises a
   diagnostic. The remaining id-taking methods — `isClosing`, `closePage`, `setPagePinned` —
-  are unchanged and stay in `status/open-todos.md`; libadwaita takes an `AdwTabPage *` in
+  are unchanged and stay in `status/open-todos/README.md`; libadwaita takes an `AdwTabPage *` in
   every one, and settling them together is a decision this ADR does not need to make.
 
 ## Amendment 1 — the rest followed, 2026-09-22
@@ -261,7 +261,7 @@ belongs to whoever reads the vocabulary gate's own ledger rather than to this am
 
 What this ADR settled did not move: an id is still a legal handle everywhere, because an XML
 attribute can carry nothing else. What changed is that it is no longer the ONLY one, which
-is what made the `status/open-todos.md` entry closable.
+is what made the `status/open-todos/README.md` entry closable.
 
 The measurement the convergence ran on: distance to one vocabulary went 1 widget / 6
 property / 20 method names to 1 / 0 / 0.

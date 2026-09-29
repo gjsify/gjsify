@@ -125,7 +125,7 @@ which a bundle of unloadable binaries passes.
    derives the `gjsify.*` key set and fails on any key no rule claims, so the
    field cannot land without the check).
 2. Backfill the sixteen OS-deciding packages, reasons included; every
-   non-`supported` value gets a `status/open-todos.md` entry naming the port.
+   non-`supported` value gets a `status/open-todos/README.md` entry naming the port.
 3. Record the four defects above as the regression set — each becomes a test at
    the layer that can see it: a real pixbuf **decode** (not `get_formats()`), an
    import-closure check for the win32 dependency, a `dlopen` with the loader
@@ -265,7 +265,7 @@ nightly, not on every PR* — was a cost judgement, and re-measuring it on
   premise and nothing else: `scope` narrows that matrix to node-gi's own
   sources, so those legs are not every-PR coverage of anything — between two
   touches of `packages/node-gi/**` the Windows state there is UNKNOWN, not
-  green, and `status/open-todos.md` carries the afternoon that cost.
+  green, and `status/open-todos/README.md` carries the afternoon that cost.
 - **Neither leg is the critical path.** A successful run of either finishes well
   inside `main.yml`'s, so offering them on a PR does not lengthen the wait.
 - **The `pull_request` trigger the ADR credited was not coverage.** Both were

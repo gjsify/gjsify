@@ -1,6 +1,6 @@
 // E2E: what a `.scss` import does on each host — measured, not assumed.
 //
-// TWO SASS PATHS EXIST AND ONLY ONE WAS WRITTEN DOWN. `status/open-todos.md`
+// TWO SASS PATHS EXIST AND ONLY ONE WAS WRITTEN DOWN. `status/open-todos/README.md`
 // records, in detail, that `adwaita-web/scripts/build-scss.mjs` dies under GJS on
 // dart-sass's own `require("url")`. What nothing had measured is the OTHER path —
 // the one the bundler itself takes for an ordinary `import './x.scss'`:

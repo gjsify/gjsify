@@ -38,7 +38,7 @@
 //
 // NOT HERE, and each for a reason a reader will look for. `reversed` (RTL) — the web
 // carousel does not work in RTL at all yet, so a sign flip would be dead code
-// (`elements/swipe-drag.ts`, plus an entry in status/open-todos.md). `enabled` — that is
+// (`elements/swipe-drag.ts`, plus an entry in status/open-todos/README.md). `enabled` — that is
 // `AdwCarousel:interactive`, which `adw_carousel_set_interactive` forwards straight to
 // `adw_swipe_tracker_set_enabled` (adw-carousel.c:1705), so the renderer gates it. The
 // `prepare` SIGNAL — the tracker emits it so a widget can refuse a gesture before it

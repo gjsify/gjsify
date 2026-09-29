@@ -30,7 +30,7 @@
 //   · the CHAIN would put `GtkWidget` plus `GtkAccessible`/`GtkBuildable`/
 //     `GtkConstraintTarget` behind every widget, nearly all of it reading as "missing"
 //     on a port whose views are `GridLayout`s. The ladder's three rungs are MEASURED in
-//     `status/open-todos.md`, not written here: a count in a comment is the copy that
+//     `status/open-todos/README.md`, not written here: a count in a comment is the copy that
 //     drifts, and the one that stood here contradicted that ladder in the same change. A
 //     property a GIR type inherits from a GIR ancestor is measured on THAT ancestor's row
 //     when the port ships the ancestor as a widget too
@@ -48,7 +48,7 @@
 // Each exclusion is STATED with what it removes and pinned by its own vector in the
 // shared reader's self-test, and a fifth would have to be added in
 // `gir-scalar-properties.mjs`, where BOTH ratchets would carry it. What no run prints is
-// how many keys each one removes: the ladder in `status/open-todos.md` measures that, and
+// how many keys each one removes: the ladder in `status/open-todos/README.md` measures that, and
 // its 293 → 231 rung IS the slot exclusion.
 //
 // THE PORT SIDE RESOLVES THE PORT'S OWN `extends` CHAIN, AND THAT IS NOT A DETAIL
@@ -84,7 +84,7 @@
 //   WHAT NO HALF PROVES: that a property the port DOES have carries the same kind of
 //   value. `Gtk.Image:icon-size` is a `GtkIconSize` enum and the port's `iconSize` is a
 //   size in DIPs; both gates read that as agreement, because both compare names. The
-//   census behind that is in `status/open-todos.md`.
+//   census behind that is in `status/open-todos/README.md`.
 //
 // SCOPE: the widgets whose file spelling IS a GTK tag. The three that are not
 // (`adw-image-button`, `adw-slider-row`, `adw-data-grid`) are declared divergences that

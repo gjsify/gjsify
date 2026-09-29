@@ -37,7 +37,7 @@
 // thing that must not drift: both report BYTES, both return `null` rather than
 // zeros when nothing can read, and both leave `data`/`peak` at `0` off procfs.
 // Retiring this copy means first deciding what `@gjsify/v8`'s node slot should
-// be — tracked in `status/open-todos.md`.
+// be — tracked in `status/open-todos/README.md`.
 
 import GLib from '@girs/glib-2.0';
 

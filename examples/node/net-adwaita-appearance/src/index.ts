@@ -63,7 +63,7 @@ const server = createServer((req, res) => {
 });
 
 // Listen BEFORE anything awaits: a server started after a top-level await exits at once
-// on GJS today (status/open-todos.md). The watcher reports the first read, then each change.
+// on GJS today (status/open-todos/README.md). The watcher reports the first read, then each change.
 server.listen(PORT, () => console.log(`Open http://localhost:${PORT}`));
 
 // Held for the life of the server: the returned stop function keeps the D-Bus

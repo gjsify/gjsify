@@ -51,7 +51,7 @@ export function createNodeError(err: unknown, syscall: string, path: PathLike, d
  * exceptions are `fs.close(fd)` and `WriteStream.close()`, genuinely optional and
  * silent — #1039 settled those and `fs-semantics.spec.ts` K-16 pins them, so do NOT
  * route them through here — plus `fs.rm`, which Node does not validate either (it
- * crashes inside `internal/fs/rimraf` instead; `status/open-todos.md` records it).
+ * crashes inside `internal/fs/rimraf` instead; `status/open-todos/README.md` records it).
  *
  * `argName` is a parameter because Node is not uniform: `opendir` says `"callback"`
  * and `watchFile` says `"listener"`, while the rest say `"cb"`.

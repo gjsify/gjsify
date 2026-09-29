@@ -817,7 +817,7 @@ tree has never parsed. So a Windows payload whose only native file is a `.dll` c
 at all: the guard is silent there rather than wrong. The e2e's windows leg reuses the fixture's
 Mach-O, so it proves the LAYOUT and the same Mach-O branch, not the PE case. Closing it means
 teaching `readBinaryArch` the COFF field (`manifest-conformance`'s `binary.mjs` already reads it);
-`status/open-todos.md` item 5 carries the gap.
+`status/open-todos/README.md` item 5 carries the gap.
 
 ## Signing is a payload MUTATION, and its proof needs no certificate (#1354 M6)
 
@@ -889,7 +889,7 @@ path.
 value the next line reads — which is the trap `refs/node/tools/osx-notarize.sh` falls into, guarding
 on three environment variables it never uses. It is **UNVERIFIED end to end**: notarisation needs an
 Apple account, which is precisely the credential M6 does without. The App Store Connect API-key form
-is not implemented — `status/open-todos.md` carries it, with what was measured.
+is not implemented — `status/open-todos/README.md` carries it, with what was measured.
 
 **Stapling, the bundle seal and the hardened runtime landed with ADR 0040**, and they are not at the
 same confidence level — which is the distinction worth keeping, because "no macOS host of its own"
@@ -899,7 +899,7 @@ macOS host: it has MEASURED that `codesign` accepts `--options runtime --entitle
 it changes nothing else in the payload, and that `codesign --verify --strict` accepts the BUNDLE on
 both arches. What has never run is the ZIP round trip with a seal in it — which needs no credential
 and is the next measurement — plus `notarytool` and `stapler`, which need an Apple account.
-`status/open-todos.md` carries all three with their measurements attached.
+`status/open-todos/README.md` carries all three with their measurements attached.
 
 |the `<App>.app` is SEALED after every Mach-O inside it is signed. The reason it was not is recorded
 in ADR 0040 as a factual error rather than a deferral: Apple's extended-attribute rule is for a
@@ -974,7 +974,7 @@ one warns." `utils/ship/flatpak-config.ts` is that window, and only part of the 
 |---|---|
 | `runtime`, `runtimeVersion`, `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup` | MOVED to `gjsify.ship.flatpak.*`; the old spelling resolves and warns, removed in `LEGACY_FLATPAK_KEYS_REMOVED_IN` |
 | `AppMetadata` (`name`, `summary`, `developer`, `categories`, `license`, …) | NOT deprecated. Both blocks extend `AppMetadata` by design — § 8's own words are "those files are not Flatpak's, they are the app's" — so this is an alias, not a legacy spelling. Warning on it would print for every project that has a `gjsify.flatpak` block at all |
-| `lockfile`, `ciContainer`, `ciBranches`, `flathubRepo`, `modules`, `extraModules`, `command` | untouched: they belong to `gjsify flatpak <sub>`, whose own move to `gjsify ship flatpak <sub>` is a separate item in `status/open-todos.md`. Deprecating them now would warn on commands that have not moved |
+| `lockfile`, `ciContainer`, `ciBranches`, `flathubRepo`, `modules`, `extraModules`, `command` | untouched: they belong to `gjsify flatpak <sub>`, whose own move to `gjsify ship flatpak <sub>` is a separate item in `status/open-todos/README.md`. Deprecating them now would warn on commands that have not moved |
 
 **The window has TWO sides, and only building one is a trap.** The six build keys are read by
 `gjsify flatpak init` and `flatpak ci` as well, and those commands have NOT moved. So a project that

@@ -26,7 +26,7 @@
 //     asked for only where a reader demands it (see below) and not blanket-applied
 //     to the payload tarballs.
 //
-// Ledgered in `status/open-todos.md`; closing it means pinning ONE deflate
+// Ledgered in `status/open-todos/README.md`; closing it means pinning ONE deflate
 // implementation, which is a larger decision than this file.
 
 import { gzip } from '@gjsify/tar';

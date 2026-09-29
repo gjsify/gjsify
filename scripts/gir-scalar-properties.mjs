@@ -27,7 +27,7 @@
 // THE OWN BODY, NOT THE `extends` CHAIN. Both ratchets ask what the GType ITSELF
 // declares. Resolving the chain would put the whole of `GtkWidget` behind every widget
 // and produce a number nobody can act on — the three rungs of that ladder are measured in
-// `status/open-todos.md` rather than written here, because a count in a comment is the
+// `status/open-todos/README.md` rather than written here, because a count in a comment is the
 // copy that drifts. The chain-resolved set is the right one for the opposite question (is
 // a property a surface HAS a key of its counterpart), which is what
 // `check-vocabulary-alignment.mjs` uses it for.

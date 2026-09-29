@@ -25,7 +25,7 @@
 // Reachability ("nothing installed points at this any more") would catch that one
 // and more, but it needs a record of what the prefix was ASSEMBLED FROM, which no
 // prefix carries yet. Uncertain means keep — see ADR 0025 and
-// `status/open-todos.md`.
+// `status/open-todos/README.md`.
 
 import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';

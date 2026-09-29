@@ -28,7 +28,7 @@
 //
 // The host's own target is IMPORTED (`hostStagingTarget`) rather than composed
 // from `process.platform`/`process.arch`, per the standing item in
-// `status/open-todos.md`: nine fixtures recomposed that name and the last
+// `status/open-todos/README.md`: nine fixtures recomposed that name and the last
 // vocabulary change had to fix all nine by hand, missing one because a composed
 // string never appears as a literal.
 

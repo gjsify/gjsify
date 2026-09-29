@@ -352,7 +352,7 @@ leaving eight.
   projection now all state them, and any two of them disagreeing is a failure that names the file.
 - **A per-kind census is now known to be able to hide a family.** One construct with two source
   spellings produced two loss kinds, and every count written about `styles` — in this ADR series
-  and in `status/open-todos.md` — was one occurrence short because of it. The bracketed-value
+  and in `status/open-todos/README.md` — was one occurrence short because of it. The bracketed-value
   census keyed on the property name is the instrument that found it, and it is the reading to
   repeat before the next family is chosen.
 - The authored-tree shape has a fourth field no gallery block uses. That is a cost, paid in
@@ -445,4 +445,4 @@ leaving eight.
   prose the corpus already carried — *"the style class `flat` on the menu button"*, with its line
   — onto the node whose property holds it, and then cross-checked against both the projection and
   the golden before the entry was finished.
-- Follow-ups are tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+- Follow-ups are tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.

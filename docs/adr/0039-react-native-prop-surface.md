@@ -298,7 +298,7 @@ publish — `acceptsPropValue` is an oracle for the vocabulary, not for the type
 `explainPropValue`'s own documentation says so rather than leaving a reader to find
 out. Making it one is a bigger change than this: it needs a per-coercion predicate on
 the answer and a story for `file`, whose refusals are computed from the value's shape.
-Recorded in `status/open-todos.md`.
+Recorded in `status/open-todos/README.md`.
 
 ### The guard, because the single case is not the finding
 

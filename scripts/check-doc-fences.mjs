@@ -1129,7 +1129,7 @@ for (const rel of frameworkSources) {
 // one: with the `@girs/gjs` reference below removed, `printerr` and `logError` are
 // unbound and the matrix says so loudly instead of the arm dying silently. NOT
 // `print` — MEASURED, that one is bound by `lib.dom`'s `Window.print()` whatever
-// `@girs/gjs` does, which is the DOM blind spot `status/open-todos.md` carries and
+// `@girs/gjs` does, which is the DOM blind spot `status/open-todos/README.md` carries and
 // exactly why the control cannot be built on it.
 
 /** Every `.md`/`.mdx` under the docs tree — the reference pages included. */

@@ -868,7 +868,7 @@ async function resolveDeps(
     // `workspaceInstall` produces when two workspaces declare incompatible ranges of
     // the same external dep) all compete for the single root slot and the resolver
     // silently keeps one version for everyone. Per-workspace dedup is Phase D.8
-    // (status/open-todos.md); until it lands the conflict is surfaced loudly after
+    // (status/open-todos/README.md); until it lands the conflict is surfaced loudly after
     // the resolve (see emitTopLevelConflictWarnings).
     const topLevelRanges = new Map<string, Map<string, Set<string>>>();
     const queue: Edge[] = specs.map(parseSpec).map((s) => {
@@ -1362,7 +1362,7 @@ function assertRequiredEdgesResolved(nodes: ResolvedNode[], skippedEdges: Set<st
  * (dist-tags like `latest`) cannot be compared and are skipped.
  *
  * This makes the single-root-slot behaviour honest rather than silent; the real fix
- * is a per-workspace dedup pass, Phase D.8 (status/open-todos.md).
+ * is a per-workspace dedup pass, Phase D.8 (status/open-todos/README.md).
  */
 function emitTopLevelConflictWarnings(
     topLevelRanges: Map<string, Map<string, Set<string>>>,

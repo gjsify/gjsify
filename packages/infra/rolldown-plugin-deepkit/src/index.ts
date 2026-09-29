@@ -40,7 +40,7 @@ const FILTER = /\.(m|c)?tsx?$/;
  * Exists because that filter is also a load-bearing DEPENDENCY of anything that
  * mints a virtual module id meant to be reflected: `@gjsify/rolldown-plugin-vue`
  * appends a `.gjsify-vue.ts` tail to route `.vue` SFCs through TypeScript parsing,
- * and the same tail is what makes deepkit see the id at all (`status/open-todos.md`
+ * and the same tail is what makes deepkit see the id at all (`status/open-todos/README.md`
  * § "The Vue plugin's virtual suffix is coupled to deepkit's filter"). A silent
  * drift here switches reflection off for every consumer with no diagnostic — the
  * build still exits 0.

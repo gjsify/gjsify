@@ -161,7 +161,7 @@ promise — and #1544 is precisely the difference between the two.
 - **`@gjsify/webaudio`'s `canPlayType`,** which answers from a hardcoded MIME list and is
   wrong about `audio/aac` inside a bundle. It is a tier-1 package and cannot import a
   tier-2 script; whether it should ask the registry directly or read a declaration is
-  open, in `status/open-todos.md`.
+  open, in `status/open-todos/README.md`.
 - **Whether the AAC gap ever closes on darwin, for either container shape.** `faad` is GPL
   and `avdec_aac` brings the libav closure ADR 0037 refuses, so it is a redistribution
   decision belonging to whoever ships the product. Both `AAC (M4A)` and `AAC (ADTS)` stay

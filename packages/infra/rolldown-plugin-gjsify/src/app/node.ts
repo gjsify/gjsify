@@ -194,7 +194,7 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
  * emptying both stay, so a cross-platform package's node bundle keeps loading on
  * plain Node without node-gi installed.
  *
- * KNOWN NARROWNESS (tracked in status/open-todos.md): a genuine GJS source whose
+ * KNOWN NARROWNESS (tracked in status/open-todos/README.md): a genuine GJS source whose
  * ONLY platform reach is `gi://` (no ambient global, no bare built-in) is not
  * recognised — its `@girs/*` and its registers are both emptied. A surviving
  * `gi://` import cannot simply become a third signal: its shim loads node-gi

@@ -233,7 +233,7 @@ import * as WEBKIT from '@girs/webkit-6.0/vocabulary';
  * libshumate. A rule file naming Shumate would red stage B until that image is rebuilt, and an
  * image is only pushed from `main`, so a PR cannot carry both halves. Measured locally, a Shumate
  * golden IS byte-equal; what holds it out is the image and nothing about the code.
- * `status/open-todos.md` carries the follow-up. Until then Shumate — and the same goes for the
+ * `status/open-todos/README.md` carries the follow-up. Until then Shumate — and the same goes for the
  * four namespaces reached only through the closure — is covered here by LOAD: `merged()`,
  * `assertClosed()` and `NAMESPACES` read every entry of this map on import, so a broken or
  * conflicting one fails every corpus run.

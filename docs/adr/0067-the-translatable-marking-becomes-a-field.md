@@ -374,4 +374,4 @@ fences stay the unheld artifact 0058 named.
   `detail` prose the corpus already carried — *"the `_()` marking on `Back`"*, with its line —
   onto the node whose prop holds that string, and then cross-checked against both the projection
   and the golden before the entry was finished.
-- Follow-ups are tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+- Follow-ups are tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.

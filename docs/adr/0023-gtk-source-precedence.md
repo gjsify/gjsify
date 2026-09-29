@@ -39,7 +39,7 @@ The file is present the whole time; its DLL closure is not. The published
 it.
 
 The platform notes recorded the unresolved half as *"the precedence question stays
-open in `status/open-todos.md`"* — where it was not, so the one pointer a reader
+open in `status/open-todos/README.md`"* — where it was not, so the one pointer a reader
 had led nowhere.
 
 ## Decision

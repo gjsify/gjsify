@@ -2,7 +2,7 @@
 // Exercises @gjsify/worker_threads transferList + SAB pass-through under
 // real-world-shaped workloads. Node baseline is the reference; GJS must
 // produce the same output (with SAB suite skipped — see
-// status/open-todos.md: SharedArrayBuffer cross-process sharing).
+// status/open-todos/README.md: SharedArrayBuffer cross-process sharing).
 
 import '@gjsify/node-globals/register/process';
 import '@gjsify/node-globals/register/buffer';

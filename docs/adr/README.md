@@ -14,7 +14,7 @@ repo, (b) changes a published contract (versioning, tiering, artifact strategy),
 MADR-style, one file per decision: `NNNN-<slug>.md` with `Status` / `Context` /
 `Decision` / `Consequences` / `Implementation` sections. Statuses: `Proposed`,
 `Accepted`, `Superseded by NNNN`, `Rejected`. An accepted ADR's follow-up work is
-tracked in `status/open-todos.md` (per governance); the ADR records the *why*,
+tracked in `status/open-todos/README.md` (per governance); the ADR records the *why*,
 the TODO records the *what's left*.
 
 ## Index

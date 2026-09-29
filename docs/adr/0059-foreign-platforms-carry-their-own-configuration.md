@@ -73,7 +73,7 @@ macOS Pango is CoreText-backed and a `fonts.conf` inside a `.app` "would be iner
 (`utils/ship/layout.ts:404-410`). That premise is a statement about **how Homebrew built
 pango**, not about macOS — `pangocairo-fontmap.c` picks its backend from what was compiled
 in, `PANGOCAIRO_BACKEND=fc` selects the other one by hand, and this repository documents that
-escape hatch in four places (`status/open-todos.md:33`, `docs/adr/0038-…:523`,
+escape hatch in four places (`status/open-todos/README.md:33`, `docs/adr/0038-…:523`,
 `packages/framework/gtk-host/src/fonts.ts:244`,
 `website/src/content/docs/guides/bundled-fonts.md:355`). The moment anything selects it, a
 darwin bundle that carries `libfontconfig` and no `fonts.conf` is asking fontconfig to find
@@ -102,7 +102,7 @@ The `--windowing` superset is what release.yml publishes, so it is what the rows
 | GtkSourceView data tree | whole `share/gtksourceview-5` | whole `share/gtksourceview-5` | W:832 / D:1123 |
 | fontconfig configuration | `etc/fonts/fonts.conf` + `conf.d` + a cache, **when the gvsbuild prefix has one** | **none, ever** | W:790-806 / D: absent |
 | the GNOME UI faces | `share/fonts/adwaita/*.ttf`, from pinned `refs/adwaita-fonts` | identical payload, identical source | `bundle-fonts.mjs`, both |
-| …and a process that can SEE those faces | yes — loader exports `GJSIFY_GTK_RUNTIME_FONT_DIR`, `initFonts()` calls `add_font_file` | **no** — `status/open-todos.md:22` : "~7.3 MB of faces that no process can reach" | `gtk-runtime.js:460` + `gtk-host/src/fonts.ts` |
+| …and a process that can SEE those faces | yes — loader exports `GJSIFY_GTK_RUNTIME_FONT_DIR`, `initFonts()` calls `add_font_file` | **no** — `status/open-todos/README.md:22` : "~7.3 MB of faces that no process can reach" | `gtk-runtime.js:460` + `gtk-host/src/fonts.ts` |
 | GTK/GLib/libadwaita gettext catalogues | **absent** | **absent** | — |
 | ICU / locale data | not named by the recipe; closure-walk dependent. **Not measured** | not named by the recipe. **Not measured** | — |
 | the app's own faces | `share/fonts/<appId>` + `GJSIFY_FONT_DIR`, registered by the app | `share/fonts/<appId>` + `ATSApplicationFontsPath`, activated by macOS (**unverified**, `layout.ts:416-424`) | S, ADR 0038 |
@@ -154,7 +154,7 @@ backend or `GSETTINGS_BACKEND`. If GLib falls back to the memory backend, every 
 at exit with no error. **Not measured**; the recipe cannot answer it, a host can.
 
 **G6 — the darwin bundle's own faces are unreachable, and that is recorded as an open item
-rather than as a failing gate.** `status/open-todos.md:7-42` states it precisely and
+rather than as a failing gate.** `status/open-todos/README.md:7-42` states it precisely and
 `packages/node-gi/node-gi/test/windowing.test.mjs:326` *asserts the decline*, so the day it
 changes the test says so. What no gate says is that the artifact is shipping payload nothing
 can read — the `fonts` windowing-data set (`bundle-data.mjs:189-198`) requires the files to be
@@ -177,7 +177,7 @@ so rather than trip over it.
 
 ## Where the two foreign platforms diverge without a stated reason
 
-**D1 — `GIRepository-2.0` ships on win32 and not on darwin.** `status/open-todos.md:498-519`
+**D1 — `GIRepository-2.0` ships on win32 and not on darwin.** `status/open-todos/README.md:498-519`
 has the diff and the honest verdict: neither builder names it, so it arrives through each
 platform's closure walk "rather than by decision", and `gi://GIRepository` therefore works on
 Windows and fails on macOS with nothing to say so.
@@ -287,7 +287,7 @@ the rendered launcher strings, which `launcher.spec.ts` already renders.
 |---|---|---|
 | 1 | Delete the `/usr/local/share:/usr/share` fallback from the `.app` launcher (G2); make `resolveLocaleDir` return undefined rather than `/usr/share/locale` off Linux (G3) | Small: two strings, two spec updates. **Risk:** a `.app` on a developer's Mac that today reaches a Homebrew icon theme through that fallback will stop — which is the point, and will look like a regression the first time |
 | 2 | Add the `absent + cause` field to `WINDOWING_DATA_SETS` and make every set resolve on both platforms (clause 2) | Medium: one shared module, two builders, one verifier (`verify-bundle-manifest.mjs`). No payload changes. Forces a written cause for the two absences that have none today — D1 and G4 |
-| 3 | Decide D1 (`GIRepository-2.0`: both or neither) and record it in `REQUIRED_NAMESPACES` rather than leaving it to the closure walk | Small in code, a real decision in substance; `status/open-todos.md:517` already asks the owner of the bundle contract to make it |
+| 3 | Decide D1 (`GIRepository-2.0`: both or neither) and record it in `REQUIRED_NAMESPACES` rather than leaving it to the closure walk | Small in code, a real decision in substance; `status/open-todos/README.md:517` already asks the owner of the bundle contract to make it |
 | 4 | Ship a bundle-owned `fonts.conf` on **both** foreign platforms; point `FONTCONFIG_PATH`/`FONTCONFIG_FILE` at it unconditionally where a bundle carries one (G1) | Medium, and it is the step that must not be taken blind: the darwin half is unverifiable from here, and it interacts directly with PR #1677 — whichever lands second must re-measure, not assume. On win32 it also removes the "when the prefix has one" conditional, which changes what a bundle built against a fontconfig-less gvsbuild contains |
 | 5 | Add the font probe and the settings probe (clause 3) | Medium-high: the font probe is a near-copy of the decode probe and is affordable; the settings probe needs a writable child environment on two OSes and may find that G5's answer is "the memory backend", which is a second, larger piece of work |
 | 6 | Ship GTK's own gettext catalogues in both bundles (G4) | **The expensive one.** ~50 languages × GTK + GLib + libadwaita is tens of MiB on a bundle that is already 81.6 MB on win32 (ADR 0023:38 — a published package size, not re-measured here), and it needs a language-selection policy (all / a set / author-chosen) that nothing in the tree has. Naming it here so the gap stops being invisible; deciding it is not this ADR's business |

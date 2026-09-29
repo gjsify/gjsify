@@ -403,7 +403,7 @@ object id". That gives eleven, and every one is accounted for:
 | an identifier inside an expression | `identConstantText` | checked (`objectRef`), in both shapes it takes — a `<lookup>`'s text and a `<constant>` element |
 | `type` on a `<lookup>` | `expressionType` | NOT a reference — it is the GType NAME of the object the id names, read out of the same index, and a `<lookup type=…>` GtkBuilder cannot resolve is a type error and not a missing id. The id it was derived FROM is checked one row up, on the same node |
 
-The two unchecked ones are in `status/open-todos.md` with what each would take. The rule for
+The two unchecked ones are in `status/open-todos/README.md` with what each would take. The rule for
 anyone adding another: if the string is an id, it takes `objectRef`, and it gets a file under
 `corpus/refused/` so stage E holds the refusal by name and by line.
 
