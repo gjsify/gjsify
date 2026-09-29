@@ -168,8 +168,11 @@ function writeWorkspace(root) {
     mkdirSync(join(root, 'packages', 'signal', 'src'), { recursive: true });
     writeFileSync(
         join(root, 'package.json'),
-        JSON.stringify({ name: 'freshness-workspace-root', private: true, workspaces: ['app', 'packages/*'] }, null, 2) +
-            '\n',
+        JSON.stringify(
+            { name: 'freshness-workspace-root', private: true, workspaces: ['app', 'packages/*'] },
+            null,
+            2,
+        ) + '\n',
         'utf-8',
     );
     writeFileSync(
@@ -190,7 +193,13 @@ function writeWorkspace(root) {
     writeFileSync(
         join(root, 'packages', 'signal', 'package.json'),
         JSON.stringify(
-            { name: '@fixture/signal', version: '1.0.0', type: 'module', private: true, exports: { '.': './src/index.ts' } },
+            {
+                name: '@fixture/signal',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                exports: { '.': './src/index.ts' },
+            },
             null,
             2,
         ) + '\n',
@@ -202,7 +211,11 @@ function writeWorkspace(root) {
         'utf-8',
     );
     // What `yarn install`/`npm install` lays down for a workspace member.
-    symlinkSync(join('..', '..', '..', 'packages', 'signal'), join(root, 'app', 'node_modules', '@fixture', 'signal'), 'dir');
+    symlinkSync(
+        join('..', '..', '..', 'packages', 'signal'),
+        join(root, 'app', 'node_modules', '@fixture', 'signal'),
+        'dir',
+    );
     writeSignal(root, 'ALPHA_SIGNAL');
 }
 
@@ -242,7 +255,158 @@ describe('gjsify test — a workspace package outside the app (postbote)', { tim
         assert.doesNotMatch(emitted, /ALPHA_SIGNAL/);
     });
 
+    it('leaves the recorded input set untouched when the build FAILS, and rebuilds after', async () => {
+        const manifest = join(root, 'app', 'dist', 'test.node.mjs.inputs.json');
+        const before = readFileSync(manifest, 'utf-8');
+        const bundleBefore = bundle();
+
+        // A build that fails leaves the OLD bundle and the OLD manifest: a
+        // half-recorded set would describe modules the artifact does not
+        // contain, and the next run would trust it.
+        writeSignal(root, 'export const MARKER = ;\n');
+        const failed = await runTest();
+        assert.equal(failed.status, 1, `a syntax error must fail the run:\n${failed.stdout}\n${failed.stderr}`);
+        assert.ok(
+            `${failed.stdout}${failed.stderr}`.includes('building →'),
+            'a changed source must still reach the build stage',
+        );
+        assert.equal(readFileSync(manifest, 'utf-8'), before, 'a failed build must not rewrite the input set');
+        assert.equal(bundle(), bundleBefore, 'a failed build must leave the previous bundle in place');
+
+        // …and the repair is picked up, which is the point of keeping it.
+        writeSignal(root, 'DELTA_SIGNAL');
+        assert.ok(rebuilt(await runTest()), 'the repair must rebuild');
+        assert.match(bundle(), /DELTA_SIGNAL/);
+    });
+
     it('does NOT rebuild when neither the app nor the package moved (negative arm)', async () => {
         assert.equal(rebuilt(await runTest()), false, 'an untouched workspace must not rebuild');
+    });
+});
+
+/**
+ * The bundler is not the only party that reads an input. `gjsify-css-as-string`
+ * follows a stylesheet's own `@import` chain itself — `flattenCssImports` on
+ * the GJS-native backend, the shared resolver on npm — and none of those files
+ * is a module, so no module graph mentions `base.css`. An edit to it left this
+ * suite's app "fresh" and the run reporting a CSS bundle flattened before the
+ * edit.
+ */
+function writeCssWorkspace(root) {
+    mkdirSync(join(root, 'app', 'src'), { recursive: true });
+    mkdirSync(join(root, 'app', 'node_modules', '@fixture'), { recursive: true });
+    mkdirSync(join(root, 'packages', 'theme', 'src'), { recursive: true });
+    writeFileSync(
+        join(root, 'app', 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/app',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                dependencies: { '@fixture/theme': '*' },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'packages', 'theme', 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/theme',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                exports: { '.': './src/index.css' },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'app', 'src', 'test.mts'),
+        ["import css from '@fixture/theme';", 'console.log(`css bytes: ${css.length}`);', ''].join('\n'),
+        'utf-8',
+    );
+    symlinkSync(
+        join('..', '..', '..', 'packages', 'theme'),
+        join(root, 'app', 'node_modules', '@fixture', 'theme'),
+        'dir',
+    );
+    writeFileSync(
+        join(root, 'packages', 'theme', 'src', 'index.css'),
+        '@import "./base.css";\n.themed { color: red; }\n',
+        'utf-8',
+    );
+    writeBaseCss(root, false);
+}
+
+/**
+ * The IMPORTED stylesheet, and only it. `index.css` IS a module of the graph,
+ * so touching it rebuilds for a reason that has nothing to do with the
+ * `@import` chain — and would let this arm pass against the unfixed code.
+ */
+function writeBaseCss(root, edited) {
+    writeFileSync(
+        join(root, 'packages', 'theme', 'src', 'base.css'),
+        `.base { color: rebeccapurple; }\n${edited ? '.edited { padding: 3px; }\n' : ''}`,
+        'utf-8',
+    );
+}
+
+describe('gjsify test — a file the bundler never saw (an `@import`ed stylesheet)', { timeout: 300_000 }, () => {
+    let root;
+
+    const runTest = () =>
+        runCli(CLI_ENTRY, ['test', '--runtime', 'node', '--verbose'], {
+            cwd: join(root, 'app'),
+            timeoutMs: 120_000,
+        });
+
+    const bundle = () => readFileSync(join(root, 'app', 'dist', 'test.node.mjs'), 'utf-8');
+
+    /**
+     * The flattened stylesheet's byte count, as the RUN reported it. The CSS
+     * itself is constant-folded into that number and never reaches the artifact,
+     * so a count that grew is the evidence that the rebuild measured the bigger
+     * stylesheet — no hardcoded length, which would rot with every
+     * lightningcss version.
+     */
+    const cssBytes = (result) => {
+        const match = `${result.stdout}${result.stderr}`.match(/css bytes: (\d+)/);
+        assert.ok(match, `the run did not print the stylesheet size:\n${result.stdout}\n${result.stderr}`);
+        return Number(match[1]);
+    };
+
+    before(() => {
+        root = mkdtempSync(join(tmpdir(), 'gjsify-test-freshness-css-'));
+        writeCssWorkspace(root);
+    });
+
+    after(() => {
+        if (root) rmSync(root, { recursive: true, force: true });
+    });
+
+    it('rebuilds when a stylesheet the CSS plugin @imported changes', async () => {
+        const cold = await runTest();
+        assert.ok(rebuilt(cold), 'the cold run must build');
+        const before = cssBytes(cold);
+
+        // Only `base.css` moves — the file `index.css` pulls in, in another
+        // package, that is not a module of the graph.
+        writeBaseCss(root, true);
+        const warm = await runTest();
+        assert.ok(rebuilt(warm), 'an @import-ed stylesheet must invalidate the app bundle');
+        assert.ok(
+            cssBytes(warm) > before,
+            `the rebuild must measure the grown stylesheet: ${before} → ${cssBytes(warm)}`,
+        );
+    });
+
+    it('does NOT rebuild when the whole stylesheet chain is untouched (negative arm)', async () => {
+        assert.equal(rebuilt(await runTest()), false, 'an untouched chain must not rebuild');
     });
 });
