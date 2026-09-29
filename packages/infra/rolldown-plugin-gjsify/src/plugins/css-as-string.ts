@@ -102,7 +102,15 @@ async function pickBundler(): Promise<Bundler> {
     }
 
     const native = await tryLoadNativeBundler();
-    return native ?? loadNpmBundler();
+    if (native) return native;
+    // The npm fallback is the right answer, and it is silent on purpose — a
+    // missing optional backend is not an error. But if we MEASURED why the
+    // native one would not load, that measurement is the only place the user
+    // ever hears it, so it goes to the same `console.debug` channel
+    // `loadOptionalNativeModule` uses rather than into nothing. A backend that
+    // cannot load is the reason someone reaches for this flag.
+    if (_nativeLoadError) console.debug(_nativeLoadError.message);
+    return loadNpmBundler();
 }
 
 // Local mirror of the @gjsify/lightningcss-native surface we touch. We

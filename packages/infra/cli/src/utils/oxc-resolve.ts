@@ -314,7 +314,14 @@ export async function shouldUseNativeOxfmt(): Promise<boolean> {
     }
 
     if (!isGjs()) return false;
-    return (await tryLoadNativeOxfmt()) !== null;
+    const native = (await tryLoadNativeOxfmt()) !== null;
+    // Falling back to the npm launcher is not an error, so the default path is
+    // quiet — but a MEASURED reason why the native bridge would not load is the
+    // only place the user hears it, and it is the whole point of measuring.
+    // `GJSIFY_OXFMT=native` above throws with this text; the default earns the
+    // same answer for free.
+    if (!native && _nativeOxfmtLoadError) console.debug(_nativeOxfmtLoadError.message);
+    return native;
 }
 
 /**
