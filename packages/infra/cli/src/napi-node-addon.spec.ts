@@ -285,14 +285,20 @@ export default async () => {
             // the point of a cross-build. `build/Release` was compiled HERE, so
             // keying it by the target made the table claim an x64 binary for an
             // arm64 host: a wrong answer where a missing one would be survivable.
+            //
+            // The cross target must DIFFER from this runner's own arch, or the
+            // override is a no-op and the assertion below inverts: the arm64 GJS
+            // suite job runs on arm64, where keying by the BUILD host and keying
+            // by the target are the same answer.
+            const crossArch = process.arch === 'arm64' ? 'x64' : 'arm64';
             const before = { p: process.env.npm_config_platform, a: process.env.npm_config_arch };
             try {
-                process.env.npm_config_platform = 'darwin';
-                process.env.npm_config_arch = 'arm64';
+                process.env.npm_config_platform = process.platform;
+                process.env.npm_config_arch = crossArch;
                 const root = makeFixture((r) => touch(join(r, 'build', 'Release'), 'x.node'));
                 const table = enumerateAddonTargets(root, { name: 'fixture-addon' });
                 expect(Object.values(table)).toContain(specOf('build/Release/x.node'));
-                expect(Object.keys(table).some((k) => k === 'darwin-arm64')).toBe(false);
+                expect(Object.keys(table).some((k) => k === `${process.platform}-${crossArch}`)).toBe(false);
                 rmSync(root, { recursive: true, force: true });
             } finally {
                 if (before.p === undefined) delete process.env.npm_config_platform;

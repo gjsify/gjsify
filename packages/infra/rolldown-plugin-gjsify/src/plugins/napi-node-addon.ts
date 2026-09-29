@@ -396,7 +396,7 @@ export function enumerateAddonTargets(pkgRoot: string, pkg: AddonPackageJson): R
                 const best = selectPrebuildFile(files, makeTarget(tuple.platform, arch, libc, undefined));
                 if (best === null) continue;
                 targets[addonPlatformKey(tuple.platform, arch, libc)] =
-                    `${pkgName}/${relative(pkgRoot, join(prebuildsDir, tuple.name, best.file))}`;
+                    `${pkgName}/${subpathOf(pkgRoot, join(prebuildsDir, tuple.name, best.file))}`;
             }
         }
     }
@@ -408,7 +408,7 @@ export function enumerateAddonTargets(pkgRoot: string, pkg: AddonPackageJson): R
         const dir = join(pkgRoot, 'build', flavor);
         const hit = firstNodeFile(dir);
         if (hit) {
-            targets[hostKey] = `${pkgName}/${relative(pkgRoot, join(dir, hit.file))}`;
+            targets[hostKey] = `${pkgName}/${subpathOf(pkgRoot, join(dir, hit.file))}`;
             break; // Release wins
         }
     }
@@ -795,6 +795,20 @@ export function hostNapiRsTriple(): string | null {
         default:
             return null;
     }
+}
+
+/**
+ * The path of `abs` inside `pkgRoot`, as a `/`-separated MODULE SUBPATH.
+ *
+ * `relative()` answers in the HOST's separator, so on win32 the table carried
+ * `pkg/prebuilds\\win32-x64\\node.napi.node` while every other value in it — and
+ * the resolver's own `splitPackageSpec`, which splits on `/` — is `/`-separated.
+ * `join` happened to absorb the difference, so the bundle still loaded; what did
+ * not survive is the table as BYTES: the same tree then serialised differently
+ * per platform, which is the reproducibility `verify-committed-bundles` reads.
+ */
+function subpathOf(pkgRoot: string, abs: string): string {
+    return relative(pkgRoot, abs).split('\\').join('/');
 }
 
 /**
