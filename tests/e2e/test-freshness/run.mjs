@@ -23,7 +23,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -70,21 +70,21 @@ function writeMarker(projectDir, marker) {
 
 const bundleOf = (projectDir) => readFileSync(join(projectDir, 'dist', 'test.node.mjs'), 'utf-8');
 
+/** What a run decided, read off the verbose log rather than inferred. */
+function rebuilt(result) {
+    assert.equal(result.status, 0, `gjsify test failed:\n${result.stdout}\n${result.stderr}`);
+    const log = `${result.stdout}${result.stderr}`;
+    const built = log.includes('building →');
+    const skipped = log.includes('bundle is up-to-date');
+    assert.ok(built !== skipped, `log says neither built nor skipped:\n${log}`);
+    return built;
+}
+
 describe('gjsify test — bundle freshness (#1651)', { timeout: 300_000 }, () => {
     let projectDir;
 
     const runTest = () =>
         runCli(CLI_ENTRY, ['test', '--runtime', 'node', '--verbose'], { cwd: projectDir, timeoutMs: 120_000 });
-
-    /** What the run decided, read off the verbose log rather than inferred. */
-    const rebuilt = (result) => {
-        assert.equal(result.status, 0, `gjsify test failed:\n${result.stdout}\n${result.stderr}`);
-        const log = `${result.stdout}${result.stderr}`;
-        const built = log.includes('building →');
-        const skipped = log.includes('bundle is up-to-date');
-        assert.ok(built !== skipped, `log says neither built nor skipped:\n${log}`);
-        return built;
-    };
 
     before(async () => {
         projectDir = mkdtempSync(join(tmpdir(), 'gjsify-test-freshness-'));
@@ -146,5 +146,103 @@ describe('gjsify test — bundle freshness (#1651)', { timeout: 300_000 }, () =>
         writeMarker(projectDir, 'CHARLIE_MARKER');
         assert.ok(rebuilt(await runTest()));
         assert.match(bundleOf(projectDir), /CHARLIE_MARKER/);
+    });
+});
+
+/**
+ * A consumer whose test bundle imports a SIBLING workspace package — the
+ * layout of postbote (`app/` + `packages/*`, one repo, the packages symlinked
+ * into the app's `node_modules`), and the shape that found the second half of
+ * this defect: the package walk sees every file under the APP, and a workspace
+ * package is not under the app. An edit to `packages/signal/src/receiver.ts`
+ * therefore left the bundle "fresh" and the run reported on code that was no
+ * longer on disk — a stale GREEN, the worst kind of wrong.
+ *
+ * The input set that can answer this is the BUNDLE's, not the app's: the
+ * bundler is the only party that knows a bare specifier resolved through
+ * `node_modules/@fixture/signal` into `packages/signal/src/`.
+ */
+function writeWorkspace(root) {
+    mkdirSync(join(root, 'app', 'src'), { recursive: true });
+    mkdirSync(join(root, 'app', 'node_modules', '@fixture'), { recursive: true });
+    mkdirSync(join(root, 'packages', 'signal', 'src'), { recursive: true });
+    writeFileSync(
+        join(root, 'package.json'),
+        JSON.stringify({ name: 'freshness-workspace-root', private: true, workspaces: ['app', 'packages/*'] }, null, 2) +
+            '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'app', 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/app',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                dependencies: { '@fixture/signal': 'workspace:*' },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'packages', 'signal', 'package.json'),
+        JSON.stringify(
+            { name: '@fixture/signal', version: '1.0.0', type: 'module', private: true, exports: { '.': './src/index.ts' } },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'app', 'src', 'test.mts'),
+        ["import { MARKER } from '@fixture/signal';", 'console.log(`fixture marker: ${MARKER}`);', ''].join('\n'),
+        'utf-8',
+    );
+    // What `yarn install`/`npm install` lays down for a workspace member.
+    symlinkSync(join('..', '..', '..', 'packages', 'signal'), join(root, 'app', 'node_modules', '@fixture', 'signal'), 'dir');
+    writeSignal(root, 'ALPHA_SIGNAL');
+}
+
+function writeSignal(root, marker) {
+    writeFileSync(join(root, 'packages', 'signal', 'src', 'index.ts'), `export const MARKER = '${marker}';\n`, 'utf-8');
+}
+
+describe('gjsify test — a workspace package outside the app (postbote)', { timeout: 300_000 }, () => {
+    let root;
+
+    const runTest = () =>
+        runCli(CLI_ENTRY, ['test', '--runtime', 'node', '--verbose'], {
+            cwd: join(root, 'app'),
+            timeoutMs: 120_000,
+        });
+
+    const bundle = () => readFileSync(join(root, 'app', 'dist', 'test.node.mjs'), 'utf-8');
+
+    before(() => {
+        root = mkdtempSync(join(tmpdir(), 'gjsify-test-freshness-ws-'));
+        writeWorkspace(root);
+    });
+
+    after(() => {
+        if (root) rmSync(root, { recursive: true, force: true });
+    });
+
+    it('rebuilds when a workspace package it imports changes', async () => {
+        assert.ok(rebuilt(await runTest()), 'the cold run must build');
+        assert.match(bundle(), /ALPHA_SIGNAL/);
+
+        // Nothing in `app/` moves: only a sibling package the bundle imports.
+        writeSignal(root, 'BRAVO_SIGNAL');
+        assert.ok(rebuilt(await runTest()), 'an edit in packages/signal must invalidate the app bundle');
+        const emitted = bundle();
+        assert.match(emitted, /BRAVO_SIGNAL/);
+        assert.doesNotMatch(emitted, /ALPHA_SIGNAL/);
+    });
+
+    it('does NOT rebuild when neither the app nor the package moved (negative arm)', async () => {
+        assert.equal(rebuilt(await runTest()), false, 'an untouched workspace must not rebuild');
     });
 });
