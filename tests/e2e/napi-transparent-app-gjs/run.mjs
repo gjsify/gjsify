@@ -47,7 +47,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../helpers.mjs';
@@ -229,6 +229,44 @@ describe('napi transparent .node loading under --app gjs', { timeout: 15 * 60 * 
         assert.ok(
             path.includes(`lightningcss-${HOST}`),
             `loadAddon got a foreign-platform binary (host is ${HOST}): ${path}`,
+        );
+    });
+
+    it('resolves the addon from the MOVED tree, not the build location', () => {
+        // ADR 0084: the bundle must find its addon at RUN time from its own
+        // location, not bake the build host's absolute path. Move the whole
+        // project (bundle + node_modules together) to a different path and run
+        // the bundle from there — the resolved addon path must follow.
+        if (!gjsAvailable()) {
+            assert.fail('gjs not on PATH; this regression test requires the gjs runtime.');
+        }
+        const buildDir = projectDir;
+        const movedDir = join(tmpDir, 'moved-project');
+        renameSync(buildDir, movedDir);
+        projectDir = movedDir;
+        bundlePath = join(movedDir, 'dist', 'bundle.js');
+
+        const result = spawnSync('gjs', ['-m', bundlePath], { encoding: 'utf8', timeout: 60 * 1000 });
+        const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+        assert.strictEqual(result.status, 0, `gjs exited non-zero. Combined output:\n${combined}`);
+
+        assert.match(
+            result.stdout,
+            /^LOADADDON_COUNT=1$/m,
+            `expected exactly one loadAddon call after the move. Combined output:\n${combined}`,
+        );
+        const path = /^LOADADDON_PATH=(.+)$/m.exec(result.stdout)?.[1] ?? '';
+        assert.ok(path.endsWith('.node'), `loadAddon was not handed a .node: ${path}`);
+        assert.ok(
+            path.startsWith(movedDir),
+            `loadAddon got a path from the BUILD location, not the moved one.\n` +
+                `  build dir:  ${buildDir}\n` +
+                `  moved dir:  ${movedDir}\n` +
+                `  got:        ${path}`,
+        );
+        assert.ok(
+            !path.startsWith(buildDir),
+            `loadAddon still resolves to the BUILD-time path after the move: ${path}`,
         );
     });
 });

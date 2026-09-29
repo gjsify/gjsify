@@ -25,6 +25,9 @@
         "./shims/module-resolve": {
             "default": "./lib/shims/module-resolve.js"
         },
+        "./shims/addon-resolve": {
+            "default": "./lib/shims/addon-resolve.js"
+        },
         "./shims/unicorn-magic": {
             "default": "./lib/shims/unicorn-magic.js"
         }

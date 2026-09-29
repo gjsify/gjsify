@@ -188,51 +188,93 @@ export default async () => {
     });
 
     await describe('napi-node-addon: shim shapes (bare @gjsify/napi + loadAddon)', async () => {
-        const ABS = '/abs/build/Release/addon.node';
+        const TABLE = '{"linux-x64":"pkg/prebuilds/linux-x64/node.napi.node"}';
         const bareImport = JSON.stringify('@gjsify/napi'); // "@gjsify/napi"
-        const addonArg = `loadAddon(${JSON.stringify(ABS)})`;
+        const resolveCall = `__gjsifyAddonResolve(${TABLE})`;
         await it('directNodeShim: ESM default from bare @gjsify/napi', () => {
-            const code = directNodeShim(ABS);
+            const code = directNodeShim(TABLE);
             expect(code).toContain(`import { loadAddon } from ${bareImport}`);
-            expect(code).toContain(`export default ${addonArg}`);
+            expect(code).toContain(`export default loadAddon(${resolveCall})`);
             expect(code).not.toContain('lib/esm/index.js'); // never an absolute lib path
         });
         await it('nodeGypBuildShim: CJS callable load() with .path(), bare require', () => {
-            const code = nodeGypBuildShim(ABS);
+            const code = nodeGypBuildShim(TABLE);
             expect(code).toContain(`require(${bareImport})`);
             expect(code).toContain('module.exports = load');
             expect(code).toContain('load.path');
-            expect(code).toContain(addonArg);
+            expect(code).toContain(resolveCall);
         });
         await it('bindingsShim: CJS callable bindings(), bare require', () => {
-            const code = bindingsShim(ABS);
+            const code = bindingsShim(TABLE);
             expect(code).toContain(`require(${bareImport})`);
             expect(code).toContain('module.exports = bindings');
         });
         await it('napiRsShim: raw native exports as module.exports', () => {
-            const code = napiRsShim(ABS);
+            const code = napiRsShim(TABLE);
             expect(code).toContain(`require(${bareImport})`);
-            expect(code).toContain(`module.exports = ${addonArg}`);
+            expect(code).toContain(`module.exports = loadAddon(${resolveCall})`);
+        });
+    });
+
+    // ADR 0084: the shim must resolve the addon at RUN time from the bundle's
+    // own location, not bake the build host's absolute path. The shim emits
+    // `__gjsifyAddonResolve(<table>)` — a runtime resolver that picks the
+    // right `.node` for the running host — instead of `loadAddon(<abs>)`.
+    await describe('napi-node-addon: ADR 0084 runtime-resolvable shim shapes', async () => {
+        const TABLE = '{"linux-x64":"pkg/prebuilds/linux-x64/node.napi.node","*":"pkg/build/Release/node.node"}';
+        const resolveCall = `__gjsifyAddonResolve(${TABLE})`;
+        await it('directNodeShim: ESM default via __gjsifyAddonResolve, no baked absolute path', () => {
+            const code = directNodeShim(TABLE);
+            expect(code).toContain(`import { loadAddon } from "@gjsify/napi"`);
+            expect(code).toContain(`import { __gjsifyAddonResolve } from "@gjsify/rolldown-plugin-gjsify/shims/addon-resolve"`);
+            expect(code).toContain(`export default loadAddon(${resolveCall})`);
+            expect(code).not.toContain('/abs/');
+        });
+        await it('nodeGypBuildShim: CJS callable load() via __gjsifyAddonResolve', () => {
+            const code = nodeGypBuildShim(TABLE);
+            expect(code).toContain(`require("@gjsify/napi")`);
+            expect(code).toContain(`require("@gjsify/rolldown-plugin-gjsify/shims/addon-resolve")`);
+            expect(code).toContain(`module.exports = load`);
+            expect(code).toContain('load.path');
+            expect(code).toContain(resolveCall);
+            expect(code).not.toContain('/abs/');
+        });
+        await it('bindingsShim: CJS callable bindings() via __gjsifyAddonResolve', () => {
+            const code = bindingsShim(TABLE);
+            expect(code).toContain(`require("@gjsify/napi")`);
+            expect(code).toContain(`require("@gjsify/rolldown-plugin-gjsify/shims/addon-resolve")`);
+            expect(code).toContain('module.exports = bindings');
+            expect(code).toContain(resolveCall);
+            expect(code).not.toContain('/abs/');
+        });
+        await it('napiRsShim: raw native exports via __gjsifyAddonResolve', () => {
+            const code = napiRsShim(TABLE);
+            expect(code).toContain(`require("@gjsify/napi")`);
+            expect(code).toContain(`require("@gjsify/rolldown-plugin-gjsify/shims/addon-resolve")`);
+            expect(code).toContain(`module.exports = loadAddon(${resolveCall})`);
+            expect(code).not.toContain('/abs/');
         });
     });
 
     await describe('napi-node-addon: plugin resolveId + load', async () => {
-        await it('claims bindings, encodes the resolved .node, and load() emits the shim', async () => {
+        await it('claims bindings, encodes the resolved .node table, and load() emits the shim', async () => {
             const root = makeFixture((r) => touch(join(r, 'build', 'Release'), 'node_sqlite3.node'));
             const importer = join(root, 'lib', 'sqlite3-binding.js');
             mkdirSync(join(root, 'lib'), { recursive: true });
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const handler = handlerOf(plugin);
             const res = await handler.call(mockCtx(), 'bindings', importer);
-            const addonAbs = join(root, 'build', 'Release', 'node_sqlite3.node');
-            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:bindings:${addonAbs}` });
+            // ADR 0084: the virtual id carries a platform-keyed TABLE, not an absolute path.
+            const hostKey = `${process.platform}-${process.arch}`;
+            const table = { [hostKey]: 'fixture-addon/build/Release/node_sqlite3.node' };
+            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:bindings:${JSON.stringify(table)}` });
 
             const load = (plugin as { load?: (id: string) => { code: string; moduleSideEffects: boolean } | null })
                 .load;
             const out = load?.(res!.id);
             expect(out?.moduleSideEffects).toBe(false);
             expect(out?.code).toContain('module.exports = bindings');
-            expect(out?.code).toContain(`loadAddon(${JSON.stringify(addonAbs)})`);
+            expect(out?.code).toContain('__gjsifyAddonResolve');
             rmSync(root, { recursive: true, force: true });
         });
 
@@ -243,7 +285,9 @@ export default async () => {
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const handler = handlerOf(plugin);
             const res = await handler.call(mockCtx(), './build/Release/x.node', importer);
-            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:direct:${abs}` });
+            // ADR 0084: a direct .node gets a `*` entry naming the file's package spec.
+            const table = { '*': abs };
+            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:direct:${JSON.stringify(table)}` });
             const load = (plugin as { load?: (id: string) => { code: string } | null }).load;
             expect(load?.(res!.id)?.code).toContain('export default loadAddon');
             rmSync(root, { recursive: true, force: true });
@@ -263,13 +307,13 @@ export default async () => {
             const abs = '/nm/@node-rs/argon2-linux-x64-gnu/argon2.linux-x64-gnu.node';
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const handler = handlerOf(plugin);
-            // Resolves to a .node → claimed as napi-rs.
+            // Resolves to a .node → claimed as napi-rs. ADR 0084: a `*` entry.
             const hit = await handler.call(
                 mockCtx({ '@node-rs/argon2-linux-x64-gnu': abs }),
                 '@node-rs/argon2-linux-x64-gnu',
                 '/nm/@node-rs/argon2/index.js',
             );
-            expect(hit).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs:${abs}` });
+            expect(hit).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs:${JSON.stringify({ '*': abs })}` });
             // Resolves to a NON-.node (a normal package that merely matches the tail) → null.
             const miss = await handler.call(
                 mockCtx({ 'weird-linux-x64': '/nm/weird-linux-x64/index.js' }),
@@ -616,20 +660,27 @@ export default async () => {
             return { root, entry: join(root, 'index.js'), sibling, siblingNode };
         }
 
-        await it('replaces the generated loader with module.exports = loadAddon(<sibling .node>)', async () => {
+        await it('replaces the generated loader with module.exports = loadAddon(__gjsifyAddonResolve(<table>))', async () => {
             const { root, entry, sibling, siblingNode } = makeEntryFixture();
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const handler = handlerOf(plugin);
             // Only the CURRENT-platform sibling resolves (npm installs one).
             const ctx = mockCtx({ [sibling]: siblingNode });
             const res = await handler.call(ctx, entry, undefined);
-            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs-entry:${siblingNode}` });
+            // ADR 0084: the virtual id carries a platform-keyed TABLE, not an absolute path.
+            const triple = hostNapiRsTriple()!;
+            const key = triple.endsWith('-musl')
+                ? triple
+                : triple.replace(/-(?:gnu|msvc|eabi|eabihf|androideabi|gnueabihf)$/, '');
+            const spec = `@node-rs/argon2-${triple}/argon2.${triple}.node`;
+            const table = { [key]: spec };
+            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs-entry:${JSON.stringify(table)}` });
 
             const load = (plugin as { load?: (id: string) => { code: string; moduleSideEffects: boolean } | null })
                 .load;
             const out = load?.(res!.id);
             expect(out?.moduleSideEffects).toBe(false);
-            expect(out?.code).toContain(`module.exports = loadAddon(${JSON.stringify(siblingNode)})`);
+            expect(out?.code).toContain('module.exports = loadAddon(__gjsifyAddonResolve(');
             expect(out?.code).toContain('require("@gjsify/napi")');
             rmSync(root, { recursive: true, force: true });
         });
@@ -673,7 +724,13 @@ export default async () => {
 
             const plugin = napiNodeAddonPlugin({ warnOnMissingNapi: false });
             const res = await handlerOf(plugin).call(mockCtx({ [sibling]: siblingNode }), entry, undefined);
-            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs-entry:${siblingNode}` });
+            // ADR 0084: the virtual id carries a platform-keyed TABLE, not an absolute path.
+            const key = triple.endsWith('-musl')
+                ? triple
+                : triple.replace(/-(?:gnu|msvc|eabi|eabihf|androideabi|gnueabihf)$/, '');
+            const spec = `@rolldown/binding-${triple}/rolldown-binding.${triple}.node`;
+            const table = { [key]: spec };
+            expect(res).toStrictEqual({ id: `\0gjsify-napi-addon:napi-rs-entry:${JSON.stringify(table)}` });
             rmSync(root, { recursive: true, force: true });
         });
 

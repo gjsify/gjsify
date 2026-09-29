@@ -43,10 +43,11 @@
 // the handler's internal guard is the load-bearing check.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { Plugin } from 'rolldown';
 
 import { GJSIFY_VIRTUAL_PREFIX } from '../utils/virtual-module-id.js';
+import { addonPlatformKey, normalizeNapiRsTriple } from '../utils/addon-platform.js';
 
 const NAPI_ADDON_VIRTUAL_PREFIX = `${GJSIFY_VIRTUAL_PREFIX}napi-addon:`;
 
@@ -270,6 +271,77 @@ export class AddonNotBuiltError extends Error {
 }
 
 /**
+ * Enumerate every `.node` an addon package ships, keyed by platform, as a
+ * `<package>/<subpath>` spec per entry. ADR 0084: the build ENUMERATES, it
+ * does not select — the bundle picks the right entry at RUN time from the
+ * host it finds itself on.
+ *
+ * The table has:
+ *   - One entry per `prebuilds/<tuple>/` directory, keyed by the tuple's
+ *     platform. Per-tuple tag selection stays node-gyp-build's (best tag by
+ *     specificity), so the entry for the build host is the binary Node would
+ *     load.
+ *   - One entry per `build/Release` and `build/Debug` for the build host,
+ *     overriding the prebuilds entry for the same key (node-gyp-build order:
+ *     build/Release wins over prebuilds).
+ *
+ * Returns an empty record when no `.node` exists anywhere — the caller then
+ * throws {@link AddonNotBuiltError} as a build-time gate.
+ */
+export function enumerateAddonTargets(
+    pkgRoot: string,
+    pkg: AddonPackageJson,
+): Record<string, string> {
+    const targets: Record<string, string> = {};
+    const pkgName = typeof pkg.name === 'string' && pkg.name ? pkg.name : null;
+    if (!pkgName) return targets;
+
+    // 1. prebuilds/<tuple>/<best tag> per tuple (all platforms).
+    const prebuildsDir = join(pkgRoot, 'prebuilds');
+    for (const tupleName of readdirSafe(prebuildsDir)) {
+        const tuple = parseTuple(tupleName);
+        if (!tuple) continue;
+        const tupleDir = join(prebuildsDir, tupleName);
+        const files = readdirSafe(tupleDir)
+            .map(parseTags)
+            .filter((t): t is Tags => t !== null);
+        if (files.length === 0) continue;
+
+        // Best file per libc variant (glibc, musl) + untagged.
+        // A tuple can be multi-arch (`linux-x64+arm64`); the key uses the
+        // first architecture (node-gyp-build's own selection picks one).
+        const arch = tuple.architectures[0];
+        for (const libc of ['glibc', 'musl'] as const) {
+            const matching = files.filter((t) => !t.libc || t.libc === libc);
+            if (matching.length === 0) continue;
+            const best = matching.sort((a, b) => b.specificity - a.specificity)[0];
+            const key = addonPlatformKey(tuple.platform, arch, libc);
+            targets[key] = `${pkgName}/${relative(pkgRoot, join(tupleDir, best.file))}`;
+        }
+        const untagged = files.filter((t) => !t.libc);
+        if (untagged.length > 0) {
+            const best = untagged.sort((a, b) => b.specificity - a.specificity)[0];
+            const key = addonPlatformKey(tuple.platform, arch);
+            targets[key] = `${pkgName}/${relative(pkgRoot, join(tupleDir, best.file))}`;
+        }
+    }
+
+    // 2. build/Release + build/Debug for the build host (overrides prebuilds).
+    const host = hostTarget();
+    const hostKey = addonPlatformKey(host.platform, host.arch, host.libc);
+    for (const flavor of ['Release', 'Debug']) {
+        const dir = join(pkgRoot, 'build', flavor);
+        const hit = firstNodeFile(dir);
+        if (hit) {
+            targets[hostKey] = `${pkgName}/${relative(pkgRoot, join(dir, hit.file))}`;
+            break; // Release wins
+        }
+    }
+
+    return targets;
+}
+
+/**
  * Locate the compiled `.node` for an addon package root, matching node-gyp-build's
  * probe order: `build/Release` → `build/Debug` →
  * `prebuilds/<platform>-<arch>/<best tag>`. Throws {@link AddonNotBuiltError} when
@@ -312,70 +384,83 @@ export function nearestPackageRoot(importerFile: string): string | null {
     return null;
 }
 
+/**
+ * The addon table as a JSON string — the platform-key → `<pkg>/<subpath>`
+ * map the runtime resolver (`__gjsifyAddonResolve`) picks from. ADR 0084.
+ */
+type AddonTable = string;
+
+/** The addon-resolve shim specifier — resolved by the consumer's build. */
+const ADDON_RESOLVE_SHIM = '@gjsify/rolldown-plugin-gjsify/shims/addon-resolve';
+
 /** Direct `.node` import → the addon's exports (ESM default). */
-export function directNodeShim(addonPath: string): string {
+export function directNodeShim(addonTable: AddonTable): string {
     return (
         `import { loadAddon } from ${JSON.stringify(NAPI_BARE_SPECIFIER)};\n` +
-        `export default loadAddon(${JSON.stringify(addonPath)});\n`
+        `import { __gjsifyAddonResolve } from ${JSON.stringify(ADDON_RESOLVE_SHIM)};\n` +
+        `export default loadAddon(__gjsifyAddonResolve(${addonTable}));\n`
     );
 }
 
 /** `node-gyp-build` replacement — a callable `load(dir)` carrying `.path()`. */
-export function nodeGypBuildShim(addonPath: string): string {
+export function nodeGypBuildShim(addonTable: AddonTable): string {
     return (
         `const { loadAddon } = require(${JSON.stringify(NAPI_BARE_SPECIFIER)});\n` +
-        `function load() { return loadAddon(${JSON.stringify(addonPath)}); }\n` +
-        `load.path = function () { return ${JSON.stringify(addonPath)}; };\n` +
+        `const { __gjsifyAddonResolve } = require(${JSON.stringify(ADDON_RESOLVE_SHIM)});\n` +
+        `function load() { return loadAddon(__gjsifyAddonResolve(${addonTable})); }\n` +
+        `load.path = function () { return __gjsifyAddonResolve(${addonTable}); };\n` +
         `load.resolve = load.path;\n` +
         `module.exports = load;\n`
     );
 }
 
 /** `bindings` replacement — a callable `bindings(name)` returning the addon. */
-export function bindingsShim(addonPath: string): string {
+export function bindingsShim(addonTable: AddonTable): string {
     return (
         `const { loadAddon } = require(${JSON.stringify(NAPI_BARE_SPECIFIER)});\n` +
-        `function bindings() { return loadAddon(${JSON.stringify(addonPath)}); }\n` +
+        `const { __gjsifyAddonResolve } = require(${JSON.stringify(ADDON_RESOLVE_SHIM)});\n` +
+        `function bindings() { return loadAddon(__gjsifyAddonResolve(${addonTable})); }\n` +
         `module.exports = bindings;\n`
     );
 }
 
 /** napi-rs sibling → the raw native exports as the module value. */
-export function napiRsShim(addonPath: string): string {
+export function napiRsShim(addonTable: AddonTable): string {
     return (
         `const { loadAddon } = require(${JSON.stringify(NAPI_BARE_SPECIFIER)});\n` +
-        `module.exports = loadAddon(${JSON.stringify(addonPath)});\n`
+        `const { __gjsifyAddonResolve } = require(${JSON.stringify(ADDON_RESOLVE_SHIM)});\n` +
+        `module.exports = loadAddon(__gjsifyAddonResolve(${addonTable}));\n`
     );
 }
 
-function shimFor(kind: AddonShimKind, addonPath: string): string {
+function shimFor(kind: AddonShimKind, addonTable: AddonTable): string {
     switch (kind) {
         case 'direct':
-            return directNodeShim(addonPath);
+            return directNodeShim(addonTable);
         case 'node-gyp-build':
-            return nodeGypBuildShim(addonPath);
+            return nodeGypBuildShim(addonTable);
         case 'bindings':
-            return bindingsShim(addonPath);
+            return bindingsShim(addonTable);
         case 'napi-rs':
         case 'napi-rs-entry':
             // Same body: `napi-rs-entry` replaces the whole GENERATED loader,
             // `napi-rs` a directly-imported platform sibling.
-            return napiRsShim(addonPath);
+            return napiRsShim(addonTable);
     }
 }
 
-function encodeVirtual(kind: AddonShimKind, addonPath: string): string {
-    return `${NAPI_ADDON_VIRTUAL_PREFIX}${kind}:${addonPath}`;
+function encodeVirtual(kind: AddonShimKind, addonTable: AddonTable): string {
+    return `${NAPI_ADDON_VIRTUAL_PREFIX}${kind}:${addonTable}`;
 }
 
-function decodeVirtual(id: string): { kind: AddonShimKind; addonPath: string } | null {
+function decodeVirtual(id: string): { kind: AddonShimKind; addonTable: AddonTable } | null {
     if (!id.startsWith(NAPI_ADDON_VIRTUAL_PREFIX)) return null;
     const rest = id.slice(NAPI_ADDON_VIRTUAL_PREFIX.length);
     const sep = rest.indexOf(':');
     if (sep === -1) return null;
     const kind = rest.slice(0, sep) as AddonShimKind;
-    const addonPath = rest.slice(sep + 1);
-    return { kind, addonPath };
+    const addonTable = rest.slice(sep + 1);
+    return { kind, addonTable };
 }
 
 /** Classify a specifier for interception — pure decision logic, no filesystem. */
@@ -640,7 +725,67 @@ export function hostNapiRsTriple(): string | null {
 /** Decode a napi virtual id back to its raw `.node` path (safety net for a resolve hit). */
 function rawAddonPath(id: string): string {
     const decoded = decodeVirtual(id);
-    return decoded ? decoded.addonPath : id;
+    return decoded ? decoded.addonTable : id;
+}
+
+/**
+ * The `<package>/<subpath>` spec for an absolute `.node` file path — the part
+ * after the LAST `node_modules/` segment, which is what the runtime resolver
+ * feeds to `createRequire(...).resolve`. Always a module SPECIFIER, so always
+ * `/`-separated. A path not under `node_modules/` (a direct import of a local
+ * file) returns the path itself — an edge case that was already broken (the
+ * absolute path was baked in before ADR 0084).
+ */
+function packageSpecFor(absPath: string): string {
+    const normalized = process.platform === 'win32' ? absPath.replaceAll('\\', '/') : absPath;
+    const marker = 'node_modules/';
+    const idx = normalized.lastIndexOf(marker);
+    return idx < 0 ? normalized : normalized.slice(idx + marker.length);
+}
+
+/**
+ * Enumerate every napi-rs platform sibling of `pkg` that resolves to a `.node`,
+ * keyed by the sibling's platform triple. ADR 0084: the build ENUMERATES every
+ * installed sibling, so the bundle picks the right one at RUN time.
+ *
+ * Returns null when no sibling resolves — the caller then falls through to
+ * normal resolution (never a shim over nothing).
+ */
+async function enumerateNapiRsEntryTargets(
+    ctx: AddonResolveContext,
+    pkgRoot: string,
+    pkg: AddonPackageJson,
+    importer: string,
+): Promise<Record<string, string> | null> {
+    const siblings = Object.keys(pkg.optionalDependencies ?? {}).filter((dep) => isNapiRsSibling(pkg, dep));
+    const targets: Record<string, string> = {};
+    for (const dep of siblings) {
+        let resolved: { id: string } | null = null;
+        try {
+            resolved = await ctx.resolve(dep, importer, { skipSelf: true });
+        } catch {
+            continue;
+        }
+        if (!resolved || !resolved.id.endsWith('.node') || !existsSync(resolved.id)) continue;
+        const spec = packageSpecFor(resolved.id);
+        // Extract the triple from the sibling name (`<prefix>-<triple>`).
+        const match = dep.match(NAPI_RS_TRIPLE_RE);
+        const triple = match ? match[0].slice(1) : null;
+        if (!triple) continue;
+        const key = normalizeNapiRsTriple(triple);
+        targets[key] = spec;
+    }
+    // Local in-package binary (`<binaryName>.<triple>.node`) — host triple only.
+    const triple = hostNapiRsTriple();
+    const binaryName = napiBinaryName(pkg);
+    if (binaryName && triple) {
+        const local = join(pkgRoot, `${binaryName}.${triple}.node`);
+        if (existsSync(local)) {
+            const spec = packageSpecFor(local);
+            targets[normalizeNapiRsTriple(triple)] = spec;
+        }
+    }
+    return Object.keys(targets).length > 0 ? targets : null;
 }
 
 /**
@@ -856,7 +1001,8 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                         const abs = await resolveNodeFile(ctx, source, importer);
                         if (abs === null) return null; // unresolvable — let the default chain error
                         if (!(await ensureNapiAvailable(ctx, importer))) return null;
-                        return { id: encodeVirtual('direct', abs) };
+                        const spec = packageSpecFor(abs);
+                        return { id: encodeVirtual('direct', JSON.stringify({ '*': spec })) };
                     }
 
                     // napi-rs platform sibling — confirm it resolves to a `.node`.
@@ -864,7 +1010,8 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                         const resolved = await ctx.resolve(source, importer, { skipSelf: true });
                         if (!resolved || !resolved.id.endsWith('.node')) return null; // not a native sibling
                         if (!(await ensureNapiAvailable(ctx, importer))) return null;
-                        return { id: encodeVirtual('napi-rs', resolved.id) };
+                        const spec = packageSpecFor(resolved.id);
+                        return { id: encodeVirtual('napi-rs', JSON.stringify({ '*': spec })) };
                     }
 
                     // node-gyp-build / bindings — probe the importer's package root.
@@ -872,8 +1019,13 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                     const pkgRoot = nearestPackageRoot(importer);
                     if (pkgRoot === null) return null;
                     if (!(await ensureNapiAvailable(ctx, importer))) return null;
-                    const addonPath = resolveAddonPath(pkgRoot, { warn: (m) => warnSafe(ctx, m) }); // throws → build error
-                    return { id: encodeVirtual(cls.kind, addonPath) };
+                    const pkg = readPackageJsonSafe(pkgRoot);
+                    if (pkg === null) return null;
+                    const table = enumerateAddonTargets(pkgRoot, pkg);
+                    if (Object.keys(table).length === 0) {
+                        throw new AddonNotBuiltError(pkgRoot);
+                    }
+                    return { id: encodeVirtual(cls.kind, JSON.stringify(table)) };
                 }
 
                 // napi-rs GENERATED-LOADER ENTRY. The specifier may be the entry PATH
@@ -885,10 +1037,10 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
                 if (entryFile === null) return null;
                 const entry = detectNapiRsEntryCached(entryFile);
                 if (entry !== null) {
-                    const addonPath = await resolveNapiRsEntryAddon(ctx, entry.pkgRoot, entry.pkg, entryFile);
-                    if (addonPath !== null) {
+                    const table = await enumerateNapiRsEntryTargets(ctx, entry.pkgRoot, entry.pkg, entryFile);
+                    if (table !== null) {
                         if (!(await ensureNapiAvailable(ctx, importer))) return null;
-                        return { id: encodeVirtual('napi-rs-entry', addonPath) };
+                        return { id: encodeVirtual('napi-rs-entry', JSON.stringify(table)) };
                     }
                 }
                 return null;
@@ -897,7 +1049,7 @@ export function napiNodeAddonPlugin(options: NapiNodeAddonPluginOptions = {}): P
         load(id) {
             const decoded = decodeVirtual(id);
             if (decoded === null) return null;
-            return { code: shimFor(decoded.kind, decoded.addonPath), moduleSideEffects: false };
+            return { code: shimFor(decoded.kind, decoded.addonTable), moduleSideEffects: false };
         },
     };
 }
