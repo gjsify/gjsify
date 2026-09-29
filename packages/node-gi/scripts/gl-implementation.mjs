@@ -27,6 +27,18 @@ export const GL_IMPLEMENTATION_PATTERNS = [
     /^libGLESv2.*\.dll$/i,
 ];
 
+/**
+ * What `@gjsify/gl-runtime-win32-x64` carries, extracted from a mesa-dist-win `x64/`
+ * directory by fetch-gl-implementation.mjs: Mesa's WGL front end, named like the Windows OpenGL DLL so gtk-4-1.dll's static
+ * import and epoxy's `LoadLibraryA("OPENGL32")` bind to it once node-gi has preloaded it, and
+ * the gallium image it imports (llvmpipe, plus d3d12 for hosts with a D3D12 device).
+ *
+ * Mesa rather than ANGLE because the gvsbuild GTK is built without EGL — gtk-4-1.dll carries
+ * the WGL context class only, and epoxy has no `egl*` entry points — so an ANGLE `libEGL`
+ * would be loaded by nothing. Measured on the 0.52.0 bundle (GTK 4.22.4).
+ */
+export const GL_IMPLEMENTATION_FILES = ['opengl32.dll', 'libgallium_wgl.dll'];
+
 /** Filenames that are GL DISPATCH only — present, necessary, and not an implementation. */
 export const GL_DISPATCH_PATTERNS = [/^epoxy.*\.dll$/i];
 
@@ -63,8 +75,8 @@ export function formatMissingGlImplementation({ gl, prefixBin }) {
         `${prefixBin}, and ${dispatch} is GL DISPATCH, which resolves nothing on its own. Every Gtk.GLArea will ` +
         'fail with "No GL implementation is available" on a host with no vendor OpenGL ICD (VM, RDP session, CI). ' +
         'Hosts WITH a vendor driver, or with Mesa registered as a system ICD, are unaffected — the implementation ' +
-        'comes from the system there. Note that simply bundling one does not close this: gvsbuild libepoxy is built ' +
-        'without EGL (so ANGLE cannot be reached), and epoxy loads desktop GL by bare name, which Windows answers ' +
-        'from the application directory and System32 but never from PATH. See #1097.'
+        'comes from the system there. The GL implementation for driverless hosts is the OPTIONAL package ' +
+        '@gjsify/gl-runtime-win32-x64 (Mesa), which node-gi preloads when a consumer installs it — it is ' +
+        'kept out of this bundle on purpose (size). See #1097.'
     );
 }

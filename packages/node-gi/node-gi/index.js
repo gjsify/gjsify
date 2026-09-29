@@ -11,6 +11,7 @@ import { hostTarget, nativeCandidates, packageRoot } from './native-paths.js';
 import { describeAddonLoadFailure } from './load-diagnostics.js';
 import {
     activateBundledGtkRuntime,
+    activateBundledOpenGL,
     activateGiLibraryPath,
     maybePrependGtkRuntimeDllPath,
     maybeReexecForGtkRuntime,
@@ -127,6 +128,11 @@ try {
 } catch {
     // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
 }
+
+// win32: decide whether the bundle's Mesa opengl32.dll or the host's OpenGL serves GTK, and
+// preload the bundled one when it wins. Here because gtk-4-1.dll imports OPENGL32 statically,
+// so it must happen before any namespace loads GTK. Reports rather than throws.
+activateBundledOpenGL(native);
 
 // Every OTHER staged prebuild typelib (@gjsify/webkit-native and its kin): same
 // env-free treatment, so a namespace whose typelib is installed in node_modules
@@ -304,5 +310,11 @@ export const setThreadLocale = native.setThreadLocale;
 export const textdomain = native.textdomain;
 export const bindtextdomain = native.bindtextdomain;
 export const localeCategories = native.localeCategories;
+
+// win32 only (undefined elsewhere): which OpenGL the process got — see gtk-runtime.js
+// activateBundledOpenGL. currentGLStrings asks the implementation behind the context
+// current on this thread, so a caller can tell Mesa from a vendor driver.
+export const probeHostOpenGL = native.probeHostOpenGL;
+export const currentGLStrings = native.currentGLStrings;
 
 export default native;

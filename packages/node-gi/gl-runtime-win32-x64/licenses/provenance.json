@@ -1,0 +1,8 @@
+{
+    "$comment": "Which upstream release each vendored licence text was taken from. mesa-dist-win ships no licence text at all, so these travel from here into bin/licenses/. Held by gl-runtime-package.test.mjs: every directory here needs an entry, every entry a directory, and `mesaDistWin` must equal MESA_DIST_WIN.version in scripts/fetch-gl-implementation.mjs.",
+    "mesaDistWin": "26.1.8",
+    "components": {
+        "llvm": "23.1.1",
+        "mesa": "26.1.8"
+    }
+}

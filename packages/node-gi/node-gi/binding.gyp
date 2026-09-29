@@ -10,6 +10,7 @@
         "src/loop.cc",
         "src/marshal.cc",
         "src/object.cc",
+        "src/opengl-win32.cc",
         "src/private.cc",
         "src/repo.cc",
         "src/signals.cc",
