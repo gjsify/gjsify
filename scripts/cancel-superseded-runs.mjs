@@ -245,9 +245,20 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     // program source, and this line only ever needed the action and the number.
     const event = JSON.parse(readFileSync(required(process.env.GITHUB_EVENT_PATH, 'GITHUB_EVENT_PATH'), 'utf8'));
     const where = `${event.action ?? 'this event'} on PR #${event.pull_request?.number ?? '?'}`;
+    // `main.yml`'s cancel-on-early-failure jobs reuse this cancel for runs that
+    // nothing SUPERSEDED — they are cut off because the PR head already failed —
+    // and a log line calling them superseded would be true of the POSTs and wrong
+    // about why they were sent.
+    const why = process.env.CANCEL_REASON
+        ? `${process.env.CANCEL_REASON} on PR #${event.pull_request?.number ?? '?'}`
+        : `superseded by ${where}`;
 
     if (ids.length === 0) {
-        console.log(`No superseded runs for ${where} — nothing to cancel.`);
+        console.log(
+            process.env.CANCEL_REASON
+                ? `No other runs ${why} — nothing to cancel.`
+                : `No superseded runs for ${where} — nothing to cancel.`,
+        );
         process.exit(0);
     }
 
@@ -272,7 +283,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const left =
         result.running.length > 0 ? `; ${result.running.length} did not stop: ${result.running.join(', ')}` : '';
     const level = result.running.length > 0 && result.posted > 0 ? 'warning' : 'notice';
-    console.log(
-        `::${level}::${result.stopped} of ${result.selected} run(s) superseded by ${where} stopped${forced}${left}.`,
-    );
+    console.log(`::${level}::${result.stopped} of ${result.selected} run(s) ${why} stopped${forced}${left}.`);
 }
