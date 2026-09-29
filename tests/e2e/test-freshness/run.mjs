@@ -23,14 +23,72 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MONOREPO_ROOT } from '../helpers.mjs';
+import { MONOREPO_ROOT, e2eSkipReason, prebuildDir } from '../helpers.mjs';
 import { runCli } from '../mock-registry.mjs';
 
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
+const CLI_GJS_BUNDLE = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
+
+/**
+ * The `--app gjs` arm needs the GJS bundle, an interpreter, and the engine's
+ * typelib. Each is DECLARED rather than guarded by an `if`: a host that cannot
+ * run the arm says which precondition was missing, and one that claims it can
+ * (via `GJSIFY_E2E_REQUIRE`) fails instead of going quiet.
+ */
+const GJS_ARCH = process.arch === 'x64' ? 'linux-x64' : process.arch === 'arm64' ? 'linux-arm64' : null;
+const ROLLDOWN_PREBUILD = GJS_ARCH === null ? null : prebuildDir('infra', 'rolldown-native', GJS_ARCH);
+const GJS_FRESHNESS_SKIP = e2eSkipReason('test-freshness (GJS arm)', [
+    ['linux', process.platform === 'linux'],
+    ['a supported arch', GJS_ARCH !== null],
+    ['gjs on PATH', spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0],
+    ['the built cli.gjs.mjs', existsSync(CLI_GJS_BUNDLE)],
+    [
+        'the rolldown-native prebuild typelib',
+        ROLLDOWN_PREBUILD !== null && existsSync(join(ROLLDOWN_PREBUILD, 'GjsifyRolldown-1.0.typelib')),
+    ],
+]);
+
+/**
+ * An isolated fixture has no `node_modules/@gjsify/rolldown-native`, so the
+ * engine's typelib is not on the GI search path the way it is inside the repo.
+ * Point both variables at the repo's prebuild — `GjsifyRolldown.typelib` is the
+ * engine, `libgjsify_rolldown.so` its library.
+ */
+const GJS_ENGINE_ENV = {
+    ...process.env,
+    GI_TYPELIB_PATH: ROLLDOWN_PREBUILD ?? '',
+    LD_LIBRARY_PATH: ROLLDOWN_PREBUILD ?? '',
+};
+
+/** `gjs -m <cli.gjs.mjs> …`, the launcher a consumer's GJS host actually uses. */
+function runCliGjs(args, { cwd, env }) {
+    return new Promise((resolve, reject) => {
+        const child = spawn('gjs', ['-m', CLI_GJS_BUNDLE, ...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.setEncoding('utf-8');
+        child.stderr.setEncoding('utf-8');
+        child.stdout.on('data', (d) => {
+            stdout += d;
+        });
+        child.stderr.on('data', (d) => {
+            stderr += d;
+        });
+        // A kill with a known signal never throws, and a GJS bundle that wedges
+        // on the main loop would otherwise hold the suite open until CI's cap.
+        const kill = setTimeout(() => child.kill('SIGKILL'), 180_000);
+        child.on('close', (status) => {
+            clearTimeout(kill);
+            resolve({ status, stdout, stderr });
+        });
+        child.on('error', reject);
+    });
+}
 
 /**
  * A package whose suite lives in `tests/` and whose code under test lives in
@@ -357,6 +415,120 @@ function writeBaseCss(root, edited) {
     );
 }
 
+/**
+ * A file a PLUGIN inlined, reached through the NATIVE engine.
+ *
+ * Two gaps in one arm, both of which no Node-run suite can reach: the
+ * `--app gjs` path is where `@gjsify/rolldown-native` reports `watchedFiles`
+ * (npm rolldown answers `RolldownBuild.watchFiles` instead, and the node arms
+ * exercise that), and `gjsify-node-modules-path-rewrite` folds
+ * `readFileSync(new URL('./token.txt', import.meta.url))` into a literal, so
+ * the file's bytes are in the bundle while no module graph names it.
+ *
+ * Measured red before the fix: the run reported `bundle is up-to-date` and
+ * printed the OLD token.
+ */
+function writeInlinedReadWorkspace(root) {
+    mkdirSync(join(root, 'app', 'src'), { recursive: true });
+    mkdirSync(join(root, 'app', 'node_modules', '@fixture'), { recursive: true });
+    mkdirSync(join(root, 'packages', 'signal', 'src'), { recursive: true });
+    writeFileSync(
+        join(root, 'app', 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/app',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                dependencies: { '@fixture/signal': '*' },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'packages', 'signal', 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/signal',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                exports: { '.': './src/index.ts' },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'packages', 'signal', 'src', 'index.ts'),
+        [
+            "import { readFileSync } from 'node:fs';",
+            "export const TOKEN = readFileSync(new URL('./token.txt', import.meta.url), 'utf8').trim();",
+            '',
+        ].join('\n'),
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'app', 'src', 'test.mts'),
+        ["import { TOKEN } from '@fixture/signal';", 'console.log(`token: ${TOKEN}`);', ''].join('\n'),
+        'utf-8',
+    );
+    symlinkSync(
+        join('..', '..', '..', 'packages', 'signal'),
+        join(root, 'app', 'node_modules', '@fixture', 'signal'),
+        'dir',
+    );
+    writeToken(root, 'ALPHA_TOKEN');
+}
+
+function writeToken(root, token) {
+    writeFileSync(join(root, 'packages', 'signal', 'src', 'token.txt'), `${token}\n`, 'utf-8');
+}
+
+describe(
+    'gjsify test — an inlined read, through the GJS engine',
+    { skip: GJS_FRESHNESS_SKIP, timeout: 600_000 },
+    () => {
+        let root;
+
+        const runTest = () =>
+            runCliGjs(['test', '--runtime', 'gjs', '--verbose'], { cwd: join(root, 'app'), env: GJS_ENGINE_ENV });
+
+        before(() => {
+            root = mkdtempSync(join(tmpdir(), 'gjsify-test-freshness-gjs-'));
+            writeInlinedReadWorkspace(root);
+        });
+
+        after(() => {
+            if (root) rmSync(root, { recursive: true, force: true });
+        });
+
+        it('rebuilds when a file the rewriter INLINED changes', async () => {
+            const cold = await runTest();
+            assert.equal(cold.status, 0, `gjsify test failed:\n${cold.stdout}\n${cold.stderr}`);
+            assert.ok(rebuilt(cold), 'the cold run must build');
+            assert.match(`${cold.stdout}${cold.stderr}`, /token: ALPHA_TOKEN/);
+
+            // Only `token.txt` moves: its bytes are IN the bundle, no graph names
+            // it, and it is not under the app — so only a declaration can see it.
+            writeToken(root, 'BRAVO_TOKEN');
+            const warm = await runTest();
+            assert.equal(warm.status, 0, `gjsify test failed:\n${warm.stdout}\n${warm.stderr}`);
+            assert.ok(rebuilt(warm), 'an inlined read must invalidate the app bundle');
+            assert.match(`${warm.stdout}${warm.stderr}`, /token: BRAVO_TOKEN/);
+        });
+
+        it('does NOT rebuild when nothing moved (negative arm)', async () => {
+            const run = await runTest();
+            assert.equal(run.status, 0, `gjsify test failed:\n${run.stdout}\n${run.stderr}`);
+            assert.equal(rebuilt(run), false, 'an untouched tree must not rebuild');
+        });
+    },
+);
+
 describe('gjsify test — a file the bundler never saw (an `@import`ed stylesheet)', { timeout: 300_000 }, () => {
     let root;
 
@@ -404,6 +576,29 @@ describe('gjsify test — a file the bundler never saw (an `@import`ed styleshee
             cssBytes(warm) > before,
             `the rebuild must measure the grown stylesheet: ${before} → ${cssBytes(warm)}`,
         );
+    });
+
+    it('refuses to call the bundle fresh when a RECORDED input is gone', async () => {
+        // The other half of "vanished": a recorded input we cannot read is not
+        // evidence that the artifact is current. Deleting a declared stylesheet
+        // must not leave a fresh answer behind — the run reaches the build
+        // stage, where the CSS plugin's read of it fails loudly. What must never
+        // happen is a SKIP, and a manifest rewritten by a build that failed.
+        const manifest = join(root, 'app', 'dist', 'test.node.mjs.inputs.json');
+        const before = readFileSync(manifest, 'utf-8');
+        rmSync(join(root, 'packages', 'theme', 'src', 'base.css'));
+        const run = await runTest();
+        const log = `${run.stdout}${run.stderr}`;
+        assert.ok(!log.includes('bundle is up-to-date'), `a deleted recorded input must not read as fresh:\n${log}`);
+        assert.ok(log.includes('building →'), `the run must reach the build stage:\n${log}`);
+        assert.equal(run.status, 1, `the unreadable stylesheet must fail the build:\n${log}`);
+        assert.equal(readFileSync(manifest, 'utf-8'), before, 'a failed build must not rewrite the input set');
+
+        // …and the restored file is picked up, so the arm leaves no trap.
+        writeBaseCss(root, true);
+        const warm = await runTest();
+        assert.equal(warm.status, 0, `gjsify test failed:\n${warm.stdout}\n${warm.stderr}`);
+        assert.ok(rebuilt(warm), 'the restored stylesheet must rebuild');
     });
 
     it('does NOT rebuild when the whole stylesheet chain is untouched (negative arm)', async () => {
