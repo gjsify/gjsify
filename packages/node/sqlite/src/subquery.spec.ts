@@ -96,6 +96,32 @@ export default async () => {
             db.close();
         });
 
+        // A comment between the keyword and its parenthesis: SQLite's tokenizer skips it
+        // there, so all three of these are one statement, and the rewrite has to skip it
+        // too — otherwise the sub-SELECT is left unwritten and the double parens return.
+        await it('sees a line comment between EXISTS and its parenthesis', async () => {
+            const db = seeded();
+            const rows = db.prepare('SELECT 1 AS one WHERE EXISTS -- c\n(SELECT 1 FROM l)').all();
+            expect(rows).toHaveLength(1);
+            db.close();
+        });
+
+        await it('sees a block comment between EXISTS and its parenthesis', async () => {
+            const db = seeded();
+            const rows = db.prepare('SELECT 1 AS one WHERE EXISTS /* c */ (SELECT 1 FROM l)').all();
+            expect(rows).toHaveLength(1);
+            db.close();
+        });
+
+        // The paren inside the comment must not open the sub-SELECT: it is the FIRST
+        // paren after the keyword, so a scanner that counts it lands on the wrong match.
+        await it('sees a parenthesis inside a comment before the real one', async () => {
+            const db = seeded();
+            const rows = db.prepare('SELECT 1 AS one WHERE EXISTS /* ( */ (SELECT 1 FROM l)').all();
+            expect(rows).toHaveLength(1);
+            db.close();
+        });
+
         await it('sees a nested EXISTS', async () => {
             const db = seeded();
             const stmt = db.prepare(
