@@ -1130,8 +1130,15 @@ export function rootValueExports(root, srcDir) {
  */
 export const VOCABULARY_CALLER_DIRS = ['showcases', 'examples', 'packages', 'tests', 'templates', 'website/src'];
 
-/** `import { A, B } from '<pkg>'` — the only shape a caller reaches a widget surface by. */
-const CALLER_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g;
+/**
+ * `import { A, B } from '<pkg>'` and `export { A, B } from '<pkg>'` — the only shapes a
+ * caller reaches a widget surface by. Double quotes and the re-export form are both
+ * live: `.mdx` is on the formatter ignore list so nothing normalises quoting in the very
+ * corpus this gate was written for, and the re-export is how the migrated docs teach an
+ * application to build its own barrel. The keyword is captured because only an `import`
+ * binds a local name: a re-export names the class without bringing it into scope.
+ */
+const CALLER_IMPORT = /(import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*(['"])([^'"]+)\3/g;
 
 /**
  * Every file OUTSIDE a widget surface that names one of its exports, with the names.
@@ -1153,7 +1160,7 @@ const CALLER_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g;
 export function vocabularyCallers(root, owners) {
     const found = [];
     walkCallerFiles(root, (rel, text) => {
-        for (const [, clause, specifier] of text.matchAll(CALLER_IMPORT)) {
+        for (const [, , clause, , specifier] of text.matchAll(CALLER_IMPORT)) {
             const owner = owners.get(specifier);
             if (owner === undefined || rel.startsWith(`${owner}/`)) continue;
             const names = importedNames(clause).map(({ imported }) => imported);
@@ -1256,7 +1263,8 @@ export function vocabularyCallerWrites(root, owners) {
     walkCallerFiles(root, (rel, raw) => {
         /** local identifier -> `{package, imported}` for the namespaces this file brought in. */
         const namespaces = new Map();
-        for (const [, clause, specifier] of raw.matchAll(CALLER_IMPORT)) {
+        for (const [, keyword, clause, , specifier] of raw.matchAll(CALLER_IMPORT)) {
+            if (keyword !== 'import') continue;
             const owner = owners.get(specifier);
             if (owner === undefined || rel.startsWith(`${owner}/`)) continue;
             for (const { imported, local } of importedNames(clause)) {

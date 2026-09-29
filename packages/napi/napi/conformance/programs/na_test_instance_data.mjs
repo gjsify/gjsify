@@ -13,7 +13,7 @@ export default async function run(h) {
 
     // One marker per stage: a hang here reports which of the three awaits
     // never returned, instead of a single 'ok' making all three
-    // indistinguishable in a stalled run (status/open-todos.md).
+    // indistinguishable in a stalled run (status/open-todos/README.md).
 
     // Instance data from an async_work completion callback.
     await new Promise((resolve) => t.asyncWorkCallback(resolve));

@@ -76,7 +76,7 @@ import {
     elementName,
     stripComments,
 } from './adwaita-elements.mjs';
-import { todoAnchorMatches, todoSections } from './generate-status.mjs';
+import { readOpenTodos, todoAnchorMatches, todoSections } from './generate-status.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -274,7 +274,6 @@ const MIN_REASON = 40;
 /** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
 const GAP_ISSUE = /^#\d+$/;
 const GAP_TODO = /^open-todos: (\S.*)$/;
-const OPEN_TODOS = 'status/open-todos.md';
 
 /**
  * The open-TODO sections a `gap` may point at, via `generate-status.mjs`'s OWN resolver
@@ -293,7 +292,7 @@ const OPEN_TODOS = 'status/open-todos.md';
  * the shape is a dangling anchor. Measured on the first run — two findings, both prose.
  */
 function todoAnchors() {
-    return todoSections(readFileSync(join(ROOT, OPEN_TODOS), 'utf8'));
+    return todoSections(readOpenTodos(ROOT));
 }
 
 /**

@@ -1,6 +1,6 @@
 // Cross-process MessagePort transfer — GJS-only integration test.
 //
-// Closes the status/open-todos.md item "Medium priority — Cross-process
+// Closes the status/open-todos/README.md item "Medium priority — Cross-process
 // MessagePort transfer via Worker subprocess IPC (#204 follow-up)".
 // Verifies that `Worker.postMessage(value, [port])` actually moves
 // a MessagePort across the parent ↔ child boundary via the new

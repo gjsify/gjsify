@@ -10,7 +10,7 @@
 // branch of the rule would still never fire, and a rule that stopped firing would
 // look exactly like a passing one.
 //
-// Corrected 2026-08-21: this header (and `status/open-todos.md` with it) used to
+// Corrected 2026-08-21: this header (and `status/open-todos/README.md` with it) used to
 // say "no package here declares `gjsify.ship` at all". That was measurably false —
 // `release-cut.yml` runs `ship --skip-build` against that declaration on every
 // cut — and three separate design passes reasoned from it. The suite's shape is

@@ -12,6 +12,7 @@ import testSuiteGcm from './gcm.spec.js';
 import testSuiteSign from './sign.spec.js';
 import testSuiteKeyObject from './key-object.spec.js';
 import testSuiteX509 from './x509.spec.js';
+import testSuiteCurve25519 from './curve25519.spec.js';
 
 import testSuiteExtended from './extended.spec.js';
 import testSuiteNativescript from './nativescript/nativescript.spec.js';
@@ -29,6 +30,7 @@ run({
     testSuiteSign,
     testSuiteKeyObject,
     testSuiteX509,
+    testSuiteCurve25519,
     testSuiteExtended,
     testSuiteNativescript,
 });

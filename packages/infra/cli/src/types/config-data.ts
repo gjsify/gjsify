@@ -732,7 +732,7 @@ export interface ShipFlatpakOptions {
  * here (ADR 0024 § 8; the window is `utils/ship/flatpak-config.ts`). They are
  * NOT marked `@deprecated`: for the subcommands in this group they are still
  * the only spelling, and those commands have not moved under `ship` yet
- * (`status/open-todos.md`). Nothing else in this block is deprecated at all —
+ * (`status/open-todos/README.md`). Nothing else in this block is deprecated at all —
  * the {@link AppMetadata} half is a designed alias, not a legacy one.
  */
 export interface ConfigDataFlatpak extends AppMetadata {

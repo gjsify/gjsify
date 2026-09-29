@@ -28,7 +28,7 @@
  * The element list itself is the generated `WidgetPropsByTag`/`WidgetClassByTag`,
  * which `scripts/check-type-surfaces.mjs` already holds negative-first through its
  * `jsx` half. The React-specific plumbing below has no half yet — that gap, and
- * why adding one is not a one-liner, is in `status/open-todos.md`. Its RUNTIME
+ * why adding one is not a one-liner, is in `status/open-todos/README.md`. Its RUNTIME
  * half is `adapters/react.spec.ts`.
  */
 

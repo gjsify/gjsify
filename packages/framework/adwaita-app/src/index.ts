@@ -57,6 +57,16 @@ export type { InitLocaleOptions, Translator } from './locale.js';
 export { SYSTEM_LOCALE_DIR, resolveLocaleDir, systemLocaleDir } from './locale-dir.js';
 export type { ResolveLocaleDirOptions } from './locale-dir.js';
 
+// The macOS system accent, for what has no libadwaita to read it (web views, a headless
+// companion). Also the GTK-free `@gjsify/adwaita-app/system-accent` subpath.
+export {
+    APPLE_ACCENT_COLOR_ARGV,
+    MACOS_ACCENT_POLL_SECONDS,
+    onMacosAccentColorChanged,
+    readMacosAccentColor,
+} from './system-accent.js';
+export type { OnMacosAccentColorChangedOptions, ReadMacosAccentColorOptions } from './system-accent.js';
+
 export { readAppDevHooks } from './dev-hooks.js';
 export type { AppDevHooks, ReadAppDevHooksOptions } from './dev-hooks.js';
 

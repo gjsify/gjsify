@@ -28,7 +28,16 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    readlinkSync,
+    realpathSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -294,12 +303,35 @@ describe('node-gi consumer harness: test-asset staging', () => {
         stageTestAssets(pkgDir, distDir, noGjsify, 1000);
 
         for (const name of STAGED_ASSET_DIRS) {
-            assert.equal(readlinkSync(join(distDir, name)), `../${name}`, `${name} must link to the package root`);
+            assert.equal(
+                realpathSync(join(distDir, name)),
+                realpathSync(join(pkgDir, name)),
+                `${name} must link to the package root`,
+            );
+            // Relative off win32; a win32 junction stores an absolute target by design.
+            if (process.platform !== 'win32') assert.equal(readlinkSync(join(distDir, name)), `../${name}`);
         }
         // The link RESOLVES — the whole point is that the bundle's own relative
         // path lands on the real asset, not merely that a symlink exists.
         assert.equal(readFileSync(join(distDir, 'test', 'file.txt'), 'utf-8'), 'asset\n');
         assert.ok(!existsSync(join(distDir, 'absent')), 'a dir the package does not have must not be invented');
+
+        rmSync(pkgDir, { recursive: true, force: true });
+    });
+
+    // The link used to sit in a swallowing `catch`: on a Windows host without the
+    // symlink privilege nothing was staged, and the suite's asset reads were filed
+    // as the PACKAGE's failures. A dist dir that is not there makes any host's link
+    // fail, which is what shows the error now reaches the caller.
+    it('throws when an asset dir cannot be linked, instead of staging nothing', () => {
+        const pkgDir = mkdtempSync(join(tmpdir(), 'gjsify-harness-assets-'));
+        mkdirSync(join(pkgDir, 'test'));
+        writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ name: 'probe' }));
+
+        assert.throws(
+            () => stageTestAssets(pkgDir, join(pkgDir, 'no-such-dist'), noGjsify, 1000),
+            /cannot stage test assets: link .* -> \.\.\/test failed/,
+        );
 
         rmSync(pkgDir, { recursive: true, force: true });
     });

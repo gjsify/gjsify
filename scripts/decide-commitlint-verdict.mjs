@@ -24,7 +24,7 @@
 // list shows it next to the green one, and that what it does to a merge is decided by the
 // ruleset — machinery this repository cannot observe from history, because every merge here is
 // by an owner the ruleset lets bypass (`OrganizationAdmin` and RepositoryRole 5, both
-// `bypass_mode: always`). `status/open-todos.md` carries that open question and the measurement
+// `bypass_mode: always`). `status/open-todos/README.md` carries that open question and the measurement
 // that closes it.
 //
 // None of which the fix depends on: if every run judges the description AS IT IS NOW, there is

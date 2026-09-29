@@ -535,7 +535,7 @@ P3's *record* half is now the item with the strongest incident claim behind it, 
 the cheap half of a track whose expensive half can wait. Whether the record moves ahead of
 P1 — or of P2 — is left open deliberately, and should be settled when this is accepted.
 
-None of this is scheduled here. On acceptance it goes to `status/open-todos.md` per
+None of this is scheduled here. On acceptance it goes to `status/open-todos/README.md` per
 governance; this ADR records the *why*.
 
 ## Sources

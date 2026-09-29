@@ -407,7 +407,7 @@ function shQuote(s: string): string {
  * in shell would be a knowingly partial THIRD copy of a two-copy rule, in the
  * one language nothing here type-checks. The REMAINING gap — a host GI stack
  * under a prefix dyld never defaulted to, `/opt/homebrew/lib` on Apple silicon —
- * stays in `status/open-todos.md`, to be closed by teaching such a launcher to
+ * stays in `status/open-todos/README.md`, to be closed by teaching such a launcher to
  * defer to the CLI rather than to re-derive.
  *
  * @param scanRoot Directory whose `node_modules` is globbed at launch time.
@@ -519,7 +519,7 @@ export function buildNativeEnvPreamble(
  *
  * NOT the host's GI libdirs: `/opt/homebrew/lib` was never in dyld's default
  * either, so an ARM Mac has that gap with or without gjsify —
- * `status/open-todos.md`.
+ * `status/open-todos/README.md`.
  */
 export function dyldFallbackPreamble(platform: string): string {
     if (platform !== 'darwin') return '';

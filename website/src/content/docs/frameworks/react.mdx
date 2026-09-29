@@ -186,22 +186,19 @@ than an empty window.
 
 ```bash
 gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs \
-  --define 'process.env.NODE_ENV="production"' \
   --exclude-globals navigator
 ```
 
-Both flags are required. Leave either out and the bundle builds, then drags in GTK drawing
-libraries it never uses.
-
-`--define` picks React's production build. Without it you bundle the development reconciler,
-which reaches for `document`, `HTMLCanvasElement` and `Path2D`; the global scanner answers those
-by pulling `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` into the bundle.
-
 `--exclude-globals navigator` covers the scheduler, which reads `navigator.scheduling` behind a
 `typeof` guard. The branch is dead under GJS, but the identifier is still free and the scanner
-answers it the same way.
+answers it the same way. Without it the bundle is ~50 bytes larger and prints a spurious GI note.
 
-Vue needs the same `NODE_ENV` define and three Vue-specific ones besides, and it needs no
+`NODE_ENV` is now a build default — the same `process.env.NODE_ENV="production"` define that
+React's development reconciler needs is set automatically on `--app gjs` and `--app browser`
+builds. A user `--define` still overrides it. `--app node` leaves it out: Node has a real
+`process.env`, so the bundle reads `NODE_ENV` at run time like its source does.
+
+Vue needs the same `NODE_ENV` default and three Vue-specific defines besides, and it needs no
 `navigator` flag. The [Vue page](/gjsify/frameworks/vue/) has that recipe in full.
 
 ## Update outside a render

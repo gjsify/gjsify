@@ -21,7 +21,7 @@
 // colour on both renderers — pinned to the C by the shared conformance vectors since.
 //
 // `custom-image` has no counterpart here — the value has one (`ImageSource`), the
-// CIRCULAR CLIP does not, and `status/open-todos.md` holds what a device run must answer.
+// CIRCULAR CLIP does not, and `status/open-todos/README.md` holds what a device run must answer.
 //
 // Reference: refs/libadwaita/src/adw-avatar.c (set_class_color, update_visibility)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.

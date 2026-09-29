@@ -98,7 +98,7 @@ Rolldown picks a parser from the id's extension, and `.vue` is not one it knows:
 
 So this plugin renames. `resolveId` resolves `./App.vue` normally (`skipSelf`) and appends `.ts` to the absolute path; `load` strips the suffix, reads the real file and compiles it. The real path stays the id's prefix, so a diagnostic still names the file.
 
-`moduleType` is not an undocumented field — rolldown 1.1.4 ships it in `SourceDescription`, and it is the *designed* mechanism. It is unavailable here because `@gjsify/rolldown-native`'s `plugin_proxy.rs::parse_module_type` accepts `js`/`ecmascript`/`json`/`text` and rejects everything else, which makes it unusable on the primary target. That gap is recorded in `status/open-todos.md`; closing it is a prebuild-cycle change and this plugin does not depend on it.
+`moduleType` is not an undocumented field — rolldown 1.1.4 ships it in `SourceDescription`, and it is the *designed* mechanism. It is unavailable here because `@gjsify/rolldown-native`'s `plugin_proxy.rs::parse_module_type` accepts `js`/`ecmascript`/`json`/`text` and rejects everything else, which makes it unusable on the primary target. That gap is recorded in `status/open-todos/README.md`; closing it is a prebuild-cycle change and this plugin does not depend on it.
 
 One suffix and not four is why `lang="jsx"`/`"tsx"` is refused. A `<script>` with no `lang` is therefore parsed as TypeScript — harmless except for the handful of JS/TS syntactic ambiguities, and `lang="ts"` is what a project using this type surface writes anyway.
 

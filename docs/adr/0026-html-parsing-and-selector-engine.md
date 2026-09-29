@@ -154,7 +154,7 @@ whose grammar is lowercase throughout. Changing it is risk with no measured bene
 What makes this a decision rather than a landmine: the freeze is expressed as a **golden
 canonical serialization** of a TMX-shaped fixture, committed and compared with `toBe`. A
 note saying "careful, XML lowercases" is read by nobody; a test that fails is read by
-whoever changed it. Case preservation gets its own `status/open-todos.md` section
+whoever changed it. Case preservation gets its own `status/open-todos/README.md` section
 (§ Deferred), where a `### ` heading is deleted when it is done rather than ticked.
 
 Three things do change in the XML path, all of them strict additions that cannot move an
@@ -217,7 +217,7 @@ the `i`/`s` flags, the four combinators, selector lists, and `:not() :is() :wher
   this sentence puts it (every divergence from parse5 is inside an `<svg>`/`<math>` subtree,
   none outside one) and WIDER in effect than it sounds, because inline SVG icons are on most
   pages: `viewBox`/`clipPath`/`xlink:href` lose their casing, and a self-closing `<path/>`
-  nests where a browser makes it a sibling. `status/open-todos.md` carries the numbers;
+  nests where a browser makes it a sibling. `status/open-todos/README.md` carries the numbers;
 - **the "in select" insertion mode** — a browser DROPS markup a `<select>` may not contain
   and keeps only its text. This was NOT on the list until a seeded fuzz put it there: with
   the three algorithms above excluded from the generator, `<select>` was the last construct
@@ -358,7 +358,7 @@ outside the repo; the sequence is:
 9. a serializer that emits valid HTML
 10. `tests/integration/domparser/` — the differential suite
 11. CI: the suite into `main.yml`'s `integration` allowlist + its `status/integration-coverage.md` section
-12. docs + status data + `status/open-todos.md` sections + the agent-context ledger
+12. docs + status data + `status/open-todos/README.md` sections + the agent-context ledger
 13. `dom-elements`: the adapter and the four stubs replaced — DONE, in
     `src/selector-adapter.ts` + `src/selectors.spec.ts`. `dom-elements` has no `test:node`,
     so the DIFFERENTIAL run cannot reach the adoption; its `test:gjs` can, and that is the
@@ -374,7 +374,7 @@ outside the repo; the sequence is:
 
 ## Deferred
 
-Each gets a `### ` section in `status/open-todos.md` in the PR that lands the work above —
+Each gets a `### ` section in `status/open-todos/README.md` in the PR that lands the work above —
 the ADR records the *why*, the ledger records what is left.
 
 **One node model.** `domparser` and `dom-elements` describe the same world and disagree

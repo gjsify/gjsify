@@ -8,7 +8,7 @@
 // pillar's `adw-*` elements is an explicit goal. ADR 0028 § 6 named the mechanism — a
 // data-only vocabulary export plus "a cross-dialect NAME-AGREEMENT check against
 // adwaita-web's custom elements, an independent source, which is the part that can
-// actually go red" — and `status/open-todos.md` carried it as the missing piece, cheap
+// actually go red" — and `status/open-todos/README.md` carried it as the missing piece, cheap
 // once the generator existed. The generator exists. This is that check.
 //
 // THE THREE PARTS, and which of them can find a surprise
@@ -108,7 +108,7 @@
 //     The comparison target is `packages/framework/gtk-host/src/generated/methods.mts`,
 //     read from the INSTALLED TYPELIB by `scripts/generate-widget-methods.mjs` — not
 //     from `@girs/*`, whose `vocabulary` entry carries no method table (measured on the
-//     published 4.6.0; the gap is in `status/open-todos.md`). That is a different kind
+//     published 4.6.0; the gap is in `status/open-todos/README.md`). That is a different kind
 //     of side from `props.ts`, and the difference is stated below where it matters.
 //
 //  7. THE VALUE LEDGER. A clause-2 namespace carries the non-widget GObjects an author
@@ -691,7 +691,7 @@ const NAVIGATION_PAGE_PROPERTY =
 const VIEW_PAGE_VISIBLE =
     '`Adw.ViewStackPage:visible` on the page object of the stack this switcher wraps. The port bundles switcher and stack (adwaita-web declares the same bundling web-only) and keeps pages as headless records, so the flag is set through the switcher by name.';
 const LIST_BUILT_PER_ITEM = (verb) =>
-    `GTK builds this list with per-item ${verb} and has no method taking a collection; the port replaces the whole list from a plain array. Whether it grows the per-item verb is the open-todo entry "The list widgets GTK builds with a METHOD have no portable collection, and a model type is the wrong fix" (status/open-todos.md) — a curated ChildPolicy per widget, not a rename.`;
+    `GTK builds this list with per-item ${verb} and has no method taking a collection; the port replaces the whole list from a plain array. Whether it grows the per-item verb is the open-todo entry "The list widgets GTK builds with a METHOD have no portable collection, and a model type is the wrong fix" (status/open-todos/README.md) — a curated ChildPolicy per widget, not a rename.`;
 const SIDEBAR_PANE =
     'On GTK the pane is shown and hidden through a PROPERTY — `set_show_sidebar(bool)` on the overlay split view, `set_show_content(bool)` on the navigation one — which the port also has. This is the parameterless convenience the storybook drives from its back button (split-view-base.ts); no GIR method takes no argument.';
 const PREFERENCES_SEARCH =
@@ -752,7 +752,7 @@ const PREFERENCES_SEARCH =
  *   { gap: '#NNNN' }          nobody has decided. Not a reason — a pointer.
  *
  * WHAT A NAME AGREEMENT DOES NOT SAY, stated because the same limit is recorded for
- * properties in `status/open-todos.md`: `add_prefix` agrees on this surface and holds ONE
+ * properties in `status/open-todos/README.md`: `add_prefix` agrees on this surface and holds ONE
  * widget where libadwaita holds a box, and `present()` on the alert dialog returns a
  * Promise where GJS returns nothing and hands the answer to `choose()`. Both are declared
  * in the widget file. And the host's `set` is in the agreeing set because GJS installs it

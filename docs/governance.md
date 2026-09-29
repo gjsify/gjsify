@@ -8,12 +8,12 @@
 ## Governance — non-negotiable
 
 |doc: update AGENTS.md immediately on any architectural decision (package boundaries, API patterns, build, deps, cross-cutting) — never leave drift between sessions
-|adr: decisions that span multiple pillars/repos, change a published contract (versioning, tiering, artifact strategy), or scope a whole track get an ADR under `docs/adr/` (numbered, MADR-style) BEFORE implementation; follow-up work tracked in `status/open-todos.md`; AGENTS.md still gets its update when the change lands
+|adr: decisions that span multiple pillars/repos, change a published contract (versioning, tiering, artifact strategy), or scope a whole track get an ADR under `docs/adr/` (numbered, MADR-style) BEFORE implementation; follow-up work tracked under `status/open-todos/` (one file per area — see its README for which one); AGENTS.md still gets its update when the change lands
 |tier: every published pkg declares `package.json#gjsify.tier` — 1 core (stability promise) / 2 product (best effort) / 3 experimental (no promise; new axes start here) per ADR 0003; deps+optionalDeps must point to same-or-lower tier (devDeps/optional peers are the seams; `@gjsify/node-gi` hard-deps forbidden per ADR 0005); enforced by `scripts/audit-runtimes.mjs --check` in CI; membership derived from the manifests (`npm run status:generate`)
-|required checks: `main` is branch-protected and exactly THREE checks block a merge — **`CI gate (GJS)`** (`main.yml`), **`Detect runtime-triplet drift`** (`audit-runtimes.yml`), **`Lint commit messages`** (`commitlint.yml`). That set is not a preference: a required check that does not RUN on a PR blocks it forever ("Expected — waiting for status"), so only the three workflows with NO `paths:` filter on their `pull_request` trigger are eligible. Everything path-filtered (`node-gi`, `napi`, `prebuilds`, `deploy-docs`, `cli-cross-platform`) stays ADVISORY — read it before merging; it cannot be required without first moving its `paths:` from the trigger down to the jobs. Requiring a matrix leg by name is equally out: its check name carries the unexpanded `${{ matrix… }}` when skipped. **`CI gate (GJS)` is the only job in `main.yml` whose exit code is a verdict** — `ci-summary` reports and never gates (it was GREEN next to a red `Build Fedora 44` on #910, so requiring it buys a false green). The gate treats `skipped` as pass (selective CI working) and `cancelled` as fail (a superseded run demonstrated nothing), and its first step re-derives the job list from `main.yml` and fails if its own hand-written `needs:` misses one — a job outside the gate is a job that cannot block a merge. WHY AT ALL: with an empty required set `gh pr merge --auto` does not wait, it merges instantly; that is how #910 landed with 12 checks still running
+|required checks: `main` is branch-protected and exactly THREE checks block a merge — **`CI gate (GJS)`** (`main.yml`), **`Detect runtime-triplet drift`** (`audit-runtimes.yml`), **`Lint commit messages`** (`commitlint.yml`). That set is not a preference: a required check that does not RUN on a PR blocks it forever ("Expected — waiting for status"), so only the three workflows with NO `paths:` filter on their `pull_request` trigger are eligible. Everything path-filtered (`node-gi`, `napi`, `prebuilds`, `deploy-docs`, `cli-cross-platform`) stays ADVISORY — read it before merging; it cannot be required without first moving its `paths:` from the trigger down to the jobs. Requiring a matrix leg by name is equally out: its check name carries the unexpanded `${{ matrix… }}` when skipped. **`CI gate (GJS)` is the only job in `main.yml` whose exit code is a verdict** — `ci-summary` reports and never gates (it was GREEN next to a red `Build Fedora 44` on #910, so requiring it buys a false green). The gate treats `skipped` as pass (selective CI working) and `cancelled` as fail (a superseded run demonstrated nothing), and its first step re-derives the job list from `main.yml` and fails if its own hand-written `needs:` misses one — a job outside the gate is a job that cannot block a merge. WHY AT ALL: with an empty required set `gh pr merge --auto` does not wait, it merges instantly; that is how #910 landed with 12 checks still running |merge queue: all three workflows also trigger on `merge_group`, so the ruleset can turn a queue on without a required check waiting forever on the queue commit. Whether to is § Concurrent PRs' question; its "~25 min per pass" predates the build/verify/examples split, so re-measure the gate's wall time first.
 |declarations: `gjsify.runtimes` (runtime axis), `gjsify.platforms` (OS axis), `gjsify.headless` (intra-GJS layering) and `gjsify.prebuilds` are per-package declarations, each MACHINE-CHECKED — full model + every invariant in § Runtime & platform model, which is authoritative. No declaration without a check; no promised prebuild target without a real, loadable artifact (or an explicit reasoned `platformsUncommitted` entry) behind it
 |manifest-conformance: every "does this DECLARATION match reality" check is a RULE in ONE registry — `@gjsify/manifest-conformance` (`packages/infra/manifest-conformance/`, plain committed `lib/*.mjs`, NO build, the `@gjsify/resolve-npm` shape). Each rule declares the manifest `fields` it governs; the `field-coverage` rule DERIVES the set of `gjsify.*` keys declared across the tree and FAILS on any key no rule claims — a new declaration kind cannot be added without a check, which is the failure every rule here was written in reaction to. Honest escape: `scripts/manifest-conformance/unchecked-fields.mjs`, a key → REASON ledger (reason mandatory, printed every run, FAILURE the moment a rule claims the key or the field stops being declared). SCOPE decides where a rule lives: `portable` (manifest + files + binaries only — `package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`, `portable-scripts`, `prebuild-libc`, `storybook`) lives in the package and is correct in any consumer tree; `repo` (`runtimes-drift`, `runtimes-reachability`, `curated-alias-routing`, `tier`, `platforms-ci`, `refs-pin`) knows THIS repo's layout and stays in `scripts/`. REGISTRATION ≠ SELECTION: `package-outputs` + `refs-pin` register (so coverage sees their fields) but are not selected by `audit-runtimes --check` (post-condition on a built tree / needs initialised submodules). **The CI gate stays a plain Node SCRIPT, never a CLI command**: `audit-runtimes.yml` runs `--check --strict` on EVERY `pull_request` with no `paths` filter, with NO install and NO build — routing it through the committed `dist/cli.gjs.mjs` would reintroduce exactly the staleness circularity `verify-committed-bundles.mjs` exists to break (a rule added in source but not rebuilt into the bundle would silently not run). `node scripts/audit-runtimes.mjs --rules` lists the registry
-|status: the project status snapshot is AUTHORED DATA in `status/` (per-package status prose in `status.json`, suite notes, open TODOs, upstream patch candidates, section fragments) — ADR 0016 + amendment. Everything derivable (package lists, tiers, runtime slots, platforms, GNOME-lib usage, every count) is derived from the manifests + tree by `npm run status:generate`, which renders a GITIGNORED `STATUS.md` view; the render is NEVER committed and carries NO freshness check (it derives from every manifest, so a tracked copy would stale on any merge, and its counts read the disk rather than git). The `status-data` conformance rule (in `audit-runtimes --check`, every PR) validates the DATA: coverage both directions, no restated derivables, suite-heading↔dir bijection, no resolved-TODO corpses. Still NOT a log: per-change narrative → the commit message + CHANGELOG.md. See "Project status & CHANGELOG.md Maintenance"
+|status: the project status snapshot is AUTHORED DATA in `status/` (per-package status prose in `status.json`, suite notes, open TODOs under `status/open-todos/` — one file per area — upstream patch candidates, section fragments, the ordered `status/priorities/` list — one file per item) — ADR 0016 + amendment. Everything derivable (package lists, tiers, runtime slots, platforms, GNOME-lib usage, every count) is derived from the manifests + tree by `npm run status:generate`, which renders a GITIGNORED `STATUS.md` view; the render is NEVER committed and carries NO freshness check (it derives from every manifest, so a tracked copy would stale on any merge, and its counts read the disk rather than git). The `status-data` conformance rule (in `audit-runtimes --check`, every PR) validates the DATA: coverage both directions, no restated derivables, suite-heading↔dir bijection, no resolved-TODO corpses. Open TODOs and priorities are split one-file-per-topic/-item rather than one growing file, because either used to be edited by nearly every PR — see "Project status & CHANGELOG.md Maintenance". Still NOT a log: per-change narrative → the commit message + CHANGELOG.md.
 |simplicity: every guard in this repo was justified ALONE, and what a contributor pays is the SUM. Before adding a check, step or artifact, ask what it lets you DELETE; periodically ask whether the whole arrangement has a simpler SHAPE. A guard whose job is watching another mechanism is the smell — removing the mechanism removes both. Long form + the worked example below
 |polyfills: browser-compat patches belong in packages, not examples — add to `@gjsify/dom-elements` or the right pkg
 |root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps
@@ -73,7 +73,7 @@ What it accumulated around itself, each piece justified on its own:
 - and `docs/build-artifacts.md`, most of which exists to explain the above.
 
 Each of those is a reasonable answer to a real failure. The sum is a subsystem
-whose purpose is to protect one generated file — and `status/open-todos.md`
+whose purpose is to protect one generated file — and `status/open-todos/`
 still records four distinct ways it went stale anyway, including a release cut
 restaling every open PR by a single byte, and a rebase silently text-merging two
 minified bodies with no conflict and no size anomaly.
@@ -174,32 +174,57 @@ Adding a margin to the ceilings was considered and rejected: it weakens the ratc
 exactly its own size, and it is a second, weaker fix for a problem de-gating already
 closed.
 
-### `check-agent-context-size` — exact ledger, still gated
+### `check-agent-context-size` — from an exact ledger to a base-relative check
 
 This one stays a gate: it asserts a fact with a real cost behind it (past 32 KiB Codex
 truncates the tail with no warning), so de-gating was not on offer. Per-file byte ceilings
-look immune — different files never contend — but the shape is the same, and it was
-reproduced rather than argued. Ceiling 955; a cleanup takes the file to 907 and does not
-re-baseline; two PRs then add 35 bytes each in different paragraphs. Both green, merge
-clean, `main` at 979 over 955.
+first looked immune — different files never contend — but the shape was the same as
+`check-comment-budget`'s, and it was reproduced rather than argued: ceiling 955, a cleanup
+takes the file to 907 and does not re-baseline, two PRs then add 35 bytes each in different
+paragraphs. Both green, merge clean, `main` at 979 over 955.
 
-The window is always **the slack itself**, and the fix is to have none: a file BELOW its
-ceiling now fails, with `--update` named in the message. At zero slack every size change
-must edit that path's line in `status/agent-context-budget.json`, so two concurrent
-changes to the same context file collide there and **git** refuses the merge — the ledger
-becomes the interlock, and the check no longer has to see a branch it was never run on.
-Measured both ways: +35 B and +41 B conflict in the ledger and are blocked.
+**The original fix (2026, retired below): have no slack.** A committed ledger
+(`status/agent-context-budget.json`) held one line per file, and a file BELOW its ceiling
+failed too, with `--update` named in the message. At zero slack every size change had to
+edit that path's line, so two concurrent changes to the SAME file collided there and git
+refused the merge — the ledger was the interlock, and the check never had to see a branch
+it was not run on. Measured both ways: +35 B and +41 B conflicted in the ledger and were
+blocked.
 
-**Residual, stated because it is real.** Two PRs that change one file by the *identical*
-number of bytes write the identical ledger line, which merges clean and lands over the
-ceiling. Byte-exact collisions are narrow, not impossible, and `main`'s own run is what
-catches them. Closing that too needs `strict_required_status_checks_policy: true` or a
-merge queue — both were weighed and both lose to the arithmetic in § PR size above: a full
-pass is ~25 minutes, and every merge into `main` would force a re-run of every open PR.
+**What that fix cost.** The ledger is a single aggregated file, and per-file exactness did
+not change that *any* touch to *any* context file meant an edit to *that one JSON file* — two
+PRs shrinking two DIFFERENT context files still collide there, on the file itself, not on a
+shared byte count. 77 of the commits touching an AGENTS.md since 2026-09-01 edited nothing
+else: the ledger line, following a file that had usually only SHRUNK.
 
-**The cost, stated because it is paid by everyone.** Changing an agent context file by one
-byte fails CI until `--update` runs and the ledger is committed alongside. That friction is
-the mechanism, not a side effect.
+**The current fix: compare to the PR's own base instead of a shared ledger.**
+`git show $BASE:<path>` gives each file's size where the branch forked (or, on a push to
+`main`, at the immediately preceding commit); growing past `GROWTH_TOLERANCE` (512 B — large
+enough that a typo fix never trips it, small enough that a new paragraph does) fails unless a
+commit in range carries `Context-Budget: grow <path>`. A shrink needs no companion edit
+(there is no ledger line to update), so the 77-commit class is gone by construction. Two
+branches each growing the SAME file past tolerance still each fail on THEIR OWN diff — no
+shared state to collide over, so nothing here is a repeat of `check-comment-budget`'s
+whole-tree-aggregate mistake: the number scored is per file per branch, never summed across
+branches.
+
+**Residual, stated because it is real — narrower than before, not gone.** Two branches that
+each grow the SAME file by the same amount, both within tolerance, land a combined jump
+neither PR's own run measured — the base-relative shape of #1157 one level down. The
+push-to-main run is what still catches it: on `push`, BASE is the immediately preceding
+`main` commit, so the very next commit to touch that file is compared against the state the
+first merge actually left, not against the fork point either PR branched from. That trades a
+possible red `main` for removing the ledger PRs were colliding over on every ordinary edit —
+the same trade-off `check-comment-budget` made by de-gating entirely, applied here by moving
+the collision point later rather than removing it. Closing it fully still needs
+`strict_required_status_checks_policy: true` or a merge queue — both were weighed and both
+lose to the arithmetic in § PR size above: a full pass is ~25 minutes, and every merge into
+`main` would force a re-run of every open PR.
+
+**The cost, stated because it is paid by everyone.** Ordinary edits — a typo, a reworded
+sentence, a link, most single-paragraph rewrites — pay nothing: no ledger to touch, no
+`--update` to run. Only real growth past 512 bytes pays, with a one-line trailer rather than
+a JSON commit.
 
 ### An anchor grep over workflow comments — DECLINED, never built
 
@@ -214,7 +239,7 @@ SHA or a version.
 `windows-suites.yml` the pattern flags **14 paragraphs; 12 are false positives**, in three
 kinds — claims the stating step RE-PROVES every run (the brew-formula rows, the
 elevated-runner note, the two steps whose whole job is printing the host), claims that CITE
-an anchored record elsewhere (`status/open-todos.md`, an adjacent dated paragraph), and
+an anchored record elsewhere (`status/open-todos/`, an adjacent dated paragraph), and
 prose that is rationale rather than measurement. Two were real: the SIP note, and a
 `windows-suites.yml` motivation that needed an event anchor, both fixed by hand.
 
@@ -236,6 +261,16 @@ exact enough that concurrent spenders collide in git first. A whole-tree or whol
 aggregate is structurally blind to concurrent PRs; only per-item exactness gives the merge
 something to trip over.
 
+**A third option, taken by `check-agent-context-size`'s later revision: give the check no
+shared state to collide over at all.** Compare each branch's diff to ITS OWN base rather than
+to a committed number, and two branches cannot collide on a ledger that does not exist —
+every PR is scored against a snapshot only it ever changes. The price is the mirror of an
+exact ledger's guarantee: a combined-but-individually-tolerable overshoot is not blocked at
+PR time, only caught one generation later, on the push that lands it over. That trade is
+worth it exactly when the shared ledger's OWN upkeep — not its slack — is the thing
+generating the most PR churn, which per-item exactness does not fix (§ `check-agent-context-
+size`, "what that fix cost").
+
 ## Agent context budget
 
 The root AGENTS.md reached **277 KB** before it was split, one defensible paragraph at a time.
@@ -243,17 +278,19 @@ That is the whole argument for a ceiling: no single addition was wrong, and the 
 unreadable.
 
 `scripts/check-agent-context-size.mjs --check` holds a 32 KiB hard cap — `project_doc_max_bytes`,
-where Codex silently truncates the tail with no warning — plus an EXACT per-file ceiling in
-`status/agent-context-budget.json`.
+where Codex silently truncates the tail with no warning — plus a growth check: no file may grow
+more than 512 bytes past its size at the PR base (`git show $BASE:<path>`; `HEAD^` on a push to
+`main`) without a `Context-Budget: grow <path>` commit trailer. Full mechanism, and why it
+replaced a committed per-file ledger: § Concurrent PRs → `check-agent-context-size`.
 
-**Exact, not an upper bound, and that is deliberate.** Below fails too, so a file that shrank
-must record the new ceiling; the ratchet then makes regrowth a failing check rather than a
-gradual return to 277 KB.
+**Base-relative, not an upper bound, and that is deliberate.** A file that shrank needs no
+companion commit — there is no ledger line to fall out of date — so the check only ever
+fires on REGROWTH, never on someone else's cleanup landing first.
 
 **No list of over-target files belongs in a context file.** Several are over the 20 KB target,
-the check PRINTS which, and a list written down goes stale as OTHER files grow — so the gate
-catches regrowth instead of claiming the target is met.
+the check PRINTS which on every run, and a list written down goes stale as OTHER files grow —
+so the gate catches regrowth instead of claiming the target is met.
 
-**The ledger line is also a collision detector.** Slack is what two concurrent PRs each spend in
-full, and `status/agent-context-budget.json` is what makes them collide in git rather than on
-`main` (§ Concurrent PRs).
+**Growth still needs a reviewed trailer, not a bigger number.** `Context-Budget: grow <path>`
+is the one-line acknowledgment that used to be a ledger commit — small enough to write inline
+with the change that needs the room, unlike a JSON file nothing else in the diff explains.

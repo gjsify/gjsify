@@ -134,5 +134,5 @@ Deliberate, and each fails loudly rather than silently:
   identifier, which some WebKit features key on.
 - **No CI covers the input path**, on any platform. It is held by two by-hand
   probes that both need a display, and `@gjsify/iframe`'s unit suite instantiates
-  no live WebView. See `status/open-todos.md` for the two event-injection routes
+  no live WebView. See `status/open-todos/README.md` for the two event-injection routes
   that were tried and are dead ends.

@@ -7,7 +7,7 @@
 //
 // Byte-equivalence against the Node-CLI's output is NOT asserted: the native rolldown facade
 // collapses npm rolldown's `minify: { mangle: { keepNames: { … } } }` to plain `true`, which
-// changes bundle size but not semantics. Tracked in status/open-todos.md.
+// changes bundle size but not semantics. Tracked in status/open-todos/README.md.
 
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';

@@ -111,7 +111,7 @@ consumers plus storybook.
 4. `gjsify tsc --noEmit` + `gjsify build` green; add the package's authored status
    entry to `status/status.json` (tables, tiers and metrics derive themselves) and
    to AGENTS.md's framework table.
-5. Follow-up (`status/open-todos.md`): release + first-publish/Trusted-Publisher
+5. Follow-up (`status/open-todos/README.md`): release + first-publish/Trusted-Publisher
    bootstrap (maintainer-gated, needs npm OTP), then wire buchhaltung + eco-retrofit +
    storybook onto it on their next shell touch.
 

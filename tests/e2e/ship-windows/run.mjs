@@ -199,7 +199,7 @@ describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, 
         // (Subsystem=3) and `nodew.exe` does not exist in the Node release, so a
         // GUI launch of this artifact pops a console window — and every Windows CI
         // leg starts the app from a shell and therefore inherits one, so no leg can
-        // observe the defect (#1354 M3, status/open-todos.md).
+        // observe the defect (#1354 M3, status/open-todos/README.md).
         //
         // What this suite CAN do is prove the oracle reads the field rather than
         // printing a constant: the same tree with a GUI-subsystem interpreter must

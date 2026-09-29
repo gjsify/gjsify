@@ -17,7 +17,7 @@
 // Deliberately NOT pinned: `read` (a variable-length caller-allocates OUT array)
 // and `add_data` (a GDestroyNotify with no closure index) — their CALLING
 // CONVENTION diverges from gjs today, so their reported length diverges with it;
-// see status/open-todos.md.
+// see status/open-todos/README.md.
 import Gio from 'gi://Gio?version=2.0';
 
 print('cancel: ' + Gio.Cancellable.prototype.cancel.length);

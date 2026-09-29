@@ -46,7 +46,7 @@
 // It is also the moment the defect it was built for surfaces: #1460 was an application
 // that OPENED with two close buttons. A composition that goes wrong later is what a
 // driveable check answers, and that is a `@gjsify/devtools` method rather than a walk
-// per frame — see `status/open-todos.md`.
+// per frame — see `status/open-todos/README.md`.
 //
 // NO GATE, deliberately. One tree walk per window is not worth a switch, and a switch
 // is one more thing that is off in the configuration where the check was needed.

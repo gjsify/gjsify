@@ -102,7 +102,7 @@ export function decodeAudioDataSync(arrayBuffer: ArrayBuffer): AudioBuffer {
             // correct bytes on gjs), so it sidesteps the field-marshalling gap
             // entirely — and it needs no unmap, which removes a lifetime pairing
             // from this loop. The node-gi field gap is tracked
-            // in status/open-todos.md.
+            // in status/open-todos/README.md.
             const size = buffer.get_size();
             if (size > 0) {
                 chunks.push(new Uint8Array(buffer.extract_dup(0, size)));

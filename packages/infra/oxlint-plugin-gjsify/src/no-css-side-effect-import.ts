@@ -19,7 +19,7 @@
 // could see a dropped module are argument-less no-ops on the
 // `@gjsify/rolldown-native` bridge, so the diagnostic would exist under Node and
 // not under GJS. Full reasoning, and the consumer-facing half that is still
-// missing, in `status/open-todos.md`.
+// missing, in `status/open-todos/README.md`.
 //
 // WHAT IT FLAGS. An `ImportDeclaration` with NO specifiers whose source is CSS:
 // either by extension (`./app.css`), or because the package it names exports CSS

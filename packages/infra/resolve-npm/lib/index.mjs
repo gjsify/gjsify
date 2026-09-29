@@ -61,7 +61,7 @@ import { getDerivedAliasesSync as _getDerivedAliasesSync } from './runtime-alias
  * statement (no slot policy duplicated into it), and `aliasPlugin` keeps its
  * one-hop `skipSelf: true` contract. Composing a table is therefore an
  * explicit, per-table decision; `ALIASES_NODE_FOR_NATIVESCRIPT` is
- * deliberately NOT composed (see the status/open-todos.md entry on the `native` slot's
+ * deliberately NOT composed (see the status/open-todos/README.md entry on the `native` slot's
  * double meaning for the bridge packages).
  *
  * Evaluated LAZILY (on property read) and cached: `getDerivedAliasesSync` walks
@@ -424,7 +424,7 @@ export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(ALIASES_NODE_FOR_
  *   `native` means "the RUNTIME provides it, route to `<pkg>/globals`" — a file
  *   the bridge does not ship, so the composed value degrades to
  *   `@gjsify/empty`. Settle the bridge packages' slot declarations first (see
- *   status/open-todos.md), then compose. An import by PACKAGE NAME does route
+ *   status/open-todos/README.md), then compose. An import by PACKAGE NAME does route
  *   per the declared slot (plain key hit in the merged map) — which is why the
  *   bridges are ALREADY emptied on that path today, same TODO.
  * - **`ws` / `isomorphic-ws` → `@gjsify/empty`.** NS apps use `WebSocket`
@@ -521,6 +521,7 @@ export const ALIASES_WEB_FOR_GJS = {
     'dom-events/register/event-target': '@gjsify/dom-events/register/event-target',
     'dom-events/register/custom-events': '@gjsify/dom-events/register/custom-events',
     'dom-events/register/ui-events': '@gjsify/dom-events/register/ui-events',
+    'dom-events/register/global-event-target': '@gjsify/dom-events/register/global-event-target',
     'dom-exception/register': '@gjsify/dom-exception/register',
     'message-channel/register': '@gjsify/message-channel/register',
     'eventsource/register': '@gjsify/eventsource/register',
@@ -662,6 +663,7 @@ export const ALIASES_WEB_FOR_NODE = {
     'dom-events/register/event-target': '@gjsify/empty',
     'dom-events/register/custom-events': '@gjsify/empty',
     'dom-events/register/ui-events': '@gjsify/empty',
+    'dom-events/register/global-event-target': '@gjsify/empty',
     'dom-exception/register': '@gjsify/empty',
     'message-channel/register': '@gjsify/empty',
     'eventsource/register': '@gjsify/empty',
@@ -682,6 +684,7 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/dom-events/register/event-target': '@gjsify/empty',
     '@gjsify/dom-events/register/custom-events': '@gjsify/empty',
     '@gjsify/dom-events/register/ui-events': '@gjsify/empty',
+    '@gjsify/dom-events/register/global-event-target': '@gjsify/empty',
     '@gjsify/dom-exception/register': '@gjsify/empty',
     '@gjsify/message-channel/register': '@gjsify/empty',
     '@gjsify/eventsource/register': '@gjsify/empty',

@@ -179,7 +179,7 @@ export function attachSwipeDrag(init: AdwSwipeDragInit): AdwSwipeDrag {
      * at ALL yet: its offset model is `scrollLeft = position * distance`, and an RTL
      * scroll container counts `scrollLeft` DOWN from 0, so even `scrollToPage(1)` moves
      * nothing (measured). A reversed branch would compute a correct progress and write it
-     * to a container that ignores it. `status/open-todos.md` carries the whole gap; the
+     * to a container that ignores it. `status/open-todos/README.md` carries the whole gap; the
      * flag belongs in the change that can test it.
      */
     const progressOffset = (dx: number, dy: number) => -axisOffset(dx, dy);

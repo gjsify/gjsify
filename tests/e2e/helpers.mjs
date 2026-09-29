@@ -67,7 +67,7 @@ export const LOCKFILE_VERSION = readLockfileVersion();
  * ONE definition, imported, never composed at each call site: nine fixtures built this
  * path themselves through the `<os>-<arch>` unification, all nine needed a hand sweep,
  * and one was missed *because a composed string never appears as a literal to grep for*
- * (`status/open-todos.md`). The same fixtures then broke again on the ADR 0017 split, in
+ * (`status/open-todos/README.md`). The same fixtures then broke again on the ADR 0017 split, in
  * two suites the first sweep's grep could not see.
  *
  * The naming rule it encodes belongs to `platformPackageDirName()` in

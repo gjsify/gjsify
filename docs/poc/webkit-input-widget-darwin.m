@@ -48,7 +48,7 @@
 //
 // A DISPLAY IS REQUIRED (gtk_init opens one), which is why this is a by-hand
 // probe like its siblings rather than a CI step — see the DISPLAY-gated-GTK
-// entry in status/open-todos.md for why macOS coverage stops here.
+// entry in status/open-todos/README.md for why macOS coverage stops here.
 
 #import <Cocoa/Cocoa.h>
 #include <gtk/gtk.h>

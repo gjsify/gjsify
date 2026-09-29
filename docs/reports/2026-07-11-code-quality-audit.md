@@ -8,7 +8,7 @@ quality, import-graph & barrel purity, and AGENTS.md/status↔reality drift.
 This complements the [2026-07-01 architecture review](2026-07-01-architecture-review.md)
 (which produced ADRs 0001–0009). That review looked at the *concept and pillar
 structure*; this one looks at *code-level drift and debt that has accumulated
-below the automated gates*. `status/open-todos.md` remains the tracker for
+below the automated gates*. `status/open-todos/README.md` remains the tracker for
 remaining work; this file is the *why + priority* record for the new findings.
 
 ## Verdict

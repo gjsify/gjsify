@@ -212,5 +212,5 @@ the GTK-tree readers so every adapter runs the same vectors — and
 `installDiagnosticsGate()`, because GTK's failure mode is exit 0 and a suite that
 never looks at stderr cannot see a mis-parented tree at all. Follow-up work on the
 table — the generator, and the import-direction check that lands with the first
-adapter — is tracked in `status/open-todos.md`. The per-framework adapters and the
+adapter — is tracked in `status/open-todos/README.md`. The per-framework adapters and the
 DOM facade are decided here and not yet scheduled.

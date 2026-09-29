@@ -47,6 +47,41 @@ engine packages.
 written by an older CLI has no flag, so the first plain `gjsify install` resolves it again.
 Pinned versions are kept, and any missing peers are added. `--immutable` still installs such a
 file exactly as it is, so run one plain install and commit the updated lockfile.
+
+## Ed25519 and X25519 in `node:crypto` and WebCrypto
+
+GJS now has the two Curve25519 algorithms that the Signal, WhatsApp and OMEMO protocols build
+on. `crypto.subtle` handles `Ed25519` (generate, import, export as raw, spki, pkcs8 or jwk, sign,
+verify) and `X25519` (generate, import, export, deriveBits, deriveKey), as browsers ship them.
+`node:crypto` adds `generateKeyPair`/`generateKeyPairSync` for `'ed25519'` and `'x25519'`, the
+one-shot `crypto.sign`/`crypto.verify` (including Ed25519ctx through `{ key, context }`),
+`crypto.diffieHellman({ privateKey, publicKey })`, and KeyObject import and export for both key
+types in PEM, DER and JWK.
+
+The curve arithmetic comes from `@noble/curves`, an audited pure-JS library. Ed25519
+verification follows OpenSSL rather than the library's default: small-order keys and `R` values
+are rejected and the equation is cofactorless. That way GJS gives the same answer as Node on the
+WPT small-order vectors. The tests check the RFC 8032 and RFC 7748 vectors and all 518 Wycheproof
+X25519 cases. They run on both GJS and Node.
+
+A library that picks its code path by checking `typeof crypto.diffieHellman === 'function'` now
+takes the `node:crypto` path on GJS. npm `libsignal`, used by Baileys, is one of them.
+
+## `gjsify link` hides its override in a git worktree too
+
+`.gjsify-link.json` stays out of git through the repository's own `info/exclude`, which `gjsify
+link` writes and `gjsify unlink` removes again. In a git worktree that file went to the wrong
+directory: git SHARES `info/exclude` across a repository's worktrees, and the entry landed under the
+worktree's own git directory, in `worktrees/daemon/info/exclude`, which git never reads. `git status`
+in the worktree kept listing `?? .gjsify-link.json`, so the next `git add -A` committed the very
+override `link` exists to keep out of every commit — measured on a worktree of a submodule.
+
+Both commands now follow the `commondir` file that git records in the worktree git directory,
+whether it holds a relative path (what `git worktree add` writes) or an absolute one. A plain clone
+and a submodule have no `commondir` and behave exactly as before. A `commondir` that names nothing —
+blank, a directory, or a path that is not there, all three of which real git exits 128 on — is
+reported as `unreadable-git` rather than guessed at.
+
 ## New
 
 ### `gjsify exec` runs an installed npm bin on the runtime gjsify runs on
@@ -162,3 +197,27 @@ Only `webext dev` still uses Node, because it launches the browser through `web-
 browser-global shim stays the author's choice; the guide recommends `@wxt-dev/browser`.
 Signing and store submission come next. The guide is at
 [Browser Extensions](https://gjsify.github.io/gjsify/guides/browser-extensions/).
+
+## `https.request` honours `ca` and the other TLS options
+
+On GJS, `https.request` never passed its TLS options to libsoup. A server whose certificate
+chains to a private root failed even with that root passed as `ca`, and `rejectUnauthorized`,
+`servername`, `checkServerIdentity`, `cert`/`key` and an `https.Agent`'s options were ignored
+as well. Now `ca` (a string, a Buffer or an array of them) replaces the system trust store, as
+it does in Node. A rejected certificate reports Node's error code, for example
+`DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
+`ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
+the same as in Node.
+
+## `typeof window` tells the truth in `--app node` bundles
+
+`--app node` used to define `window` as `globalThis` at build time. That rewrote every
+`typeof window === 'undefined'` check in bundled libraries to `false`, so a Node program took
+its libraries' browser branches. @mtcute/web, for example, passed when its source ran on Node,
+but its bundle threw `globalThis.addEventListener is not a function`. The define is gone.
+
+GJS defines `window` itself, so on `--app gjs` those branches still run. There the global is
+now an EventTarget: a bundle that calls `addEventListener`, `removeEventListener` or
+`dispatchEvent` on `window`, `self` or `globalThis` gets
+`@gjsify/dom-events/register/global-event-target`. This is the same window-scope bus the DOM
+registers already installed, and it no longer requires `@gjsify/dom-elements`. See ADR 0079.

@@ -468,7 +468,7 @@ Migration order, each step green before the next:
 3. gjsify pins the exact `@girs` version, replaces `generated/props.ts` with the
    consumer dialect, and repoints `generated.spec.ts` at the published runtime data.
    `widgets.ts`, `descriptors/` and `emit.mts` do not move. **Blocked on a published
-   `@girs` release**; the probe that says it has arrived is in `status/open-todos.md`.
+   `@girs` release**; the probe that says it has arrived is in `status/open-todos/README.md`.
 4. Retire `gir.mts` from the generation path; keep it as the domparser differential
    test. Needs 3.
 5. Only then consider deriving `omittedProps` from the curated placement rule.

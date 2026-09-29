@@ -251,7 +251,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             // proof that no occurrence is an import is the build's own exit code, not a second
             // reading of the same bytes: the arm refuses BOTH of these specifiers, so an
             // import-shaped one could not have produced a status of 0. A substring is not
-            // an import — `status/open-todos.md` argues the guards from this bundle.
+            // an import — `status/open-todos/README.md` argues the guards from this bundle.
             assert.ok(
                 bundle.includes('gi://'),
                 'the fixture no longer puts a gi:// substring in the bundle, so this row measures nothing',

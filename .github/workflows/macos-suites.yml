@@ -52,11 +52,13 @@
 # those reached `main` through a green PR, because this leg was not on it.
 #
 # What is NOT free here is CONCURRENCY: GitHub caps concurrent macOS jobs well
-# below the other classes, this workflow asks for two per run, and `node-gi.yml`
-# asks for more. If PR macOS runs start queueing behind each other, the fallback
-# is to narrow THIS matrix (arm64 on PRs, both architectures on `main` and the
-# nightly) — not to withdraw the leg from PRs again, which is the change that
-# produced the four defects above.
+# below the other classes (5, against 20 concurrent jobs overall), this workflow
+# asks for up to two per run, and `node-gi.yml` asks for more — measured median
+# ~40 min queue wait per stage against a saturated pool. The lever pulled for
+# that is narrowing THIS matrix on PRs — arm64 always, x64 only behind the
+# `ci:macos` label (see the `scope` job) — never withdrawing the leg from PRs
+# entirely, which is the change that produced the four defects above. `main`,
+# the nightly and a dispatch always get both arches.
 #
 # The required-check point is unchanged: `main` carries EXACTLY THREE required
 # checks and a fourth is a governance decision with a trap behind it (a required
@@ -69,8 +71,9 @@
 # while `main` goes red (#1183). `scripts/manifest-conformance/rules/pr-trigger-parity.mjs`
 # holds the two triggers to each other. The `scope` job below still lets a PR skip the
 # suites when it provably cannot reach them — what that has to prove, and why it is
-# not #1183, is under WHAT A PR MAY SKIP in `windows-suites.yml`. It is how the macOS
-# concurrency caveat above is paid for without narrowing the matrix.
+# not #1183, is under WHAT A PR MAY SKIP in `windows-suites.yml`. Together with the
+# `ci:macos`-gated Intel leg above, that is how the macOS concurrency caveat is paid
+# for.
 #
 # WHY BOTH ARCHITECTURES
 #
@@ -103,9 +106,30 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch:
   pull_request:
+    # `labeled` on top of GitHub's three defaults: the `scope` job below reads
+    # the `ci:macos` label at run start to decide the Intel leg (see WHY BOTH
+    # ARCHITECTURES), so a label added to an ALREADY-OPEN PR needs its own
+    # trigger to take effect — without it, opting in needed a throwaway push.
+    types: [opened, synchronize, reopened, labeled]
 
+# Coalesced on `main` push, NOT on `pull_request`. This workflow is ADVISORY —
+# it is not one of the three required checks — and until now every merge
+# commit got its OWN concurrency group keyed by `run_id`, so a burst of merges
+# queued one full run per commit: measured median ~40 min wait per stage
+# against a saturated, org-wide 20-concurrent-job pool (macOS capped at 5).
+# Keying the push group by `ref` instead puts every main-push run in ONE group,
+# and GitHub's own "one pending run per group" rule (the eviction incident
+# `main.yml` measured and now keys around) then keeps at most the run that is
+# IN PROGRESS plus the newest one queued behind it — a burst of N merges runs
+# twice, not N times. `cancel-in-progress: false` for that case is load-bearing:
+# a running main sweep finishes rather than being killed by the next merge.
+#
+# `pull_request` and `schedule`/`workflow_dispatch` are UNCHANGED: a PR keeps
+# its own per-ref group (a force-push still cancels the PR's own prior run),
+# and the nightly/dispatch keep a per-run_id group so neither can evict, or be
+# evicted by, an ordinary merge.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('macos-suites-pr-{0}', github.ref) || format('macos-suites-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'pull_request' && format('macos-suites-pr-{0}', github.ref) || github.event_name == 'push' && format('macos-suites-main-{0}', github.ref) || format('macos-suites-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -122,12 +146,32 @@ jobs:
     timeout-minutes: 10
     outputs:
       run: ${{ steps.scope.outputs.run }}
+      # arm64 always runs. The Intel leg doubles the macOS jobs this workflow
+      # asks of a pool that is already saturated on PRs (~40 min median queue
+      # wait — measured, see docs/ci-selective.md), so it is gated behind the
+      # SAME `ci:macos` label `main.yml` already uses for its own arm64-only
+      # leg — one convention, not a second one to learn. `main`, the nightly
+      # and a dispatch always get both arches.
+      macos-matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - id: scope
         uses: ./.github/actions/suite-scope
+      - id: matrix
+        name: Decide whether the macOS Intel (x64) leg runs
+        env:
+          EVENT: ${{ github.event_name }}
+          MACOS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:macos') }}
+        run: |
+          if [ "$EVENT" = "pull_request" ] && [ "$MACOS_LABEL" != "true" ]; then
+            echo 'matrix=[{"arch":"arm64","runner":"macos-latest"}]' >> "$GITHUB_OUTPUT"
+            echo "[ci] macOS Intel leg (macos-15-intel): skipped (pull_request without the ci:macos label) — arm64 still runs"
+          else
+            echo 'matrix=[{"arch":"arm64","runner":"macos-latest"},{"arch":"x64","runner":"macos-15-intel"}]' >> "$GITHUB_OUTPUT"
+            echo "[ci] macOS Intel leg (macos-15-intel): enabled ($EVENT)"
+          fi
 
   node-and-gjs-suites:
     name: Node-pillar suites (darwin-${{ matrix.arch }} / gjs + node)
@@ -138,13 +182,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # An OBJECT per leg, like main.yml's macOS matrix and for the same
-          # reason: `runs-on` and the job name are read off the entry, so
-          # retiring or adding an image is one edit here rather than a static
-          # `include:` bolted onto a reduced axis.
-          - { arch: arm64, runner: macos-latest }
-          - { arch: x64, runner: macos-15-intel }
+        # Computed in `scope` above (an OBJECT per leg, same shape main.yml's
+        # macOS matrix uses): arm64 always, x64 only when the `scope` job's
+        # label check enabled it. A static `include:` here would spawn both
+        # legs unconditionally, defeating the gate.
+        include: ${{ fromJSON(needs.scope.outputs.macos-matrix) }}
 
     env:
       HOMEBREW_NO_AUTO_UPDATE: '1'

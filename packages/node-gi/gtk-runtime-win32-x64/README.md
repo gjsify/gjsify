@@ -290,16 +290,18 @@ stall rather than an error. `AAC (ADTS)` stays a declared gap here, same as on d
   backend in), so there is no separate backend DLL — the caches (`loaders.cache`,
   `gschemas.compiled`, `icon-theme.cache`) + the librsvg backer are the
   additions. The bundle carries `epoxy-0.dll` — GL *dispatch* — and **no GL
-  *implementation***, deliberately; the builder records that as
-  `manifest.glImplementation`. On a host with a vendor OpenGL driver that is
-  invisible. On a host without one (VM, RDP, CI) every `Gtk.GLArea` fails with
-  `No GL implementation is available` — **unless the app also depends on the OPTIONAL
+  *implementation***, deliberately; the builder probes for one and records the answer
+  as `manifest.glImplementation` (`--require-gl` makes an empty result fatal, for the
+  promotion that ships one). On a host with a vendor OpenGL ICD that is invisible; on a
+  GPU-less one (VM, RDP, CI) every `Gtk.GLArea` fails with `No GL implementation is
+  available` — **unless the app also depends on the OPTIONAL
   `@gjsify/gl-runtime-win32-x64`** (Mesa's WGL build, ~22 MB, kept out of this bundle
   for that reason; not yet published on npm). node-gi preloads it by absolute path on
   such hosts only, and warns once (`GJSIFY_OPENGL_MISSING`) naming the package when a
-  windowing process runs without it. Why a preload and not a DLL in `bin/`, why Mesa
-  and not ANGLE (this GTK and epoxy are built without EGL), and the measurements:
-  `docs/node-gi-platform-notes.md` and #1097.
+  windowing process runs without it. Why a preload and not a DLL in `bin/`, why Mesa and
+  not ANGLE (this GTK and epoxy are built without EGL), and the measurements:
+  `docs/node-gi-platform-notes.md`. Measured on the win11-gjsify VM; tracked as #1097,
+  with the reasoning in the webgl-on-win32 entry of `status/open-todos/README.md`.
 
   GSK still renders with cairo by default even WITH a GL context: GTK's win32 GL
   renderer needs DirectComposition, which GTK makes opt-in (`GDK_DEBUG=dcomp`).

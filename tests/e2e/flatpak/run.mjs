@@ -40,7 +40,7 @@ function hasCmd(cmd, args = ['--version']) {
  * A SKIP says that; a green assertion does not (#1550). `GJSIFY_E2E_REQUIRE=flatpak`
  * turns the absence into a named failure for a job that claims to provide the tool —
  * which is what the `e2e` job should pass once actionlint reaches it. Ledgered in
- * `status/open-todos.md` with the two ways to get it there and why neither belongs in
+ * `status/open-todos/README.md` with the two ways to get it there and why neither belongs in
  * this PR.
  */
 const DOCUMENT_READER_SKIP = e2eSkipReason('flatpak', [

@@ -56,7 +56,7 @@
 // imports THIS file by relative path and asserts identical arrays for a table of
 // injected inputs. It pins a THIRD copy the same way, `@gjsify/utils/core`'s
 // `system-gi-dirs.ts`. Change one, change all three; the lift that deletes two of
-// them is tracked in `status/open-todos.md`.
+// them is tracked in `status/open-todos/README.md`.
 import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 // POSIX path semantics, not the HOST's. This function answers a question about

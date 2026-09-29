@@ -21,7 +21,9 @@
 //      surface (`@gjsify/buffer`'s normalizeEncoding/checkEncoding,
 //      `@gjsify/message-channel`'s CONSTRUCTIBLE MessagePort vs Node's
 //      non-constructible global). Forcing the closure reproduces the graph the
-//      suite runs against on gjs — the thing this harness measures.
+//      suite runs against on gjs — the thing this harness measures. A package
+//      whose polyfill ADOPTS another builtin's objects names it in
+//      `gjsify.polyfillPeers`, and that `node:<peer>` is retargeted too.
 //   3. Runs the ONE `--app node` bundle on node, bun and deno (Node-API is their
 //      common ABI), reusing example/harness.mjs's RUNTIMES map + PATH-skip.
 //   4. Captures build/run outcome and the `@gjsify/unit` counts, then groups the
@@ -222,6 +224,32 @@ function collectForcedPolyfillAliases(startDir) {
     return aliases;
 }
 
+// Declared polyfill peers (`gjsify.polyfillPeers`). The self-retarget swaps ONE
+// `node:*` specifier; every other one the specs import stays the runtime's own
+// module. That is right for a peer the polyfill only CALLS, and wrong for one whose
+// OBJECTS it adopts: `@gjsify/tls` upgrades a given socket by claiming its Gio
+// connection, so `tls.connect({ socket: net.connect(…) })` in its own specs needs
+// `node:net` to be `@gjsify/net` too. With Node's net there, #1837's STARTTLS specs
+// failed eight tests per runtime with `_claimConnection is not a function`: a graph
+// no GJS run can produce, measured as if it were the package's defect. The package
+// owns that coupling, so it declares it; the harness only honours it (and the
+// `polyfill-peers` rule holds the declaration to the manifest's dependencies).
+function polyfillPeerAliases(pkgJson) {
+    const peers = pkgJson?.gjsify?.polyfillPeers;
+    if (!peers || typeof peers !== 'object' || Array.isArray(peers)) return [];
+    const aliases = [];
+    for (const peer of Object.keys(peers)) {
+        const peerName = `@gjsify/${peer}`;
+        const peerDir = findPackageDir(peerName);
+        const peerPkg = peerDir ? readPkgJson(peerDir) : null;
+        // A native-slotted peer must name its polyfill BODY, for the same
+        // `<pkg>/globals` cycle the self-retarget below avoids.
+        const entry = peerPkg?.gjsify?.runtimes?.node === 'native' ? polyfillEntryOf(peerDir, peerPkg) : null;
+        aliases.push(`node:${peer}=${entry ?? peerName}`);
+    }
+    return aliases;
+}
+
 // A suite that touches on-disk assets resolves them RELATIVE TO THE BUNDLE, and
 // the package's own test bundle sits at the PACKAGE ROOT while this harness builds
 // into `<pkg>/dist` — so `join(__dirname, 'test/…')` lands on `<pkg>/dist/test`
@@ -243,11 +271,28 @@ function stageTestAssets(dir, distDir, runGjsify, timeout) {
         const source = join(dir, name);
         const staged = join(distDir, name);
         if (!existsSync(source) || existsSync(staged)) continue;
-        try {
-            symlinkSync(`../${name}`, staged, 'dir');
-        } catch {
-            /* best-effort — a broken link surfaces as the asset-load failure it bridges */
-        }
+        linkAssetDir(`../${name}`, staged);
+    }
+}
+
+/**
+ * Link `staged` to the directory `target` (relative to `staged`'s parent), and throw
+ * when that cannot be done.
+ *
+ * On win32 a `'dir'` symlink needs Developer Mode or an elevated shell, and the call
+ * used to sit in a swallowing `catch`, so an ordinary Windows host staged nothing and
+ * reported the suite's asset reads as the package's own failures. A junction needs no
+ * privilege; it only takes an absolute target, which Node derives from a relative one.
+ * A link that still fails is a broken HARNESS, and it now says so instead of passing
+ * the blame to the package under test.
+ */
+function linkAssetDir(target, staged, platform = process.platform) {
+    try {
+        symlinkSync(target, staged, platform === 'win32' ? 'junction' : 'dir');
+    } catch (err) {
+        throw new Error(`cannot stage test assets: link ${staged} -> ${target} failed (${err.code ?? err.message})`, {
+            cause: err,
+        });
     }
 }
 
@@ -542,6 +587,7 @@ function runPackage(name, { runtimes, timeout, keep, runGjsify }) {
         const selfPkg = readPkgJson(dir);
         const selfEntry = selfPkg?.gjsify?.runtimes?.node === 'native' ? polyfillEntryOf(dir, selfPkg) : null;
         const selfTarget = selfEntry ?? name;
+        const peerAliases = polyfillPeerAliases(selfPkg);
         const b = runGjsify(
             [
                 'build',
@@ -550,6 +596,7 @@ function runPackage(name, { runtimes, timeout, keep, runGjsify }) {
                 'node',
                 '--alias',
                 `node:${bare}=${selfTarget}`,
+                ...peerAliases.flatMap((a) => ['--alias', a]),
                 ...forcedAliases.flatMap((a) => ['--alias', a]),
                 '--outfile',
                 outfile,
@@ -742,4 +789,5 @@ export {
     gjsifyRunner,
     parseSummary,
     stageTestAssets,
+    linkAssetDir,
 };

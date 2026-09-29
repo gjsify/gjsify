@@ -3,7 +3,7 @@
 // renderer drives this today. It earns a table the day the NativeScript port grows a
 // swipe — until then a table would be the derivation asserted against itself, which
 // `scripts/check-adwaita-conformance-drivers.mjs` was written to stop counting as
-// coverage. Tracked with the other core-only modules in `status/open-todos.md`.
+// coverage. Tracked with the other core-only modules in `status/open-todos/README.md`.
 //
 // The numbers below are the C's arithmetic, worked out by hand from the constants rather
 // than copied off a run: `slope` is 0.499 for touch, so a 1 unit/ms flick projects 0.499

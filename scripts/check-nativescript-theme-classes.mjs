@@ -67,7 +67,7 @@
 // reviewable, and a missing one shows up as a class nothing gates rather than as
 // a false failure. It is also why the unprefixed style classes the showcase's
 // carousel reaches for — `.title-1`, `.success`, `.warning` — are NOT held here
-// even though nothing styles them either; that gap is in `status/open-todos.md`
+// even though nothing styles them either; that gap is in `status/open-todos/README.md`
 // with its measurement.
 //
 // TEMPLATE LITERALS ARE READ TOO, interpolations blanked out first. `` `${b.className}
@@ -296,7 +296,7 @@ const scanned = SCOPES.map((scope) => {
  * tripled the string surface without changing the reader. The rename itself is still
  * caught — the NEW name arrives unstyled — so what survives is a stale reason.
  * Tightening it means telling a `className` assignment from any other string, the same
- * parser the `style-classes.md` widening in `status/open-todos.md` is waiting on.
+ * parser the `style-classes.md` widening in `status/open-todos/README.md` is waiting on.
  */
 const emitted = new Map();
 for (const { emitted: found } of scanned) {

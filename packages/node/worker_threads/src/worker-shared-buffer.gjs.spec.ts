@@ -21,7 +21,7 @@ const NO_NATIVE_SAB =
     'win32, where SharedBuffer.create() throws NATIVE_SAB_UNAVAILABLE. There is no ' +
     'in-engine fallback to degrade to: SharedArrayBuffer and Atomics are both undefined under ' +
     'GJS (measured on gjs 1.88.1), which is why the native bridge exists at all. Tracked in ' +
-    'status/open-todos.md — "Two packages have no darwin target at all".';
+    'status/open-todos/README.md — "Two packages have no darwin target at all".';
 
 export default async () => {
     await on('Gjs', async () => {

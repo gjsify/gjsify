@@ -10,7 +10,7 @@
 // synchronous require of a builtin, so the load dies before any `.node` is opened.
 // The distinction is not pedantry — it says an N-API host alone would not be
 // enough; the wrapper has to be bypassed too, which is exactly what
-// `napiNodeAddonPlugin` does for napi-rs packages. See `status/open-todos.md`
+// `napiNodeAddonPlugin` does for napi-rs packages. See `status/open-todos/README.md`
 // § "Can `@gjsify/napi` retire the hand-written `-native` bridges?".
 //
 // `GJSIFY_BUNDLER=native|npm` overrides that: `native` throws when the prebuild is

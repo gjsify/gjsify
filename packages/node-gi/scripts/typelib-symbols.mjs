@@ -297,7 +297,7 @@ export function typelibApiRecord(result) {
  * MAKES THAT UNAVOIDABLE. Between two pin bumps, a patch upstream deleted is a gap this cannot
  * yet see — which is correct for the bytes being built (the pinned gvsbuild still applies it) and
  * is NOT the same claim as expiring on its own. A gap that outlives several bumps is the signal
- * that a direct expiry is wanted; `status/open-todos.md` carries that alternative rather than a
+ * that a direct expiry is wanted; `status/open-todos/README.md` carries that alternative rather than a
  * scheduled run nobody reads.
  *
  * @param {object} opts

@@ -16,7 +16,7 @@
 // target. So this plugin renames the module id in `resolveId` and compiles in
 // `load`, which is the only one of the three candidates measured working on BOTH
 // engines. The table of what each did is in the README; the core gap is recorded in
-// `status/open-todos.md`.
+// `status/open-todos/README.md`.
 //
 // Everything else worth knowing is at its call site, because each one is a way this
 // compiles green and renders wrong.

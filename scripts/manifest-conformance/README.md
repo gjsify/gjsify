@@ -14,6 +14,7 @@ this repository has:
 | `platforms-ci` | Parses `.github/workflows/prebuilds.yml`'s matrix by filename |
 | `pr-trigger-parity` | Reads `.github/workflows/*.yml`, and names `main` as the branch this repo merges into |
 | `reverse-bridge-leg` | Reads `.github/workflows/*.yml` for the steps that run a package's node leg, and knows `gjsify foreach test` is this repo's other route to one |
+| `polyfill-peers` | Its only consumer is `scripts/node-gi-consumer-harness.mjs`, which retargets each declared `node:<peer>` onto its polyfill |
 | `refs-pin` | `refs/` submodules + Cargo path deps, verified against this repo's git index |
 | `workflow-rev-pin` | Pairs a named workflow `env:` with a `refs/` gitlink of this repository |
 | `stylesheet-font-families` | Reads the reason ledger `status/stylesheet-font-families.json` and names this repo's own packages in its diagnostics |

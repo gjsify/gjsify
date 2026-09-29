@@ -82,7 +82,7 @@ export default async () => {
         });
 
         await it('mints an id that still lands inside the deepkit plugin’s reflection filter', async () => {
-            // The coupling `status/open-todos.md` names: `SUFFIX` exists so rolldown's
+            // The coupling `status/open-todos/README.md` names: `SUFFIX` exists so rolldown's
             // extension-based parser selection reaches TypeScript, and the SAME tail is
             // what makes `@gjsify/rolldown-plugin-deepkit` see a `.vue` id at all — its
             // filter is `/\.(m|c)?tsx?$/`. Renaming either constant so this goes red is
