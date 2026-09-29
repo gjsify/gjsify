@@ -1,10 +1,12 @@
 // Suite directory → WHY it is deliberately absent from `package.json#scripts.test:e2e`.
 //
-// `scripts/e2e-shard.mjs` parses that script rather than globbing `tests/e2e/*`, which is
-// correct — a suite can need setup the shared batch does not do — but left no record of
-// which omissions were meant: 12 of 112 suites ran nowhere, eleven by oversight, among
-// them `release-bundle-gate`, written to cover the gate that let v0.28.0 publish half its
-// packages and named by no script at all.
+// `scripts/e2e-suites.mjs`'s `listE2eSuites()` DISCOVERS suites from `tests/e2e/*/` rather
+// than globbing them all into `test:e2e` unconditionally — a suite can need setup the
+// shared batch does not do — and this ledger is what keeps that exclusion from being
+// silent: 12 of 112 suites once ran nowhere, eleven by oversight, among them
+// `release-bundle-gate`, written to cover the gate that let v0.28.0 publish half its
+// packages and named by no script at all. A suite that instead needs to run ALONE rather
+// than be excluded entirely belongs in the sibling ledger, `scripts/e2e-serial-suites.mjs`.
 //
 // Enforced by `scripts/check-e2e-suite-coverage.mjs` (see its header); same shape as
 // `scripts/manifest-conformance/unchecked-fields.mjs` and the retired `PREBUILD_GIR_GAPS` — an honest
