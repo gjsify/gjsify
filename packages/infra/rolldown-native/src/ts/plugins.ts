@@ -54,6 +54,19 @@ export interface NativePluginContext {
         importer?: string,
         opts?: { skipSelf?: boolean; isEntry?: boolean },
     ): Promise<{ id: string; external: boolean } | null>;
+    /**
+     * Register a file the output depends on but the bundler never made a module
+     * — rolldown's `this.addWatchFile`. Collected into the result's
+     * `watchedFiles`.
+     *
+     * The native engine has no watcher to feed and the Rust side never asked
+     * for one, so the list goes nowhere but the caller: `gjsify test` judges its
+     * bundle against it. An older published copy of this package is what a host
+     * may actually load (the CLI resolves the engine through several anchors),
+     * so a plugin must feature-detect this — a build must not fail over
+     * bookkeeping, and a miss is reported rather than silent.
+     */
+    addWatchFile(id: string): void;
     /** Append a warning to the bundle's warnings list. */
     warn(message: string): void;
     /** Throw with `message` — caught at the dispatch boundary and
@@ -345,6 +358,9 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
     // Per call, so a second bundle in the same process never inherits the
     // first one's failures (`--globals auto` alone runs three per build).
     const hookErrors = new HookErrorLog();
+    // Per call, like `hookErrors`: a second bundle in this process must not
+    // inherit the first one's declared inputs.
+    const watchedFiles = new Set<string>();
     const ctxResolveSlots = new Map<
         number,
         { resolve: (v: { id: string; external: boolean } | null) => void; reject: (e: Error) => void }
@@ -374,6 +390,9 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
 
     function makeContext(reqId: number): NativePluginContext {
         return {
+            addWatchFile(id: string) {
+                watchedFiles.add(id);
+            },
             resolve(specifier, importer, opts) {
                 return new Promise((resolve, reject) => {
                     const childId = session.context_resolve(
@@ -555,7 +574,13 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
     return new Promise<BundleResult>((resolve, reject) => {
         session.connect('completed', (_self: SessionInstance, output: GLib.Bytes) => {
             try {
-                resolve(JSON.parse(dec(output)) as BundleResult);
+                // The envelope is Rust's; `watchedFiles` is ours — the same
+                // value npm rolldown exposes as `RolldownBuild.watchFiles`, and
+                // the only way a plugin-declared input leaves this engine.
+                resolve({
+                    ...(JSON.parse(dec(output)) as BundleResult),
+                    watchedFiles: [...watchedFiles],
+                });
             } catch (e) {
                 reject(e instanceof Error ? e : new Error(String(e)));
             }

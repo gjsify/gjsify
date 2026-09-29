@@ -213,6 +213,8 @@ function resolveImportTargetForGjs(specifier: string): string {
 
 interface BundleResult {
     warnings: string[];
+    /** Set by `@gjsify/rolldown-native` for the files a plugin declared with `addWatchFile`. */
+    watchedFiles?: string[];
     output: Array<
         | {
               type: 'chunk';
@@ -248,6 +250,20 @@ export interface NativePluginContext {
         importer?: string,
         opts?: { skipSelf?: boolean; isEntry?: boolean },
     ): Promise<{ id: string; external: boolean } | null>;
+    /**
+     * rolldown's `this.addWatchFile`, collected by the native facade into
+     * `BundleResult.watchedFiles` — the native half of what npm rolldown reports
+     * as `RolldownBuild.watchFiles`.
+     *
+     * OPTIONAL here on purpose. The engine is resolved through several anchors
+     * and a global-prefix copy can answer first (measured 2026-09-29 on a dev
+     * host whose project-local engine was the current one), so a plugin cannot
+     * assume the method exists: it is this bridge's documented stance that an
+     * unimplemented context method FAILS at hook-call time, and a build must
+     * not fail over bookkeeping. `gjsify-css-as-string` therefore
+     * feature-detects and warns once.
+     */
+    addWatchFile(id: string): void;
     warn(message: string): void;
     error(message: string): never;
 }
@@ -349,18 +365,60 @@ export async function runWatch(finalOpts: BundlerOptions): Promise<RolldownWatch
     return mod.watch({ ...finalOpts, output });
 }
 
+/** What one build reported about the files its output depends on. */
+export interface BuildWatchList {
+    /**
+     * The engine's watch list: npm rolldown's `RolldownBuild.watchFiles` (its
+     * module set plus every `this.addWatchFile`), the native facade's
+     * `watchedFiles` (the declared half — the native engine reports no modules,
+     * hence the two halves rather than either). Read BEFORE `close()`, which is
+     * where the npm getter is still alive.
+     */
+    files: readonly string[];
+    /**
+     * `false` when the engine CANNOT report one at all (a `@gjsify/rolldown-native`
+     * older than `addWatchFile`). A caller that judges a build's inputs on this
+     * list has to refuse to trust it — the file a plugin read itself is then
+     * invisible, and a stale bundle would read as current.
+     */
+    reportedByEngine: boolean;
+}
+
+/** Where a build's own input list goes. Absent → the caller does not want it. */
+export interface RunBundleOptions {
+    onWatchFiles?: (watch: BuildWatchList) => void;
+}
+
+let _warnedNoWatchList = false;
+
+function warnNoNativeWatchList(): void {
+    if (_warnedNoWatchList) return;
+    _warnedNoWatchList = true;
+    console.warn(
+        '[gjsify] this `@gjsify/rolldown-native` build reports no watch list: it predates ' +
+            '`addWatchFile`, so a file a plugin read itself (a stylesheet\u2019s `@import` chain, an ' +
+            'inlined `readFileSync`) cannot be declared as a build input. `gjsify test` will rebuild ' +
+            'the affected bundles on every run rather than trust a set it cannot see. Upgrade the ' +
+            'engine (it ships in the same release train as the CLI).',
+    );
+}
+
 /**
  * Run a bundle with the picked engine. Drop-in replacement for the
  * `rolldown(opts).write(opts.output)` flow used directly in build.ts.
  */
-export async function runBundle(finalOpts: BundlerOptions): Promise<RolldownOutput> {
+export async function runBundle(finalOpts: BundlerOptions, options: RunBundleOptions = {}): Promise<RolldownOutput> {
     if (await shouldUseNative()) {
-        return await runNativeBundle(finalOpts);
+        return await runNativeBundle(finalOpts, options);
     }
     const rolldown = await loadNpmRolldown();
     const build = await rolldown(finalOpts);
     try {
-        return await build.write(finalOpts.output ?? {});
+        const output = await build.write(finalOpts.output ?? {});
+        if (options.onWatchFiles) {
+            options.onWatchFiles({ files: await build.watchFiles, reportedByEngine: true });
+        }
+        return output;
     } finally {
         await build.close();
     }
@@ -503,7 +561,7 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
     return _nativeProbe;
 }
 
-async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutput> {
+async function runNativeBundle(finalOpts: BundlerOptions, options: RunBundleOptions = {}): Promise<RolldownOutput> {
     const native = await tryLoadNative();
     if (!native) {
         throw new Error('@gjsify/rolldown-native not loadable');
@@ -545,6 +603,19 @@ async function runNativeBundle(finalOpts: BundlerOptions): Promise<RolldownOutpu
     }
     const result = await native.bundleWithPlugins(bundlerOpts as unknown as Record<string, unknown>, nativePlugins);
     reportNativeWarnings(result, finalOpts as unknown as Record<string, unknown>);
+    if (options.onWatchFiles) {
+        if (result.watchedFiles === undefined) {
+            // NOT a silent drop. A version-skewed engine has no `addWatchFile` on
+            // its plugin context, so nothing a plugin declares can reach the
+            // build's input set — and a caller judging freshness on that set
+            // would call a stale bundle current. Say so here, where the engine is
+            // in hand, and report `reportedByEngine: false` so the caller refuses.
+            warnNoNativeWatchList();
+            options.onWatchFiles({ files: [], reportedByEngine: false });
+        } else {
+            options.onWatchFiles({ files: result.watchedFiles, reportedByEngine: true });
+        }
+    }
 
     // The native facade returns the BundleOutput shape but doesn't
     // write files — replicate `.write()` here so callers see the same
