@@ -24,7 +24,8 @@ export default async () => {
         });
 
         // The platform contract from ADR 0013: cross-process SharedBuffer is
-        // Linux-only, and EVERY other platform (macOS, Windows) has to degrade
+        // Linux + macOS, and EVERY other platform (Windows, a target with no
+        // prebuild) has to degrade
         // through exactly one gate — hasNativeSab() === false — rather than
         // crash somewhere downstream. These pin that gate.
         await describe('SharedBuffer — honest degradation without the native backend', async () => {
@@ -34,8 +35,8 @@ export default async () => {
 
             await it('resolveNativeSab() is null when the typelib is absent (property throws)', async () => {
                 // GJS raises on `imports.gi.<Ns>` when no typelib is on
-                // GI_TYPELIB_PATH. That is the literal macOS/Windows situation:
-                // no prebuild ships, so the namespace never resolves.
+                // GI_TYPELIB_PATH. That is the literal Windows situation (and any
+                // target without a prebuild): the namespace never resolves.
                 const throwingGi = new Proxy(
                     {},
                     {
@@ -78,14 +79,14 @@ export default async () => {
             });
 
             await it('the unavailability message names the platform scope, not a broken install', async () => {
-                expect(NATIVE_SAB_UNAVAILABLE).toContain('Linux-only');
+                expect(NATIVE_SAB_UNAVAILABLE).toContain('Linux');
+                expect(NATIVE_SAB_UNAVAILABLE).toContain('macOS 14.4+');
                 expect(NATIVE_SAB_UNAVAILABLE).toContain('hasNativeSab()');
-                expect(NATIVE_SAB_UNAVAILABLE).toContain('macOS');
                 expect(NATIVE_SAB_UNAVAILABLE).toContain('Windows');
             });
 
             await it('a real GJS process without the typelib reports unavailable and exits cleanly', async () => {
-                // End-to-end fidelity for the macOS/Windows case, which we cannot
+                // End-to-end fidelity for the no-prebuild case, which we cannot
                 // reproduce by hiding a module: spawn a real `gjs` with the
                 // prebuild search paths stripped and assert the namespace fails
                 // to resolve WITHOUT taking the process down. A positive control
@@ -392,6 +393,73 @@ export default async () => {
                     expect(sb.getUint8(0)).toBe(0xce);
                     expect(sb.getInt32LE(4)).toBe(1234567);
                     expect(atomics.load32(sb, 8)).toBe(999);
+                } finally {
+                    GLib.unlink(childPath);
+                }
+            });
+        });
+
+        // The property the whole wait primitive exists for, and the one the
+        // in-process probes above cannot reach: a wait in ONE process is woken
+        // by a notify from ANOTHER that maps the same region at a different
+        // address. Linux gets it from the non-private FUTEX_WAIT, darwin from
+        // the `_SHARED` flag of os_sync_wait_on_address (ADR 0013 §3) — a
+        // process-local flavour on either would leave `notify32` finding no
+        // waiter and the child timing out, which is exactly what this asserts
+        // against. The value is never changed, so the child cannot return
+        // early on 'not-equal': only a cross-process wake ends its wait.
+        await describe('atomics.wait32 / notify32 across processes', async () => {
+            await it("a child's wait is woken by the parent's notify", async () => {
+                const sb = SharedBuffer.create(16);
+                atomics.store32(sb, 0, 0); // the wait word
+                atomics.store32(sb, 4, 0); // child: "about to wait"
+                atomics.store32(sb, 8, 0); // child: wait result + 100
+
+                const childPath = `/tmp/sab-spec-wait-${Date.now()}.mjs`;
+                const childCode =
+                    `const SabNative = imports.gi.GjsifySabNative;\n` +
+                    `const sb = SabNative.SharedBuffer.from_fd(3, 16);\n` +
+                    `sb.atomic_store_i32(4, 1);\n` +
+                    `const r = sb.futex_wait(0, 0, 10000);\n` +
+                    `sb.atomic_store_i32(8, r + 100);\n`;
+                GLib.file_set_contents(childPath, childCode);
+
+                const sleep = (ms: number) =>
+                    new Promise<void>((resolve) =>
+                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                            resolve();
+                            return GLib.SOURCE_REMOVE;
+                        }),
+                    );
+
+                try {
+                    const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE });
+                    launcher.take_fd(sb.fd, 3);
+                    const child = launcher.spawnv(['gjs', '-m', childPath]);
+
+                    // "About to wait" is set BEFORE the wait syscall, so keep
+                    // notifying until one finds the waiter: the count is 1 only
+                    // once the kernel has matched the child's wait to this
+                    // address, which is the claim under test.
+                    let woken = 0;
+                    const deadline = Date.now() + 8000;
+                    while (Date.now() < deadline) {
+                        if (atomics.load32(sb, 4) === 1) {
+                            woken = atomics.notify32(sb, 0, 1);
+                            if (woken > 0) break;
+                        }
+                        await sleep(10);
+                    }
+
+                    await new Promise<void>((resolve) => {
+                        child.wait_async(null, () => resolve());
+                    });
+
+                    expect(woken).toBe(1);
+                    // 100 + 0: the child's wait returned 'ok' (woken), not
+                    // 'timed-out' (98) or 'not-equal' (99).
+                    expect(atomics.load32(sb, 8)).toBe(100);
+                    expect(child.get_exit_status()).toBe(0);
                 } finally {
                     GLib.unlink(childPath);
                 }

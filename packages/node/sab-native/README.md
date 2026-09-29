@@ -1,17 +1,17 @@
 # @gjsify/sab-native
 
-Optional native Vala bridge providing cross-process shared memory and atomics for `@gjsify/worker_threads` on GJS. Implements `SharedBuffer` via Linux `memfd_create` + `mmap(MAP_SHARED)` with typed accessors and SEQ_CST atomics backed by `__atomic_*` GCC builtins and `SYS_futex` for wait/notify. Also exposes `FdChannel` for passing file descriptors between processes via SCM_RIGHTS over a Unix-domain socket.
+Optional native Vala bridge providing cross-process shared memory and atomics for `@gjsify/worker_threads` on GJS. Implements `SharedBuffer` as an anonymous `mmap(MAP_SHARED)` region (Linux `memfd_create`, macOS `shm_open` + immediate `shm_unlink`) with typed accessors and SEQ_CST atomics backed by `__atomic_*` builtins, and an address-keyed cross-process wait/notify (Linux `SYS_futex`, macOS `os_sync_wait_on_address`). Also exposes `FdChannel` for passing file descriptors between processes via SCM_RIGHTS over a Unix-domain socket.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
 ## Platform support
 
-**Cross-process `SharedBuffer` is Linux-only today.** This is a property of the package, not of your installation — see [ADR 0013](../../../docs/adr/0013-sab-native-platform-scope.md) for the full reasoning.
+**Cross-process `SharedBuffer` works on Linux and macOS 14.4+; Windows is not supported.** This is a property of the package, not of your installation — see [ADR 0013](../../../docs/adr/0013-sab-native-platform-scope.md) for the full reasoning.
 
 | Platform | Cross-process `SharedBuffer` | Notes |
 |---|---|---|
 | Linux `x86_64`, `aarch64`, `ppc64`, `s390x`, `riscv64` | ✅ Supported | `memfd_create(2)` + `mmap(MAP_SHARED)`, `SYS_futex` (non-private flavour, so waits match across processes), `SCM_RIGHTS`. Prebuilds ship for all five architectures. |
-| macOS | ❌ Not yet | Planned, design fixed: `shm_open` + `ftruncate` + immediate `shm_unlink` for the region, unchanged `SCM_RIGHTS`, and `os_sync_wait_on_address` / `os_sync_wake_by_address_*` with the `…_SHARED` flag for wait/notify. Requires **macOS 14.4+**. Blocked on a macOS prebuild CI job. |
+| macOS `arm64`, `x86_64` | ✅ Supported | `shm_open` + `ftruncate` + immediate `shm_unlink` for the region, `os_sync_wait_on_address` / `os_sync_wake_by_address_any` with the `…_SHARED` flag for wait/notify, `SCM_RIGHTS` over a `SOCK_STREAM` pair (Darwin has no Unix-domain `SOCK_SEQPACKET`). Requires **macOS 14.4+**. Prebuilds come from CI's macOS job. |
 | Windows | ❌ Not supported | Blocked twice over: GJS itself does not run on Windows, and Windows has no cross-process address-keyed wait — `WaitOnAddress`/`WakeByAddressSingle` are process-local by documentation, so `wait32`/`notify32` would need a different contract (named kernel objects). Revisit only via a new ADR. |
 | Node.js / browser | ❌ n/a | GJS-only package (`runtimes.node`/`.browser` = `none`). |
 
@@ -63,7 +63,7 @@ if (hasNativeSab()) {
 }
 ```
 
-Ships as a prebuilt `.so` + `.typelib` for `linux-{x64,arm64,ppc64,s390x,riscv64}`.
+Ships as a prebuilt library + `.typelib` for `linux-{x64,arm64,ppc64,s390x,riscv64}` (`.so`) and `darwin-{arm64,x64}` (`.dylib`), each in its own `@gjsify/sab-native-<os>-<arch>` package.
 
 ## License
 
