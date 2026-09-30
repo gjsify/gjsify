@@ -32,7 +32,9 @@
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
-import GIRepository from 'gi://GIRepository';
+// `Repository.dup_default()` is GIRepository-3.0's singleton accessor — 2.0 has
+// no such method — so the version is part of the request, not decoration.
+import GIRepository from 'gi://GIRepository?version=3.0';
 
 import { giRuntimePathsStub } from '../../packages/infra/rolldown-plugin-gjsify/lib/plugins/gi-runtime-paths.js';
 
