@@ -1138,21 +1138,10 @@ jobs:
   # glib/gobject-introspection/vala/meson (+ one library each), not libgjs and
   # mozjs-140 — so there is no source build anywhere in this job.
   #
-  # WHAT IS DELIBERATELY NOT HERE, and why (each is a hard blocker, not an
-  # oversight — do not "fix" one by adding it to the matrix):
-  #
-  #   • @gjsify/rolldown-native — the Rust blocker is GONE (the three
-  #     `libc::eventfd(2)` descriptors became portable anonymous pipes in
-  #     src/rust/src/wakeup.rs, and `cargo check --target aarch64-apple-darwin`
-  #     passes), and meson.build is darwin-ready. It is not in the REQUIRED
-  #     matrix only because nothing has yet LINKED it on a real macOS host,
-  #     generated its typelib, or loaded it under Homebrew `gjs` — and it needs
-  #     `json-glib` on top of this job's brew closure plus
-  #     `git submodule update --init refs/rolldown` and a rustup toolchain.
-  #     (Since promoted — see its build step below; this bullet is kept for the
-  #     reasoning.)
-  #     CONSEQUENCE UNTIL THEN: `gjsify build` still has no engine on macOS —
-  #     this job closes the format/CSS half of the toolchain, not the bundler half.
+  # Nothing is held out of this job any more. Its one exclusion,
+  # `@gjsify/rolldown-native`, was promoted on the evidence recorded at its
+  # build step below — together with the Rust blocker that had to die first,
+  # which is what kept it out for as long as it did.
   #
   # NAMING: `darwin-arm64` — the `${process.platform}-${process.arch}` convention
   # every job in this workflow now uses, on every OS (`linux-x64`, `linux-arm64`,
@@ -1352,6 +1341,16 @@ jobs:
       # this bridge (the npm `rolldown` is a napi binary GJS cannot load), so while
       # it shipped linux-only there was no `gjsify build` on any Mac at all. That
       # is why it belongs in the required job rather than behind a dispatch.
+      #
+      # THE RUST BLOCKER THAT HELD IT BACK, kept because "it builds now" says
+      # nothing to the next person wondering why. Its core woke the GLib loop
+      # with three `libc::eventfd(2)` descriptors and `eventfd` does not exist on
+      # Darwin; they became portable anonymous pipes in `src/rust/src/wakeup.rs`,
+      # `cargo check --target aarch64-apple-darwin` passed, and `meson.build` was
+      # already darwin-ready. What was still missing then was EVIDENCE — nothing
+      # had linked it on a real macOS host, generated its typelib, or loaded it
+      # under Homebrew `gjs` — and the run above is what produced that. A cargo
+      # check is a compiler's opinion; the `load-tests` step below is a dlopen.
       #
       # `--depth 1` (not the `--recursive` the oxc row uses): rolldown's own
       # submodules are test fixtures the Cargo path-dep never reaches, and the
