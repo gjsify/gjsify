@@ -14,6 +14,15 @@
 // GI_TYPELIB_PATH from the package's "gjsify.prebuilds" field before the
 // runtime resolves `gi://GjsifyWebrtc`.
 import GjsifyWebrtc from 'gi://GjsifyWebrtc?version=0.1';
+import { openNativeLibrary } from '@gjsify/utils/core';
+
+// The import loaded the typelib only; the first class access below opens the
+// library. Open it HERE, beside the typelib that was found — so a shell that
+// stripped the library-path variable cannot leave a typelib without its library
+// — and fail naming the file and its missing dependency (libgstwebrtc,
+// say) rather than as the nameless "Unsupported type void".
+const _loadError = openNativeLibrary('GjsifyWebrtc');
+if (_loadError) throw _loadError;
 
 export const PromiseBridge = GjsifyWebrtc.PromiseBridge;
 export type PromiseBridge = GjsifyWebrtc.PromiseBridge;

@@ -25,6 +25,9 @@
         "./shims/module-resolve": {
             "default": "./lib/shims/module-resolve.js"
         },
+        "./shims/addon-resolve": {
+            "default": "./lib/shims/addon-resolve.js"
+        },
         "./shims/unicorn-magic": {
             "default": "./lib/shims/unicorn-magic.js"
         }
@@ -64,6 +67,7 @@
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
+        "@gjsify/utils": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@rollup/pluginutils": "^5.4.0",
         "acorn": "^8.17.0",

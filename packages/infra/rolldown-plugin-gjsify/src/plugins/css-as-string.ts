@@ -45,6 +45,16 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Plugin, PluginContext } from 'rolldown';
 import type { Targets } from 'lightningcss';
+// TYPE-only: a static runtime import from `@gjsify/utils` would make this
+// plugin's `lib/` unlinkable in the one window that matters — `build:infra`
+// builds the plugin at clause 6 and only builds utils' `lib/esm` at clause 18,
+// but the Node CLI entry loads this plugin's `lib/` in between (clause 13, the
+// facade bootstrap). ESM links at load, not at call, so the probe below has to
+// arrive by dynamic import; see `tryLoadNativeBundler`.
+import type * as UtilsCore from '@gjsify/utils/native-library';
+
+/** The probe's signature, taken from the type edge so the value edge can stay lazy. */
+type OpenNativeLibrary = typeof UtilsCore.openNativeLibrary;
 import { isGjs } from '../utils/runtime.js';
 import { declareBuildInput, type DeclareBuildInput } from '../utils/declare-build-input.js';
 
@@ -82,6 +92,8 @@ interface BundleResult {
 type Bundler = (filename: string, targets: Targets | undefined, declare: DeclareBuildInput) => Promise<BundleResult>;
 
 let _bundlerPromise: Promise<Bundler> | null = null;
+/** Why the native bridge's library would not open, when `tryLoadNativeBundler()` measured it. */
+let _nativeLoadError: Error | null = null;
 
 async function pickBundler(): Promise<Bundler> {
     const forced = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
@@ -90,12 +102,24 @@ async function pickBundler(): Promise<Bundler> {
     if (forced === 'npm') return loadNpmBundler();
     if (forced === 'native') {
         const native = await tryLoadNativeBundler();
-        if (!native) throw new Error('GJSIFY_CSS_BACKEND=native but @gjsify/lightningcss-native is not loadable');
+        if (!native)
+            throw new Error(
+                'GJSIFY_CSS_BACKEND=native but @gjsify/lightningcss-native is not loadable' +
+                    (_nativeLoadError ? `\n${_nativeLoadError.message}` : ''),
+            );
         return native;
     }
 
     const native = await tryLoadNativeBundler();
-    return native ?? loadNpmBundler();
+    if (native) return native;
+    // The npm fallback is the right answer, and it is silent on purpose — a
+    // missing optional backend is not an error. But if we MEASURED why the
+    // native one would not load, that measurement is the only place the user
+    // ever hears it, so it goes to the same `console.debug` channel
+    // `loadOptionalNativeModule` uses rather than into nothing. A backend that
+    // cannot load is the reason someone reaches for this flag.
+    if (_nativeLoadError) console.debug(_nativeLoadError.message);
+    return loadNpmBundler();
 }
 
 // Local mirror of the @gjsify/lightningcss-native surface we touch. We
@@ -135,6 +159,36 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         const resolved = createRequire(import.meta.url).resolve(specifier);
         const mod = (await import(/* @vite-ignore */ pathToFileURL(resolved).href)) as NativeLightningcssSurface;
         if (!mod.hasNativeLightningcss()) return null;
+        // The typelib resolved; its library opens at the first class access. Open
+        // it now, beside that typelib: this module cannot leave it to the wrapper,
+        // whose `lib/` is imported by file URL where GJS resolves no bare
+        // specifier. A library that will not load then names its missing
+        // dependency and the npm fallback runs, instead of the nameless
+        // "Unsupported type void" inside `transform()`.
+        // The same resolve-then-import dance as above, for the probe itself: by
+        // the time a CSS transform asks for the native bundler, utils' `lib/esm`
+        // is long built, so the lazy edge costs nothing and the static one would
+        // have cost a bootable CLI. `./native-library` rather than `./core`:
+        // `core` re-exports `main-loop`, whose module-level singleton would then
+        // exist twice in a process that already has it inlined in the GJS bundle.
+        //
+        // Its own `try` because the outer one cannot tell this apart from "there
+        // is no native backend" — and reporting nothing is the one outcome this
+        // file must not produce: a missing measurement reads as a passing one.
+        let openNativeLibrary: OpenNativeLibrary;
+        try {
+            const utilsHref = pathToFileURL(
+                createRequire(import.meta.url).resolve('@gjsify/utils/native-library'),
+            ).href;
+            ({ openNativeLibrary } = (await import(/* @vite-ignore */ utilsHref)) as {
+                openNativeLibrary: OpenNativeLibrary;
+            });
+        } catch (err) {
+            _nativeLoadError = err instanceof Error ? err : new Error(String(err));
+            return null;
+        }
+        _nativeLoadError = openNativeLibrary('GjsifyLightningcss');
+        if (_nativeLoadError) return null;
         return async (filename, targets, declare) => {
             // The native `@gjsify/lightningcss-native` `bundle()` resolves
             // `@import` chains through lightningcss's filesystem-backed
