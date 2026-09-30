@@ -45,7 +45,16 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Plugin, PluginContext } from 'rolldown';
 import type { Targets } from 'lightningcss';
-import { openNativeLibrary } from '@gjsify/utils/core';
+// TYPE-only: a static runtime import from `@gjsify/utils` would make this
+// plugin's `lib/` unlinkable in the one window that matters — `build:infra`
+// builds the plugin at clause 5 and only builds utils' `lib/esm` at clause 17,
+// but the Node CLI entry loads this plugin's `lib/` in between (clause 12, the
+// facade bootstrap). ESM links at load, not at call, so the probe below has to
+// arrive by dynamic import; see `tryLoadNativeBundler`.
+import type * as UtilsCore from '@gjsify/utils/core';
+
+/** The probe's signature, taken from the type edge so the value edge can stay lazy. */
+type OpenNativeLibrary = typeof UtilsCore.openNativeLibrary;
 import { isGjs } from '../utils/runtime.js';
 import { declareBuildInput, type DeclareBuildInput } from '../utils/declare-build-input.js';
 
@@ -156,6 +165,16 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         // specifier. A library that will not load then names its missing
         // dependency and the npm fallback runs, instead of the nameless
         // "Unsupported type void" inside `transform()`.
+        // The same resolve-then-import dance as above, for the probe itself: by
+        // the time a CSS transform asks for the native bundler, utils' `lib/esm`
+        // is long built, so the lazy edge costs nothing and the static one would
+        // have cost a bootable CLI.
+        const utilsHref = pathToFileURL(
+            createRequire(import.meta.url).resolve('@gjsify/utils/core'),
+        ).href;
+        const { openNativeLibrary } = (await import(/* @vite-ignore */ utilsHref)) as {
+            openNativeLibrary: OpenNativeLibrary;
+        };
         _nativeLoadError = openNativeLibrary('GjsifyLightningcss');
         if (_nativeLoadError) return null;
         return async (filename, targets, declare) => {

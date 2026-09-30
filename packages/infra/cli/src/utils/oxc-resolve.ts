@@ -58,7 +58,15 @@ import { activateNativePrebuilds } from './gi-search-path.js';
 import { nodeBinary } from './run-node.js';
 import { spawnToCompletion } from './spawn.js';
 import { isGjs, gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
-import { openNativeLibrary } from '@gjsify/utils/core';
+// TYPE-only, and the reason is the same as in css-as-string.ts: `build:infra`
+// builds `@gjsify/cli` at clause 12 and utils' `lib/esm` only at clause 17, but
+// `bootstrap-native-facades.mjs` loads THIS module's Node entry in between — so
+// a static import makes the Node CLI entry unloadable, which is not a degraded
+// build but no build at all. The value arrives by dynamic import below.
+import type * as UtilsCore from '@gjsify/utils/core';
+
+/** The probe's signature, taken from the type edge so the value edge can stay lazy. */
+type OpenNativeLibrary = typeof UtilsCore.openNativeLibrary;
 
 export type OxcTool = 'oxlint' | 'oxfmt';
 
@@ -279,6 +287,16 @@ async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
             // Open it now, beside that typelib — the wrapper cannot, for the reason
             // `bundler-pick.ts`'s `tryLoadNative()` gives — so a library that will
             // not load names itself instead of failing inside `runOxfmt()`.
+            // Resolved and imported, not statically imported — the reasoning is
+            // at the top of this file. By the time a formatter asks for the
+            // native backend, utils' `lib/esm` is built.
+            const utilsResolved =
+                resolveNpmPackage('@gjsify/utils/core', { bundleUrl: import.meta.url }) ??
+                createRequire(import.meta.url).resolve('@gjsify/utils/core');
+            const utilsHref = pathToFileURL(utilsResolved).href;
+            const { openNativeLibrary } = (await import(/* @vite-ignore */ utilsHref)) as {
+                openNativeLibrary: OpenNativeLibrary;
+            };
             _nativeOxfmtLoadError = openNativeLibrary('GjsifyOxfmt');
             if (_nativeOxfmtLoadError) return null;
             return mod;
