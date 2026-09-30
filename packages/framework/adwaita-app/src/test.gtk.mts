@@ -5,6 +5,8 @@
 // bundle has no answer for, and the suite's whole subject is what GTK's icon machinery
 // resolves a name to. `about-dialog.spec.ts` joins it for the same reason — its subject is
 // which properties land on a real `Adw.AboutDialog`, which only a GTK runtime can answer.
+// `nav-shell.spec.ts` is here for the same reason — its subject is the rows a real
+// `Gtk.ListBox` holds after a `setItems`, which a stub could answer wrongly.
 // `appearance/reader.spec.ts` and `system-accent.spec.ts` are here because they import
 // `gi://Gio` and `gi://GLib`, which the node bundle cannot resolve either. None needs a
 // DISPLAY though — see those files' headers — so all run wherever gjs and gtk4 are
@@ -14,6 +16,7 @@ import { run } from '@gjsify/unit';
 import aboutDialogSuite from './about-dialog.spec.js';
 import appearanceReaderSuite from './appearance/reader.spec.js';
 import iconThemeSuite from './icon-theme.spec.js';
+import navShellSuite from './nav-shell.spec.js';
 import systemAccentSuite from './system-accent.spec.js';
 
-run({ aboutDialogSuite, appearanceReaderSuite, iconThemeSuite, systemAccentSuite });
+run({ aboutDialogSuite, appearanceReaderSuite, iconThemeSuite, navShellSuite, systemAccentSuite });
