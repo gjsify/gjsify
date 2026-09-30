@@ -64,6 +64,7 @@ import { AdwValueListsTest } from './value-lists.spec.js';
 import { AdwBlueprintLayoutTest } from './blueprint-layout.spec.js';
 import { AdwBlueprintMarkupTest } from './blueprint-markup.spec.js';
 import { AdwTagsTest } from './tags.spec.js';
+import { AdwFontStackTest } from './font-stack.spec.js';
 
 run({
     AdwSharedTreesTest,
@@ -128,4 +129,8 @@ run({
     // suite removes them in a `finally`, so appending a suite after this line
     // cannot break it — see `adw-fonts.spec.ts`.
     AdwFontsTest,
+    // Reads the injected stylesheet's `:root` custom properties. After the font
+    // suite for the same reason: a host with the Adwaita faces installed must not
+    // change what it sees, and a suite that re-registered a webface would.
+    AdwFontStackTest,
 });

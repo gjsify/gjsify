@@ -34,8 +34,14 @@ import {
  * and a `.monospace` label on the SAME page rendered in DIFFERENT typefaces.
  * `_variables.scss` is where that stack is argued about (it explains why
  * 'Cantarell' is dropped from it), so it is where it lives.
+ *
+ * The `var()` FALLBACK is a second copy by construction — it has to be, or a page
+ * that loads the stylesheet without the theme tokens gets no stack at all — so it
+ * is kept to the token's own value and nothing longer, and a tail entry landing in
+ * `_variables.scss` (#1817 added 'Consolas') has to land here too.
  */
-const MONO_FONT = "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace)";
+const MONO_FONT =
+    "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace)";
 
 /** The CodeMirror EditorView theme mapping `.cm-*` chrome to Adwaita tokens. */
 export const adwaitaEditorTheme = EditorView.theme({

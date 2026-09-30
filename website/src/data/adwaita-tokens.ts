@@ -340,7 +340,7 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
         tokens: [
             {
                 name: '--font-family',
-                value: "'Adwaita Sans', 'Cantarell', 'Inter', 'Segoe UI', sans-serif",
+                value: "'Adwaita Sans', 'Cantarell', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
             },
             {
                 name: '--font-size-base',
@@ -390,7 +390,7 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
             },
             {
                 name: '--monospace-font-family',
-                value: "'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace",
+                value: "'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace",
             },
             {
                 name: '--monospace-font-size',
