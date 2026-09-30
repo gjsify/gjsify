@@ -199,13 +199,24 @@ this.set_content(shell.widget);
 shell.selectById('overview');
 ```
 
-You get back `{ widget, stack, contentHeader, selectById, selectByIndex }`. `contentHeader`
-is the content pane's `Adw.HeaderBar`, so pack your own buttons into it. Selecting a row
-while the shell is collapsed reveals the content pane for you.
+You get back `{ widget, stack, contentHeader, setItems, selectById, selectByIndex }`.
+`contentHeader` is the content pane's `Adw.HeaderBar`, so pack your own buttons into it.
+Selecting a row while the shell is collapsed reveals the content pane for you.
 
 Two more options are worth knowing: `sidebarHeaderStart` / `sidebarHeaderEnd` take a widget
 to pack into the sidebar header (an open button, a menu button), and `collapseWidth` moves
 the breakpoint away from its 720px default.
+
+If the nav items do not exist when the window does — an inbox the app loads asynchronously,
+say — pass an empty `items` and call `setItems(items)` when they arrive. It rebuilds the
+rows in place, so `onSelect` keeps receiving the item that actually belongs to the clicked
+row. The selected id survives an update that still carries it (silently: a rebuild is not
+a selection), and `selectById` / `selectByIndex` resolve against the items you last passed.
+
+`headerFunc(row, before)` adds group headers — it is wired to
+`Gtk.ListBox.set_header_func`, and `before` is the `NavItem` above `row` (`null` for the
+first), so a section title is one comparison. `sidebarBottomBar` and `contentBottomBar`
+put a widget under the sidebar list and under the content stack respectively.
 
 ## Load a view asynchronously
 
