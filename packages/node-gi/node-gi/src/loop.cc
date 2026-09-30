@@ -379,8 +379,9 @@ Napi::Value IterateMainContext(const Napi::CallbackInfo& info) {
 struct PumpPoll {
   uv_poll_t handle;
   int fd;
-  int events;     // currently-subscribed uv event mask
-  gboolean seen;  // mark/sweep flag for SyncPumpPolls
+  int events;        // currently-subscribed uv event mask
+  gboolean seen;     // mark/sweep flag for SyncPumpPolls
+  gboolean started;  // whether the watcher is currently armed (see PumpPollCb)
 };
 
 static gboolean g_pump_inited = FALSE;
@@ -398,7 +399,26 @@ static gboolean g_pump_poll_warned = FALSE;
 // Wake-only callbacks: readiness/expiry just ends libuv's poll sleep; the actual
 // GLib dispatch happens in the check phase of the same loop turn (PumpCheckCb).
 static void PumpTimerCb(uv_timer_t* /*t*/) {}
-static void PumpPollCb(uv_poll_t* /*p*/, int /*status*/, int /*events*/) {}
+
+// A wake-up is an EDGE, so the watcher DISARMS itself on the first fire and
+// PumpArmWakeups re-arms it on the next libuv turn. uv_poll is level-triggered
+// and this callback reads nothing, so a GLib fd that stays ready — a dead D-Bus
+// socket stuck at POLLHUP, or the context's own wakeup eventfd, which
+// `block_source()` re-signals on every dispatch — leaves uv's backend fd
+// PERPETUALLY readable. That fd is embedded in UvLoopSource, so GLib then reads
+// "Node has work" on every prepare, and any foreign drain loop of the shape
+// `while (g_main_context_iteration(ctx, FALSE));` never terminates: measured in
+// `e_source_registry_new_sync`'s failure path (no D-Bus reachable), 6.9 M
+// dispatches in 20 s at 100 % CPU with `uv_backend_timeout()` sitting at ~4.6 s,
+// i.e. never once because Node actually had work. The pump's own drain would
+// have cleared the GLib side, but it no-ops at `g_main_depth() > 0` — exactly
+// where a foreign nested iteration runs. Regression
+// `test/foreign-context-drain.test.mjs`.
+static void PumpPollCb(uv_poll_t* p, int /*status*/, int /*events*/) {
+  PumpPoll* pp = reinterpret_cast<PumpPoll*>(p->data);
+  uv_poll_stop(p);
+  pp->started = FALSE;
+}
 
 static void PumpPollCloseCb(uv_handle_t* h) {
   delete reinterpret_cast<PumpPoll*>(h->data);
@@ -440,9 +460,12 @@ static gboolean SyncPumpPolls(int nfds) {
     if (it != g_pump_polls->end()) {
       PumpPoll* pp = it->second;
       pp->seen = TRUE;
-      if (pp->events != ev) {
+      // Re-arm a watcher that disarmed itself on its last fire, as well as one
+      // whose event mask changed.
+      if (pp->events != ev || !pp->started) {
         if (uv_poll_start(&pp->handle, ev, PumpPollCb) == 0) {
           pp->events = ev;
+          pp->started = TRUE;
           uv_unref(reinterpret_cast<uv_handle_t*>(&pp->handle));
         } else {
           all_ok = FALSE;
@@ -466,6 +489,7 @@ static gboolean SyncPumpPolls(int nfds) {
       all_ok = FALSE;
       continue;
     }
+    pp->started = TRUE;
     uv_unref(reinterpret_cast<uv_handle_t*>(&pp->handle));
     (*g_pump_polls)[fd] = pp;
   }

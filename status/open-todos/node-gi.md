@@ -400,3 +400,46 @@ spec one line after the first fix landed; and `AbortController` carried no
 `AbortSignal` sibling had one all along. Four commented lines had been hiding
 three shipped bugs.
 
+
+### `@gjsify/node-gi` — a foreign drain loop hung a consumer's CI for 6 h: a mirrored wake-up was LEVEL-triggered (fixed, #1912)
+
+postbote's CI (fedora:44, no D-Bus) hung three runs at
+`EDataServer.SourceRegistry.new_sync(null)`, whose dispose path is
+`while (g_main_context_iteration(ctx, FALSE));`. Measured under `strace` in the
+CI container: the process spun 1.23 M zero-timeout `ppoll` calls in 300 s
+(`user 2m56s`), the main thread alternating `=0`/`=2` on a GLib fd that stayed
+readable — a CPU-bound spin, not a blocked wait, and `uv_backend_timeout()`
+never once reporting Node work.
+
+A DIRECT probe of the same call did not hang anywhere, host or fedora:44
+(8.4–16.3 ms across five libuv states), which is why the first pass at this
+recorded a non-reproduction and pointed at the uv deadline: it measured the
+call, not the suite. The two shapes differ only in what ran before it.
+
+Cause: the pump mirrors the GLib context's own poll fds into `uv_poll`
+watchers, and `PumpPollCb` read nothing, so any GLib fd that STAYS ready keeps
+uv's backend fd readable — and that fd is embedded in `UvLoopSource`, whose
+`uv_source_prepare` then reports "Node has work" on every one of its ~1.2 M
+calls. The context's wakeup eventfd closes the loop on itself: GLib's
+`block_source()` re-signals it on every dispatch, including every dispatch of
+`UvLoopSource`. The pump's own drain would have cleared the GLib side, but it
+no-ops at `g_main_depth() > 0` — exactly where a foreign nested iteration runs.
+
+The fix makes a mirrored wake-up an EDGE: the watcher disarms itself on its
+fire, `PumpArmWakeups` re-arms it on the next libuv turn. Verified in the CI
+container against postbote's own suite: `timeout 300 node dist/test.node.mjs`
+timed out before, 644/644 pass in 2.7 s after. Regression
+`test/foreign-context-drain.test.mjs`, in child processes, so a regression
+wedges one child to its 20 s cap instead of the runner; its sensitivity is
+measured, not assumed — with the disarm deleted the "libuv alive" case fails
+and the "libuv idle" case still passes, which is exactly the boundary.
+
+
+### `@gjsify/node-gi` — `idle_add_once fires exactly once` is flaky at roughly 2 runs in 3
+
+`test/glib-overrides.test.mjs:98` fails `0 !== 1` — the idle never fired within its
+8 `iterateMainContext(true)` calls. Measured on an unmodified `main` working tree
+(the only change present was an untracked new test file), standalone: 2 failures in
+3 consecutive runs, and once inside a full `npm test` (762 tests, 729 pass, 1 fail,
+32 skipped) — it passed in the next full run (764/732/0). Pre-existing, recorded
+because a 2-in-3 flake in the suite's own gate reads as a red run from any cause.
