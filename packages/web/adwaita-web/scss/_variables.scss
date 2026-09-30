@@ -118,8 +118,21 @@
   --spacing-l: 18px;
   --spacing-xl: 24px;
 
-  // Typography — GNOME default: Adwaita Sans 11
-  --font-family: 'Adwaita Sans', 'Cantarell', 'Inter', 'Segoe UI', sans-serif;
+  // Typography — GNOME default: Adwaita Sans 11. The tail is a PLATFORM-NATIVE
+  // ladder, and it is there because the families above it resolve on a GNOME desktop
+  // and NOWHERE ELSE: 'Adwaita Sans' is NAMED, not shipped (`status/stylesheet-font-
+  // families.json`), and 'Cantarell' is its predecessor. A macOS host has neither,
+  // and the `sans-serif` generic is Helvetica there — #1817, a widget set that looks
+  // right on the machine it was authored on and lands on Helvetica in every screenshot
+  // a consumer takes. `system-ui` asks the host for its own UI face (San Francisco,
+  // Segoe UI); `-apple-system` and 'Segoe UI' are the pre-`system-ui` spellings of
+  // those same two answers, kept for the engines that need them.
+  //
+  // The caption is this block's FIRST SENTENCE on purpose: `generate-adwaita-tokens.mjs`
+  // titles a group from the block touching its declaration, cut at the first `. `, so a
+  // caption written as a trailing line is unreachable and an uncapped one becomes a
+  // section header on the website's theming page.
+  --font-family: 'Adwaita Sans', 'Cantarell', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-size-base: 11pt;
   --font-size-small: 9pt;
   --font-size-heading: 12pt;
@@ -172,9 +185,15 @@
   // GNOME's PROPORTIONAL UI font, so a monospace fallback chain that reaches it
   // second lands on a font whose figures do not line up — the exact property
   // `.monospace` exists for.
+  //
+  // 'Consolas' is the same repair as `system-ui` beside it in `--font-family` (#1817):
+  // `ui-monospace` is the right way to ask and is not universally supported, and the
+  // engines without it fell to the `monospace` generic — Courier New on Windows. The
+  // `'SF Mono'` / `'Menlo'` pair answers on macOS and `ui-monospace` on Linux, so this
+  // is the Windows half, not a second opinion about the other two.
   --document-font-family: var(--font-family);
   --document-font-size: var(--font-size-base);
-  --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace;
+  --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace;
   --monospace-font-size: var(--font-size-base);
 }
 
