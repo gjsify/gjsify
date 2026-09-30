@@ -227,6 +227,22 @@ stops appearing — so it cannot outlive the problem. Since the check left
 the gap is now re-measured continuously rather than only on a dispatch.
 
 
+### `@gjsify/gamepad-native`'s linux shims reference glibc 2.38 symbols musl lacks
+
+The committed `libgjsifygamepad.so` for linux-x64 and linux-arm64 links SDL3 statically, and
+SDL3 is compiled on Fedora 43 against glibc 2.38. musl's `ldd` reports the C23 redirects
+`__isoc23_{fscanf,sscanf,strtol,strtoll,strtoul,strtoull,vsscanf,wcstol}`, plus `wcslcpy`,
+`wcslcat` and `fcntl64`, as not found — the same lazy-binding shape as `lightningcss-native`
+above, and the reason the generated manifests record `glibcRequires: 2.38`.
+
+The practical cost is small: `@gjsify/gamepad` defaults to libmanette on Linux, SDL is opt-in via
+`GJSIFY_GAMEPAD_BACKEND=sdl`, and a shim that cannot load reports `absent`. The references are
+not in our source but in how SDL3 was configured against that glibc, so the fix is either
+building SDL3 on an older glibc (the redirects exist from 2.38 on) with SDL's own `wcslcpy`
+fallback, or a musl-built sibling package. Until then it is an ACCEPTED gap in
+`musl_gap_reason()`, which fails the day the symbols stop appearing.
+
+
 ### The musl leg BUILDS and load-tests a `-musl` prebuild; nothing commits one
 
 `prebuilds.yml`'s `build-prebuilds-musl` is a gate now — it lost `continue-on-error` and its

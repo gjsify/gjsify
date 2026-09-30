@@ -107,6 +107,9 @@ musl_gap_reason() {
     lightningcss-native-linux-*)
         echo "gnu_get_libc_version is referenced by a crates.io dependency of the pinned refs/lightningcss build, not by our own source, so it cannot be removed the way sab-native's fcntl64/__cmsg_nxthdr were. Options are an upstream change or a musl-built sibling package; tracked in status/open-todos/README.md."
         ;;
+    gamepad-native-linux-*)
+        echo "SDL3 is linked statically into the shim and compiled against glibc 2.38, whose C23 redirects (__isoc23_*), wcslcpy/wcslcat and fcntl64 musl does not provide, so one artifact cannot serve both libcs. On musl the SDL backend is unavailable, not broken: @gjsify/gamepad defaults to libmanette on Linux (SDL is opt-in via GJSIFY_GAMEPAD_BACKEND=sdl) and reports 'absent' when no shim loads. Closing it means building SDL3 against an older glibc or a musl-built sibling package; tracked in status/open-todos/prebuilds.md."
+        ;;
     *) echo '' ;;
     esac
 }
