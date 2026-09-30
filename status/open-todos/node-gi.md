@@ -401,51 +401,39 @@ spec one line after the first fix landed; and `AbortController` carried no
 three shipped bugs.
 
 
-### `@gjsify/node-gi` — a nested `*_sync` iteration hanging on libuv's deadline does NOT reproduce, and cannot by construction
+### `@gjsify/node-gi` — a foreign drain loop hung a consumer's CI for 6 h: a mirrored wake-up was LEVEL-triggered (fixed, #1912)
 
-Reported from postbote's CI (fedora:44, no D-Bus buses), where a run hung 6 h: under
-node-gi a `*_sync` GI call that internally nests a GLib main-context iteration
-(`EDataServer.SourceRegistry.new_sync(null)`) was said to return only when LIBUV's
-next deadline expires — 1500 ms behind a pending Node timer, and never at all with
-libuv alive on I/O alone (`uv_backend_timeout() == -1`). The proposed cause was
-`UvLoopSource::uv_source_prepare` reporting `uv_backend_timeout()` as the poll
-timeout inside an iteration the addon did not start, with a proposed guard on
-`g_main_depth() > 0 && !g_in_uv_pump`.
+postbote's CI (fedora:44, no D-Bus) hung three runs at
+`EDataServer.SourceRegistry.new_sync(null)`, whose dispose path is
+`while (g_main_context_iteration(ctx, FALSE));`. Measured under `strace` in the
+CI container: the process spun 1.23 M zero-timeout `ppoll` calls in 300 s
+(`user 2m56s`), the main thread alternating `=0`/`=2` on a GLib fd that stayed
+readable — a CPU-bound spin, not a blocked wait, and `uv_backend_timeout()`
+never once reporting Node work.
 
-MEASURED on this host (Fedora 44, glib 2.88.3, node 24.19.0, freshly built addon,
-`NODE_GI_NATIVE=build`, both buses pointed at `unix:path=/nonexistent`), the
-`Goa.Client.new` async precondition in place, five variants of what libuv has
-pending — nothing, a 1500 ms timer, an unref'd 1500 ms timer, a GLib-only timer, and
-`net.createServer().listen()`: **8.4–16.3 ms, every one, no hang.** The same shape
-built from pure GLib (`ctx.iteration(true)` spun until a 200 ms `timeout_add` comes
-due) measures 200.1–203.8 ms across the same five variants, and across five entry
-contexts (top level, `setTimeout`, `setImmediate`, a socket `listening` handler,
-`process.nextTick`, a dispatched GLib idle). Against a LIVE session bus, 39–54 ms.
+A DIRECT probe of the same call did not hang anywhere, host or fedora:44
+(8.4–16.3 ms across five libuv states), which is why the first pass at this
+recorded a non-reproduction and pointed at the uv deadline: it measured the
+call, not the suite. The two shapes differ only in what ran before it.
 
-Two reasons it cannot take the reported shape, both measured rather than reasoned:
+Cause: the pump mirrors the GLib context's own poll fds into `uv_poll`
+watchers, and `PumpPollCb` read nothing, so any GLib fd that STAYS ready keeps
+uv's backend fd readable — and that fd is embedded in `UvLoopSource`, whose
+`uv_source_prepare` then reports "Node has work" on every one of its ~1.2 M
+calls. The context's wakeup eventfd closes the loop on itself: GLib's
+`block_source()` re-signals it on every dispatch, including every dispatch of
+`UvLoopSource`. The pump's own drain would have cleared the GLib side, but it
+no-ops at `g_main_depth() > 0` — exactly where a foreign nested iteration runs.
 
-1. **`g_main_depth()` is 0 throughout the foreign iteration's prepare phase.** A
-   temporary `g_printerr` in `uv_source_prepare` during the EDS call reports
-   `depth=0 in_pump=0 alive=1` on all 41 prepares (`backend_timeout` 0…8099). Depth
-   counts DISPATCHES, not iterations, so the proposed guard would never have fired —
-   it would have been a no-op wearing a fix's clothes.
-2. **GLib composes a context's poll timeout as the MINIMUM over its sources**, so a
-   uv source's longer deadline can only ever be ignored, never extend the wait; a
-   source reporting `-1` contributes nothing at all. The reported causal direction is
-   not available to this source.
+The fix makes a mirrored wake-up an EDGE: the watcher disarms itself on its
+fire, `PumpArmWakeups` re-arms it on the next libuv turn. Verified in the CI
+container against postbote's own suite: `timeout 300 node dist/test.node.mjs`
+timed out before, 644/644 pass in 2.7 s after. Regression
+`test/foreign-context-drain.test.mjs`, in child processes, so a regression
+wedges one child to its 20 s cap instead of the runner; its sensitivity is
+measured, not assumed — with the disarm deleted the "libuv alive" case fails
+and the "libuv idle" case still passes, which is exactly the boundary.
 
-What is therefore NOT explained, and is what stays open: whatever hung postbote's CI
-for 6 h. It is not attributable to this source from here — the container had no bus,
-no session and no display, and a `*_sync` call blocking inside its own D-Bus connect
-path is equally consistent with the symptom. Reproducing it needs the CI container,
-not this host.
-
-Landed instead: `test/nested-sync-iteration.test.mjs` pins the contract the reported
-bug would have broken — a foreign nested iteration ends on GLib's deadline, across
-the idle / pending-Node-timer / I/O-only variants, in child processes with a 20 s
-spawn cap. Its sensitivity is not assumed: with `uv_source_prepare` mutated to force
-uv to govern (always-ready at `G_PRIORITY_HIGH`), all three cases hang and fail at
-the cap; unmutated, all three pass in ~340 ms each.
 
 ### `@gjsify/node-gi` — `idle_add_once fires exactly once` is flaky at roughly 2 runs in 3
 
@@ -453,5 +441,5 @@ the cap; unmutated, all three pass in ~340 ms each.
 8 `iterateMainContext(true)` calls. Measured on an unmodified `main` working tree
 (the only change present was an untracked new test file), standalone: 2 failures in
 3 consecutive runs, and once inside a full `npm test` (762 tests, 729 pass, 1 fail,
-32 skipped). Pre-existing and unrelated to the nested-iteration work above, recorded
+32 skipped) — it passed in the next full run (764/732/0). Pre-existing, recorded
 because a 2-in-3 flake in the suite's own gate reads as a red run from any cause.
