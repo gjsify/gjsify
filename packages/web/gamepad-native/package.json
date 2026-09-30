@@ -1,0 +1,63 @@
+{
+    "name": "@gjsify/gamepad-native",
+    "version": "0.52.0",
+    "description": "SDL3's gamepad subsystem, statically linked and trimmed, behind a GObject API that speaks the W3C standard layout — the backend of @gjsify/gamepad (ADR 0075). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
+    "type": "module",
+    "files": [],
+    "gjsify": {
+        "platforms": [
+            "darwin-x64",
+            "darwin-arm64"
+        ],
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "none",
+            "darwin": "partial",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Not built for Linux yet. ADR 0075 Amendment 1 makes this shim the gamepad backend on every OS; its Linux leg is open work, and until it lands and is compared against libmanette, @gjsify/gamepad uses gi://Manette there.",
+            "darwin": "Builds, loads and enumerates on macOS 15+ with only system frameworks and the host GLib as runtime dependencies (measured on arm64; darwin-x64 is built by CI). Input from a real controller has not been verified yet (ADR 0075 stage 4).",
+            "win32": "Not built for Windows yet. The same C source is meant to build there as @gjsify/gamepad-native-win32-x64 (ADR 0075 Amendment 1, ADR 0073's per-package shape); until it does, @gjsify/gamepad has no backend on Windows."
+        },
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "gjsify clear build",
+        "check": "echo 'no TypeScript in this package'",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "echo 'native only — see build:prebuilds'",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "test": "echo 'native only — see test:meson (runs on the macOS prebuild leg)'",
+        "test:meson": "meson test -C build --print-errorlogs"
+    },
+    "keywords": [
+        "gjs",
+        "gamepad",
+        "sdl3",
+        "controller",
+        "darwin",
+        "macos"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/gamepad-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/gamepad-native#readme",
+    "optionalDependencies": {
+        "@gjsify/gamepad-native-darwin-arm64": "workspace:*",
+        "@gjsify/gamepad-native-darwin-x64": "workspace:*"
+    }
+}

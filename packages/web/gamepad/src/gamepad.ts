@@ -63,4 +63,8 @@ export interface GamepadEffectParameters {
     startDelay?: number;
     strongMagnitude?: number;
     weakMagnitude?: number;
+    /** `trigger-rumble` only: the left trigger's motor, 0..1. */
+    leftTrigger?: number;
+    /** `trigger-rumble` only: the right trigger's motor, 0..1. */
+    rightTrigger?: number;
 }

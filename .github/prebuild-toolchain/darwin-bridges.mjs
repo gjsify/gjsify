@@ -106,6 +106,7 @@ export const DARWIN_BRIDGES = /** @type {DarwinBridge[]} */ ([
         rustSibling: false,
         library: 'libgjsifywebkit.dylib',
     },
+    { dir: 'packages/web/gamepad-native', namespace: 'GjsifyGamepad', klass: 'Monitor', rustSibling: false },
 ]);
 
 /**
