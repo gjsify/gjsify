@@ -24,7 +24,8 @@
   },
   "reflection": false,
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "src/**/*.mts"
   ],
   "exclude": [
     "src/test.ts",

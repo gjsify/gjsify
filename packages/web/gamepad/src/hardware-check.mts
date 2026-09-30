@@ -19,12 +19,20 @@ import Manette from 'gi://Manette?version=0.2';
 import { W3C_AXIS_COUNT } from './axis-mapping.js';
 import { W3C_BUTTON_COUNT } from './button-mapping.js';
 import { ManetteSource } from './manette-source.js';
-import type { GjsifyGamepadNamespace } from './sdl-namespace.js';
+import type { GjsifyGamepadMonitor } from './sdl-namespace.js';
 import { SdlSource } from './sdl-source.js';
 import type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './source.js';
 
-const GjsifyGamepad = GjsifyGamepadModule as GjsifyGamepadNamespace & {
-    Monitor: { new: () => { update(): void; get_devices(): SdlDevice[]; close(): void } };
+// `get_devices` is a real method — `gjsify_gamepad_monitor_get_devices` in
+// src/c/gjsify-gamepad.h — but it is NOT on the subset `sdl-namespace.ts` declares,
+// and deliberately so: that interface is the SOURCE's surface, and `SdlSource` takes
+// its devices from the `device-added` signal rather than by asking. So the extra
+// method is named here, and named on the INSTANCE type: intersecting the namespace
+// with a second `Monitor` does not widen what `new` returns (the declared
+// constructor's return type wins), which is why the previous form typechecked
+// nothing and this file was in no typecheck program at all.
+const GjsifyGamepad = GjsifyGamepadModule as unknown as {
+    Monitor: { new: () => GjsifyGamepadMonitor & { get_devices(): SdlDevice[] } };
 };
 
 interface SdlDevice {
