@@ -128,7 +128,7 @@ function probeRegistrationSupport(face: string | undefined): boolean {
 
 /**
  * Can `initFonts` fall back to a fontconfig map when the default one declines (ADR 0038
- * § Amendment 5)? The same three questions `adoptFontconfigMap` asks, asked of the process rather
+ * § Amendment 5)? The same three questions the shared fallback asks, asked of the process rather
  * than of `process.platform`: nobody pinned the backend, this pango builds an fc map, and
  * fontconfig found a configuration. On a SCRATCH fc map, so the probe changes nothing it reads.
  */

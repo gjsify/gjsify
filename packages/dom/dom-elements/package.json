@@ -76,10 +76,13 @@
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/domparser": "workspace:^",
         "@gjsify/fetch": "workspace:^",
-        "@gjsify/node-globals": "workspace:^"
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@girs/gst-1.0": "5.4.0",
+        "@girs/pango-1.0": "5.4.0",
+        "@girs/pangocairo-1.0": "5.4.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

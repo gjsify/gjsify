@@ -941,3 +941,70 @@ backend by hand keep their `it.failing` on CoreText — they measure the backend
 **Not decided here:** `@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default
 map on its own and swallows the decline; it inherits the adopted map when `initFonts()` ran first,
 and is tracked in `status/open-todos/README.md` otherwise.
+
+## Amendment 6 (2026-09-30) — ONE registration for both callers, and it says what it did
+
+§ Amendment 5's closing paragraph named the gap this amendment closes, and left it open on purpose:
+*"`@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default map on its own and
+swallows the decline; it inherits the adopted map when `initFonts()` ran first."* So a Canvas
+`FontFace` rendered in the fallback sans on exactly the host § Amendment 5 was written for —
+`gjsify run` on a Homebrew GTK — unless the application happened to call `initFonts()` first, which a
+Canvas game does not, because it has no shipped font directory and never had a reason to.
+
+**The fix is not a second call site. It is a SECOND OWNER of the same decision, which is the shape
+AGENTS.md calls "duplication instead of a helper".** Everything § Amendment 5 decided — build an fc
+map, register the declined faces, swap the default, and refuse the swap under its four conditions —
+is now `registerFontFaces()` in **`@gjsify/utils/font-map`**, and `initFonts()` is a caller of it
+rather than the author of it.
+
+**Where the shared half lives, and why the obvious homes are both closed.** It cannot go in
+`@gjsify/gtk-host`, which is what grew it: `@gjsify/dom-elements` is **tier 1** and `@gjsify/gtk-host`
+is **tier 3**, and ADR 0003's rule is that a dependency points at the same or a lower tier — so the
+`dom-elements` → `gtk-host` edge the task named is not available at any level of indirection. It
+cannot go in `@gjsify/dom-elements` either, for the same reason in the other direction. The two have
+**no direct common dependency**: `dom-elements` reaches `@gjsify/utils` transitively and
+`gtk-host` carried it as a devDependency, so there was no shared package to lift *into* and the two
+copies would have been the only alternatives. `@gjsify/utils` is tier 1, is what the repo's own rule
+names for "extract only when a 2nd package needs it", and the lift made `gtk-host`'s devDependency a
+real dependency. It is a **subpath** (`./font-map`, next to `./native-library`) because it statically
+binds `gi://PangoCairo` and the rest of that package must keep loading where Pango does not exist.
+
+**Two things the lift had to get right, and both were wrong in the first version.** `PangoCairo`'s
+`FontMap` namespace carries `get_default` and `new_for_font_type` but **not** `set_default` —
+`pango_cairo_font_map_set_default()` takes the map as its first argument, so GJS exposes it as an
+INSTANCE method. A guard that asked the namespace for all three reported "this process has no font map"
+on a process that had one; every registration became a silent no-op and the suite that had measured
+the fallback working **on this very host** went red with an empty result rather than a thrown error,
+which is the failure mode this whole mechanism exists against. And the probe and the decision had to
+be **split**: a face fontconfig cannot open is a real answer even where the swap is then refused, and
+bundling the two put a file that was not a font at all into `declined` on a CoreText map — where the
+platform map never opened it, so there was no parse failure to report — making it indistinguishable
+from a face that was perfectly good.
+
+**AND IT NOW SAYS WHAT IT DID, which is the half that was missing on the `FontFace` side.** The old
+body was `try { add_font_file } catch {}`. A WARN and never a rejection: the Web `FontFace` contract
+rejects on a failed load, this class has always resolved, and its consumers are Canvas games
+(Excalibur's `FontSource.load`) that treat a rejection as a crash. Three outcomes are distinguished —
+a file that will not open, a face no map here would take, and **a face that is on the map under a
+NAME the page did not ask for** — and the third is the one that renders a working canvas and is still
+wrong, because the same bytes register as `Merriweather` under fontconfig and `Merriweather 18pt`
+under gvsbuild's reader (§ W1-W5). Silence where Pango would have substituted silently is the defect
+this ADR exists against; a warning on the happy path would have been the same noise one level up, so
+the diagnostic is fired only where a font map exists to have refused something.
+
+### Held by
+
+- **`@gjsify/utils/font-map.spec.ts`**, the half that runs on every platform: `isUnsupportedByFontMap`
+  against a **synthesised** `GLib.Error` in the Gio domain, which is what § Amendment's own reasoning
+  said this design buys — the branch becomes checkable from a Linux runner, where a `process.platform`
+  read could only ever be asserted on macOS. Also the `declined`-versus-`failed` accounting for a file
+  that is not a font, on every map.
+- **`packages/dom/dom-elements/src/font-face.spec.ts`**, the half that needs a real decline: the
+  showcase `Round9x13`, measured before and after through the same map, at the same size, with the same
+  two glyphs, against an INVENTED family. Verified to fail on the pre-fix body on macOS 27 arm64 —
+  family `absent`, and "Wg" measuring exactly what the invented family measures.
+- `fonts.spec.ts` unchanged and green: the lift moved where the fallback lives, not what it does.
+
+**Still not decided here:** whether a shipped `.app` resolves the family, and what a Mac without
+Homebrew's `fonts.conf` finds — § Amendment 4's two open lines, untouched by this amendment and
+`status/open-todos/macos.md` § *macOS fonts* still carries them.
