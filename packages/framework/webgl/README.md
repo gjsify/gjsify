@@ -244,7 +244,12 @@ a shader that compiles was never evidence that a scene using them would render.
   upload would silently succeed. All four compressed entry points and
   `getInternalformatParameter` now refuse them with the error WebGL specifies.
 
-Both are held by `src/ts/gles3-desktop-gl.spec.ts`, against a real `Gtk.GLArea`.
+Both are measured, in `status/open-todos/webgl.md` § "the GLES 3.0 restart / ETC2 refusal
+spec is owed": against the PREBUILT `libgwebgl` the far half reads white (the driver assembled
+the triangle built from the restart index) and against a locally built library it reads the
+clear colour. **No spec holds either yet** — the suite loads the prebuilt library, which still
+carries the previous Vala, so the spec owed here is written down in full there and lands once
+`main` refreshes the prebuilds.
 
 **Four WebGL1 extensions are core on desktop GL, so the version answers, not the list.**
 `OES_element_index_uint` (GL 1.1), `OES_standard_derivatives` (GL 2.0), `OES_texture_float` and
