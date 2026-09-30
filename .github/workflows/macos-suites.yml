@@ -595,8 +595,20 @@ jobs:
       # `@gjsify/rolldown-native`). The leg above also installs `librsvg` and
       # `gtk4` for the `ship` and `node-script` suites; a build needs neither, and
       # on a runner-time budget each formula is paid for twice over.
-      - name: Install GJS + json-glib via Homebrew
-        run: brew install gjs json-glib
+      #
+      # `libsoup` is the INSTALLER's, and the reason is LOAD ORDER: `install.mjs`
+      # calls its `loadSoup()` at module top level, so `gi://Soup?version=3.0`
+      # links BEFORE the first byte downloads. The DYLD re-exec inside that call
+      # repairs the dylib's bare-leaf dlopen but cannot help the TYPELIB, which
+      # girepository resolves through its own default paths — Homebrew's
+      # `libsoup` puts both where they are found. The leg above needs none of it:
+      # its CLI bundle is rebuilt from source and its node-free install runs
+      # against an empty lockfile (nothing to fetch). MEASURED on this job's
+      # second run (36782997923): without it, `gjs -m install.mjs` died at module
+      # load — "Requiring Soup, version 3.0: Typelib file for namespace 'Soup',
+      # version '3.0' not found".
+      - name: Install GJS + json-glib + libsoup via Homebrew
+        run: brew install gjs json-glib libsoup
 
       # THE BARE-LEAF REPAIR the node-pillar leg above carries, needed here for
       # the same reason: `GjsPrivate-1.0.typelib` — which Gio's core override
