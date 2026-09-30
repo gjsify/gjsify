@@ -1,12 +1,13 @@
 /*
- * Tiny C shim around Linux shared-memory + atomics primitives that Vala
- * can't express cleanly:
+ * Tiny C shim around the shared-memory + atomics primitives that Vala
+ * can't express cleanly (Linux first, darwin in brackets — the per-platform
+ * reasons live in sab-helpers.c):
  *
- *   - memfd_create(2)         — anonymous shared-memory fd (no path needed)
+ *   - memfd_create(2) [shm_open + shm_unlink] — anonymous shared-memory fd
  *   - mmap(2) / munmap(2)     — MAP_SHARED region creation
- *   - SYS_futex (FUTEX_WAIT_PRIVATE / FUTEX_WAKE_PRIVATE) — wait/notify
+ *   - SYS_futex, non-private [os_sync_wait_on_address, _SHARED] — wait/notify
  *   - __atomic_* GCC builtins — load/store/add/cmpxchg with SEQ_CST
- *   - socketpair(AF_UNIX, SOCK_SEQPACKET) — IPC side-channel for fd-passing
+ *   - socketpair(AF_UNIX, SOCK_SEQPACKET [SOCK_STREAM]) — fd-passing channel
  *   - sendmsg/recvmsg + SCM_RIGHTS — cross-process fd transfer
  *
  * Same design as @gjsify/http2-native: opaque struct (full definition in .c),
@@ -99,7 +100,7 @@ gint32   gjsify_sab_region_atomic_xchg_i32    (GjsifySabRegion *region, gsize of
 gboolean gjsify_sab_region_atomic_cmpxchg_i32 (GjsifySabRegion *region, gsize offset, gint32 *expected, gint32 desired);
 
 /* ────────────────────────────────────────────────────────────────────── *
- * Futex wait / wake (Linux SYS_futex, FUTEX_*_PRIVATE flavour)
+ * Futex wait / wake (Linux non-private SYS_futex; darwin os_sync _SHARED)
  * ────────────────────────────────────────────────────────────────────── *
  *
  * `futex_wait`:

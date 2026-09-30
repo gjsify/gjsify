@@ -97,7 +97,8 @@ export function ensureWebrtcbinAvailable(): void {
                 : 'GStreamer element "webrtcbin" not available. Install gst-plugins-bad:\n' +
                       '  Fedora:              dnf install gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-extras\n' +
                       '  Ubuntu/Debian:       apt install gstreamer1.0-plugins-bad\n' +
-                      '  Alpine/postmarketOS: apk add gst-plugins-bad',
+                      '  Alpine/postmarketOS: apk add gst-plugins-bad\n' +
+                      '  macOS (Homebrew):    brew install gstreamer',
         );
     }
     // webrtcbin requires libnice's GStreamer plugin for ICE transport —
@@ -109,6 +110,7 @@ export function ensureWebrtcbinAvailable(): void {
             'GStreamer "nice" plugin (libnice-gstreamer) not available — required by webrtcbin.\n' +
                 '  Fedora:        dnf install libnice-gstreamer1\n' +
                 '  Ubuntu/Debian: apt install gstreamer1.0-nice\n' +
+                '  macOS:         brew install libnice-gstreamer\n' +
                 '  Verify with:   gst-inspect-1.0 nicesrc',
         );
     }

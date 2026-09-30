@@ -144,7 +144,7 @@ export function splitSteps(lines) {
  * that does not exist.
  *
  * Jobs gated on `github.event_name == 'workflow_dispatch'` are EXCLUDED: a
- * manually-dispatched exploratory job (today: napi's blocked Windows attempt and
+ * manually-dispatched exploratory job (today: napi's blocked Windows attempt; formerly
  * `build-prebuilds-macos-experimental`) is not a platform CI produces, and counting it
  * lets a package declare a target no user will ever receive.
  *
