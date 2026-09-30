@@ -105,6 +105,7 @@ the TODO records the *what's left*.
 | [0084](0084-an-addon-is-found-by-package-identity.md) | A GJS bundle finds its addon by package IDENTITY, resolved at run time | Accepted |
 | [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
 | [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
+| [0085](0085-gi-namespaces-are-acquired-after-the-prologue.md) | A `--app gjs` bundle acquires its GI namespaces AFTER the prologue, by lowering the static `gi://` imports to awaited dynamic ones | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

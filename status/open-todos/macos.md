@@ -150,26 +150,41 @@ gjsify shape for exactly the optional namespaces this is about (`@gjsify/fetch`'
 Soup, `@gjsify/dom-elements`' PangoCairo, `@gjsify/gamepad`'s Manette, the prebuilt
 `gi://Gjsify*` bridges) — and NOT a GTK app whose `gi://Gtk` is a static import.
 
+**A Mac has now run a bundle carrying it — macOS 27, Apple M4 (darwin-arm64),
+Homebrew `/opt/homebrew`, gjs 1.88.1, under `env -u DYLD_FALLBACK_LIBRARY_PATH -u
+DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH`.** A `--app gjs` bundle whose GI use is
+`await import('gi://Gtk?version=4.0')` loads and prints `GtkWidget`, with
+`/opt/homebrew/lib` first on the repository's search path; the same program without
+the prologue fails on the bare-leaf dlopen. The host marker fires and is non-vacuous
+in both directions: `/System/Library/CoreServices/SystemVersion.plist` exists, the
+one probed candidate holding a `girepository-1.0/` is prepended, and `/usr/local/lib`
++ `/opt/local/lib` are not. So the e2e's stand-in host measured the right thing, and
+the darwin leg of this entry is closed — what remains is the STATIC-import half,
+which the same run confirms is still out of reach.
+
 **Still open here**, in the order they gate each other:
 
-1. Make the prologue precede the static imports. Every shape found so far changes
-   how a `--app gjs` bundle acquires GI namespaces (a second emitted file imported
-   first, or lowering the externals to `globalThis.imports.gi.Ns` accessors in the
-   body), which also moves the ground under `ship/gi-namespaces.ts` — it reads the
-   `gi://` specifiers off the emitted bundle to compute package dependencies. ADR
-   first, per § Governance.
-2. A darwin end-to-end run: the PREPEND is macOS-measured (the table above) and the
-   wiring is measured on linux — against a stand-in host for the darwin side, since
-   this workspace has no Mac in it — but no Mac has yet run a bundle carrying it.
-   That covers the host marker too: its absence is what a Linux run measures.
-3. The link-closure half below, which no prologue can reach.
+1. Make the prologue precede the static imports. **Decided in
+   [ADR 0085](../../docs/adr/0085-gi-namespaces-are-acquired-after-the-prologue.md)
+   (Proposed, gating): lower the static `gi://` externals, in the entry chunk, to
+   top-level `await import()` after the prologue** — one artifact, and the `gi://`
+   specifier stays in it, which is what keeps `ship/gi-namespaces.ts` reading the
+   file it already reads (measured: the accessor lowerings answer `[]` there, i.e.
+   an empty typelib dependency set, the ADR 0024 § 6 defect a third time). The
+   placement study behind it — eleven rows, including the `globalThis.imports.gi.Ns`
+   and GJS-resource-loader alternatives, all three of which DO load — is
+   `docs/poc/gi-prologue-import-order.{md,gjs.mjs}`. Implementation is owed, not
+   done.
+2. The link-closure half below, which no prologue can reach.
 
 
 ### The darwin loader repair still leans on an env variable outside GI's reach
 
 `activateGiLibraryPath()` now tells GI itself where a typelib's bare-leaf backer lives, which is what makes bun and deno work on macOS at all. It cannot cover everything: a dylib pulled in by ANOTHER dylib's own link closure never passes through GI, so `maybeReexecForGtkRuntime()` (Node) and the launcher preamble (`bin-shim.ts`, every runtime) stay as the belt for that class.
 
-Two consequences worth closing later, neither blocking: the Node re-exec is now redundant for everything GI resolves and could be narrowed to the closure case once a darwin CI leg proves it; and `hostGtkIsWorthTrying()` on an Apple-silicon host still answers from `systemGiLibraryDirs()`, whose `/opt/homebrew/lib` probe was never in dyld's default fallback — measured only on x86_64 so far.
+One consequence worth closing later, not blocking: the Node re-exec is now redundant for everything GI resolves and could be narrowed to the closure case once a darwin CI leg proves it.
+
+**The Apple-silicon half is measured and correct.** On macOS 27 / M4, `systemGiLibraryDirs()` answers `["/opt/homebrew/lib"]` and `hostGtkIsWorthTrying()` answers `true` — unchanged with `pkg-config` off `PATH` and `GI_TYPELIB_PATH`/`PKG_CONFIG_PATH` deleted, so the answer comes from the `PROBED_GI_LIBDIRS` table and not from the pkg-config source. That the prefix was never in dyld's default fallback is exactly why the probe is there, and it is what the arm64 run confirms: `/opt/homebrew/lib` is found, `/usr/local/lib` and `/opt/local/lib` hold no `girepository-1.0/` on this host and are correctly refused.
 
 
 ### `os.cpus().times` on darwin needs a Mach call GJS cannot make
