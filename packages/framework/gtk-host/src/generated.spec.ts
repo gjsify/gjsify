@@ -25,7 +25,6 @@ import {
     CURATED_DESCRIPTORS,
     GENERATED_PROVENANCE,
     GENERATED_WIDGETS,
-    registerBuiltinWidgets,
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
 import { GtkHostError } from './errors.js';
