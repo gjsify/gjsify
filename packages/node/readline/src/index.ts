@@ -96,24 +96,44 @@ export class Interface extends EventEmitter {
                     this._input.resume();
                 }
 
+                // Everything the kernel stops doing the moment setRawMode(true) has to be done
+                // here: the echo of the character, the erase of a deleted one, the line ending,
+                // and ctrl-c. Without them a person on a real tty types into the void, because
+                // raw mode has already turned the terminal's own echo off. Measured on a pty:
+                // a fresh tty echoes a written byte, this interface did not.
                 this._boundOnKeypress = (str: string | undefined, key: Key) => {
                     if (!key) return;
+                    if (key.ctrl && key.name === 'c') {
+                        // Node's rule, kept because this module exists to behave like Node's:
+                        // a listener means the caller wants to decide what happens, and no
+                        // listener means close — which is what makes ctrl-c an abort rather than
+                        // a keypress that goes nowhere.
+                        if (this.listenerCount('SIGINT') > 0) this.emit('SIGINT');
+                        else this.close();
+                        return;
+                    }
+                    if (key.name === 'return' || key.name === 'enter') {
+                        this._output?.write('\r\n');
+                        const line = this.line;
+                        this.line = '';
+                        this.cursor = 0;
+                        this._onLine(line);
+                        return;
+                    }
                     if (key.name === 'backspace' || key.name === 'delete') {
                         if (this.cursor > 0) {
                             this.line = this.line.slice(0, this.cursor - 1) + this.line.slice(this.cursor);
                             this.cursor--;
+                            // The cursor already sits on the character, so it is the space that
+                            // removes it; the two backspaces put the cursor back where it was.
+                            this._output?.write('\b \b');
                         }
-                    } else if (
-                        str &&
-                        str.length === 1 &&
-                        !key.ctrl &&
-                        !key.meta &&
-                        key.name !== 'return' &&
-                        key.name !== 'enter' &&
-                        key.name !== 'escape'
-                    ) {
+                        return;
+                    }
+                    if (str && str.length === 1 && !key.ctrl && !key.meta && key.name !== 'escape') {
                         this.line = this.line.slice(0, this.cursor) + str + this.line.slice(this.cursor);
                         this.cursor++;
+                        this._output?.write(str);
                     }
                 };
                 this._input.on('keypress', this._boundOnKeypress as (...args: unknown[]) => void);
@@ -123,6 +143,10 @@ export class Interface extends EventEmitter {
 
     private _onData(chunk: Buffer | string): void {
         if (this._closed || this._paused) return;
+        // In terminal mode the keypress path owns the line. The same bytes reach both — the
+        // splitter here and the key parser there — so splitting them in both places hands every
+        // answer in twice. Byte mode has no keypress path, so there it stays the only one.
+        if (this.terminal) return;
         const str = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
         this._lineBuffer += str;
         let m: RegExpExecArray | null;
@@ -149,8 +173,11 @@ export class Interface extends EventEmitter {
     }
 
     private _onEnd(): void {
-        if (this._lineBuffer.length > 0) {
-            this._onLine(this._lineBuffer);
+        // What is still pending depends on who assembled it: the keypress path in terminal mode,
+        // the splitter everywhere else. Submitting the wrong one loses the answer on ctrl-d.
+        const pending = this.terminal ? this.line : this._lineBuffer;
+        if (pending.length > 0) {
+            this._onLine(pending);
             this._lineBuffer = '';
         }
         this.close();

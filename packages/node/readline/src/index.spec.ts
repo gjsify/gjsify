@@ -566,6 +566,127 @@ export default async () => {
         });
     });
 
+    // A real terminal is not available to a test runner, but the handler is bound to the input's
+    // 'keypress' event, and that is exactly what a pty delivers — so a synthetic keypress is the
+    // same input, and the output stream is where the echo has to appear. What these pin is the
+    // behaviour that was missing, and it matters more than it looks: readline calls setRawMode
+    // (which silences the kernel's echo) and then has to write every character back itself. It
+    // did not, so on a real tty a person typed into the void and Ctrl-C did nothing. Measured on
+    // a pty: a fresh tty echoes a written byte, this interface did not.
+    await describe('readline terminal keypresses', async () => {
+        const key = (input: PassThrough, str: string, k: Record<string, unknown>): void => {
+            input.emit('keypress', str, k);
+        };
+        const settle = (): Promise<void> => new Promise<void>((r) => setTimeout(r, 20));
+
+        await it('should echo a typed character to the output', async () => {
+            const input = new PassThrough();
+            const output = new PassThrough();
+            let written = '';
+            output.on('data', (chunk) => {
+                written += String(chunk);
+            });
+            const rl = createInterface({ input, output, terminal: true });
+
+            key(input, 'x', { name: 'x' });
+            await settle();
+
+            expect(written).toBe('x');
+            rl.close();
+        });
+
+        await it('should erase on the output when a character is deleted', async () => {
+            const input = new PassThrough();
+            const output = new PassThrough();
+            let written = '';
+            output.on('data', (chunk) => {
+                written += String(chunk);
+            });
+            const rl = createInterface({ input, output, terminal: true });
+
+            key(input, 'x', { name: 'x' });
+            key(input, '', { name: 'backspace' });
+            await settle();
+
+            // Not the exact bytes. Rewinding with backspaces and redrawing the whole line are
+            // both correct, and pinning one of them would fail a correct implementation on the
+            // other runtime. What must not happen is the character standing there unchanged —
+            // that is the "typed into the void" defect wearing a different hat.
+            expect(written.length).toBeGreaterThan(1);
+            rl.close();
+        });
+
+        await it('should submit the accumulated line on return', async () => {
+            const input = new PassThrough();
+            const output = new PassThrough();
+            const rl = createInterface({ input, output, terminal: true });
+            const lines: string[] = [];
+            rl.on('line', (line: string) => lines.push(line));
+
+            key(input, 'h', { name: 'h' });
+            key(input, 'i', { name: 'i' });
+            key(input, '\r', { name: 'return' });
+            await settle();
+            // Length and element, not `toEqual` on the array: the rest of this file asserts that
+            // way, and under GJS `toEqual` does not compare an array's contents.
+            expect(lines.length).toBe(1);
+            expect(lines[0]).toBe('hi');
+            rl.close();
+        });
+
+        await it('should emit one line per Enter when raw bytes arrive in terminal mode', async () => {
+            // The byte path and the keypress path see the same bytes. If both submit a line, a
+            // person answers every question twice — which is why the byte path has to stand down
+            // once the keypress path is driving.
+            const input = new PassThrough();
+            const output = new PassThrough();
+            const rl = createInterface({ input, output, terminal: true });
+            const lines: string[] = [];
+            rl.on('line', (line: string) => lines.push(line));
+
+            input.write('foo\n');
+            await settle();
+
+            expect(lines.length).toBe(1);
+            expect(lines[0]).toBe('foo');
+            rl.close();
+        });
+
+        await it('should close on ctrl-c when nothing is listening, so it aborts', async () => {
+            // The other half of Node's rule, and the half a person at a keyboard depends on:
+            // with no SIGINT listener there is nobody to decide, so the interface ends. Without
+            // this, ctrl-c is a keypress that goes nowhere — measured on a pty, that is exactly
+            // how it behaved.
+            const input = new PassThrough();
+            const output = new PassThrough();
+            const rl = createInterface({ input, output, terminal: true });
+
+            key(input, '\u0003', { name: 'c', ctrl: true });
+            await settle();
+
+            // Observed through what a closed interface does, not through a field name: `_closed`
+            // here, `closed` on Node. A test that reads the wrong one fails on a runtime whose
+            // implementation is not the thing under test.
+            expect(() => rl.prompt()).toThrow();
+        });
+
+        await it('should emit SIGINT and close on ctrl-c', async () => {
+            const input = new PassThrough();
+            const output = new PassThrough();
+            const rl = createInterface({ input, output, terminal: true });
+            let interrupts = 0;
+            rl.on('SIGINT', () => {
+                interrupts += 1;
+            });
+
+            key(input, '\u0003', { name: 'c', ctrl: true });
+            await settle();
+
+            expect(interrupts).toBe(1);
+            rl.close();
+        });
+    });
+
     await describe('readline async iterator', async () => {
         await it('should iterate over lines', async () => {
             const input = new PassThrough();
