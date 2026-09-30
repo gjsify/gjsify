@@ -57,6 +57,16 @@ The decision is [ADR 0075](../../../docs/adr/0075-darwin-gamepad-backend-is-sdl3
 
 On macOS the typelib and library come from the per-target optional dependency `@gjsify/gamepad-native-darwin-<arch>`, and a GJS process finds them through `gjsify run`, which puts every installed prebuild on `GI_TYPELIB_PATH`. The macOS backend never probes for libmanette.
 
+### Node
+
+`gjsify.runtimes.node` is `partial`, and the same source runs under Node: a `--app node` bundle reaches `gi://` through [`@gjsify/node-gi`](../../node-gi/node-gi), so with the macOS prebuild installed the shim works there too. `@gjsify/node-gi` is NOT a dependency — a plain-Node program without it is a supported configuration and answers `hasGamepadBackend() === false` with a `console.warn` naming it.
+
+```bash
+npm install @gjsify/node-gi @gjsify/gamepad   # plus @gjsify/gamepad-native-darwin-<arch>
+```
+
+Measured on macOS 27 arm64 / Node 24.21.0: the probe classifies `sdl`, `hasGamepadBackend()` is `true`, and `SdlSource` initialises, enumerates zero controllers and tears down over repeated cycles (`gjsify workspace @gjsify/gamepad run test:gjs-on-node`, 4 tests / 28 assertions). Input from a real controller is unverified on this target, exactly as on GJS.
+
 A host with no backend — Windows today, Linux without libmanette, macOS without the prebuild — is a platform gap, not a bug in this package, and it is reported, not hidden. There, `navigator.getGamepads()` returns the **empty list** *because there is no backend* — indistinguishable, from the return value alone, from a Linux host with nothing plugged in. That is deliberate, and it is what the spec asks for: `Navigator.[[gamepads]]` "is initially the empty list" and grows only when an index is selected for a connected device, so `getGamepads()`'s steps only ever return a list (their one `throw` is a `SecurityError` for the `"gamepad"` permission policy), and a browser on a machine with no gamepad driver returns exactly the same empty answer — WebKit compiles an `EmptyGamepadProvider` for precisely that case. Making the call throw would break every page that polls `navigator.getGamepads().length`.
 
 Ask the capability export instead of guessing from an empty list:
