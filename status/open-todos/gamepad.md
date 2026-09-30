@@ -83,10 +83,24 @@ own permission decision; SDL3 is adopted for nothing else.
 1. **Built:** `@gjsify/gamepad-native` + `-darwin-arm64` / `-darwin-x64` (C shim, `GjsifyGamepad-1.0`,
    SDL 3.4.16 static + trimmed, CFRunLoop drain, `build-prebuilds-macos` wiring, meson tests incl.
    `leaks`) and `sdl-source.ts` with the darwin branch importing `gi://GjsifyGamepad`. Measured size
-   and `otool -L` are in the ADR amendment. **Still open here:** the first-publish bootstrap of the
-   three names (`status/pending-npm-bootstrap.json`), and `commit-prebuilds` landing the first
-   darwin artifacts. The first CI run of the leg needs the `ci:macos` label.
-2. **Not run yet:** the shim under Node via `@gjsify/node-gi` on darwin. Only GJS was measured.
+   and `otool -L` are in the ADR amendment. Both first-publish items are DONE: all three names are
+   on npm (`npm view @gjsify/gamepad-native-darwin-{arm64,x64} version` → `0.52.0`), which is why
+   `status/pending-npm-bootstrap.json` is empty, and `commit-prebuilds` has landed the darwin
+   artifacts — 3 files each under `gamepad-native-darwin-{arm64,x64}/prebuilds/darwin-<arch>/`.
+2. ~~**Not run yet:** the shim under Node via `@gjsify/node-gi` on darwin.~~ **CLOSED.** Measured on
+   macOS 27 arm64, Node 24.21.0, `@gjsify/node-gi` built from source against host GLib 2.90: the
+   probe classifies `sdl` (not `absent`, not a fault), `hasGamepadBackend()` is `true`, and
+   `SdlSource` through `GamepadManager` initialises, returns the conformant EMPTY list, and tears
+   down over 20 cycles, plus a monitor alive across three 100 ms timeout periods on a
+   node-gi-drained main context — 4 tests, 28 assertions, no source change needed. The shim's own
+   suite has the matching leg now (`monitor-lifecycle.node.js` + meson `monitor-lifecycle-node`,
+   the parallel of the gjs one, registered only when the node-gi addon exists), and
+   `prebuilds.yml`'s macOS leg builds `@gjsify/node-gi` and runs it. Two things the measurement
+   fixed at the root: `@gjsify/gamepad` declares `gjsify.runtimes.node: "partial"` but had no
+   node-leg entry at all (`test:gjs-on-node` + `src/test.node-gi.mts`, sqlite's pattern), and
+   `register.spec.ts`'s "agrees with this host" oracle asked only about `gi://Manette` — so on a
+   Mac whose `GjsifyGamepad` prebuild loads, the probe's `true` and the oracle's `false`
+   disagreed and the gjs suite was RED on this host since the prebuild landed.
 3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
    On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
 4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
