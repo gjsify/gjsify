@@ -12,9 +12,22 @@
 // each backend saw during the recording (presses, axis ranges, the SDL − libmanette
 // latency of each matching transition), then a short rumble attempt through both.
 
-import GLib from 'gi://GLib?version=2.0';
-import GjsifyGamepadModule from 'gi://GjsifyGamepad?version=1.0';
-import Manette from 'gi://Manette?version=0.2';
+// The three namespaces are loaded the way the PACKAGE loads them — `await import`
+// of a `gi://` URL, the same shape `backend.ts` probes with — and not with static
+// imports, for a reason that is about this file rather than about style. It is a
+// hand-run entry: `build:gjsify` takes `src/**\/*.{ts,js}`, so an `.mts` file in
+// `src/` is in no shipped bundle, while `scripts/audit-runtimes.mjs` reads
+// `src/**` as the shipped surface and reads a static `gi://` import out of it.
+// A static import here therefore declared this package GJS-only and failed
+// `Detect runtime-triplet drift`, asking for `node: "none"` — for a tool that is
+// never bundled and that exists precisely to be run by hand on a Linux host. The
+// dynamic form says what is true: this file needs GJS when someone runs it, and
+// the package's node entry does not include it.
+const [{ default: GLib }, { default: GjsifyGamepadModule }, { default: Manette }] = await Promise.all([
+    import('gi://GLib?version=2.0'),
+    import('gi://GjsifyGamepad?version=1.0'),
+    import('gi://Manette?version=0.2'),
+]);
 
 import { W3C_AXIS_COUNT } from './axis-mapping.js';
 import { W3C_BUTTON_COUNT } from './button-mapping.js';
