@@ -532,3 +532,177 @@ jobs:
       # current darwin ledger next to the run that measured it.
       - name: Conformance audit (os-axis included)
         run: node scripts/audit-runtimes.mjs --check
+
+  # THE DARWIN `cold-bootstrap`, and WHY IT IS ITS OWN JOB
+  #
+  # `main.yml`'s `cold-bootstrap` asks one question: does this repository's whole
+  # `build:infra` run on a host with no Node, from a tree with no build outputs?
+  # Until this job existed only Linux answered it. Both darwin legs here install
+  # and build under Node, and the five node-free suites in the step above run on
+  # an ALREADY-built tree, so they measure orchestration, not the bootstrap.
+  #
+  # A separate job because it is a second full install + `build:infra` and macOS
+  # minutes bill at 10x. `prebuilds.yml`'s `build-prebuilds-macos` already pays
+  # exactly this price for exactly this reason and states the escape hatch the
+  # same way, so this is one convention and not a second one to learn: `main`,
+  # the nightly and a dispatch always run it; a `pull_request` runs it only
+  # behind label `ci:macos`. Opt a PR in for anything touching the node-free
+  # path — a package script that stops going through `gjsify`, a launcher, a
+  # native loader, `install.mjs`.
+  #
+  # One `if:`, not two, because the label decides the MATRIX in `scope` as well:
+  # a second key would silently replace the first, and the job would then run its
+  # arm64-only leg on precisely the PRs the label was meant to switch off.
+  node-free-cold-bootstrap:
+    name: Node-free cold bootstrap (darwin-${{ matrix.arch }} / gjs, no node)
+    needs: scope
+    if: >-
+      !cancelled() && needs.scope.outputs.run != 'false'
+      && (github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'ci:macos'))
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # Computed in `scope`, an OBJECT per leg. With the label present this is
+        # both arches; without it the job is skipped, so the reduced axis never
+        # spawns a phantom leg — the trap `docs/ci-selective.md` records.
+        include: ${{ fromJSON(needs.scope.outputs.macos-matrix) }}
+
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # WHICH HOST, because a green arm64 leg and a green x64 leg prove different
+      # code: the bundler engine comes from `rolldown-native-darwin-{arm64,x64}`,
+      # so this loads a different dylib on each. Before anything is built.
+      - name: Report the host this run measured
+        run: |
+          sw_vers
+          echo "arch:   $(uname -m)"
+          echo "prefix: $(brew --prefix)"
+
+      # `json-glib` is the ENGINE's and nothing else's:
+      # `libgjsifyrolldown.dylib` links `@rpath/libjson-glib-1.0.0.dylib` and its
+      # typelib imports `Json` (`check-system-deps.ts` declares it for
+      # `@gjsify/rolldown-native`). The leg above also installs `librsvg` and
+      # `gtk4` for the `ship` and `node-script` suites; a build needs neither, and
+      # on 10x-billed minutes each formula is paid for twice over.
+      - name: Install GJS + json-glib via Homebrew
+        run: brew install gjs json-glib
+
+      # NO `actions/setup-node`, and the omission is the job. Every `node` on
+      # this runner lives in some PATH entry, so this drops each entry holding
+      # one and hands `gjs` back alone: Homebrew puts `gjs` and `node` in ONE
+      # directory, so "drop the dir holding node" takes gjs with it. Same rule,
+      # same symlink, as `tests/e2e/helpers.mjs`'s `nodeLessPath()`.
+      #
+      # A PATH rather than a moved binary (`main.yml`'s `cold-bootstrap` moves
+      # `node`/`npm`/`npx` aside): Homebrew's prefix is a link farm the runner
+      # shares with every later macOS job, so renaming entries inside it edits
+      # somebody else's installation. A PATH costs one export and cannot be
+      # undone by a step that happens to call an absolute path — and the
+      # assertion below is what makes the difference real rather than
+      # decorative.
+      - name: Make this a Node-less host, and assert it
+        run: |
+          set -euo pipefail
+          GJS_ONLY="$RUNNER_TEMP/gjs-only-bin"
+          mkdir -p "$GJS_ONLY"
+          ln -sfn "$(command -v gjs)" "$GJS_ONLY/gjs"
+          NODE_LESS=""
+          IFS=':' read -ra DIRS <<< "$PATH"
+          for d in "${DIRS[@]}"; do
+            [ -n "$d" ] || continue
+            [ "$d" = "$GJS_ONLY" ] && continue
+            if [ -e "$d/node" ]; then
+              echo "dropping $d (it holds a node)"
+              continue
+            fi
+            NODE_LESS="$NODE_LESS:$d"
+          done
+          export PATH="$GJS_ONLY:$NODE_LESS"
+          {
+            echo 'PATH<<GJSIFY_NODELESS_EOF'
+            echo "$PATH"
+            echo 'GJSIFY_NODELESS_EOF'
+          } >> "$GITHUB_ENV"
+
+          # A `node` that survived makes this job a duplicate of an install under
+          # Node that stays green: `writeNodeShim` lays its shim down only when
+          # `resolveBinOnPath('node')` finds NOTHING, so a surviving binary is one
+          # the build silently prefers. Green having proved nothing is the
+          # failure mode this job exists to remove.
+          if command -v node >/dev/null 2>&1; then
+            echo "::error::node is still reachable at $(command -v node) — writeNodeShim would decline and this job would test nothing"
+            exit 1
+          fi
+          echo "node resolves nowhere; gjs is $(command -v gjs)"
+          echo "PATH=$PATH"
+
+      # Assert the tree is COLD rather than assuming it. This job's own checkout
+      # is cold by construction — `main.yml`'s has to be cloned out of the build
+      # job's warm one — so the check is cheap, and a warm tree would make this
+      # the leg above under a new name while reporting the same green.
+      - name: Assert the checkout carries no build outputs
+        run: |
+          set -euo pipefail
+          if find packages -maxdepth 4 -type d -path '*/lib/esm' | grep -q .; then
+            echo '::error::the checkout is not cold — lib/esm is present'
+            exit 1
+          fi
+          test ! -e node_modules || { echo '::error::node_modules is present'; exit 1; }
+          test ! -e packages/infra/cli/dist/cli.gjs.mjs || { echo '::error::a CLI bundle is present'; exit 1; }
+          echo 'cold: no node_modules, no lib/esm, no CLI bundle'
+
+      # The documented ADR 0002 bootstrap, verbatim and in order:
+      # `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run
+      # build:infra`. The global install is not ceremony — it is where
+      # `@gjsify/tsc` comes FROM on a Node-free host. `commands/tsc.ts` resolves
+      # it from the project first and from the RUNNING CLI's own location second,
+      # and a workspace symlink onto unbuilt source answers neither, so a job
+      # that fetched the release bundle and ran it in place would die at the first
+      # `gjsify tsc` for a reason that has nothing to do with macOS.
+      #
+      # By absolute path rather than onto PATH: under GJS the CLI writes its own
+      # `gjsify` shim for nested and compound scripts
+      # (`ensureGjsifyShimOnPath` — `needsSelfShim` is unconditionally true on a
+      # GJS host), so a PATH entry would buy nothing, and adding one would mean
+      # re-asserting that it added no `node`.
+      #
+      # The assertion below is not a copy of the one above: this is the step where
+      # `~/.local/bin` — the install's own bin dir — would come onto PATH, and a
+      # runner image with a `node` there would put one back.
+      - name: Bootstrap the global CLI (gjs -m install.mjs, no node)
+        run: |
+          set -euo pipefail
+          gjs -m install.mjs
+          GJSIFY="$HOME/.local/bin/gjsify"
+          test -x "$GJSIFY" || { echo "::error::no global launcher at $GJSIFY"; exit 1; }
+          "$GJSIFY" --version
+          if command -v node >/dev/null 2>&1; then
+            echo '::error::node is reachable again after the install'
+            exit 1
+          fi
+
+      - name: Install the workspace (no node)
+        run: '"$HOME/.local/bin/gjsify" install --immutable'
+
+      - name: build:infra from cold, with node absent
+        run: |
+          set -euo pipefail
+          if command -v node >/dev/null 2>&1; then
+            echo '::error::node is reachable — refusing to run a job named node-free'
+            exit 1
+          fi
+          "$HOME/.local/bin/gjsify" run build:infra
+
+      # The exit code above is the verdict, and it is deliberately the ONLY
+      # assertion: this job asks whether the chain that PRODUCES a bundle runs on
+      # a Mac at all. Whether the bundle then LOADS there is the leg above's
+      # question, and re-asserting it here would be a second full build for a
+      # fact already held.
