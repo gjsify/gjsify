@@ -88,7 +88,20 @@ export default async () => {
                 expect(gtype !== undefined && GObject.type_name(gtype) === 'GtkSnapshot').toBe(true);
                 // And it is the SAME GType the class itself carries, so the lookup
                 // confirmed the candidate rather than taking the name on trust.
-                expect(gtype).toBe(Gtk.Snapshot.$gtype);
+                //
+                // BY NAME, NOT BY IDENTITY: the two runtimes box a GType differently —
+                // GJS gives a NUMBER, so `toBe` compares by value, while node-gi
+                // marshals a FRESH `Napi::External` per call (`MakeGTypeHandle`,
+                // node-gi/src/marshal.cc:353 — its own test asserts `typeof back ===
+                // 'object'`, gtype.test.mjs:72). Two reads of one type are then two
+                // objects, so identity is no claim either runtime agrees on; this
+                // case passes it on node-gi only by accident, `type_from_name` having
+                // missed so both sides read the handle cached on the class. The
+                // NON-ZERO claim above is unaffected: `type_name` of `G_TYPE_INVALID`
+                // is null, never a name, so a zero still fails it.
+                expect(gtype !== undefined && GObject.type_name(gtype) === GObject.type_name(Gtk.Snapshot.$gtype)).toBe(
+                    true,
+                );
             });
 
             await it('answers for an enum and for one of its members, through the same path', async () => {
@@ -97,7 +110,14 @@ export default async () => {
                 // enum and the `value_type` of a property every shipped widget carries.
                 const gtype = gtypeOfName('GtkOrientation');
                 expect(gtype === undefined).toBe(false);
-                expect(gtype).toBe(Gtk.Orientation.$gtype);
+                // BY NAME, for the marshalling reason the class case above sets out:
+                // `GtkOrientation` IS in `type_from_name`, so the left side is a
+                // freshly marshalled External while `Gtk.Orientation.$gtype` is the
+                // one handle cached on the class — two objects, and `toBe` fails.
+                // The name is what both runtimes agree on, and a zero cannot pass it.
+                expect(
+                    gtype !== undefined && GObject.type_name(gtype) === GObject.type_name(Gtk.Orientation.$gtype),
+                ).toBe(true);
                 expect(enumMembers('GtkOrientation')).toContain('VERTICAL');
                 expect(lookupEnumNick('GtkOrientation', 'vertical')).toBe(Gtk.Orientation.VERTICAL);
                 // The member the parser itself cannot answer, so the SECOND resolution
