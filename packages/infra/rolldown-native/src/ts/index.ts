@@ -11,6 +11,13 @@
 // running architecture isn't installed, consuming packages
 // (`@gjsify/cli` build pipeline) can fall back to npm `rolldown`
 // under Node and surface a clear error under GJS.
+//
+// NO `@gjsify/utils` import, and none may be added: the CLI imports this
+// package's `lib/` by file URL under GJS, whose ESM loader resolves no bare
+// specifier ("Module not found: @gjsify/utils/core"). So the CONSUMER opens the
+// library with `openNativeLibrary('GjsifyRolldown')` right after
+// `hasNativeRolldown()` — beside the typelib that was found, naming a missing
+// dependency — in the CLI's `bundler-pick.ts`.
 
 import type { GjsifyRolldown as GjsifyRolldownNS } from 'gi://GjsifyRolldown?version=1.0';
 import type GLib from '@girs/glib-2.0';

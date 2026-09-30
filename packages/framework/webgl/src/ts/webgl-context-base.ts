@@ -13,6 +13,7 @@ import '@girs/gdkpixbuf-2.0';
 
 import * as bits from 'bit-twiddle';
 import Gwebgl from '@girs/gwebgl-0.1';
+import { openNativeLibrary } from '@gjsify/utils/core';
 import { WebGLContextAttributes } from './webgl-context-attributes.js';
 import type { HTMLCanvasElement } from './html-canvas-element.js';
 import { flag } from './utils.js';
@@ -89,6 +90,23 @@ type WebGLExtensionLike = object;
 
 // oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: merges the GL enum constants into the class
 export interface WebGLContextBase extends WebGLConstants {}
+
+let _gwebglOpened = false;
+
+/**
+ * Open libgwebgl before the first `Gwebgl` class is constructed — once, beside
+ * the typelib the `gi://Gwebgl` import found. A shell that stripped the
+ * library-path variable (SIP's `/bin/sh` drops every `DYLD_*`) otherwise leaves
+ * the typelib without its library, and a missing dependency (libepoxy, say)
+ * surfaces as the nameless "Unsupported type void" instead of naming itself.
+ * Lazy rather than at import: importing the module must not need a GL stack.
+ */
+function openGwebgl(): void {
+    if (_gwebglOpened) return;
+    const error = openNativeLibrary('Gwebgl');
+    if (error) throw error;
+    _gwebglOpened = true;
+}
 
 export abstract class WebGLContextBase {
     canvas: HTMLCanvasElement;
@@ -188,6 +206,7 @@ export abstract class WebGLContextBase {
         canvas: HTMLCanvasElement | null,
         options: Partial<Gwebgl.WebGLRenderingContext.ConstructorProps> & WebGLContextAttributes = {} as never,
     ) {
+        openGwebgl();
         this.canvas = canvas;
 
         this._contextAttributes = new WebGLContextAttributes(

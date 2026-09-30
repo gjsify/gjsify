@@ -454,6 +454,14 @@ jobs:
           tests/e2e/node-script/run.mjs
           tests/e2e/tsc-node-fallback/run.mjs
 
+      # A native bridge whose library will not load must name the file and the
+      # dependency, on the platform where that first happened (Homebrew
+      # json-glib absent under `gjsify build`). The suite drops the rolldown
+      # prebuild's cargo sibling for a real dyld failure; its CONTROL run keeps
+      # the sibling and must load, which needs the json-glib installed above.
+      - name: A native library that will not load is named
+        run: node --test tests/e2e/native-library-missing-dep/run.mjs
+
       # ── #1354 M6: signing, proven with no certificate in the repository ────
       #
       # THE DETERMINATION THIS STEP IS. `gjsify ship --sign` execs the bare name

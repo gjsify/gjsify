@@ -15,7 +15,7 @@
 
 // Types provided by the auto-generated declaration in src/ts/gjsifyhttp2-1.0.d.ts
 import type { GjsifyHttp2 as GjsifyHttp2NS } from 'gi://GjsifyHttp2?version=1.0';
-import { colocateNativeLibrary } from '@gjsify/utils/core';
+import { loadOptionalNativeModule } from '@gjsify/utils/core';
 
 type FrameEncoderInstance = GjsifyHttp2NS.FrameEncoder;
 type FrameEncoderCtor = typeof GjsifyHttp2NS.FrameEncoder;
@@ -45,33 +45,14 @@ let _loadError: Error | null = null;
 export function loadNativeHttp2(): NativeHttp2Module | null {
     if (_loaded) return _native;
     _loaded = true;
-    try {
-        // Static `gi://` resolution would happen during ESM linking,
-        // before LD_LIBRARY_PATH / GI_TYPELIB_PATH are set. Use the
-        // synchronous `imports.gi.*` form so resolution happens at runtime.
-        const gi = (globalThis as unknown as { imports?: { gi?: { GjsifyHttp2?: unknown } } }).imports?.gi;
-        if (!gi) {
-            _loadError = new Error('imports.gi not available — not running under GJS?');
-            return null;
-        }
-        const mod = gi.GjsifyHttp2 as unknown;
-        if (!mod) {
-            _loadError = new Error('GjsifyHttp2 typelib not found on GI_TYPELIB_PATH');
-            return null;
-        }
-        // The typelib is loaded; the library opens on the first class access.
-        // Name its directory in between (see `colocateNativeLibrary`), then
-        // touch a class HERE so a typelib without its library reads as absent
-        // rather than failing at first use.
-        colocateNativeLibrary('GjsifyHttp2');
-        void (mod as NativeHttp2Module).SessionBridge;
-        _native = mod as NativeHttp2Module;
-        return _native;
-    } catch (err) {
-        _loadError = err instanceof Error ? err : new Error(String(err));
-        _native = null;
-        return null;
-    }
+    // Static `gi://` resolution would happen during ESM linking, before
+    // LD_LIBRARY_PATH / GI_TYPELIB_PATH are set; `imports.gi.*` resolves at
+    // runtime. A typelib without a loadable library reads as absent rather
+    // than failing at first use, with the missing dependency in `getLoadError()`.
+    const { module, error } = loadOptionalNativeModule<NativeHttp2Module>('GjsifyHttp2', ['SessionBridge']);
+    _native = module;
+    _loadError = error;
+    return _native;
 }
 
 /**
