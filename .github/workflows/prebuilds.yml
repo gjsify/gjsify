@@ -3511,8 +3511,26 @@ jobs:
           set INCLUDE=%GTK_PREFIX%\include;%INCLUDE%
           meson setup build . -Dprebuilt_gir=gir-export || exit /b 1
           meson compile -C build || exit /b 1
-          findstr /R "SDL_JOYSTICK_DINPUT SDL_JOYSTICK_XINPUT SDL_JOYSTICK_RAWINPUT SDL_JOYSTICK_WGI SDL_JOYSTICK_HIDAPI SDL_HAPTIC_DINPUT" build\subprojects\SDL3-3.4.16\__CMake_build\include-config-minsizerel\build_config\SDL_build_config.h
-          exit /b 0
+          rem THE DIRECTINPUT GUARANTEE, asserted. meson.build supplies HAVE_DINPUT_H=1
+          rem because SDL checks <dinput.h> only inside if(SDL_DIRECTX), which audio and
+          rem video being off turns off: left alone the DirectInput joystick and haptic
+          rem drivers compile out WITHOUT A WORD and every generic HID pad that is
+          rem neither XInput nor a HIDAPI vendor controller disappears on Windows. So
+          rem this must be able to fail, which the line it replaces could not: `exit /b 0`
+          rem made the step green whatever findstr said, and a bare `findstr SDL_JOYSTICK_DINPUT`
+          rem matches the `/* #undef SDL_JOYSTICK_DINPUT */` line too - it read as proof
+          rem while proving nothing. Assert the two DINPUT drivers positively, and report
+          rem the rest without failing on them: this runner does not decide whether
+          rem XINPUT, RAWINPUT, WGI and HIDAPI survive SDL's own trimming, and a leg that
+          rem guesses wrong is worse than a leg that says what it saw. The config file is
+          rem located by glob, so a wrap bump (sdl3.wrap) does not turn the check into a
+          rem silently-passing file-not-found.
+          set SDL_CONFIG=
+          for /f "delims=" %%f in ('dir /s /b "build\subprojects\SDL3-*\__CMake_build\*\build_config\SDL_build_config.h"') do if not defined SDL_CONFIG set SDL_CONFIG=%%f
+          if not defined SDL_CONFIG ( echo ::error::no SDL_build_config.h under build\subprojects - the DirectInput guarantee was NOT checked & exit /b 1 )
+          findstr /R /C:"#define[ ]*SDL_JOYSTICK_DINPUT[ ]*1" "%SDL_CONFIG%" >nul || ( echo ::error::SDL_JOYSTICK_DINPUT is not compiled in - generic HID pads would vanish on Windows & exit /b 1 )
+          findstr /R /C:"#define[ ]*SDL_HAPTIC_DINPUT[ ]*1" "%SDL_CONFIG%" >nul || ( echo ::error::SDL_HAPTIC_DINPUT is not compiled in - rumble would vanish on Windows & exit /b 1 )
+          findstr /R "SDL_JOYSTICK_XINPUT SDL_JOYSTICK_RAWINPUT SDL_JOYSTICK_WGI SDL_JOYSTICK_HIDAPI" "%SDL_CONFIG%"
 
       # C lifecycle (20 cycles, two monitors, dispose without close) and the
       # message-queue measurement: what the shim leaves on the calling thread and
