@@ -1,0 +1,10 @@
+# SDL3, pinned to one release and verified by checksum. meson downloads it at
+# `meson setup` into subprojects/packagecache/ (gitignored) and refuses a tarball
+# whose sha256 differs. Bumping it: change all four lines together, then rebuild
+# and re-measure the prebuild (size, `otool -L`) — see README.md § Updating SDL.
+# License: zlib (docs/attribution.md).
+[wrap-file]
+directory = SDL3-3.4.16
+source_url = https://github.com/libsdl-org/SDL/releases/download/release-3.4.16/SDL3-3.4.16.tar.gz
+source_filename = SDL3-3.4.16.tar.gz
+source_hash = 7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68

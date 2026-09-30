@@ -405,8 +405,19 @@ export default async () => {
             const manager = new GamepadManager({ source: new ManetteSource(module) });
             const actuator = manager.getGamepads()[0]!.vibrationActuator!;
             expect(actuator.effects).toStrictEqual(['dual-rumble']);
-            await actuator.playEffect('dual-rumble', { duration: 100, strongMagnitude: 1, weakMagnitude: 0 });
+            expect(
+                await actuator.playEffect('dual-rumble', { duration: 100, strongMagnitude: 1, weakMagnitude: 0 }),
+            ).toBe('complete');
             expect(device.rumbles).toStrictEqual([[65535, 0, 100]]);
+            // The shared W3C actuator: a reset stops the motors and preempts what plays.
+            const pending = actuator.playEffect('dual-rumble', { duration: 4000, weakMagnitude: 0.5 });
+            expect(await actuator.reset()).toBe('complete');
+            expect(await pending).toBe('preempted');
+            expect(device.rumbles).toStrictEqual([
+                [65535, 0, 100],
+                [0, 32768, 4000],
+                [0, 0, 0],
+            ]);
             manager.dispose();
         });
     });

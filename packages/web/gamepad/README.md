@@ -1,6 +1,6 @@
 # @gjsify/gamepad
 
-The W3C Gamepad API for GJS, backed by libmanette 0.2. Provides `navigator.getGamepads()` polling, `Gamepad`, `GamepadButton`, `gamepadconnected`/`gamepaddisconnected` events, and dual-rumble haptics via `GamepadHapticActuator`. The Manette monitor is lazily initialised on the first `getGamepads()` call.
+The W3C Gamepad API for GJS. Provides `navigator.getGamepads()` polling, `Gamepad`, `GamepadButton`, `gamepadconnected`/`gamepaddisconnected` events, and rumble via `GamepadHapticActuator`. The backend is libmanette 0.2 on Linux and SDL3 on macOS, through [`@gjsify/gamepad-native`](../gamepad-native/README.md); it starts lazily on the first `getGamepads()` call.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -39,13 +39,25 @@ for (const pad of gamepads) {
 }
 ```
 
-## Platform support — hosts without libmanette
+`vibrationActuator` follows the spec on both backends: parameters default to 0, an
+out-of-range one rejects with `TypeError`, an effect the pad lacks with
+`NotSupportedError`. `playEffect()` resolves `'complete'` once the effect has played
+(`startDelay + duration`, at most 5 s), or `'preempted'` when a later `playEffect()` or
+`reset()` interrupts it.
 
-The backend is libmanette, and libmanette is Linux-only: it links `libevdev` unconditionally (`dependency('libevdev')` in its `meson.build`, with no `required:` argument and no `host_machine` branch anywhere in the tree), and libevdev is packaged for Linux and FreeBSD only — homebrew-core's formula carries `depends_on :linux`, MacPorts has no port, nixpkgs declares `platforms = linux ++ freebsd`. **So on macOS and Windows there is no gamepad backend at all, and there cannot be one until a native backend is written.** That is a platform gap, not a bug in this package.
+## Platform support
 
-The macOS backend is decided — SDL3 behind a GObject shim, in [ADR 0075](../../../docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) — but not built yet. Until it is, a Mac answers an honest "no backend" with its own one-time explanation, and never probes for libmanette.
+| host | backend | status |
+|---|---|---|
+| Linux | libmanette 0.2 (`gi://Manette`) | supported |
+| macOS | SDL3 behind a GObject shim (`gi://GjsifyGamepad`, `@gjsify/gamepad-native`) | partial: builds, loads and enumerates; input from a real controller not yet verified |
+| Windows | none yet | the same shim's win32 leg is open work |
 
-On such a host `navigator.getGamepads()` returns the **empty list** *because there is no backend* — indistinguishable, from the return value alone, from a Linux host with nothing plugged in. That is deliberate, and it is what the spec asks for: `Navigator.[[gamepads]]` "is initially the empty list" and grows only when an index is selected for a connected device, so `getGamepads()`'s steps only ever return a list (their one `throw` is a `SecurityError` for the `"gamepad"` permission policy), and a browser on a machine with no gamepad driver returns exactly the same empty answer — WebKit compiles an `EmptyGamepadProvider` for precisely that case. Making the call throw would break every page that polls `navigator.getGamepads().length`.
+The decision is [ADR 0075](../../../docs/adr/0075-darwin-gamepad-backend-is-sdl3-behind-a-gobject-shim.md) and its Amendment 1: SDL3, statically linked and trimmed to the input subsystems, becomes the one backend on every OS, and replaces libmanette on Linux once it has been compared against it there with real controllers. libmanette itself cannot move: it links `libevdev` unconditionally, and libevdev is packaged for Linux and FreeBSD only.
+
+On macOS the typelib and library come from the per-target optional dependency `@gjsify/gamepad-native-darwin-<arch>`, and a GJS process finds them through `gjsify run`, which puts every installed prebuild on `GI_TYPELIB_PATH`. The macOS backend never probes for libmanette.
+
+A host with no backend — Windows today, Linux without libmanette, macOS without the prebuild — is a platform gap, not a bug in this package, and it is reported, not hidden. There, `navigator.getGamepads()` returns the **empty list** *because there is no backend* — indistinguishable, from the return value alone, from a Linux host with nothing plugged in. That is deliberate, and it is what the spec asks for: `Navigator.[[gamepads]]` "is initially the empty list" and grows only when an index is selected for a connected device, so `getGamepads()`'s steps only ever return a list (their one `throw` is a `SecurityError` for the `"gamepad"` permission policy), and a browser on a machine with no gamepad driver returns exactly the same empty answer — WebKit compiles an `EmptyGamepadProvider` for precisely that case. Making the call throw would break every page that polls `navigator.getGamepads().length`.
 
 Ask the capability export instead of guessing from an empty list:
 
@@ -60,7 +72,7 @@ if (!(await hasGamepadBackend())) {
 
 `hasGamepadBackend()` needs no monitor and no connected device, and it is **quiet**: asking the question prints nothing, so the recommended usage above costs no stderr line on a macOS or Windows start. The one-time explanation comes from the *use* instead — the first `getGamepads()` that actually wanted a monitor:
 
-* **no backend** (no Manette typelib; or `@gjsify/node-gi` not installed on the node target) → one `console.warn` naming what to install.
+* **no backend** (no Manette typelib; no `@gjsify/gamepad-native` prebuild on macOS; or `@gjsify/node-gi` not installed on the node target) → one `console.warn` naming what to install.
 * **a fault** (a shared library that will not `dlopen`, a version or ABI skew) → one `console.error` carrying the original error. A broken setup is a fault, not a platform gap, and the two must not look alike.
 * **the monitor fails to start** after the backend loaded (no udev or `/dev/input` in a sandbox; flatpak: `--device=input`) → its own `console.error`, because that is a third, distinct failure.
 
