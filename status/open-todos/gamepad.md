@@ -87,11 +87,17 @@ own permission decision; SDL3 is adopted for nothing else.
    three names (`status/pending-npm-bootstrap.json`), and `commit-prebuilds` landing the first
    darwin artifacts. The first CI run of the leg needs the `ci:macos` label.
 2. **Not run yet:** the shim under Node via `@gjsify/node-gi` on darwin. Only GJS was measured.
-3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
-   On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
-4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
-   reporting input and disconnecting — before `gjsify.os.<os>` moves. No runner has one.
-5. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
+   (The win32 leg loads its prebuild through `@gjsify/node-gi` on a `windows-2022` runner, so it
+   is the darwin run that is still missing.)
+3. Hardware checks — the CHECK now exists and is run by hand, never by CI, because it needs a
+   person pressing buttons: `gjsify workspace @gjsify/gamepad run hardware-check` puts
+   `ManetteSource` and `SdlSource` on the SAME real Linux controller side by side and reports
+   what each enumerated and each control read. What stays open is the real-controller RUN, per
+   OS (on macOS also a GCF-only one), connecting, reporting input and disconnecting — no runner
+   has a controller, and `gjsify.os.<os>` does not move until it has. CI substitutes the part it
+   can: a virtual uinput X360 pad on Linux and a ViGEm X360 pad on win32, each read through the
+   shim with no message pump.
+4. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
    libmanette dependency.
 
 Why the ADR needs both Apple input paths (and so chose the library that already has both):
