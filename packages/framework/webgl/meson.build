@@ -1,10 +1,16 @@
+# `buildtype=plain` = NO `-g`. ld64 emits a DEBUG MAP into any image whose objects
+# carry DWARF — one `N_OSO` stab per object, holding its MTIME — so with `-g` every
+# rebuild of this commit differed in bytes (plus the `LC_UUID` and the ad-hoc signature
+# computed over them) and `commit-prebuilds` re-committed all 16 darwin dylibs. That map
+# names intermediate `.o` files no consumer can have. Why: docs/prebuilds.md.
 # `vala` is added CONDITIONALLY below rather than declared here, because declaring
 # a language makes meson require its compiler at `meson setup` time — and the
 # whole point of the `prebuilt_vala_c` option is a host that has no valac. Adding
 # it via `add_languages()` on the branch that needs it is the only difference from
 # `project('Gwebgl', ['c', 'vala'], …)`; the Vala path below is otherwise
 # unchanged.
-project('Gwebgl', ['c'], version: '0.1')
+project('Gwebgl', ['c'], version: '0.1',
+        default_options: ['buildtype=plain'])
 
 root_dir = meson.current_source_dir()
 

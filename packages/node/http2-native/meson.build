@@ -1,4 +1,10 @@
-project('GjsifyHttp2', ['c', 'vala'], version: '1.0')
+# `buildtype=plain` = NO `-g`. ld64 emits a DEBUG MAP into any image whose objects
+# carry DWARF — one `N_OSO` stab per object, holding its MTIME — so with `-g` every
+# rebuild of this commit differed in bytes (plus the `LC_UUID` and the ad-hoc signature
+# computed over them) and `commit-prebuilds` re-committed all 16 darwin dylibs. That map
+# names intermediate `.o` files no consumer can have. Why: docs/prebuilds.md.
+project('GjsifyHttp2', ['c', 'vala'], version: '1.0',
+        default_options: ['buildtype=plain'])
 
 root_dir = meson.current_source_dir()
 

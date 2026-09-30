@@ -335,6 +335,7 @@ describe('prebuild change gate — what counts as changed', () => {
         for (const checker of [
             'scripts/check-refs-pin.mjs',
             'scripts/check-prebuild-loader-path.mjs',
+            'scripts/check-prebuild-reproducible.mjs',
             'scripts/manifest-conformance/rules/refs-pin.mjs',
             'scripts/manifest-conformance/rules/platforms-ci.mjs',
             'scripts/manifest-conformance/unchecked-fields.mjs',
@@ -350,6 +351,7 @@ describe('prebuild change gate — what counts as changed', () => {
         for (const glob of [
             'scripts/check-refs-pin.mjs',
             'scripts/check-prebuild-loader-path.mjs',
+            'scripts/check-prebuild-reproducible.mjs',
             'scripts/manifest-conformance/**',
         ]) {
             const occurrences = text.split(`- '${glob}'`).length - 1;
@@ -699,9 +701,35 @@ describe('prebuild change gate — the darwin verify steps share one table', () 
                     'a step that walks the bridge set must read `.github/prebuild-toolchain/darwin-bridges.mjs`',
             );
         }
-        // The table must actually be consumed by all four verify steps, or the ban above is
+        // The table must actually be consumed by all FIVE verify steps, or the ban above is
         // satisfiable by deleting the verification instead.
-        assert.equal(readsTable, 4, `expected 4 steps to read the darwin table, saw ${readsTable}`);
+        assert.equal(readsTable, 5, `expected 5 steps to read the darwin table, saw ${readsTable}`);
+    });
+
+    it('the macOS job rebuilds every staged prebuild and compares the two builds', () => {
+        // The byte comparison is the only thing that can tell a REPRODUCIBLE build from
+        // one that writes a timestamp into its artifact, and that distinction is what
+        // stopped `commit-prebuilds` re-committing all sixteen darwin dylibs per run.
+        // Nothing else here can: the loader-path check, the GI load test and the env-free
+        // dlopen all pass on an artifact whose bytes move.
+        //
+        // Stated as a PROPERTY of the job — the checker must be RUN — rather than as a
+        // list of step names, for the reason the test above gives.
+        const text = readFileSync(workflow, 'utf8');
+        const job = text
+            .slice(text.search(/^jobs:\s*$/m))
+            .split(/^ {2}(?=[a-z0-9-]+:\s*$)/m)
+            .find((j) => j.startsWith('build-prebuilds-macos:'));
+        assert.ok(job, 'the macOS job must exist');
+        assert.match(
+            job,
+            /check-prebuild-reproducible\.mjs --target "\$PREBUILD"/,
+            'the macOS job must run scripts/check-prebuild-reproducible.mjs over the table',
+        );
+        // …and it must be a TRIGGER that rebuilds nothing, which is the one classification
+        // a checker can get wrong in the direction that costs an eight-architecture rebuild.
+        const { build } = classify(['scripts/check-prebuild-reproducible.mjs']);
+        assert.deepEqual(build, [], 'the reproducibility checker must rebuild nothing on its own');
     });
 });
 

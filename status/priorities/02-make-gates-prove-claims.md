@@ -7,7 +7,9 @@ tier: high
    same shape: a fixture reading state that an earlier step of the same job wrote. Adjacent and
    open on the same write path — `download-artifact` merges without pruning, so a stale artifact
    can publish silently; the `prebuild-artifacts` dlopen probe degrades to a note on the very
-   runner that gates the push; nothing byte-compares a committed prebuild; bundle determinism is
+   runner that gates the push; a committed darwin prebuild is now byte-IDENTICAL to a second build of
+   its own tree, gated, while its committed-vs-fresh comparison can only be printed (unpinned Homebrew on
+   the runner — `status/open-todos/prebuilds.md`); bundle determinism is
    unmeasured; and 19 cmd.exe batch blocks in `windows-suites.yml` and `prebuilds.yml` are read
    by nothing, because no `cmd` has a parse-only mode — they are at least NAMED as unread now,
    which the 51 `pwsh` blocks this line used to nominate no longer are: `bash -n` was reading
