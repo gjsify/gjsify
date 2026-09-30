@@ -11,6 +11,7 @@ import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
 import { cpuUsage, killPid, memoryUsage, readUmask, type CpuUsage, type MemoryUsage } from './internal/system.js';
 import { armSignal, disarmSignal, isDeliverableSignal } from './internal/signals.js';
 import { ProcessReadStream, ProcessWriteStream } from './streams.js';
+import { restoreClaimedRawModes } from './raw-mode.js';
 
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
@@ -61,6 +62,22 @@ export class Process extends EventEmitter {
 
     constructor() {
         super();
+
+        // Raw mode is a debt owed to the terminal, and `exit()` emits 'exit'
+        // before it ends the process — so this is the one place that can pay it
+        // without a stream reaching for a global. It used to be registered per
+        // stream, from inside `setRawMode`, only on the stty fallback path, and
+        // only if `globalThis.process` happened to exist.
+        this.on('exit', () => {
+            try {
+                restoreClaimedRawModes();
+            } catch (err) {
+                // A terminal that could not be restored is worth saying out loud,
+                // and worth saying AFTER the others were tried — the debt loop
+                // already attempted every descriptor before rethrowing.
+                console.error('@gjsify/process: raw mode could not be restored:', err);
+            }
+        });
 
         defineLazy(this, 'platform', detectPlatform);
         defineLazy(this, 'arch', detectArch);
