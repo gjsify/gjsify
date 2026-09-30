@@ -308,7 +308,14 @@ a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now
   artefact, which is the fix #1446's own analysis rejects (one GIR pool, no second
   platform, and a name-pattern claim breaks on the next absent class nobody spelled
   `Unix`), so they could never have come true and would have held the probe forever.
-  Whoever promotes it deletes `continue-on-error` when the check reports RIPE.
+  Whoever promotes it deletes `continue-on-error` when the check reports RIPE — which is
+  a FOLLOWING PR, not this one, and the step's NAME is why. `probe-green` joins the
+  recorded outcomes by step name against completed `main` runs, so renaming the step in
+  the same change that adds the clause empties that window to zero and the check REFUSES
+  on a REQUIRED check — measured here, 0 of 30 runs, a deadlock no wait heals. The name
+  therefore still reads as the blocker it was; the workflow comment above it carries the
+  current truth. The promoting PR deletes the step, name included, so the stale half
+  never outlives the probe.
 - `rn-probe-win32` — the #1446 half is CLOSED with it (the gtk-host table rows), so what
   is left is the two POSIX-shaped image assertions attributed in the workflow header
   (`get_path()` answering the NATIVE path), which are the suite's expectation and not a

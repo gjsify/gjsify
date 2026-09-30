@@ -769,8 +769,18 @@ jobs:
       # from a NAME (`*Unix*`), breaks on the next absent class nobody spelled that way.
       # They could never have come true, so they would have held this probe forever.
       # `probe-green 5` is the thing every proxy was standing in for.
+      #
+      # THE NAME BELOW IS DELIBERATELY NOT RENAMED, and it is the one thing here that is
+      # load-bearing. `probe-green` joins this probe's recorded outcomes by STEP NAME
+      # against completed `main` runs, so a rename in the SAME change that introduces the
+      # clause empties the window to zero runs and the check REFUSES — "Renamed, removed,
+      # or never run — whichever it is, nothing is being measured" — on a REQUIRED check,
+      # which is a deadlock no wait heals. Measured here: 0 of 30 runs, the check red,
+      # the clause unanswerable until after the merge it blocks. So the label keeps saying
+      # what the probe was blocked on, and the paragraph above it carries the current
+      # truth. Whoever promotes the step deletes it, name included.
       #   retire-when: probe-green 5
-      - name: '@gjsify/gtk-host — probe (gating awaits 5 measured green Windows runs)'
+      - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
         id: gtk-host-probe
         continue-on-error: true
         working-directory: packages/framework/gtk-host
@@ -782,7 +792,7 @@ jobs:
       - name: 'Probe outcome: @gjsify/gtk-host'
         if: always()
         env:
-          PROBE_LABEL: '@gjsify/gtk-host — probe (gating awaits 5 measured green Windows runs)'
+          PROBE_LABEL: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
           PROBE_OUTCOME: ${{ steps.gtk-host-probe.outcome }}
         run: node scripts/report-probe-outcome.mjs
 
