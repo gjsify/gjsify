@@ -546,33 +546,31 @@ jobs:
   # `docs/ci-selective.md` § What is scarce has both pools pinned at their cap
   # with 77% of job time spent waiting, and says outright that BILLED minutes
   # are not scarce here — the 10x multiplier prices a bill this repository is
-  # not being sent. So the price is a fixed per-run job count, which is exactly
-  # what the `ci:macos` label removes from a pull request.
-  # `prebuilds.yml`'s `build-prebuilds-macos` already pays exactly this price for
-  # exactly this reason and states the escape hatch the same way, so this is one
-  # convention and not a second one to learn: `main`, the nightly and a dispatch
-  # always run it; a `pull_request` runs it only behind label `ci:macos`. Opt a
-  # PR in for anything touching the node-free path — a package script that stops
-  # going through `gjsify`, a launcher, a native loader, `install.mjs`.
+  # not being sent. So the price is a fixed per-run job count on EVERY run —
+  # `main`, the nightly, a dispatch and a pull request alike — and it is paid
+  # unconditionally because the answer is the point: whether the chain that
+  # PRODUCES a bundle runs on a Mac at all. The cost is recorded where the
+  # measurement lives, `status/open-todos/macos.md`;
+  # `prebuilds.yml`'s `build-prebuilds-macos` pays exactly this price for
+  # exactly this reason.
   #
-  # One `if:`, not two, because the label decides the MATRIX in `scope` as well:
-  # a second key would silently replace the first, and the job would then run its
-  # arm64-only leg on precisely the PRs the label was meant to switch off.
+  # The MATRIX is `scope`'s, not a second `if:` — the same `ci:macos` label
+  # `main.yml` uses decides the Intel leg for every job here, so a PR without
+  # it runs arm64-only and the reduced axis never spawns a phantom leg (the
+  # trap `docs/ci-selective.md` records). One convention, not a second one.
   node-free-cold-bootstrap:
     name: Node-free cold bootstrap (darwin-${{ matrix.arch }} / gjs, no node)
     needs: scope
-    if: >-
-      !cancelled() && needs.scope.outputs.run != 'false'
-      && (github.event_name != 'pull_request'
-      || contains(github.event.pull_request.labels.*.name, 'ci:macos'))
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        # Computed in `scope`, an OBJECT per leg. With the label present this is
-        # both arches; without it the job is skipped, so the reduced axis never
-        # spawns a phantom leg — the trap `docs/ci-selective.md` records.
+        # Computed in `scope`, an OBJECT per leg: arm64 always, the Intel leg
+        # behind the same `ci:macos` label `main.yml` uses — so the reduced
+        # axis never spawns a phantom leg (the trap `docs/ci-selective.md`
+        # records).
         include: ${{ fromJSON(needs.scope.outputs.macos-matrix) }}
 
     env:
@@ -599,6 +597,24 @@ jobs:
       # on a runner-time budget each formula is paid for twice over.
       - name: Install GJS + json-glib via Homebrew
         run: brew install gjs json-glib
+
+      # THE BARE-LEAF REPAIR the node-pillar leg above carries, needed here for
+      # the same reason: `GjsPrivate-1.0.typelib` — which Gio's core override
+      # loads from `_init` — records its library by BARE LEAF (`libgjs.0.dylib`),
+      # and Homebrew's `gjs` binary carries exactly one rpath, into GLIB's keg
+      # and no other. So `gjs -m install.mjs` — which imports `Gio` in its
+      # first lines — dies at the first typelib load with "Unsupported type
+      # void, deriving from fundamental void" unless the leaf resolves. A
+      # symlink at the location the rpath already names needs no `DYLD_*`
+      # variable, so it survives every shell boundary on a SIP-on host and a
+      # SIP-off runner alike; the full reasoning is at the node-pillar leg's
+      # step of the same name. MEASURED on this job's first run (36763723877):
+      # without it, both arches died in `gjs -m install.mjs`, the first step.
+      - name: Make libgjs resolvable without a DYLD_ variable
+        run: |
+          prefix="$(brew --prefix)"
+          ln -sfn "$prefix/opt/gjs/lib/libgjs.0.dylib" "$prefix/opt/glib/lib/libgjs.0.dylib"
+          ls -l "$prefix/opt/glib/lib/libgjs.0.dylib"
 
       # NO `actions/setup-node`, and the omission is the job. Every `node` on
       # this runner lives in some PATH entry, so this drops each entry holding
