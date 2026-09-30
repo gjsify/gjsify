@@ -3522,12 +3522,16 @@ jobs:
           rem while proving nothing. Assert the two DINPUT drivers positively, and report
           rem the rest without failing on them: this runner does not decide whether
           rem XINPUT, RAWINPUT, WGI and HIDAPI survive SDL's own trimming, and a leg that
-          rem guesses wrong is worse than a leg that says what it saw. The config file is
-          rem located by glob, so a wrap bump (sdl3.wrap) does not turn the check into a
-          rem silently-passing file-not-found.
+          rem guesses wrong is worse than a leg that says what it saw. The file is found by
+          rem NAME under build\subprojects, not by the path the previous version spelled out:
+          rem this leg had never run, so that path was never observed on a runner, and the
+          rem fewest unverifiable assumptions win - SDL_build_config.h is SDL's own name,
+          rem while the directories above it are meson's and SDL's cmake build-config names.
+          rem A miss is a loud failure, never a passing file-not-found.
           set SDL_CONFIG=
-          for /f "delims=" %%f in ('dir /s /b "build\subprojects\SDL3-*\__CMake_build\*\build_config\SDL_build_config.h"') do if not defined SDL_CONFIG set SDL_CONFIG=%%f
+          for /f "delims=" %%f in ('dir /s /b "build\subprojects\SDL_build_config.h"') do if not defined SDL_CONFIG set SDL_CONFIG=%%f
           if not defined SDL_CONFIG ( echo ::error::no SDL_build_config.h under build\subprojects - the DirectInput guarantee was NOT checked & exit /b 1 )
+          echo SDL_build_config.h: %SDL_CONFIG%
           findstr /R /C:"#define[ ]*SDL_JOYSTICK_DINPUT[ ]*1" "%SDL_CONFIG%" >nul || ( echo ::error::SDL_JOYSTICK_DINPUT is not compiled in - generic HID pads would vanish on Windows & exit /b 1 )
           findstr /R /C:"#define[ ]*SDL_HAPTIC_DINPUT[ ]*1" "%SDL_CONFIG%" >nul || ( echo ::error::SDL_HAPTIC_DINPUT is not compiled in - rumble would vanish on Windows & exit /b 1 )
           findstr /R "SDL_JOYSTICK_XINPUT SDL_JOYSTICK_RAWINPUT SDL_JOYSTICK_WGI SDL_JOYSTICK_HIDAPI" "%SDL_CONFIG%"
