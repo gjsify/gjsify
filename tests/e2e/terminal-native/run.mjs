@@ -2,7 +2,7 @@
 // E2E test: GjsifyTerminal optional-dependency behaviour.
 //
 // Runs the same GJS probe bundle twice:
-//   • "without core" — removes the GjsifyTerminal typelib from GI_TYPELIB_PATH
+//   • "without core" — deletes the path variables that could reach the typelib
 //   • "with core"    — ensures the typelib is on GI_TYPELIB_PATH
 //
 // In both cases the probe must exit 0 and return sensible values.
@@ -24,26 +24,62 @@ const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
 // `@gjsify/terminal-native` ships no `prebuilds/` of its own any more, so a
 // consumer downloads only the binary their machine can load.
 const PREBUILD_DIR = resolve(__dirname, '../../../packages/node/terminal-native-linux-x64/prebuilds/linux-x64');
+// The same directory under the name CI stages it. `node_modules/@gjsify/*` is a
+// symlink to `packages/node/*`, so these two strings name ONE directory — see
+// `envWithoutNativeTerminal` for why that difference is the whole bug.
+const PREBUILD_DIR_VIA_NODE_MODULES = resolve(
+    __dirname,
+    '../../../node_modules/@gjsify/terminal-native-linux-x64/prebuilds/linux-x64',
+);
+
+/** Every variable that can put a native prebuild within reach of the probe: the
+ * typelib search path, plus the loader path under both its ELF and its Mach-O
+ * spelling. The same four names `launcher-free-build` deletes for the same
+ * reason — kept in step by hand for now, a shared helper in `helpers.mjs` would
+ * be the way to stop them drifting. */
+const PREBUILD_PATH_VARS = [
+    'GI_TYPELIB_PATH',
+    'LD_LIBRARY_PATH',
+    'DYLD_LIBRARY_PATH',
+    'DYLD_FALLBACK_LIBRARY_PATH',
+];
+
+/**
+ * The probe's environment with the native terminal library out of reach.
+ *
+ * DELETE the variables rather than filtering PREBUILD_DIR out of them. One
+ * directory arrives under more than one string: the `packages/node/…` path this
+ * suite knows, and the `node_modules/@gjsify/terminal-native-linux-x64` symlink
+ * to the very same directory. CI builds its `GI_TYPELIB_PATH` from exactly that
+ * second spelling — a colon-list of every `*-native-linux-x64/prebuilds/…` it
+ * staged — so a string filter removed the first and left the second, the probe
+ * loaded the native library, and the "without core module" leg asserted
+ * `native_loaded === false` against a value the environment had already decided
+ * (red on #1820, green on main only because main stages nothing). A filter has
+ * to enumerate every spelling and still cannot see a system-wide install; a
+ * delete does not have to be right about names to be right about reach.
+ */
+function envWithoutNativeTerminal(extra = {}) {
+    const env = { ...process.env, ...extra };
+    for (const name of PREBUILD_PATH_VARS) delete env[name];
+    return env;
+}
+
+/** The probe's environment with the prebuild directory first on every path, so
+ * GjsifyTerminal.typelib and its .so are both found. */
+function envWithNativeTerminal(extra = {}) {
+    const env = { ...process.env, ...extra };
+    for (const name of PREBUILD_PATH_VARS) {
+        const existing = env[name] || '';
+        env[name] = existing ? `${PREBUILD_DIR}:${existing}` : PREBUILD_DIR;
+    }
+    return env;
+}
 
 function runProbe(withCore) {
-    const env = { ...process.env };
-    if (withCore && existsSync(PREBUILD_DIR)) {
-        // Prepend the prebuilds directory so GjsifyTerminal.typelib is found.
-        const existing = env.GI_TYPELIB_PATH || '';
-        env.GI_TYPELIB_PATH = existing ? `${PREBUILD_DIR}:${existing}` : PREBUILD_DIR;
-        const existingLib = env.LD_LIBRARY_PATH || '';
-        env.LD_LIBRARY_PATH = existingLib ? `${PREBUILD_DIR}:${existingLib}` : PREBUILD_DIR;
-    } else {
-        // Strip the prebuild path so the native library is invisible.
-        env.GI_TYPELIB_PATH = (env.GI_TYPELIB_PATH || '')
-            .split(':')
-            .filter((p) => p !== PREBUILD_DIR)
-            .join(':');
-        env.LD_LIBRARY_PATH = (env.LD_LIBRARY_PATH || '')
-            .split(':')
-            .filter((p) => p !== PREBUILD_DIR)
-            .join(':');
-    }
+    const env = withCore && existsSync(PREBUILD_DIR)
+        ? envWithNativeTerminal()
+        : envWithoutNativeTerminal();
 
     const raw = execFileSync('gjs', ['-m', GJS_BUNDLE], {
         env,
@@ -74,6 +110,51 @@ const CORE_SKIP = e2eSkipReason('terminal-native', [
     ],
 ]);
 
+// The regression guard for the leg below, and the reason it is not a comment.
+// The "without core module" leg can only fail on a host that STAGED the prebuild,
+// and main stages nothing — so a filter bug here is invisible on main and only
+// surfaces on a PR whose workflow builds prebuilds. These assertions are pure —
+// no `gjs`, no staged typelib — so they run everywhere and pin the contract the
+// leg depends on.
+await describe('probe environment', async () => {
+    // A colon-list shaped like CI's: this suite's own spelling of the prebuild dir,
+    // the node_modules symlink to the same dir, and one unrelated staged prebuild
+    // that must not be what decides the leg either way.
+    const staged = [
+        PREBUILD_DIR,
+        PREBUILD_DIR_VIA_NODE_MODULES,
+        '/staged/http2-native-linux-x64/prebuilds/linux-x64',
+    ];
+
+    it('deletes every prebuild-path variable, not just the one spelling of the dir', () => {
+        const env = envWithoutNativeTerminal(
+            Object.fromEntries(PREBUILD_PATH_VARS.map((name) => [name, staged.join(':')])),
+        );
+        for (const name of PREBUILD_PATH_VARS) {
+            assert.ok(
+                !(name in env),
+                `${name} still reaches the probe, so the native typelib is not out of ` +
+                    `reach: ${env[name]}\nBoth spellings of the prebuild dir have to go, ` +
+                    `not just PREBUILD_DIR.`,
+            );
+        }
+    });
+
+    it('leaves the rest of the environment alone', () => {
+        const env = envWithoutNativeTerminal({ GJSIFY_PROBE_MARKER: 'kept' });
+        assert.equal(env.GJSIFY_PROBE_MARKER, 'kept');
+        assert.equal(env.PATH, process.env.PATH, 'deleting the path variables must not disturb PATH');
+    });
+
+    it('puts the prebuild dir first on every path for the "with core" leg', () => {
+        const env = envWithNativeTerminal({ GI_TYPELIB_PATH: '/staged/other' });
+        for (const name of PREBUILD_PATH_VARS) {
+            assert.equal(env[name].split(':')[0], PREBUILD_DIR, `${name} must start at the prebuild dir`);
+        }
+        assert.equal(env.GI_TYPELIB_PATH.split(':')[1], '/staged/other', 'the inherited path must survive');
+    });
+});
+
 await describe('terminal-native E2E', async () => {
     await describe('without core module', async () => {
         let r;
@@ -81,7 +162,20 @@ await describe('terminal-native E2E', async () => {
             r = runProbe(false);
         });
         it('native_loaded is false', () => {
-            assert.strictEqual(r.native_loaded, false);
+            // The probe's own env is scrubbed, so a `true` here is not a bug in
+            // `envWithoutNativeTerminal` — it means the typelib is reachable through
+            // a search path the env does not govern: GJS's built-in default dirs, or a
+            // system-wide install of GjsifyTerminal. Say so, instead of leaving the
+            // next reader to re-derive it from a bare `false !== true`.
+            assert.strictEqual(
+                r.native_loaded,
+                false,
+                'the probe loaded the native terminal library although GI_TYPELIB_PATH ' +
+                    'and every library-path variable were deleted from its environment. ' +
+                    'GJS also searches its built-in typelib dirs, which the env cannot ' +
+                    'remove, so this host has a system-wide GjsifyTerminal. The ' +
+                    '"without core module" leg cannot measure absence here.',
+            );
         });
         it('isatty returns a boolean (GLib fallback)', () => {
             assert.strictEqual(r.isatty_result_type, 'boolean');
