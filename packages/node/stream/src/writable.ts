@@ -8,6 +8,7 @@ import type { WritableOptions } from 'node:stream';
 
 import { Stream_ } from './stream-base.js';
 import { kAsyncDispose, streamAsyncDispose } from './internal/dispose.js';
+import { writeAfterEndError } from './internal/errors.js';
 import { getDefaultHighWaterMark } from './internal/state.js';
 import type { BufferedWrite, ErrCallback } from './internal/types.js';
 
@@ -299,7 +300,7 @@ export class Writable_ extends Stream_ {
         }
 
         if (this.writableEnded) {
-            const err = new Error('write after end');
+            const err = writeAfterEndError();
             nextTick(() => {
                 cb(err);
                 this.emit('error', err);

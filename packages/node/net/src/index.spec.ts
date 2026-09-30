@@ -4,6 +4,15 @@
 // test-net-settimeout.js, test-net-bytes-read.js, test-net-server-max-connections.js
 // Original: MIT license, Node.js contributors
 
+// No test here tolerates an unexpected socket error. Every site below used to
+// register `on('error', () => {})`; instrumenting all 28 of them across
+// @gjsify/net's specs — recording the code rather than dropping it, so
+// behaviour was unchanged — showed 26 never receive an event on either leg.
+// Those are gone: a client whose scenario ends on a normal 'end'/'close' now
+// carries `on('error', reject)`, and a socket that cannot produce an error has
+// no handler, so anything that DOES arrive fails the test it happened in. The
+// single exception is the write-after-end case further down.
+
 import { describe, it, expect } from '@gjsify/unit';
 import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'node:net';
 import { Buffer } from 'node:buffer';
@@ -634,9 +643,8 @@ export default async () => {
                                 server.close(() => resolve());
                             });
                         });
-                        client.on('error', () => {
-                            // Expected — we destroyed the socket
-                        });
+                        // Measured: a socket that only ever timed out emits no error.
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -665,7 +673,8 @@ export default async () => {
                     server.listen(0, () => {
                         const addr = server.address() as { port: number };
                         client = createConnection({ port: addr.port, host: '127.0.0.1' });
-                        client.on('error', () => {});
+                        // Measured: destroyed by the server's own connection handler — no error.
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -763,7 +772,8 @@ export default async () => {
                             expect(client.destroyed).toBe(true);
                             server.close(() => resolve());
                         });
-                        client.on('error', () => {}); // Ignore errors from destroyed socket
+                        // Measured: destroyed from its own connect callback — no error.
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -783,7 +793,7 @@ export default async () => {
                             });
                             client.destroy();
                         });
-                        client.on('error', () => {}); // Ignore
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -956,12 +966,14 @@ export default async () => {
             });
 
             await it('should handle write after end gracefully', async () => {
-                const server = createServer((socket) => {
-                    socket.on('error', () => {}); // Ignore ECONNRESET from client closing
-                    socket.end('done');
-                });
-
                 await new Promise<void>((resolve, reject) => {
+                    const server = createServer((socket) => {
+                        // Measured: no error — the ECONNRESET this handler was
+                        // written for does not occur on either leg.
+                        socket.on('error', reject);
+                        socket.end('done');
+                    });
+
                     server.listen(0, () => {
                         const addr = server.address() as { port: number };
                         const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
@@ -969,12 +981,23 @@ export default async () => {
                             // Write after end should not crash
                             const result = client.write('after end');
                             expect(result).toBe(false);
-                            client.on('error', () => {}); // Ignore write-after-end error
-                            client.on('close', () => {
-                                server.close(() => resolve());
-                            });
                         });
-                        client.on('error', () => {});
+                        // The ONE error this scenario legitimately produces: Node
+                        // rejects a write past end() with ERR_STREAM_WRITE_AFTER_END,
+                        // on the write callback and as an 'error' event. Two blanket
+                        // handlers used to be registered on this socket (here and in
+                        // the connect callback), so the single error they hid was
+                        // hidden twice over. Asserting it arrives keeps the tolerance
+                        // honest — a tolerated error nobody checks is a swallow again.
+                        let tolerated: string | undefined;
+                        client.on('error', (err: Error & { code?: string }) => {
+                            tolerated = err.code;
+                            if (err.code !== 'ERR_STREAM_WRITE_AFTER_END') reject(err);
+                        });
+                        client.on('close', () => {
+                            expect(tolerated).toBe('ERR_STREAM_WRITE_AFTER_END');
+                            server.close(() => resolve());
+                        });
                     });
                     server.on('error', reject);
                 });

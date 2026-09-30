@@ -1,6 +1,11 @@
 // Teardown: what destroy() and server.close() release, and when.
 // Reference: refs/node-test/parallel/test-net-socket-destroy-twice.js,
 // test-net-server-close.js — 'close' means the descriptor is gone.
+//
+// The six `on('error', () => {})` these tests used to carry hid nothing:
+// instrumented to record the code instead of dropping it, none of them ever
+// received an event, on either leg. Dropped — a teardown that is genuinely
+// clean cannot produce an error, so one that arrives fails the run.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import type { Server, Socket } from 'node:net';
@@ -71,12 +76,10 @@ export default async () => {
             // Socket._destroy never ran: destroy() emitted 'close' and kept the
             // descriptor open, and the client below waited forever for an 'end'.
             const server = createServer((socket) => {
-                socket.on('error', () => {});
                 socket.destroy();
             });
             const port = await listen(server);
             const client = connect(port, '127.0.0.1');
-            client.on('error', () => {});
             client.resume();
             const outcome = await firstOf(client, ['end', 'close'], 2000);
             client.destroy();
@@ -106,11 +109,9 @@ export default async () => {
             let accepted: Socket | null = null;
             const server = createServer((socket) => {
                 accepted = socket;
-                socket.on('error', () => {});
             });
             const port = await listen(server);
             const client = connect(port, '127.0.0.1');
-            client.on('error', () => {});
             await new Promise<void>((resolve) => server.once('connection', () => resolve()));
             let closed = false;
             server.close(() => {
@@ -163,12 +164,10 @@ export default async () => {
                 const before = warnings.length;
 
                 const server = createServer((socket) => {
-                    socket.on('error', () => {});
                     socket.on('data', () => socket.destroy()); // read pending again by now
                 });
                 const port = await listen(server);
                 const client = connect(port, '127.0.0.1');
-                client.on('error', () => {});
                 client.resume();
                 await new Promise<void>((resolve) => client.once('connect', () => resolve()));
                 client.write('x');

@@ -9,6 +9,11 @@
 // This test transfers 2MB over a loopback TCP connection using process.nextTick-driven
 // write scheduling (the exact pattern bittorrent-protocol uses). It must complete within
 // 10 seconds; with the bug it would hang indefinitely or time out.
+//
+// The server connection's `on('error', () => {})` hid nothing: instrumented to
+// record the code instead of dropping it, it never received an event on either
+// leg. A side that sends 2MB and is read to the end has nothing to be reset
+// by, so the handler is gone and an error would fail the run.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { createServer, connect } from 'node:net';
@@ -43,8 +48,6 @@ export default async () => {
                             else conn.once('drain', sendNext);
                         }
                         sendNext();
-
-                        conn.on('error', () => {});
                     });
 
                     server.listen(0, '127.0.0.1', () => {

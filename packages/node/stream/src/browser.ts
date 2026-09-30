@@ -27,6 +27,8 @@
 
 import { EventEmitter } from '@gjsify/events';
 
+import { writeAfterEndError } from './internal/errors.js';
+
 // ─── Legacy Stream (pre-0.10) — base class for our polyfill ────────────────
 
 interface WritableLike {
@@ -283,7 +285,7 @@ export class Writable extends Stream {
 
     write(chunk: unknown, encOrCb?: string | WriteCb, cb?: WriteCb): boolean {
         if (this._writeEnded) {
-            const err = new Error('write after end');
+            const err = writeAfterEndError();
             queueMicrotask(() => this.emit('error', err));
             return false;
         }

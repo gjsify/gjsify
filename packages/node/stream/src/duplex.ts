@@ -10,6 +10,7 @@ import { nextTick } from '@gjsify/utils/core';
 import type { DuplexOptions } from 'node:stream';
 
 import { Readable_ } from './readable.js';
+import { writeAfterEndError } from './internal/errors.js';
 import { getDefaultHighWaterMark, validateHighWaterMark } from './internal/state.js';
 import type { BufferedWrite, ErrCallback } from './internal/types.js';
 
@@ -144,7 +145,7 @@ export class Duplex_ extends Readable_ {
         }
 
         if (this.writableEnded) {
-            const err = new Error('write after end');
+            const err = writeAfterEndError();
             nextTick(() => {
                 cb(err);
                 this.emit('error', err);

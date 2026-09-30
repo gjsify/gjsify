@@ -120,6 +120,7 @@ export default async () => {
                     w.on('error', (err) => {
                         try {
                             expect((err as Error).message).toBe('write after end');
+                            expect((err as Error & { code?: string }).code).toBe('ERR_STREAM_WRITE_AFTER_END');
                             res();
                         } catch (e) {
                             rej(e);
