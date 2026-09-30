@@ -968,9 +968,15 @@ export default async () => {
             await it('should handle write after end gracefully', async () => {
                 await new Promise<void>((resolve, reject) => {
                     const server = createServer((socket) => {
-                        // Measured: no error — the ECONNRESET this handler was
-                        // written for does not occur on either leg.
-                        socket.on('error', reject);
+                        // The client's write-after-end is answered by a teardown, and
+                        // Windows delivers that teardown to the accepted socket as
+                        // ECONNRESET where the two macOS legs deliver nothing
+                        // (measured: 73 clean runs there, read ECONNRESET on the
+                        // win32 leg). Tolerated by code, not blanket — any other
+                        // error still fails the spec.
+                        socket.on('error', (err: NodeJS.ErrnoException) => {
+                            if (err.code !== 'ECONNRESET') reject(err);
+                        });
                         socket.end('done');
                     });
 
