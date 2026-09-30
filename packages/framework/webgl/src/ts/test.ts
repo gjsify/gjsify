@@ -9,6 +9,7 @@ import registerSuite from './register.spec.js';
 import glsl1DesktopSuite from './context/shader-program/glsl1-desktop.spec.js';
 import legacyFormatsSuite from './context/texture-management/legacy-formats.spec.js';
 import legacyCoreProfileSuite from './legacy-core-profile.spec.js';
+import gles3DesktopGlSuite from './gles3-desktop-gl.spec.js';
 
 run({
     testSuite: async () => {
@@ -20,6 +21,7 @@ run({
         await glsl1DesktopSuite();
         await legacyFormatsSuite();
         await legacyCoreProfileSuite();
+        await gles3DesktopGlSuite();
     },
     registerSuite,
 });

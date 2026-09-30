@@ -22,6 +22,17 @@ namespace Gwebgl {
         private HashTable<uint, ulong> _sync_ptrs = new HashTable<uint, ulong> (null, null);
         private uint _sync_counter = 0;
 
+        /**
+         * 1 when this context needs `GL_PRIMITIVE_RESTART` +
+         * `glPrimitiveRestartIndex` in place of the state WebGL 2.0 assumes, 0
+         * when it has that state. See {@link beforeIndexedDraw}.
+         *
+         * `int` with 0 meaning "nothing to do", the shape the base's
+         * `shader_dialect_target` uses for the same decision: both are read on
+         * every draw or compile, so the emulated case must be the early exit.
+         */
+        private int primitive_restart_emulated = 0;
+
         public WebGL2RenderingContext(
             int width,
             int height,
@@ -37,6 +48,67 @@ namespace Gwebgl {
         }
 
         construct {
+            // Decided ONCE, and in the base's `construct` this runs after — the
+            // same moment and the same precondition (`ensureDefaultVertexArray`
+            // and `detectShaderDialectTarget` are decided there, because the
+            // context is ALREADY current and the answer cannot change for its
+            // lifetime).
+            if (acceptsGles3AsWritten()) {
+                // The state exists here, so the always-on behaviour is one call —
+                // and it has to be made, because GLES 3.0 gives
+                // PRIMITIVE_RESTART_FIXED_INDEX the initial value DISABLED
+                // (GLES 3.0 §14.9.1). A driver that already had it on would not
+                // notice; llvmpipe and Adreno do not, so without this a WebGL 2
+                // program sees a strip drawn through its restart index and the
+                // behaviour differs between two hosts running the same shader.
+                // Desktop GL 3.1+ is the opposite default — PRIMITIVE_RESTART
+                // starts ENABLED — which is why this cannot be reasoned about
+                // from the OS either.
+                glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+            } else {
+                // No state to enable: `beforeIndexedDraw` supplies the behaviour
+                // per draw instead.
+                primitive_restart_emulated = 1;
+            }
+        }
+
+        /**
+         * ANGLE's `GL_PRIMITIVE_RESTART_FIXED_INDEX` emulation.
+         *
+         * WebGL 2.0 removes the state and "behaves as though it were always
+         * enabled": when a draw processes an index equal to the maximum for its
+         * data type, the vertex is not processed and the primitive is cut. On
+         * GLES 3.0 and desktop GL 4.3+ that is one `Enable`. Where
+         * `ARB_ES3_compatibility` is missing — macOS caps CGL at desktop GL 4.1,
+         * and offers no GLES profile at all — the GL 4.1 API has
+         * `GL_PRIMITIVE_RESTART` plus `glPrimitiveRestartIndex`, which is what
+         * ANGLE drives on the same backends, and the comparison value becomes a
+         * number this layer supplies.
+         *
+         * Set PER DRAW, because it is the ELEMENT TYPE that decides the value
+         * (0xFF / 0xFFFF / 0xFFFFFFFF) and one index buffer can be drawn as more
+         * than one type. The `Enable` rides along rather than being latched at
+         * construction, so a context state a consumer reached through the raw GL
+         * enum (not a WebGL enum, so a conforming one never does) cannot leave it
+         * off underneath us.
+         */
+        protected override void beforeIndexedDraw(int elementType) {
+            if (primitive_restart_emulated == 0) {
+                return;
+            }
+            glEnable(GL_PRIMITIVE_RESTART);
+            glPrimitiveRestartIndex(fixedRestartIndex(elementType));
+        }
+
+        /** The largest index the element type can carry: what a restart cuts at. */
+        private static uint fixedRestartIndex(int elementType) {
+            if (elementType == GL_UNSIGNED_INT) {
+                return uint.MAX;
+            }
+            if (elementType == GL_UNSIGNED_SHORT) {
+                return 0xFFFF;
+            }
+            return 0xFF;
         }
 
         // ─── Vertex Array Objects ─────────────────────────────────────────────
@@ -286,6 +358,9 @@ namespace Gwebgl {
         }
 
         public void compressedTexImage3D(int target, int level, int internalFormat, int width, int height, int depth, int border, Variant variant) {
+            if (refuseEtc2Eac(internalFormat)) {
+                return;
+            }
             if (!isVariantOfByteArray(variant)) {
                 printerr("[compressedTexImage3D] variant type must be 'ay'!");
                 return;
@@ -296,6 +371,9 @@ namespace Gwebgl {
         }
 
         public void compressedTexSubImage3D(int target, int level, int xoffset, int yoffset, int zoffset, int width, int height, int depth, int format, Variant variant) {
+            if (refuseEtc2Eac(format)) {
+                return;
+            }
             if (!isVariantOfByteArray(variant)) {
                 printerr("[compressedTexSubImage3D] variant type must be 'ay'!");
                 return;
@@ -328,6 +406,7 @@ namespace Gwebgl {
         }
 
         public void drawElementsInstanced(int mode, int count, int type, long offset, int instanceCount) {
+            beforeIndexedDraw(type);
             glDrawElementsInstanced((GL.GLenum) mode, (GL.GLsizei) count, (GL.GLenum) type, (GL.GLvoid*) offset, (GL.GLsizei) instanceCount);
         }
 
@@ -347,6 +426,7 @@ namespace Gwebgl {
         }
 
         public void drawRangeElements(int mode, uint start, uint end, int count, int type, long offset) {
+            beforeIndexedDraw(type);
             unowned GL.GLvoid[] ptr = (GL.GLvoid[]) (void*) offset;
             glDrawRangeElements((GL.GLenum) mode, (GL.GLuint) start, (GL.GLuint) end, (GL.GLsizei) count, (GL.GLenum) type, ptr);
         }
@@ -510,6 +590,13 @@ namespace Gwebgl {
         }
 
         public int getInternalformatParameter(int target, int internalFormat, int pname) {
+            // The other ETC2/EAC leak, and an ADVERTISEMENT rather than an upload:
+            // `glGetInternalformativ` answers for any enum the driver knows, so a
+            // GLES 3.x host reports the ten formats and their properties for a
+            // format WebGL 2.0 does not expose at all. Same refusal, same error.
+            if (refuseEtc2Eac(internalFormat)) {
+                return 0;
+            }
             GL.GLint[] result = new GL.GLint[1];
             glGetInternalformativ((GL.GLenum) target, (GL.GLenum) internalFormat, (GL.GLenum) pname, 1, result);
             return (int) result[0];

@@ -878,7 +878,36 @@ namespace Gwebgl {
         }
 
         public void disable(int cap) {
+            if (refuseRestartFixedIndex(cap)) {
+                return;
+            }
             glDisable(cap);
+        }
+
+        /**
+         * Refuse `Enable`/`Disable` of `GL_PRIMITIVE_RESTART_FIXED_INDEX`.
+         *
+         * WebGL 2.0 "behaves as though this state were always enabled" and
+         * removes the way a consumer would change it: the state is not supported
+         * at all, and an enum a context does not support is `INVALID_ENUM`. That
+         * is a WebGL rule, so it belongs HERE and not in the WebGL 2 context —
+         * WebGL 1.0 has no such enum either.
+         *
+         * Leaving the call to the driver answers the question on the hosts that
+         * happen to reject the enum and not on the ones that do not, and the ones
+         * that do not are exactly the ones where the state would then be a
+         * consumer's to switch off: GLES 3.x and desktop GL 4.3 both take it, and
+         * a consumer that disabled it would silently lose WebGL 2.0's
+         * always-on restart while this layer's own emulation kept supplying it.
+         *
+         * @return true when the call was refused and must not reach GL
+         */
+        private bool refuseRestartFixedIndex(int cap) {
+            if (cap != GL_PRIMITIVE_RESTART_FIXED_INDEX) {
+                return false;
+            }
+            setError(GL_INVALID_ENUM);
+            return true;
         }
 
         public void disableVertexAttribArray(uint index) {
@@ -894,14 +923,38 @@ namespace Gwebgl {
         }
 
         public void drawElements(int mode, int count, int type, long offset) {
+            beforeIndexedDraw(type);
             glDrawElements(mode, count, type, (void*) offset);
         }
 
         public void _drawElementsInstanced(int mode, int count, int type, long offset, int instancecount) {
+            beforeIndexedDraw(type);
             glDrawElementsInstanced(mode, count, type, (void*) offset, instancecount);
         }
 
+        /**
+         * State that WebGL 2.0 adds to an INDEXED draw, applied per call because
+         * the value depends on the element type.
+         *
+         * EMPTY HERE, and that is not a stub. WebGL 1.0 has no primitive
+         * restart at all, so giving the base the WebGL 2.0 behaviour would
+         * silently truncate every WebGL 1.0 strip that happens to contain the
+         * largest value its element type can carry — and 0xFFFF is a perfectly
+         * legal vertex index there. Only {@link WebGL2RenderingContext} overrides
+         * it, and overriding is why the base cannot simply do the work inline:
+         * these draw entry points are reached through the typelib on an object
+         * whose class is `WebGL2RenderingContext`, so a subclass body is the only
+         * shape that dispatches.
+         *
+         * @param elementType the `type` argument of the draw about to be issued
+         */
+        protected virtual void beforeIndexedDraw(int elementType) {
+        }
+
         public void enable(int cap) {
+            if (refuseRestartFixedIndex(cap)) {
+                return;
+            }
             glEnable(cap);
         }
 
@@ -1627,17 +1680,8 @@ namespace Gwebgl {
          * `#version` is the more honest error.
          */
         private int detectShaderDialectTarget() {
-            unowned string? version = glGetString(GL_VERSION);
-            if (version == null || version.has_prefix("OpenGL ES ")) {
+            if (acceptsGles3AsWritten()) {
                 return 0;
-            }
-            if (versionAtLeast(version, 4, 3)) {
-                return 0;
-            }
-            foreach (unowned string ext in getSupportedExtensions()) {
-                if (ext == "GL_ARB_ES3_compatibility") {
-                    return 0;
-                }
             }
             unowned string? glsl = glGetString(GL_SHADING_LANGUAGE_VERSION);
             if (glsl == null) {
@@ -1653,6 +1697,42 @@ namespace Gwebgl {
             // `#version` terms, which is a two-digit minor.
             int token = major * 100 + (minor >= 10 ? minor : minor * 10);
             return token >= 330 ? token : 0;
+        }
+
+        /**
+         * Does this context take a GLSL ES 3.00 shader — and a GLES 3.0 piece of
+         * STATE — exactly as the consumer wrote it?
+         *
+         * One question for two gaps, because they arrived together: `ARB_ES3_
+         * compatibility` is CORE FROM GL 4.3 and is what makes a desktop
+         * compiler accept the ES 3.00 dialect, what makes
+         * `GL_PRIMITIVE_RESTART_FIXED_INDEX` (a GLES 3.0 state) available, and
+         * what makes ETC2/EAC core in desktop GL. Ask it once, here, instead of
+         * reading a version in two places.
+         *
+         * The predicate is the EXTENSION, not the OS and not the version alone:
+         * Mesa on win32 reports `4.6 (Compatibility Profile)` and HAS it, so
+         * rewriting its shaders — or emulating state it already has — would
+         * change a context that never needed it.
+         *
+         * True for a context that cannot read `GL_VERSION` at all: an unreadable
+         * version is not evidence of a gap, and guessing "needs the emulation"
+         * there would put desktop-GL calls on a context that may be GLES.
+         */
+        protected bool acceptsGles3AsWritten() {
+            unowned string? version = glGetString(GL_VERSION);
+            if (version == null || version.has_prefix("OpenGL ES ")) {
+                return true;
+            }
+            if (versionAtLeast(version, 4, 3)) {
+                return true;
+            }
+            foreach (unowned string ext in getSupportedExtensions()) {
+                if (ext == "GL_ARB_ES3_compatibility") {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**
@@ -1872,6 +1952,9 @@ namespace Gwebgl {
         }
 
         public void compressedTexImage2D(int target, int level, int internalFormat, int width, int height, int border, Variant variant) {
+            if (refuseEtc2Eac(internalFormat)) {
+                return;
+            }
             if (!this.isVariantOfByteArray(variant)) {
                 printerr("[compressedTexImage2D] variant type must be 'ay'!");
                 return;
@@ -1884,6 +1967,9 @@ namespace Gwebgl {
         }
 
         public void compressedTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, Variant variant) {
+            if (refuseEtc2Eac(format)) {
+                return;
+            }
             if (!this.isVariantOfByteArray(variant)) {
                 printerr("[compressedTexSubImage2D] variant type must be 'ay'!");
                 return;
@@ -1893,6 +1979,61 @@ namespace Gwebgl {
             int imageSize = (int) bytes.get_size();
 
             glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, (GLsizei) imageSize, (GL.GLvoid[]) bytes.get_data());
+        }
+
+        /**
+         * Refuse a compressed-texture format WebGL does not expose, with the
+         * error WebGL specifies for an enum the context does not support.
+         *
+         * ETC2/EAC is the case this exists for, and the ledger's description of it
+         * — "the mandatory ETC2/EAC formats" — was the GLES 3.0 rule rather than
+         * WebGL's. WebGL 2.0 removes all ten ("No ETC2 and EAC compressed texture
+         * formats") and re-offers them through `WEBGL_compressed_texture_etc`,
+         * which this package does not implement, so the WebGL 2 answer for one of
+         * them is `INVALID_ENUM` on EVERY context.
+         *
+         * Handing the number to the driver is what this replaces, and it is not a
+         * uniform outcome to leave to chance: on this host's desktop GL 4.1 the
+         * driver happens to answer `INVALID_ENUM` too (measured), while on the
+         * GLES 3.x context a typical Linux runner gets, every one of the ten is a
+         * VALID format and the upload SILENTLY SUCCEEDS — a WebGL 2 program that
+         * agrees with the spec on one platform and not on another, decided by the
+         * driver instead of by the API. `getInternalformatParameter` is the other
+         * place the same number leaks, as a list of the driver's formats.
+         *
+         * @return true when the call was refused and must not reach GL
+         */
+        protected bool refuseEtc2Eac(int internalFormat) {
+            if (!isEtc2Eac(internalFormat)) {
+                return false;
+            }
+            setError(GL_INVALID_ENUM);
+            return true;
+        }
+
+        /**
+         * The ten ETC2/EAC `internalformat` values, recognised as NUMBERS.
+         *
+         * A consumer cannot name them through this API at all — the extension
+         * object that carries the names is the one it does not have — so the
+         * refusal has to recognise the value it put on the stack.
+         */
+        private static bool isEtc2Eac(int internalFormat) {
+            switch (internalFormat) {
+                case GL_COMPRESSED_R11_EAC:
+                case GL_COMPRESSED_SIGNED_R11_EAC:
+                case GL_COMPRESSED_RG11_EAC:
+                case GL_COMPRESSED_SIGNED_RG11_EAC:
+                case GL_COMPRESSED_RGB8_ETC2:
+                case GL_COMPRESSED_SRGB8_ETC2:
+                case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+                case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+                case GL_COMPRESSED_RGBA8_ETC2_EAC:
+                case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public uint8[] readPixels(int x, int y, int width, int height, int format, int type, Variant variant) {

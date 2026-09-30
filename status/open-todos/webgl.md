@@ -62,12 +62,36 @@ What is still open:
   those extensions, which a desktop GL context does not — so the case cannot arise from the
   consumer that motivated the work, and silently downgrading a shader's stated hard requirement
   to a warning behind its back is worse than the failure it would hide.
-  Still open: the API-level GLES 3.0 features desktop GL 4.1 spells differently —
-  `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on desktop; 4.1 has `glPrimitiveRestartIndex` +
-  `GL_PRIMITIVE_RESTART`, which is what ANGLE emulates with) and the mandatory ETC2/EAC formats
-  (absent on desktop, unused by three.js/Excalibur). Neither is reached by the showcases, so
-  neither is claimed as working; both are shader-independent and would surface as a draw-time
-  error, not a compile failure.
+- ~~**The API-level GLES 3.0 features desktop GL 4.1 spells differently**~~ **CLOSED — both,
+  and the ETC2/EAC half was not what this entry believed.** `GL_PRIMITIVE_RESTART_FIXED_INDEX`
+  is the only draw-time gap left, and it is now SUPPLIED rather than left missing: WebGL 2.0
+  removes the state and "behaves as though it were always enabled", so where the context has
+  it the layer `Enable`s it — which has to be done, because GLES 3.0 gives the state the
+  initial value DISABLED (desktop GL 3.1 gives `PRIMITIVE_RESTART` the opposite default, so
+  neither can be assumed) — and where it does not (this host: no `ARB_ES3_compatibility`,
+  `GL_VERSION` `4.1 Metal - 91.7`) it emulates ANGLE's shape, `GL_PRIMITIVE_RESTART` +
+  `glPrimitiveRestartIndex(<max of the element type>)`, per draw from the element type. The
+  predicate is the EXTENSION the shader rewrite above already asks, not the OS, so Linux's
+  GLES 3.x context takes the native path and Mesa's win32 `4.6` compatibility profile is
+  left alone. `Enable`/`Disable` of the removed state is `INVALID_ENUM` on every context,
+  which is what keeps it from being a consumer's to switch off.
+  **ETC2/EAC were never mandatory in WebGL 2.0** — this entry repeated the GLES 3.0 rule.
+  WebGL 2.0 removes all ten ("No ETC2 and EAC compressed texture formats") and re-offers them
+  through `WEBGL_compressed_texture_etc`, which this package does not implement, so the
+  spec-correct answer is `INVALID_ENUM` on EVERY context, and `webgl2.idl` names none of
+  them. Handing the number to the driver was not uniform: this host's GL 4.1 answers
+  `INVALID_ENUM` anyway (measured), while a GLES 3.x host — every Linux CI runner — accepts
+  all ten and the upload would have silently succeeded. All four compressed entry points and
+  `getInternalformatParameter` refuse them now.
+  Measured on macOS 27 / Apple M4 / GL 4.1 core, `gjsify workspace @gjsify/webgl run test`:
+  **191/191** (182 before). The falsification is the point: against the PREVIOUS committed
+  `darwin-arm64` prebuild the same three specs read `255,255,255,255` where a conformant
+  context leaves the framebuffer clear — the driver assembled the triangle built from index
+  255 — with `GL_PRIMITIVE_RESTART_INDEX` at 0 and `GL_PRIMITIVE_RESTART` off. Held by
+  `src/ts/gles3-desktop-gl.spec.ts` (README § "The darwin GL 4.1 ceiling"). **The committed
+  `linux-*`/`win32-x64` prebuilds still carry the previous `libgwebgl`** — only
+  `commit-prebuilds` refreshes them, it does not run on `pull_request` — so those targets get
+  the behaviour in the follow-up bot commit, not here.
 - ~~**`getSupportedExtensions()` trips a GLib assertion on every desktop-GL context.**~~ **CLOSED**
   (#1101). A core profile makes `glGetString(GL_EXTENSIONS)` return NULL, and the split
   dereferenced it — `g_strsplit: assertion 'string != NULL' failed` here, a silent process death on
