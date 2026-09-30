@@ -1,14 +1,5 @@
 # @gjsify/webrtc-native-darwin-arm64
 
-> **No artifact in this tarball yet.** `darwin-arm64` is declared by
-> `@gjsify/webrtc-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-macos` job builds and load-tests it; `commit-prebuilds` lands the first artifact on main after the macOS promotion merges
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/webrtc-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **darwin-arm64** native artifacts of [`@gjsify/webrtc-native`](https://www.npmjs.com/package/@gjsify/webrtc-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
