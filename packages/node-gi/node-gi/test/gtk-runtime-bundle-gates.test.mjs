@@ -395,6 +395,60 @@ test('WINDOWING_REQUIRED_NAMESPACES names what --windowing exists to add', () =>
     }
 });
 
+test('the floor names GIRepository, and the entry point its consumers call', () => {
+    // Presence, not version — and the version is why. `imports.gi.GIRepository.Repository
+    // .dup_default()` is how the `gi-runtime-paths` prologue and the CLI's
+    // `utils/gi-search-path.ts` reach a bundle AT ALL, both versionless, both a silent no-op
+    // when the namespace is missing. A `TYPELIB_API_FLOOR` entry could not hold this: that
+    // gate SKIPS an entry whose namespace a bundle does not ship, so the list here is the
+    // only place the namespace can be made unskippable.
+    //
+    // Version-agnostic on purpose. girepository renamed its soname 1.0 → 2.0 and Homebrew
+    // dropped the 1.0 library, so darwin carries `GIRepository-3.0.typelib` (backed by
+    // `libgirepository-2.0.0.dylib`) and DROPS `GIRepository-2.0.typelib`, whose declared
+    // backer `libgirepository-1.0.1.dylib` no longer exists; gvsbuild's prefix still builds
+    // the 1.0 series, so win32 carries the 2.0 typelib. Requiring `GIRepository-2.0` would
+    // name a file no Homebrew prefix can back — the ledger called that an asymmetry and the
+    // measurement says it is a version difference behind one namespace.
+    assert.ok(
+        REQUIRED_NAMESPACES.includes('GIRepository'),
+        'the namespace every bundle consumer opens with is not optional',
+    );
+
+    // And the check is a REAL one, not a list membership: a typelib set where the namespace's
+    // backer is absent must be REJECTED as missing-required rather than quietly shipped, which
+    // is the darwin situation for GIRepository-2.0 today.
+    const plan = planTypelibSet({
+        typelibs: [
+            {
+                name: 'GLib-2.0.typelib',
+                namespace: 'GLib',
+                version: '2.0',
+                key: 'GLib-2.0',
+                sharedLibraries: [],
+                dependencies: [],
+                file: 'GLib-2.0.typelib',
+            },
+            {
+                name: 'GIRepository-2.0.typelib',
+                namespace: 'GIRepository',
+                version: '2.0',
+                key: 'GIRepository-2.0',
+                sharedLibraries: ['libgirepository-1.0.1.dylib'],
+                dependencies: [],
+                file: 'GIRepository-2.0.typelib',
+            },
+        ],
+        libraries: new Set(['libglib-2.0.0.dylib']),
+        caseInsensitive: false,
+        requiredNamespaces: REQUIRED_NAMESPACES,
+    });
+    assert.ok(
+        plan.problems.some((p) => /required namespace GIRepository is not shippable/.test(p)),
+        plan.problems.join('\n'),
+    );
+});
+
 // --- licenses ---------------------------------------------------------------
 
 test('the Homebrew license stanza is read from the keg, incl. multi-line forms', () => {

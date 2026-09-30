@@ -189,6 +189,12 @@ if (!existsSync(brewLib)) {
 // recursive otool walk pulls every transitive Homebrew dep (harfbuzz, fribidi,
 // fontconfig, freetype, pixman, png, intl, pcre2, ffi, epoxy, …).
 const SEED_PATTERNS = [
+    // The `GIRepository` REQUIRED namespace' backer. It is `libgirepository-2.0.0.dylib`,
+    // which glib ≥ 2.80 builds in-tree and ships from its own keg — and which backs
+    // `GIRepository-3.0.typelib`, NOT the `GIRepository-2.0.typelib` beside it in the same
+    // brew `girepository-1.0/` dir (that one still declares `libgirepository-1.0.1.dylib`,
+    // which no current glib produces, so § 4 drops it). The required entry is versionless
+    // for exactly this reason; typelib-backers.mjs carries the measurement.
     /^libgirepository-2\.0\..*\.dylib$/, // GIRepository (merged into glib on modern brew)
     /^libglib-2\.0\..*\.dylib$/,
     /^libgobject-2\.0\..*\.dylib$/,
