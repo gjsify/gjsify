@@ -31,6 +31,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { maybeReexecForGtkRuntime } from '../gtk-runtime.js';
+import { DEFAULT_PROBE_RUNTIME, PROBE_RUNTIME_ENV, findTranslatableLocale } from '../test/locale-gate.mjs';
 
 // Batteries-included GTK (macOS): re-exec THIS runner once with the bundle's
 // DYLD_FALLBACK_LIBRARY_PATH set BEFORE it spawns any child, so every per-file child
@@ -61,8 +62,14 @@ const CONFORMANCE = [
     'gtype',
     'int64',
     // The process locale is set by the ADDON's Init, so bun and deno inherit the
-    // fix from the same binary node loads — this leg is what proves that rather
-    // than assuming it.
+    // fix from the same binary node loads. MEASURED, and the claim needed two legs
+    // to make: the addon adopts the AMBIENT locale of whatever process hosts it
+    // (asserted in-process by `locale.test.mjs`, green on node/bun/deno on darwin),
+    // and the per-case environments are observed through a probe CHILD that this
+    // harness launches on a RUNTIME IT NAMES (`NODE_GI_PROBE_RUNTIME` below). It
+    // used to spawn `process.execPath`, which silently meant node, bun or deno
+    // depending on who was running — three different child-launch contracts, and
+    // on `windows-latest` × bun the child never returned (#1917's red cell, 38/39).
     'locale',
     'methods',
     'multilevel-subclass',
@@ -126,6 +133,28 @@ const argsFor = (file) =>
           ? ['test', file]
           : ['test', '-A', '--node-modules-dir=manual', file];
 const runtimeBin = runtime === 'node' ? process.execPath : runtime;
+
+// TWO THINGS THE FILES CANNOT WORK OUT FOR THEMSELVES, so this harness states them.
+//
+// 1. The runtime the locale PROBE CHILD runs on. `locale.test.mjs` needs a fresh
+//    process with a fresh environment (setlocale is process-global), and it used
+//    to spawn `process.execPath` — which meant node here, bun under Bun and deno
+//    under Deno, with no case naming which it meant. Each then succeeded only via
+//    its own child-launch policy, and `windows-latest` × Bun's did not complete:
+//    `bun.exe` never returned and bun's 5s per-test timeout SIGTERMed the PARENT,
+//    so the log named the test and never the child (#1917). Named here, so the
+//    choice is one line in one place and a runtime can override it by exporting
+//    the variable — never silently. The measurement behind the default, and the
+//    reason the cross-runtime claim does NOT depend on it, are in locale-gate.mjs.
+const probeRuntime = process.env[PROBE_RUNTIME_ENV] ?? DEFAULT_PROBE_RUNTIME;
+
+// 2. A real `LC_ALL` for the ONE file that asserts what the addon did to its OWN
+//    process's ambient locale. `npm test` pins `LC_ALL=C` (pinned-env.mjs) because
+//    other files' assertions match untranslated GLib error text, and the rest of
+//    the subset is deliberately left on the ambient environment; `locale` is the
+//    file that needs it to differ, and without it that assertion skips with the
+//    reason printed. Null locale → the variable is not set and the case says why.
+const NEEDS_AMBIENT_LOCALE = new Set(['locale']);
 
 // Deno's N-API env teardown can abort a test FILE with a non-zero exit AFTER every
 // assertion in it has already passed — no summary is printed, the process just exits
@@ -211,14 +240,21 @@ function classifyDenoOutput(out) {
 const nativePref = process.env.NODE_GI_NATIVE ?? 'build';
 
 console.log(`node-gi: running ${files.length} conformance files on ${runtime} (one process per file)\n`);
+console.log(`node-gi: locale probe child on "${probeRuntime}"\n`);
 let failed = 0;
 let softFailed = 0;
 for (const base of files) {
     const file = join('test', `${base}.test.mjs`);
+    const ambientLocale = NEEDS_AMBIENT_LOCALE.has(base) ? findTranslatableLocale() : null;
     const res = spawnSync(runtimeBin, argsFor(file), {
         cwd: pkgRoot,
         encoding: 'utf8',
-        env: { ...process.env, NODE_GI_NATIVE: nativePref },
+        env: {
+            ...process.env,
+            NODE_GI_NATIVE: nativePref,
+            [PROBE_RUNTIME_ENV]: probeRuntime,
+            ...(ambientLocale ? { LC_ALL: ambientLocale } : {}),
+        },
     });
     const teardown =
         denoTeardownCarveout && res.status !== 0
