@@ -1,14 +1,5 @@
 # @gjsify/gamepad-native-win32-x64
 
-> **No artifact in this tarball yet.** `win32-x64` is declared by
-> `@gjsify/gamepad-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `build-prebuilds-win32-gamepad` job builds, tests and load-tests it through node-gi; `commit-prebuilds` lands the first artifact on main after this package merges
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/gamepad-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **win32-x64** native artifacts of [`@gjsify/gamepad-native`](https://www.npmjs.com/package/@gjsify/gamepad-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no

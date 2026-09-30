@@ -13,8 +13,8 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "linux-x64": "prebuilds.yml's `build-prebuilds` job (linux-x64 leg) builds and tests it; `commit-prebuilds` lands the first artifact on main after this package merges"
+        "glibcRequires": {
+            "linux-x64": "2.38"
         },
         "platforms": [
             "linux-x64"
