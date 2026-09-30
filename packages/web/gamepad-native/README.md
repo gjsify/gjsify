@@ -74,6 +74,10 @@ can prove. None of them uses a fake:
 - `monitor-lifecycle-gjs`: the same through the typelib under `gjs`, which proves the GIR
   annotations `@gjsify/gamepad` relies on.
 - `monitor-lifecycle-leaks`: the C test under `leaks --atExit`, which must report 0 leaks.
+  It runs through `test/leaks-verdict.sh`, which reads that report rather than `leaks`'
+  exit status — Xcode 16.4's `leaks` reports and then never returns on the macOS 15
+  runner — and which **fails** when the report carries no verdict at all, so it
+  cannot pass by not having checked.
 
 With a controller attached, set `GJSIFY_GAMEPAD_EXPECT_DEVICES=<n>`. The tests assert the
 count rather than assume zero.

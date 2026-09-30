@@ -145,9 +145,18 @@ leaks = find_program('leaks', required: false)
 if leaks.found()
     # MallocStackLogging is what lets `leaks` name the allocation site of a
     # leak; --atExit checks the process at the moment it exits normally.
-    test('monitor-lifecycle-leaks', leaks,
-         args: ['--atExit', '--', lifecycle.full_path()],
+    #
+    # The test program is the wrapper, not `leaks` itself, because the wrapper
+    # reads the report's verdict while `leaks` may fail to exit at all: Xcode
+    # 16.4's `leaks` on the macOS 15 runner answers in ~1.2 s and then hangs
+    # until the timeout. That is why this is `0 leaks or red` and not a test of
+    # the tool's exit status. The wrapper also FAILS when the report carries no
+    # verdict, so it cannot pass by not having run the check — see
+    # test/leaks-verdict.sh.
+    test('monitor-lifecycle-leaks',
+         files('test/leaks-verdict.sh'),
+         args: [leaks.full_path(), lifecycle.full_path()],
          depends: lifecycle,
          env: ['MallocStackLogging=1'],
-         timeout: 120)
+         timeout: 180)
 endif

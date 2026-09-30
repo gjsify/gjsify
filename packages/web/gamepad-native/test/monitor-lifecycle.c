@@ -4,7 +4,8 @@
  * shim existed, now through the shim: a monitor starts, its update pumps
  * without error, it reports no controller on a host that has none, and it
  * closes. Twenty cycles, two monitors at once, and a dispose without close, so
- * `leaks --atExit` (the second meson test) sees every path that releases SDL.
+ * `monitor-lifecycle-leaks` (see test/leaks-verdict.sh) sees every path that
+ * releases SDL.
  *
  * A runner has no controller, so "no controller" is asserted, not assumed: a
  * developer running this with one attached gets a clear failure rather than a
