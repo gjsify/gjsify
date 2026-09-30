@@ -875,6 +875,16 @@ the GIR's release, and `gjsify tsc` cannot check a type surface against an insta
 typelib (rule 5 of the section above). A renderer on a platform that lacks the class meets
 the runtime refusal at the call, not a compile error.
 
+**The obvious oracle is wrong, and that is measured.** `GObject.type_from_name` is the
+one-call version of "is this class installed" and it answers in the direction that costs
+a *working* row: on gjs 1.88.1 / Homebrew GTK 4.24.0 `type_from_name('GtkPrintUnixDialog')`
+answers **0** while `Gtk.PrintUnixDialog` is present and constructs — a typelib registers a
+class when the namespace member is first **read**, not when the typelib loads. So a table
+filtered by `type_from_name` drops two rows that are really there, on the platform that has
+them. A row's own `ctor()` *is* that read, which is why it answers correctly in both
+directions; an oracle over the whole table has to force the registration of every class it
+walks, where a row is only ever asked about when something is about to use it.
+
 ### A base that leaves the namespace
 
 The generator reads `@girs/<ns>/vocabulary` (ADR 0029) for Gtk and Adw — the only two that

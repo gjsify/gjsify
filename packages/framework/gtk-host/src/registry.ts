@@ -66,12 +66,24 @@ export type InstalledClass = GObject.ObjectClass & (new (props?: Record<string, 
  * derived from a NAME (`*Unix*`) breaks precisely when it matters, on the next
  * absent class nobody spelled that way.
  *
- * The cast is where the gap between the declared type and the runtime is
+ * THE CAST is where the gap between the declared type and the runtime is
  * admitted, ONCE, with the reason. `ctor` is typed as promising a constructor
  * unconditionally, which is what lets `new Klass(props)` read as a constructor
  * call; the promise is true on every host the table was generated on and false
  * on a host that omits a class, and the admission belongs beside the question
  * rather than at each of the dozen call sites.
+ *
+ * WHY THE ROW'S OWN `ctor()` IS THE ORACLE, and it is a measured trap rather
+ * than a stylistic choice. `GObject.type_from_name` is the one-call version of
+ * this question and it answers WRONG in the direction that costs a working row:
+ * measured on gjs 1.88.1 / Homebrew GTK 4.24.0, `type_from_name('GtkPrintUnixDialog')`
+ * answers **0** while `Gtk.PrintUnixDialog` is present and constructs — a typelib
+ * registers a class when the namespace member is first READ, not when the
+ * typelib loads. `ctor()` IS that read, which is why it answers correctly in
+ * both directions and why nothing here calls `type_from_name`. It also costs
+ * nothing to ask per row: an oracle over the WHOLE table has to force the
+ * registration of every class it walks, whereas a row is only ever asked about
+ * when something is about to use it.
  */
 export function classOf(descriptor: { readonly ctor: () => unknown }): InstalledClass | null {
     return (descriptor.ctor() as InstalledClass | undefined) ?? null;

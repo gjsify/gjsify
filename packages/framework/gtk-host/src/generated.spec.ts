@@ -25,6 +25,7 @@ import {
     CURATED_DESCRIPTORS,
     GENERATED_PROVENANCE,
     GENERATED_WIDGETS,
+    registerBuiltinWidgets,
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
 import { GtkHostError } from './errors.js';
@@ -43,7 +44,16 @@ import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } fr
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, gtypeOfName, isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
-import { classOf, hasClass, hasWidget, lookupWidget, registerWidget, requireClass } from './registry.js';
+import {
+    classOf,
+    clearRegistry,
+    hasClass,
+    hasWidget,
+    lookupWidget,
+    registerWidget,
+    registeredTags,
+    requireClass,
+} from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import type { WidgetDescriptor } from './types.js';
@@ -493,51 +503,61 @@ export default async () => {
                     children: { kind: 'uncurated' },
                 };
                 registerWidget(absent);
-                expect(classOf(absent)).toBeNull();
-                expect(hasClass(absent)).toBe(false);
-                // The control, so the two lines above are a measurement and not a
-                // tautology: the question is sharp on this host.
-                expect(hasClass(lookupWidget('GtkBox'))).toBe(true);
+                try {
+                    expect(classOf(absent)).toBeNull();
+                    expect(hasClass(absent)).toBe(false);
+                    // The control, so the two lines above are a measurement and not a
+                    // tautology: the question is sharp on this host.
+                    expect(hasClass(lookupWidget('GtkBox'))).toBe(true);
 
-                // Every path that used to dereference, and the ONE refusal they now share.
-                // Five host call sites plus the seam, one question in the registry — that
-                // is the shape a fix takes when the failure was six anonymous TypeErrors.
-                const refused: string[] = [];
-                const refuse = (what: string, call: () => unknown): void => {
-                    let caught: unknown;
-                    try {
-                        call();
-                    } catch (error) {
-                        caught = error;
-                    }
-                    expect(caught instanceof GtkHostError).toBe(true);
-                    // The CODE, not the message: a message is prose and gets reworded, a
-                    // code is what a renderer branches on.
-                    expect((caught as GtkHostError).code).toBe('absent-class');
-                    expect((caught as GtkHostError).message.includes(absent.gtype)).toBe(true);
-                    refused.push(what);
-                };
-                const el = createElement(tagOf(absent.gtype));
-                // The seam itself first, then every path that used to reach past it.
-                refuse('requireClass', () => requireClass(absent));
-                refuse('materialize', () => materialize(el));
-                refuse('setProp', () => setProp(el, 'label', 'x'));
-                refuse('setEventHandler', () => setEventHandler(el, 'onNotifyLabel', () => {}));
-                refuse('setAccessibility', () => setAccessibility(el, { label: 'x' }));
-                expect(refused.length).toBe(5);
-                // A refusal records NOTHING, for the reason the property path gives: the
-                // shadow tree is replayed verbatim, so intent kept across a refusal is
-                // intent a later render acts on.
-                expect(el.props.label).toBe(undefined);
-                expect(el.listeners.size).toBe(0);
-                expect(el.widget).toBeNull();
+                    // Every path that used to dereference, and the ONE refusal they now share.
+                    // Five host call sites plus the seam, one question in the registry — that
+                    // is the shape a fix takes when the failure was six anonymous TypeErrors.
+                    const refused: string[] = [];
+                    const refuse = (what: string, call: () => unknown): void => {
+                        let caught: unknown;
+                        try {
+                            call();
+                        } catch (error) {
+                            caught = error;
+                        }
+                        expect(caught instanceof GtkHostError).toBe(true);
+                        // The CODE, not the message: a message is prose and gets reworded, a
+                        // code is what a renderer branches on.
+                        expect((caught as GtkHostError).code).toBe('absent-class');
+                        expect((caught as GtkHostError).message.includes(absent.gtype)).toBe(true);
+                        refused.push(what);
+                    };
+                    const el = createElement(tagOf(absent.gtype));
+                    // The seam itself first, then every path that used to reach past it.
+                    refuse('requireClass', () => requireClass(absent));
+                    refuse('materialize', () => materialize(el));
+                    refuse('setProp', () => setProp(el, 'label', 'x'));
+                    refuse('setEventHandler', () => setEventHandler(el, 'onNotifyLabel', () => {}));
+                    refuse('setAccessibility', () => setAccessibility(el, { label: 'x' }));
+                    expect(refused.length).toBe(5);
+                    // A refusal records NOTHING, for the reason the property path gives: the
+                    // shadow tree is replayed verbatim, so intent kept across a refusal is
+                    // intent a later render acts on.
+                    expect(el.props.label).toBe(undefined);
+                    expect(el.listeners.size).toBe(0);
+                    expect(el.widget).toBeNull();
 
-                // AND THE TABLE CHECK HOLDS ITS FIRE: `descriptorProblems` says nothing
-                // about a class it cannot resolve — there is no policy to hold against a
-                // class that is not here — while the case above is where an absence is
-                // WEIGHED and printed by name. Naming it is the half that was missing, and
-                // it is why those six took a hand to attribute.
-                expect(descriptorProblems([absent])).toStrictEqual([]);
+                    // AND THE TABLE CHECK HOLDS ITS FIRE: `descriptorProblems` says nothing
+                    // about a class it cannot resolve — there is no policy to hold against a
+                    // class that is not here — while the case above is where an absence is
+                    // WEIGHED and printed by name. Naming it is the half that was missing, and
+                    // it is why those six took a hand to attribute.
+                    expect(descriptorProblems([absent])).toStrictEqual([]);
+                } finally {
+                    // THE REGISTRY IS MODULE-GLOBAL and the conformance suite walks
+                    // `registeredTags()` as coverage, so a row registered for one case and
+                    // left behind is a phantom widget every later assertion reads. Restore it
+                    // beside the mutation, not at the end of the file where a failure skips it.
+                    clearRegistry();
+                    registerBuiltinWidgets();
+                }
+                expect(registeredTags()).not.toContain(absent.gtype);
             });
 
             await it('names a real class for every tag', async () => {
