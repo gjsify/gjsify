@@ -169,9 +169,7 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         // the time a CSS transform asks for the native bundler, utils' `lib/esm`
         // is long built, so the lazy edge costs nothing and the static one would
         // have cost a bootable CLI.
-        const utilsHref = pathToFileURL(
-            createRequire(import.meta.url).resolve('@gjsify/utils/core'),
-        ).href;
+        const utilsHref = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/core')).href;
         const { openNativeLibrary } = (await import(/* @vite-ignore */ utilsHref)) as {
             openNativeLibrary: OpenNativeLibrary;
         };

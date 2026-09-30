@@ -84,8 +84,7 @@ export const GJS_IMPORTS_GUARD_RE = /\.imports\??\.gi\b/;
  * `imports.gi` themselves, and a gate that reads prose as code is a gate whose
  * verdict a reworded comment can flip.
  */
-export const NATIVE_LIBRARY_LOADER_RE =
-    /\b(?:loadOptionalNativeModule|openNativeLibrary)\s*(?:<[^>]*>)?\s*\(\s*['"]/;
+export const NATIVE_LIBRARY_LOADER_RE = /\b(?:loadOptionalNativeModule|openNativeLibrary)\s*(?:<[^>]*>)?\s*\(\s*['"]/;
 
 export const IMPORT_RE = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?[^;'"]*?from\s*['"]([^'"]+)['"]/g;
 export const SIDE_EFFECT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
