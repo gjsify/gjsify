@@ -47,11 +47,14 @@
 // THAT directory — so `prebuildAddonPath()` looks for
 // `…/node_modules/@gjsify/node-gi/prebuilds/<target>/node_gi.node` and
 // `resolveGtkRuntimeBundle()`'s candidate 2 for `…/prebuilds/<target>/gtk`, and
-// neither is where a `.app` may keep loadable code: `Contents/Frameworks` is, and
-// it is what `codesign` now reaches (ADR 0024 § A4) — M6 landed, and
-// `utils/ship/signing.ts` re-signs every Mach-O in the payload by magic number,
-// which is most of this closure. Putting it under `Resources` to save two
-// `export` lines would trade a correct bundle for a shorter launcher.
+// neither is where a `.app` may keep loadable code: `Layout.dirs().native` is, and
+// `utils/ship/signing.ts` re-signs every Mach-O in the payload by magic number
+// (ADR 0024 § A4 — M6 landed), which is most of this closure. What `native` may NOT
+// be is `Contents/Frameworks`: `codesign` reads a version-named DIRECTORY there as
+// a nested bundle and refuses the seal, which is the whole reason this file's
+// output went into `Contents/Resources/native` instead — see `layout.ts`'s darwin
+// row for the measurement and `gjsify ship darwin --sign` for what it used to
+// cost.
 //
 // WHY NOT `gjsify.ship.bundledTypelibs`. Because it FLATTENS. `plan.ts` stages
 // each such file as `posix.join(libDir, 'gi', basename(file))`, and
@@ -272,8 +275,8 @@ export interface ResolvedNodeGiPackage {
  * NOT the published tarball. `files` in node-gi's manifest also lists `src/`,
  * `binding.gyp` and `scripts/install.mjs` — the inputs to `node-gyp`, which a
  * `.app` never runs — and the `.d.ts` declarations, which nothing inside a bundle
- * compiles against. And it lists `prebuilds/`, which this module stages into
- * `Contents/Frameworks` instead, where a `.app` keeps loadable code.
+ * compiles against. And it lists `prebuilds/`, which this module stages under
+ * `Layout.dirs().native`, the directory a `.app` keeps loadable code in.
  *
  * So the rule is what `require('@gjsify/node-gi/<subpath>')` can REACH:
  * `package.json` (the `exports` map is what resolves every subpath), every `.js`
@@ -307,15 +310,17 @@ export function resolveNodeGiPackage(options: ResolveRuntimeOptions = {}): Resol
  * literals, so the paths the launcher exports and the paths the stager writes
  * cannot drift: they are computed here once and both callers read this result.
  *
- * `Contents/Frameworks/node-gi/prebuilds/<target>/` is node-gi's OWN sibling
- * layout reproduced verbatim inside `dirs.native`. It is not a naming preference:
+ * `<dirs.native>/node-gi/prebuilds/<target>/` is node-gi's OWN sibling layout
+ * reproduced verbatim inside `Layout.dirs().native` (`Contents/Resources/native`
+ * on a `.app` — `layout.ts`'s darwin row carries why that is not
+ * `Contents/Frameworks`). It is not a naming preference:
  * `resolveGtkRuntimeBundle()` probes `<dir>/lib` and `<dir>/girepository-1.0`,
  * the addon's `@rpath` is `@loader_path/gtk/lib`, and `loaders.cache` addresses
  * each pixbuf loader relative to the bundle toplevel. Reproducing the shape is
  * what makes every one of those relations still true after the copy.
  */
 export interface AppRuntimePaths {
-    /** `<App>.app/Contents/Frameworks/node-gi` — the package root the layout imitates. */
+    /** `<App>.app/Contents/Resources/native/node-gi` — the package root the layout imitates. */
     nodeGiRoot: string;
     /**
      * `<App>.app/Contents/Resources/lib/node_modules/@gjsify/node-gi` — where
@@ -354,7 +359,7 @@ export function appRuntimePaths(layout: Layout, identity: LayoutIdentity, target
         addonPath: posix.join(prebuildDir, NODE_GI_ADDON_FILENAME),
         // `Contents/MacOS`, because that is where a `.app` keeps executables and
         // because `$here` — which the launcher already computes — is then the whole
-        // path expression. `Contents/Frameworks` would work for dyld and would make
+        // path expression. `dirs.native` would work for dyld and would make
         // the launcher walk back up for the one file it execs. On Windows
         // `dirs.launcher` is the program directory itself, so the interpreter lands
         // beside the `.cmd` for the same reason.

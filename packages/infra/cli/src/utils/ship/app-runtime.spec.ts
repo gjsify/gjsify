@@ -354,14 +354,21 @@ export default async () => {
     });
 
     await describe('appRuntimePaths', async () => {
-        await it("reproduces node-gi's sibling layout inside Contents/Frameworks", async () => {
+        await it("reproduces node-gi's sibling layout inside dirs.native", async () => {
             const paths = appRuntimePaths(LAYOUTS.darwin, IDENTITY, 'darwin-arm64');
-            expect(paths.gtkDir).toBe('Ship Demo.app/Contents/Frameworks/node-gi/prebuilds/darwin-arm64/gtk');
+            // NOT `Contents/Frameworks`, and the reason is measured rather than
+            // stylistic: `codesign` scans that directory for nested code and reads a
+            // version-named directory inside it — `girepository-1.0`,
+            // `gdk-pixbuf-2.0`, `lib/gstreamer-1.0`, all three of which the relocated
+            // closure carries — as a versioned nested bundle, and then refuses the
+            // bundle seal outright. The closure therefore lives under
+            // `Contents/Resources/native` (`layout.ts`'s darwin row).
+            expect(paths.gtkDir).toBe('Ship Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/gtk');
             // SIBLINGS, and that is the addon's `@rpath` — `@loader_path/gtk/lib`
             // resolves from the addon's own directory, so anything that separated
             // these two would break the link with both files present.
             expect(paths.addonPath).toBe(
-                'Ship Demo.app/Contents/Frameworks/node-gi/prebuilds/darwin-arm64/node_gi.node',
+                'Ship Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/node_gi.node',
             );
             expect(paths.interpreterPath).toBe('Ship Demo.app/Contents/MacOS/node');
             expect(paths.interpreterLicensePath).toBe('Ship Demo.app/Contents/Resources/share/licenses/node/LICENSE');
@@ -436,7 +443,7 @@ export default async () => {
                         licensePath: join(nodeBin, 'LICENSE'),
                     },
                 });
-                const under = 'Ship Demo.app/Contents/Frameworks/node-gi/prebuilds/darwin-arm64/gtk';
+                const under = 'Ship Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/gtk';
                 const paths = staged.files.map((file) => file.path);
                 for (const rel of CLOSURE_FILES) expect(paths.includes(`${under}/${rel}`)).toBe(true);
                 // The one whose depth is load-bearing, spelled out: `loaders.cache`

@@ -1,7 +1,7 @@
 // E2E test for the macOS `<App>.app` and its zip — ADR 0024 stage 4, issue #1354 M2a.
 //
 // WHAT M1 LEFT AND THIS CLOSES. `gjsify ship darwin --stage` already wrote
-// `<App>.app/Contents/{MacOS,Resources,Frameworks}` — and no `Contents/Info.plist`,
+// `<App>.app/Contents/{MacOS,Resources,native}` — and no `Contents/Info.plist`,
 // so the tree was a directory whose name ends in `.app`. LaunchServices reads that
 // file to learn which binary under `Contents/MacOS` to exec; without it the Finder
 // shows a folder. Every assertion in this file exists because that hole was
@@ -566,8 +566,17 @@ const NODE_GI_DIR = join(MONOREPO_ROOT, 'packages', 'node-gi', 'node-gi');
 const BINARY_READER = join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs');
 const { readLibrary } = await import(pathToFileURL(BINARY_READER).href);
 
-/** Where the staged runtime lives inside the bundle — node-gi's own sibling layout. */
-const FRAMEWORKS = `${APP_NAME}.app/Contents/Frameworks/node-gi/prebuilds/darwin-${ARCH}`;
+/**
+ * Where the staged runtime lives inside the bundle — node-gi's own sibling layout.
+ *
+ * `Contents/Resources/native`, NOT Apple's `Contents/Frameworks`: `codesign` scans
+ * that directory for nested code and reads a version-named directory inside it as a
+ * versioned nested bundle, so `girepository-1.0`, `gdk-pixbuf-2.0` and
+ * `lib/gstreamer-1.0` — three of which this very closure carries — make the bundle
+ * SEAL fail. Measured on darwin-arm64; `utils/ship/layout.ts` carries the
+ * reproduction, and `tests/e2e/ship-signing`'s darwin half holds it.
+ */
+const NATIVE = `${APP_NAME}.app/Contents/Resources/native/node-gi/prebuilds/darwin-${ARCH}`;
 
 /**
  * The closure, as a map of bundle-relative path → bytes.
@@ -740,19 +749,19 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
     it("stages the closure in node-gi's sibling layout, at every original depth", () => {
         const staged = listPayload(stageDir);
         for (const rel of Object.keys(closureFiles())) {
-            assert.ok(staged.includes(`${FRAMEWORKS}/${rel}`), `${rel} is not staged where node-gi looks for it`);
+            assert.ok(staged.includes(`${NATIVE}/${rel}`), `${rel} is not staged where node-gi looks for it`);
         }
         // The probe `resolveGtkRuntimeBundle()` runs before it will use a directory
         // at all: `<dir>/lib` AND `<dir>/girepository-1.0`. A staging that produced
         // neither would pass every other assertion in this file.
-        assert.ok(staged.some((rel) => rel.startsWith(`${FRAMEWORKS}/gtk/lib/`)));
-        assert.ok(staged.some((rel) => rel.startsWith(`${FRAMEWORKS}/gtk/girepository-1.0/`)));
+        assert.ok(staged.some((rel) => rel.startsWith(`${NATIVE}/gtk/lib/`)));
+        assert.ok(staged.some((rel) => rel.startsWith(`${NATIVE}/gtk/girepository-1.0/`)));
         // SIBLINGS. The addon's `LC_RPATH` is `@loader_path/gtk/lib`, so anything
         // that separated these two would break the link with both files present.
-        assert.ok(staged.includes(`${FRAMEWORKS}/node_gi.node`));
+        assert.ok(staged.includes(`${NATIVE}/node_gi.node`));
         // The depth that carries a reference: four levels, not a basename.
         assert.ok(
-            staged.includes(`${FRAMEWORKS}/gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-svg.so`),
+            staged.includes(`${NATIVE}/gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-svg.so`),
             'the loader was flattened, and `loaders.cache` now points three levels above it',
         );
     });
@@ -865,13 +874,13 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         // (`plan.ts`: `posix.join(libDir, 'gi', basename(file))`), and it is the
         // design this module exists to refuse. Without this run, "0 unresolved"
         // would also be the answer for a tree with no `@loader_path` in it at all.
-        const staged = listPayload(stageDir).filter((rel) => rel.startsWith(`${FRAMEWORKS}/`));
-        const flattened = new Set(staged.map((rel) => `${FRAMEWORKS}/${rel.split('/').pop()}`));
+        const staged = listPayload(stageDir).filter((rel) => rel.startsWith(`${NATIVE}/`));
+        const flattened = new Set(staged.map((rel) => `${NATIVE}/${rel.split('/').pop()}`));
         const unresolved = [];
         for (const rel of staged) {
             const info = readLibrary(join(stageDir, rel));
             if (info === null) continue;
-            const flatRel = `${FRAMEWORKS}/${rel.split('/').pop()}`;
+            const flatRel = `${NATIVE}/${rel.split('/').pop()}`;
             for (const dep of info.needed) {
                 const resolved = resolveDependency(dep, flatRel, info.searchPaths);
                 if (resolved.kind === 'system') continue;
@@ -898,12 +907,12 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         assert.match(launcher, /^exec "\$here\/node" "\$contents\/Resources\/lib\/app\.node\.mjs" "\$@"$/m);
         assert.match(
             launcher,
-            new RegExp(`^GJSIFY_GTK_RUNTIME="\\$contents/Frameworks/node-gi/prebuilds/darwin-${ARCH}/gtk"$`, 'm'),
+            new RegExp(`^GJSIFY_GTK_RUNTIME="\\$contents/Resources/native/node-gi/prebuilds/darwin-${ARCH}/gtk"$`, 'm'),
         );
         assert.match(
             launcher,
             new RegExp(
-                `^NODE_GI_NATIVE="\\$contents/Frameworks/node-gi/prebuilds/darwin-${ARCH}/node_gi\\.node"$`,
+                `^NODE_GI_NATIVE="\\$contents/Resources/native/node-gi/prebuilds/darwin-${ARCH}/node_gi\\.node"$`,
                 'm',
             ),
         );
@@ -1005,7 +1014,7 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         // And the gap is printed again, because this tree really does have it.
         assert.match(output, /execs an interpreter off `PATH`/);
         const staged = listPayload(join(bare, 'ship', 'stage'));
-        assert.ok(!staged.some((rel) => rel.includes('/Frameworks/node-gi/')));
+        assert.ok(!staged.some((rel) => rel.includes('/native/node-gi/')));
         assert.ok(!staged.includes(`${APP_NAME}.app/Contents/MacOS/node`));
         const launcher = readFileSync(
             join(bare, 'ship', 'stage', `${APP_NAME}.app`, 'Contents', 'MacOS', BINARY),

@@ -68,11 +68,17 @@ My App.app/
 ├── Contents/PkgInfo
 ├── Contents/MacOS/my-app         the launcher
 ├── Contents/MacOS/node           the carried interpreter
-├── Contents/Frameworks/node-gi/  the GTK closure and the node-gi addon
 └── Contents/Resources/
     ├── lib/                      your built bundle
+    ├── native/node-gi/           the GTK closure and the node-gi addon
     └── share/                    icon, metainfo, schemas, licences
 ```
+
+The carried GTK closure lives in `Contents/Resources/native`, not in Apple's
+`Contents/Frameworks`. `codesign` scans `Frameworks` for nested code, and a
+directory there whose name ends in a version — `girepository-1.0`,
+`gdk-pixbuf-2.0`, `gstreamer-1.0`, all three of which the closure carries — is
+read as a versioned nested bundle, which makes signing the app fail.
 
 `Contents/Info.plist` and `Contents/PkgInfo` are what make a directory ending in
 `.app` an application rather than a folder. Ship writes both from your

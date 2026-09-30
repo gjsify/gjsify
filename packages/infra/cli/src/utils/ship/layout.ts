@@ -7,7 +7,8 @@
 // is the first layout that is NOT a prefix substitution: the launcher, the bundle,
 // the shared libraries and the data tree each move somewhere different, and on
 // macOS the native files leave the bundle directory altogether for
-// `Contents/Frameworks`.
+// `Contents/Resources/native` — a path Apple's own layout does not have, for the
+// measured reason {@link layoutForOs}'s darwin row carries.
 //
 // So the layout is a MAP from the prefix-relative plan to a stage-relative path,
 // and `planStage` keeps producing the prefix-relative plan for all three. That
@@ -439,12 +440,34 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // everything that is not, and `Contents/Frameworks` the dylibs — which is
         // the split that makes this more than a prefix: the `gi/` directory that
         // sits INSIDE `lib/<name>/` on Linux leaves the bundle directory entirely.
+        //
+        // …AND THE NATIVE DIRECTORY IS NOT APPLE'S, because `Contents/Frameworks`
+        // is RESERVED FOR NESTED CODE and one directory of it is loadable code
+        // that cannot be there. Measured on darwin-arm64 / macOS 27 with the
+        // published `@gjsify/gtk-runtime-darwin-arm64` staged by M2b: `codesign`
+        // refuses the BUNDLE SEAL with *"bundle format unrecognized, invalid, or
+        // unsuitable / In subcomponent: …/gtk/lib/gstreamer-1.0"*, so
+        // `gjsify ship darwin --sign` cannot sign a real GTK application at all —
+        // and it does so at exit 1 with the payload half-signed. The trigger is not
+        // gstreamer: it is any directory under `Contents/Frameworks` whose last
+        // dot-separated component parses as a version, because `codesign` reads
+        // `foo-1.0`, `foo1.0` and `Versions/1.0` as a VERSIONED NESTED BUNDLE
+        // (`<name>-<version>` is a framework's shape) and then finds no
+        // `Contents/Info.plist` inside. The relocated closure carries three:
+        // `girepository-1.0`, `gdk-pixbuf-2.0/2.10.0` and `lib/gstreamer-1.0`.
+        //
+        // The same three under `Contents/Resources` seal and verify at exit 0, which
+        // is the whole measurement. So `native` is the ONE seam that moves: the
+        // relocated closure, the addon, the app's own `gi/` dylibs and both launchers'
+        // `GI_TYPELIB_PATH`/`GJSIFY_GI_LIBRARY_PATH` all read it, so the tree and
+        // every path that names it move together. Library validation is unaffected —
+        // it follows the SIGNATURE (§ `signing.ts`'s darwin row), not the directory.
         dirs: (identity) => {
             const app = appBundleDir(identity);
             return {
                 launcher: `${app}/Contents/MacOS`,
                 bundle: `${app}/Contents/Resources/lib`,
-                native: `${app}/Contents/Frameworks`,
+                native: `${app}/Contents/Resources/native`,
                 data: `${app}/Contents/Resources/share`,
                 other: `${app}/Contents/Resources`,
             };

@@ -395,3 +395,84 @@ them.
   every local run and visible only on shard 4. Worth knowing before changing
   anything in `msi.ts`: the unit spec next to it is the only reader of that file
   a local run exercises.
+
+## Amendment, 2026-09-30 — the ZIP round trip is measured, and § D6's second omission is WRONG
+
+§ "What is still UNVERIFIED on darwin" named one thing that needed no credential and
+called it the next measurement: *"the darwin leg signs `--target macos-app` only and
+nothing signs `macos-app-zip`, unzips it and re-verifies"*. That measurement is done,
+and running it on a real application rather than on the suite's two-dylib fixture turned
+up **two defects this ADR's reasoning had ruled out**, both of which made
+`gjsify ship darwin --sign` unusable on anything but a toy bundle.
+
+**1. The seal could not be made at all, because the closure was staged into Apple's
+nested-code directory.** `codesign` scans `Contents/Frameworks` for nested code, and a
+directory there whose last dot-separated component parses as a version is read as a
+**versioned nested bundle** — `<name>-<version>` being a framework's shape — after
+which it looks for a `Contents/Info.plist` that a dylib directory does not have and
+refuses:
+
+```
+Ship Window Demo.app: bundle format unrecognized, invalid, or unsuitable
+In subcomponent: …/Ship Window Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/gtk/lib/gstreamer-1.0
+```
+
+Measured on darwin-arm64 / macOS 27 with the published
+`@gjsify/gtk-runtime-darwin-arm64` staged by M2b. `gdk-pixbuf-2.0`, `foo-1.0`,
+`foo1.0` and `Versions/1.0` all reproduce it on a five-file bundle; `foo-bar` and the
+same three under `Contents/Resources` do not. The relocated closure carries three such
+directories, so this was not an edge case — **every** real `.app` this project can
+build was unsignable, at exit 1 with every image already signed. The layout's
+`dirs.native` therefore moved from `Contents/Frameworks` to
+`Contents/Resources/native`; library validation is unaffected (it follows the
+signature, not the directory), and one constant moves the closure, the addon, the
+app's own `gi/` dylibs and both launchers' `GI_TYPELIB_PATH`/`GJSIFY_GI_LIBRARY_PATH`
+together.
+
+**2. § D6's second omission is false for the ad-hoc identity.** § D6 declined
+`disable-library-validation` because § A4 re-signs every image in the closure with the
+same identity as the launcher, "so library validation has nothing to object to". That
+holds for a Developer ID and not for `--sign -`, which has no team at all. Same bundle,
+same signer, every image correctly signed, and the load is refused at the first
+`require('@gjsify/node-gi')`:
+
+```
+dlopen(…/prebuilds/darwin-arm64/node_gi.node): code signature in <378B2FDA-…>
+'…node_gi.node' not valid for use in process: mapping process and mapped file
+(non-platform) have different Team IDs
+```
+
+One more entitlement and the same bundle opens a window (`interpreter:`/`gtk-runtime:`/
+`chrome: ok`/`render: 480x320 17207`/`done: 0`). So `SIGNERS.darwin.entitlements`
+became a function of the identity: **granted for `-`, not granted for a named one**,
+which is also what Apple's notarisation rules require, since a Developer-ID artifact
+carrying it reads as shipping unsigned code. § A16 is answered in one direction and
+measured in it; the named half still needs a certificate and stays open.
+
+**What is now measured, on one real GTK application** (`tests/e2e/ship-macos`'s
+`window-app` fixture: `gjsify ship darwin --sign -`, 121 of 1252 payload files signed
+ad-hoc, seal written as four components):
+
+| artifact | reader | result |
+|---|---|---|
+| `<App>.app` | `codesign --verify --deep --strict` | exit 0, *"valid on disk / satisfies its Designated Requirement"* |
+| `<App>-1.0.0-1.macos.arm64.zip` | `ditto -x -k`, then the same | exit 0; all four `_CodeSignature/` components present; the launcher arrives `-rwxr-xr-x` |
+| `<App>-1.0.0-1.arm64.dmg` | `hdiutil attach -nobrowse -readonly`, then the same | exit 0; `mount` reports `(hfs, local, nodev, nosuid, read-only, noowners, nobrowse)` |
+
+And the app RUNS from both containers, under `PATH=/usr/bin:/bin:/usr/sbin:/sbin` with
+`DYLD_*`, `GI_TYPELIB_PATH`, `GJSIFY_GTK_RUNTIME`, `NODE_GI_NATIVE`,
+`GJSIFY_GI_LIBRARY_PATH` and `XDG_DATA_DIRS` all unset, printing the interpreter and
+the GTK runtime **inside the extracted bundle** — plus the discriminator, because that
+workstation has Homebrew GTK4 installed and so cannot assert the toolkit absent the
+way `node-gi.yml`'s leg does: removing the bundle's own closure and re-running produces
+exactly one `GLib-GIO-CRITICAL: g_settings_schema_source_lookup: assertion 'source !=
+NULL' failed`, where the shipped run produces none.
+
+`tests/e2e/ship-signing`'s darwin half now holds all three rows (a compiled dylib plus
+`gdk-pixbuf-2.0/2.10.0/loaders.cache` and `gstreamer-1.0/libgstaudioconvert.dylib`,
+which is what reproduces defect 1 without the 97 MB), and its guard is one variable for
+the whole darwin half rather than one for `codesign`:
+`GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1`.
+
+**Still unverified, unchanged:** `notarytool` (needs an Apple account), `stapler`
+(needs a ticket), `signtool` (needs a certificate), and the named-identity half of § D6.

@@ -13,12 +13,14 @@
 //     inside the payload and reading the arrival back. It runs only where
 //     `codesign` exists, i.e. on a macOS host.
 //
-// AND THE SECOND HALF CANNOT SILENTLY NOT RUN. `GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1`
-// turns "no codesign here" into a failure, and that is how the macOS CI leg
-// invokes this file. Without it a broken darwin leg would report green having
-// skipped the only thing it was added for — the failure class this repository
+// AND THE SECOND HALF CANNOT SILENTLY NOT RUN. `GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1`
+// turns "the tool this case needs is not here" into a failure, and that is how the
+// macOS CI leg invokes this file. Without it a broken darwin leg would report green
+// having skipped the only thing it was added for — the failure class this repository
 // calls green-CI-that-checked-nothing, and the one every ship suite is written
-// against.
+// against. It is one variable for the WHOLE darwin half rather than one per tool,
+// because "which tool" is not the question a leg answers with it; "could you run
+// what you were sent to prove" is.
 //
 // WHY AD-HOC IS ENOUGH, AND WHY IT IS THE POINT (§ A17). `codesign --sign -`
 // needs no Apple Developer Program membership: `docs/poc/webkit-hardened-runtime-darwin.sh`
@@ -36,6 +38,13 @@
 //   * Notarisation. It needs an Apple account, which is the credential § A17
 //     says M6 does without. The argv, the guard and both refusals are covered;
 //     `xcrun notarytool` has never run.
+//   * A Developer ID. Every darwin assertion here is ad-hoc, which is the point
+//     (§ A17), and it is also a limit: the ad-hoc identity is granted
+//     `com.apple.security.cs.disable-library-validation` because library
+//     validation refuses an ad-hoc dylib in a hardened process, and a named
+//     identity is NOT granted it. Nothing here has ever run against a
+//     certificate, so that half of `SIGNERS.darwin.entitlements` is reasoned from
+//     Apple's notarisation rules rather than measured.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,13 +55,15 @@ import {
     existsSync,
     mkdirSync,
     mkdtempSync,
+    readdirSync,
     readFileSync,
+    realpathSync,
     rmSync,
     statSync,
     writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename as pathBasename, dirname, join } from 'node:path';
 
 import { hasCommand } from '../helpers.mjs';
 import { runCli } from '../mock-registry.mjs';
@@ -75,14 +86,29 @@ const COMPARATOR = join(MONOREPO_ROOT, '.github', 'ship-oracle', 'verify-signed-
 const FIXTURE_IMAGES = ['libmarked.dylib', 'libplain.dylib'];
 
 /**
- * `codesign` is the whole of the darwin half.
+ * THE TOOLS OF THE DARWIN HALF, and `codesign` is only the first of them.
  *
  * `xcrun -f codesign` is deliberately NOT how this is asked: `xcrun` resolves
  * through the active developer directory and answers for a toolchain that may
- * not be on `PATH`, while what the CLI execs is the bare name.
+ * not be on `PATH`, while what the CLI execs is the bare name. The other two are
+ * the READERS of what the signer's two container formats produce — `ditto` for
+ * the zip the tree wrote, `hdiutil` for the image the tree's `hdiutil` call
+ * produced — and they are here because ADR 0040 left *"the ZIP round trip … is
+ * the next measurement"* and this block is it.
  */
 const HAS_CODESIGN = hasCommand('codesign');
-const REQUIRE_CODESIGN = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN === '1';
+const HAS_DITTO = hasCommand('ditto');
+const HAS_HDIUTIL = hasCommand('hdiutil');
+/**
+ * One guard for the whole darwin half, and it grew out of one for `codesign`
+ * alone: a leg that sets it is a leg that was ASKED to prove something about
+ * macOS, so a missing tool is a failure rather than a skip. The name is the
+ * subject (the darwin half), not the tool.
+ */
+const REQUIRE_DARWIN = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS === '1';
+
+/** The env var the CI leg sets, kept working with a message that says what it now covers. */
+const LEGACY_REQUIRE = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN === '1';
 
 /** The `--app node` project the darwin formats need (`interpreters: ['node']`). */
 function scaffoldNodeApp(dir, shipExtras = {}) {
@@ -119,8 +145,34 @@ function plantSyntheticImage(project) {
     );
 }
 
-/** The `extraFiles` block staging {@link plantSyntheticImage}'s file into `Contents/Frameworks`. */
+/** The `extraFiles` block staging {@link plantSyntheticImage}'s file into the bundle's native tree. */
 const SYNTHETIC_IMAGE_FILES = { [`lib/${BINARY}/gi/libsynthetic.dylib`]: 'native/libsynthetic.dylib' };
+
+/**
+ * Two REAL paths out of the published `@gjsify/gtk-runtime-darwin-arm64`, and the
+ * shape that made them matter.
+ *
+ * `codesign` reads a directory under `Contents/Frameworks` whose last
+ * dot-separated component parses as a version as a versioned nested bundle, so
+ * `gdk-pixbuf-2.0/2.10.0`, `gdk-pixbuf-2.0`, `girepository-1.0` and
+ * `lib/gstreamer-1.0` all break the seal — and the first of the two below is the
+ * path `codesign` named in its own error message.
+ *
+ * THE THIRD REAL ONE IS NOT PLANTED, and saying why is the point:
+ * `girepository-1.0/*.typelib` is flattened onto `basename()` by `plan.ts`, so an
+ * `extraFiles` entry for one arrives as `native/Gtk-4.0.typelib` and no directory
+ * by that name exists at all. The real closure keeps its shape because
+ * `app-runtime.ts` stages it TREE-PRESERVING and never goes through the plan —
+ * which is why the defect needs the closure or this fixture and never showed up on
+ * a payload of plain dylibs.
+ */
+const VERSIONED_DIR_FILES = ['gdk-pixbuf-2.0/2.10.0/loaders.cache', 'gstreamer-1.0/libgstaudioconvert.dylib'];
+
+/** What the three container cases stage: one COMPILED image plus the two directories. */
+const SIGNED_FIXTURE_FILES = {
+    [`lib/${BINARY}/gi/libdemo.dylib`]: 'native/libdemo.dylib',
+    ...Object.fromEntries(VERSIONED_DIR_FILES.map((rel) => [`lib/${BINARY}/gi/${rel}`, `native/${rel}`])),
+};
 
 /** Run the CLI and require it to FAIL, returning everything it said. */
 async function shipFailing(args, cwd) {
@@ -165,7 +217,10 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
         tmpDir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), 'gjsify-ship-signing-'));
     });
     after(() => {
-        rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5 });
+        // `GJSIFY_E2E_KEEP_TEMP` because the darwin half leaves four mounted volumes
+        // and a `.app` behind, and a failure three steps after the interesting
+        // output is otherwise un-inspectable — the sibling suites' convention.
+        if (!process.env.GJSIFY_E2E_KEEP_TEMP) rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5 });
     });
 
     // ── the flag surface (ADR 0024 § A12–§ A15) ─────────────────────────────
@@ -417,9 +472,9 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
         it('has codesign, or says the leg proved nothing', () => {
             if (HAS_CODESIGN) return;
             assert.equal(
-                REQUIRE_CODESIGN,
+                REQUIRE_DARWIN || LEGACY_REQUIRE,
                 false,
-                'GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1 was set and `codesign` is not on PATH — this leg was ' +
+                'GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1 was set and `codesign` is not on PATH — this leg was ' +
                     'asked to prove the darwin half and could not run a single assertion of it.',
             );
             console.log('    (no codesign on this host: the darwin half of this suite did not run)');
@@ -471,7 +526,7 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // WHAT AN AD-HOC RE-SIGN DOES TO A FILE'S SIZE — the number § A17
             // says the design must not depend on, measured rather than assumed.
             const scratch = join(project, 'size-probe.dylib');
-            cpSync(join(staged, 'Contents', 'Frameworks', 'libmarked.dylib'), scratch);
+            cpSync(join(staged, 'Contents', 'Resources', 'native', 'libmarked.dylib'), scratch);
             const sizeBefore = statSync(scratch).size;
             execFileSync('codesign', ['--force', '--sign', '-', scratch], { stdio: 'pipe' });
             const sizeAfter = statSync(scratch).size;
@@ -508,9 +563,13 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // says the signature it made is a valid one. Neither answers the
             // other's question.
             for (const leaf of FIXTURE_IMAGES) {
-                execFileSync('codesign', ['--verify', '--strict', join(artifact, 'Contents', 'Frameworks', leaf)], {
-                    stdio: 'pipe',
-                });
+                execFileSync(
+                    'codesign',
+                    ['--verify', '--strict', join(artifact, 'Contents', 'Resources', 'native', leaf)],
+                    {
+                        stdio: 'pipe',
+                    },
+                );
             }
 
             // THE ARRIVAL. The format's overlay licence is legitimately NEW in
@@ -562,7 +621,10 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // the regression: drop the hardened runtime from the per-image argv and
             // `libplain`'s line disappears while a total could still add up.
             for (const leaf of FIXTURE_IMAGES) {
-                assert.match(report, new RegExp(`signature-only: Contents/Frameworks/${leaf.replace(/\./g, '\\.')}`));
+                assert.match(
+                    report,
+                    new RegExp(`signature-only: Contents/Resources/native/${leaf.replace(/\./g, '\\.')}`),
+                );
             }
             // THE SEAL, named in the report. `CodeResources` is the one component
             // `codesign` must write for a bundle to read as signed at all, so it is
@@ -627,6 +689,222 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
                 project,
             );
             assert.match(said, /codesign/);
+        });
+    });
+
+    // ── the two CONTAINERS, which is ADR 0040's "the next measurement" ───────
+    //
+    // Everything above proves a bundle seals. Nothing above proves the seal
+    // SURVIVES being packed, which is the only question a download has: the seal
+    // is `Contents/_CodeSignature/`, four (in Apple's superset five) ordinary 0644
+    // files that a zip carries like any other — argued from TN3126 and TN2206 and,
+    // until now, not measured. So the two blocks below are the measurement, and
+    // each one is a full round trip with a READER that is not us: `ditto -x -k`
+    // extracts the archive this tree wrote, `hdiutil attach` mounts the image this
+    // tree asked `hdiutil` to write, and `codesign --verify --deep --strict` is
+    // Apple's own reader on what came back out.
+    describe('the containers around the signed bundle', () => {
+        /**
+         * Stage a signed payload and pack ONE container format from it.
+         *
+         * Shared because the three cases differ only in which format they ask for
+         * and what they do with the artifact, and because one `ship` run per case
+         * is the shape that lets a regression in the SIGNING step and a regression
+         * in the CONTAINER step stay apart in the log.
+         *
+         * A REAL dylib rather than {@link plantSyntheticImage}'s hand-built header:
+         * `codesign` reads the image and answers "invalid or unsupported format
+         * for signature" for a header this repository assembled, at exit 1 — the
+         * synthetic image is for the cases about the IDENTITY, which never reach
+         * `codesign` on Linux. `cc` comes with the Command Line Tools that ship
+         * `codesign`, and `--arch` names the HOST because the image was built for it.
+         */
+        async function stageSigned(format) {
+            const app = scaffoldNodeApp(mkdtempSync(join(tmpDir, `${format}-`)), {
+                extraFiles: SIGNED_FIXTURE_FILES,
+            });
+            mkdirSync(join(app, 'native'), { recursive: true });
+            writeFileSync(join(app, 'native', 'demo.c'), 'int gjsify_ship_demo(void) { return 42; }\n');
+            execFileSync(
+                'cc',
+                ['-dynamiclib', '-o', join(app, 'native', 'libdemo.dylib'), join(app, 'native', 'demo.c')],
+                {
+                    stdio: 'pipe',
+                },
+            );
+            for (const name of VERSIONED_DIR_FILES) {
+                // The nested one is the point: a flattened staging would have put
+                // `loaders.cache` beside the typelib, and the seal rule is about
+                // where a DIRECTORY sits, not what it holds.
+                const target = join(app, 'native', ...name.split('/'));
+                mkdirSync(dirname(target), { recursive: true });
+                writeFileSync(target, `payload for ${name}\n`);
+            }
+            // `--target` on BOTH phases, and that is `readStage`'s rule rather than
+            // tidiness: the stage records which formats rendered an overlay, and a
+            // `--from-stage` run naming a format the stage never saw is refused —
+            // one format's licence/copyright would be missing from the artifact.
+            await shipOk(
+                ['ship', 'darwin', '--stage', '--skip-build', '--arch', process.arch, '--target', format],
+                app,
+            );
+            const stage = join(app, 'ship', 'stage');
+            const packed = await shipOk(
+                ['ship', '--from-stage', stage, '--target', format, '--sign', '-', '--verbose'],
+                app,
+            );
+            // Not decorative: a run whose payload held nothing signable seals a
+            // bundle over no image at all, and every assertion below would then be
+            // about a bundle this fixture never produced.
+            const signed = /codesign signed (\d+) of \d+ payload file\(s\) as ad-hoc/.exec(packed.stdout);
+            assert.ok(signed, `no signing line in:\n${packed.stdout}`);
+            assert.ok(Number(signed[1]) >= 1, `codesign signed ${signed[1]} file(s); the fixture plants one`);
+            // The AD-HOC entitlement, read off the plist this run wrote rather than
+            // off the log line: it is the difference between a bundle that verifies
+            // and one dyld refuses to load its closure from, and it is granted ONLY
+            // for `-` (see `SIGNERS.darwin.entitlements`).
+            const entitlements = readFileSync(join(app, 'ship', 'signed', `${format}.entitlements.plist`), 'utf-8');
+            assert.match(
+                entitlements,
+                /<key>com\.apple\.security\.cs\.disable-library-validation<\/key>\s*<true\/>/,
+                'the ad-hoc identity did not get the entitlement library validation requires',
+            );
+            return { app, stage, out: join(app, 'ship', 'out'), entitlements };
+        }
+
+        /** The one artifact a `--target <format>` run wrote. */
+        function onlyArtifact(out, suffix) {
+            const found = readdirSync(out).filter((name) => name.endsWith(suffix));
+            assert.equal(found.length, 1, `expected exactly one .${suffix} in ${out}, got ${found.join(', ')}`);
+            return join(out, found[0]);
+        }
+
+        it('has every tool the container half needs, or says the leg proved nothing', () => {
+            if (!REQUIRE_DARWIN) return;
+            const missing = [
+                ['codesign', HAS_CODESIGN],
+                ['ditto', HAS_DITTO],
+                ['hdiutil', HAS_HDIUTIL],
+            ]
+                .filter(([, present]) => !present)
+                .map(([name]) => name);
+            assert.deepEqual(
+                missing,
+                [],
+                `GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1 was set and ${missing.join(', ')} ${
+                    missing.length === 1 ? 'is' : 'are'
+                } not on PATH — this leg was asked to prove the darwin half and could not run a single assertion of it.`,
+            );
+        });
+
+        it('seals a payload whose native tree carries a VERSION-NAMED directory', async () => {
+            // THE REGRESSION, and the one case here that is about the LAYOUT rather
+            // than about a container. `codesign` scans `Contents/Frameworks` for
+            // nested code and reads any directory there whose last dot-separated
+            // component parses as a version as a VERSIONED NESTED BUNDLE — which is
+            // what `<name>-<version>` means in a framework — and then refuses the
+            // seal because it holds no `Contents/Info.plist`. The relocated GTK
+            // closure carries three such directories (`girepository-1.0`,
+            // `gdk-pixbuf-2.0/2.10.0`, `lib/gstreamer-1.0`), so with the native tree
+            // under `Frameworks` `gjsify ship darwin --sign` could not sign ANY real
+            // GTK application — at exit 1, with every image already signed.
+            //
+            // Measured on darwin-arm64 / macOS 27 against the published
+            // `@gjsify/gtk-runtime-darwin-arm64`, and the fixture reproduces the
+            // shape without the 97 MB: the first version of this case planted only
+            // two plain dylibs, which is exactly why the existing darwin leg was
+            // green through a defect that made the feature unusable.
+            if (!HAS_CODESIGN) return;
+            const { out } = await stageSigned('macos-app');
+            const artifact = join(out, `${APP_NAME}.app`);
+            assert.ok(
+                !existsSync(join(artifact, 'Contents', 'Frameworks')),
+                'the staged native tree is under Contents/Frameworks, where a version-named directory breaks the seal',
+            );
+            for (const dir of VERSIONED_DIR_FILES.map((rel) => rel.split('/').slice(0, -1).join('/'))) {
+                assert.ok(
+                    existsSync(join(artifact, 'Contents', 'Resources', 'native', ...dir.split('/'))),
+                    `${dir} did not reach the artifact`,
+                );
+            }
+            execFileSync('codesign', ['--verify', '--deep', '--strict', artifact], { stdio: 'pipe' });
+        });
+
+        it('the ZIP carries the seal, and the bundle ditto extracts out of it verifies', async () => {
+            // `ditto -x -k`, not `unzip`: Apple's own extractor is the one a user
+            // gets, and it is a different implementation from `zip.ts` in both
+            // directions. The seal's own four files are named rather than counted,
+            // because "the directory arrived" and "the file the reader needs
+            // arrived" are different claims.
+            if (!HAS_CODESIGN || !HAS_DITTO) return;
+            const { out } = await stageSigned('macos-app-zip');
+            const zip = onlyArtifact(out, '.zip');
+            const extracted = join(tmpDir, `zip-extracted-${pathBasename(zip, '.zip')}`);
+            mkdirSync(extracted, { recursive: true });
+            execFileSync('ditto', ['-x', '-k', zip, extracted], { stdio: 'pipe' });
+
+            const bundle = join(extracted, `${APP_NAME}.app`);
+            assert.ok(existsSync(bundle), `the archive expanded to no ${APP_NAME}.app`);
+            // The launcher must keep its mode: `zipinfo -l` is the oracle that reads
+            // it, but the failure this guards is the app not STARTING, and only a
+            // real extraction can show that. `unzip -Z1` is structurally blind to it.
+            assert.ok(
+                statSync(join(bundle, 'Contents', 'MacOS', BINARY)).mode & 0o111,
+                'the extracted launcher is not executable',
+            );
+            for (const leaf of ['CodeResources', 'CodeDirectory']) {
+                assert.ok(
+                    existsSync(join(bundle, 'Contents', '_CodeSignature', leaf)),
+                    `${leaf} did not survive the zip — TN3126's "regular files" is where that is decided`,
+                );
+            }
+            // Apple's reader, on what came OUT of the archive rather than on the
+            // tree this repository assembled.
+            execFileSync('codesign', ['--verify', '--deep', '--strict', bundle], { stdio: 'pipe' });
+        });
+
+        it('the DMG mounts READ-ONLY and the bundle inside it verifies', async () => {
+            // `-readonly` is the claim, not the default: a mounted image a user can
+            // write is not the artifact a user downloads, and mounting without the
+            // flag would test a different thing. `-nobrowse` keeps the volume out of
+            // the sidebar, so a headless CI run does not leave Finder showing it.
+            if (!HAS_CODESIGN || !HAS_HDIUTIL) return;
+            const { out } = await stageSigned('macos-app-dmg');
+            const dmg = onlyArtifact(out, '.dmg');
+            const mount = mkdtempSync(join(tmpDir, 'dmg-mounted-'));
+            try {
+                execFileSync('hdiutil', ['attach', dmg, '-nobrowse', '-readonly', '-mountpoint', mount], {
+                    stdio: 'pipe',
+                });
+                // READ-ONLY, asserted rather than assumed: `-readonly` on `attach`
+                // and the absence of `owners` on the mounted filesystem are two
+                // different answers, and the one a user's download has is the
+                // second. `realpathSync` because `mount` prints the real path —
+                // macOS's `/var` is a symlink to `/private/var`, and this suite's
+                // `TMPDIR` is under the first spelling (`node-gi.yml`'s macOS leg
+                // documents the same trap where a job asserts a path).
+                const mounted = execFileSync('mount', [], { encoding: 'utf-8' });
+                const line = mounted.split('\n').find((row) => row.includes(realpathSync(mount)));
+                assert.ok(line, `nothing is mounted at ${mount}:\n${mounted}`);
+                assert.match(line, /\bread-only\b/, `the image is not mounted read-only: ${line}`);
+                assert.match(line, /\bnoowners\b/, `the image is mounted OWNED, which a download never is: ${line}`);
+                const bundle = join(mount, `${APP_NAME}.app`);
+                assert.ok(existsSync(bundle), `the mounted volume holds no ${APP_NAME}.app`);
+                assert.ok(
+                    existsSync(join(bundle, 'Contents', '_CodeSignature', 'CodeResources')),
+                    'the seal is not in the image',
+                );
+                execFileSync('codesign', ['--verify', '--deep', '--strict', bundle], { stdio: 'pipe' });
+            } finally {
+                // ALWAYS, including after an assertion above threw: a mounted volume
+                // outlives the process, and the next case's `hdiutil attach` would
+                // then find a device name already taken.
+                try {
+                    execFileSync('hdiutil', ['detach', mount], { stdio: 'pipe' });
+                } catch {
+                    execFileSync('hdiutil', ['detach', '-force', mount], { stdio: 'pipe' });
+                }
+            }
         });
     });
 });

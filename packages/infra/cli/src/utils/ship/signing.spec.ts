@@ -76,22 +76,39 @@ export default async () => {
             expect(darwin?.signOn).toStrictEqual(['darwin']);
         });
 
-        await it('grants four entitlements and refuses the two the reference grants', async () => {
+        await it('grants four entitlements, a fifth for ad-hoc, and refuses the sixth', async () => {
             const darwin = SIGNERS.darwin;
-            expect(darwin?.entitlements).toStrictEqual([
+            // THE FOUR BOTH IDENTITIES SHARE.
+            const shared = [
                 'com.apple.security.cs.allow-jit',
                 'com.apple.security.cs.allow-unsigned-executable-memory',
                 'com.apple.security.cs.disable-executable-page-protection',
                 'com.apple.security.cs.allow-dyld-environment-variables',
-            ]);
+            ];
+            expect(darwin?.entitlements(false)).toStrictEqual(shared);
             // `get-task-allow` is a DEBUGGING entitlement and Apple's notarisation
             // rules refuse a Developer-ID artifact carrying it, so granting it
             // would trade a working local build for one that cannot be shipped.
-            expect(darwin?.entitlements).not.toContain('com.apple.security.cs.get-task-allow');
-            // `disable-library-validation` is ADR 0024 § A16's open question, and
-            // § A4's re-sign of every image is the design of record — granting the
-            // entitlement would make that re-sign look optional.
-            expect(darwin?.entitlements).not.toContain('com.apple.security.cs.disable-library-validation');
+            expect(darwin?.entitlements(false)).not.toContain('com.apple.security.cs.get-task-allow');
+            // § A16 IS ANSWERED, IN ONE DIRECTION AND MEASURED: library validation
+            // compares the loaded dylib's team against the process's, and an ad-hoc
+            // signature has no team at all, so the same-closure argument § A4 makes
+            // does not hold for `--sign -` — the load is refused with *"mapping
+            // process and mapped file (non-platform) have different Team IDs"*.
+            // So it is granted WHERE IT IS NEEDED.
+            expect(darwin?.entitlements(true)).toStrictEqual([
+                ...shared,
+                'com.apple.security.cs.disable-library-validation',
+            ]);
+            // …and NOT for a named identity, which is the direction that cannot be
+            // measured without a certificate: one Developer ID signs the whole
+            // closure with one team, and Apple's notarisation rules read this
+            // entitlement on a Developer-ID artifact as shipping unsigned code.
+            expect(darwin?.entitlements(false)).not.toContain('com.apple.security.cs.disable-library-validation');
+            // Both identities refuse the debugging one.
+            for (const adhoc of [true, false]) {
+                expect(darwin?.entitlements(adhoc)).not.toContain('com.apple.security.cs.get-task-allow');
+            }
         });
 
         await it('lets the seal add its own directory and nothing else', async () => {
@@ -136,7 +153,8 @@ export default async () => {
             // A Windows program directory is a directory and nothing more: no
             // manifest to seal, and no per-directory signature format.
             expect(SIGNERS.win32?.sealsBundle).toBe(false);
-            expect(SIGNERS.win32?.entitlements).toStrictEqual([]);
+            expect(SIGNERS.win32?.entitlements(false)).toStrictEqual([]);
+            expect(SIGNERS.win32?.entitlements(true)).toStrictEqual([]);
         });
 
         await it('hands signtool a SUBJECT NAME and names the digest algorithm', async () => {

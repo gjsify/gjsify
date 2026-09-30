@@ -1901,3 +1901,56 @@ the change): whether Windows 11's shell draws the small PNG-compressed entries a
 BMP ones — the 256 entry is documented PNG, the smaller ones are PNG because one encoding is one
 code path; and whether the Finder picks the `.icns` up and `iconutil` accepts it. Neither can be
 observed from Linux, and the amendment does not pretend otherwise.
+
+## Amendment, 2026-09-30 — § A16 is measured in one direction, and stage 4's two containers are read back
+
+§ A16 closed by saying neither branch was asserted, because the one hardened-runtime
+measurement this project holds is ad-hoc and *"ad-hoc code has no team identifier"*.
+That reasoning has now been turned into a measurement, on darwin-arm64 / macOS 27, with
+a real GTK application rather than the fixture.
+
+**§ A4's premise is true for a Developer ID and FALSE for `--sign -`.** Re-signing
+every image in the closure with the same identity is enough when that identity carries a
+team, because library validation compares the loaded library's team with the process's.
+An ad-hoc signature has no team at all, so process and library report different team
+IDs and the load is refused:
+
+```
+dlopen(…/prebuilds/darwin-arm64/node_gi.node): code signature in <378B2FDA-…>
+'…node_gi.node' not valid for use in process: mapping process and mapped file
+(non-platform) have different Team IDs
+```
+
+**at the first `require('@gjsify/node-gi')`**, i.e. before a line of the app's own code,
+with 121 of 1252 payload files signed and every one of them correctly. So
+`SIGNERS.darwin.entitlements` became a function of the identity: it grants
+`com.apple.security.cs.disable-library-validation` for `-` and does not for a named one.
+The second half is reasoned, not measured, and it is the half that matters commercially:
+Apple's notarisation rules read that entitlement on a Developer-ID artifact as shipping
+unsigned code, and a Developer ID signs the whole closure with one team anyway. § A4's
+re-sign stays the design of record.
+
+**The seal could not be produced at all, which is a § 2 prediction failing on its own
+stage.** M2b stages the relocated closure under the layout's `dirs.native`, which was
+`Contents/Frameworks`. That directory is scanned by `codesign` for nested code, and a
+directory in it whose last dot-separated component parses as a version — `girepository-1.0`,
+`gdk-pixbuf-2.0`, `gstreamer-1.0`, all three of which the closure carries — is read as
+a versioned nested bundle, and the seal fails with *"bundle format unrecognized,
+invalid, or unsuitable"*. A layout that is "a handful of layouts" is also a set of paths
+each with its own reader, and the one path that mattered was a path `codesign` refuses to
+accept. `dirs.native` is now `Contents/Resources/native`; one constant, and the closure,
+the addon, the app's own `gi/` dylibs and both locators move together.
+
+**Both containers are now read back by something that is not us** — `ditto -x -k` over
+the zip this tree wrote, `hdiutil attach -readonly` over the image this tree asked
+`hdiutil` to write, and `codesign --verify --deep --strict` on what came out of each:
+exit 0 in all three, seal components intact, `mount` reporting
+`(hfs, local, nodev, nosuid, read-only, noowners, nobrowse)`, and the application opening
+and rendering a window from both. The full measurement, its numbers and the two defects
+above are in [ADR 0040](0040-gui-launcher-and-the-macos-seal.md)'s amendment of
+2026-09-30; `tests/e2e/ship-signing` holds it, guarded by
+`GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1` for the whole darwin half.
+
+**What is still open, unchanged:** `notarytool` (an Apple account), `stapler` (a ticket),
+`signtool` (a certificate), and the named-identity half of § A16. Stage 5 — a Windows
+program directory's installer — is #1354's other row and is not touched here.

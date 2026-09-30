@@ -40,10 +40,10 @@ export default async () => {
         await it('moves the macOS native files OUT of the bundle directory', () => {
             // The half a prefix substitution cannot express, and the reason
             // `FormatDescriptor.prefix` stopped being enough: on Linux `gi/`
-            // sits inside `lib/<name>/`, and on macOS the dylibs belong in
-            // `Contents/Frameworks` while the JavaScript belongs in Resources.
+            // sits inside `lib/<name>/`, and on macOS the dylibs get a directory of
+            // their own while the JavaScript belongs in Resources.
             expect(place(LAYOUTS.darwin, IDENTITY, 'lib/hello/gi/libgwebgl.dylib')).toBe(
-                'Hello World.app/Contents/Frameworks/libgwebgl.dylib',
+                'Hello World.app/Contents/Resources/native/libgwebgl.dylib',
             );
             expect(place(LAYOUTS.darwin, IDENTITY, 'lib/hello/gjs.js')).toBe(
                 'Hello World.app/Contents/Resources/lib/gjs.js',
@@ -51,6 +51,24 @@ export default async () => {
             expect(place(LAYOUTS.darwin, IDENTITY, 'share/metainfo/x.xml')).toBe(
                 'Hello World.app/Contents/Resources/share/metainfo/x.xml',
             );
+        });
+
+        await it('keeps NOTHING under Contents/Frameworks on macOS', async () => {
+            // The defect this asserts is `codesign`'s, measured on darwin-arm64
+            // against the published GTK closure: `Contents/Frameworks` is scanned
+            // for NESTED CODE, and a directory there whose last dot-separated
+            // component parses as a version (`girepository-1.0`, `gdk-pixbuf-2.0`,
+            // `gstreamer-1.0` — all three of which the relocated bundle carries) is
+            // read as a versioned nested bundle, so the bundle SEAL fails with
+            // "bundle format unrecognized, invalid, or unsuitable". `dirs.native` is
+            // the one seam every native path is built from, so asserting the whole
+            // map here is what holds it — the rest of `native/` is filled in by
+            // `app-runtime.ts`, tree-preserving, from the same constant.
+            const dirs = LAYOUTS.darwin.dirs(IDENTITY);
+            for (const [name, dir] of Object.entries(dirs)) {
+                expect(`${name}=${dir}`.includes('Contents/Frameworks')).toBe(false);
+            }
+            expect(dirs.native).toBe('Hello World.app/Contents/Resources/native');
         });
 
         await it('keeps an unrecognised destination inside Contents on macOS', () => {
