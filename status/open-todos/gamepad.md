@@ -95,17 +95,22 @@ own permission decision; SDL3 is adopted for nothing else.
    node-gi-drained main context — 4 tests, 28 assertions, no source change needed. The shim's own
    suite has the matching leg now (`monitor-lifecycle.node.js` + meson `monitor-lifecycle-node`,
    the parallel of the gjs one, registered only when the node-gi addon exists), and
-   `prebuilds.yml`'s macOS leg builds `@gjsify/node-gi` and runs it. Two things the measurement
-   fixed at the root: `@gjsify/gamepad` declares `gjsify.runtimes.node: "partial"` but had no
-   node-leg entry at all (`test:gjs-on-node` + `src/test.node-gi.mts`, sqlite's pattern), and
+   `prebuilds.yml`'s macOS leg builds `@gjsify/node-gi` and runs it; the win32 leg loads its
+   prebuild the same way (`test/probe-node-gi.mjs` on a `windows-2022` runner). Two things the
+   measurement fixed at the root: `@gjsify/gamepad` declares `gjsify.runtimes.node: "partial"`
+   but had no node-leg entry at all (`test:gjs-on-node` + `src/test.node-gi.mts`, sqlite's pattern), and
    `register.spec.ts`'s "agrees with this host" oracle asked only about `gi://Manette` — so on a
    Mac whose `GjsifyGamepad` prebuild loads, the probe's `true` and the oracle's `false`
    disagreed and the gjs suite was RED on this host since the prebuild landed.
-3. The linux and win32 legs of the same shim (`-linux-<arch>`, `-win32-x64` in ADR 0073's shape).
-   On Linux `SdlSource` runs ALONGSIDE `ManetteSource` first and the two are compared.
-4. Hardware checks — per OS, a real controller (on macOS also a GCF-only one) connecting,
-   reporting input and disconnecting — before `gjsify.os.<os>` moves. No runner has one.
-5. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
+3. Hardware checks — the CHECK now exists and is run by hand, never by CI, because it needs a
+   person pressing buttons: `gjsify workspace @gjsify/gamepad run hardware-check` puts
+   `ManetteSource` and `SdlSource` on the SAME real Linux controller side by side and reports
+   what each enumerated and each control read. What stays open is the real-controller RUN, per
+   OS (on macOS also a GCF-only one), connecting, reporting input and disconnecting — no runner
+   has a controller, and `gjsify.os.<os>` does not move until it has. CI substitutes the part it
+   can: a virtual uinput X360 pad on Linux and a ViGEm X360 pad on win32, each read through the
+   shim with no message pump.
+4. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
    libmanette dependency.
 
 Why the ADR needs both Apple input paths (and so chose the library that already has both):

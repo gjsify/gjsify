@@ -3,8 +3,10 @@
 - Status: **Proposed** — amended 2026-09-25, see § Amendment 1 (SDL3 becomes the gamepad
   backend on every OS, not only darwin)
 - Scope: stage 1 (the seam and the honest darwin answer) shipped with this ADR; stages 3 and 4
-  are built for darwin, linux and win32 (§ Amendment 1). The hardware checks, and on Linux
-  the libmanette comparison, are open work in `status/open-todos/gamepad.md`.
+  are built for darwin, linux and win32 (§ Amendment 1). The Linux libmanette comparison is
+  DONE — two recordings, the axis bug below found in our own `ManetteSource` and fixed. The
+  hardware CHECK exists (`gjsify workspace @gjsify/gamepad run hardware-check`); what stays
+  open is the real-controller RUN per OS, in `status/open-todos/gamepad.md`.
 - Date: 2026-09-25
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native package distribution)](0017-native-package-distribution.md),
