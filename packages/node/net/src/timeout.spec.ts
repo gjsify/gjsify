@@ -2,10 +2,13 @@
 // test-net-allow-half-open.js, test-net-server-close.js, test-net-end-close.js
 // Original: MIT license, Node.js contributors
 
-// The 15 `on('error', () => {})` these tests carried hid nothing: instrumented to
-// record the code instead of dropping it, none ever received an event, on either
-// leg. Every client below now rejects on one, and the accepted server sockets —
-// which never receive a byte in these scenarios, so cannot be reset — have none.
+// The 15 `on('error', () => {})` these tests carried are gone. Which replacement a
+// site gets is a claim about the SOCKET, not the host: a TCP peer reset needs unread
+// data queued in the closing side's receive buffer, and every scenario here either
+// writes nothing or drains what it is sent (a 'data' listener is attached wherever
+// the peer writes), so no side can close over unread data and win32 has no reset to
+// report either. The clients therefore reject on any error, and the accepted server
+// sockets — which never receive a byte — carry no handler at all.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { createServer, connect, Socket } from 'node:net';

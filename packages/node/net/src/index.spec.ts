@@ -4,18 +4,23 @@
 // test-net-settimeout.js, test-net-bytes-read.js, test-net-server-max-connections.js
 // Original: MIT license, Node.js contributors
 
-// No test here tolerates an unexpected socket error. Every site below used to
-// register `on('error', () => {})`; instrumenting all 28 of them across
-// @gjsify/net's specs — recording the code rather than dropping it, so
-// behaviour was unchanged — showed 26 never receive an event on either leg.
-// Those are gone: a client whose scenario ends on a normal 'end'/'close' now
-// carries `on('error', reject)`, and a socket that cannot produce an error has
-// no handler, so anything that DOES arrive fails the test it happened in. The
-// single exception is the write-after-end case further down.
+// Every site below used to register a blanket `on('error', () => {})`. They are
+// now either `reject` or absent, so an unexpected error fails the test it happened
+// in. Which is which is a claim about the SOCKET, never about the host it runs on:
+// a TCP peer reset needs unread data queued in the closing side's receive buffer,
+// and each site below either writes nothing in either direction or drains what it
+// is sent, so no side can close over unread data. That argument holds on every OS.
+//
+// The one site where a side DOES close over unread data is the write-after-end case
+// further down — and there the tolerated code is `ECONNRESET`, because win32 reports
+// that reset where darwin/linux report a clean EOF. `isPeerReset` classifies it and
+// `error.spec.ts` pins the classification over every code a socket can produce, which
+// is what lets the win32 claim be held without a Windows host.
 
 import { describe, it, expect } from '@gjsify/unit';
 import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'node:net';
 import { Buffer } from 'node:buffer';
+import { isPeerReset } from './error.spec.js';
 
 export default async () => {
     await describe('net', async () => {
@@ -643,7 +648,9 @@ export default async () => {
                                 server.close(() => resolve());
                             });
                         });
-                        // Measured: a socket that only ever timed out emits no error.
+                        // The server sends nothing and the client is destroyed by its own
+                        // timeout, so neither side has unread data queued at close — which
+                        // is what a peer reset requires. No code is tolerated.
                         client.on('error', reject);
                     });
                     server.on('error', reject);
@@ -673,7 +680,9 @@ export default async () => {
                     server.listen(0, () => {
                         const addr = server.address() as { port: number };
                         client = createConnection({ port: addr.port, host: '127.0.0.1' });
-                        // Measured: destroyed by the server's own connection handler — no error.
+                        // Destroyed by the server's own connection handler. Nothing is written
+                        // in either direction, so no side closes over unread data and there is
+                        // no reset to tolerate on any OS.
                         client.on('error', reject);
                     });
                     server.on('error', reject);
@@ -772,7 +781,8 @@ export default async () => {
                             expect(client.destroyed).toBe(true);
                             server.close(() => resolve());
                         });
-                        // Measured: destroyed from its own connect callback — no error.
+                        // The server half-closes without writing, and the client destroys
+                        // itself: no unread data anywhere, so no peer reset on any OS.
                         client.on('error', reject);
                     });
                     server.on('error', reject);
@@ -968,14 +978,15 @@ export default async () => {
             await it('should handle write after end gracefully', async () => {
                 await new Promise<void>((resolve, reject) => {
                     const server = createServer((socket) => {
-                        // The client's write-after-end is answered by a teardown, and
-                        // Windows delivers that teardown to the accepted socket as
-                        // ECONNRESET where the two macOS legs deliver nothing
-                        // (measured: 73 clean runs there, read ECONNRESET on the
-                        // win32 leg). Tolerated by code, not blanket — any other
-                        // error still fails the spec.
-                        socket.on('error', (err: NodeJS.ErrnoException) => {
-                            if (err.code !== 'ECONNRESET') reject(err);
+                        // The client below writes after `end()` and never reads this
+                        // socket's 'done', so it closes with unread data queued in its
+                        // receive buffer — which makes the stack send RST, not FIN.
+                        // darwin/linux report that as a clean EOF and emit nothing
+                        // (measured here, 73 runs); win32 reports it as
+                        // `read ECONNRESET` on THIS socket. That code is tolerated and
+                        // nothing else, so a genuine server-side fault still fails.
+                        socket.on('error', (err) => {
+                            if (!isPeerReset(err)) reject(err);
                         });
                         socket.end('done');
                     });

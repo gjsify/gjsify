@@ -2,10 +2,9 @@
 // Reference: refs/node-test/parallel/test-net-socket-destroy-twice.js,
 // test-net-server-close.js — 'close' means the descriptor is gone.
 //
-// The six `on('error', () => {})` these tests used to carry hid nothing:
-// instrumented to record the code instead of dropping it, none of them ever
-// received an event, on either leg. Dropped — a teardown that is genuinely
-// clean cannot produce an error, so one that arrives fails the run.
+// The six `on('error', () => {})` these tests carried are gone. A teardown that is
+// genuinely clean writes nothing and leaves no unread data queued, so there is no peer
+// reset for any OS to report and no code worth tolerating — an error here fails the run.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import type { Server, Socket } from 'node:net';
