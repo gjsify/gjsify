@@ -157,6 +157,7 @@ on:
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
+      - 'scripts/check-prebuild-reproducible.mjs'
       - 'scripts/manifest-conformance/**'
       - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
@@ -225,6 +226,7 @@ on:
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
+      - 'scripts/check-prebuild-reproducible.mjs'
       - 'scripts/manifest-conformance/**'
       - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
@@ -1586,6 +1588,38 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # Two builds of one commit must be the same bytes, and until this ran nothing
+      # said so: `commit-prebuilds` re-committed all sixteen committed darwin
+      # dylibs on every run, every one at an identical size, with zero bytes of code
+      # changed. Measured on darwin-arm64, two clean builds of @gjsify/terminal-native
+      # differed in 112 of 39152 bytes — the `LC_UUID`, one byte of an `N_OSO` stab's
+      # `n_value` (an intermediate object's mtime) and the ad-hoc signature computed
+      # over both. `buildtype=plain` in every meson project is the fix; this is what
+      # holds it.
+      #
+      # The committed comparison is in the same script and is REPORTED, not gated —
+      # it cannot gate: the Homebrew closure this job installs is unpinned, so a moved
+      # formula is a legitimate byte difference, and `commit-prebuilds` exists to land
+      # exactly those. See the script's header for both halves.
+      #
+      # It REPLACES each staged set with the second build's (through the same stager,
+      # so relocation and re-signing are inside the comparison). When the check passes
+      # the two are byte-identical, which is why the uploads below are unaffected —
+      # and a passed check is then also a statement about the bytes being committed.
+      - name: Rebuild every staged prebuild and compare the bytes
+        run: |
+          set -euo pipefail
+          dirs=()
+          while IFS= read -r d; do
+            [ -n "$d" ] && dirs+=("$d")
+          done < <(node .github/prebuild-toolchain/darwin-bridges.mjs prebuild-dirs \
+                     --target "$PREBUILD" --skip "${PREBUILD_SKIP:-}")
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "no bridge was rebuilt on this run — nothing to compare"
+            exit 0
+          fi
+          node scripts/check-prebuild-reproducible.mjs --target "$PREBUILD" "${dirs[@]}"
 
       # A typelib whose recorded shared-library leaf still says `.so` is found via
       # GI_TYPELIB_PATH but never loads — the exact silent failure this job's

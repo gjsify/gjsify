@@ -6,8 +6,13 @@
 # language list is not conditional the way gwebgl's is — there is no host for
 # this package that lacks clang, because there is no host for it that is not
 # macOS.
+# `buildtype=plain` = NO `-g`. ld64 emits a DEBUG MAP into any image whose objects
+# carry DWARF — one `N_OSO` stab per object, holding its MTIME — so with `-g` every
+# rebuild of this commit differed in bytes (plus the `LC_UUID` and the ad-hoc signature
+# computed over them) and `commit-prebuilds` re-committed all 16 darwin dylibs. That map
+# names intermediate `.o` files no consumer can have. Why: docs/prebuilds.md.
 project('GjsifyWebKit', ['c', 'objc'], version: '1.0',
-        default_options: ['c_std=c11'])
+        default_options: ['c_std=c11', 'buildtype=plain'])
 
 if host_machine.system() != 'darwin'
     error('GjsifyWebKit binds Apple WebKit and only builds on darwin. ' +

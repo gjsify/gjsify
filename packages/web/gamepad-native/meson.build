@@ -9,7 +9,10 @@ project('GjsifyGamepad', 'c', version: '1.0',
         meson_version: '>= 1.3.0',
         # minsize: SDL is compiled into this library, so its optimisation level
         # IS the prebuild's size. meson hands the build type to SDL's CMake
-        # (MinSizeRel), so both halves are built the same way.
+        # (MinSizeRel), so both halves are built the same way — and because
+        # neither half is a `debug` build, neither carries the `-g` that would put
+        # an object-mtime debug map into the shipped image. The sibling bridges
+        # reach the same property through `buildtype=plain`; see the comment there.
         default_options: ['c_std=c11', 'buildtype=minsize'])
 
 if host_machine.system() != 'darwin'
