@@ -144,7 +144,7 @@ elif is_linux
     # exported SDL_Init in this library would interpose on (or be interposed by)
     # any other SDL the process loads. --exclude-libs makes everything from the
     # static archive local, and the version script exports the API and nothing
-    # else — test/check-elf-exports.py reads both back from the built file.
+    # else — test/check-elf-deps.py reads both back from the built file.
     version_script = meson.current_source_dir() / 'src' / 'c' / 'gjsify-gamepad.map'
     dependencies += [
         cc.find_library('m'),
@@ -347,25 +347,33 @@ if leaks.found()
 endif
 
 if is_linux
+    # Both Linux-only tests below are Python, and a host without python3 must get a
+    # tree that builds with two tests SKIPPED, not a configure error: every other
+    # optional tool here (valgrind, leaks) is `required: false` for that reason, and
+    # python3 is not in the dnf list this repo's CI installs from either.
+    python3 = find_program('python3', required: false)
+
     # The same C lifecycle under memcheck, run at 1 and at 20 cycles: nothing
     # lost, and nothing reachable that grows with the count (see the script for
     # why reachable memory is compared rather than required to be zero).
     valgrind = find_program('valgrind', required: false)
-    if valgrind.found()
+    if valgrind.found() and python3.found()
         valgrind_args = [files('test/valgrind-growth.py'), valgrind.full_path(), lifecycle.full_path()]
         glib_supp = dependency('glib-2.0').get_variable(pkgconfig: 'prefix') / 'share' / 'glib-2.0' / 'valgrind' / 'glib.supp'
         if fs.exists(glib_supp)
             valgrind_args += [glib_supp]
         endif
-        test('monitor-lifecycle-valgrind', find_program('python3'),
+        test('monitor-lifecycle-valgrind', python3,
              args: valgrind_args,
              depends: lifecycle,
              timeout: 300)
     endif
 
-    test('elf-deps', find_program('python3'),
-         args: [files('test/check-elf-deps.py'), libgjsifygamepad.full_path()],
-         depends: libgjsifygamepad)
+    if python3.found()
+        test('elf-deps', python3,
+             args: [files('test/check-elf-deps.py'), libgjsifygamepad.full_path()],
+             depends: libgjsifygamepad)
+    endif
 
     uinput_pad = executable('uinput-pad', 'test/uinput-pad.c',
         dependencies: [dependency('glib-2.0'), dependency('gobject-2.0')],
