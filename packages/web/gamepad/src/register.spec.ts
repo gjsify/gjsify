@@ -81,6 +81,9 @@ export default async () => {
                     liveNamespace === 'GjsifyGamepad' ? 'gi://GjsifyGamepad?version=1.0' : 'gi://Manette?version=0.2'
                 );
             } catch {
+                // The catch is the ORACLE, not a guard: a namespace whose typelib is
+                // not installed throws out of the dynamic import, and "this host has
+                // no such backend" is the answer the export has to agree with.
                 liveBackend = false;
             }
 

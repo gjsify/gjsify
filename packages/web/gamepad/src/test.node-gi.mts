@@ -1,7 +1,7 @@
 // Node-gi test entry — `@gjsify/gamepad`'s SDL3 source over the REAL shim on the Node
 // target, through `@gjsify/node-gi` (ADR 0075 + Amendment 1).
 //
-// HOW IT WIRES UP (`gjsify workspace @gjsify/gamepad run test:node-gi`, which is the
+// HOW IT WIRES UP (`gjsify workspace @gjsify/gamepad run test:gjs-on-node`, which is the
 // sqlite pattern — `scripts/node-gi-consumer-harness.mjs` builds the same file):
 //   • `--app node` rewrites the literal `gi://GjsifyGamepad?version=1.0` in
 //     `backend.ts` to `@gjsify/node-gi/gi`'s `requireGi('GjsifyGamepad','1.0')`, so
