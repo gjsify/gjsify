@@ -921,12 +921,12 @@ jobs:
       # promoted it out of `-experimental`, and it is written out at that job's
       # build step rather than here.
       #
-      # The build still happens HERE rather than there, and the reason is COST,
+      # The build still happens HERE rather than there, and the reason is SLOTS,
       # not capability: this Fedora leg already has `node_modules` and the build
-      # cache, while a macOS runner would pay a full `gjsify install` (a ~2 GB,
-      # ~16 min cold extract) plus that build on 10x-billed minutes to produce
-      # bytes whose portability the next paragraph asserts. So macOS executes
-      # the result.
+      # cache, while a macOS runner would spend a full `gjsify install` (a ~2 GB,
+      # ~16 min cold extract) plus that build on a pool measured pinned at its cap
+      # (`docs/ci-selective.md` § What is scarce) to produce bytes whose
+      # portability the next paragraph asserts. So macOS executes the result.
       #
       # That is sound because `--app gjs` output is a SINGLE self-contained file
       # whose only unbundled imports are `gi://GLib|Gio|GioUnix` (verified with

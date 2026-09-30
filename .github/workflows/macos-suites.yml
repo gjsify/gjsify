@@ -541,14 +541,19 @@ jobs:
   # and build under Node, and the five node-free suites in the step above run on
   # an ALREADY-built tree, so they measure orchestration, not the bootstrap.
   #
-  # A separate job because it is a second full install + `build:infra` and macOS
-  # minutes bill at 10x. `prebuilds.yml`'s `build-prebuilds-macos` already pays
-  # exactly this price for exactly this reason and states the escape hatch the
-  # same way, so this is one convention and not a second one to learn: `main`,
-  # the nightly and a dispatch always run it; a `pull_request` runs it only
-  # behind label `ci:macos`. Opt a PR in for anything touching the node-free
-  # path — a package script that stops going through `gjsify`, a launcher, a
-  # native loader, `install.mjs`.
+  # A separate job because it is a second full install + `build:infra` on the
+  # macOS pool, and SLOTS are what that pool is short of: the measurement in
+  # `docs/ci-selective.md` § What is scarce has both pools pinned at their cap
+  # with 77% of job time spent waiting, and says outright that BILLED minutes
+  # are not scarce here — the 10x multiplier prices a bill this repository is
+  # not being sent. So the price is a fixed per-run job count, which is exactly
+  # what the `ci:macos` label removes from a pull request.
+  # `prebuilds.yml`'s `build-prebuilds-macos` already pays exactly this price for
+  # exactly this reason and states the escape hatch the same way, so this is one
+  # convention and not a second one to learn: `main`, the nightly and a dispatch
+  # always run it; a `pull_request` runs it only behind label `ci:macos`. Opt a
+  # PR in for anything touching the node-free path — a package script that stops
+  # going through `gjsify`, a launcher, a native loader, `install.mjs`.
   #
   # One `if:`, not two, because the label decides the MATRIX in `scope` as well:
   # a second key would silently replace the first, and the job would then run its
@@ -591,7 +596,7 @@ jobs:
       # typelib imports `Json` (`check-system-deps.ts` declares it for
       # `@gjsify/rolldown-native`). The leg above also installs `librsvg` and
       # `gtk4` for the `ship` and `node-script` suites; a build needs neither, and
-      # on 10x-billed minutes each formula is paid for twice over.
+      # on a runner-time budget each formula is paid for twice over.
       - name: Install GJS + json-glib via Homebrew
         run: brew install gjs json-glib
 
