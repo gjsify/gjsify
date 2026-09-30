@@ -414,65 +414,69 @@ export default async () => {
         // the declaration follows the build in this repo by design. Scoped to the missing
         // prebuild so the test stops being an expected failure the moment the artifact
         // is committed, with nothing to un-mark.
-        const REASON =
-            'the darwin prebuild is not committed yet — `commit-prebuilds` lands it after this merges';
+        const REASON = 'the darwin prebuild is not committed yet — `commit-prebuilds` lands it after this merges';
 
         await describe('atomics.wait32 / notify32 across processes', async () => {
-            await it.failing("a child's wait is woken by the parent's notify", async () => {
-                const sb = SharedBuffer.create(16);
-                atomics.store32(sb, 0, 0); // the wait word
-                atomics.store32(sb, 4, 0); // child: "about to wait"
-                atomics.store32(sb, 8, 0); // child: wait result + 100
+            await it.failing(
+                "a child's wait is woken by the parent's notify",
+                async () => {
+                    const sb = SharedBuffer.create(16);
+                    atomics.store32(sb, 0, 0); // the wait word
+                    atomics.store32(sb, 4, 0); // child: "about to wait"
+                    atomics.store32(sb, 8, 0); // child: wait result + 100
 
-                const childPath = `/tmp/sab-spec-wait-${Date.now()}.mjs`;
-                const childCode =
-                    `const SabNative = imports.gi.GjsifySabNative;\n` +
-                    `const sb = SabNative.SharedBuffer.from_fd(3, 16);\n` +
-                    `sb.atomic_store_i32(4, 1);\n` +
-                    `const r = sb.futex_wait(0, 0, 10000);\n` +
-                    `sb.atomic_store_i32(8, r + 100);\n`;
-                GLib.file_set_contents(childPath, childCode);
+                    const childPath = `/tmp/sab-spec-wait-${Date.now()}.mjs`;
+                    const childCode =
+                        `const SabNative = imports.gi.GjsifySabNative;\n` +
+                        `const sb = SabNative.SharedBuffer.from_fd(3, 16);\n` +
+                        `sb.atomic_store_i32(4, 1);\n` +
+                        `const r = sb.futex_wait(0, 0, 10000);\n` +
+                        `sb.atomic_store_i32(8, r + 100);\n`;
+                    GLib.file_set_contents(childPath, childCode);
 
-                const sleep = (ms: number) =>
-                    new Promise<void>((resolve) =>
-                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-                            resolve();
-                            return GLib.SOURCE_REMOVE;
-                        }),
-                    );
+                    const sleep = (ms: number) =>
+                        new Promise<void>((resolve) =>
+                            GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                                resolve();
+                                return GLib.SOURCE_REMOVE;
+                            }),
+                        );
 
-                try {
-                    const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE });
-                    launcher.take_fd(sb.fd, 3);
-                    const child = launcher.spawnv(['gjs', '-m', childPath]);
+                    try {
+                        const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE });
+                        launcher.take_fd(sb.fd, 3);
+                        const child = launcher.spawnv(['gjs', '-m', childPath]);
 
-                    // "About to wait" is set BEFORE the wait syscall, so keep
-                    // notifying until one finds the waiter: the count is 1 only
-                    // once the kernel has matched the child's wait to this
-                    // address, which is the claim under test.
-                    let woken = 0;
-                    const deadline = Date.now() + 8000;
-                    while (Date.now() < deadline) {
-                        if (atomics.load32(sb, 4) === 1) {
-                            woken = atomics.notify32(sb, 0, 1);
-                            if (woken > 0) break;
+                        // "About to wait" is set BEFORE the wait syscall, so keep
+                        // notifying until one finds the waiter: the count is 1 only
+                        // once the kernel has matched the child's wait to this
+                        // address, which is the claim under test.
+                        let woken = 0;
+                        const deadline = Date.now() + 8000;
+                        while (Date.now() < deadline) {
+                            if (atomics.load32(sb, 4) === 1) {
+                                woken = atomics.notify32(sb, 0, 1);
+                                if (woken > 0) break;
+                            }
+                            await sleep(10);
                         }
-                        await sleep(10);
+
+                        await new Promise<void>((resolve) => {
+                            child.wait_async(null, () => resolve());
+                        });
+
+                        expect(woken).toBe(1);
+                        // 100 + 0: the child's wait returned 'ok' (woken), not
+                        // 'timed-out' (98) or 'not-equal' (99).
+                        expect(atomics.load32(sb, 8)).toBe(100);
+                        expect(child.get_exit_status()).toBe(0);
+                    } finally {
+                        GLib.unlink(childPath);
                     }
-
-                    await new Promise<void>((resolve) => {
-                        child.wait_async(null, () => resolve());
-                    });
-
-                    expect(woken).toBe(1);
-                    // 100 + 0: the child's wait returned 'ok' (woken), not
-                    // 'timed-out' (98) or 'not-equal' (99).
-                    expect(atomics.load32(sb, 8)).toBe(100);
-                    expect(child.get_exit_status()).toBe(0);
-                } finally {
-                    GLib.unlink(childPath);
-                }
-            }, REASON, { when: !hasNativeSab() });
+                },
+                REASON,
+                { when: !hasNativeSab() },
+            );
         });
 
         await describe('FdChannel — socketpair + SCM_RIGHTS round-trip', async () => {
