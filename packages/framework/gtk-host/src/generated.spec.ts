@@ -19,7 +19,7 @@ import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { installDiagnosticsGate } from './conformance/index.js';
+import { descriptorProblems, installDiagnosticsGate } from './conformance/index.js';
 import {
     BUILTIN_DESCRIPTORS,
     CURATED_DESCRIPTORS,
@@ -27,7 +27,8 @@ import {
     GENERATED_WIDGETS,
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
-import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
+import { GtkHostError } from './errors.js';
+import { createElement, insert, materialize, setAccessibility, setEventHandler, setProp } from './host.js';
 import { ENUM_VALUES, ENUM_VALUES_UNAVAILABLE, VALUES_PROVENANCE } from './generated/enum-values.mjs';
 import {
     ANCESTRY,
@@ -42,9 +43,10 @@ import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } fr
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, gtypeOfName, isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
-import { hasWidget, lookupWidget } from './registry.js';
+import { classOf, hasClass, hasWidget, lookupWidget, registerWidget, requireClass } from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
+import type { WidgetDescriptor } from './types.js';
 
 /**
  * Every member the surface offers for a widget, and WHERE it was declared.
@@ -79,20 +81,17 @@ export const newerThan = (since: string | undefined, running: string): boolean =
  * The constructor a descriptor names, or `null` when the installed library has no
  * such class.
  *
- * `ctor`'s declared type promises a constructor unconditionally. At runtime it
- * answers `undefined` for a class the installed library predates — the vocabulary is
- * generated against one GTK release and checked against whatever is on this machine,
- * and GtkSvgWidget is newer than the GTK here. Six checks below used to dereference
- * that and die as `can't access property "$gtype", ctor() is undefined`, naming
- * nothing: the missing class had to be found by hand. The gap is now a fact one test
- * reports and the others skip.
+ * NOT A COPY — `classOf` from the package, called under the name these seven checks
+ * have always used. It was a second copy, with its own cast, and a second copy of the
+ * question is how two answers to "is this class installed" grew apart: the host learned
+ * to refuse a missing one by name while this file went on dereferencing it. The two
+ * reasons a class can be absent are both real here, and only one is a version: the
+ * vocabulary is generated against one GTK release and checked against whatever is on
+ * this machine, so GtkSvgWidget is newer than the GTK here — and a platform does not
+ * build every class the GIR describes, so GTK's two Unix print dialogs are absent from
+ * any Windows typelib (#1446).
  */
-const installedCtor = (descriptor: {
-    readonly ctor: () => unknown;
-}): (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | null =>
-    (descriptor.ctor() as
-        | (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object))
-        | undefined) ?? null;
+const installedCtor = classOf;
 
 /**
  * The GType object for any DECLARATION the surface names, widget or interface.
@@ -440,8 +439,10 @@ export default async () => {
                 // Excused by the blanket alone. Not a failure — but a number that must
                 // be READABLE, because it is the part of this check that did not run.
                 const blanket: string[] = [];
+                const absent: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
                     if (installedCtor(w)) continue;
+                    absent.push(w.gtype);
                     const excuse = excuseFor(w.gtype);
                     if (excuse === 'blanket') blanket.push(w.gtype);
                     if (excuse !== null) continue;
@@ -450,13 +451,93 @@ export default async () => {
                         `${w.gtype} (generated against ${library} ${generatedAgainst[library] ?? '?'}, running ${running[library]})`,
                     );
                 }
-                if (blanket.length > 0) {
+                // EVERY absent class is NAMED, not only the unexplained ones and not only
+                // the blanket ones. The five assertions that used to die on a Windows host
+                // died as `TypeError: Cannot read properties of undefined (reading
+                // '$gtype')` — no row, no cause, six failures to attribute by hand — and
+                // the reason is that the run said nothing at all about which rows its
+                // typelib has no class for. A platform omission is the case this note
+                // exists for: `excuseFor` reads a VERSION gap, so a class a platform does
+                // not BUILD is excused by the blanket exactly like a class a release
+                // added, and only the names tell the two apart.
+                if (absent.length > 0) {
                     console.error(
-                        `  (${blanket.length} absent class(es) excused by the vocabulary-wide version alone, ` +
-                            `no stated one: ${blanket.join(', ')})`,
+                        `  (${absent.length} table row(s) this host has no class for` +
+                            `${blanket.length > 0 ? `, ${blanket.length} of them excused by the vocabulary-wide version alone` : ''}` +
+                            `: ${absent.join(', ')})`,
                     );
                 }
                 expect(unexplained).toStrictEqual([]);
+            });
+
+            await it('offers no class this GTK does not have, and names the one it refuses', async () => {
+                // THE ABSENT-CLASS PATH, SIMULATED — because on the host that needs it the
+                // class really is there, and a test that can only run where the defect is
+                // never runs at all. The generated table is produced from ONE platform's
+                // GIR, and a platform does not build every class that GIR describes: GTK
+                // `#ifdef`s its Unix print stack out on Windows, so `GtkPrintUnixDialog`
+                // and `GtkPageSetupUnixDialog` are rows whose `ctor()` answers `undefined`
+                // there and a real class on Linux and macOS (#1446). Six assertions of this
+                // suite failed on that host, five of them as `TypeError: Cannot read
+                // properties of undefined (reading '$gtype')` — no row named in either, so
+                // one platform omission arrived looking like six unrelated defects and had
+                // to be attributed by hand. A row whose class is absent is NOT a row: it
+                // is refused BY NAME wherever a class would be dereferenced.
+                const absent: WidgetDescriptor = {
+                    gtype: 'GtkSimulatedAbsentWidget',
+                    // The shape a platform-omitted class has, written down rather than
+                    // waited for: on a Windows host `Gtk.PrintUnixDialog` IS this
+                    // expression, which is why the type above may promise a constructor
+                    // and the runtime still hand back nothing.
+                    ctor: () => undefined as never,
+                    children: { kind: 'uncurated' },
+                };
+                registerWidget(absent);
+                expect(classOf(absent)).toBeNull();
+                expect(hasClass(absent)).toBe(false);
+                // The control, so the two lines above are a measurement and not a
+                // tautology: the question is sharp on this host.
+                expect(hasClass(lookupWidget('GtkBox'))).toBe(true);
+
+                // Every path that used to dereference, and the ONE refusal they now share.
+                // Five host call sites plus the seam, one question in the registry — that
+                // is the shape a fix takes when the failure was six anonymous TypeErrors.
+                const refused: string[] = [];
+                const refuse = (what: string, call: () => unknown): void => {
+                    let caught: unknown;
+                    try {
+                        call();
+                    } catch (error) {
+                        caught = error;
+                    }
+                    expect(caught instanceof GtkHostError).toBe(true);
+                    // The CODE, not the message: a message is prose and gets reworded, a
+                    // code is what a renderer branches on.
+                    expect((caught as GtkHostError).code).toBe('absent-class');
+                    expect((caught as GtkHostError).message.includes(absent.gtype)).toBe(true);
+                    refused.push(what);
+                };
+                const el = createElement(tagOf(absent.gtype));
+                // The seam itself first, then every path that used to reach past it.
+                refuse('requireClass', () => requireClass(absent));
+                refuse('materialize', () => materialize(el));
+                refuse('setProp', () => setProp(el, 'label', 'x'));
+                refuse('setEventHandler', () => setEventHandler(el, 'onNotifyLabel', () => {}));
+                refuse('setAccessibility', () => setAccessibility(el, { label: 'x' }));
+                expect(refused.length).toBe(5);
+                // A refusal records NOTHING, for the reason the property path gives: the
+                // shadow tree is replayed verbatim, so intent kept across a refusal is
+                // intent a later render acts on.
+                expect(el.props.label).toBe(undefined);
+                expect(el.listeners.size).toBe(0);
+                expect(el.widget).toBeNull();
+
+                // AND THE TABLE CHECK HOLDS ITS FIRE: `descriptorProblems` says nothing
+                // about a class it cannot resolve — there is no policy to hold against a
+                // class that is not here — while the case above is where an absence is
+                // WEIGHED and printed by name. Naming it is the half that was missing, and
+                // it is why those six took a hand to attribute.
+                expect(descriptorProblems([absent])).toStrictEqual([]);
             });
 
             await it('names a real class for every tag', async () => {

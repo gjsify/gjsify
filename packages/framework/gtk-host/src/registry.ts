@@ -50,6 +50,51 @@ export function lookupWidget(tag: string): WidgetDescriptor {
 
 export const hasWidget = (tag: string): boolean => registry.has(tag) || aliases.has(tag);
 
+/** A row's class, in the shape every consumer here needs it. */
+export type InstalledClass = GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object);
+
+/**
+ * The class the RUNNING typelib has for this row, or `null` when it has none.
+ *
+ * The general form of "does this GTK have that class", and the only honest place
+ * to ask it: the generated table is produced from ONE platform's GIR (#1446), and
+ * a platform does not build every class that GIR describes — GTK `#ifdef`s its
+ * Unix print stack out on Windows, so `GtkPrintUnixDialog` and
+ * `GtkPageSetupUnixDialog` are rows whose class is `undefined` there and a real
+ * class on Linux and macOS. Nothing narrower is available: the vocabulary comes
+ * from one GIR pool with no second platform to compare against, and a claim
+ * derived from a NAME (`*Unix*`) breaks precisely when it matters, on the next
+ * absent class nobody spelled that way.
+ *
+ * The cast is where the gap between the declared type and the runtime is
+ * admitted, ONCE, with the reason. `ctor` is typed as promising a constructor
+ * unconditionally, which is what lets `new Klass(props)` read as a constructor
+ * call; the promise is true on every host the table was generated on and false
+ * on a host that omits a class, and the admission belongs beside the question
+ * rather than at each of the dozen call sites.
+ */
+export function classOf(descriptor: { readonly ctor: () => unknown }): InstalledClass | null {
+    return (descriptor.ctor() as InstalledClass | undefined) ?? null;
+}
+
+/** Whether this host has the class a row names — a table sweep's way to not be a row. */
+export const hasClass = (descriptor: { readonly ctor: () => unknown }): boolean => classOf(descriptor) !== null;
+
+/**
+ * {@link classOf}, refusing BY NAME rather than handing back `undefined`.
+ *
+ * The single gate every read of a row's class goes through, so an absent class is
+ * one named refusal instead of six anonymous `TypeError`s — dereferencing it
+ * produced `Cannot read properties of undefined (reading 'list_properties')` and
+ * `… (reading '$gtype')` with no row in either message, which is how a
+ * one-platform-generated table arrived as six failures that named one class.
+ */
+export function requireClass(descriptor: { readonly gtype: string; readonly ctor: () => unknown }): InstalledClass {
+    const klass = classOf(descriptor);
+    if (!klass) throw err.absentClass(descriptor.gtype);
+    return klass;
+}
+
 /** Every registered GType name — the conformance suite walks this, so coverage is data. */
 export const registeredTags = (): string[] => [...registry.keys()].sort();
 

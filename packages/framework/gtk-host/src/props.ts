@@ -15,6 +15,7 @@ import { buildAdjustment, isPortableAdjustment } from './adjustment.js';
 import { err } from './errors.js';
 import { buildStringList, isPortableListModel } from './list-model.js';
 import { buildGioMenu, isPortableMenu } from './menu.js';
+import { requireClass } from './registry.js';
 import type { WidgetDescriptor } from './types.js';
 
 /**
@@ -511,7 +512,7 @@ function constructedDefaults(descriptor: WidgetDescriptor): Map<string, unknown>
     // for the attempt once rather than on every removal.
     constructedCache.set(descriptor.gtype, values);
 
-    const klass = descriptor.ctor();
+    const klass = requireClass(descriptor);
     let probe: GObject.Object;
     try {
         // Seeded with the construct-only properties this GType ABORTS without.

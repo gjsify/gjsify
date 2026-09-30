@@ -837,6 +837,44 @@ host's own `coerce()` path. A member the installed library lacks is accepted onl
 if the GIR says it arrived in a newer release — `GtkApplicationWindow::save-state`
 is GTK 4.24 and the check runs on 4.22.4.
 
+### A class the running GTK does not have
+
+The table is generated from **one platform's GIR**, and a platform does not build every
+class that GIR describes: GTK does not build its Unix print stack on Windows, so
+`GtkPrintUnixDialog` and `GtkPageSetupUnixDialog` are rows whose class no Windows
+`Gtk-4.0.typelib` registers (#1446 — six assertions of this suite failed on the first
+GTK-bearing Windows leg, all of them this). The rows **stay**, for two measured
+reasons. The GIR says they exist in that release, and the generator reads one GIR pool
+with no second platform to compare against — a platform claim derived from a NAME
+(`*Unix*`) breaks precisely when it matters, on the next absent class nobody spelled
+that way, and a surface should not assert what it has not measured. And the two rows
+are correct on the two platforms that do build them.
+
+What the table must never do is hand a caller a class that resolved to `undefined`.
+`classOf(descriptor)` is the one place that asks the only question answerable here — does
+the **running** typelib have this class — and `requireClass(descriptor)` is that answer as
+a named refusal (`err.absentClass`, code `absent-class`). Every read of a row's class
+goes through it: `materialize`, `setProp`, `setEventHandler`, `setAccessibility`, the two
+text-sink paths and the construction probe. So an omitted class is refused **by name at
+the call that needed it**, instead of dying as
+`Cannot read properties of undefined (reading 'list_properties')` or `… (reading '$gtype')`
+— the two messages that arrived as six failures naming two classes between them.
+
+A test that can only run where the defect is never runs, so the absent-class path is
+**simulated** in `generated.spec.ts`: a descriptor whose `ctor()` answers `undefined` —
+which is literally what `Gtk.PrintUnixDialog` is on a host that does not build it — driven
+through every one of those paths, each expected to refuse with the same code and the
+row's name. The sweeps that walk the whole table ask `classOf`/`hasClass` and treat an
+absent row as *not a row*; `descriptorProblems()` says nothing about a class it cannot
+resolve, and `explains every class the installed library does not have` is where an
+absence is weighed against the library version **and printed by name** — the half that was
+missing, and the reason those six took a hand to attribute.
+
+The type surfaces (`generated/props.ts`) keep both dialogs, deliberately: they describe
+the GIR's release, and `gjsify tsc` cannot check a type surface against an installed
+typelib (rule 5 of the section above). A renderer on a platform that lacks the class meets
+the runtime refusal at the call, not a compile error.
+
 ### A base that leaves the namespace
 
 The generator reads `@girs/<ns>/vocabulary` (ADR 0029) for Gtk and Adw — the only two that
