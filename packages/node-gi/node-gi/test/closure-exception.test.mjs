@@ -42,7 +42,12 @@ test('B1: a nested loop inside a synchronous emit — no wedge + the sync throw 
     });
 
     const cancellable = new Gio.Cancellable();
-    cancellable.connect('cancelled', () => {
+    // connect_after, not connect: Cancellable introspects its OWN `connect`
+    // (g_cancellable_connect(callback), a different id space from a signal
+    // handler) which shadows the generic signal API through ordinary prototype
+    // lookup on gjs itself (measured, gjs 1.88.1) — `connect_after` has no such
+    // collision and stays the generic signal API on both engines.
+    cancellable.connect_after('cancelled', () => {
         const nested = GLib.MainLoop.new(null, false);
         // A timeout (loop-dispatched via the trampoline) flips :enabled → emits the
         // throwing notify, then quits the nested loop.

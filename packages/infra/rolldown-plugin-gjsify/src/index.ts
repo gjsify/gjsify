@@ -54,6 +54,7 @@ export type {
 export {
     napiNodeAddonPlugin,
     resolveAddonPath,
+    enumerateAddonTargets,
     nearestPackageRoot,
     classifySpecifier,
     directNodeShim,
