@@ -1,0 +1,590 @@
+<?xml version="1.0"?>
+<!-- This file was automatically generated from C sources - DO NOT EDIT!
+To affect the contents of this file, edit the original C definitions,
+and/or use gtk-doc annotations.  -->
+<repository version="1.2"
+            xmlns="http://www.gtk.org/introspection/core/1.0"
+            xmlns:c="http://www.gtk.org/introspection/c/1.0"
+            xmlns:doc="http://www.gtk.org/introspection/doc/1.0"
+            xmlns:glib="http://www.gtk.org/introspection/glib/1.0">
+  <include name="GObject" version="2.0"/>
+  <c:include name="gjsify-gamepad.h"/>
+  <doc:format name="unknown"/>
+  <namespace name="GjsifyGamepad"
+             version="1.0"
+             shared-library="libgjsifygamepad.dylib"
+             c:identifier-prefixes="GjsifyGamepad"
+             c:symbol-prefixes="gjsify_gamepad">
+    <class name="Device"
+           c:symbol-prefix="device"
+           c:type="GjsifyGamepadDevice"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyGamepadDevice"
+           glib:get-type="gjsify_gamepad_device_get_type"
+           glib:type-struct="DeviceClass">
+      <source-position filename="src/c/gjsify-gamepad.h" line="50"/>
+      <method name="get_axes" c:identifier="gjsify_gamepad_device_get_axes">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="110">The stick axes as of the last gjsify_gamepad_monitor_update(), in W3C
+standard-layout order (left x, left y, right x, right y), -1..1, with -1 = up
+on the y axes. All zeros once the device is disconnected.</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="121"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="119">the values.</doc>
+          <array length="0" zero-terminated="0" c:type="gdouble*">
+            <type name="gdouble" c:type="gdouble"/>
+          </array>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="112">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="n_axes"
+                     direction="out"
+                     caller-allocates="0"
+                     transfer-ownership="full">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="113">the number of values, always 4</doc>
+            <type name="gsize" c:type="gsize*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_buttons"
+              c:identifier="gjsify_gamepad_device_get_buttons">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="97">The button state as of the last gjsify_gamepad_monitor_update(), in W3C
+standard-layout order. Digital buttons are 0 or 1. The triggers (6 and 7) are
+analog, 0..1. All zeros once the device is disconnected.</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="108"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="106">the values.</doc>
+          <array length="0" zero-terminated="0" c:type="gdouble*">
+            <type name="gdouble" c:type="gdouble"/>
+          </array>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="99">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="n_buttons"
+                     direction="out"
+                     caller-allocates="0"
+                     transfer-ownership="full">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="100">the number of values, always 17</doc>
+            <type name="gsize" c:type="gsize*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_guid" c:identifier="gjsify_gamepad_device_get_guid">
+        <source-position filename="src/c/gjsify-gamepad.h" line="70"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="68">SDL's 32-hex-digit GUID for the controller model.</doc>
+          <type name="utf8" c:type="const gchar*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="66">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_name" c:identifier="gjsify_gamepad_device_get_name">
+        <source-position filename="src/c/gjsify-gamepad.h" line="62"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="59">the controller's name, as SDL's mapping database
+  knows it, or a generic name when it has none.</doc>
+          <type name="utf8" c:type="const gchar*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="57">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_product"
+              c:identifier="gjsify_gamepad_device_get_product">
+        <source-position filename="src/c/gjsify-gamepad.h" line="86"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="84">the USB product ID, or 0 when SDL does not know it.</doc>
+          <type name="guint16" c:type="guint16"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="82">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_sensor_data"
+              c:identifier="gjsify_gamepad_device_get_sensor_data">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="193">Reads an enabled sensor as of the last gjsify_gamepad_monitor_update().</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="206"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="203">%FALSE when the sensor is absent, not enabled, or the controller is
+  disconnected; the out values are then 0.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="195">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="sensor" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="196">the sensor to read</doc>
+            <type name="Sensor" c:type="GjsifyGamepadSensor"/>
+          </parameter>
+          <parameter name="x"
+                     direction="out"
+                     caller-allocates="0"
+                     transfer-ownership="full">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="197">the x value</doc>
+            <type name="gfloat" c:type="gfloat*"/>
+          </parameter>
+          <parameter name="y"
+                     direction="out"
+                     caller-allocates="0"
+                     transfer-ownership="full">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="198">the y value</doc>
+            <type name="gfloat" c:type="gfloat*"/>
+          </parameter>
+          <parameter name="z"
+                     direction="out"
+                     caller-allocates="0"
+                     transfer-ownership="full">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="199">the z value</doc>
+            <type name="gfloat" c:type="gfloat*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_vendor"
+              c:identifier="gjsify_gamepad_device_get_vendor">
+        <source-position filename="src/c/gjsify-gamepad.h" line="78"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="76">the USB vendor ID, or 0 when SDL does not know it.</doc>
+          <type name="guint16" c:type="guint16"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="74">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="has_rumble"
+              c:identifier="gjsify_gamepad_device_has_rumble">
+        <source-position filename="src/c/gjsify-gamepad.h" line="129"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="127">whether gjsify_gamepad_device_rumble() can drive this controller.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="125">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="has_sensor"
+              c:identifier="gjsify_gamepad_device_has_sensor">
+        <source-position filename="src/c/gjsify-gamepad.h" line="176"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="174">whether the controller carries @sensor.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="171">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="sensor" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="172">the sensor to ask about</doc>
+            <type name="Sensor" c:type="GjsifyGamepadSensor"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="has_trigger_rumble"
+              c:identifier="gjsify_gamepad_device_has_trigger_rumble">
+        <source-position filename="src/c/gjsify-gamepad.h" line="138"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="135">whether gjsify_gamepad_device_rumble_triggers() can drive this
+  controller.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="133">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_connected"
+              c:identifier="gjsify_gamepad_device_is_connected">
+        <source-position filename="src/c/gjsify-gamepad.h" line="95"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="92">%FALSE once #GjsifyGamepadMonitor::device-removed has been emitted
+  for this device, or its monitor was closed.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="90">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="rumble" c:identifier="gjsify_gamepad_device_rumble">
+        <source-position filename="src/c/gjsify-gamepad.h" line="150"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="148">%FALSE when the controller has no rumble or is disconnected.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="142">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="low_frequency" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="143">the strong (low-frequency) motor, 0..65535</doc>
+            <type name="guint16" c:type="guint16"/>
+          </parameter>
+          <parameter name="high_frequency" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="144">the weak (high-frequency) motor, 0..65535</doc>
+            <type name="guint16" c:type="guint16"/>
+          </parameter>
+          <parameter name="duration_ms" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="145">how long, in milliseconds; a new call replaces a running one,
+  and 0 intensities stop it</doc>
+            <type name="guint32" c:type="guint32"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="rumble_triggers"
+              c:identifier="gjsify_gamepad_device_rumble_triggers">
+        <source-position filename="src/c/gjsify-gamepad.h" line="164"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="162">%FALSE when the controller has no trigger rumble or is disconnected.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="157">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="left" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="158">the left trigger motor, 0..65535</doc>
+            <type name="guint16" c:type="guint16"/>
+          </parameter>
+          <parameter name="right" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="159">the right trigger motor, 0..65535</doc>
+            <type name="guint16" c:type="guint16"/>
+          </parameter>
+          <parameter name="duration_ms" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="160">how long, in milliseconds; a new call replaces a running one</doc>
+            <type name="guint32" c:type="guint32"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="set_sensor_enabled"
+              c:identifier="gjsify_gamepad_device_set_sensor_enabled">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="178">Sensors are off until enabled, because a reporting sensor costs the
+controller battery and bandwidth.</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="189"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="187">%FALSE when the controller does not carry @sensor or is disconnected.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="180">a #GjsifyGamepadDevice</doc>
+            <type name="Device" c:type="GjsifyGamepadDevice*"/>
+          </instance-parameter>
+          <parameter name="sensor" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="181">the sensor to switch</doc>
+            <type name="Sensor" c:type="GjsifyGamepadSensor"/>
+          </parameter>
+          <parameter name="enabled" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="182">whether it should report</doc>
+            <type name="gboolean" c:type="gboolean"/>
+          </parameter>
+        </parameters>
+      </method>
+    </class>
+    <record name="DeviceClass"
+            c:type="GjsifyGamepadDeviceClass"
+            glib:is-gtype-struct-for="Device">
+      <source-position filename="src/c/gjsify-gamepad.h" line="50"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <class name="Monitor"
+           c:symbol-prefix="monitor"
+           c:type="GjsifyGamepadMonitor"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyGamepadMonitor"
+           glib:get-type="gjsify_gamepad_monitor_get_type"
+           glib:type-struct="MonitorClass">
+      <source-position filename="src/c/gjsify-gamepad.h" line="53"/>
+      <constructor name="new"
+                   c:identifier="gjsify_gamepad_monitor_new"
+                   throws="1">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="229">Starts SDL's gamepad subsystem (reference-counted across monitors) and a
+low-rate GLib timeout on the thread-default main context that calls
+gjsify_gamepad_monitor_update(), so #GjsifyGamepadMonitor::device-added fires
+for a program that never polls. Controllers already connected are reported by
+the first update, not by this call.
+
+Call it, and everything else on the monitor, from the thread that runs the
+JS context: SDL and, on macOS, GameController.framework are single-threaded
+here by design.</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="245"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="243">a new monitor, or %NULL with @error set.</doc>
+          <type name="Monitor" c:type="GjsifyGamepadMonitor*"/>
+        </return-value>
+      </constructor>
+      <function name="error_quark"
+                c:identifier="gjsify_gamepad_monitor_error_quark">
+        <return-value transfer-ownership="none">
+          <type name="GLib.Quark" c:type="GQuark"/>
+        </return-value>
+      </function>
+      <method name="close" c:identifier="gjsify_gamepad_monitor_close">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="269">Stops the timeout, releases every controller and SDL's subsystem, without
+emitting #GjsifyGamepadMonitor::device-removed. Idempotent, and also run on
+finalize; call it explicitly so SDL is released when the JS side stops, not
+when the garbage collector gets to the wrapper.</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="278"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="271">a #GjsifyGamepadMonitor</doc>
+            <type name="Monitor" c:type="GjsifyGamepadMonitor*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_devices"
+              c:identifier="gjsify_gamepad_monitor_get_devices">
+        <source-position filename="src/c/gjsify-gamepad.h" line="267"/>
+        <return-value transfer-ownership="container">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-gamepad.h"
+               line="264">the
+  connected controllers, in the order they connected.</doc>
+          <array name="GLib.PtrArray" c:type="GPtrArray*">
+            <type name="Device"/>
+          </array>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="262">a #GjsifyGamepadMonitor</doc>
+            <type name="Monitor" c:type="GjsifyGamepadMonitor*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="update" c:identifier="gjsify_gamepad_monitor_update">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="247">The pump: refreshes every controller's state and reports hotplug through
+#GjsifyGamepadMonitor::device-removed and #GjsifyGamepadMonitor::device-added,
+in that order. On macOS it first drains the main run loop, because that is
+where GameController.framework delivers and a GLib main loop never services
+it. Call it at the moment the state is read (W3C's getGamepads()); the
+monitor's own timeout calls it in between. A no-op once closed.</doc>
+        <source-position filename="src/c/gjsify-gamepad.h" line="258"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="249">a #GjsifyGamepadMonitor</doc>
+            <type name="Monitor" c:type="GjsifyGamepadMonitor*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <glib:signal name="device-added" when="last">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="212">A controller with a standard-layout mapping connected, or was already
+connected when the monitor's first update ran.</doc>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <parameter name="device" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="215">the controller that connected</doc>
+            <type name="Device"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+      <glib:signal name="device-removed" when="last">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="221">A controller disconnected. Not emitted by gjsify_gamepad_monitor_close().</doc>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <parameter name="device" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-gamepad.h"
+                 line="224">the controller that went away; it reports disconnected from now on</doc>
+            <type name="Device"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+    </class>
+    <record name="MonitorClass"
+            c:type="GjsifyGamepadMonitorClass"
+            glib:is-gtype-struct-for="Monitor">
+      <source-position filename="src/c/gjsify-gamepad.h" line="53"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <enumeration name="MonitorError" c:type="GjsifyGamepadMonitorError">
+      <doc xml:space="preserve"
+           filename="src/c/gjsify-gamepad.h"
+           line="26">Error codes for %GJSIFY_GAMEPAD_MONITOR_ERROR.</doc>
+      <source-position filename="src/c/gjsify-gamepad.h" line="35"/>
+      <member name="monitor_error_init_failed"
+              value="0"
+              c:identifier="GJSIFY_GAMEPAD_MONITOR_ERROR_INIT_FAILED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="28">SDL's gamepad subsystem did not
+  start. The message carries SDL's own reason.</doc>
+      </member>
+    </enumeration>
+    <enumeration name="Sensor" c:type="GjsifyGamepadSensor">
+      <doc xml:space="preserve"
+           filename="src/c/gjsify-gamepad.h"
+           line="37">A motion sensor a controller may carry. The values match SDL_SensorType.</doc>
+      <source-position filename="src/c/gjsify-gamepad.h" line="47"/>
+      <member name="accel"
+              value="1"
+              c:identifier="GJSIFY_GAMEPAD_SENSOR_ACCEL">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="39">the accelerometer, in m/s².</doc>
+      </member>
+      <member name="gyro" value="2" c:identifier="GJSIFY_GAMEPAD_SENSOR_GYRO">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-gamepad.h"
+             line="40">the gyroscope, in rad/s.</doc>
+      </member>
+    </enumeration>
+  </namespace>
+</repository>
