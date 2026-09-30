@@ -1422,6 +1422,19 @@ jobs:
       # subsystems (ADR 0075 Amendment 1) — so it adds `cmake` to the brew closure
       # and nothing to the runtime: the library needs system frameworks and the
       # host's GLib, no Homebrew SDL.
+      # `@gjsify/node-gi` for the node leg of this shim's suite (ADR 0075 Amendment 1
+      # — SDL3 is the backend on every OS, and Node is how a `--app node` bundle and
+      # every Windows program reach `gi://`). It is NOT a workspace member (ADR 0005),
+      # so nothing installs it here: `npm install` in its own directory builds the
+      # N-API addon with node-gyp, which needs the glib/gobject `.pc` files
+      # gobject-introspection already pulled in above. BEFORE `meson setup`, because
+      # meson decides whether to register `monitor-lifecycle-node` by looking for that
+      # addon on disk — a leg registered after the setup would silently not exist.
+      - name: Build @gjsify/node-gi (for the gamepad node leg)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
       - name: Build @gjsify/gamepad-native (C shim + static SDL3)
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         working-directory: packages/web/gamepad-native
@@ -1429,11 +1442,11 @@ jobs:
           meson setup build .
           meson compile -C build
 
-      # The zero-device path, against the real library and a real SDL: C and gjs
-      # lifecycles, and the C one again under `leaks --atExit` (0 leaks or red).
-      # A runner has no controller, so this is all CI can prove; input from a
+      # The zero-device path, against the real library and a real SDL: C, gjs and
+      # node-gi lifecycles, and the C one again under `leaks --atExit` (0 leaks or
+      # red). A runner has no controller, so this is all CI can prove; input from a
       # real device is ADR 0075's hardware check.
-      - name: Test @gjsify/gamepad-native (lifecycle, gjs, leaks)
+      - name: Test @gjsify/gamepad-native (lifecycle, gjs, node, leaks)
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         working-directory: packages/web/gamepad-native
         run: meson test -C build --print-errorlogs

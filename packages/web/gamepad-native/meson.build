@@ -144,6 +144,66 @@ if gjs.found()
          })
 endif
 
+# The same lifecycle under Node on the @gjsify/node-gi bridge — the runtime a
+# `--app node` bundle, and every Windows program, reaches `gi://` through (ADR 0024
+# § 4). It is the only leg on a runtime whose girepository is not GJS's, which is what
+# makes it worth its own test rather than a claim.
+#
+# Registered ONLY when the bridge is actually there. `@gjsify/node-gi` is not a
+# workspace member (ADR 0005), so nothing BUILDS its addon until
+# `npm install` in packages/node-gi/node-gi does; a test that imported it
+# unconditionally would red on every tree that has not done that, and a skipped leg
+# nobody can see is how the gap came to be open in the first place. The addon paths are
+# node-gi's own `nativeCandidates` order (native-paths.js): a staged prebuild, then the
+# node-gyp Release and Debug builds.
+node = find_program('node', required: false)
+fs = import('fs')
+node_gi_dir = '../../node-gi/node-gi'
+# The ONE target spelling, `${process.platform}-${process.arch}` (AGENTS.md
+# § Runtime & platform model) — which meson does not speak: `system()` answers
+# `windows` and `cpu_family()` answers `x86_64`/`aarch64`, so the raw pair spells
+# `windows-x86_64`/`linux-x86_64` and finds no staged prebuild on any host. This is
+# the miss `native-paths.js`'s own header names: a guard that looks in a directory
+# the loader does not probe. The aliases mirror `ARCH_ALIASES` in
+# packages/infra/manifest-conformance/lib/platforms.mjs; an unmapped family passes
+# through so a new one reads as itself rather than as nothing.
+node_gi_arch = {
+    'x86_64': 'x64',
+    'amd64': 'x64',
+    'aarch64': 'arm64',
+}.get(host_machine.cpu_family(), host_machine.cpu_family())
+node_gi_target = (host_machine.system() == 'windows' ? 'win32' : host_machine.system()) + '-' + node_gi_arch
+node_gi_addon = [
+    node_gi_dir / 'prebuilds' / node_gi_target / 'node_gi.node',
+    node_gi_dir / 'build' / 'Release' / 'node_gi.node',
+    node_gi_dir / 'build' / 'Debug' / 'node_gi.node',
+]
+# The question is the ADDON, not the package: node-gi's SOURCES are in every
+# checkout, so testing for one of them registered this leg on a tree where
+# `require('@gjsify/node-gi')` throws and the test died on its first import.
+node_gi_built = false
+if node.found()
+    foreach candidate : node_gi_addon
+        if fs.exists(candidate)
+            node_gi_built = true
+        endif
+    endforeach
+endif
+if node_gi_built
+    # The build directory holds the typelib and the library its `shared-library`
+    # names — the same two the gjs leg puts on its path. Nothing else is needed: the
+    # addon resolves the host GLib itself, measured on macOS 27 arm64.
+    test('monitor-lifecycle-node', node,
+         args: [files('test/monitor-lifecycle.node.js')],
+         depends: [libgjsifygamepad, gir],
+         env: {
+             'GI_TYPELIB_PATH': meson.current_build_dir(),
+             'DYLD_LIBRARY_PATH': meson.current_build_dir(),
+         })
+else
+    message('node-gi not built — skipping monitor-lifecycle-node (npm install in packages/node-gi/node-gi)')
+endif
+
 leaks = find_program('leaks', required: false)
 if leaks.found()
     # MallocStackLogging is what lets `leaks` name the allocation site of a
