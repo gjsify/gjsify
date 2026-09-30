@@ -15,6 +15,7 @@
 // WROTE onto the host object.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { hostOs } from '@gjsify/utils/core';
 
 import '@gjsify/gamepad/register';
 import { hasGamepadBackend, type Gamepad as GjsifyGamepad } from '@gjsify/gamepad';
@@ -64,9 +65,21 @@ export default async () => {
             // the capability export to agree — so it holds on a runner WITH
             // libmanette (true) and on one without (false), and fails if the
             // export ever stops reflecting reality.
+            //
+            // THE ORACLE BRANCHES ON THE HOST OS, like the probe does (ADR 0075
+            // Amendment 1). Asking only about `gi://Manette` was right while darwin
+            // had no backend at all, and stopped being true the moment
+            // `@gjsify/gamepad-native`'s darwin prebuild landed: the probe then
+            // answers `true` through `gi://GjsifyGamepad` on a Mac that has never
+            // heard of libmanette, so the two disagreed on the one host where the
+            // shim exists. A Mac asking "is there a backend?" must be told the truth
+            // about GjsifyGamepad, not a hardcoded Linux question.
+            const liveNamespace = hostOs() === 'darwin' ? 'GjsifyGamepad' : 'Manette';
             let liveBackend = true;
             try {
-                await import('gi://Manette?version=0.2');
+                await import(
+                    liveNamespace === 'GjsifyGamepad' ? 'gi://GjsifyGamepad?version=1.0' : 'gi://Manette?version=0.2'
+                );
             } catch {
                 liveBackend = false;
             }
