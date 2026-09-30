@@ -41,7 +41,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -159,6 +159,65 @@ describe('gjsify build under a bare `gjs -m` (no launcher)', { skip: SKIP, timeo
         assert.doesNotMatch(log, /Unsupported type void/, `a half-loaded GI namespace escaped. Output:\n${log}`);
         assert.equal(r.status, 0, `the CLI must start on the typelib path alone. Output:\n${log}`);
         assert.match(r.stdout, /^\d+\.\d+\.\d+/, `--version must print the version. Output:\n${log}`);
+    });
+
+    // The consumer shape, one hop further (reported by the beifahrer consumer on
+    // macOS): `gjsify workspace <pkg> build` runs the package's `build` through
+    // `/bin/sh`, whose `gjsify` is the CLI's SELF-SHIM (`ensureGjsifyShimOnPath`).
+    // That shim was a bare `exec gjs -m <cli>` — none of the launcher's preamble —
+    // so behind a SIP shell the nested CLI had the typelib path and no library
+    // path. The parent here starts with exactly that half-env, the compound script
+    // makes the `/bin/sh` hop, and the nested CLI builds and then reports the
+    // library path it was started with: only the shim can have exported it.
+    it('gives a nested gjsify behind /bin/sh the launcher preamble', () => {
+        const fixture = join(tmpDir, 'nested');
+        mkdirSync(join(fixture, 'src'), { recursive: true });
+        writeFileSync(join(fixture, 'src', 'index.ts'), 'export const marker = "nested-shim-marker";\n');
+        const libVar = process.platform === 'darwin' ? 'DYLD_LIBRARY_PATH' : 'LD_LIBRARY_PATH';
+        writeFileSync(
+            join(fixture, 'probe.mjs'),
+            `import process from 'node:process';\nconsole.log('LIBPATH=' + (process.env.${libVar} ?? ''));\n`,
+        );
+        writeFileSync(
+            join(fixture, 'package.json'),
+            JSON.stringify({
+                name: 'nested-shim-fixture',
+                private: true,
+                type: 'module',
+                scripts: {
+                    chain: 'gjsify run build && gjsify run probe',
+                    build: 'gjsify build src/index.ts --app node --outfile out.node.mjs --no-minify',
+                    probe: 'gjsify run --node-script probe.mjs',
+                },
+            }),
+        );
+        const env = envWithoutPrebuildPaths({
+            GI_TYPELIB_PATH: TERMINAL_PREBUILD,
+            HOME: tmpDir,
+            XDG_CACHE_HOME: join(tmpDir, '.cache'),
+        });
+        // An inherited shim would be reused, and the one under test never written.
+        delete env.GJSIFY_SHIM_DIR;
+        delete env.GJS_CONSOLE;
+        const r = spawnSync('gjs', ['-m', CLI_BUNDLE, 'run', 'chain'], {
+            cwd: fixture,
+            encoding: 'utf-8',
+            timeout: 4 * 60 * 1000,
+            env,
+        });
+        const log = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+        assert.doesNotMatch(log, /Unsupported type void/, `a half-loaded GI namespace escaped. Output:\n${log}`);
+        assert.equal(r.status, 0, `the nested build must succeed. Output:\n${log}`);
+        assert.match(readFileSync(join(fixture, 'out.node.mjs'), 'utf-8'), /nested-shim-marker/);
+        const libPath = /^LIBPATH=(.*)$/m.exec(r.stdout)?.[1] ?? '';
+        const dirs = libPath
+            .split(':')
+            .filter((d) => d && existsSync(d))
+            .map((d) => realpathSync(d));
+        assert.ok(
+            dirs.includes(realpathSync(TERMINAL_PREBUILD)),
+            `the self-shim must export ${libVar} with the prebuild dirs, as the launcher does. Got: "${libPath}"`,
+        );
     });
 
     // The API spelling `gi-search-path.ts` depends on, pinned. A GJS/GLib

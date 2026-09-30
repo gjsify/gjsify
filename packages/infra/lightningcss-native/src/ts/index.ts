@@ -15,8 +15,16 @@
 // the native prebuild is unavailable. Callers MUST check
 // `hasNativeLightningcss()` before using `nativeLightningcss`.
 //
-// LD_LIBRARY_PATH / GI_TYPELIB_PATH are set automatically by the CLI's
-// `detectNativePackages()` walk when running under `gjsify run`.
+// The CLI puts the prebuild on girepository's typelib and library search
+// paths in-process (`activateNativePrebuilds()`, ADR 0021).
+//
+// NO `@gjsify/utils` import, and none may be added: the CLI imports this
+// package's `lib/` by file URL under GJS, whose ESM loader resolves no bare
+// specifier ("Module not found: @gjsify/utils/core"). So the CONSUMER opens the
+// library with `openNativeLibrary('GjsifyLightningcss')` right after
+// `hasNativeLightningcss()` — beside the typelib that was found, naming a
+// missing dependency — in `@gjsify/rolldown-plugin-gjsify`'s
+// `css-as-string.ts`.
 //
 // `transform()` and `bundle()` share ONE lazily-created `Engine` instance
 // rather than constructing a fresh one per call — see `getEngine()` below
