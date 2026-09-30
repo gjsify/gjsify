@@ -309,15 +309,3 @@ needs a musl symbol set to be sound, so it is a policy change to `prebuild-libc`
 Publishing `-musl` packages makes the question moot for the bridges that can be built twice.
 Either way the CLI's install-time report stays useful for the residue, and neither is decidable
 from a working copy.
-
-
-### Enforce the macOS 15.0 floor on committed darwin prebuilds
-
-ADR 0074 declared one macOS floor (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and the
-`prebuild-darwin-target` rule that holds every committed darwin image's `LC_BUILD_VERSION`
-`minos` to it. The rule runs in REPORT mode in `scripts/audit-runtimes.mjs`
-(`darwinDeploymentTarget: 'report'`), because the committed darwin-arm64 prebuilds still
-record `minos 26.0` and only `prebuilds.yml`'s `commit-prebuilds` on `main` can replace
-them. Once that job has landed the rebuilt artifacts (the rule's REPORT-MODE note disappears
-from `audit-runtimes --check`), delete the `darwinDeploymentTarget: 'report'` line so a
-regression fails instead of printing.

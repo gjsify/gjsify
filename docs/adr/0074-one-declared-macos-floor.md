@@ -91,17 +91,21 @@ How it is checked — from the bytes, twice, never from the workflow text:
 
 ## Consequences
 
-- **The committed darwin-arm64 prebuilds violate the floor until CI rebuilds them.** They
-  are only ever produced by `prebuilds.yml`'s `commit-prebuilds` on `main`, and this change
-  touches `packages/infra/manifest-conformance/**` and `prebuilds.yml`, both shared inputs
-  that rebuild every package. So the rule arrives in REPORT mode in this repository
-  (`audit-runtimes.mjs` passes `darwinDeploymentTarget: 'report'`): every violation is
-  printed as a note on every run, and nothing fails. Flipping it to `'enforce'` is a
-  one-line follow-up once `commit-prebuilds` has landed the rebuilt artifacts, tracked in
-  `status/open-todos/README.md`. Report mode is chosen over a per-package exemption because the
-  exemption would have had to live in 14 GENERATED manifests and be cleared by the same
-  commit that lands the artifacts — machinery this one-off transition does not justify.
-  Outside this repository the rule enforces by default.
+- **The committed darwin-arm64 prebuilds violated the floor until CI rebuilt them, and
+  report mode was how that transition was made honest.** They are only ever produced by
+  `prebuilds.yml`'s `commit-prebuilds` on `main`, and this change touches
+  `packages/infra/manifest-conformance/**` and `prebuilds.yml`, both shared inputs that
+  rebuild every package. So the rule first arrived in REPORT mode here
+  (`audit-runtimes.mjs` passed `darwinDeploymentTarget: 'report'`): every violation was
+  printed as a note on every run, and nothing failed. Report mode was chosen over a
+  per-package exemption because the exemption would have had to live in 14 GENERATED
+  manifests and be cleared by the same commit that lands the artifacts — machinery this
+  one-off transition does not justify. **`commit-prebuilds` has since landed the rebuilt
+  images and the option is gone from the caller**, so the floor now fails: all 30 committed
+  darwin images measure `15.0`, except `@gjsify/webkit-native`'s two at `11.0` — its own
+  lower API floor, which the rule passes by design. The option stays in the rule for a
+  consumer in the same window; nothing in this repository may pass it again, because a
+  mode any caller can pin is a mode that silently stops holding the floor.
 - **Raising the floor is a one-line change** to the constant, and because
   `packages/infra/manifest-conformance/**` is a shared input to `prebuilds.yml`, that one
   line rebuilds every darwin prebuild. Lowering it below 15 is not a one-line change: the
