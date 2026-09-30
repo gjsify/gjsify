@@ -6,7 +6,7 @@
 
 import { Writable, Readable } from 'node:stream';
 import GLib from '@girs/glib-2.0';
-import { nativeTerminal } from '@gjsify/terminal-native';
+import { nativeIsTty, nativeSetRawMode, nativeTerminalSize } from '@gjsify/terminal-native';
 
 export class ReadStream extends Readable {
     isRaw = false;
@@ -22,9 +22,9 @@ export class ReadStream extends Readable {
     }
 
     setRawMode(mode: boolean) {
-        if (nativeTerminal) {
-            nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
-        }
+        // The result is deliberately dropped: `isRaw` below is this class's own
+        // bookkeeping and tty has no stty-shaped fallback to run on a refusal.
+        nativeSetRawMode(this.fd, mode);
         if (this.isRaw !== mode) {
             this.isRaw = mode;
             this.emit('modeChange');
@@ -54,11 +54,7 @@ export class WriteStream extends Writable {
     }
 
     get columns(): number {
-        if (nativeTerminal) {
-            const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
-            if (ok && cols > 0) return cols;
-        }
-        return this._columns;
+        return nativeTerminalSize(this.fd)?.columns ?? this._columns;
     }
 
     set columns(v: number) {
@@ -66,11 +62,7 @@ export class WriteStream extends Writable {
     }
 
     get rows(): number {
-        if (nativeTerminal) {
-            const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
-            if (ok && rows > 0) return rows;
-        }
-        return this._rows;
+        return nativeTerminalSize(this.fd)?.rows ?? this._rows;
     }
 
     set rows(v: number) {
@@ -79,13 +71,11 @@ export class WriteStream extends Writable {
 
     /** Detect terminal size from environment or native ioctl. */
     private _detectSize(): void {
-        if (nativeTerminal) {
-            const [ok, rows, cols] = nativeTerminal.Terminal.get_size(this.fd);
-            if (ok && cols > 0) {
-                this._columns = cols;
-                this._rows = rows;
-                return;
-            }
+        const size = nativeTerminalSize(this.fd);
+        if (size) {
+            this._columns = size.columns;
+            this._rows = size.rows;
+            return;
         }
         // Typed view over the process.env reads. The runtime fallback (GLib.getenv)
         // is invoked when process.env is absent — i.e. when the polyfill chain
@@ -230,9 +220,8 @@ export class WriteStream extends Writable {
     }
 
     setRawMode(mode: boolean) {
-        if (nativeTerminal) {
-            nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
-        }
+        // Result dropped, as on `ReadStream`: `isRaw` is this class's own state.
+        nativeSetRawMode(this.fd, mode);
         if (this.isRaw !== mode) {
             this.isRaw = mode;
             this.emit('modeChange');
@@ -270,10 +259,7 @@ export function isatty(fd: number | ReadStream | WriteStream): boolean {
         return isatty(fd.fd);
     }
     if (typeof fd === 'number') {
-        if (nativeTerminal) {
-            return nativeTerminal.Terminal.is_tty(fd);
-        }
-        return GLib.log_writer_supports_color(fd);
+        return nativeIsTty(fd) ?? GLib.log_writer_supports_color(fd);
     }
     return false;
 }

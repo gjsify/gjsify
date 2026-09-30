@@ -6,7 +6,7 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/core';
-import { nativeTerminal } from '@gjsify/terminal-native';
+import { nativeIsTty, nativeSetRawMode, nativeTerminalSize } from '@gjsify/terminal-native';
 import { StringDecoder } from '@gjsify/string_decoder';
 import { claimRawMode, releaseRawMode } from './raw-mode.js';
 import { getGjsGlobal, getGioNamespace } from './internal/gjs.js';
@@ -57,7 +57,8 @@ export class ProcessWriteStream extends EventEmitter {
     }
 
     get isTTY(): boolean {
-        if (nativeTerminal) return nativeTerminal.Terminal.is_tty(this.fd);
+        const isTty = nativeIsTty(this.fd);
+        if (isTty !== null) return isTty;
         try {
             const GLib = getGjsGlobal().imports?.gi?.GLib;
             if (GLib) return !!(GLib as Record<string, Function>).log_writer_supports_color(this.fd);
@@ -68,10 +69,8 @@ export class ProcessWriteStream extends EventEmitter {
     }
 
     get columns(): number {
-        if (nativeTerminal) {
-            const [ok, , cols] = nativeTerminal.Terminal.get_size(this.fd);
-            if (ok && cols > 0) return cols;
-        }
+        const size = nativeTerminalSize(this.fd);
+        if (size) return size.columns;
         try {
             const GLib = getGjsGlobal().imports?.gi?.GLib;
             if (GLib) {
@@ -90,10 +89,8 @@ export class ProcessWriteStream extends EventEmitter {
     destroy(): void {}
 
     get rows(): number {
-        if (nativeTerminal) {
-            const [ok, rows] = nativeTerminal.Terminal.get_size(this.fd);
-            if (ok && rows > 0) return rows;
-        }
+        const size = nativeTerminalSize(this.fd);
+        if (size) return size.rows;
         try {
             const GLib = getGjsGlobal().imports?.gi?.GLib;
             if (GLib) {
@@ -139,26 +136,22 @@ export class ProcessReadStream extends EventEmitter {
     }
 
     get isTTY(): boolean {
-        if (nativeTerminal) return nativeTerminal.Terminal.is_tty(this.fd);
-        return false;
+        return nativeIsTty(this.fd) ?? false;
     }
 
     setRawMode(mode: boolean): this {
-        if (nativeTerminal) {
-            const ok = nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
-            if (ok) {
-                this.isRaw = mode;
-                // This is the branch that used to claim nothing. The same call took
-                // two paths and only ONE of them remembered to be undone, so the
-                // terminal was restored on a host without the prebuild and stranded
-                // on every host with it — the normal case.
-                this._noteRawMode(mode, () => {
-                    nativeTerminal.Terminal.set_raw_mode(this.fd, false);
-                });
-                return this;
-            }
-            // set_raw_mode returned false — fd may not be a TTY (e.g. piped stdin).
-            // Fall through to stty fallback.
+        // `null` (no native module, or one whose calls throw) and `false` (the
+        // call ran and refused) both fall through to the stty fallback — the
+        // native call did not put the terminal in raw mode either way.
+        if (nativeSetRawMode(this.fd, mode)) {
+            this.isRaw = mode;
+            // This is the branch that used to claim nothing. The same call took
+            // two paths and only ONE of them remembered to be undone, so the
+            // terminal was restored on a host without the prebuild and stranded
+            // on every host with it — the normal case. The undo goes through the
+            // accessor too, so it cannot throw where the setter succeeded.
+            this._noteRawMode(mode, () => nativeSetRawMode(this.fd, false));
+            return this;
         }
         // Fallback: spawn `stty raw -echo` / `stty sane` with stdin inherited so it
         // sees the real terminal and the setting persists in the kernel tty driver.

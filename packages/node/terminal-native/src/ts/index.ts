@@ -46,7 +46,16 @@ export interface GjsifyTerminalModule {
 const _load = loadOptionalNativeModule<GjsifyTerminalModule>('GjsifyTerminal', ['Terminal', 'ResizeWatcher']);
 const _mod: GjsifyTerminalModule | null = _load.module;
 
-/** The native GjsifyTerminal module, or null if not installed. */
+/**
+ * The native GjsifyTerminal module, or null if not installed.
+ *
+ * READING this namespace proves less than it looks: girepository opens the
+ * shared library at the first member CALL, not at the load, so a namespace
+ * that resolved can still raise on every call (see {@link callableModule}).
+ * Prefer the `native*` accessors below — they carry that one step and return
+ * `null` instead of throwing, which is what an optional prebuild owes a caller
+ * that already has a fallback.
+ */
 export const nativeTerminal: GjsifyTerminalModule | null = _mod;
 
 /** Returns true when the GjsifyTerminal native library is available. */
@@ -61,4 +70,85 @@ export function hasNativeTerminal(): boolean {
  */
 export function getNativeTerminalLoadError(): Error | null {
     return _load.error;
+}
+
+/**
+ * The module, or `null` when its classes cannot actually be CALLED.
+ *
+ * {@link loadOptionalNativeModule} establishes that the classes can be READ,
+ * which is a weaker property than calling them. It is weaker on a host whose
+ * GLib predates GIRepository 3, where `probeNativeLibrary` can measure nothing
+ * and the class touch is the whole check — and that touch reads a name, while
+ * girepository opens the shared library at the first member call. So a
+ * namespace that resolved and whose name reads back can still raise on the
+ * first CALL, with GJS's own "Unsupported type void, deriving from fundamental
+ * void" and no hint of which library failed.
+ *
+ * Measured on gjs 1.88.1 / macOS arm64, in the `gjsify` CLI bundle: the
+ * bundled `cliui` shim evaluates `process.stdout.columns` at module init,
+ * which reached `Terminal.get_size` through an unresolvable
+ * `libgjsifyterminal.dylib` and killed the whole process before any command
+ * ran. Every consumer of this package reads a value it already has a fallback
+ * for, so the access belongs here, once, rather than as a try/catch at each of
+ * them — the fallback is the point of an OPTIONAL prebuild.
+ *
+ * @returns the module when its calls work, else `null`
+ */
+function callableModule(): GjsifyTerminalModule | null {
+    if (!_mod) return null;
+    try {
+        // A call, not a read: `is_tty` is the cheapest of the three (a
+        // `isatty(2)` on the fd, no allocation) and it is the one every
+        // consumer reaches first. `nativeTerminal` stays the raw namespace so
+        // a host that CAN call pays this probe once per process, not per read.
+        _mod.Terminal.is_tty(2);
+        return _mod;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * `Terminal.is_tty(fd)`, or `null` when the native module is absent or its
+ * calls throw. `null` is distinct from `false`: a caller that owns a fallback
+ * (`process.stdout.isTTY` → GLib's `log_writer_supports_color`) must take it
+ * on `null` and answer `false` itself on a real answer.
+ */
+export function nativeIsTty(fd: number): boolean | null {
+    try {
+        return callableModule()?.Terminal.is_tty(fd) ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * `Terminal.get_size(fd)` as `[rows, columns]`, or `null` when the native
+ * module is absent, its calls throw, or the ioctl reports no size. The last
+ * collapse is deliberate: every consumer asks the same question — "how wide is
+ * this fd, if I can really tell?" — and answered `ok && cols > 0` itself.
+ * Returns columns second, matching the bridge's own tuple order.
+ */
+export function nativeTerminalSize(fd: number): { rows: number; columns: number } | null {
+    try {
+        const size = callableModule()?.Terminal.get_size(fd);
+        const [ok, rows, columns] = size ?? [false, 0, 0];
+        if (!ok || columns <= 0) return null;
+        return { rows, columns };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * `Terminal.set_raw_mode(fd, enable)`, or `null` when the native module is
+ * absent or its calls throw. The caller keeps its own `isRaw` bookkeeping, so
+ * the return value is only ever read as "did the native call happen".
+ */
+export function nativeSetRawMode(fd: number, enable: boolean): boolean | null {
+    try {
+        return callableModule()?.Terminal.set_raw_mode(fd, enable) ?? null;
+    } catch {
+        return null;
+    }
 }
