@@ -41,8 +41,10 @@ import { resolveNpmPackage } from './utils/resolve-npm-package.js';
 // all of which the GJS bundle already carries via `commands/install.ts`.
 import { buildInstallCommand, detectPackageManager, missingSystemDepsFor } from './utils/check-system-deps.js';
 import { activateNativePrebuilds } from './utils/gi-search-path.js';
-import type { NativeLibraryFailure } from '@gjsify/utils/core';
+import type * as NativeLibraryModule from '@gjsify/utils/native-library';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+
+type NativeLibraryFailure = NativeLibraryModule.NativeLibraryFailure;
 
 // Loaded lazily: eager module-init loading of the npm crate pulls musl-detection
 // code that calls `require('node:fs')` synchronously — fine on Node, fatal under
@@ -157,8 +159,20 @@ function diagnoseNativeEngine(): string {
               ? `Install it:\n  ${cmd}`
               : `Install ${names} with your system package manager (this host's manager was not recognised, so no command is suggested rather than a wrong one).`;
 
-    // (0) The loader's own answer, when `tryLoadNative()` measured one: the file
-    // that would not open and the dependency it named. It outranks (1), which only
+    // (0) The measurement could not run at all. First, because everything below
+    // reasons from a measurement: with no reading in hand, (2) would assert the
+    // prebuild IS on girepository's search path — a positive claim this PR
+    // exists to make measurable, so its absence is stated rather than papered over.
+    if (_utilsCoreError !== null) {
+        parts.push(
+            `\nNOT MEASURED — the native-library probe could not be loaded, so nothing below is a reading of this host:\n  ${
+                _utilsCoreError instanceof Error ? _utilsCoreError.message : String(_utilsCoreError)
+            }`,
+        );
+    }
+
+    // (1) The loader's own answer, when `tryLoadNative()` measured one: the file
+    // that would not open and the dependency it named. It outranks (2), which only
     // knows what pkg-config can see — the dependency may be one no table declares.
     if (_nativeLibraryFailure && _utilsCore) {
         parts.push(
@@ -460,15 +474,28 @@ let _nativeLibraryFailure: NativeLibraryFailure | null = null;
  * points went missing across two packages. Same resolve-then-import dance the native
  * engine loader above already uses, and the same one the CSS plugin uses.
  */
-type NativeLibrarySurface = {
-    NativeLibraryLoadError: new (failure: NativeLibraryFailure, installHint?: string) => Error;
-    probeNativeLibrary: (namespace: string) => NativeLibraryFailure | null;
-};
+type NativeLibrarySurface = typeof NativeLibraryModule;
 let _utilsCore: NativeLibrarySurface | null = null;
+
+/**
+ * Why the probe itself could not run, when that is the reason. Kept apart from
+ * "there is no engine" on purpose: `tryLoadNative()`'s bare `catch` cannot tell
+ * the two apart, and `diagnoseNativeEngine()` then answers a question nobody
+ * asked — it reports which system libraries resolve, and says the prebuild IS on
+ * girepository's search path, which is a positive claim about a measurement that
+ * never happened. This PR exists to make such a claim measurable, so a missing
+ * measurement is reported as one.
+ */
+let _utilsCoreError: unknown = null;
 
 async function utilsCore(): Promise<NativeLibrarySurface> {
     if (_utilsCore === null) {
-        const href = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/core')).href;
+        // `./native-library`, not `./core`: `core` re-exports `main-loop`, which
+        // holds a module-level singleton. The GJS bundle inlines utils already,
+        // so loading `core` off disk would give the process a SECOND copy of that
+        // singleton — inert today because only pure probe functions are read
+        // through this edge, and a trap the first time that stops being true.
+        const href = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/native-library')).href;
         _utilsCore = (await import(/* @vite-ignore */ href)) as NativeLibrarySurface;
     }
     return _utilsCore;
@@ -607,8 +634,17 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
             // (Homebrew json-glib on a Mac) would pass here and fail inside
             // `new BundlerSession()` as the nameless "Unsupported type void" —
             // past `diagnoseNativeEngine()`, which then never runs.
-            _utilsCore = await utilsCore();
-            _nativeLibraryFailure = _utilsCore.probeNativeLibrary('GjsifyRolldown');
+            // Separated from the engine's own failure so that "the engine is
+            // absent" and "the measurement could not run" stay distinguishable
+            // at the one place that reports them.
+            let surface: NativeLibrarySurface;
+            try {
+                surface = await utilsCore();
+            } catch (err) {
+                _utilsCoreError = err;
+                return null;
+            }
+            _nativeLibraryFailure = surface.probeNativeLibrary('GjsifyRolldown');
             if (_nativeLibraryFailure) return null;
             return mod;
         } catch {

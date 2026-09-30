@@ -59,11 +59,11 @@ import { nodeBinary } from './run-node.js';
 import { spawnToCompletion } from './spawn.js';
 import { isGjs, gjsExit } from '@gjsify/rolldown-plugin-gjsify/runtime';
 // TYPE-only, and the reason is the same as in css-as-string.ts: `build:infra`
-// builds `@gjsify/cli` at clause 12 and utils' `lib/esm` only at clause 17, but
+// builds `@gjsify/cli` at clause 12 and utils' `lib/esm` only at clause 18, but
 // `bootstrap-native-facades.mjs` loads THIS module's Node entry in between — so
 // a static import makes the Node CLI entry unloadable, which is not a degraded
 // build but no build at all. The value arrives by dynamic import below.
-import type * as UtilsCore from '@gjsify/utils/core';
+import type * as UtilsCore from '@gjsify/utils/native-library';
 
 /** The probe's signature, taken from the type edge so the value edge can stay lazy. */
 type OpenNativeLibrary = typeof UtilsCore.openNativeLibrary;
@@ -289,14 +289,27 @@ async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
             // not load names itself instead of failing inside `runOxfmt()`.
             // Resolved and imported, not statically imported — the reasoning is
             // at the top of this file. By the time a formatter asks for the
-            // native backend, utils' `lib/esm` is built.
-            const utilsResolved =
-                resolveNpmPackage('@gjsify/utils/core', { bundleUrl: import.meta.url }) ??
-                createRequire(import.meta.url).resolve('@gjsify/utils/core');
-            const utilsHref = pathToFileURL(utilsResolved).href;
-            const { openNativeLibrary } = (await import(/* @vite-ignore */ utilsHref)) as {
-                openNativeLibrary: OpenNativeLibrary;
-            };
+            // native backend, utils' `lib/esm` is built. `./native-library`
+            // rather than `./core`: `core` re-exports `main-loop`, whose
+            // module-level singleton would then exist twice in a process that
+            // already carries it inlined in the GJS bundle.
+            //
+            // Its own `try` because the outer one cannot tell this apart from
+            // "there is no native backend", and `_nativeOxfmtLoadError` is the
+            // one place the npm fallback reports why it took over.
+            let openNativeLibrary: OpenNativeLibrary;
+            try {
+                const utilsResolved =
+                    resolveNpmPackage('@gjsify/utils/native-library', { bundleUrl: import.meta.url }) ??
+                    createRequire(import.meta.url).resolve('@gjsify/utils/native-library');
+                const utilsHref = pathToFileURL(utilsResolved).href;
+                ({ openNativeLibrary } = (await import(/* @vite-ignore */ utilsHref)) as {
+                    openNativeLibrary: OpenNativeLibrary;
+                });
+            } catch (err) {
+                _nativeOxfmtLoadError = err instanceof Error ? err : new Error(String(err));
+                return null;
+            }
             _nativeOxfmtLoadError = openNativeLibrary('GjsifyOxfmt');
             if (_nativeOxfmtLoadError) return null;
             return mod;

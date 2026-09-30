@@ -21,6 +21,10 @@
         "./main-loop": {
             "types": "./lib/types/main-loop.d.ts",
             "default": "./lib/esm/main-loop.js"
+        },
+        "./native-library": {
+            "types": "./lib/types/native-library.d.ts",
+            "default": "./lib/esm/native-library.js"
         }
     },
     "scripts": {
@@ -75,6 +79,12 @@
                 "nativescript": "polyfill"
             },
             "./main-loop": {
+                "gjs": "polyfill",
+                "node": "polyfill",
+                "browser": "polyfill",
+                "nativescript": "polyfill"
+            },
+            "./native-library": {
                 "gjs": "polyfill",
                 "node": "polyfill",
                 "browser": "polyfill",
