@@ -33,6 +33,7 @@ import { reconcileStringList } from './list-model.js';
 import { applyAccessibilityPlan, isAccessibleClass, planAccessibility } from './accessibility.js';
 import { coerce, isConstructOnly, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
+import { tagOf } from './tags.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -130,6 +131,13 @@ export function materialize(el: HostElement): GObject.Object {
         if (!(name in el.props)) throw err.missingConstructProp(el.descriptor.gtype, name);
     }
     const Klass = el.descriptor.ctor();
+    // `createElement` already refused a tag the table does not carry, and the shipped
+    // table no longer carries a class this typelib lacks — so this is the LAST line that
+    // can, and it exists because `registerWidget()` is public: a consumer may register a
+    // descriptor for a class its own build does not have. Measured on what it replaces
+    // (#1446): the next line reached `paramSpecs(undefined, …)` and died as
+    // `Cannot read properties of undefined (reading 'list_properties')`, naming no row.
+    if (!Klass) throw err.notInstalled(tagOf(el.descriptor.gtype), el.descriptor.gtype);
     const specs = paramSpecs(Klass, el.descriptor.gtype);
     const initial: Record<string, unknown> = {};
     for (const [name, value] of Object.entries(el.props)) {

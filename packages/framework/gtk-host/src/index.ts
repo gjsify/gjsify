@@ -61,6 +61,7 @@ export type {
     WithOnce,
 } from './attrs.js';
 export {
+    absentTags,
     clearRegistry,
     hasWidget,
     lookupWidget,
@@ -71,12 +72,16 @@ export {
 } from './registry.js';
 export {
     ADW_DESCRIPTORS,
-    BUILTIN_DESCRIPTORS,
+    builtinDescriptors,
     CURATED_DESCRIPTORS,
     GENERATED_PROVENANCE,
     GENERATED_WIDGETS,
+    GIR_DESCRIPTORS,
     GTK_DESCRIPTORS,
+    isInstalledHere,
     mergeGenerated,
+    notInstalledDescriptors,
+    partitionByPlatform,
     registerBuiltinWidgets,
     tableProvenance,
 } from './descriptors/index.js';

@@ -13,7 +13,7 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { dumpTree, gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
-import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
+import { builtinDescriptors, registerBuiltinWidgets } from './descriptors/index.js';
 import {
     adopt,
     createAnchor,
@@ -1287,7 +1287,9 @@ export default async () => {
                         show: (widget, name) => (widget as unknown as Adw.NavigationView).push_by_tag(name),
                     },
                 };
-                const keyed = BUILTIN_DESCRIPTORS.filter((d) => d.children.kind === 'keyed').map((d) => d.gtype);
+                const keyed = builtinDescriptors()
+                    .filter((d) => d.children.kind === 'keyed')
+                    .map((d) => d.gtype);
                 expect([...keyed].sort()).toStrictEqual(Object.keys(drive).sort());
 
                 for (const gtype of keyed) {
@@ -1443,7 +1445,7 @@ export default async () => {
             // a blanket "use a page for every Adw split view" would have hidden
             // that difference behind a convention.
             const CHILD_TAG: Readonly<Record<string, string>> = { AdwNavigationSplitView: 'AdwNavigationPage' };
-            for (const d of BUILTIN_DESCRIPTORS) {
+            for (const d of builtinDescriptors()) {
                 if (d.children.kind !== 'slotted') continue;
                 for (const slot of Object.keys(d.children.slots)) {
                     await it(`${d.gtype} slot "${slot}"`, async () => {

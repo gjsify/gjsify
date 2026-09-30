@@ -24,13 +24,28 @@ export const err = {
         new GtkHostError(
             'unknown-tag',
             `No descriptor registered for <${tag}>. Register one with registerWidget({ gtype: '${tag}', … }). ` +
-                // NOT "or use a raw GType tag": `lookupWidget` is a Map.get and nothing
-                // else — there is no `GObject.type_from_name` anywhere in this package —
-                // so a real, installed GType name lands right back here. That is ADR
-                // 0028's decision, not an omission ("As a TAG it does not: createElement
-                // looks the GType name up exactly"), and the hierarchy walk that DOES
-                // exist, `nearestRegistered`, only ever answers for a mount container.
+                // NOT "or use a raw GType tag": the shipped table is a table, and a name
+                // it does not carry reaches here whether or not the installed typelib
+                // builds it. What the typelib DOES build decides only whether the row
+                // reached the table at all — that is `not-installed` below, and this
+                // message's claim holds for a row the typelib never had.
                 `Being a real GType in the installed typelib is not enough on its own.`,
+        ),
+    notInstalled: (tag: string, gtype: string) =>
+        new GtkHostError(
+            'not-installed',
+            `<${tag}> names ${gtype}, which the GIR this table was generated from declares but the ` +
+                // THE CLAIM THE REFUSAL MAKES, and it is a measured one rather than a
+                // guess: nothing in the generated artefact can know it. The generated
+                // table is read from a GIR, and a GIR has no platform axis — GTK's own
+                // Gtk-4.0.gir declares this class on a host that has it and the win32
+                // typelib does not build it at all, because GTK compiles gtk/print/
+                // under #ifdef G_OS_UNIX (#1446). So the row is dropped where a typelib
+                // is loaded, and the table reports the absence rather than handing out a
+                // tag whose class is undefined — which reached `materialize` as
+                // "Cannot read properties of undefined (reading 'list_properties')".
+                `installed GTK does not have. The widget table is generated from one platform's GIR, ` +
+                `so it carries classes this platform never built; this one is offered nowhere.`,
         ),
     missingConstructProp: (tag: string, prop: string) =>
         new GtkHostError(

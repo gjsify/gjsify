@@ -223,7 +223,9 @@
 # fixed in the ENGINE by #1488, merged 2026-09-03, and still counted here, because the
 # fix is in the addon's C++ and these legs install the PUBLISHED addon (see the table
 # above): the first release carrying it is what removes them, not the merge. 2 are inherited from
-# the gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
+# the gtk-host table defect above (#1446) — CLOSED: the shipped table now resolves every
+# row against the running typelib, so it offers neither class on win32 and refuses the tag
+# BY NAME — and 2 are POSIX-shaped ASSERTIONS — the
 # Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
 # `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
 # `get_path()` answers the NATIVE path and GLib correctly hands back
@@ -742,26 +744,39 @@ jobs:
 
       # GATING ON darwin, A PROBE HERE, and the asymmetry is a measured finding
       # rather than a concession — see WHAT THE SECOND RUN FOUND in the header.
-      # `@gjsify/gtk-host`'s generated widget table offers `GtkPageSetupUnixDialog`
-      # and `GtkPrintUnixDialog`, which GTK does not build on Windows, so six
-      # assertions in `generated.spec.ts` / `conformance.spec.ts` fail on one root
-      # cause. That is this layer's defect, not the operating system's, and it is
-      # owned by the generator subtree.
+      # `@gjsify/gtk-host`'s generated widget table used to offer
+      # `GtkPageSetupUnixDialog` and `GtkPrintUnixDialog`, which GTK does not build on
+      # Windows, so six assertions in `generated.spec.ts` / `conformance.spec.ts` failed
+      # on one root cause. That was this layer's defect, not the operating system's.
       #
-      # RETIREMENT CONDITION: when the table stops offering Unix-only rows on a
-      # Windows host, delete `continue-on-error` and this comment. The steps ABOVE
-      # stay gating, so the win32 leg still fails loudly if the published bundle
-      # stops carrying a loadable Gtk + Adw — which is the claim ADR 0024 § 4 rests
-      # on and the reason this leg exists.
+      # IT IS FIXED, and the fix is NOT "the rows left `generated/widgets.ts`". The
+      # table is read from ONE platform's GIR and a GIR has no platform axis: GTK
+      # compiles `gtk/print/` under `#ifdef G_OS_UNIX`, so `Gtk-4.0.gir` declares both
+      # classes while the win32 typelib builds neither, and NOTHING in the generator's
+      # input can say so — not the GIR, not `@girs/<ns>/vocabulary` (zero platform
+      # attributes over the namespace, measured), and not a name pattern, because the
+      # next class a platform omits need not be spelled `Unix`. So the rows STAY in the
+      # generated artefact (they are real classes on the platform that generated it —
+      # deleting them would be a claim about a platform nobody measured) and the SHIPPED
+      # table resolves them against the installed typelib: `builtinDescriptors()` is the
+      # GIR table minus what this host does not build, and a tag naming one of those is
+      # refused `not-installed` BY NAME instead of reaching `materialize` as
+      # `Cannot read properties of undefined (reading 'list_properties')` (#1446).
       #
-      # The clauses below are that sentence as DATA, evaluated every run by
-      # `scripts/check-probe-retirement.mjs`. The generated table is the subject rather
-      # than #1446 alone, because an issue can be closed by a decision while the rows
-      # stay — and the rows are what the suite dereferences.
-      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
-      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
-      #   retire-when: issue-closed 1446
-      - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
+      # RETIREMENT CONDITION, therefore the step's OWN RECORDED OUTCOME — the same shape
+      # the darwin `@gjsify/react-native` probe above retired on, and for the same
+      # measured reason: a proxy can be unreachable while the thing it stands for is
+      # fixed. The previous clauses (`tree-lacks … widgets.ts <name>`) were, by
+      # construction, satisfiable only by deleting rows that exist on two of three
+      # platforms. Five consecutive green `main` runs is a strictly stronger condition
+      # than that. The steps ABOVE stay gating either way, so the win32 leg still fails
+      # loudly if the published bundle stops carrying a loadable Gtk + Adw — which is the
+      # claim ADR 0024 § 4 rests on and the reason this leg exists.
+      #
+      # `scripts/check-probe-retirement.mjs` evaluates this on every run and fails the
+      # day it comes true, so `continue-on-error` and this comment are then deleted.
+      #   retire-when: probe-green 5
+      - name: '@gjsify/gtk-host — probe (gating blocked until it is green five times on main)'
         id: gtk-host-probe
         continue-on-error: true
         working-directory: packages/framework/gtk-host
@@ -773,25 +788,28 @@ jobs:
       - name: 'Probe outcome: @gjsify/gtk-host'
         if: always()
         env:
-          PROBE_LABEL: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
+          PROBE_LABEL: '@gjsify/gtk-host — probe (gating blocked until it is green five times on main)'
           PROBE_OUTCOME: ${{ steps.gtk-host-probe.outcome }}
         run: node scripts/report-probe-outcome.mjs
 
       # See the darwin job's copy of this step for why the published addon means an
       # unreleased engine fix is invisible here. On top of that, win32 has its own
-      # two: the gtk-host table's Unix-only rows (#1446) and the POSIX-shaped image
+      # two: the gtk-host table's Unix-only rows (#1446, now closed — the rows STAY in
+      # the generated artefact and the SHIPPED table resolves them against the running
+      # typelib, which is why its clauses are gone below) and the POSIX-shaped image
       # assertions in the header's attribution.
       #
-      # RETIREMENT CONDITION, as data. The first clause is ALREADY MET — node-gi 0.46.0
-      # carried #1438's engine fix on 2026-09-03 — and is kept rather than dropped because
-      # a met clause is how a conjunction shows which half is left. The table rows are the
-      # half that is not, and the darwin leg above records what a met release clause is and
-      # is not worth on its own.
+      # RETIREMENT CONDITION, as data, and the remaining clause is the step's OWN
+      # RECORDED OUTCOME. The first clause was ALREADY MET — node-gi 0.46.0 carried
+      # #1438's engine fix on 2026-09-03 — and it was kept rather than dropped because a
+      # met clause is how a conjunction shows which half is left; the darwin leg above
+      # records what a met release clause is and is not worth on its own. The
+      # `tree-lacks … widgets.ts <name>` clauses are gone with #1446's fix: the rows
+      # cannot leave a generated artefact read from one platform's GIR without that file
+      # lying about the platforms it is right on.
       #   retire-when: npm-version-min @gjsify/node-gi latest 0.46.0
-      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
-      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
       #   retire-when: probe-green 5
-      - name: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
+      - name: '@gjsify/react-native — probe (gating blocked on the engine release)'
         id: rn-probe-win32
         continue-on-error: true
         working-directory: packages/framework/react-native
@@ -803,7 +821,7 @@ jobs:
       - name: 'Probe outcome: @gjsify/react-native'
         if: always()
         env:
-          PROBE_LABEL: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
+          PROBE_LABEL: '@gjsify/react-native — probe (gating blocked on the engine release)'
           PROBE_OUTCOME: ${{ steps.rn-probe-win32.outcome }}
         run: node scripts/report-probe-outcome.mjs
 

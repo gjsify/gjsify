@@ -18,7 +18,7 @@ import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { lookupWidget, registeredTags, registerWidget } from './registry.js';
 import { createElement, insert, materialize, remove, setSlot } from './host.js';
 import type { WidgetDescriptor } from './types.js';
-import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
+import { builtinDescriptors, registerBuiltinWidgets } from './descriptors/index.js';
 
 export default async () => {
     await on(GTK_HOSTS, async () => {
@@ -142,7 +142,7 @@ export default async () => {
             });
 
             await it('every descriptor declares at least one method or an explicit none', async () => {
-                for (const d of BUILTIN_DESCRIPTORS) {
+                for (const d of builtinDescriptors()) {
                     const methods = methodsOf(d.children);
                     // Assert the ENTRIES, not the length: `methodsOf` returns a
                     // fixed-length array per kind, so a policy with every method
@@ -162,12 +162,12 @@ export default async () => {
                 // registers a widget, and passes when two descriptors collide.
                 // Identity answers the question the count was standing in for.
                 const seen = new Set<string>();
-                for (const d of BUILTIN_DESCRIPTORS) {
+                for (const d of builtinDescriptors()) {
                     expect(seen.has(d.gtype)).toBe(false);
                     seen.add(d.gtype);
                     expect(lookupWidget(d.gtype) === d).toBe(true);
                 }
-                expect(registeredTags().length >= BUILTIN_DESCRIPTORS.length).toBe(true);
+                expect(registeredTags().length >= builtinDescriptors().length).toBe(true);
             });
 
             await it('reports a descriptor that lies — the check is not vacuous', async () => {

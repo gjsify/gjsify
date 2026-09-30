@@ -837,6 +837,63 @@ host's own `coerce()` path. A member the installed library lacks is accepted onl
 if the GIR says it arrived in a newer release — `GtkApplicationWindow::save-state`
 is GTK 4.24 and the check runs on 4.22.4.
 
+### The table's PLATFORM axis — a GIR has none, the typelib does
+
+`src/generated/` is produced on ONE platform from ONE platform's GIR, and a GIR
+describes what that compiler built. GTK compiles `gtk/print/` under
+`#ifdef G_OS_UNIX`, so `Gtk-4.0.gir` declares `GtkPrintUnixDialog` and
+`GtkPageSetupUnixDialog` — while the win32 typelib builds neither. The generated
+artefact therefore offered both on Windows, and `materialize` then reached
+`paramSpecs(undefined, …)` and died as `Cannot read properties of undefined
+(reading 'list_properties')`: **6 of 2264** assertions on the first complete
+win32 leg of `gtk-os-suites.yml`, five of them naming no row at all (#1446).
+
+Nothing in the generator's input can state the platform: not the GIR (no platform
+attribute over the namespace), not `@girs/<ns>/vocabulary` (zero platform
+attributes, measured), and not a `*Unix*` name pattern — the next class a platform
+omits need not be spelled that way, which is why that heuristic is wrong exactly
+where it would matter. So the rows **stay** in the generated artefact (they are
+real classes on the platform that generated it) and the SHIPPED table resolves
+them where a typelib is actually loaded:
+
+| | |
+|---|---|
+| `GIR_DESCRIPTORS` | every row the GIR yielded — platform-neutral, free to import |
+| `builtinDescriptors()` | `GIR_DESCRIPTORS` minus what THIS typelib does not build — what `registerBuiltinWidgets()` installs and what `hasWidget()`/`lookupWidget()` answer from |
+| `notInstalledDescriptors()` | the complement, by name — `tableProvenance().notInstalled` |
+| `absentTags()` | the same, as GType names, after registration |
+
+A tag naming a row the platform lacks raises `not-installed`, which names the
+GType and says the class is absent — not `unknown-tag`, whose message ("being a
+real GType in the installed typelib is not enough on its own") is the opposite of
+the truth on that platform. Both spellings (`<GtkPrintUnixDialog>` and
+`<gtk-print-unix-dialog>`) reach it, and `materialize` refuses too, because
+`registerWidget()` is public and an application can hand the table a class its own
+build lacks.
+
+Two measurements shaped this and are the reason the obvious versions do not work:
+
+- **`type_from_name` alone is not the oracle.** On gjs 1.88.1 / Homebrew GTK
+  4.24.0 `type_from_name('GtkPrintUnixDialog')` answers **0** while
+  `Gtk.PrintUnixDialog` is present and constructs — a typelib registers a class
+  when the namespace member is first read, not when the typelib loads. The single
+  call would have dropped two rows that exist, on the platform that has them. The
+  read of the namespace member is what registers, and it answers `undefined` for a
+  name the library does not build (`gtypeOfName`, `props.ts`).
+- **The split is LAZY.** Asking about a class forces its registration: 38 ms for
+  all 169 rows here, against 133 ms for `Gtk.init()` itself. A module-level `const`
+  would make every importer pay it — the same cost `nearestRegistered()` was
+  rewritten to stop paying on the first subclass ever mounted — so
+  `builtinDescriptors()` memoises and is called by `registerBuiltinWidgets()`,
+  which an application that brings its own table never calls at all.
+
+macOS is a Unix, so both dialogs are built there: measured, **169 of 169** rows
+resolve on Homebrew GTK 4.24.0 and `tableProvenance().notInstalled` is empty. The
+fix is therefore a no-op on darwin and Linux by measurement, not by exemption —
+`generated.spec.ts` § "shipped table vs the running platform" asserts
+`hasWidget(gtype) === isInstalledHere(gtype)` over the WHOLE table, so both arms
+pass on all three platforms and neither is the expected one.
+
 ### A base that leaves the namespace
 
 The generator reads `@girs/<ns>/vocabulary` (ADR 0029) for Gtk and Adw — the only two that

@@ -21,11 +21,16 @@ import Gtk from 'gi://Gtk?version=4.0';
 
 import { installDiagnosticsGate } from './conformance/index.js';
 import {
-    BUILTIN_DESCRIPTORS,
+    builtinDescriptors,
     CURATED_DESCRIPTORS,
     GENERATED_PROVENANCE,
     GENERATED_WIDGETS,
+    GIR_DESCRIPTORS,
+    isInstalledHere,
+    notInstalledDescriptors,
+    partitionByPlatform,
     REQUIRED_CONSTRUCT_PROPS,
+    tableProvenance,
 } from './descriptors/index.js';
 import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
 import { ENUM_VALUES, ENUM_VALUES_UNAVAILABLE, VALUES_PROVENANCE } from './generated/enum-values.mjs';
@@ -42,9 +47,18 @@ import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } fr
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
-import { hasWidget, lookupWidget } from './registry.js';
+import {
+    absentTags,
+    clearRegistry,
+    hasWidget,
+    lookupWidget,
+    registerAbsentWidgets,
+    registerWidget,
+    registerWidgets,
+} from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
+import type { WidgetDescriptor } from './types.js';
 
 /**
  * Every member the surface offers for a widget, and WHERE it was declared.
@@ -119,6 +133,21 @@ const writableSpecs = (gtype: string): string[] | null => {
     return names;
 };
 
+/**
+ * A row whose class NO host builds — the shape the shipped table used to offer on
+ * win32 for GTK's Unix print stack (#1446), with the platform taken out so the absent
+ * arm is reachable on every runner.
+ *
+ * The name is deliberately not spellable `*Unix*`: nothing may classify it, it is
+ * answered by the typelib the same way any other row is, and a probe of that name on a
+ * host that somehow had it would fail rather than pass quietly.
+ */
+const ABSENT_PROBE = {
+    gtype: 'GtkGjsifyAbsentProbe',
+    ctor: () => (Gtk as unknown as Record<string, unknown>)['GjsifyAbsentProbe'] as never,
+    children: { kind: 'none' },
+} as unknown as WidgetDescriptor;
+
 export default async () => {
     await on(GTK_HOSTS, async () => {
         Gtk.init();
@@ -146,19 +175,42 @@ export default async () => {
                 .map((m) => [m[1] as string, m[2] as string]),
         );
         const libraryOf = (gtype: string): 'Adw' | 'Gtk' => (gtype.startsWith('Adw') ? 'Adw' : 'Gtk');
+
+        /**
+         * What the SHIPPED table offers here, and whether one GType is in it.
+         *
+         * The distinction every walk in this file now has to make, and it did not have
+         * to make it before #1446 because there was no way to be wrong about it: the
+         * table WAS the GIR's widget set, so a row the installed GTK did not build was
+         * still a row, and `lookupWidget` handed it back with a `ctor()` that answered
+         * `undefined`. On Windows that reached `materialize` as `Cannot read properties
+         * of undefined (reading 'list_properties')` and the suite reported six failures
+         * naming no row between them. `builtinDescriptors()` carries the platform axis
+         * now, so a walk over `GENERATED_WIDGETS` has to ask.
+         */
+        const offered = GENERATED_WIDGETS.filter((w) => hasWidget(w.gtype));
+        const offeredBelow = (gtype: string): boolean => hasWidget(gtype);
         /**
          * WHICH rule excuses a type the installed library does not have, not merely
          * whether one does.
          *
+         * `platform` is the newest arm and the only one that is not about versions: the
+         * GIR declares a class this platform's GTK never built, so no release number can
+         * excuse it and no release number should have to (#1446 — the whole of GTK's
+         * Unix print stack, absent on win32 whatever version it runs). It answers off
+         * the SHIPPED table's own partition rather than off `process.platform`, so the
+         * same rule holds on every OS and needs no OS branch.
+         *
          * `stated` is exact: the vocabulary says the type arrived in a release newer
          * than the one running. `blanket` is not — it only says the vocabulary as a
          * whole is newer, which excuses EVERY absence at once for as long as that is
-         * true. Both were one boolean, so a run could not report how much it had
+         * true. All three were one boolean, so a run could not report how much it had
          * stopped checking; measured here, 40 of 169 widgets carry a stated version
          * and NONE of the 129 enum types do, so on the enum side the blanket is the
          * only route there is.
          */
-        const excuseFor = (gtype: string): 'stated' | 'blanket' | null => {
+        const excuseFor = (gtype: string): 'platform' | 'stated' | 'blanket' | null => {
+            if (!offeredBelow(gtype)) return 'platform';
             const library = libraryOf(gtype);
             const declared = SINCE[gtype];
             if (declared !== undefined) return newerThan(declared, running[library] as string) ? 'stated' : null;
@@ -226,6 +278,11 @@ export default async () => {
             await it('adds tags without touching a curated rule', async () => {
                 const curated = new Map(CURATED_DESCRIPTORS.map((d) => [d.gtype, d]));
                 for (const generated of GENERATED_WIDGETS) {
+                    // A row this host does not install is not in the table at all —
+                    // `offeredBelow` is what decides, and asserting over the unfiltered
+                    // list would be asserting that every platform has GTK's Unix print
+                    // stack (#1446).
+                    if (!offeredBelow(generated.gtype)) continue;
                     const existing = curated.get(generated.gtype);
                     if (!existing) continue;
                     // The merged table must hand back the CURATED object itself for
@@ -234,7 +291,7 @@ export default async () => {
                     // silently dropped its `textSink`.
                     expect(lookupWidget(generated.gtype) === existing).toBe(true);
                 }
-                expect(BUILTIN_DESCRIPTORS.length).toBe(GENERATED_WIDGETS.length);
+                expect(builtinDescriptors().length).toBe(offered.length);
             });
 
             await it('every curated widget is one the generator also found', async () => {
@@ -248,7 +305,7 @@ export default async () => {
 
             await it('is reachable by both spellings, and the kebab map is injective', async () => {
                 assertInjective(GENERATED_WIDGETS.map((w) => w.gtype));
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     expect(TAGS[w.gtype]).toBe(w.tag);
                     expect(tagOf(w.gtype)).toBe(w.tag);
                     expect(hasWidget(w.tag)).toBe(true);
@@ -312,7 +369,7 @@ export default async () => {
                 // languages and all. `GtkFontChooserDialog` stays under test for
                 // everything else it might say.
                 const missingIsoCodes = /^Failed to load '.*\/iso-codes\/iso_639(_3)?\.xml'/;
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     // A class the installed library does not have cannot be built. The
                     // absence is weighed above, once; here it is simply not a row.
                     if (!installedCtor(w)) continue;
@@ -363,7 +420,7 @@ export default async () => {
             await it('has a FLOOR — a deleted row cannot pass unnoticed', async () => {
                 // Every other check in this file iterates the committed table and
                 // therefore agrees with whatever the table happens to say; the one
-                // length assertion it had (`BUILTIN_DESCRIPTORS.length` ===
+                // length assertion it had (`builtinDescriptors().length` ===
                 // `GENERATED_WIDGETS.length`) compares the merge against its own
                 // input. So deleting a row from `generated/widgets.ts` was invisible:
                 // the tag stops existing, nothing iterates it, exit 0.
@@ -434,10 +491,17 @@ export default async () => {
                 // Excused by the blanket alone. Not a failure — but a number that must
                 // be READABLE, because it is the part of this check that did not run.
                 const blanket: string[] = [];
+                // And the third excuse, printed for the same reason: on a platform that
+                // does not build these classes this list is the whole story of what the
+                // shipped table declined to offer, and a run that reported nothing would
+                // be indistinguishable from a run where nothing was absent (#1446 — on
+                // win32 the six failures it produced named no row between them).
+                const platform: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
                     if (installedCtor(w)) continue;
                     const excuse = excuseFor(w.gtype);
                     if (excuse === 'blanket') blanket.push(w.gtype);
+                    if (excuse === 'platform') platform.push(w.gtype);
                     if (excuse !== null) continue;
                     const library = libraryOf(w.gtype);
                     unexplained.push(
@@ -450,12 +514,18 @@ export default async () => {
                             `no stated one: ${blanket.join(', ')})`,
                     );
                 }
+                if (platform.length > 0) {
+                    console.error(
+                        `  (${platform.length} class(es) this platform's GTK does not build, ` +
+                            `and the shipped table does not offer: ${platform.join(', ')})`,
+                    );
+                }
                 expect(unexplained).toStrictEqual([]);
             });
 
             await it('names a real class for every tag', async () => {
                 const wrong: string[] = [];
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     const ctor = installedCtor(w);
                     if (!ctor) continue;
                     const name = GObject.type_name(ctor.$gtype);
@@ -465,10 +535,122 @@ export default async () => {
             });
         });
 
+        // The table's PLATFORM axis, which it did not have and could not have in the
+        // generated artefact: `src/generated/` is read from one platform's GIR, and a
+        // GIR has no platform axis (#1446).
+        await gated(diagnostics, 'shipped table vs the running platform', async () => {
+            await it('offers a row exactly when the running typelib has its class', async () => {
+                // THE CLAIM, in both directions and over the WHOLE table, so no class
+                // and no platform is named anywhere: nothing here knows what a Unix
+                // print dialog is, and the check passes on Linux, on both darwin
+                // arches and on win32 without one of them being the "expected" case.
+                //
+                // A one-direction version of this is what #1446 had: the suite asked
+                // whether a row's class existed and never whether a row the platform
+                // lacks was still being offered, so on win32 six assertions walked off
+                // the end of `ctor()` and five of them named no row at all.
+                const lying: string[] = [];
+                for (const d of GIR_DESCRIPTORS) {
+                    const installed = isInstalledHere(d);
+                    if (installed !== hasWidget(d.gtype)) lying.push(`${d.gtype}: ${installed ? 'has' : 'lacks'} it`);
+                }
+                expect(lying).toStrictEqual([]);
+                // And the partition is exhaustive and disjoint, so a row cannot be both
+                // offered and reported absent — the two lists are computed in ONE pass
+                // precisely so that a probe answering differently between them cannot
+                // produce that state.
+                expect(builtinDescriptors().length + notInstalledDescriptors().length).toBe(GIR_DESCRIPTORS.length);
+                const overlap = builtinDescriptors()
+                    .map((d) => d.gtype)
+                    .filter((g) => notInstalledDescriptors().some((d) => d.gtype === g));
+                expect(overlap).toStrictEqual([]);
+                // And what the table declined is REPORTED, not merely withheld — a run
+                // that printed nothing would be indistinguishable from a host with no
+                // absent classes, which is the diagnosis defect half of #1446.
+                expect(tableProvenance().notInstalled).toStrictEqual(notInstalledDescriptors().map((d) => d.gtype));
+            });
+
+            await it('the Unix print dialogs are offered exactly where the typelib has them', async () => {
+                // The two rows the issue names, pinned so a change to the rule cannot
+                // quietly re-offer them or quietly drop them. They are READ from the
+                // typelib, never from a list: on this host (Homebrew GTK 4.24.0) GTK
+                // compiles `gtk/print/` because macOS is a Unix, so both are here and
+                // both are offered — measured, 169 of 169 generated rows resolve. On
+                // win32 the same two lines take the other arm, and neither arm is the
+                // expected one.
+                const probe = createElement('gtk-print-unix-dialog');
+                expect(Gtk.PrintUnixDialog === undefined).toBe(hasWidget('gtk-print-unix-dialog') === false);
+                if (hasWidget('gtk-print-unix-dialog')) {
+                    expect(materialize(probe) instanceof Gtk.PrintUnixDialog).toBe(true);
+                } else {
+                    expect(() => materialize(probe)).toThrow(/installed GTK does not have.*GtkPrintUnixDialog/s);
+                }
+                const setup = createElement('gtk-page-setup-unix-dialog');
+                expect(Gtk.PageSetupUnixDialog === undefined).toBe(hasWidget('gtk-page-setup-unix-dialog') === false);
+                if (hasWidget('gtk-page-setup-unix-dialog')) {
+                    expect(materialize(setup) instanceof Gtk.PageSetupUnixDialog).toBe(true);
+                } else {
+                    expect(() => materialize(setup)).toThrow(/installed GTK does not have.*GtkPageSetupUnixDialog/s);
+                }
+            });
+
+            await it('a row whose class this host does not build is REFUSED BY NAME', async () => {
+                // The absent path, FORCED, because no host in CI lacks either print
+                // dialog and a test that only ever takes the present arm checks nothing
+                // on the platform that broke. The row is one whose `ctor()` answers
+                // `undefined` — exactly what the table used to hand out on win32 — and
+                // it is put through the SHIPPED partition rather than through
+                // `registerWidget`, because the refusal being checked is the one a
+                // reader of the shipped table gets.
+                const absent = partitionByPlatform([ABSENT_PROBE]);
+                expect(absent.installed).toStrictEqual([]);
+                expect(absent.absent).toStrictEqual([ABSENT_PROBE]);
+                registerAbsentWidgets(absent.absent);
+                try {
+                    // BOTH spellings, and both name the GType: a Vue template writes
+                    // `<GtkGjsifyAbsentProbe>`, a `.tsx` file can only write
+                    // `<gtk-gjsify-absent-probe>` (ADR 0028 § 7), and `unknown-tag`'s
+                    // message — "being a real GType in the installed typelib is not
+                    // enough on its own" — is the opposite of the truth here.
+                    for (const tag of ['GtkGjsifyAbsentProbe', 'gtk-gjsify-absent-probe']) {
+                        expect(() => createElement(tag)).toThrow(/installed GTK does not have/);
+                        expect(() => createElement(tag)).toThrow(/GtkGjsifyAbsentProbe/);
+                    }
+                    // And it is not in the vocabulary a renderer may name, which is the
+                    // other half of "does not offer".
+                    expect(hasWidget('gtk-gjsify-absent-probe')).toBe(false);
+                    expect(absentTags()).toContain('GtkGjsifyAbsentProbe');
+                } finally {
+                    clearRegistry();
+                    registerBuiltinWidgets();
+                }
+                expect(absentTags()).toStrictEqual([]);
+            });
+
+            await it('a REGISTERED row whose class is missing refuses at materialize, not by dereference', async () => {
+                // The LAST line, and it is its own case because `registerWidget()` is
+                // public: an application may register a descriptor for a class its own
+                // build does not have, and that row reaches `materialize` through a
+                // path no table partition can filter. What it replaces, and why the
+                // assertion names the class: unguarded, `materialize` read
+                // `Klass.list_properties()` off `undefined` and died as
+                // `Cannot read properties of undefined (reading 'list_properties')`.
+                registerWidget(ABSENT_PROBE);
+                try {
+                    expect(() => materialize(createElement('GtkGjsifyAbsentProbe'))).toThrow(
+                        /installed GTK does not have/,
+                    );
+                    expect(() => materialize(createElement('GtkGjsifyAbsentProbe'))).toThrow(/GtkGjsifyAbsentProbe/);
+                } finally {
+                    registerWidgets(builtinDescriptors());
+                }
+            });
+        });
+
         await gated(diagnostics, 'generated surface vs installed typelib', async () => {
             await it('offers no property the installed GTK does not have as writable', async () => {
                 const problems: string[] = [];
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     const writable = writableSpecs(w.gtype);
                     if (!writable) continue;
                     const real = new Set(writable);
@@ -483,7 +665,7 @@ export default async () => {
 
             await it('leaves no writable property of the installed GTK out of the surface', async () => {
                 const problems: string[] = [];
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     const offered = surfaceMembers(w.gtype, OWN_PROPS);
                     for (const name of writableSpecs(w.gtype) ?? [])
                         if (!offered.has(name)) problems.push(`${w.gtype}.${name}`);
@@ -498,7 +680,7 @@ export default async () => {
 
             await it('offers no signal the installed GTK does not emit', async () => {
                 const problems: string[] = [];
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     const ctor = installedCtor(w);
                     if (!ctor) continue;
                     const gtype = ctor.$gtype;
@@ -536,7 +718,7 @@ export default async () => {
                 // itself by going green, which under `it.failing` is a failure.
                 const missing: string[] = [];
                 const asked = new Set<string>();
-                for (const w of GENERATED_WIDGETS) {
+                for (const w of offered) {
                     for (const declaration of DECLS[w.gtype] ?? []) {
                         if (asked.has(declaration)) continue;
                         const gtype = declarationGType(declaration);
@@ -697,7 +879,7 @@ export default async () => {
                 // was read from a typelib and reaches the types no widget property
                 // names (`GPasswordSave` is `GMountOperation:password-save`).
                 const carriedBySpecs = new Set<string>();
-                for (const gtype of Object.keys(TAGS)) {
+                for (const gtype of offered.map((w) => w.gtype)) {
                     const ctor = installedCtor(lookupWidget(gtype));
                     if (!ctor) continue;
                     for (const [, spec] of paramSpecs(ctor, gtype)) {

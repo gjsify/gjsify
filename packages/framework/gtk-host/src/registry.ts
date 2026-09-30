@@ -18,6 +18,27 @@ import type { WidgetDescriptor } from './types.js';
 const registry = new Map<string, WidgetDescriptor>();
 
 /**
+ * The rows the GIR offered and THIS typelib does not have, by GType name.
+ *
+ * A third map rather than a filter with no trace. The generated table is produced from
+ * a GIR, and a GIR has no platform axis: GTK 4.24's own `Gtk-4.0.gir` on this host
+ * declares `GtkPrintUnixDialog`, and the win32 typelib that table was generated against
+ * does not build it, because GTK compiles `gtk/print/` under `#ifdef G_OS_UNIX` and
+ * Windows is not Unix (#1446). Nothing in the input can say so, so the shipped table
+ * resolves it where a typelib is actually loaded — and a row that resolution removed has
+ * to stay NAMEABLE, because the alternative is the failure this map exists to end:
+ * `lookupWidget` raising `unknown-tag`, whose whole message is that being a real GType
+ * in the installed typelib is not enough on its own — the precise opposite of what a
+ * Windows author needs to be told.
+ *
+ * Registration is one-way, so this map only ever grows for rows the host lacks, and
+ * `registerWidget()` never writes here: a consumer's own `GObject.registerClass`
+ * subclass is registered BY the class's own code, so it is not a row this table had to
+ * drop (ADR 0028 § Consequences).
+ */
+const absent = new Map<string, string>();
+
+/**
  * The kebab spelling of each GType name, kept in a SECOND map.
  *
  * Two spellings exist because two dialects insist on different ones (ADR 0028 § 7)
@@ -42,13 +63,36 @@ export function registerWidgets(descriptors: readonly WidgetDescriptor[]): void 
     for (const d of descriptors) registerWidget(d);
 }
 
+/**
+ * Record rows the shipped table has but this typelib does not, so a tag that names
+ * one is refused as NOT INSTALLED rather than as unknown.
+ *
+ * Keyed by BOTH spellings, each mapping to the GType name the refusal should print —
+ * the reason `registry` and `aliases` are two maps, so this lookup stays a `Map.get`
+ * rather than a scan.
+ */
+export function registerAbsentWidgets(descriptors: readonly WidgetDescriptor[]): void {
+    for (const d of descriptors) {
+        absent.set(d.gtype, d.gtype);
+        absent.set(tagOf(d.gtype), d.gtype);
+    }
+}
+
 export function lookupWidget(tag: string): WidgetDescriptor {
     const d = registry.get(tag) ?? aliases.get(tag);
-    if (!d) throw err.unknownTag(tag);
-    return d;
+    if (d) return d;
+    // The last chance to say WHY. `unknown-tag`'s whole message is that being a real
+    // GType in the installed typelib is not enough on its own — the precise opposite of
+    // what an author on the platform that does not build this class needs to be told.
+    const notHere = absent.get(tag);
+    if (notHere !== undefined) throw err.notInstalled(tag, notHere);
+    throw err.unknownTag(tag);
 }
 
 export const hasWidget = (tag: string): boolean => registry.has(tag) || aliases.has(tag);
+
+/** Every GType the shipped table has and this typelib does not, sorted. */
+export const absentTags = (): string[] => [...new Set(absent.values())].sort();
 
 /** Every registered GType name — the conformance suite walks this, so coverage is data. */
 export const registeredTags = (): string[] => [...registry.keys()].sort();
@@ -93,4 +137,5 @@ export function nearestRegistered(gtype: GObject.GType): WidgetDescriptor | unde
 export function clearRegistry(): void {
     registry.clear();
     aliases.clear();
+    absent.clear();
 }

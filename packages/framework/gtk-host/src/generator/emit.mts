@@ -176,6 +176,22 @@ export function emitWidgets(input: EmitInput, floor = 100): EmitResult {
 // drifts the moment a curated row is added without regenerating — this header said
 // 26 against a curated table of 35, and nothing read the sentence. The live answer
 // is \`tableProvenance().curated\`.
+//
+// THIS FILE HAS NO PLATFORM AXIS, and that is a property of its INPUT rather than a
+// gap in it. A GIR is one library's introspection of itself on one platform's
+// compiler: GTK builds \`gtk/print/\` under \`#ifdef G_OS_UNIX\`, so \`Gtk-4.0.gir\`
+// declares \`GtkPrintUnixDialog\` and \`GtkPageSetupUnixDialog\` while the win32 typelib
+// does not build either. Nothing here can say so — not the GIR, not
+// \`@girs/<ns>/vocabulary\`, which carries zero platform attributes over the whole
+// namespace (measured), and not a name pattern, because the next class a platform
+// omits need not be spelled \`Unix\`. So every row below is \`ctor()\`-lazy AND
+// availability-conditional: \`ctor()\` answers \`undefined\` on a host that does not
+// have the class, and the shipped table resolves that where a typelib is loaded
+// (\`builtinDescriptors()\`), naming the rows it drops instead of handing out a tag
+// whose class is undefined (#1446). Regenerating on another platform would NOT fix
+// it: the artefact is committed, so it is read on every platform from the one
+// generation — which is exactly the shape that kept this invisible until a Windows
+// leg ran the suite.
 
 ${used.map((ns) => `import ${ns} from '${modules[ns]}';`).join('\n')}
 

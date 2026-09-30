@@ -113,15 +113,28 @@ export function constructOnlyNames(klass: GObject.ObjectClass, gtypeName: string
     return names;
 }
 
-/** The GI object a GType NAME belongs to, CONFIRMED by the GType that object carries. */
+/**
+ * The GI object a GType NAME belongs to, CONFIRMED by the GType that object carries.
+ *
+ * THE `typeof … === 'object'` FILTER THIS USED TO CARRY IS GONE, and it is why the
+ * availability question had no answer until now: a GObject CLASS is a FUNCTION, so the
+ * filter let every boxed struct through and every class out — and every row of the
+ * widget table is a class. `gtypeOfName` could only ever answer for `Gdk.Rectangle`,
+ * which is why reading the namespace was commented as a fallback rather than used as the
+ * oracle. The `$gtype`-name agreement below is the check that actually does the work,
+ * and it holds for a class and for a boxed struct alike.
+ *
+ * TWO `G` PREFIXES are in the table above, so a name is tried against each namespace
+ * that claims its prefix and the first whose member's `$gtype` agrees wins. That
+ * agreement is what keeps `GPasswordSave` off `GObject`.
+ */
 function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
     for (const [prefix, ns] of GI_NAMESPACES) {
         if (!gtypeName.startsWith(prefix)) continue;
-        const candidate = ns[gtypeName.slice(prefix.length)];
-        if (!candidate || typeof candidate !== 'object') continue;
-        const gtype = (candidate as { $gtype?: GObject.GType }).$gtype;
+        const candidate = ns[gtypeName.slice(prefix.length)] as { $gtype?: GObject.GType } | undefined;
+        const gtype = candidate?.$gtype;
         if (!gtype || GObject.type_name(gtype) !== gtypeName) continue;
-        return candidate as Record<string, unknown>;
+        return candidate as unknown as Record<string, unknown>;
     }
     return undefined;
 }
@@ -132,8 +145,18 @@ function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
  * `type_from_name` is asked FIRST because it is the answer that needs no table. It
  * answers null until something has touched the type, which is why the table is still
  * reachable at all: reading `Gio.PasswordSave` is what registers `GPasswordSave`.
+ *
+ * THE ORDER IS LOAD-BEARING AND MEASURED, because the obvious one-call version of this
+ * question is wrong in the direction that costs a working row. On this host (gjs 1.88.1,
+ * Homebrew GTK 4.24.0) `type_from_name('GtkPrintUnixDialog')` answers **0** while
+ * `Gtk.PrintUnixDialog` is present and constructs — a typelib registers a class when the
+ * namespace member is first read, not when the typelib is loaded. An oracle built on the
+ * single call would have dropped two rows that are really there, on the platform that has
+ * them. Reading the namespace member is what registers, and it answers `undefined` for a
+ * name the library does not build — measured, and it leaves the namespace usable, so the
+ * probe costs nothing to run over a whole table.
  */
-function gtypeOfName(gtypeName: string): GObject.GType | undefined {
+export function gtypeOfName(gtypeName: string): GObject.GType | undefined {
     const registered = GObject.type_from_name(gtypeName);
     if (registered) return registered;
     return (giTypeObject(gtypeName) as { $gtype?: GObject.GType } | undefined)?.$gtype;

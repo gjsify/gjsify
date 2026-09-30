@@ -25,7 +25,7 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { descriptorProblems, gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
-import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
+import { builtinDescriptors, registerBuiltinWidgets } from './descriptors/index.js';
 import type { GtkHostError } from './errors.js';
 import { adopt, createElement, destroy, insert, materialize, remove, setProp } from './host.js';
 import { isPortal, isUnparented, outsideParentOf, placementOf, portalOf } from './policies.js';
@@ -322,7 +322,7 @@ export default async () => {
             await it('is declared by every registered Adw.Dialog subclass', async () => {
                 const dialogs: string[] = [];
                 const withoutPortal: string[] = [];
-                for (const d of BUILTIN_DESCRIPTORS) {
+                for (const d of builtinDescriptors()) {
                     const Klass = d.ctor() as unknown as { $gtype?: GObject.GType } | undefined;
                     if (!Klass?.$gtype) continue;
                     if (!GObject.type_is_a(Klass.$gtype, Adw.Dialog.$gtype)) continue;
@@ -377,7 +377,7 @@ export default async () => {
                 } finally {
                     // Put the real table back: the registry is module-global and
                     // every describe after this one reads it.
-                    registerWidgets(BUILTIN_DESCRIPTORS);
+                    registerWidgets(builtinDescriptors());
                 }
             });
 
@@ -438,7 +438,7 @@ export default async () => {
                 const roots: string[] = [];
                 const undeclared: string[] = [];
                 const unpresentable: string[] = [];
-                for (const d of BUILTIN_DESCRIPTORS) {
+                for (const d of builtinDescriptors()) {
                     const Klass = d.ctor() as unknown as { $gtype?: GObject.GType; prototype?: object } | undefined;
                     if (!Klass?.$gtype) continue;
                     if (!GObject.type_is_a(Klass.$gtype, Gtk.Root.$gtype)) continue;
@@ -1148,7 +1148,7 @@ export default async () => {
                     }
                     return undefined;
                 } finally {
-                    registerWidgets(BUILTIN_DESCRIPTORS);
+                    registerWidgets(builtinDescriptors());
                 }
             };
 
@@ -1207,7 +1207,7 @@ export default async () => {
                     expect(gtkChildTypes(box)).toStrictEqual(['GtkWindow']);
                     remove(win);
                 } finally {
-                    registerWidgets(BUILTIN_DESCRIPTORS);
+                    registerWidgets(builtinDescriptors());
                 }
             });
         });

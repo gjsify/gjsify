@@ -17,7 +17,7 @@ export { installAccessibilityBackend, withAtContext } from './at-context.js';
 import GObject from 'gi://GObject?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 
-import { BUILTIN_DESCRIPTORS } from '../descriptors/index.js';
+import { builtinDescriptors } from '../descriptors/index.js';
 import {
     addressOf,
     adderSlots,
@@ -113,7 +113,7 @@ export interface DescriptorProblem {
  * the check runs up front and names the widget.
  */
 export function descriptorProblems(
-    descriptors: readonly WidgetDescriptor[] = BUILTIN_DESCRIPTORS,
+    descriptors: readonly WidgetDescriptor[] = builtinDescriptors(),
 ): DescriptorProblem[] {
     const problems: DescriptorProblem[] = [];
     for (const d of descriptors) {
