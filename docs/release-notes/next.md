@@ -30,13 +30,74 @@ A worked example is the v0.28.0 release body:
 https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 -->
 
+This release is where GJS stops being a place you can only run a web page. Four
+things here are new capability rather than repair, and they are the reason to
+read the notes rather than skim the changelog:
+
+- **Gamepads on macOS and Windows.** `@gjsify/gamepad` gains an SDL3 backend
+  behind a C shim, so the W3C Gamepad API works on the two desktops that had
+  none. Linux gets the same shim alongside libmanette, plus a mode that runs
+  both on the same controllers and reports every disagreement.
+- **Browser extensions.** `gjsify webext` builds a WebExtension for Chrome,
+  Edge, Firefox and Safari from one source — on GJS as well as on Node, with no
+  Vite.
+- **`gjsify exec`.** Run an installed npm binary on the runtime gjsify itself
+  runs on, instead of the program failing to start.
+- **TLS in both directions.** A GJS `https` client now completes a real
+  handshake, and `https.createServer({ key, cert })` serves the certificate it
+  was given instead of listening in plain text.
+
+Underneath them, a long-lived `node:sqlite` connection stops wearing out, Ed25519
+and X25519 land in `node:crypto` and WebCrypto, readline echoes what you type,
+and `gjsify` learns to find a native addon at run time so a GJS bundle is no
+longer pinned to the machine that built it.
+
 ## Upgrading
 
 Every `@gjsify/*` package moves together (ADR 0008): compatibility is guaranteed
 only within one release, so upgrade the whole set with `gjsify upgrade --latest
 --filter @gjsify`, or repair drift with `gjsify upgrade --align`.
 
-### `node:sqlite` is safe in a long-lived process now
+## Gamepads on macOS and Windows
+
+0.52.0 shipped `@gjsify/gamepad` on libmanette 0.2, which is a Linux library, so
+macOS and Windows had no gamepad backend at all: `navigator.getGamepads()`
+answered the empty list and the package said so rather than pretending. They have
+one now.
+
+`@gjsify/gamepad-native` is a GObject shim over SDL3 — one C source, statically
+linked and trimmed to the input subsystems, reached as `gi://GjsifyGamepad`
+(through `@gjsify/node-gi` on Windows, which has no GJS). It ships as one package
+per target: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64` and
+`win32-x64`, installed automatically as an optional dependency, and found by
+`gjsify run` through `GI_TYPELIB_PATH` (and on Windows through `PATH`). Rumble
+goes through `GamepadHapticActuator` as before and additionally reports
+`trigger-rumble` as its own capability. The design is ADR 0075.
+
+**On Linux nothing changes by default.** libmanette stays the backend, because
+the shim has not yet replaced it there. `GJSIFY_GAMEPAD_BACKEND=sdl` selects the
+shim, and `=compare` runs both on the same controllers at once, pairing them by
+USB vendor:product and reporting every connect, disconnect and control on which
+the two disagree for more than one poll. That comparison is not a formality: on
+an 8BitDo N30 Pro 2, measured for ADR 0075, libmanette reports no Home button and
+no right-stick Y and fires the left trigger when the right stick is pushed down,
+because its evdev backend matches a mapping's `aN` against the kernel axis CODE
+rather than the N-th axis the device has. SDL is the correct one of the two. What
+is still open is replacing libmanette outright, which waits for that comparison
+against real controllers to be finished rather than started.
+
+**What has not been verified yet, stated plainly:** input from a real controller
+on macOS or Windows. No CI runner has a controller, so those runs are against
+virtual pads — a uinput X360 pad on Linux, and on Windows a virtual pad through
+ViGEmBus, which the driver refuses to plug in on a Windows **Server** runner
+(`windows-2022`), so that leg announces itself as skipped there and SDL's own
+virtual joystick carries the measurement on every OS instead.
+`gjsify.os.darwin` and `gjsify.os.win32` stay `partial` until a person has held a
+real pad on each. On a host with no prebuild, `getGamepads()` still answers the
+conformant empty list and `hasGamepadBackend()` still reports false — a platform
+gap, reported rather than hidden.
+
+## `node:sqlite` is safe in a long-lived process now
 
 Two defects made a long-running connection on GJS the wrong thing to rely on, and
 both are fixed. If you run a daemon that keeps one `DatabaseSync` open — a mail
@@ -61,8 +122,8 @@ accepts. `SELECT EXISTS (SELECT 1 FROM t)` was exactly that — it rendered as
 `SELECT EXISTS ((SELECT 1 FROM t))`, and the double parenthesis is a syntax error.
 The predicate is now restated in a form libgda can carry, and `S` is copied byte
 for byte, so every parameter, literal and identifier inside it keeps its position.
-Nesting and a comment between the keyword and its parenthesis are handled, and the
-word is left alone inside a string literal, a quoted identifier or a comment.
+Nesting and a comment between the keyword and its parenthesis are handled, and
+the word is left alone inside a string literal, a quoted identifier or a comment.
 
 ### Native addons stay external in `--app node` bundles
 
@@ -129,8 +190,8 @@ types in PEM, DER and JWK.
 
 The curve arithmetic comes from `@noble/curves`, an audited pure-JS library. Ed25519
 verification follows OpenSSL rather than the library's default: small-order keys and `R` values
-are rejected and the equation is cofactorless. That way GJS gives the same answer as Node on the
-WPT small-order vectors. The tests check the RFC 8032 and RFC 7748 vectors and all 518 Wycheproof
+are rejected and the equation is cofactorless. That way GJS gives the same answer as Node on
+the WPT small-order vectors. The tests check the RFC 8032 and RFC 7748 vectors and all 518 Wycheproof
 X25519 cases. They run on both GJS and Node.
 
 A library that picks its code path by checking `typeof crypto.diffieHellman === 'function'` now
@@ -140,8 +201,8 @@ takes the `node:crypto` path on GJS. npm `libsignal`, used by Baileys, is one of
 
 `.gjsify-link.json` stays out of git through the repository's own `info/exclude`, which `gjsify
 link` writes and `gjsify unlink` removes again. In a git worktree that file went to the wrong
-directory: git SHARES `info/exclude` across a repository's worktrees, and the entry landed under the
-worktree's own git directory, in `worktrees/daemon/info/exclude`, which git never reads. `git status`
+directory: git SHARES `info/exclude` across a repository's worktrees, and the entry landed under
+the worktree's own git directory, in `worktrees/daemon/info/exclude`, which git never reads. `git status`
 in the worktree kept listing `?? .gjsify-link.json`, so the next `git add -A` committed the very
 override `link` exists to keep out of every commit — measured on a worktree of a submodule.
 
@@ -150,6 +211,55 @@ whether it holds a relative path (what `git worktree add` writes) or an absolute
 and a submodule have no `commondir` and behave exactly as before. A `commondir` that names nothing —
 blank, a directory, or a path that is not there, all three of which real git exits 128 on — is
 reported as `unreadable-git` rather than guessed at.
+
+## `readline` echoes what you type
+
+On GJS, a readline interface in terminal mode was silent. A fresh tty echoes a written byte —
+verified against the pty itself — but an interface opened with `terminal: true` did not: raw mode
+silences the kernel's echo, and nothing wrote the character back. The keypress events arrived
+correctly all along (KEY "x", KEY "\r", KEY "\u0003" with `ctrl=true`); the handler simply acted
+on none of them. So a person typed into the void, and ctrl-c went nowhere.
+
+Printable characters are echoed, backspace erases on screen, return submits the assembled line, and
+ctrl-c follows Node's rule: a SIGINT listener decides, and without one the interface closes.
+Measured on a real pty, with 94 tests.
+
+## `https` completes a handshake and serves the certificate it is given
+
+Two halves of TLS on GJS, both measured:
+
+**The client.** `tls.connect()` upgrades a `net.Socket` after its `connect` event, but `net`
+starts a raw read loop right after emitting it, and that pending read collided with GnuTLS's own
+handshake reads — `G_IO_ERROR_PENDING`, "stream has outstanding operation" — swallowing the
+server's handshake bytes. The handshake now claims the loop, and it is restarted on the TLS
+streams afterwards.
+
+**The server.** `https.createServer({ key, cert })` returned an `http.Server` that ignored its
+options and listened in plain text, so no GJS https server ever presented a certificate. The http
+server now takes a TLS hand-off from `https`: it listens with Soup's HTTPS flag on the bridge's
+`Soup.Server`, with the PEM pair as `tls-certificate`. `requestCert` maps to `tls-auth-mode`
+(`REQUIRED` unless `rejectUnauthorized` is false) and `ca` to the trust store, as in Node.
+
+## An `--app gjs` bundle finds its native addon at run time
+
+`--app gjs` used to choose the platform `.node` at BUILD time, and all four shim shapes baked that
+absolute path into the bundle. A GJS bundle carrying a third-party addon was therefore valid only
+on the machine, and at the path, that built it: move the tree and the bundle starts, then dies at
+the first addon command with `gjsify-napi: cannot resolve addon path`. Measured on a consumer.
+
+The build now enumerates every `.node` the package ships, keyed by platform, and bakes that table
+in; the shim picks the entry for the host it finds itself on and resolves the package root through
+the bundle-URL banner.
+
+## A native library that will not load now names itself
+
+On macOS, `gjsify build` died with "Unsupported type void, deriving from fundamental void" whenever
+Homebrew's json-glib was missing: the typelib resolved, the library it names could not be opened,
+and nothing said which file or which dependency. Every typelib-backed bridge can fail that way, so
+the probe is the shared one — `probeNativeLibrary` forces the namespace's library to load and, when
+that fails, reports the file, the host loader's own message, and the leaf name of the dependency it
+could not find. `NativeLibraryLoadError` is what the optional bridges raise, so a missing dependency
+reads the same whichever bridge hit it.
 
 ## New
 
@@ -214,6 +324,7 @@ over all of it.
 
 The Linux reader is measured, in CI too. The Windows and macOS readers have not yet run
 on those systems.
+
 ## Browser extensions
 
 `gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
@@ -255,6 +366,16 @@ it does in Node. A rejected certificate reports Node's error code, for example
 `DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or
 `ERR_TLS_CERT_ALTNAME_INVALID`. The TLS options of an `https.Agent` override the request's,
 the same as in Node.
+
+## `SharedBuffer` and WebRTC reach macOS
+
+`@gjsify/sab-native` was Linux-only by design, so a Mac could not use `SharedBuffer` at all,
+and `@gjsify/webrtc-native` had the same gap. Both now ship darwin prebuilds. The port is not a
+copy: Darwin has no Unix-domain `SEQPACKET`, no `SOCK_CLOEXEC` or `MSG_CMSG_CLOEXEC`, reports no
+count from `os_sync_wake_by_address_all` (so the shim wakes one waiter at a time until `ENOENT`),
+defines no `CMSG_ALIGN` and aligns control messages to 4 bytes — which makes the musl-safe
+`CMSG_NXTHDR` the Linux path carries walk the wrong header. The darwin source uses the system
+macro instead. ADR 0013 recorded this gate in advance; this is its payload.
 
 ## `typeof window` tells the truth in `--app node` bundles
 
