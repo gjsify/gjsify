@@ -3539,7 +3539,7 @@ jobs:
       # C lifecycle (20 cycles, two monitors, dispose without close) and the
       # message-queue measurement: what the shim leaves on the calling thread and
       # whether anything piles up there with nobody pumping, as in a GLib process.
-      - name: Test @gjsify/gamepad-native (lifecycle, message queue)
+      - name: Test @gjsify/gamepad-native (lifecycle, virtual pad, message queue)
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         working-directory: packages/web/gamepad-native
         run: meson test -C build --print-errorlogs --verbose
@@ -3643,6 +3643,15 @@ jobs:
       # 0.1.0 sdist, pinned by checksum. The pad holds A and the left stick right;
       # the probe must see it connect, read both, and see it leave — calling only
       # update(), never pumping the thread's queue, and with nothing piling up there.
+      #
+      # This leg SKIPS (exit 77) on a host that cannot host the driver, which on
+      # CI means every Windows runner: `windows-2022` is Windows Server 2022, and
+      # the pinned ViGEmBus 1.17.333 opens its bus there and then never gets the
+      # virtual device enumerated (0xE0000007, upstream nefarius/ViGEmBus#85, repo
+      # archived 2023). The skip is announced and written to the step summary; it is
+      # never a silent green. What still holds the line on Windows: the meson test
+      # `virtual-pad` drives a real pad through the shim with no driver at all, and
+      # `win32-message-queue` measures the message pump with no device.
       - name: Install ViGEmBus + a virtual Xbox 360 pad
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         shell: pwsh
@@ -3672,13 +3681,39 @@ jobs:
           $pad = Start-Process python -ArgumentList 'packages/web/gamepad-native/test/vigem-pad.py', "`"$env:VIGEM_CLIENT`"", "`"$ready`"", '12' -PassThru -NoNewWindow
           $deadline = (Get-Date).AddSeconds(60)
           while (-not (Test-Path $ready)) {
-            if ($pad.HasExited) { throw "vigem-pad.py exited before the pad was ready ($($pad.ExitCode))" }
+            if ($pad.HasExited) {
+              # 77 is meson's SKIP and the convention uinput-pad already uses:
+              # the host cannot give us a device. It is reported, never silent —
+              # a skipped leg that says nothing is how it comes back looking new.
+              if ($pad.ExitCode -eq 77) {
+                # An ARRAY joined, not a here-string: PowerShell wants a here-string's
+                # closing '@ in column 0, which is not a shape YAML's block scalar
+                # gives you for free.
+                $note = @(
+                  '**ViGEm leg SKIPPED (exit 77).** The pinned vgamepad 0.1.0 sdist carries'
+                  'ViGEmBus 1.17.333 and this runner is Windows Server 2022; the bus opens,'
+                  'then the virtual device is never enumerated by the system'
+                  '(`VIGEM_ERROR_TARGET_NOT_PLUGGED_IN`, 0xE0000007) — upstream'
+                  'nefarius/ViGEmBus#85, repository archived 2023. Not fixable from this PR.'
+                  'What still measures it on Windows: the meson test `virtual-pad` drives a'
+                  'pad through the shim with no driver at all, and `win32-message-queue`'
+                  'measures the message pump with no device.'
+                ) -join "`n"
+                Write-Host "::notice title=ViGEm leg skipped::$($note -replace "`r?`n", ' ')"
+                $note | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+                exit 0
+              }
+              throw "vigem-pad.py exited before the pad was ready ($($pad.ExitCode))"
+            }
             if ((Get-Date) -gt $deadline) { throw 'the virtual pad was not ready within 60 s' }
             Start-Sleep -Milliseconds 200
           }
           & packages/web/gamepad-native/build/win32-message-queue.exe
           $rc = $LASTEXITCODE
           $pad.WaitForExit()
+          # The measurement ran, so the pad's own exit is a real result now: a
+          # pad that cannot be removed afterwards is a defect, not a skip.
+          if ($pad.ExitCode -ne 0) { throw "vigem-pad.py failed after the measurement ($($pad.ExitCode))" }
           exit $rc
 
 

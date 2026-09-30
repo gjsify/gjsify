@@ -347,3 +347,59 @@ Measured on Fedora 44 x86-64 (local build, `buildtype=minsize`):
 | a real controller | an 8BitDo N30 Pro 2 over Bluetooth (`2dc8:2865`) enumerates in both backends with the same name; SDL uses its **evdev** driver (no HIDAPI marker in the GUID; `/dev/hidraw*` is root-only on this host) and reports no rumble, as libmanette does. Until the pad sends its first report, the kernel holds its axes at 0 of 0..255, which SDL reports as -1 and libmanette does not report at all; `compare` shows it |
 | the first comparison | Pascal's 20 s recording on that pad: the same buttons in both backends, except that only SDL reports Home (libmanette's own mapping for this GUID has no `guide`); SDL − libmanette latency median 1.5 ms (SDL polled every 4 ms). It found a **libmanette-side bug in this package, not in either library**: `ManetteSource` read `get_absolute()` as SDL axis indices, but libmanette reports Linux codes (`rightx`→`ABS_RX` 3, `righty`→`ABS_RY` 4, `manette-mapping.c`). The right stick's X landed on W3C axis 3 and its Y on the left trigger, for every controller libmanette maps. Both libraries map this pad identically (the same gamecontrollerdb row, `rightx:a2,righty:a3` = `ABS_Z`/`ABS_RZ`); SDL's values were the right ones |
 | the second recording | every button pressed and both sticks moved to every edge, with the fix above: 16 buttons identical in both backends, Home again only in SDL; left stick -1..1 in both; right X -0.20..1.00 in both (the same bytes, so a hand or hardware limit, not a backend); **right Y: SDL -1.00..0.31, libmanette nothing at all**; latency median 2.3 ms, max 4.0 ms. The dead axis is a **libmanette bug**, read in its source: the evdev backend passes the kernel CODE as `hardware_index` (0.2.13 `manette-evdev-backend.c`, unchanged on `main`), while a gamecontrollerdb `aN` is the N-th axis the device HAS — the ordinal SDL uses. The two agree only for pads whose axis codes have no gaps (xpad: X, Y, Z, RX, RY, RZ). This pad has X, Y, Z, RZ, GAS, BRAKE, so `righty:a3` asks for code 3 (`ABS_RX`, absent) and the real right Y (`ABS_RZ`, code 5) is taken for `a5`, the left trigger: libmanette's LT fires when the right stick is pushed down. SDL reads the same row correctly. Not yet explained: SDL's right Y stops at +0.31, and raw evdev during a recording would say whether that is the pad |
+
+## Amendment 2, 2026-09-30 — the win32 device leg is SDL's virtual joystick; ViGEm skips where the OS cannot host it
+
+### What changed
+
+The win32 CI leg created its XInput pad with ViGEmBus: a third-party kernel driver,
+installed per run from the vgamepad 0.1.0 sdist, checksum-pinned like everything else
+here. It has never passed. `vigem_connect` succeeds — the driver loads and the bus
+opens — and `vigem_target_add` then returns `0xE0000007`, which is
+`VIGEM_ERROR_TARGET_NOT_PLUGGED_IN` in vgamepad's own table
+(`vgamepad/win/vigem_commons.py`): the target is accepted and the virtual device is
+**never enumerated by the system**. There is no call sequence that changes that.
+
+The cause is the runner, not the code. GitHub's `windows-2022` label is Windows
+**Server** 2022. The pinned sdist carries ViGEmBus **1.17.333**, and that driver on
+that OS family installs cleanly, shows up in Device Manager, and then cannot be talked
+to — upstream nefarius/ViGEmBus#85, on a repository archived in 2023. A PR cannot be
+merged against a driver the runner's OS will not run, so this had to change rather than
+be retried.
+
+Two changes, and the second is the one that matters:
+
+1. **The ViGEm leg skips, loudly.** `test/vigem-pad.py` exits **77** — meson's SKIP, and
+   the convention `uinput-pad.c` already established for a device the host cannot give
+   us — and names the error, the driver version, the OS and the upstream issue on both
+   stderr and the step summary. `GJSIFY_GAMEPAD_REQUIRE_VIGEM=1` makes it a failure
+   again, mirroring `GJSIFY_GAMEPAD_REQUIRE_UINPUT=1`, which CI sets for uinput and
+   deliberately does not set here. A skip that says nothing is how a leg comes back
+   looking new, so it is announced, not silent.
+2. **`test/virtual-pad.c` takes over the device measurement on every OS.** SDL attaches
+   a virtual joystick in-process (`SDL_AttachVirtualJoystick`): no kernel driver, no
+   privilege, no hardware, no device tree. The test drives a pad through the shim —
+   connect, south, left stick right, release, centre, disconnect, each arriving through
+   `update()` alone on a thread that pumps nothing, and the device still readable after
+   it goes — and it runs identically on a workstation and on every runner, which is what
+   makes it a better measurement than the leg it replaces, not merely a cheaper one.
+
+### The limit, stated rather than discovered later
+
+A virtual device is added through `SDL_PrivateJoystickAdded`. It never travels
+`RegisterDeviceNotification` / `WM_DEVICECHANGE` (nor udev), so `virtual-pad` cannot
+claim that the shim sees a pad the *system* announces. That half of the device path is
+measurable in CI only on a host that can host a real virtual HID driver: uinput on
+Linux, ViGEm on a Windows **client** OS. So the honest position is that win32 CI proves
+the shim's device lifecycle and its message-pump behaviour, and does not prove Windows
+device notification. The test's header, the README and `status/open-todos/gamepad.md` all
+say so, and the todo records that a Windows client runner is what would close it.
+
+One build detail that is easy to get wrong and would have made the new test a silent
+no-op: it links the shim's **objects** rather than `libgjsifygamepad`. The library
+carries its own statically linked SDL; linking that alongside `SDL3-static` would put two
+SDL instances in one process, the pad would exist only in the one the test holds, and
+every assertion would pass while measuring nothing. Verified by negative control —
+`SDL_JOYSTICK_TYPE_UNKNOWN` instead of `SDL_JOYSTICK_TYPE_GAMEPAD` makes the shim
+enumerate nothing and the test fail on `device-added: 0`, which is the same failure a
+missing gamepad mapping would produce in the field.

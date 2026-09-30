@@ -251,6 +251,25 @@ lifecycle = executable('monitor-lifecycle', 'test/monitor-lifecycle.c',
 )
 test('monitor-lifecycle', lifecycle)
 
+# The device half, with no device to ask the OS for. SDL attaches a virtual
+# joystick in-process, so this runs everywhere this shim builds — including the
+# Windows runner, where the ViGEm leg below cannot run at all. See the file for
+# what it does and does not cover.
+#
+# The shim's OBJECTS, not `link_with: libgjsifygamepad`. This test calls SDL
+# itself to attach the pad, and libgjsifygamepad carries its own statically
+# linked SDL; linking both would put two SDL instances in one process, the pad
+# would exist only in the one this test can see, and every assertion below would
+# pass while measuring nothing. One instance, reached two ways.
+virtual_pad = executable('virtual-pad', 'test/virtual-pad.c',
+    objects: libgjsifygamepad.extract_all_objects(recursive: false),
+    dependencies: dependencies,
+    include_directories: include_directories('src/c'),
+)
+# Not parallel, for the same reason as `uinput-pad` below: the pad is a real
+# device for the whole process, and the tests above assert ZERO devices.
+test('virtual-pad', virtual_pad, timeout: 60, is_parallel: false)
+
 # The same lifecycle through the typelib under gjs, i.e. the GIR annotations
 # @gjsify/gamepad relies on. The build directory holds both the typelib and the
 # library its `shared-library` names.

@@ -67,7 +67,7 @@ Set `MACOSX_DEPLOYMENT_TARGET` to the repository floor (ADR 0074) for a build yo
 gjsify workspace @gjsify/gamepad-native run test:meson
 ```
 
-No test uses a fake. On every OS:
+No test stubs the shim. On every OS:
 
 - `monitor-lifecycle`: C. 20 start/update/close cycles, two monitors at once, and a
   dispose without close.
@@ -82,6 +82,18 @@ No test uses a fake. On every OS:
   member (ADR 0005), so a plain checkout has none until `npm install` in
   `packages/node-gi/node-gi`; `prebuilds.yml`'s macOS leg does exactly that before
   `meson setup`.
+- `virtual-pad`: a pad that appears and leaves on its own, read through the shim —
+  connect, south, left stick right, release, centre, disconnect, each arriving through
+  `update()` alone on a thread that pumps no queue, and the device still readable (zeroed)
+  after it goes. It gets its device from **SDL's own virtual joystick**
+  (`SDL_AttachVirtualJoystick`), in-process: no kernel driver, no privilege, no hardware,
+  so it runs identically on a developer machine and on every CI runner. What it cannot
+  say is that the shim sees a pad the *system* announces — a virtual device is added
+  through `SDL_PrivateJoystickAdded` and never travels `WM_DEVICECHANGE` / udev. That
+  half belongs to `uinput-pad` on Linux and to the ViGEm leg on Windows below. It links
+  the shim's objects rather than the shared library on purpose: the library carries its
+  own static SDL, and linking both would give the process two, with the pad visible only
+  to the one the test holds.
 
 Per OS:
 
@@ -101,7 +113,15 @@ Per OS:
   device from stdin, for running the JS sources against it.
 - **win32**: `win32-message-queue` (see below). CI also loads the prebuild under Node
   through `@gjsify/node-gi` (`test/probe-node-gi.mjs`) and reads a ViGEmBus virtual
-  XInput pad (`test/vigem-pad.py`).
+  XInput pad (`test/vigem-pad.py`). That leg **skips (exit 77)** on a host that cannot
+  host the driver, which on CI is every Windows runner: `windows-2022` is Windows Server
+  2022, and the pinned vgamepad 0.1.0 sdist carries ViGEmBus 1.17.333, whose bus opens
+  there and whose virtual device is then never enumerated by the system
+  (`VIGEM_ERROR_TARGET_NOT_PLUGGED_IN`, 0xE0000007 — upstream nefarius/ViGEmBus#85, on a
+  repository archived in 2023). The skip announces itself in the log and the step
+  summary; set `GJSIFY_GAMEPAD_REQUIRE_VIGEM=1` on a host that can host the driver to turn
+  it back into a failure. `virtual-pad` is what keeps the device measurement honest on
+  Windows in the meantime.
 
 With a controller attached, set `GJSIFY_GAMEPAD_EXPECT_DEVICES=<n>`. The tests assert the
 count rather than assume zero.

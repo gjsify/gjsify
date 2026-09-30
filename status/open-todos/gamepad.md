@@ -108,8 +108,14 @@ own permission decision; SDL3 is adopted for nothing else.
    what each enumerated and each control read. What stays open is the real-controller RUN, per
    OS (on macOS also a GCF-only one), connecting, reporting input and disconnecting — no runner
    has a controller, and `gjsify.os.<os>` does not move until it has. CI substitutes the part it
-   can: a virtual uinput X360 pad on Linux and a ViGEm X360 pad on win32, each read through the
-   shim with no message pump.
+   can: a virtual uinput X360 pad on Linux and an SDL virtual X360 pad on every OS
+   (`test/virtual-pad.c`), each read through the shim with no message pump. The ViGEm X360 pad
+   on win32 is the one that asks the OS for a real device, and it **skips on every Windows
+   runner**: `windows-2022` is Server 2022, and the pinned ViGEmBus 1.17.333 never gets its
+   virtual device enumerated there (upstream nefarius/ViGEmBus#85, archived 2023). Re-enable it
+   with `GJSIFY_GAMEPAD_REQUIRE_VIGEM=1` if a Windows *client* runner ever becomes available —
+   that is the only thing that would make the `WM_DEVICECHANGE` half of the device path
+   measurable in CI, because SDL's virtual joystick is added in-process and never travels it.
 4. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
    libmanette dependency.
 
