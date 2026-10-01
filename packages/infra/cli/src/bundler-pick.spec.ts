@@ -13,8 +13,10 @@
 // mis-translating filters when real-world plugin shapes change.
 
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@gjsify/unit';
 import { isResolveMiss } from '@gjsify/rolldown-native';
 import {
@@ -25,6 +27,7 @@ import {
     translateSourcemapOption,
     mapToInjectArray,
     findRolldownNativeDir,
+    resolveNativeLibraryModule,
     type NativePlugin,
 } from './bundler-pick.js';
 import {
@@ -489,6 +492,67 @@ export default async () => {
                 { type: 'namespace', from: 'some-mod', alias: 'ns' },
             ]);
         });
+    });
+    // The edge that took @gjsify/napi off the v0.53.0 release train, as a
+    // resolution the Node tests CAN measure: `probeNativeLibrary()` is on
+    // `tryLoadNative()`'s success path, so failing to resolve this module means no
+    // engine and no `gjsify build` under GJS at all — but that whole path needs
+    // `imports.gi`, so from Node the resolution is the reachable part.
+    await describe('resolveNativeLibraryModule — the anchor, not just the emit', async () => {
+        // The release job's exact shape: the workspace carries a BUILT
+        // `@gjsify/utils`, and the bundle sits outside every node_modules chain
+        // (there, `~/.cache/gjsify/bootstrap/`). Emitting `lib/esm` was necessary
+        // and NOT sufficient — measured, the bundle-only anchor still failed with
+        // `not found in any node_modules directory` while the file was right there.
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-native-library-anchor-'));
+        const wsRoot = join(root, 'workspace');
+        const utilsDir = join(wsRoot, 'node_modules', '@gjsify', 'utils');
+        const built = join(utilsDir, 'lib', 'esm', 'native-library.js');
+        mkdirSync(join(utilsDir, 'lib', 'esm'), { recursive: true });
+        // The real package's `exports` MAP, not a bare file: the subpath is only
+        // reachable through it, and RELATIVE targets, because an absolute path is
+        // not a legal target and every anchor rejects it.
+        writeFileSync(
+            join(utilsDir, 'package.json'),
+            JSON.stringify({
+                name: '@gjsify/utils',
+                type: 'module',
+                exports: {
+                    './native-library': {
+                        types: './lib/types/native-library.d.ts',
+                        default: './lib/esm/native-library.js',
+                    },
+                },
+            }),
+        );
+        writeFileSync(built, 'export const openNativeLibrary = () => null;\n');
+        const bundle = join(root, 'cache', 'bootstrap', 'cli.gjs.mjs');
+        mkdirSync(join(root, 'cache', 'bootstrap'), { recursive: true });
+        writeFileSync(bundle, '// bundle outside every node_modules chain\n');
+
+        await it('finds it through the cwd anchor when the bundle reaches no chain', () => {
+            expect(resolveNativeLibraryModule({ cwd: wsRoot, bundleUrl: pathToFileURL(bundle).href })).toBe(built);
+        });
+
+        // The regression this pins, stated as the measurement that produced it: the
+        // pre-fix call was a bare `createRequire(import.meta.url).resolve(...)`, and
+        // on this fixture that THROWS while the file exists. Without this line the
+        // test above would still pass if a future resolver found the file for a
+        // reason the release job does not share.
+        await it('the bundle-only anchor it replaced cannot see this tree', () => {
+            expect(() => createRequire(pathToFileURL(bundle).href).resolve('@gjsify/utils/native-library')).toThrow();
+        });
+
+        // Still THROWS rather than answering null: `diagnoseNativeEngine()` names
+        // this miss, and a `null` here would turn a named cause into a bare
+        // "no usable bundler engine".
+        await it('throws when no anchor reaches the module', () => {
+            const empty = join(root, 'empty');
+            mkdirSync(empty, { recursive: true });
+            expect(() => resolveNativeLibraryModule({ cwd: empty, bundleUrl: pathToFileURL(bundle).href })).toThrow();
+        });
+
+        rmSync(root, { recursive: true, force: true });
     });
     // The bridge's `ctx.resolve` is DECLARED to answer `null` for a specifier that
     // doesn't resolve, because that is what npm `rolldown` does and what every
