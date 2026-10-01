@@ -768,6 +768,34 @@ jobs:
       - name: Verify declared entry points are in the tarball
         run: su testuser -c 'node scripts/verify-tarball-outputs.mjs'
 
+      # THE RELEASE GATE'S OWN SCOPE, on the tree a release would ship.
+      #
+      # `audit-runtimes --check --strict` runs on every PR and in the cut's
+      # `after:bump` hook, and #1898 is what it measured: the same command exited
+      # 0 on a fresh checkout and 1 after `build:examples`, because
+      # `@gjsify/example-*` is excluded from `gjsify run build` — so the rules
+      # whose subject is a BUILT BUNDLE had no bundle to read and the run
+      # reported success anyway. The showcases are published, so the population
+      # nobody audited was the population users install.
+      #
+      # `--scope=ship` names the published closure AND makes "this package's
+      # shipped root entry is not on disk" a FAILURE rather than a note, which is
+      # the half that makes it a gate: without it a scope is the same vacuous
+      # sweep over fewer packages, and it would read like coverage. It needs a
+      # BUILT tree, which is why it lives here and beside `verify-package-outputs`
+      # (whose population it shares by derivation — `scripts/manifest-conformance/
+      # ship-closure.mjs`) rather than in `audit-runtimes.yml`, whose job
+      # deliberately installs and builds nothing. The default sweep there is
+      # unchanged, so the required check still runs on a bare checkout.
+      #
+      # No `--allow-unbuilt`: that flag is for a job with no build, and passing
+      # it here would restore the vacuity this scope exists to end. The one
+      # package a shipped scope cannot answer for on this runner is listed, with
+      # a reason and an issue, in
+      # `scripts/manifest-conformance/shipped-unbuilt-allowlist.json`.
+      - name: Audit what a release ships (strict)
+        run: su testuser -c 'node scripts/audit-runtimes.mjs --check --strict --scope=ship'
+
       # The SHOWCASES, as a separate scope. Held back until now for one honest
       # reason recorded in `status/open-todos/README.md`: it red-lined on a real finding
       # — 13 declared entry points across 6 of the 8 published showcases, every
@@ -1137,6 +1165,22 @@ jobs:
       - name: Build examples
         timeout-minutes: 45
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach build -ptv --include "@gjsify/example-*" --jobs 1'
+
+      # The EXAMPLES' own shipped scope, on the tree they just built — and the
+      # step the issue's own repro was measuring for. `gjsify run build` excludes
+      # `@gjsify/example-*` by design (they build only when an example is in the
+      # CI closure), so this job is the ONLY place the showcased apps exist as
+      # artifacts at all: nothing in the core `build` job, and nothing in
+      # `audit-runtimes.yml`, can see a showcase bundle. A regression in what a
+      # showcased app SHIPS is therefore invisible until a release, which is the
+      # half of #1898 the owner decision splits into two scopes.
+      #
+      # Placed AFTER `Build examples` and BEFORE `Verify declared example
+      # outputs exist` for the same reason that step sits here: both are
+      # post-conditions on a tree this job produced, and a post-condition on
+      # somebody else's build output is a post-condition on nothing.
+      - name: Audit what the showcases ship (strict)
+        run: su testuser -c 'node scripts/audit-runtimes.mjs --check --strict --scope=examples'
 
       # Same declared-output post-condition as the core sweep in `build`, for
       # the packages that sweep deliberately excludes because they build in the

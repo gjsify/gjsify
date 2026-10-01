@@ -82,6 +82,12 @@ import {
     walkEntryGraph,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { UNCHECKED_FIELDS } from './manifest-conformance/unchecked-fields.mjs';
+import { excludePatternsFor, SCOPES } from './manifest-conformance/ship-closure.mjs';
+import {
+    LEDGER_PATH as SHIPPED_LEDGER_PATH,
+    readShippedUnbuiltLedger,
+    renderUnbuiltAllowlist,
+} from './manifest-conformance/shipped-unbuilt-ledger.mjs';
 import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules/platforms-ci.mjs';
 import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
@@ -118,7 +124,35 @@ export { repoContext };
 // SEVERITY split against the resolver's list rather than against a copy of it.
 export { auditRuntimeShape, diffDeclared, REACH_FATAL_TARGETS, REACH_TARGETS };
 
-const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
+/**
+ * `--root=<dir>` — audit another workspace root.
+ *
+ * The same reason `verify-package-outputs.mjs` has one, and the reason `shipped-gi-deps`
+ * needs synthetic cases at all: a guard exercised only against the repository it lives in
+ * cannot be shown to FAIL. The real tree has no headless package whose shipped output hard-
+ * depends on a typelib, because that is the state this rule keeps it out of, so every case
+ * that must fail has to live somewhere else. `tests/e2e/audit-strict-scopes/` is that
+ * somewhere.
+ */
+// BOTH spellings, because this script's other valued flags (`--scope=`, `--media-payload=`)
+// use `=` while `verify-package-outputs.mjs --root` uses a space, and a caller who has read
+// either neighbour reasonably writes the other. Reading only the space form made every
+// `--root=<dir>` call fall through to THIS repository — which is how the first run of the
+// fixture suite reported 226 packages for a tree holding one.
+/**
+ * Where this SCRIPT lives, which is the repository whose packages the shipped-unbuilt
+ * ledger describes. Separate from `ROOT`, which is the tree under audit: `--root` aims the
+ * CONTEXT somewhere else, and a ledger that followed it would describe a fixture.
+ */
+const SCRIPT_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
+const rootArg = process.argv.find((a) => a.startsWith('--root='));
+const rootFlag = process.argv.indexOf('--root');
+const ROOT =
+    rootArg !== undefined
+        ? resolve(rootArg.slice('--root='.length))
+        : rootFlag === -1
+          ? resolve(fileURLToPath(import.meta.url), '..', '..')
+          : resolve(process.argv[rootFlag + 1] ?? '.');
 const PACKAGES_DIR = resolve(ROOT, 'packages');
 
 /** Recursively find every package.json under a root, returning [absDir]. */
@@ -137,8 +171,52 @@ const PLATFORMS = args.has('--platforms');
 // `--quick` wins on conflict, so the caller's opt-out intent is unambiguous. The flip to
 // strict-by-default is gated on closing the remaining `src/test.browser.{mts,ts}` gaps.
 const STRICT = args.has('--strict') && !QUICK;
-/** `--rules` lists the registry instead of running anything. */
 const RULES_LIST = args.has('--rules');
+
+/**
+ * `--scope=<core|ship|examples>` — WHICH population this run answers for.
+ *
+ * The default sweep reads manifests and SOURCE. That is the right subject for a
+ * declaration, and it is why it was vacuous for the showcases: `@gjsify/example-*` is
+ * excluded from `gjsify run build`, so a rule whose subject is a built bundle had no
+ * bundle to read and the run reported success anyway. #1898 measured it — the same
+ * command exits 0 on a fresh checkout and 1 after `build:examples`, for no reason other
+ * than which tree it ran on.
+ *
+ * A scope therefore does two things, and the second is the point. It NARROWS the
+ * population to packages a release either publishes (`ship`) or showcases (`examples`),
+ * and it sets `shippedAudit`, which turns "this package's shipped tree is not on disk"
+ * from a NOTE into a FAILURE. Without the second half a scope would be the same vacuous
+ * sweep with a smaller population, which is a worse gate than none: it would look like
+ * coverage.
+ *
+ * `core` is the historical exclusion set (`@girs/*`, the website, the examples) and is
+ * what a sweep that already separates the schedules wants; the DEFAULT is no scope at
+ * all, which is the whole tree with the unbuilt state still a note, because
+ * `audit-runtimes.yml` installs nothing and builds nothing on purpose and a gate that
+ * can never pass teaches people to route around it.
+ *
+ * The populations are DERIVED in `scripts/manifest-conformance/ship-closure.mjs`, shared
+ * with `verify-package-outputs.mjs` — a gate over a different set of bytes than the one
+ * that publishes them is a gate over nothing.
+ */
+const scopeFlag = process.argv.find((a) => a.startsWith('--scope='));
+const SCOPE = scopeFlag ? scopeFlag.slice('--scope='.length) : '';
+if (SCOPE !== '' && !SCOPES.includes(SCOPE)) {
+    console.error(
+        `audit-runtimes: --scope must be one of ${SCOPES.join(' | ')} (got "${SCOPE}"). ` +
+            'Without it the run answers for the whole tree and treats a missing build output as a note.',
+    );
+    process.exit(2);
+}
+const SCOPED = SCOPE !== '' && SCOPE !== 'core';
+/**
+ * `--allow-unbuilt` — record the unbuilt population instead of failing on it. The seam
+ * `verify-package-outputs.mjs` already has, and the reason a scope can be invoked from a
+ * job that has no build without being a gate that never passes. A caller that passes it
+ * gets the named list in the run's own output either way.
+ */
+const ALLOW_UNBUILT = args.has('--allow-unbuilt');
 
 /**
  * `--media-payload=<package>=<dir>` — point `media-capabilities` at a runtime bundle's
@@ -1545,6 +1623,7 @@ defineRule({
                 probes: probeFailures.length,
             },
             summary:
+                `${scopeBanner()}\n` +
                 `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion ` +
                 `(${rows.length - declarable} infra/unknown skipped).${STRICT ? ` (functional probes passed on every declared slot)` : ''}`,
             rows,
@@ -1696,6 +1775,15 @@ const CHECK_RULES = [
     // resolves 'Adwaita Sans'/'Adwaita Mono' from fontconfig, so a screenshot looks right
     // over a tree that ships neither.
     'stylesheet-font-families',
+    // SELECTED ONLY UNDER `--scope`. Its subject is the EMITTED bundle — the file that
+    // actually ships — and on the default whole-tree sweep of a checkout that has never
+    // been built there is nothing to read, so selecting it there would print a
+    // 200-package "not inspected" list on every pull request and teach people to skip the
+    // line. A scope names the population AND makes the unbuilt half fatal, which is the
+    // only state in which the rule can answer. `gjsify.headless` is the promise it holds,
+    // and `headless` holds the same one against source; a promise two artifacts can break
+    // needs both held. #1898.
+    ...(SCOPED ? ['shipped-gi-deps'] : []),
     // Reads only `gjsify.bundler.plugins` + the three dependency maps out of each
     // manifest, then resolves each name from the DECLARING package. No build, no install
     // beyond the one this job already has.
@@ -1716,10 +1804,19 @@ const CHECK_RULES = [
     'status-data',
 ];
 
-/** Build the context every rule reads. */
+/**
+ * Build the context every rule reads.
+ *
+ * `only` is populated by the NAME, not by a hand-kept list, so a scope and
+ * `verify-package-outputs.mjs --scope` cannot describe different populations. See
+ * `ship-closure.mjs` for why the two scripts share one derivation instead of two.
+ */
 function repoContext() {
+    const exclude = excludePatternsFor(SCOPE);
+    const SHIPPED_UNBUILT = readShippedUnbuiltLedger(SCRIPT_ROOT);
     return createContext({
         root: ROOT,
+        allowUnbuilt: ALLOW_UNBUILT,
         // `packages/node-gi/*` and `packages/napi/*` are deliberately NOT workspace
         // members, yet `@gjsify/napi` declares `gjsify.platforms` +
         // `gjsify.platformsUncommitted` and is audited. Scanning the subtree keeps them in
@@ -1735,6 +1832,28 @@ function repoContext() {
             // so the option has no caller left: it is the rule's one-shot escape for a CONSUMER
             // whose artifacts a CI of its own has yet to rebuild, not a mode this repo rides in.
             uncheckedFields: UNCHECKED_FIELDS,
+            // The anti-vacuity switch. Read by the two rules whose subject is BUILD
+            // OUTPUT (`stylesheet-font-families`, `shipped-gi-deps`): with a scope
+            // naming the population, a package whose shipped tree is absent is a
+            // FAILURE, because "I inspected nothing" is then the entire answer. Absent
+            // for the default sweep, where a missing build output is the ordinary state of
+            // a job that deliberately does not build — see `--scope` in the header.
+            shippedAudit: SCOPED,
+            // WHICH packages the shipped-artifact rules answer for, as the same name
+            // patterns `verify-package-outputs.mjs` uses. It is an OPTION rather than
+            // `createContext`'s `only` on purpose, and the first version got that wrong
+            // in a way that is worth recording: narrowing `ctx.packages` also narrows
+            // every LEDGER, so under `--scope=examples` `field-coverage` reported
+            // `gjsify.buildCache` as "declared by no package any more" and
+            // `stylesheet-font-families` reported its own three `adwaita-web` /
+            // `nativescript-bridge` entries as stale — five findings, all of them
+            // artifacts of the narrowing, none of them about a package. A scope says
+            // "audit what ships by name", not "pretend the rest of the repo is not here".
+            shippedScope: exclude,
+            // Handed in, not read by the rule: `shipped-gi-deps` is `portable` and must
+            // run in a consumer's tree, so it cannot know a package name of this
+            // repository. It applies the list and fails an entry that no longer applies.
+            shippedUnbuiltAllowlist: Object.fromEntries(SHIPPED_UNBUILT.entries),
             // Empty unless `--media-payload` was passed, which is the ordinary state and
             // the reason `media-capabilities` reports what it did NOT inspect: the
             // bundles' payloads are gitignored, so a run that found none has checked the
@@ -1748,6 +1867,36 @@ function repoContext() {
             // ever again ships without its `.gir` and cannot be restaged.
         },
     });
+}
+
+/**
+ * The one line that says WHICH population a run answered for.
+ *
+ * It is on the run rather than in a workflow comment because #1898 is a run that reported
+ * success for a population it had not inspected, and the reader of a CI log cannot learn
+ * that from an exit code. Printed on BOTH the OK and the failure branch: a green line that
+ * does not say what it covered is the shape of the defect.
+ */
+const LEDGER_LABEL = SHIPPED_LEDGER_PATH;
+
+function shippedUnbuiltLedgerNotes() {
+    if (!SCOPED) return [];
+    const { missing } = readShippedUnbuiltLedger(SCRIPT_ROOT);
+    return [...missing, ...renderUnbuiltAllowlist(readShippedUnbuiltLedger(SCRIPT_ROOT).entries)];
+}
+
+function scopeBanner() {
+    if (SCOPE === '') {
+        return 'audit-runtimes: population = the whole tree (no --scope), so a missing build output is a NOTE.';
+    }
+    return (
+        `audit-runtimes: population = --scope=${SCOPE}` +
+        (SCOPED
+            ? ', audited BY NAME: a package whose shipped root entry is absent is a FAILURE' +
+              `${ALLOW_UNBUILT ? ' unless --allow-unbuilt was passed' : ''}.`
+            : ', the historical exclusion set (@girs/*, the website, @gjsify/example-*); a missing build output ' +
+              'stays a NOTE.')
+    );
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
@@ -1792,6 +1941,18 @@ async function main() {
     }
 
     if (CHECK) {
+        // A malformed ledger is a CONFIG error and is refused before any rule runs,
+        // because the alternative is a shipped scope that quietly loses its exceptions and
+        // then fails on packages the entry was written for — the entry looks like it is
+        // working right up until it is the only thing keeping a gate green.
+        if (SCOPED) {
+            const { missing } = readShippedUnbuiltLedger(SCRIPT_ROOT);
+            if (missing.length > 0) {
+                console.error(`audit-runtimes: ${LEDGER_LABEL} is malformed —`);
+                for (const line of missing) console.error(`  - ${line}`);
+                process.exit(2);
+            }
+        }
         const ctx = repoContext();
         // The headless walk needs the metadata the reachability walk builds, and building
         // it runs `scanSourceTree` over every package — the bulk of what `--check` costs.
@@ -1849,6 +2010,7 @@ async function main() {
         // declaration that `media-capabilities` structurally cannot reach.
         const gvsbuildCatalogue = byId.get('gvsbuild-catalogue');
         const stylesheetFontFamilies = byId.get('stylesheet-font-families');
+        const shippedGiDeps = byId.get('shipped-gi-deps');
         // Fetched AND printed in both branches in the same edit — the two comments above
         // are what the other order cost twice.
         const bundlerPlugins = byId.get('bundler-plugins');
@@ -1908,11 +2070,19 @@ async function main() {
             for (const { rule, result } of run.results) {
                 if (NOTES_RENDERED_ELSEWHERE.has(rule.id)) continue;
                 for (const note of result.notes ?? []) console.log(`  · [${rule.id}] ${note}`);
+                // The shipped-unbuilt ledger is printed on every SCOPED run, success
+                // included: a standing exception nobody sees is a hole with a comment on
+                // it, and `--allow-unbuilt` is the flag that makes the difference between
+                // "one package is excused" and "the check was switched off".
+                if (SCOPED && rule.id === 'shipped-gi-deps') {
+                    for (const line of shippedUnbuiltLedgerNotes()) console.log(`  · [${rule.id}] ${line}`);
+                }
             }
             renderReachabilityNotes(reach);
             process.exit(0);
         }
 
+        console.error(scopeBanner());
         console.error(`audit-runtimes --check${STRICT ? ' --strict' : ''}: DRIFT DETECTED.\n`);
         if (drift.shapeProblems.length > 0) {
             console.error(
@@ -2269,6 +2439,19 @@ async function main() {
             );
             console.error('');
         }
+        if (shippedGiDeps && (shippedGiDeps.failures ?? []).length > 0) {
+            console.error(`SHIPPED-GI-DEPENDENCY FAILURES on ${shippedGiDeps.failures.length} finding(s):`);
+            for (const line of shippedGiDeps.failures) console.error(`  - ${line}`);
+            console.error('');
+            console.error(
+                'A SHIPPED root entry hard-depends on a typelib its `gjsify.headless` promise forbids. The source ' +
+                    'graph the promise was written against does not contain it: a GI binding the BUNDLER synthesises ' +
+                    '(`--globals auto`, a bare side-effect import of `gi://X` inside a dependency, an alias ' +
+                    'substitution) reaches no source file, so only the emitted artifact can see it. A `gi://X?…&optional` ' +
+                    'import (ADR 0086) is NOT counted — it resolves in a try/catch and is not a hard dependency.',
+            );
+            console.error('');
+        }
         if ((bundlerPlugins.failures ?? []).length > 0) {
             console.error(`BUNDLER-PLUGIN FAILURES on ${bundlerPlugins.failures.length} finding(s):`);
             for (const line of bundlerPlugins.failures) {
@@ -2410,6 +2593,7 @@ async function main() {
             'pr-trigger-parity',
             'workflow-rev-pin',
             'stylesheet-font-families',
+            'shipped-gi-deps',
             'bundler-plugins',
             'repository-directory',
             'widget-vocabulary',

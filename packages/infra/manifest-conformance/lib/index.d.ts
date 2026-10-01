@@ -199,6 +199,40 @@ export declare const fieldCoverageRule: Rule;
 export declare const repositoryDirectoryRule: Rule;
 export declare const bundleSearchPathsRule: Rule;
 
+/** A GI binding read off an EMITTED bundle, with the specifier it was reached by. */
+export interface GiBinding {
+    /** The typelib namespace, e.g. `Gtk` — never a typelib FILE name like `Gtk-4.0`. */
+    ns: string;
+    /** The specifier as written, e.g. `gi://Gtk?version=4.0`, `@girs/gio-2.0`, `requireGi("Gtk")`. */
+    form: string;
+}
+export declare function parseGiSpecifier(specifier: string): { ns: string; optional: boolean } | null;
+export declare function scanBundleGiNamespaces(source: string): { hard: GiBinding[]; optional: GiBinding[] };
+export declare function walkShippedGraph(
+    entryFile: string,
+    byName: Map<string, { roots: string[] }>,
+): {
+    hits: { ns: string; form: string; file: string; optional: boolean }[];
+    parents: Map<string, string>;
+    unresolved: string[];
+};
+export declare function auditShippedGiDeps(ctx: ConformanceContext): Promise<{
+    failures: string[];
+    notes: string[];
+    unbuilt: string[];
+    unrooted: string[];
+    unresolved: string[];
+    packages: number;
+    inspected: number;
+    graphs: number;
+    excused: string[];
+}>;
+export declare const shippedGiDepsRule: Rule;
+export declare function collectShippedPackages(
+    ctx: ConformanceContext,
+): Map<string, { pkg: PackageRecord; roots: string[]; declared: string[]; absent: string[]; declaresRoot: boolean }>;
+export declare function shippedRootEntries(pkg: PackageRecord): string[];
+
 /** One way a payload image reaches past the bundle it ships in. */
 export interface BundleSearchPathFinding {
     /** Path relative to the directory the payload sits in. */

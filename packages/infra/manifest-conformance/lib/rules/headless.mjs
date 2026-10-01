@@ -118,7 +118,23 @@ export function typelibOfSpecifier(spec) {
     if (m) return { ns: m[1], form: `gi://${m[1]}` };
     // `@girs/gdk-4.0`, `@girs/gjs`, and any future `@girs/<ns>-<ver>/<subpath>`
     // — the namespace is what binds, the subpath does not change that.
-    m = /^@girs\/([A-Za-z0-9_]+)(?:-[\d.]+)?(?:\/|$)/.exec(spec);
+    //
+    // The `/vocabulary` SUBPATH is the one exception, and this function was wrong about
+    // it for the whole life of the vocabulary. `GIRS_VALUE_RE` in `source-graph.mjs`
+    // excludes it with a negative lookahead AND a measurement: the published
+    // `@girs/gtk-4.0`'s `gtk-4.0-vocabulary.js` carries generated DATA (property names,
+    // signal names, enum nicks, versions — ADR 0029), holds ZERO `gi://` references
+    // against the one its main entry holds, and is `require()`-able under plain Node.
+    // Re-measured while adding `shipped-gi-deps`, which reads EMITTED output rather than
+    // source: `gtk-4.0-vocabulary.js` is 180 KB with 0 `gi://` refs, `gtk-4.0.js` has 1.
+    //
+    // Two readers of one question is the defect this registry exists to remove, so the
+    // exclusion lives HERE rather than being restated by each caller. `shipped-gi-deps`
+    // reported `@gjsify/blueprint` and `@gjsify/cli` hard-depending on `gi://adw` through
+    // `@girs/adw-1/vocabulary`, and a `gjsify.headless` list naming `Adw` would have
+    // failed on that basis. A vocabulary import is DATA: naming a namespace in it does
+    // not load its typelib.
+    m = /^@girs\/([A-Za-z0-9_]+)(?:-[\d.]+)?(?:\/(?!vocabulary(?:\/|$))|$)/.exec(spec);
     if (m) return { ns: m[1], form: spec };
     if (GJS_BARE_BINDINGS.has(spec)) return { ns: spec, form: `bare '${spec}'` };
     return null;
