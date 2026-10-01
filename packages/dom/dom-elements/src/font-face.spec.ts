@@ -16,6 +16,19 @@
 // place a developer actually looks at it. The repair routes the registration through
 // `@gjsify/utils/font-map`, the same call `initFonts()` uses, and the swallowing became a diagnostic.
 //
+// A PINNED `PANGOCAIRO_BACKEND` IS NOT THE FEDORA LEG, and reading it as one costs an hour. The
+// variable looks like the lever that turns a Mac into a Linux-only condition, and for most of this
+// tree it is — but not for the rescue. ADR 0038 § Amendment 5 makes "the variable is UNSET" the
+// FIRST precondition of the fontconfig fallback, because a pinned backend is a process that has
+// declared its font stack and answering it with a different map answers a question nobody asked.
+// MEASURED: under `PANGOCAIRO_BACKEND=fontconfig` these two rescue cases FAIL, 2 of 189, and the
+// guard that skips the probe is the reason — narrowing that guard to fontconfig's own two spellings
+// (`fc`, `fontconfig`; pango REFUSES `FC` and `Fontconfig`, measured) changes NOTHING here, which is
+// the measurement that settles it. Fedora reaches fontconfig by COMPILATION with the variable unset,
+// so the arm runs there; on this Mac the unset arm passes because the CoreText map declines the face
+// and a fresh fc map is adopted. Under a pin, 2 of 189 failing is the CORRECT answer, not a
+// regression — and narrowing that guard against the ADR would buy nothing and cost the decision.
+//
 // ORDERING IS LOAD-BEARING and the suite is written to depend on it: `add_font_file` mutates a
 // process-global font map and there is no unregister, so the "absent before" arm has to come first or
 // it cannot be measured at all.
