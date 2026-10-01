@@ -79,9 +79,20 @@ name: Cancel superseded PR runs
 # main's copy. `tests/e2e/ci-cancel-superseded-runs` is where such a change is proven,
 # which is why it was put under fixtures rather than left in the `run:` block.
 
+# A THIRD KIND OF MOOT RUN, swept by the second job: a `merge_group` run whose queue
+# branch (`gh-readonly-queue/main/pr-<N>-<sha>`) has been deleted. Neither `closed` nor
+# `synchronize` reaches it, `concurrency` has no successor to start, and the queue does
+# not cancel the run of an entry it drops. MEASURED, 2026-10-01: five `GJS` merge_group
+# runs sat `queued` for branches that no longer existed and were cancelled by hand. The
+# sweep fires on `pull_request` `dequeued` (a documented activity type) and at the start
+# of every `merge_group` run, because a new group forming is when the old ones die. It
+# can never select a live entry: see `deadQueueRunIds` for the read order that guarantees
+# it. Same base-SHA checkout and same cancel script as the job above.
+
 on:
     pull_request:
-        types: [closed, synchronize]
+        types: [closed, synchronize, dequeued]
+    merge_group:
 
 # Only what the one API call needs.
 permissions:
@@ -91,6 +102,7 @@ permissions:
 jobs:
     cancel:
         name: Cancel superseded runs for this PR
+        if: github.event_name == 'pull_request' && github.event.action != 'dequeued'
         runs-on: ubuntu-latest
         steps:
             - name: Check out the selection
@@ -160,4 +172,59 @@ jobs:
                   # read and never a SIGPIPE — the second half of what
                   # `.github/ship-oracle/verify-deb.sh`'s header spells out. The empty
                   # case is the script's own.
+                  node scripts/cancel-superseded-runs.mjs <<<"${ids}"
+
+    sweep-dead-queue:
+        name: Cancel merge_group runs whose queue entry is gone
+        if: github.event_name == 'merge_group' || github.event.action == 'dequeued'
+        runs-on: ubuntu-latest
+        steps:
+            # BASE SHA for the same reason as above. A `merge_group` event carries no PR;
+            # its `base_sha` is the tip of `main` the group was built on.
+            - name: Check out the selection
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+                  fetch-depth: 1
+                  sparse-checkout: |
+                      scripts/select-superseded-runs.mjs
+                      scripts/cancel-superseded-runs.mjs
+                  sparse-checkout-cone-mode: false
+
+            - name: Cancel runs whose queue branch no longer exists
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  REPO: ${{ github.repository }}
+                  CANCEL_REASON: whose queue entry is gone
+              run: |
+                  set -euo pipefail
+
+                  # RUNS FIRST, BRANCHES SECOND. A run is created after its branch, so
+                  # every run listed here had a branch when it was listed; the other
+                  # order would call a group that formed in between "dead".
+                  if ! gh api -X GET "repos/${REPO}/actions/runs" \
+                          -f event=merge_group \
+                          -f per_page=100 \
+                          > "${RUNNER_TEMP}/runs.json"; then
+                      echo "::notice::could not list this repository's runs. Nothing cancelled."
+                      exit 0
+                  fi
+
+                  # A failed listing of the queue branches must never read as "no live
+                  # branches" — that would cancel every entry in the queue.
+                  if ! gh api --paginate "repos/${REPO}/git/matching-refs/heads/gh-readonly-queue/" \
+                          --jq '.[].ref' > "${RUNNER_TEMP}/live-refs.txt"; then
+                      echo "::notice::could not list the queue branches. Nothing cancelled."
+                      exit 0
+                  fi
+
+                  # Guard BEFORE the selection: a base that predates `--dead-queue` would
+                  # run the pull_request path of the selection and throw on a merge_group event.
+                  if ! grep -q -- '--dead-queue' scripts/select-superseded-runs.mjs; then
+                      echo "::notice::this base predates the dead-queue sweep; nothing cancelled."
+                      exit 0
+                  fi
+
+                  ids=$(node scripts/select-superseded-runs.mjs --dead-queue "${RUNNER_TEMP}/live-refs.txt" < "${RUNNER_TEMP}/runs.json")
+
                   node scripts/cancel-superseded-runs.mjs <<<"${ids}"

@@ -161,7 +161,70 @@ export function supersededRunIds({ event, runs, selfRunId }) {
         .map((run) => run.id);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+/** Where the merge queue puts the branch it builds one entry on. */
+const QUEUE_BRANCH_PREFIX = 'gh-readonly-queue/';
+
+/**
+ * The `merge_group` runs whose queue entry no longer exists.
+ *
+ * A THIRD KIND of moot run, and the one neither window above can reach. The queue
+ * builds every entry on its own branch `gh-readonly-queue/main/pr-<N>-<sha>`; when an
+ * entry is dropped, or a new group forms behind a dequeued one, that branch is
+ * DELETED — and the run built on it keeps going. Nothing supersedes it: a
+ * `merge_group` run has no PR head to push to and no `closed` to wait for.
+ *
+ * MEASURED, 2026-10-01: five `GJS` merge_group runs sat `queued` for queue branches
+ * that `git ls-remote origin 'refs/heads/gh-readonly-queue/*'` no longer listed, and
+ * were cancelled by hand — each one a full matrix holding slots on a saturated pool.
+ *
+ * THE BRANCH IS THE ONLY DISCRIMINATOR, and it is a good one: a live entry's branch
+ * exists for as long as the queue wants its verdict, so "branch gone" is exactly "nobody
+ * will read this". No clock, no head SHA — and no PR number, because the sweep also
+ * runs from a `merge_group` event that has none.
+ *
+ * ORDER OF THE TWO READS IS LOAD-BEARING. The caller must list the RUNS first and the
+ * branches second. A run is only ever created after its branch, so every listed run's
+ * branch existed when it was listed; read the other way round, a group that formed
+ * between the two calls has a run and no branch in the stale list, and the sweep
+ * would cancel the live entry it was triggered by.
+ *
+ * What is NOT selected: a completed run, this job's own run, a run outside the queue
+ * namespace (`head_branch` is free text on other events), and a run whose head
+ * repository is not `repo` — the queue branch lives in the base repository.
+ *
+ * @param {{ runs: Array<Record<string, any>>, liveRefs: string[], repo: string, selfRunId: string | number }} input
+ * @returns {number[]}
+ */
+export function deadQueueRunIds({ runs, liveRefs, repo, selfRunId }) {
+    const self = Number(required(selfRunId, 'own run id'));
+    if (!Number.isInteger(self)) throw new Error(`select-superseded-runs: own run id is not a number: ${selfRunId}`);
+    required(repo, 'repository');
+    const live = new Set(liveRefs.map((ref) => ref.trim().replace(/^refs\/heads\//, '')).filter((ref) => ref !== ''));
+
+    return runs
+        .filter(
+            (run) =>
+                run.event === 'merge_group' &&
+                run.status !== 'completed' &&
+                run.head_repository?.full_name === repo &&
+                typeof run.head_branch === 'string' &&
+                run.head_branch.startsWith(QUEUE_BRANCH_PREFIX) &&
+                !live.has(run.head_branch) &&
+                Number(run.id) !== self,
+        )
+        .map((run) => run.id);
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href && process.argv[2] === '--dead-queue') {
+    // Usage: GITHUB_RUN_ID=<id> REPO=owner/repo \
+    //   node scripts/select-superseded-runs.mjs --dead-queue <live-refs.txt> < runs.json
+    // `<live-refs.txt>` holds one remote queue branch per line (`refs/heads/…` or bare).
+    const liveRefs = readFileSync(required(process.argv[3], 'live refs file'), 'utf8').split('\n');
+    const listed = JSON.parse(readFileSync(0, 'utf8'));
+    const runs = Array.isArray(listed) ? listed : (listed.workflow_runs ?? []);
+    const ids = deadQueueRunIds({ runs, liveRefs, repo: process.env.REPO, selfRunId: process.env.GITHUB_RUN_ID });
+    if (ids.length > 0) console.log(ids.join('\n'));
+} else if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const event = JSON.parse(readFileSync(required(process.env.GITHUB_EVENT_PATH, 'GITHUB_EVENT_PATH'), 'utf8'));
     const listed = JSON.parse(readFileSync(0, 'utf8'));
     const runs = Array.isArray(listed) ? listed : (listed.workflow_runs ?? []);

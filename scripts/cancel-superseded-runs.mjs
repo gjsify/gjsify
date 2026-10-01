@@ -244,14 +244,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     // reason the branch name is: `${{ … }}` substitution puts PR-controlled text into
     // program source, and this line only ever needed the action and the number.
     const event = JSON.parse(readFileSync(required(process.env.GITHUB_EVENT_PATH, 'GITHUB_EVENT_PATH'), 'utf8'));
-    const where = `${event.action ?? 'this event'} on PR #${event.pull_request?.number ?? '?'}`;
+    // A `merge_group` event (the dead-queue sweep) carries no pull request at all.
+    const onPr = event.pull_request ? ` on PR #${event.pull_request.number ?? '?'}` : '';
+    const where = `${event.action ?? 'this event'}${onPr}`;
     // `main.yml`'s cancel-on-early-failure jobs reuse this cancel for runs that
     // nothing SUPERSEDED — they are cut off because the PR head already failed —
     // and a log line calling them superseded would be true of the POSTs and wrong
     // about why they were sent.
-    const why = process.env.CANCEL_REASON
-        ? `${process.env.CANCEL_REASON} on PR #${event.pull_request?.number ?? '?'}`
-        : `superseded by ${where}`;
+    const why = process.env.CANCEL_REASON ? `${process.env.CANCEL_REASON}${onPr}` : `superseded by ${where}`;
 
     if (ids.length === 0) {
         console.log(
