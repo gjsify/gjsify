@@ -117,7 +117,14 @@ dependencies = [
 # adding a runtime dependency.
 c_args = ['-DGJSIFY_GAMEPAD_COMPILATION']
 link_args = []
+sdl_system_link_args = []
 if is_darwin
+    sdl_system_link_args = [
+        '-framework', 'CoreFoundation', '-framework', 'Foundation',
+        '-framework', 'IOKit', '-framework', 'ForceFeedback',
+        '-framework', 'GameController', '-framework', 'CoreHaptics',
+        '-framework', 'CoreServices', '-lobjc',
+    ]
     # Only the gjsify_gamepad_* API leaves the library. That keeps SDL's own
     # symbols private — a second SDL in the same process (an app using SDL for
     # audio) cannot collide with this copy — and it is what lets -dead_strip drop
@@ -126,11 +133,7 @@ if is_darwin
     # made otherwise identical darwin builds differ byte for byte
     # (docs/prebuilds.md). `-dead_strip_dylibs` removes any framework the final
     # link does not use, so the list can only over-state, never add.
-    link_args += [
-        '-framework', 'CoreFoundation', '-framework', 'Foundation',
-        '-framework', 'IOKit', '-framework', 'ForceFeedback',
-        '-framework', 'GameController', '-framework', 'CoreHaptics',
-        '-framework', 'CoreServices', '-lobjc',
+    link_args += sdl_system_link_args + [
         '-Wl,-exported_symbol,_gjsify_gamepad_*',
         '-Wl,-dead_strip',
         '-Wl,-dead_strip_dylibs',
@@ -264,6 +267,10 @@ test('monitor-lifecycle', lifecycle)
 virtual_pad = executable('virtual-pad', 'test/virtual-pad.c',
     objects: libgjsifygamepad.extract_all_objects(recursive: false),
     dependencies: dependencies,
+    # link_args of the library do not follow its objects. Without the frameworks
+    # darwin fails: _IOS_JoystickGetGamepadMapping / _SDL_SYS_HapticInit undefined
+    # in libSDL3_static.a (main, prebuilds run 36834638495).
+    link_args: sdl_system_link_args,
     include_directories: include_directories('src/c'),
 )
 # Not parallel, for the same reason as `uinput-pad` below: the pad is a real

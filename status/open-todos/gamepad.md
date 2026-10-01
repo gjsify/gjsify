@@ -116,6 +116,8 @@ own permission decision; SDL3 is adopted for nothing else.
    with `GJSIFY_GAMEPAD_REQUIRE_VIGEM=1` if a Windows *client* runner ever becomes available —
    that is the only thing that would make the `WM_DEVICECHANGE` half of the device path
    measurable in CI, because SDL's virtual joystick is added in-process and never travels it.
+   UNVERIFIED on darwin: the `virtual-pad` link got the SDL frameworks (it had none, so main's
+   prebuilds went red); Linux passes locally, darwin is confirmed only by a green prebuilds run.
 4. After the Linux check: delete `ManetteSource`, `button-mapping.ts`'s evdev table and the
    libmanette dependency.
 
