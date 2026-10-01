@@ -165,12 +165,14 @@ async function tryLoadNativeBundler(): Promise<Bundler | null> {
         // specifier. A library that will not load then names its missing
         // dependency and the npm fallback runs, instead of the nameless
         // "Unsupported type void" inside `transform()`.
-        // The same resolve-then-import dance as above, for the probe itself: by
-        // the time a CSS transform asks for the native bundler, utils' `lib/esm`
-        // is long built, so the lazy edge costs nothing and the static one would
-        // have cost a bootable CLI. `./native-library` rather than `./core`:
-        // `core` re-exports `main-loop`, whose module-level singleton would then
-        // exist twice in a process that already has it inlined in the GJS bundle.
+        // The same resolve-then-import dance as above, for the probe itself:
+        // off disk, so the lazy edge costs nothing and the static one would have
+        // cost a bootable CLI. `./native-library` rather than `./core`: `core`
+        // re-exports `main-loop`, whose module-level singleton would then exist
+        // twice in a process that already has it inlined in the GJS bundle. The
+        // walk follows the WORKSPACE, so `@gjsify/utils build:esm` must precede
+        // it — rule 5 of `scripts/check-build-infra-order.mjs` orders that edge,
+        // the one `bundler-pick.ts` is on the success path of.
         //
         // Its own `try` because the outer one cannot tell this apart from "there
         // is no native backend" — and reporting nothing is the one outcome this

@@ -288,11 +288,13 @@ async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
             // `bundler-pick.ts`'s `tryLoadNative()` gives — so a library that will
             // not load names itself instead of failing inside `runOxfmt()`.
             // Resolved and imported, not statically imported — the reasoning is
-            // at the top of this file. By the time a formatter asks for the
-            // native backend, utils' `lib/esm` is built. `./native-library`
-            // rather than `./core`: `core` re-exports `main-loop`, whose
-            // module-level singleton would then exist twice in a process that
-            // already carries it inlined in the GJS bundle.
+            // at the top of this file. `./native-library` rather than `./core`:
+            // `core` re-exports `main-loop`, whose module-level singleton would
+            // then exist twice in a process that already carries it inlined in the
+            // GJS bundle. Off disk, so the walk follows the WORKSPACE and
+            // `@gjsify/utils build:esm` must precede this call — the same
+            // precondition `bundler-pick.ts` carries, held by rule 5 of
+            // `scripts/check-build-infra-order.mjs`.
             //
             // Its own `try` because the outer one cannot tell this apart from
             // "there is no native backend", and `_nativeOxfmtLoadError` is the

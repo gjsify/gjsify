@@ -1181,3 +1181,132 @@ describe('check-build-infra-order: the manifest dependency order', () => {
         assert.ok(Number(read[1]) > 0, `the dependency-order rule checked 0 edges:\n${result.output}`);
     });
 });
+
+describe('check-build-infra-order: the resolve-off-disk edge', () => {
+    const FACADE = 'node scripts/bootstrap-native-facades.mjs';
+    const RESOLVE_SRC =
+        "const href = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/native-library')).href;\n";
+
+    /** A `packages/<group>/<name>` fixture: manifest, tsconfig, and its sources. */
+    function runOffDiskGuard(buildInfra, packages) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-offdisk-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
+        for (const [name, pkg] of Object.entries(packages)) {
+            const dir = join(root, 'packages', 'infra', name.replace('@gjsify/', ''));
+            mkdirSync(join(dir, 'src'), { recursive: true });
+            writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, ...pkg.manifest }));
+            writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({ include: ['src/**/*.ts'] }));
+            for (const [file, body] of Object.entries(pkg.files ?? {})) {
+                writeFileSync(join(dir, file), JSON.stringify(body));
+            }
+            for (const [file, body] of Object.entries(pkg.sources ?? { 'index.ts': 'export const x = 1;\n' })) {
+                writeFileSync(join(dir, 'src', file), body);
+            }
+        }
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    const CLI = {
+        manifest: { dependencies: { '@gjsify/utils': 'workspace:^' }, scripts: { build: 'tsc' } },
+        sources: { 'bundler-pick.ts': RESOLVE_SRC },
+    };
+
+    /**
+     * `@gjsify/utils` with BOTH tsc projects, which is the distinction this rule
+     * reads: `build:types` runs `tsconfig.json` (declarations only, no `lib/esm`),
+     * `build:esm` runs `tsconfig.build.json` (JS as well). `esmOnly` drops the
+     * `build:esm` script and leaves the two scripts sharing one declarations-only
+     * project, the shape that LOOKS like an early emit and is not one.
+     */
+    function utilsFixture({ esm = true, esmOnly = false } = {}) {
+        const scripts = {
+            'build:types': 'gjsify tsc',
+            ...(esm && !esmOnly ? { 'build:esm': 'gjsify tsc -p tsconfig.build.json' } : {}),
+            build: 'gjsify build --library src',
+        };
+        const esmProject = esmOnly
+            ? { extends: './tsconfig.json' }
+            : { extends: './tsconfig.json', compilerOptions: { emitDeclarationOnly: false } };
+        return {
+            manifest: {
+                scripts,
+                exports: { './native-library': { types: './lib/types/native-library.d.ts' } },
+            },
+            files: {
+                'tsconfig.json': { include: ['src/**/*.ts'], compilerOptions: { emitDeclarationOnly: true } },
+                'tsconfig.build.json': { include: ['src/**/*.ts'], ...esmProject },
+            },
+        };
+    }
+    const SEMVER = { manifest: { scripts: { build: 'gjsify build --library src' } } };
+
+    // The v0.53.0 shape: utils' JavaScript is emitted at the clause AFTER the
+    // first `gjsify build`, so the engine probe cannot resolve the specifier it
+    // needs before anything can be built at all.
+    it('rejects a resolve-off-disk dependency emitted only after the first bundler clause', () => {
+        const result = runOffDiskGuard(
+            `gjsify workspace @gjsify/utils build:types && ${FACADE} && ` +
+                'gjsify workspace @gjsify/semver build && gjsify workspace @gjsify/utils build',
+            { '@gjsify/cli': CLI, '@gjsify/utils': utilsFixture(), '@gjsify/semver': SEMVER },
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /the first `gjsify build` in `build:infra`/);
+        assert.match(result.stderr, /resolves '@gjsify\/utils\/native-library' OFF DISK/);
+        assert.match(result.stderr, /its JavaScript is emitted at clause 4, which is after that clause/);
+    });
+
+    it('accepts it once a build:esm clause emits its lib/esm before the first bundler clause', () => {
+        const result = runOffDiskGuard(
+            `gjsify workspace @gjsify/utils build:types && gjsify workspace @gjsify/utils build:esm && ${FACADE} && ` +
+                'gjsify workspace @gjsify/semver build && gjsify workspace @gjsify/utils build',
+            { '@gjsify/cli': CLI, '@gjsify/utils': utilsFixture(), '@gjsify/semver': SEMVER },
+        );
+        assert.equal(result.status, 0, result.output);
+    });
+
+    // The trap: an early clause is not enough, and `emitDeclarationOnly` is the
+    // only thing that says so. Without reading it, swapping utils' early clause
+    // for another `build:types`-shaped one would read as the fix while leaving the
+    // release failing exactly as before — the same `lib/types`-only emit #1133 and
+    // #1237 paid for, in JavaScript rather than in declarations.
+    it('rejects an early clause whose tsc project emits declarations only', () => {
+        const result = runOffDiskGuard(
+            `gjsify workspace @gjsify/utils build:types && gjsify workspace @gjsify/utils build:esm && ${FACADE} && ` +
+                'gjsify workspace @gjsify/semver build && gjsify workspace @gjsify/utils build',
+            { '@gjsify/cli': CLI, '@gjsify/utils': utilsFixture({ esmOnly: true }), '@gjsify/semver': SEMVER },
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /its JavaScript is emitted at clause 5, which is after that clause/);
+    });
+
+    // A `createRequire(...).resolve(...)` the toolchain never performs: a spec
+    // file's pure helper over version strings. Scanning it would make the rule
+    // cry wolf on every workspace package with a `resolve…` helper.
+    it('ignores a resolve call with no import.meta.url anchor, and a type-only import', () => {
+        const result = runOffDiskGuard(
+            'gjsify workspace @gjsify/utils build:esm && ' + FACADE,
+            {
+                '@gjsify/cli': {
+                    ...CLI,
+                    sources: {
+                        'index.spec.ts':
+                            "expect(resolveWorkspaceProtocol('workspace:~', '@gjsify/utils', ws)).toBe('~1');\n",
+                        'pick.ts': "import type * as U from '@gjsify/utils/native-library';\nexport type X = U;\n",
+                    },
+                },
+                '@gjsify/utils': utilsFixture(),
+            },
+        );
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /off-disk rule resolved 0 workspace specifier\(s\)/);
+    });
+
+    it("holds for this repo's own build:infra, with a non-zero count", () => {
+        const result = spawnSync(process.execPath, [ORDER_GUARD], { cwd: MONOREPO_ROOT, encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+        const read = /off-disk rule resolved (\d+) workspace specifier\(s\)/.exec(result.stdout);
+        assert.ok(read, `no off-disk count in output:\n${result.output}`);
+        assert.ok(Number(read[1]) > 0, `the off-disk rule resolved 0 specifiers:\n${result.output}`);
+    });
+});
