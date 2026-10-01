@@ -49,8 +49,19 @@ export default async () => {
                 manifestVersion: 2,
             });
             expect(parseWebextTarget('edge-mv3').browser).toBe('edge');
+            expect(parseWebextTarget('opera-mv3')).toStrictEqual({
+                id: 'opera-mv3',
+                browser: 'opera',
+                manifestVersion: 3,
+            });
             expect(thrown(() => parseWebextTarget('chrome-mv2'))).toContain('removed Manifest V2');
-            expect(thrown(() => parseWebextTarget('opera-mv3'))).toContain('unknown target');
+            // Opera still LOADS MV2, so the refusal is the store's, not the browser's — and the
+            // message has to say which, or it claims a removal Opera has not made.
+            expect(thrown(() => parseWebextTarget('opera-mv2'))).toContain('extension store accepts Manifest V3 only');
+            expect(thrown(() => parseWebextTarget('opera-mv2'))).toContain('Use opera-mv3');
+            // Chromium, and still not in the vocabulary: the list is the whole answer, so a
+            // browser that is merely Chromium must not pass by being Chromium.
+            expect(thrown(() => parseWebextTarget('brave-mv3'))).toContain('unknown target');
             expect(thrown(() => parseWebextTarget('chrome'))).toContain('unknown target');
         });
     });
@@ -126,6 +137,13 @@ export default async () => {
             const config = resolveWebextConfig({ gjsify: { webext: { scripts: { background: 'src/bg.ts' } } } }, root);
             expect(selectTargets(config, ['firefox-mv3']).map((t) => t.id)).toStrictEqual(['firefox-mv3']);
             expect(thrown(() => selectTargets(config, ['edge-mv3']))).toContain('not in `gjsify.webext.targets`');
+            // A declared target is accepted by id, so the vocabulary has to reach config.ts too.
+            const chromium = resolveWebextConfig(
+                { gjsify: { webext: { targets: ['opera-mv3'], scripts: { background: 'src/bg.ts' } } } },
+                root,
+            );
+            expect(chromium.targets.map((t) => t.id)).toStrictEqual(['opera-mv3']);
+            expect(thrown(() => selectTargets(chromium, ['opera-mv2']))).toContain('extension store accepts');
             rmSync(root, { recursive: true, force: true });
         });
 
@@ -310,6 +328,13 @@ export default async () => {
                 '32': 'icons/idle-small.svg',
                 '48': 'icons/idle.svg',
             });
+            // The PNG/SVG switch reads `icons.svg`, which names TARGETS — so a Chromium target
+            // that never opted in gets rasters, and adding a browser does not change that.
+            expect(webextIconPaths(icons, 'idle', parseWebextTarget('opera-mv3'))).toStrictEqual({
+                '16': 'icons/idle-16.png',
+                '32': 'icons/idle-32.png',
+                '48': 'icons/idle-48.png',
+            });
             expect([...svgIconFiles(icons).keys()]).toStrictEqual(['icons/idle-small.svg', 'icons/idle.svg']);
             expect(thrown(() => webextIconPaths(icons, 'busy', parseWebextTarget('chrome-mv3')))).toContain('"idle"');
         });
@@ -350,6 +375,17 @@ export default async () => {
             expect(chromium).toContain('chromium');
             expect(chromium).toContain('--chromium-binary');
             expect(chromium).not.toContain('--keep-profile-changes');
+            // Opera is Chromium, so it takes the chromium DRIVER and names its binary the same
+            // way: the engine picks the driver, `--browser-binary` picks the browser.
+            const opera = webExtRunArgs({
+                sourceDir: '/o/opera-mv3',
+                target: parseWebextTarget('opera-mv3'),
+                profile: '/c/p',
+                browserBinary: '/b/opera',
+            });
+            expect(opera).toContain('chromium');
+            expect(opera).toContain('--chromium-binary');
+            expect(opera).toContain('/b/opera');
             expect(
                 thrown(() =>
                     webExtRunArgs({ sourceDir: '/o', target: parseWebextTarget('safari-mv3'), profile: '/p' }),

@@ -1442,7 +1442,7 @@ gjsify webext dev --no-launch              # rebuild in place, load the folder y
 | `--profile <dir>` | `dev` | Browser profile. Default `$XDG_CACHE_HOME/gjsify/webext/<name>/<target>`, kept between runs. |
 | `--headless` | `dev` | Start the browser without a window. |
 
-Targets are `<browser>-mv<2|3>` with browser `chrome`, `edge`, `firefox` or `safari`. `chrome-mv2` and `edge-mv2` are refused because both browsers have removed Manifest V2. `dev` launches the browser through [`web-ext`](https://github.com/mozilla/web-ext), which it looks for in the project's `node_modules/.bin`, then on `PATH`.
+Targets are `<browser>-mv<2|3>` with browser `chrome`, `edge`, `firefox`, `opera` or `safari`. `chrome-mv2` and `edge-mv2` are refused because both browsers have removed Manifest V2, and `opera-mv2` because Opera's store accepts Manifest V3 only. `dev` launches the browser through [`web-ext`](https://github.com/mozilla/web-ext), which it looks for in the project's `node_modules/.bin`, then on `PATH`.
 
 ## Ship it
 

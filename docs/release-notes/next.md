@@ -39,7 +39,7 @@ read the notes rather than skim the changelog:
   none. Linux gets the same shim alongside libmanette, plus a mode that runs
   both on the same controllers and reports every disagreement.
 - **Browser extensions.** `gjsify webext` builds a WebExtension for Chrome,
-  Edge, Firefox and Safari from one source — on GJS as well as on Node, with no
+  Edge, Firefox, Opera and Safari from one source — on GJS as well as on Node, with no
   Vite.
 - **`gjsify exec`.** Run an installed npm binary on the runtime gjsify itself
   runs on, instead of the program failing to start.
@@ -327,7 +327,7 @@ on those systems.
 
 ## Browser extensions
 
-`gjsify webext` builds a WebExtension for Chrome, Edge, Firefox and Safari from one source
+`gjsify webext` builds a WebExtension for Chrome, Edge, Firefox, Opera and Safari from one source
 (ADR 0077). You declare the extension in `package.json#gjsify.webext`, and one command writes one
 folder per target:
 

@@ -8,7 +8,8 @@ import { webextBuildCommand, webextDevCommand, webextZipCommand } from './subcom
 
 export const webextCommand: Command = {
     command: 'webext <subcommand>',
-    description: 'Browser extensions: build, zip and develop one WebExtension for Chrome, Edge, Firefox and Safari.',
+    description:
+        'Browser extensions: build, zip and develop one WebExtension for Chrome, Edge, Firefox, Opera and Safari.',
     builder: (yargs) =>
         yargs
             .command(
