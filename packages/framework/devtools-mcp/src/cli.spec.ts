@@ -90,7 +90,13 @@ class FakeClient implements DevtoolsCliClient {
 function variantFor(replyType: string | null, value: unknown): GLib.Variant {
     switch (replyType) {
         case '(s)':
-            return GLib.Variant.new_tuple([GLib.Variant.new_string(value as string)]);
+            // `GetStatus` answers a JSON DOCUMENT and `FindWidget` a bare path, so a `(s)` reply
+            // carries a string either way — an object answer is serialized rather than handed to
+            // `new_string`, which is what the app does on the wire and what the readiness poll
+            // needs in order to succeed against the fake.
+            return GLib.Variant.new_tuple([
+                GLib.Variant.new_string(typeof value === 'string' ? value : JSON.stringify(value)),
+            ]);
         case '(b)':
             return GLib.Variant.new_tuple([GLib.Variant.new_boolean(value as boolean)]);
         case '(ii)':
@@ -179,7 +185,7 @@ export default async () => {
             const { code, client } = await runCli(['rebuild', ...BUS]);
             expect(code).toBe(2);
             // Nothing was put on the wire: an unknown verb must not half-drive the app.
-            expect(client.methodsCalled()).toEqual([]);
+            expect(client.methodsCalled()).toStrictEqual([]);
         });
 
         await it('refuses to run with no app to talk to', async () => {
@@ -204,7 +210,7 @@ export default async () => {
                 Screenshot: fakePng(200, 100),
             });
             expect(run.code).toBe(0);
-            expect(run.client.firstCall('Screenshot')?.params).toEqual(['/0/1']);
+            expect(run.client.firstCall('Screenshot')?.params).toStrictEqual(['/0/1']);
         });
 
         await it('retries an empty answer and keeps the first real picture', async () => {
@@ -233,7 +239,7 @@ export default async () => {
             });
             expect(run.code).toBe(0);
             expect(run.out).toBe('/Bauplaner/window/1/status');
-            expect(run.client.firstCall('FindWidget')?.params).toEqual(['Adw.StatusPage:error']);
+            expect(run.client.firstCall('FindWidget')?.params).toStrictEqual(['Adw.StatusPage:error']);
         });
 
         await it('exits 1 when nothing matches the selector', async () => {
@@ -272,7 +278,7 @@ export default async () => {
         await it('asks DumpTree for a bounded depth', async () => {
             const run = await runCli(['tree', '--depth', '3', ...BUS], { DumpTree: { nodes: [] } });
             expect(run.code).toBe(0);
-            expect(run.client.firstCall('DumpTree')?.params).toEqual(['', 3]);
+            expect(run.client.firstCall('DumpTree')?.params).toStrictEqual(['', 3]);
         });
 
         await it('lists the reachable instances', async () => {
