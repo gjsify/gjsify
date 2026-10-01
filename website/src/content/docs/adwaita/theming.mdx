@@ -98,8 +98,8 @@ clearAdwaitaAccent();                            // back to the stylesheet's own
 
 ## Follow the desktop's accent
 
-A native Adwaita window follows the accent the user picked in Settings. A web page
-can do the same, from whichever of these sources it has, highest first:
+A native Adwaita window follows the accent the user picked in Settings. A web page can do the same,
+from whichever of these sources it has, highest first:
 
 1. **Your own choice.** `applyAdwaitaAccent(name)` wins over everything below, and
    `clearAdwaitaAccent()` hands the page back.
@@ -110,14 +110,14 @@ can do the same, from whichever of these sources it has, highest first:
    <meta name="adw-color-scheme" content="dark">
    ```
 
-   For live updates, send the same values as JSON over a channel your app already
-   has and pass them to `applyDesktopAppearance(json)`.
-3. **The browser's `AccentColor`**, once you call `applySystemAccent()`, or when the
-   tag says `content="system"`.
+   For live updates, send the same values as JSON over a channel your app already has and pass them
+   to `applyDesktopAppearance(json)`.
+3. **The browser's `AccentColor`**, once you call `applySystemAccent()`, or when the tag says
+   `content="system"`.
 4. **Adwaita blue**, the stylesheet's own value.
 
-Every source is snapped to the nearest of the nine accents, which is what libadwaita does
-with the system colour, so the page matches a native window on the same desktop.
+Every source is snapped to the nearest of the nine accents, which is what libadwaita does with the
+system colour, so the page matches a native window on the same desktop.
 
 ```ts
 import { adwaitaAccentSource, applyDesktopAppearance, applySystemAccent } from '@gjsify/adwaita-web';
