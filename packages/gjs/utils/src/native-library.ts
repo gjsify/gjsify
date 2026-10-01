@@ -17,29 +17,28 @@
 // the library directory — the in-process repair ADR 0021 applies to the CLI's
 // engines, keyed here by the namespace instead of a node_modules sweep.
 //
-// Saying why it is not — {@link probeNativeLibrary}. A library that still cannot
-// be opened (a system dependency such as Homebrew json-glib is absent) fails at
-// the first class access with GJS's "Unsupported type void, deriving from
-// fundamental void", which names nothing. The loader DID know the answer
-// (`Library not loaded: @rpath/libjson-glib-1.0.0.dylib`), but it is lost twice
-// before it reaches JavaScript:
+// Saying why it is not — {@link probeNativeLibrary}. A library that still cannot be
+// opened (a system dependency such as Homebrew json-glib is absent) fails at the first
+// class access with GJS's "Unsupported type void, deriving from fundamental void", which
+// names nothing. The loader DID know the answer (`Library not loaded:
+// @rpath/libjson-glib-1.0.0.dylib`), but it is lost twice before it reaches JavaScript:
 //
-//  1. `GModule.Module.open` is not introspectable, so JS cannot dlopen a path
-//     and read the error itself.
-//  2. girepository tries every library-path directory and then the bare leaf
-//     name, and reports `g_module_error()` of its LAST attempt. The leaf lookup
-//     fails with "no such file" in the cwd and the system dirs, so its warning
-//     describes the fallback rather than the file that was found and refused.
+//  1. `GModule.Module.open` is not introspectable, so JS cannot dlopen a path and read
+//     the error itself.
+//  2. girepository tries every library-path directory and then the bare leaf name, and
+//     reports `g_module_error()` of its LAST attempt. The leaf lookup fails with "no such
+//     file" in the cwd and the system dirs, so its warning describes the fallback rather
+//     than the file that was found and refused.
 //
-// The measured way around both: load a copy of the namespace's typelib into a
-// PRIVATE repository with its shared-library entry rewritten to the absolute
-// path of the colocated library. girepository opens an absolute entry directly,
-// with no fallback, so the error `GModule.module_error()` then holds is the
-// loader's own for exactly that file.
+// The measured way around both: load a copy of the namespace's typelib into a PRIVATE
+// repository with its shared-library entry rewritten to the absolute path of the
+// colocated library. girepository opens an absolute entry directly, with no fallback, so
+// the error `GModule.module_error()` then holds is the loader's own for exactly that
+// file.
 //
-// Loaders call {@link openNativeLibrary} (both steps) or, when the bridge is
-// optional, {@link loadOptionalNativeModule}, so a missing dependency reads the
-// same {@link NativeLibraryLoadError} whichever bridge hit it.
+// Loaders call {@link openNativeLibrary} (both steps) or, when the bridge is optional,
+// {@link loadOptionalNativeModule}, so a missing dependency reads the same
+// {@link NativeLibraryLoadError} whichever bridge hit it.
 
 /** What {@link probeNativeLibrary} measured about a library that would not load. */
 export interface NativeLibraryFailure {
