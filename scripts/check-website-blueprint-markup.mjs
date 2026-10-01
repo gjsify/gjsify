@@ -119,16 +119,19 @@ const filesOf = (page) => {
     return { toggles, panels };
 };
 
-/** Each built window that holds a loader pane: its pane ids and each pane's files, in order. */
+/**
+ * Each built window that holds a loader binding: the binding ids and each binding's files, in
+ * order. The bindings are the window's "Other bindings" dialogs (`data-pane`).
+ */
 const loaderWindows = (html) => {
     const windows = [];
-    const starts = [...html.matchAll(/data-impls="([^"]*)"/g)];
+    const starts = [...html.matchAll(/<div class="command-tabs adw-widget-window/g)];
     for (const [index, start] of starts.entries()) {
-        const ids = start[1].split(',');
-        if (!PANES.some((pane) => ids.includes(pane.id))) continue;
         const end = starts[index + 1]?.index ?? html.length;
-        const pages = html.slice(start.index, end).split('<adw-tab-page').slice(1);
-        windows.push({ ids, files: pages.map(filesOf) });
+        const dialogs = html.slice(start.index, end).split('<div class="adw-widget-binding"').slice(1);
+        const ids = dialogs.map((dialog) => /\bdata-pane="([^"]*)"/.exec(dialog)?.[1] ?? '');
+        if (!PANES.some((pane) => ids.includes(pane.id))) continue;
+        windows.push({ ids, files: dialogs.map(filesOf) });
     }
     return windows;
 };
@@ -220,7 +223,7 @@ for (const mdx of walk(DOCS, '.mdx')) {
                 continue;
             }
             if (shown === undefined) {
-                failures.push(`${block.title}: the built Code window has no "${pane.id}" pane`);
+                failures.push(`${block.title}: the built window has no "${pane.id}" pane`);
                 continue;
             }
             let expected;

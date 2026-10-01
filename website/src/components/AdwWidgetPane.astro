@@ -1,0 +1,25 @@
+---
+// One pane's body, whichever kind it is — shared by the tabs and the "Other bindings" dialogs.
+import { Code } from '@astrojs/starlight/components';
+
+import AdwWidgetFiles from './AdwWidgetFiles.astro';
+import AdwWidgetRefusal from './AdwWidgetRefusal.astro';
+import type { WidgetPane } from './widget-panes';
+
+interface Props {
+    pane: WidgetPane;
+    /** The block's title, for the refusal prose. */
+    widget: string;
+}
+
+const { pane, widget } = Astro.props;
+---
+
+{pane.kind === 'slot' && <Fragment set:html={pane.html} />}
+{pane.kind === 'code' && <Code code={pane.source} lang={pane.lang} />}
+{pane.kind === 'files' && <AdwWidgetFiles pane={pane} />}
+{
+    pane.kind === 'refusal' && (
+        <AdwWidgetRefusal widget={widget} missing={pane.missing} reason={pane.reason} note={pane.note} />
+    )
+}

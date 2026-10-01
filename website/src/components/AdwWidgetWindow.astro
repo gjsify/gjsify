@@ -1,138 +1,41 @@
 ---
-// AdwWidgetWindow — ONE window of an {@link AdwWidget} block: an Adwaita header
-// bar with this window's title, and under it the panes this kind of
-// implementation has to show.
+// AdwWidgetWindow — the ONE window of an {@link AdwWidget} block: a header bar with the
+// widget's title, the running widget under it, then the block's source in `tabs`
+// (an Adw.TabBar for two or more, the bare pane for one).
 //
-// TWO OR MORE PANES are an Adw.TabBar. ONE pane is drawn directly under the
-// header bar, with no bar at all: a tab bar over a single tab is chrome that
-// offers no choice. The branch below reads the pane COUNT and nothing else, never a
-// window's id or title: a window shrinking to one pane, or growing to two, has to
-// come out right without anyone editing this file. {@link AdwWidget} decides which
-// windows exist and what they claim; this file knows how a window is drawn.
+// Every other rendering (`bindings`) sits behind the header bar's "Other bindings" menu and
+// opens in a popover dialog. The menu is a `<details>`, the dialogs use the Popover API, so
+// both work without script; the script in AdwWidget only closes the menu on a pick.
 //
-// THE LIVE PREVIEW IS THE ONLY PANE OF ITS WINDOW, and that is asserted below rather
-// than assumed. It used to sit inside the tab view as the first of three tabs —
-// Preview | HTML | Attributes — which offers the reader a choice between the running
-// widget and its sources, as if the widget were one of them. The markup that paints
-// it is a source and is a tab of the frameworks window now; the widget itself gets a
-// window and nothing else in it. `check-website-adwaita-gallery.mjs` arm 9 holds all
-// three halves of that: this file mounts the preview exactly once, mounts it OUTSIDE
-// the tab view, and `AdwWidget`'s live window is FIRST, so the reader meets the widget
-// before any source.
-//
-// PANE ORDER IS NOT DECIDED HERE ANY MORE. It is the order of the `panes` array, which
-// is also the order `data-impls` names them in, because {@link impls} is derived from
-// the same array. The two used to be separate — a fixed sequence of expressions here,
-// a hand-assembled string there — and a stored preference is resolved by POSITION
-// against that string, so the two disagreeing sent a reader who picked one pane to a
-// different one, on every other block, with nothing downstream able to tell.
-//
-// It is a component rather than a loop body in `AdwWidget.astro` because a window is
-// a thing with a name, not four lines of markup repeated. This note used to give a
-// compiler reason instead — that the Astro compiler cannot parse a JSX expression
-// nested inside a `.map()` CALLBACK, `windows.map((win) => (<div>{win.live &&
-// (<div/>)}</div>))` failing with `Expected "}" but found ")"`. RE-MEASURED the way
-// that note itself demands, by building the site, on astro 6.4.5 with
-// @astrojs/compiler 4.0.0: that exact shape builds, a `.map()` inside a `.map()`
-// builds, and a conditional carrying a self-closing element inside a row builds.
-// Whatever the original failure was, it is not this rule — and a rule with a wrong
-// reason is thrown out together with its reason the first time someone checks it.
+// `check-website-adwaita-gallery.mjs` arm 9 holds that the preview is mounted once, outside
+// the tab view.
 
-import { Code } from '@astrojs/starlight/components';
-
-import AdwWidgetFiles from './AdwWidgetFiles.astro';
-import AdwWidgetRefusal from './AdwWidgetRefusal.astro';
-import type { TabbedPane, WidgetPane } from './widget-panes';
+import AdwWidgetPane from './AdwWidgetPane.astro';
+import type { LivePane, WidgetPane } from './widget-panes';
 
 interface Props {
-    /** Window title. The live-preview window takes the WIDGET's; the rest name their kind. */
+    /** The widget, e.g. "Adw.SwitchRow". */
     title: string;
-    /** Canonical upstream docs for the widget, on the window that is about the widget. */
+    /** Canonical upstream docs for the widget. */
     refHref?: string | null;
-    /** The widget, for the reference link's labels and the refusal prose. */
-    widget: string;
-    /**
-     * This window's panes, in render order — see {@link WidgetPane} for the five kinds.
-     *
-     * ONE ordered list and not a prop per kind, so the order a reader sees and the
-     * order `data-impls` records cannot be two facts.
-     */
-    panes: WidgetPane[];
-    /** Padding around the preview widget — see AdwWidget. */
+    /** What the preview mounts, or none when the block has no markup. */
+    live?: LivePane;
+    /** The source tabs, in order; also the order `data-impls` names them in. */
+    tabs: WidgetPane[];
+    /** The panes behind the "Other bindings" menu. */
+    bindings: WidgetPane[];
     padding?: 'comfortable' | 'flush';
-    /** Horizontal scrolling for a wide preview — see AdwWidget. */
     scroll?: boolean;
-    /** Inline CSS for the preview stage: preview-only scaffolding — see AdwWidget. */
+    /** Inline CSS for the preview stage — see AdwWidget. */
     stage?: string;
 }
 
-const { title, refHref = null, widget, panes, padding = 'comfortable', scroll = false, stage } = Astro.props;
+const { title, refHref = null, live, tabs, bindings, padding = 'comfortable', scroll = false, stage } = Astro.props;
 
-/**
- * This window's pane ids, in order, for the cross-widget preference sync.
- *
- * Derived here rather than passed, because the list is POSITIONAL and the position it
- * means is the one in the template below.
- */
-const impls = panes.map((pane) => pane.id).join(',');
-
-/**
- * Whether this window holds any code at all, which is whether its header bar gets a
- * COPY BUTTON.
- *
- * The button forwards to the active pane's hidden Expressive Code copy button (see the
- * handler in `AdwWidget`). A window whose only pane is prose has none: the handler
- * finds nothing, returns, and does not even mark the press. Measured on the built site
- * before this guard: 19 of 160 windows — every frameworks window carrying a recorded
- * reason — rendered a button labelled "Copy this window's code" that could never copy
- * anything. Nothing else noticed; the site builds and every gate stays green.
- *
- * Slot, code and files panes hold Expressive Code blocks and nothing else does, so this
- * counts the panes that hold code rather than asking a window what kind it is.
- * The header bar's trailing span keeps the button's width either way, so the title
- * stays centred against the windows above and below it.
- */
-const copyable = panes.some((pane) => pane.kind === 'slot' || pane.kind === 'code' || pane.kind === 'files');
-
-// NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
-// exit 0. `AdwWidget` is what prevents it — it skips a window that filled none of its
-// panes — and nothing downstream restated the guard: measured by deleting that one
-// line, /adwaita/buttons/ built green with five extra empty windows on it. Arm 7 of
-// `check-website-adwaita-gallery.mjs` cannot see this one: it refuses a window that
-// can render NO pane on any block, while these are windows whose panes are simply
-// unfilled on this block, which is the ordinary case.
-if (panes.length === 0) {
-    throw new Error(
-        `AdwWidgetWindow(${title}): a window with no pane at all. AdwWidget renders a window only where ` +
-            'this block filled one of its panes, so this means that skip stopped happening.',
-    );
-}
-
-/** The lone pane of a single-pane window, or null on a tabbed one. */
-const single = panes.length === 1 ? panes[0] : null;
-
-/**
- * The panes a TAB BAR draws, which is every pane but the live preview.
- *
- * Asserted rather than assumed, and the assertion is the whole reason this loop is
- * not a `filter`: the alternative to throwing is the running widget quietly becoming
- * one tab among its own sources again, which builds, renders, and passes every other
- * check. It is also what lets the template read a `label` off every pane it draws —
- * see {@link TabbedPane}, the type a live pane is deliberately outside of.
- */
-const tabbed: TabbedPane[] = [];
-for (const pane of panes) {
-    if (pane.kind !== 'live') {
-        tabbed.push(pane);
-        continue;
-    }
-    if (single !== null) continue;
-    throw new Error(
-        `AdwWidgetWindow(${title}): the live preview reached a window with ${panes.length} panes ` +
-            `(${impls}). The window that RUNS the widget shows the widget and nothing else, so this ` +
-            'means AdwWidget started giving that window tabs.',
-    );
-}
+const impls = tabs.map((pane) => pane.id).join(',');
+const single = tabs.length === 1 ? tabs[0] : null;
+const slug = title.replaceAll(/[^A-Za-z0-9]+/g, '-');
+const bindingId = (pane: WidgetPane) => `binding-${slug}-${pane.id}`;
 ---
 
 <div class="command-tabs adw-widget-window not-content" data-impl-tabs data-impls={impls}>
@@ -145,8 +48,8 @@ for (const pane of panes) {
                         href={refHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={`Reference for ${widget}`}
-                        aria-label={`Open the reference for ${widget} in a new tab`}
+                        title={`Reference for ${title}`}
+                        aria-label={`Open the reference for ${title} in a new tab`}
                     >
                         <span class="command-tabs-ref-icon" aria-hidden="true" />
                     </a>
@@ -155,115 +58,244 @@ for (const pane of panes) {
         </span>
         <span class="command-tabs-headerbar-title">{title}</span>
         <span class="command-tabs-headerbar-end">
-            {/* Not "copy active tab" in the code, only in the label: the handler in
-                AdwWidget forwards to the ACTIVE pane's own code block and to nothing
-                else, and where there is no code block at all there is no button, see
-                {@link copyable}. */}
-            {copyable && (
-                <button class="command-tabs-copy" aria-label="Copy this window's code" type="button">
-                    <span class="command-tabs-copy-icon" aria-hidden="true" />
-                </button>
-            )}
+            {
+                bindings.length > 0 && (
+                    <details class="adw-widget-menu">
+                        <summary>Other bindings</summary>
+                        <ul>
+                            {bindings.map((pane) => (
+                                <li>
+                                    <button type="button" popovertarget={bindingId(pane)}>
+                                        {pane.label}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </details>
+                )
+            }
+            {
+                tabs.length > 0 && (
+                    <button class="command-tabs-copy" aria-label="Copy this window's code" type="button">
+                        <span class="command-tabs-copy-icon" aria-hidden="true" />
+                    </button>
+                )
+            }
         </span>
     </div>
 
     {
-        tabbed.length > 1 && (
+        live && (
+            <div class:list={['adw-widget-preview', 'not-content', `is-${padding}`, { 'is-scroll': scroll }]}>
+                {/* `not-content`: Starlight's sibling margin rule would otherwise land on the
+                    widgets, which are laid out by their own stylesheet alone. */}
+                {/* The preview is CLONED into the stage at runtime (see AdwWidget's script):
+                    a <template> is inert, so cloning AFTER the elements are defined avoids the
+                    upgrade-order race of nested composites. The markup is the `preview` fence
+                    read back out of Expressive Code, so `slot="…"` never meets the MDX compiler. */}
+                {/* NOT self-closing: `<template … set:html={…} />` swallows its siblings. */}
+                <template class="adw-widget-preview-tpl" data-shared-tree={live.tree} set:html={live.markup ?? ''}></template>
+                <div class="adw-widget-preview-stage" style={stage} />
+            </div>
+        )
+    }
+
+    {
+        tabs.length > 1 && (
             <adw-tab-view no-close expand-tabs data-impl-view>
-                {tabbed.map((pane) => (
+                {tabs.map((pane) => (
                     <adw-tab-page title={pane.label}>
-                        {pane.kind === 'slot' && <Fragment set:html={pane.html} />}
-                        {pane.kind === 'code' && <Code code={pane.source} lang={pane.lang} />}
-                        {pane.kind === 'files' && <AdwWidgetFiles pane={pane} />}
-                        {pane.kind === 'refusal' && (
-                            <AdwWidgetRefusal
-                                widget={widget}
-                                missing={pane.missing}
-                                reason={pane.reason}
-                                note={pane.note}
-                            />
-                        )}
+                        <AdwWidgetPane pane={pane} widget={title} />
                     </adw-tab-page>
                 ))}
             </adw-tab-view>
         )
     }
-
-    {/* The bare pane, with no tab bar over it. Every kind can reach it: the live preview
-        (the first window, always), a lone slot tab, a lone data or files pane, and a
-        recorded reason — the last being the ordinary case for the blocks whose frameworks
-        window carries a reason instead of a snippet. */}
     {
-        single?.kind === 'live' && (
-            <div class:list={['adw-widget-preview', 'not-content', `is-${padding}`, { 'is-scroll': scroll }]}>
-                {/* `not-content` for the same reason CommandTabs.astro states it, and
-                    it was missing HERE while the tabs beside it already carried it.
-                    Starlight gives every content element that FOLLOWS a sibling a
-                    `margin-top: 1rem`, exempting only `:where(.not-content *)`. Inside
-                    a preview that lands on the widgets: measured on the deployed page,
-                    the second button of a wrap box and every one after it took
-                    `margin-top: 16px` while the first took none — and in a flex line
-                    the first then STRETCHED by exactly that much, 50px against its
-                    siblings' 34px. The same rule pushed a header bar's trailing button
-                    below its own title and set the two panes of a split view onto
-                    baselines 16px apart, which clipped the sidebar's last row. A
-                    preview is a rendering of a widget, not prose: it has to be laid out
-                    by the widget's own stylesheet alone.
-
-                    It also carries what `check-website-preview-not-content.mjs` used to
-                    read off the gallery pages themselves. Their preview markup is a
-                    fenced block now and that scanner masks fences as code, so the
-                    marker stopped being restated on 40 blocks and became structural:
-                    one component mounts every preview, into this element. */}
-                {/* The preview is CLONED into the stage at runtime (see AdwWidget's
-                    script) rather than server-rendered directly: adwaita-web custom
-                    elements upgrade as the page is parsed, and a nested composite (a
-                    split view holding toolbar views) can lose its slotted children to
-                    an upgrade-order race. A <template> is inert, so cloning AFTER the
-                    elements are defined uses the reliable build-then-attach path.
-
-                    The markup is the block's own `preview` fence, read back out of
-                    Expressive Code, so `slot="…"` needs no rewriting here: it never
-                    passes through the MDX compiler, which reads `slot` as its own
-                    slot-assignment directive and strips it. That is what retired
-                    `data-adw-slot` HERE; AdwGalleryCard still needs it, because the
-                    index page's cards mount MDX markup rather than a fence. */}
-                {/* NOT self-closing. `<template … set:html={…} />` compiles to a
-                    template element that swallows its following siblings and an
-                    unbalanced expression: measured on astro 6.4.5, the generated
-                    module ended `</div>`}</div>`;` and esbuild refused it with
-                    `Expected ")" but found "}"` pointing at a line that does not
-                    exist in this file. */}
-                <template class="adw-widget-preview-tpl" data-shared-tree={single.tree} set:html={single.markup ?? ''}></template>
-                <div class="adw-widget-preview-stage" style={stage} />
+        single && (
+            <div class="adw-widget-window-pane">
+                <AdwWidgetPane pane={single} widget={title} />
             </div>
         )
     }
-    {single?.kind === 'slot' && <div class="adw-widget-window-pane" set:html={single.html} />}
+
     {
-        single?.kind === 'code' && (
-            <div class="adw-widget-window-pane">
-                <Code code={single.source} lang={single.lang} />
+        bindings.map((pane) => (
+            <div
+                class="adw-widget-binding"
+                popover
+                id={bindingId(pane)}
+                data-pane={pane.id}
+                aria-label={`${pane.label} — ${title}`}
+            >
+                <div class="adw-widget-binding-bar">
+                    <span class="adw-widget-binding-title">{pane.label}</span>
+                    {pane.kind !== 'refusal' && (
+                        <button class="command-tabs-copy" aria-label={`Copy the ${pane.label} code`} type="button">
+                            <span class="command-tabs-copy-icon" aria-hidden="true" />
+                        </button>
+                    )}
+                    <button
+                        class="adw-widget-binding-close"
+                        type="button"
+                        popovertarget={bindingId(pane)}
+                        popovertargetaction="hide"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                </div>
+                <AdwWidgetPane pane={pane} widget={title} />
             </div>
-        )
-    }
-    {
-        single?.kind === 'files' && (
-            <div class="adw-widget-window-pane">
-                <AdwWidgetFiles pane={single} />
-            </div>
-        )
-    }
-    {
-        single?.kind === 'refusal' && (
-            <div class="adw-widget-window-pane">
-                <AdwWidgetRefusal
-                    widget={widget}
-                    missing={single.missing}
-                    reason={single.reason}
-                    note={single.note}
-                />
-            </div>
-        )
+        ))
     }
 </div>
+
+<style is:global>
+    .adw-widget-window .command-tabs-headerbar {
+        gap: 6px;
+    }
+
+    .adw-widget-window .command-tabs-headerbar-start {
+        width: auto;
+        min-width: 38px;
+    }
+
+    .adw-widget-window .command-tabs-headerbar-title {
+        min-width: 0;
+    }
+
+    .adw-widget-window .command-tabs-headerbar-end {
+        gap: 2px;
+    }
+
+    .adw-widget-menu {
+        position: relative;
+    }
+
+    .adw-widget-menu summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 9px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+        list-style: none;
+    }
+
+    .adw-widget-menu summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .adw-widget-menu summary::after {
+        content: '';
+        width: 0.4em;
+        height: 0.4em;
+        border: solid currentColor;
+        border-width: 0 1.5px 1.5px 0;
+        transform: translateY(-0.1em) rotate(45deg);
+    }
+
+    .adw-widget-menu summary:hover,
+    .adw-widget-menu[open] summary {
+        background: rgba(128, 128, 128, 0.12);
+    }
+
+    .adw-widget-menu ul {
+        position: absolute;
+        z-index: 5;
+        top: calc(100% + 4px);
+        right: 0;
+        min-width: 11rem;
+        margin: 0;
+        padding: 6px;
+        list-style: none;
+        border: 1px solid rgba(128, 128, 128, 0.3);
+        border-radius: 12px;
+        background: var(--adw-view-bg);
+        color: var(--adw-window-fg);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+
+    :root[data-theme='dark'] .adw-widget-menu ul {
+        background: var(--adw-window-bg);
+    }
+
+    .adw-widget-menu li {
+        margin: 0;
+    }
+
+    .adw-widget-menu li button {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 0.875rem;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .adw-widget-menu li button:hover,
+    .adw-widget-menu li button:focus-visible {
+        background: rgba(128, 128, 128, 0.16);
+    }
+
+    .adw-widget-binding {
+        width: min(54rem, calc(100vw - 2rem));
+        max-height: min(80vh, 42rem);
+        margin: auto;
+        padding: 0;
+        overflow: auto;
+        border: 1px solid rgba(128, 128, 128, 0.3);
+        border-radius: 12px;
+        background: var(--view-bg-color);
+        color: var(--view-fg-color);
+    }
+
+    .adw-widget-binding::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+    }
+
+    .adw-widget-binding-bar {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 47px;
+        padding: 0 6px 0 16px;
+        background: var(--headerbar-bg-color);
+        color: var(--headerbar-fg-color);
+    }
+
+    .adw-widget-binding-title {
+        flex: 1;
+        font-size: 0.875rem;
+        font-weight: bold;
+    }
+
+    .adw-widget-binding-close {
+        width: 34px;
+        height: 34px;
+        border: none;
+        border-radius: 9px;
+        background: transparent;
+        color: inherit;
+        font-size: 1.25rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .adw-widget-binding-close:hover {
+        background: rgba(128, 128, 128, 0.12);
+    }
+</style>
