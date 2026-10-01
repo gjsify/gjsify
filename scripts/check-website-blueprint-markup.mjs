@@ -120,18 +120,18 @@ const filesOf = (page) => {
 };
 
 /**
- * Each built window that holds a loader binding: the binding ids and each binding's files, in
- * order. The bindings are the window's "Other bindings" dialogs (`data-pane`).
+ * Each built source window that holds a loader binding: the pane ids and each pane's files, in
+ * order. The panes are the window's tab panels (`data-pane`), the More menu's among them.
  */
 const loaderWindows = (html) => {
     const windows = [];
-    const starts = [...html.matchAll(/<div class="command-tabs adw-widget-window/g)];
+    const starts = [...html.matchAll(/<div class="command-tabs adw-widget-window adw-widget-code-window/g)];
     for (const [index, start] of starts.entries()) {
         const end = starts[index + 1]?.index ?? html.length;
-        const dialogs = html.slice(start.index, end).split('<div class="adw-widget-binding"').slice(1);
-        const ids = dialogs.map((dialog) => /\bdata-pane="([^"]*)"/.exec(dialog)?.[1] ?? '');
+        const panes = html.slice(start.index, end).split('<div class="adw-widget-pane"').slice(1);
+        const ids = panes.map((pane) => /\bdata-pane="([^"]*)"/.exec(pane)?.[1] ?? '');
         if (!PANES.some((pane) => ids.includes(pane.id))) continue;
-        windows.push({ ids, files: dialogs.map(filesOf) });
+        windows.push({ ids, files: panes.map(filesOf) });
     }
     return windows;
 };

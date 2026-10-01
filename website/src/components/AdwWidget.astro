@@ -1,8 +1,8 @@
 ---
-// AdwWidget — the documentation block for one Adwaita component: ONE window with the
-// running widget on top and the source under it in two tabs, Blueprint and TypeScript.
-// Every other rendering (Web Components, NativeScript, Solid, Vue, React, and the recorded
-// reasons for the ones a widget has none of) is behind the window's "Other bindings" menu.
+// AdwWidget — the documentation block for one Adwaita component: a window with the running
+// widget, and a window under it with the source. The source window's segmented control reads
+// Blueprint | TypeScript | More ▾; every other rendering (Web Components, NativeScript, Solid,
+// Vue, React, and the recorded reasons for the ones a widget has none of) is behind More.
 //
 // Feed the sources as named MDX slots, one fenced code block each; a tab appears only where
 // its slot was given:
@@ -28,7 +28,7 @@
 // declarations and holds the pages to them.
 
 interface Props {
-    /** The widget, e.g. "Adw.SwitchRow". Titles the window. */
+    /** The widget, e.g. "Adw.SwitchRow". Titles the preview window. */
     title?: string;
     /** "flush" for widgets that own their full surface; the default pads small ones. */
     padding?: 'comfortable' | 'flush';
@@ -118,7 +118,7 @@ type PaneGroup = {
     codeOf: (widget: string, pane: string) => string | undefined;
     refusalOf: (widget: string) => string | undefined;
     /** The pane the reason renders as; its id has to be unique among all panes. */
-    refusal: { pane: string; label: string; missing: string; note: string };
+    refusal: { pane: string; label: string; short: string; missing: string; note: string };
 };
 
 const FRAMEWORK_GROUP: PaneGroup = {
@@ -128,6 +128,7 @@ const FRAMEWORK_GROUP: PaneGroup = {
     refusal: {
         pane: 'why-not',
         label: 'Why no Solid, Vue or React',
+        short: 'No Solid, Vue, React',
         missing: 'Solid, Vue or React snippet',
         note:
             'Every snippet in this gallery was compiled and run before it was written down. Where a widget is ' +
@@ -147,6 +148,7 @@ const NATIVESCRIPT_GROUP: PaneGroup = {
     refusal: {
         pane: 'why-no-xml',
         label: 'Why no NativeScript XML',
+        short: 'No NativeScript',
         missing: 'NativeScript XML template',
         note:
             'NativeScript’s Builder reaches a widget through an attribute, which is always a string, and ' +
@@ -196,13 +198,13 @@ const PANE_MARKUP: Record<string, (tree: SharedTreeNode) => string> = {
 
 type BlockShape = 'markup' | 'one-Blueprint';
 
-/** The tabs under the preview, in order. A tab with no source on a block is skipped. */
+/** The segments before More, in order. A segment with no source on a block is skipped. */
 const TABS = [
     { slot: 'blueprint', label: 'Blueprint' },
     { slot: 'gjs', label: 'TypeScript' },
 ] as const;
 
-/** Slot-backed entries of the "Other bindings" menu, before the data panes of {@link GROUPS}. */
+/** Slot-backed entries of the More menu, before the data panes of {@link GROUPS}. */
 const BINDINGS = [
     { slot: MARKUP_SLOT, label: 'Web Components' },
     { slot: 'webloader', label: 'Web Components' },
@@ -235,7 +237,7 @@ const decodeEcCode = (html: string): string | null => {
 const shape: BlockShape = oneBlueprint ? 'one-Blueprint' : 'markup';
 const groups = GROUPS[shape];
 
-// Pane ids are the preference keys and the dialog ids, so no two may share one.
+// Pane ids are the preference keys and the element ids, so no two may share one.
 const PANE_IDS = [
     ...TABS.map((tab) => tab.slot),
     ...BINDINGS.map((binding) => binding.slot),
@@ -341,6 +343,7 @@ for (const group of groups) {
         id: group.refusal.pane,
         kind: 'refusal',
         label: group.refusal.label,
+        short: group.refusal.short,
         missing: group.refusal.missing,
         note: group.refusal.note,
         reason,
@@ -362,16 +365,10 @@ for (const group of groups) {
 </div>
 
 <script>
-    // Registers every <adw-*> custom element — both the tab bar of this
-    // component AND the live-preview widgets slotted into it. This static import
-    // runs before the code below, so every element is defined by the time the
-    // previews mount. `buildSharedTree` is what a one-Blueprint block's preview is
-    // realised with — see the mount below.
+    // Registers every <adw-*> custom element, the live-preview widgets included. This static
+    // import runs before the code below, so every element is defined by the time the previews
+    // mount. `buildSharedTree` is what a one-Blueprint block's preview is realised with.
     import { buildSharedTree } from '@gjsify/adwaita-web';
-    // The element CLASS, for the ordinal door below. `<adw-tab-view>` has no settable
-    // ordinal any more (ADR 0048) and an attribute is a string no type sees, so the
-    // selection has to go through a method a type can miss.
-    import type { Adw } from '@gjsify/adwaita-web';
 
     // Mount each preview: clone its inert <template> into the stage now that the
     // custom elements are defined. Building the subtree and attaching it in one go
@@ -388,74 +385,70 @@ for (const group of groups) {
     }
 
     const KEY = 'gjsify-preferred-impl';
+    const WINDOW = '[data-impl-tabs]';
+    const SEGMENTS = '.adw-widget-seg > [role="tab"]';
+
+    const paneOf = (win: HTMLElement, id: string) =>
+        win.querySelector<HTMLElement>(`:scope > .adw-widget-panes > .adw-widget-pane[data-pane="${id}"]`);
+
+    /** Shows pane `id` in `win`; an extra (not a segment of its own) is shown under the More segment. */
+    const select = (win: HTMLElement, id: string): boolean => {
+        const pane = paneOf(win, id);
+        if (!pane) return false;
+        for (const other of win.querySelectorAll<HTMLElement>(':scope > .adw-widget-panes > .adw-widget-pane')) {
+            other.toggleAttribute('data-active', other === pane);
+        }
+        const more = win.querySelector<HTMLElement>('[data-more]');
+        const item = win.querySelector<HTMLElement>(`.adw-widget-menu [data-pick="${id}"]`);
+        for (const tab of win.querySelectorAll<HTMLElement>(SEGMENTS)) {
+            const on = tab === more ? item !== null : tab.dataset.impl === id;
+            tab.setAttribute('aria-selected', String(on));
+            tab.tabIndex = on ? 0 : -1;
+            if (tab === more) {
+                if (on) tab.setAttribute('aria-controls', pane.id);
+                else tab.removeAttribute('aria-controls');
+            }
+        }
+        const label = more?.querySelector('[data-more-label]');
+        if (label) label.textContent = item?.dataset.short ?? 'More';
+        for (const entry of win.querySelectorAll<HTMLElement>('.adw-widget-menu [data-pick]')) {
+            entry.setAttribute('aria-checked', String(entry === item));
+        }
+        win.toggleAttribute('data-no-copy', pane.dataset.kind === 'refusal');
+        return true;
+    };
 
     const applyPreference = (impl: string | null, skip?: Element) => {
         if (!impl) return;
-        for (const el of document.querySelectorAll<HTMLElement>('[data-impl-tabs]')) {
-            // The MARKED view, not just any: a mounted preview can itself be an
-            // `<adw-tab-view>` — the Adw.TabView block on /adwaita/view-switching/ is
-            // one — and an unmarked `querySelector` handed that one back and silently
-            // retargeted it whenever the reader picked an implementation on any other
-            // widget. The marker is what makes the read right rather than lucky, and
-            // the preview window is now the case that proves it: that window has no
-            // tab view of its own at all, so an unmarked selector there returns the
-            // MOUNTED WIDGET and nothing else.
-            const view = el.querySelector<Adw.TabView>('adw-tab-view[data-impl-view]');
-            if (!view || view === skip) continue;
-            const impls = (el.dataset.impls ?? '').split(',');
-            const index = impls.indexOf(impl);
-            // The windows hold disjoint pane sets, so a stored choice simply does not
-            // apply to most of them: picking "Blueprint" moves every GJS window and
-            // leaves the others where the reader left them.
-            // A CALL, not an attribute: `selected="n"` was the door until ADR 0048 renamed
-            // the markup half to `selected-page="<page id>"`, and these panes declare no
-            // `page-id`. The stored preference is a NAME resolved to a position against the
-            // list as it is now — nothing here holds the number, which is the whole
-            // difference the ADR draws.
-            if (index >= 0) view.selectNthPage(index);
+        const isSegment = document.querySelector(`${WINDOW} .adw-widget-seg > [data-impl="${impl}"]`) !== null;
+        for (const win of document.querySelectorAll<HTMLElement>(WINDOW)) {
+            if (win === skip) continue;
+            // A segment the block lacks leaves it where the reader left it; a More pick the
+            // block lacks falls back to TypeScript.
+            if (!select(win, impl) && !isSegment) select(win, 'gjs');
         }
     };
 
-    // Follow user selection: persist + mirror to every other widget on the page.
-    document.addEventListener('notify::selected-page', (event) => {
-        const view = event.target as HTMLElement;
-        // ONLY this component's own implementation tab view. `notify::selected-page`
-        // BUBBLES, and every widget preview lives inside the same `[data-impl-tabs]`
-        // host, so an unguarded listener also caught the previews. On
-        // /adwaita/view-switching/ the Adw.TabView preview IS an `<adw-tab-view>`:
-        // clicking its "Details" chip arrived here as `detail.selected = 1`, was read
-        // as "the reader picked implementation 1" (Blueprint), persisted, and rewrote
-        // every widget on the page. The widgets above then swapped a long snippet for
-        // a short one and shrank, so the content under the reader's cursor jumped
-        // upward while scrollY never moved. Reported as "clicking a tab scrolls the
-        // page", which is exactly what it looks like.
-        if (!view?.matches?.('[data-impl-view]')) return;
-        const host = view.closest('[data-impl-tabs]') as HTMLElement | null;
-        if (!host) return;
-        const impls = (host.dataset.impls ?? '').split(',');
-        const impl = impls[(event as CustomEvent).detail?.selected ?? 0];
-        if (!impl) return;
+    /** The reader's pick in one window: shown there, and remembered and mirrored to the others. */
+    const choose = (win: HTMLElement, id: string) => {
+        if (!select(win, id)) return;
+        // A recorded reason is a fact about one block, not a rendering to follow.
+        if (paneOf(win, id)?.dataset.kind === 'refusal') return;
         try {
-            localStorage.setItem(KEY, impl);
+            localStorage.setItem(KEY, id);
         } catch {
             // Private mode — selection just won't persist.
         }
-        applyPreference(impl, view);
-    });
+        applyPreference(id, win);
+    };
 
     // Copy button → the ACTIVE pane's hidden Expressive Code copy button (EC handles the
-    // clipboard; the Adwaita toast listens on that button's click). The header button copies the
-    // visible tab, a dialog's own button copies its dialog. A pane with no code copies nothing.
+    // clipboard; the Adwaita toast listens on that button's click). A pane with no code copies nothing.
     const EC_COPY = '.copy button, .adw-code-headerbar-end button';
     document.addEventListener('click', (event) => {
         const btn = (event.target as HTMLElement).closest?.('.command-tabs-copy') as HTMLElement | null;
         if (!btn) return;
-        // The mounted preview can hold an <adw-tab-view> of its own; only the marked one is ours.
-        const page =
-            btn.closest('.adw-widget-binding') ??
-            btn
-                .closest('[data-impl-tabs]')
-                ?.querySelector('adw-tab-view[data-impl-view] .adw-tab-page:not([hidden]), .adw-widget-window-pane');
+        const page = btn.closest(WINDOW)?.querySelector('.adw-widget-pane[data-active]');
         // A pane of several files copies the one on screen, and only that one.
         const active = page?.querySelector('.adw-widget-file[data-active]') ?? page;
         const ecButton = active?.querySelector<HTMLButtonElement>(EC_COPY);
@@ -465,34 +458,106 @@ for (const group of groups) {
         setTimeout(() => btn.classList.remove('copied'), 1500);
     });
 
-    // "Other bindings": a pick, a click elsewhere or Escape closes the menu. Opening a dialog
-    // from inside it would otherwise leave it open underneath.
-    const closeMenus = (except?: Element | null) => {
-        for (const menu of document.querySelectorAll<HTMLDetailsElement>('.adw-widget-menu[open]')) {
-            if (menu !== except) menu.open = false;
-        }
-    };
     document.addEventListener('click', (event) => {
         const target = event.target as HTMLElement;
-        const menu = target.closest?.('.adw-widget-menu');
-        closeMenus(menu && !target.closest('li button') ? menu : null);
-    });
-    document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape') return;
-        const open = document.querySelector<HTMLDetailsElement>('.adw-widget-menu[open]');
-        if (!open) return;
-        open.open = false;
-        open.querySelector('summary')?.focus();
-    });
-
-    // Initial: restore the remembered implementation once the element is defined.
-    customElements.whenDefined('adw-tab-view').then(() => {
-        try {
-            applyPreference(localStorage.getItem(KEY));
-        } catch {
-            // ignore
+        const win = target.closest?.<HTMLElement>(WINDOW);
+        if (!win) return;
+        const tab = target.closest<HTMLElement>('.adw-widget-seg > [data-impl]');
+        const item = target.closest<HTMLElement>('.adw-widget-menu [data-pick]');
+        if (tab?.dataset.impl) choose(win, tab.dataset.impl);
+        if (item?.dataset.pick) {
+            choose(win, item.dataset.pick);
+            win.querySelector<HTMLElement>('.adw-widget-menu')?.hidePopover();
         }
     });
+
+    // The segments are one tab stop with arrows inside. Moving onto a segment shows it; the
+    // More segment is only focused, its menu opens on Enter, Space, a click or ArrowDown.
+    document.addEventListener('keydown', (event) => {
+        const target = event.target as HTMLElement;
+        if (!target.matches?.(SEGMENTS)) return;
+        const tabs = [...(target.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
+        const at = tabs.indexOf(target);
+        let next: HTMLElement | undefined;
+        if (event.key === 'ArrowRight') next = tabs[(at + 1) % tabs.length];
+        else if (event.key === 'ArrowLeft') next = tabs[(at - 1 + tabs.length) % tabs.length];
+        else if (event.key === 'Home') next = tabs[0];
+        else if (event.key === 'End') next = tabs[tabs.length - 1];
+        else if (event.key === 'ArrowDown' && target.matches('[data-more]')) {
+            target.closest(WINDOW)?.querySelector<HTMLElement>('.adw-widget-menu')?.showPopover();
+        } else return;
+        event.preventDefault();
+        if (!next) return;
+        next.focus();
+        if (next.dataset.impl) next.click();
+    });
+
+    // Menu rows: arrows move between the rows, Escape and a click elsewhere close it (the Popover
+    // API) and hand focus back to the More segment.
+    document.addEventListener('keydown', (event) => {
+        const menu = (event.target as HTMLElement).closest?.<HTMLElement>('.adw-widget-menu');
+        if (!menu) return;
+        const rows = [...menu.querySelectorAll<HTMLElement>('[data-pick]')];
+        const at = rows.indexOf(event.target as HTMLElement);
+        let next: HTMLElement | undefined;
+        if (event.key === 'ArrowDown') next = rows[(at + 1) % rows.length];
+        else if (event.key === 'ArrowUp') next = rows[(at - 1 + rows.length) % rows.length];
+        else if (event.key === 'Home') next = rows[0];
+        else if (event.key === 'End') next = rows[rows.length - 1];
+        else return;
+        event.preventDefault();
+        next?.focus();
+    });
+
+    // Placement: from the More segment's rect, because the popover lives in the top layer and a
+    // window's `overflow: hidden` cannot clip it. The arrow points at the segment; below it when
+    // there is room, above it otherwise.
+    const MENU_WIDTH = 232;
+    const place = (menu: HTMLElement) => {
+        const more = menu.closest(WINDOW)?.querySelector<HTMLElement>('[data-more]');
+        if (!more) return;
+        const rect = more.getBoundingClientRect();
+        const width = Math.min(MENU_WIDTH, innerWidth - 16);
+        const x = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, 8), innerWidth - width - 8);
+        const below = innerHeight - rect.bottom >= 320 || innerHeight - rect.bottom >= rect.top;
+        menu.dataset.side = below ? 'bottom' : 'top';
+        menu.style.setProperty('--x', `${x}px`);
+        menu.style.setProperty('--y', `${below ? rect.bottom + 8 : innerHeight - rect.top + 8}px`);
+        menu.style.setProperty('--arrow-x', `${rect.left + rect.width / 2 - x}px`);
+    };
+
+    // `beforetoggle` and `toggle` do not bubble; the capture phase still reaches them here.
+    document.addEventListener(
+        'beforetoggle',
+        (event) => {
+            const menu = event.target as HTMLElement;
+            if (menu.matches?.('.adw-widget-menu') && (event as ToggleEvent).newState === 'open') place(menu);
+        },
+        true,
+    );
+    document.addEventListener(
+        'toggle',
+        (event) => {
+            const menu = event.target as HTMLElement;
+            if (!menu.matches?.('.adw-widget-menu')) return;
+            const open = (event as ToggleEvent).newState === 'open';
+            menu.closest(WINDOW)?.querySelector('[data-more]')?.setAttribute('aria-expanded', String(open));
+            if (open) (menu.querySelector<HTMLElement>('[aria-checked="true"]') ?? menu.querySelector<HTMLElement>('[data-pick]'))?.focus();
+        },
+        true,
+    );
+    const replaceOpenMenus = () => {
+        for (const menu of document.querySelectorAll<HTMLElement>('.adw-widget-menu:popover-open')) place(menu);
+    };
+    addEventListener('resize', replaceOpenMenus);
+    addEventListener('scroll', replaceOpenMenus, { capture: true, passive: true });
+
+    // Initial: restore the remembered implementation.
+    try {
+        applyPreference(localStorage.getItem(KEY));
+    } catch {
+        // ignore
+    }
 
     // THE FILE ROW of a pane of several files (AdwWidgetFiles). The pick is kept PER TAB and
     // by the file's ROLE, not its name: `views/clamp.xml` and `views/avatar.xml` are both the
@@ -550,18 +615,10 @@ for (const group of groups) {
         margin-top: 1.5rem;
     }
 
-    /* A lone source pane has no <adw-tab-view>, so this stands in for its page surface. */
-    .adw-widget-window-pane {
-        background-color: var(--view-bg-color);
-        color: var(--view-fg-color);
-        overflow: hidden;
-    }
-
     /* ── Live preview pane ──────────────────────────────────────────────
-       The only pane of the window that runs the widget: an Adwaita "view"
-       surface the real widget is painted onto, directly under the header bar. It
-       carries no frame and no separator of its own — the window around it owns
-       every edge, and the header bar above it is the only line the reader needs. */
+       The surface of the window that runs the widget: an Adwaita "view" the real widget
+       is painted onto, directly under the header bar. It carries no frame and no
+       separator of its own — the window around it owns every edge. */
     .adw-widget-preview {
         background: var(--adw-view-bg);
         overflow: hidden;
@@ -611,19 +668,6 @@ for (const group of groups) {
         overflow-x: auto;
     }
 
-    /* Narrow viewports: stop stretching the tabs to equal widths and let the bar
-       scroll instead — which is what Adw.TabBar itself does when its tabs no
-       longer fit. Equal widths on a phone gave each of four tabs about 80px, and
-       a label then ellipsises down to something that names nothing. The bar
-       already has `overflow-x: auto`; it just needs tabs that keep their own
-       width. */
-    @media (max-width: 700px) {
-        .adw-widget-window adw-tab-view[expand-tabs] .adw-tab {
-            flex: 0 0 auto;
-            white-space: nowrap;
-        }
-    }
-
     /* The preview widgets are light-DOM custom elements styled by the global
        adwaita-web stylesheet; keep them from stretching full width so small
        widgets stay centered and legible.
@@ -639,9 +683,9 @@ for (const group of groups) {
         max-width: 420px;
     }
 
-    /* ── Reference link — a flat CSD button in the (otherwise empty) left slot
-          of the tab-window headerbar, so the title stays centered. Opens the
-          widget's canonical upstream docs. ── */
+    /* ── Reference link — a flat CSD button in the left slot of the preview
+          window's headerbar, so the title stays centered. Opens the widget's
+          canonical upstream docs. ── */
     .command-tabs .command-tabs-headerbar-start {
         display: flex;
         align-items: center;

@@ -32,6 +32,8 @@ export type RefusalPane = {
     id: string;
     kind: 'refusal';
     label: string;
+    /** What the `More` segment reads while this reason is shown. */
+    short: string;
     missing: string;
     note: string;
     reason: string;

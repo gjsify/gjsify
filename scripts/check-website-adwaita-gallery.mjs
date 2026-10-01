@@ -68,7 +68,7 @@
 //      demands of each one that some block writes it and that some arm of THIS file
 //      reads it ({@link SLOT_READERS}, derived from the arms' own input rather than
 //      written out beside them). A category nothing reads is a category, not a reason.
-//   7. (retired) Windows are gone: a block is ONE window, and arm 6 holds every tab and binding slot to a block.
+//   7. (retired) Windows are gone: a block is a preview window and a source window, and arm 6 holds every tab and binding slot to a block.
 //   8. Every block providing the MARKUP OVERRIDE is ledgered in
 //      {@link MARKUP_OVERRIDE_LEDGER} with its reason, and every ledger entry names a
 //      block that provides it.
@@ -130,16 +130,17 @@
 //      one one-Blueprint block fails exactly as a `gjs` fence missing from one block does.
 //      A `blueprint="…"` naming no file under `website/src/blueprints/` fails too.
 //      So does the shape's ORDER: the `.blp` is the first tab, ahead of the code that loads it.
-//   9. The running widget sits in the one window outside its tab view, and the markup
+//   9. The running widget sits in its own window above the source window, and the markup
 //      that paints it is shown.
 //
 //      In {@link WIDGET_COMPONENT}: the fence the live pane mounts (`MARKUP_SLOT`) is a
 //      BINDINGS entry that some block fills. Drop it and every block paints a widget whose
 //      markup a reader cannot read, at exit 0, with the fence still authored and gated.
 //
-//      In {@link WINDOW_COMPONENT}: the preview is mounted exactly once, and OUTSIDE the tab
-//      view. Both are source-text reads over the files with COMMENTS BLANKED OUT, each with a
-//      floor: no tab view, no pane map or no `MARKUP_SLOT` found is a failure, not a clean run.
+//      In {@link WINDOW_COMPONENT}: the preview is mounted exactly once, and BEFORE the source
+//      window (`data-impl-tabs`), which is drawn once. Both are source-text reads over the files
+//      with COMMENTS BLANKED OUT, each with a floor: no source window, no pane map or no
+//      `MARKUP_SLOT` found is a failure, not a clean run.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -281,9 +282,10 @@ const WIDGET_COMPONENT = 'website/src/components/AdwWidget.astro';
  */
 const WINDOW_COMPONENT = 'website/src/components/AdwWidgetWindow.astro';
 
-/** The mounted preview's own element, and the expression that renders the tab pages. */
+/** The mounted preview's own element, the marker of the source window, and the expression that renders its panes. */
 const PREVIEW_MOUNT = 'adw-widget-preview-tpl';
-const PANE_MAP = 'tabs.map(';
+const SOURCE_WINDOW = 'data-impl-tabs';
+const PANE_MAP = 'panes.map(';
 
 /**
  * The same file with its comments blanked out.
@@ -293,8 +295,8 @@ const PANE_MAP = 'tabs.map(';
  * `check-website-preview-not-content.mjs` shipped in exactly that state — its first
  * cut asked whether a file CONTAINED the marker string, and `AdwGalleryCard.astro`
  * carries an eight-line comment naming the marker, so deleting the marker from its
- * markup left the check green. Measured again on arm 9: put the mount back inside the
- * tab view and leave `adw-widget-preview-tpl` in a comment outside it, and the unmasked
+ * markup left the check green. Measured again on arm 9: put the mount after the
+ * source window and leave `adw-widget-preview-tpl` in a comment outside it, and the unmasked
  * read exits 0 on a window that offers the widget as a tab.
  *
  * Line comments are anchored to the start of a line so that a `https://` inside an
@@ -303,17 +305,17 @@ const PANE_MAP = 'tabs.map(';
 const withoutComments = stripComments;
 
 /**
- * Arm 9, over the file that DRAWS a window: the preview is mounted exactly once, and
- * OUTSIDE the tab view.
+ * Arm 9, over the file that DRAWS the windows: the preview is mounted exactly once, in a window
+ * ABOVE the source window.
  *
- * Both halves are the arm. Two preview panes render the widget twice from the same
- * markup, and one INSIDE the tab view is the widget offered to the reader as one tab
- * among its own sources — which is the arrangement the preview window was restructured
- * out of, and it comes back by moving four lines.
+ * Both halves are the arm. Two preview panes render the widget twice from the same markup, and
+ * a mount at or after the source window is the widget offered to the reader among its own
+ * sources — the arrangement the preview window was split out of, and it comes back by moving
+ * four lines.
  *
- * The tab view and the pane map have to be FOUND for either read to mean anything: with
- * no `<adw-tab-view>` in the file, "the mount is outside the tab view" is true of a file
- * that draws no tabs at all, which is the vacuous pass this arm is most exposed to.
+ * The source window and the pane map have to be FOUND for either read to mean anything: with no
+ * source window in the file, "the mount is above it" is true of a file that draws no sources at
+ * all, which is the vacuous pass this arm is most exposed to.
  *
  * Returns the reasons the file is wrong, empty when it is right.
  */
@@ -323,15 +325,19 @@ function previewMountPlacement(root) {
     const mounts = text.split(PREVIEW_MOUNT).length - 1;
     if (mounts === 0) problems.push(`mounts no preview (\`${PREVIEW_MOUNT}\`) at all`);
     if (mounts > 1) problems.push(`mounts ${mounts} previews, and a window runs the widget once`);
-    const view = /<adw-tab-view\b[\s\S]*?<\/adw-tab-view>/.exec(text);
-    if (view === null) {
-        problems.push('holds no <adw-tab-view> … </adw-tab-view>, so there is no tab view to be outside of');
+    const windows = text.split(SOURCE_WINDOW).length - 1;
+    if (windows !== 1) {
+        problems.push(
+            `draws the source window (\`${SOURCE_WINDOW}\`) ${windows} times, so there is no one window to be above`,
+        );
         return problems;
     }
-    const maps = view[0].split(PANE_MAP).length - 1;
-    if (maps !== 1) problems.push(`renders the tab pages (\`${PANE_MAP}\`) ${maps} times inside its tab view`);
-    if (view[0].includes(PREVIEW_MOUNT)) {
-        problems.push('mounts the preview INSIDE its tab view, so the running widget is one tab beside its sources');
+    const maps = text.split(PANE_MAP).length - 1;
+    if (maps !== 1) problems.push(`renders the source panes (\`${PANE_MAP}\`) ${maps} times`);
+    if (mounts === 1 && text.indexOf(PREVIEW_MOUNT) > text.indexOf(SOURCE_WINDOW)) {
+        problems.push(
+            'mounts the preview in or after the source window, so the running widget sits beside its sources',
+        );
     }
     return problems;
 }
@@ -396,8 +402,8 @@ const MARKUP_OVERRIDE_LEDGER = {
 const PARTIAL_TAB_SLOTS = {};
 
 /**
- * The pane model `AdwWidget` renders: the slots of its tabs (`TABS`) and of its "Other
- * bindings" menu (`BINDINGS`), the slot whose fence is mounted, the one override slot, the
+ * The pane model `AdwWidget` renders: the slots of its segments (`TABS`) and of its
+ * More menu (`BINDINGS`), the slot whose fence is mounted, the one override slot, the
  * corpus slots and the two block shapes' slot sets.
  *
  * Read out of the component rather than tabled here: a second hand-written list is the thing
@@ -1389,10 +1395,10 @@ console.log(
         'section is named by.',
 );
 console.log(
-    `check-website-adwaita-gallery: one window per block — tabs [${tabSlots.join(' ')}], bindings ` +
-        `[${bindingSlots.join(' ')}] — every fragment slot written is one the component renders or a corpus slot an ` +
+    `check-website-adwaita-gallery: two windows per block — segments [${tabSlots.join(' ')}], bindings ` +
+        `More [${bindingSlots.join(' ')}] — every fragment slot written is one the component renders or a corpus slot an ` +
         `arm reads (${[...corpusSlots].join(', ')}), ${overriding.size} block(s) override the markup binding, all ` +
-        `ledgered, and the widget is mounted once, outside ${WINDOW_COMPONENT}'s tab view.`,
+        `ledgered, and the widget is mounted once, above the source window of ${WINDOW_COMPONENT}.`,
 );
 
 // Arm 13, printed rather than counted by hand every few months: three panes have now
