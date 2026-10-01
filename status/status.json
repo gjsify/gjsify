@@ -256,6 +256,10 @@
       "status": "full",
       "note": "The declaration-vs-reality rule registry (portable rules `package-outputs`, `prebuild-artifacts`, `headless`, `field-coverage`; shared context/report/binary-parser libs). Plain committed `lib/*.mjs`, no build — importable from CI scripts with no node_modules. Private/internal today; `gjsify manifest-check` is designed but not shipped (see Open TODOs)."
     },
+    "@gjsify/mcp": {
+      "status": "full",
+      "note": "MCP server runtime for GJS and Node: `applyReadOnlyGate` (default-deny on `readOnlyHint`), `serveUntilClosed`/`serveStdio` (stdio loop that ends on client EOF), `mcpSuccess`/`mcpError`/`mcpErrorFrom` result helpers. `@modelcontextprotocol/sdk` is a peer dependency."
+    },
     "@gjsify/message-channel": {
       "status": "full",
       "note": "MessageChannel, MessagePort (W3C, EventTarget-based, transport-pluggable). Stock GJS exposes neither. The pluggable transport hook backs `@gjsify/iframe`'s WebKit bridge and `@gjsify/worker_threads`' cross-process ports."
