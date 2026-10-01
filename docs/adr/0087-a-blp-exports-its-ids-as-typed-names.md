@@ -110,11 +110,17 @@ makes the derivation reviewable — a diff in a sidecar is the `.blp`'s own surf
 
 ### 5. The sidecars are held by a drift check, not by discipline
 
-`scripts/check-blueprint-sidecars.mjs` regenerates every tracked `.blp`'s sidecar and diffs it
-against the committed bytes: red on stale, missing-but-imported-by-name, or orphaned. Two producers
-write them — the vite plugin during build and watch, and `gjsify blueprint types` before a check or
-a `tsc` — and a committed artifact with two producers and no comparison is the shape ADR 0053's own
-census table already went stale in.
+`scripts/check-blueprint-sidecars.mjs` regenerates every COMMITTED sidecar from its `.blp` and
+diffs: red on stale, red on orphaned. Two producers write them — the vite plugin during build and
+watch, and `gjsify blueprint types` before a check or a `tsc` — and a committed artifact with two
+producers and no comparison is the shape ADR 0053's own census table already went stale in.
+
+A sidecar is opt-in per file, and the gate does NOT demand one per `.blp`: most of the 123 tracked
+`.blp` are corpus fixtures and gallery sources nothing imports by name. The third failure — a
+named import with no sidecar — is held by the compiler and not here: the import falls back to the
+wildcard, which exports only `default`, and `tsc` reports TS2614 naming each missing member. A
+grep for `.blp` imports in the gate would be a weaker second reader of a question `gjsify run
+check` already answers exactly.
 
 ### 6. The browser target is named, not built
 
