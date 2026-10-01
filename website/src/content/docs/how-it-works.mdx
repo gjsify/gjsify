@@ -7,13 +7,13 @@ import CommandTabs from '../../components/CommandTabs.astro';
 import MoreInfo from '../../components/MoreInfo.astro';
 
 `gjsify build` and `gjsify run` do everything described here on their own. Read it when a build
-behaved in a way the task guides don't explain. Each section stands on its own, so jump to the one you
-need. Which target runs where is in [Runtimes](/gjsify/runtimes/), and every flag is in the
+behaved in a way the task guides don't explain; each section stands on its own. Which target runs
+where is in [Runtimes](/gjsify/runtimes/), every flag is in the
 [CLI Reference](/gjsify/cli-reference/).
 
 ## Import aliasing
 
-One source file has to build for runtimes that do not ship the imports it uses, so the bundler plugin
+One source file has to build for runtimes that do not ship the imports it uses, so the plugin
 rewrites them: `--app gjs` rewrites the Node.js and Web API imports to their `@gjsify/*` equivalents,
 `--app node` rewrites `gi://` imports onto the [node-gi bridge](/gjsify/projects/node-gi/).
 
@@ -33,12 +33,13 @@ import { createServer } from '@gjsify/http'     // → Soup.Server
 // WebSocket → Soup.WebsocketConnection   (via @gjsify/websocket)
 ```
 
-The bare specifier is the canonical form: no gjsify-specific import ever appears in your source,
-so one file type-checks against `@types/node` and builds for either target. The alias table lives in
-`@gjsify/resolve-npm`, and its coverage is in the
+The bare specifier is canonical: no gjsify-specific import appears in your source, so one file
+type-checks against `@types/node` and builds for either target.
+
+<MoreInfo title="The alias table, and what each target leaves alone">
+The alias table lives in `@gjsify/resolve-npm`, and its coverage is in the
 [Packages Overview](/gjsify/packages/overview/).
 
-<MoreInfo title="What each target leaves alone">
 | Target | What it rewrites | Why |
 |---|---|---|
 | `--app gjs` | Node.js and Web API imports, to their `@gjsify/*` equivalents | GJS has no `node:` builtins and no DOM |
@@ -58,8 +59,8 @@ The GJS target compiles down to `firefox140`, which is SpiderMonkey 140, the eng
 ## Automatic globals detection
 
 Plenty of npm code reaches for globals with no import at all: `process.env.FOO`,
-`Buffer.from(data)`, `await fetch(...)`. On GJS those don't exist until something registers them on
-`globalThis`, and `--globals auto` works out which ones by analysing the bundled output:
+`Buffer.from(data)`, `await fetch(...)`. On GJS those do not exist until something registers them
+on `globalThis`; `--globals auto` works out which ones by analysing the bundled output:
 
 <CommandTabs title="Build the bundle">
   <Fragment slot="gjsify">
@@ -88,7 +89,7 @@ Plenty of npm code reaches for globals with no import at all: `process.env.FOO`,
   </Fragment>
 </CommandTabs>
 
-Use `--verbose` to watch it converge, and `--globals auto,<name>` to add what the analyser cannot
+Use `--verbose` to watch it converge, and `--globals auto,<name>` for what the analyser cannot
 see:
 
 ```bash
@@ -160,21 +161,20 @@ The full identifier table, and the register subpath each name maps to, lives in 
 [CLI Reference](/gjsify/cli-reference/#known-identifiers).
 </MoreInfo>
 
-### Fixing `ReferenceError: X is not defined`
-
+<MoreInfo title="Fixing `ReferenceError: X is not defined`">
 If your GJS bundle crashes with `ReferenceError: X is not defined`, the global `X` was not
 detected. Look it up in the identifier table in the
 [CLI Reference](/gjsify/cli-reference/#known-identifiers) and add it as an extra:
 `--globals auto,X`, or take its whole group with `--globals auto,dom`. If `X` is not in the table,
 gjsify does not implement it yet: check the [Packages Overview](/gjsify/packages/overview/) or
 open an issue.
+</MoreInfo>
 
 ## Native prebuilds and `gjsify run`
 
-Some gjsify packages need native code. `@gjsify/webgl` ships a Vala-built shared library plus a GIR
-typelib that routes WebGL calls through libepoxy. Those binaries do not sit in the main package: a
-native package declares its targets in `"gjsify": { "platforms": [...] }` and lists a companion
-package per target as an `optionalDependency`.
+Some gjsify packages need native code. Those binaries are not in the main package: such a package
+declares its targets in `"gjsify": { "platforms": [...] }` and lists a companion package per target
+as an `optionalDependency`.
 
 ```
 node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64/
@@ -186,9 +186,9 @@ node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64/
 The companion carries the files under `prebuilds/<os>-<arch>/`, so an install only fetches the
 binary for the machine you are on.
 
-`gjsify run` sweeps your `node_modules` for these packages, prepends what it finds to
+`gjsify run` sweeps your `node_modules` for those packages, prepends what it finds to
 `GI_TYPELIB_PATH` and the loader's own search variable, then launches the bundle: `gjs -m <bundle>`
-for an `--app gjs` one, or the runtime's own binary for an `--app node` one.
+for an `--app gjs` one, the runtime's own binary for an `--app node` one.
 
 <CommandTabs title="Run the bundle">
   <Fragment slot="gjsify">
@@ -214,6 +214,9 @@ for an `--app gjs` one, or the runtime's own binary for an `--app node` one.
 </CommandTabs>
 
 <MoreInfo title="Target spellings, the launcher, and calling `gjs` yourself">
+`@gjsify/webgl` is the worked example: a Vala-built shared library plus a GIR typelib that routes
+WebGL calls through libepoxy.
+
 The library-search variable is `LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on macOS (dyld
 ignores `LD_LIBRARY_PATH` entirely) and `PATH` on Windows. Select the launcher with `--runtime node`,
 `bun` or `deno` for an `--app node` bundle.
@@ -269,19 +272,17 @@ Which prebuilt artifacts actually exist, per package and per platform, is tracke
 
 ## The GLib main loop
 
-On `--app gjs`, a Node-style server runs on Gio async I/O, and that needs a running GLib main loop.
-`http.Server.listen()`, `net.Server.listen()` and `dgram.Socket.bind()` start one for you, so there
-is nothing to call from application code. GTK applications carry on using
-`Gtk.Application.runAsync()` as usual. On `--app node` there is nothing to arrange; the case needing
-both loops at once is a `gi://` bundle there, and [node-gi](/gjsify/projects/node-gi/) arranges that
-per runtime.
+On `--app gjs`, a Node-style server runs on Gio async I/O, which needs a running GLib main loop.
+`http.Server.listen()`, `net.Server.listen()` and `dgram.Socket.bind()` start one for you, so
+application code calls nothing; GTK applications carry on using `Gtk.Application.runAsync()`. On
+`--app node` there is nothing to arrange, and [node-gi](/gjsify/projects/node-gi/) arranges a
+`gi://` bundle that needs both loops per runtime.
 
 ## Vite and the CLI run the same plugins
 
 Gjsify's build plugins are Rollup-shaped, so the same plugin objects load under Rolldown (which
-`gjsify build` drives) and under Vite. That is why a dev server with hot module reload and a
-production `gjsify build --app browser` produce the same output instead of two pipelines that
-drift apart.
+`gjsify build` drives) and under Vite — a dev server with hot module reload and a production
+`gjsify build --app browser` then produce the same output instead of two pipelines that drift apart.
 
 <MoreInfo title="The four plugins worth using on their own">
 | Plugin | What it does |
@@ -297,23 +298,23 @@ The presets that mirror `gjsify build --app browser` and `--app nativescript` sh
 
 ## Location-independent bundles
 
-A GJS bundle built with gjsify resolves its bundled dependencies' data files from the bundle's real
-on-disk location at runtime, so a dependency that loads its own `package.json`, translation catalogue
-or templates through `import.meta.url` keeps working after the bundle is installed globally, at a
-different `node_modules` depth than the one it was built at. Yarn PnP workspaces are covered too.
-Neither case needs configuration.
+A GJS bundle resolves its bundled dependencies' data files from the bundle's real on-disk location
+at runtime, so a dependency that loads its own `package.json`, translation catalogue or templates
+through `import.meta.url` keeps working once the bundle is installed globally, at a different
+`node_modules` depth than it was built at. Yarn PnP workspaces are covered too. Neither needs
+configuration.
 
 ## Adwaita on the web: light DOM and design tokens
 
 [`@gjsify/adwaita-web`](/gjsify/adwaita/) renders each widget as a **light-DOM custom element** styled
-by one global stylesheet, rather than hiding its markup inside a shadow root. Every rule stays
-reachable, so a higher-specificity selector of yours wins the way it normally would, and the
-components render server-side with nothing extra.
+by one global stylesheet, not hiding its markup inside a shadow root. Every rule stays reachable, so
+a higher-specificity selector of yours wins the way it normally would.
 
 <MoreInfo title="The cost of the light DOM, and why the tokens are the API">
 A host page's own CSS reaches into the widgets, so each widget re-establishes the Adwaita
 typographic and box-model context at its own boundary instead of inheriting whatever the
-surrounding page set.
+surrounding page set. The components render server-side with nothing extra, since there is no
+shadow root to serialise past.
 
 That is why the [design tokens](/gjsify/adwaita/theming/) are the supported way to re-theme. Custom
 properties cross a shadow boundary and ordinary CSS rules do not, so a theme written against the
@@ -324,23 +325,28 @@ the full decision.
 
 ## One behaviour layer behind the Adwaita ports
 
-The web and NativeScript Adwaita ports do not each implement widget behaviour. Both compose
-[`@gjsify/adwaita-core`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core), a
-pure-TypeScript package with no platform imports
-([ADR 0004](https://github.com/gjsify/gjsify/blob/main/docs/adr/0004-headless-adwaita-core.md)), which
-owns the parts that are logic rather than rendering. Each port keeps only its own half, so a behaviour
-fix lands once and both pick it up.
+The web and NativeScript Adwaita ports do not each implement widget behaviour: both compose
+`@gjsify/adwaita-core`, so a behaviour fix lands once and both pick it up.
+
+<MoreInfo title="What `@gjsify/adwaita-core` is">
+A pure-TypeScript package with no platform imports
+([ADR 0004](https://github.com/gjsify/gjsify/blob/main/docs/adr/0004-headless-adwaita-core.md))
+that owns the parts which are logic rather than rendering, which is why each port keeps only its own
+half. It lives in
+[`packages/web/adwaita-core`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core).
+</MoreInfo>
 
 ## Bridge packages and their globals
 
-Importing a [bridge package](/gjsify/patterns/bridges/) has no side effects.
+Importing a [bridge package](/gjsify/patterns/bridges/) has no side effects:
 `import { Canvas2DBridge } from '@gjsify/canvas2d'` gives you the named exports and writes nothing
-to `globalThis`. The browser globals each package owns live behind a `/register` subpath instead, and
-you normally import none of them: `gjsify build`'s default `--globals auto` reads the identifiers in
-the bundled output and injects the matching one. The bridges themselves do not depend on those
-globals, so they also work under `--globals none`.
+to `globalThis`. The browser globals a package owns live behind a `/register` subpath instead, and
+you normally import none: `gjsify build`'s default `--globals auto` reads the identifiers in
+the bundled output and injects the matching one.
 
 <MoreInfo title="The register subpaths, and the imperative alternative">
+The bridges do not depend on the globals they publish, so they also work under `--globals none`.
+
 | Subpath | What it installs |
 |---|---|
 | `@gjsify/canvas2d/register` | `globalThis.ImageData` and `globalThis.Path2D`, plus the DOM pillar's `@gjsify/dom-elements/register/canvas` |
@@ -366,9 +372,9 @@ is `@gjsify/video`, whose `VideoBridge` also keeps a private `document` / `windo
 ## How gjsify install resolves a tree
 
 `gjsify install` builds `node_modules` itself, without shelling out to npm. The resolver follows npm
-v3 and later semantics, so the layout it produces is the one every other tool expects: a placement
-that satisfies a range is reused from the ancestor `node_modules` chain, and a conflict nests the
-dependency under the requester instead.
+v3 and later semantics, so the layout is the one every other tool expects: a placement that
+satisfies a range is reused from the ancestor `node_modules` chain, and a conflict nests the
+dependency under the requester.
 
 <MoreInfo title="The lockfile, pinning, and what a re-resolve touches">
 The result is a lockfile whose `packages` map is keyed by install path, at `lockfileVersion` 4.
@@ -386,18 +392,22 @@ opt-in that re-resolves everything to the newest in-range version.
 
 Packing the same build twice with [`gjsify ship`](/gjsify/cli-reference/#gjsify-ship) gives
 byte-identical files. Timestamps come from the built bundle's mtime, or from `SOURCE_DATE_EPOCH` when
-that is set, and it is that environment variable which lets two different checkouts of the same
-source produce identical bytes. The guarantee holds per JavaScript runtime, so pick one runtime for
-your release builds and the artifacts stay comparable.
+that is set — which is what lets two checkouts of the same source produce identical bytes.
+
+<MoreInfo title="The guarantee holds per JavaScript runtime">
+Pick one runtime for your release builds and the artifacts stay comparable.
+</MoreInfo>
 
 ## What the platform marks prove
 
 The `<os>-<arch>` marks in the [Platform Support](/gjsify/platform-support/) table are generated from
 the same rule the CI gate runs (`scripts/audit-runtimes.mjs --check`), so the page and the audit
-cannot disagree. The marks are read out of the workflow YAML, so "a CI job targets it" claims exactly
-that, never that a green run of that job exists.
+cannot disagree.
 
 <MoreInfo title="What `✓` and `○` mean, and the per-runtime caveat">
+The marks are read out of the workflow YAML, so "a CI job targets it" claims exactly that, never
+that a green run of that job exists.
+
 `✓` means the binary is committed in this repository, in the bridge's per-target package
 (`@gjsify/<bridge>-<os>-<arch>`, an `optionalDependencies` entry a package manager installs or
 silently skips), not in the bridge's own tarball. It does not mean anyone has run that artifact on
@@ -423,9 +433,8 @@ only check functionally on its own architecture, is in
 ## How the cross-runtime claims are checked
 
 The same programs run on `gjs`, `node`, `bun` and `deno`, and their output has to match byte for
-byte. That four-runtime comparison is a Fedora one — it needs all four hosts on the same machine,
-and only Linux has them. macOS runs `gjs` and Node, Windows runs Node alone, there being no GJS host
-there.
+byte. That four-runtime comparison is a Fedora one: it needs all four hosts on one machine, and only
+Linux has them. macOS runs `gjs` and Node, Windows runs Node alone — there is no GJS host there.
 
 <MoreInfo title="Windows traps that look like defects">
 Three host traps on Windows fail in ways that name the wrong culprit. The first two each cost a
