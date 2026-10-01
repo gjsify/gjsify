@@ -24,6 +24,48 @@ runs `@gjsify/gtk-host` on the shipped GTK closure but from a checkout, not from
 payload. Nothing joins the two, so `GJSIFY_FONT_DIR` is asserted as a STRING in a launcher and
 consumed as a DIRECTORY in a different run.
 
+**And that Fedora number held only while nothing asked for the family first.** CI later found the
+Linux leg failing the very discriminator quoted above, and the mechanism is a per-map-instance
+cache of the NEGATIVE resolution: the fc font map remembers the fallback it arrived at for a
+description, `add_font_file` does not invalidate that, and a family asked for BEFORE its face
+arrives keeps measuring the fallback for the life of the map. Measured on macOS 27 arm64 /
+pango 1.58.2 / gjs 1.88.1 against an fc map (`PANGOCAIRO_BACKEND=fontconfig`, or a fontconfig map
+adopted as the default), a 40pt "Wg" in `Round9x13`:
+
+| reading | poisoned map | fresh map |
+|---|---|---|
+| `get_family('Round9x13')` | non-null | non-null |
+| `list_families()` contains it | yes | yes |
+| fresh context `load_font(desc).describe()` | `Round9x13` | `Round9x13` |
+| `get_serial()` | 1 | 1 |
+| `Pango.Layout` pixel size | 86x66 | 66x50 |
+
+So three of the four obvious checks pass and only a layout disagrees — and `get_family` is the
+one a caller actually reaches for. Warming a context with `load_font` first does not help
+(still 86x66), and neither does a context created after the registration; the only invalidation
+reachable from JS is a FRESH map of the same backend, which has no cached entry.
+`registerFontFaces` now takes that reading itself (`fontMapServesFamily`) and routes a face that
+was TAKEN and cannot be SERVED through the fontconfig fallback a declined face already took, so
+the ordering rule above is no longer the only thing standing between a late caller and a window
+in the wrong typeface: where the fallback is unavailable the face is reported in `unreachable`
+and both `initFonts()` and `FontFace.load()` say so. Windows was never affected — win32 clears
+the cache and emits `changed` (ADR 0038).
+
+**HOW A MAC MEASURES THE LINUX-ONLY CONDITION**, which is the reusable part. `PANGOCAIRO_BACKEND`
+is the lever, and it cuts both ways: `PANGOCAIRO_BACKEND=fontconfig gjs -m probe.mjs` gives the
+map Fedora has, but a PINNED backend is somebody's choice and `probeFontconfigMap` refuses to
+swap under one — so that form reproduces the condition and disables the remedy. What measures the
+product is adopting a fresh fontconfig map instead
+(`PangoCairo.FontMap.new_for_font_type(CAIRO_FONT_TYPE_FT).set_default()`), which leaves the
+variable unset exactly as on Fedora. That got `dom-elements`' `font-face.spec.ts` — the spec CI
+had red — from 1 of 9 failing to 9 of 9 on this Mac, and it is the only way to run that suite
+under a Linux-shaped map here. It is NOT a full substitute for the leg: `PangoCairo.FontMap.new()`
+still follows the compiled-in font type, so a suite that probes with a scratch map (gtk-host's
+`fonts.spec.ts`) sees a CoreText map under this harness and its `REACHABLE` gate disagrees with
+the default map. gtk-host was therefore run under the PINNED variable instead (778 of 778 on
+fc), where the rescue cannot fire, and the Fedora-only rescue path is what
+`font-face.spec.ts`'s "absent before" arm covers.
+
 macOS keeps its own half of that gap unchanged: `ATSApplicationFontsPath` is emitted and its
 ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints it.
 

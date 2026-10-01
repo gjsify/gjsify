@@ -31,6 +31,29 @@ someone runs a shipped `.app` on a clean Mac, this line stays. A shipped `.app` 
 relies on `ATSApplicationFontsPath` alone; no leg here launches one, so that activation is Apple's
 documented behaviour rather than a measurement.
 
+### macOS was green because the fallback RESCUED the bug, not because the bug was not there
+
+The three routes above all rest on a DECLINE — a map that answers `G_IO_ERROR_NOT_SUPPORTED` —
+and a decline is the one failure macOS can see. Linux and Windows both ACCEPT the face, so
+nothing above ever exercised the next question: whether a map that took a file can also SERVE it.
+It cannot, on the fc backend, once anything has asked for the family first (per-map negative
+resolution, `add_font_file` does not invalidate it — the measurement and the invalidation are in
+`status/open-todos/fonts.md`). The face lands on the map, `get_family` answers it, a fresh
+context's `load_font` hands back the right font, and every layout still measures the fallback.
+
+That is why this file's darwin rows could not have found it and why CI did: on macOS the family
+is DECLINED, so the fallback runs, and the fallback builds a FRESH map — a map that never saw the
+question and therefore cannot be poisoned. The product rescued the symptom while leaving the
+defect on the old map, and the rescue is invisible precisely where it works. On Fedora 44 the
+same spec went red, on all four runtimes identically, which is what a font-map cache looks like
+rather than what a GJS, node-gi, bun or deno difference looks like.
+
+The macOS leg's share of the fix is now that `registerFontFaces` asks the map whether it SERVES
+what it registered and takes the same route either way, so "register before anything lays text
+out" stopped being the only defence. What stays inferred on macOS: the poisoned-map numbers were
+taken against an fc map adopted here (the recipe and its limits are in `fonts.md`), not against a
+Fedora process, and no CI leg runs a macOS suite under that map.
+
 
 ### A globally installed GJS launcher still cannot load a system GTK on macOS
 
