@@ -8,36 +8,20 @@ import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
 import { start, type PixelDemo } from '../three-demo.js';
-import Template from './pixel-window.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './pixel-window.blp';
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+export interface PixelWindow extends Children {}
 export class PixelWindow extends Adw.ApplicationWindow {
-    declare private _glAreaContainer: Gtk.Box;
-    declare private _pixelSizeRow: Adw.SpinRow;
-    declare private _normalEdgeRow: Adw.SpinRow;
-    declare private _depthEdgeRow: Adw.SpinRow;
-    declare private _pixelAlignRow: Adw.SwitchRow;
-    declare private _splitView: Adw.OverlaySplitView;
-    declare private _sidebarToggleButton: Gtk.ToggleButton;
-    declare private _pauseButton: Gtk.Button;
-
     /** Live demo reference; set once the WebGLBridge is ready. */
     private _demo: PixelDemo | null = null;
 
     static {
         GObject.registerClass(
             {
-                GTypeName: 'PixelWindow',
+                GTypeName,
                 Template,
-                InternalChildren: [
-                    'glAreaContainer',
-                    'pixelSizeRow',
-                    'normalEdgeRow',
-                    'depthEdgeRow',
-                    'pixelAlignRow',
-                    'splitView',
-                    'sidebarToggleButton',
-                    'pauseButton',
-                ],
+                InternalChildren,
             },
             this,
         );

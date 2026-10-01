@@ -9,33 +9,17 @@ import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
-import Template from './ldraw-window.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './ldraw-window.blp';
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+export interface LDrawWindow extends Children {}
 export class LDrawWindow extends Adw.ApplicationWindow {
-    declare private _glAreaContainer: Gtk.Box;
-    declare private _modelRow: Adw.ComboRow;
-    declare private _flatColorsRow: Adw.SwitchRow;
-    declare private _mergeModelRow: Adw.SwitchRow;
-    declare private _smoothNormalsRow: Adw.SwitchRow;
-    declare private _buildingStepRow: Adw.SpinRow;
-    declare private _displayLinesRow: Adw.SwitchRow;
-    declare private _conditionalLinesRow: Adw.SwitchRow;
-
     static {
         GObject.registerClass(
             {
-                GTypeName: 'LDrawWindow',
+                GTypeName,
                 Template,
-                InternalChildren: [
-                    'glAreaContainer',
-                    'modelRow',
-                    'flatColorsRow',
-                    'mergeModelRow',
-                    'smoothNormalsRow',
-                    'buildingStepRow',
-                    'displayLinesRow',
-                    'conditionalLinesRow',
-                ],
+                InternalChildren,
             },
             this,
         );

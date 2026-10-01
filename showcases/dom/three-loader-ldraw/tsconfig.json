@@ -8,7 +8,8 @@
       "outDir": "dist",
       "rootDir": "src",
       "skipLibCheck": true,
-      "strict": false
+      "strict": false,
+      "allowArbitraryExtensions": true
     },
     "reflection": true,
     "files": ["src/gjs/gjs.ts", "src/browser/browser.ts", "src/browser/browser-main.ts"]
