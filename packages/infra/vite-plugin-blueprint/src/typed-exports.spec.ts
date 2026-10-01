@@ -15,7 +15,13 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { BlueprintEmitError, deriveExports, emitTypedModule, emitTypedSidecar, parseBlueprint } from '@gjsify/blueprint';
+import {
+    BlueprintEmitError,
+    deriveExports,
+    emitTypedModule,
+    emitTypedSidecar,
+    parseBlueprint,
+} from '@gjsify/blueprint';
 import { CORPUS_REAL_FILES } from '@gjsify/blueprint/corpus';
 import { describe, expect, it } from '@gjsify/unit';
 

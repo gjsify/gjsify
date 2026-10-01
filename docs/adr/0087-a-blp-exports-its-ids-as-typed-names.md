@@ -115,8 +115,9 @@ diffs: red on stale, red on orphaned. Two producers write them — the vite plug
 watch, and `gjsify blueprint types` before a check or a `tsc` — and a committed artifact with two
 producers and no comparison is the shape ADR 0053's own census table already went stale in.
 
-A sidecar is opt-in per file, and the gate does NOT demand one per `.blp`: most of the 123 tracked
-`.blp` are corpus fixtures and gallery sources nothing imports by name. The third failure — a
+A sidecar is opt-in per file, and the gate does NOT demand one per `.blp`: most of the tracked
+`.blp` are corpus fixtures and gallery sources nothing imports by name, so a sidecar for each
+would commit a file per fixture for nothing to read. The third failure — a
 named import with no sidecar — is held by the compiler and not here: the import falls back to the
 wildcard, which exports only `default`, and `tsc` reports TS2614 naming each missing member. A
 grep for `.blp` imports in the gate would be a weaker second reader of a question `gjsify run

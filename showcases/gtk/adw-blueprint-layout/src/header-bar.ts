@@ -22,7 +22,10 @@ import Template, { type Children, GTypeName, InternalChildren } from './header-b
 //
 // `extends Children` on a merged interface and not fields in the class body: `registerClass`
 // installs the members, so a class field would be initialised to `undefined` at construction
-// and shadow the installed property.
+// and shadow the installed property. That is also the answer to the rule below — its rationale
+// is that TypeScript does not check whether a merged property is initialised, and here nothing
+// in TypeScript may initialise it.
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children, so a class field would shadow them
 export interface GalleryHeaderBar extends Children {}
 
 export class GalleryHeaderBar extends Adw.Bin {

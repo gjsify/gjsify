@@ -187,7 +187,11 @@ export function emitTypedSidecar(file) {
     }
     if (imports.length > 0) lines.push('');
 
-    lines.push('/** The GtkBuilder XML this `.blp` compiles to. */', 'declare const xml: string;', 'export default xml;');
+    lines.push(
+        '/** The GtkBuilder XML this `.blp` compiles to. */',
+        'declare const xml: string;',
+        'export default xml;',
+    );
 
     if (template !== undefined) {
         lines.push(
@@ -206,7 +210,7 @@ export function emitTypedSidecar(file) {
                 '/**',
                 ' * Every id inside the template, in source order — what `registerClass` is given.',
                 ' *',
-                " * A MUTABLE tuple, and the `readonly` is missing for a reason that is not ours: `@girs`",
+                ' * A MUTABLE tuple, and the `readonly` is missing for a reason that is not ours: `@girs`',
                 " * declares `GObject.MetaInfo['InternalChildren']` as `string[]`, so a `readonly` tuple is",
                 ' * refused at the call site with TS4104 and the consumer would have to spread it — the',
                 ' * boilerplate ADR 0087 exists to remove. The tuple still pins the exact ids and arity,',
@@ -272,7 +276,9 @@ export function emitTypedModule(file, xml) {
         lines.push('', `export const GTypeName = '${template.GTypeName}';`);
         // Both halves agree on the absence — see the sidecar emitter for why there is one.
         if (template.children.length > 0) {
-            lines.push(`export const InternalChildren = [${template.children.map((one) => `'${one.id}'`).join(', ')}];`);
+            lines.push(
+                `export const InternalChildren = [${template.children.map((one) => `'${one.id}'`).join(', ')}];`,
+            );
         }
     }
 

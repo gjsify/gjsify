@@ -23,10 +23,10 @@
 // `.blp` imports here would be a second, weaker reader of a question the type-checker answers
 // exactly, and it would have to guess about `import.meta.glob` (which `website/` uses).
 //
-// AND IT DOES NOT DEMAND A SIDECAR PER `.blp`. 123 `.blp` are tracked and most are corpus
-// fixtures or gallery sources nothing imports by name; generating a sidecar for each would
-// commit ~120 files to be read by nothing. A sidecar is opt-in per file — `gjsify blueprint
-// types <path>` — and this gate holds the ones that exist.
+// AND IT DOES NOT DEMAND A SIDECAR PER `.blp`. Most tracked `.blp` are corpus fixtures or
+// gallery sources nothing imports by name, so generating a sidecar for each would commit a file
+// per fixture to be read by nothing. A sidecar is opt-in per file — `gjsify blueprint types
+// <path>` — and this gate holds the ones that exist.
 //
 // Usage: node scripts/check-blueprint-sidecars.mjs [--root <dir>] [--write]
 // Exits 0 when they agree, 1 when they drift, 2 on a usage or read error.
