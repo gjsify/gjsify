@@ -113,30 +113,21 @@ const NATIVESCRIPT_PANES: readonly { id: string; label: string; lang: string }[]
  * A group of data panes and the recorded reason that stands in for them. The two groups
  * partition the gallery independently (28 blocks have a framework tree, 28 an XML template,
  * and not the same 28), so each has its own reason.
+ *
+ * `refusalOf` is checked and nothing more: the reason lives in the DATA, and the menu lists
+ * only the renderings a block HAS. A reason is held here so that a rendering missing without
+ * one fails the build instead of leaving the reader to wonder whether it is coming.
  */
 type PaneGroup = {
     code: readonly { id: string; label: string; lang: string }[];
     codeOf: (widget: string, pane: string) => string | undefined;
     refusalOf: (widget: string) => string | undefined;
-    /** The pane the reason renders as; its id has to be unique among all panes. */
-    refusal: { pane: string; label: string; short: string; missing: string; note: string };
 };
 
 const FRAMEWORK_GROUP: PaneGroup = {
     code: FRAMEWORK_PANES,
     codeOf: (widget, pane) => ADWAITA_FRAMEWORK_SNIPPETS[widget]?.[pane as FrameworkDialect],
     refusalOf: (widget) => ADWAITA_FRAMEWORK_REFUSALS[widget],
-    refusal: {
-        pane: 'why-not',
-        label: 'Why no Solid, Vue or React',
-        short: 'No Solid, Vue, React',
-        missing: 'Solid, Vue or React snippet',
-        note:
-            'Every snippet in this gallery was compiled and run before it was written down. Where a widget is ' +
-            'built imperatively rather than declared — a Gio.MenuModel, a dialog opened with present(), a ' +
-            'container with no child policy — there is nothing for the three dialects to differ about, so the ' +
-            'reason is recorded here rather than the entry being quietly absent.',
-    },
 };
 
 // DATA and not a slot: an XML template is the one dialect where "it renders" cannot be read
@@ -146,17 +137,6 @@ const NATIVESCRIPT_GROUP: PaneGroup = {
     code: NATIVESCRIPT_PANES,
     codeOf: (widget) => ADWAITA_NATIVESCRIPT_TEMPLATES[widget],
     refusalOf: (widget) => ADWAITA_NATIVESCRIPT_REFUSALS[widget],
-    refusal: {
-        pane: 'why-no-xml',
-        label: 'Why no NativeScript XML',
-        short: 'No NativeScript',
-        missing: 'NativeScript XML template',
-        note:
-            'NativeScript’s Builder reaches a widget through an attribute, which is always a string, and ' +
-            'through a child, which lands only where the widget declares a slot for it. A property that is an ' +
-            'array of options or a reference to another view fits through neither, so such a widget is built ' +
-            'from TypeScript instead.',
-    },
 };
 
 /** The slot whose fence is BOTH mounted by the live preview and shown as the Web Components binding. */
@@ -242,10 +222,7 @@ const groups = GROUPS[shape];
 const PANE_IDS = [
     ...TABS.map((tab) => tab.slot),
     ...BINDINGS.map((binding) => binding.slot),
-    ...[...new Set(Object.values(GROUPS).flat())].flatMap((group) => [
-        ...group.code.map((pane) => pane.id),
-        group.refusal.pane,
-    ]),
+    ...[...new Set(Object.values(GROUPS).flat())].flatMap((group) => group.code.map((pane) => pane.id)),
 ];
 const duplicatePane = PANE_IDS.find((id, index) => PANE_IDS.indexOf(id) !== index);
 if (duplicatePane !== undefined) {
@@ -332,8 +309,11 @@ for (const binding of BINDINGS) {
     bindings.push({ id: binding.slot, kind: 'files', label: binding.label, files });
 }
 
-// A block missing from a group's snippet map gets the RECORDED REASON, never silence; one in
-// neither map is what arms 4 and 7 of `check-generated-website-data.mjs` refuse.
+// A group with no snippet for this block renders NOTHING — the menu lists what the block HAS —
+// and the reason it has none is held in the data beside it. Both are checked here rather than
+// left to a reader: a group the block has nothing for and no reason about would be a rendering
+// that is merely missing, which is the same silence as one wrongly left out of the generator.
+// Arms 4 and 7 of `check-generated-website-data.mjs` hold the same partition over the maps.
 for (const group of groups) {
     const code = group.code
         .map((pane) => ({
@@ -348,17 +328,13 @@ for (const group of groups) {
         bindings.push(...code);
         continue;
     }
-    const reason = group.refusalOf(title);
-    if (reason === undefined) continue;
-    bindings.push({
-        id: group.refusal.pane,
-        kind: 'refusal',
-        label: group.refusal.label,
-        short: group.refusal.short,
-        missing: group.refusal.missing,
-        note: group.refusal.note,
-        reason,
-    });
+    if (group.refusalOf(title) === undefined) {
+        throw new Error(
+            `AdwWidget(${title}): ${group.code.map((pane) => pane.label).join(', ')} has no snippet for this ` +
+                'block and no recorded reason for having none. The menu lists what a block HAS, so an ' +
+                'unrecorded gap is one nothing renders and nothing explains.',
+        );
+    }
 }
 ---
 
@@ -448,7 +424,6 @@ for (const group of groups) {
         for (const entry of win.querySelectorAll<HTMLElement>('.adw-widget-menu [data-pick]')) {
             entry.setAttribute('aria-checked', String(entry === item));
         }
-        win.toggleAttribute('data-no-copy', pane.dataset.kind === 'refusal');
         return true;
     };
 
@@ -466,8 +441,6 @@ for (const group of groups) {
     /** The reader's pick in one window: shown there, and remembered and mirrored to the others. */
     const choose = (win: HTMLElement, pick: string) => {
         if (!select(win, pick)) return;
-        // A recorded reason is a fact about one block, not a rendering to follow.
-        if (paneOf(win, rowOf(win, pick)?.dataset.pane ?? pick)?.dataset.kind === 'refusal') return;
         try {
             localStorage.setItem(KEY, pick);
         } catch {

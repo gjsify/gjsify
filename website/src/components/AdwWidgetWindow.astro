@@ -48,7 +48,8 @@ const menuId = `menu-${slug}`;
  * The More menu, the way GtkPopoverMenu builds one: a section is a dim heading over its rows,
  * and a hairline separates one section from the one above it. A binding whose program is several
  * FILES is a section of its own, one row per file; the renderings that are a single file share
- * one unheaded section, and the recorded reasons are the last.
+ * one unheaded section. A rendering this block does not HAVE is not a row — the recorded reason
+ * for it lives in the data beside the snippet, not in the reader's menu.
  *
  * A row carries its two halves as SEPARATE attributes: `data-pane` is the binding, `data-file-role`
  * the file within it, and `data-pick` is both joined into the one string the reader's pick is
@@ -60,7 +61,7 @@ const menuId = `menu-${slug}`;
 type MenuEntry =
     | { kind: 'separator' }
     | { kind: 'heading'; text: string }
-    | { kind: 'row'; pick: string; pane: string; role?: string; label: string; short: string; refusal: boolean };
+    | { kind: 'row'; pick: string; pane: string; role?: string; label: string; short: string };
 function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
     const entries: MenuEntry[] = [];
     /** One section: a heading (or none) and the rows under it. */
@@ -71,11 +72,10 @@ function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
             entries.push({ ...row, pick: row.role === undefined ? row.pane : `${row.pane}::${row.role}` });
         }
     };
-    // Everything that is neither a files binding nor a reason is one section of its own, the way
-    // GtkPopoverMenu keeps consecutive plain items in one: a hairline around each of the other two
-    // would otherwise read Solid, Vue and React as files of the binding above them.
+    // The single-file renderings share ONE unheaded section, the way GtkPopoverMenu keeps
+    // consecutive plain items in one: a hairline around each would read Solid, Vue and React as
+    // files of the binding above them.
     const plain: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[] = [];
-    const reasons: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[] = [];
     for (const pane of items) {
         if (pane.kind === 'files') {
             section(
@@ -85,23 +85,13 @@ function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
                     role: file.role,
                     label: file.label,
                     short: `${pane.label} · ${file.label}`,
-                    refusal: false,
                 })),
             );
-        } else if (pane.kind === 'refusal') {
-            reasons.push({
-                pane: pane.id,
-                label: pane.label,
-                // The reason's own short name; a rendering reads as itself.
-                short: pane.short,
-                refusal: true,
-            });
         } else {
-            plain.push({ pane: pane.id, label: pane.label, short: pane.label, refusal: false });
+            plain.push({ pane: pane.id, label: pane.label, short: pane.label });
         }
     }
     if (plain.length > 0) section(null, plain);
-    if (reasons.length > 0) section('Not available', reasons);
     return entries;
 }
 
@@ -198,7 +188,7 @@ const entries = menuEntries(bindings);
                     data-active={index === 0 ? '' : undefined}
                 >
                     <div class="adw-widget-pane-caption">{pane.label}</div>
-                    <AdwWidgetPane pane={pane} widget={title} />
+                    <AdwWidgetPane pane={pane} />
                 </div>
             ))
         }
@@ -220,7 +210,7 @@ const entries = menuEntries(bindings);
                                 type="button"
                                 role="menuitemradio"
                                 aria-checked="false"
-                                class:list={['adw-popover-item', { 'is-refusal': entry.refusal }]}
+                                class="adw-popover-item"
                                 data-pick={entry.pick}
                                 data-pane={entry.pane}
                                 data-file-role={entry.role}
@@ -377,10 +367,6 @@ const entries = menuEntries(bindings);
         display: none;
     }
 
-    .adw-widget-code-window[data-no-copy] .command-tabs-copy {
-        visibility: hidden;
-    }
-
     /* ── The More menu: a menu popover (_popover.scss), in the top layer so nothing clips it ── */
     .adw-widget-menu {
         --popover-radius: 15px;
@@ -451,17 +437,6 @@ const entries = menuEntries(bindings);
         position: relative;
         z-index: 1;
         gap: 6px;
-    }
-
-    .adw-widget-menu .adw-popover-item.is-refusal {
-        opacity: var(--dim-opacity);
-        font-style: italic;
-    }
-
-    .adw-widget-menu .adw-popover-item.is-refusal:hover,
-    .adw-widget-menu .adw-popover-item.is-refusal:focus,
-    .adw-widget-menu .adw-popover-item.is-refusal[aria-checked='true'] {
-        opacity: 1;
     }
 
     .adw-widget-menu .adw-popover-title {

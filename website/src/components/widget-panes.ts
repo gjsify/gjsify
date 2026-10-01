@@ -28,19 +28,4 @@ export type PaneFile = {
  */
 export type FilesPane = { id: string; kind: 'files'; label: string; files: PaneFile[] };
 
-/**
- * Why this block has no snippet in one group's dialect. A missing snippet and one that
- * cannot exist look identical, and only one of them is a fact.
- */
-export type RefusalPane = {
-    id: string;
-    kind: 'refusal';
-    label: string;
-    /** What the `More` segment reads while this reason is shown. */
-    short: string;
-    missing: string;
-    note: string;
-    reason: string;
-};
-
-export type WidgetPane = SlotPane | CodePane | FilesPane | RefusalPane;
+export type WidgetPane = SlotPane | CodePane | FilesPane;
