@@ -99,10 +99,12 @@ A declared `gjsify.*` key needs a conformance rule (the `field-coverage` rule fa
 so `@gjsify/manifest-conformance` gets a portable `webext` rule. It checks what can be checked
 without building: the targets exist in the vocabulary, and every file the block names exists.
 
-**Targets are `<browser>-mv<2|3>`**, with browser one of `chrome`, `edge`, `firefox`, `safari`.
-`chrome-mv2` and `edge-mv2` are refused, because both browsers have removed Manifest V2. Edge is
-Chromium, so `edge-mv3` exists only so a project can give Edge its own manifest (for example a
-different `update_url`) and its own zip.
+**Targets are `<browser>-mv<2|3>`**, with browser one of `chrome`, `edge`, `firefox`, `opera`,
+`safari`. `chrome-mv2` and `edge-mv2` are refused, because both browsers have removed Manifest V2.
+`opera-mv2` is refused too, but for the other half of that reason: Opera still LOADS an MV2
+extension, while its store is MV3-only, so the folder would build, zip, and then be refused on
+submission. Edge and Opera are Chromium, so their MV3 targets exist so a project can give each
+one its own manifest (for example a different `update_url`) and its own zip.
 
 ### 3. The manifest is a function of the target, and gjsify does not convert keys
 

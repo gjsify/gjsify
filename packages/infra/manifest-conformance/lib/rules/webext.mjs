@@ -20,9 +20,18 @@ import { join } from 'node:path';
 
 import { defineRule } from '../registry.mjs';
 
-const BROWSERS = ['chrome', 'edge', 'firefox', 'safari'];
-/** Chromium-based browsers have removed Manifest V2. */
-const MV2_REMOVED = ['chrome', 'edge'];
+const BROWSERS = ['chrome', 'edge', 'firefox', 'opera', 'safari'];
+/**
+ * Why a browser takes no Manifest V2 folder. Chrome and Edge removed MV2 in the
+ * browser; Opera still loads one, but its store is MV3-only — the same outcome,
+ * a step later, so the reason is spelled per browser in both copies of this
+ * vocabulary rather than as one claim the three do not all support.
+ */
+const MV2_UNSUPPORTED = {
+    chrome: 'chrome has removed Manifest V2',
+    edge: 'edge has removed Manifest V2',
+    opera: "opera's extension store accepts Manifest V3 only",
+};
 
 /**
  * Why a target name would be refused, or null.
@@ -35,8 +44,8 @@ export function webextTargetProblem(id) {
     if (!match || !BROWSERS.includes(match[1])) {
         return `unknown target ${JSON.stringify(id)} (a target is <browser>-mv<2|3>, browser one of ${BROWSERS.join(', ')})`;
     }
-    if (match[2] === '2' && MV2_REMOVED.includes(match[1]))
-        return `target "${id}": ${match[1]} has removed Manifest V2`;
+    const why = match[2] === '2' ? MV2_UNSUPPORTED[match[1]] : undefined;
+    if (why) return `target "${id}": ${why}`;
     return null;
 }
 

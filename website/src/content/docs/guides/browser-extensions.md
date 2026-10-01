@@ -1,6 +1,6 @@
 ---
 title: Browser Extensions
-description: Build one WebExtension for Chrome, Edge, Firefox and Safari with `gjsify webext`. You get a manifest per target, icons rendered from one SVG, locales, store zips, and a dev loop that reloads the extension in a real browser. No Node or Vite is needed for the build.
+description: Build one WebExtension for Chrome, Edge, Firefox, Opera and Safari with `gjsify webext`. You get a manifest per target, icons rendered from one SVG, locales, store zips, and a dev loop that reloads the extension in a real browser. No Node or Vite is needed for the build.
 ---
 
 `gjsify webext` turns one extension source into one folder per browser. Each folder gets its
@@ -103,7 +103,7 @@ export default (ctx) => ({
 | Field | Value |
 |---|---|
 | `target` | The target name, e.g. `firefox-mv2` |
-| `browser` | `chrome`, `edge`, `firefox` or `safari` |
+| `browser` | `chrome`, `edge`, `firefox`, `opera` or `safari` |
 | `manifestVersion` | `2` or `3` |
 | `mode` | `production`, or `development` under `webext dev` |
 | `version` | `package.json#version`. It is also filled in when the manifest sets none |
@@ -143,7 +143,7 @@ stops naming the target when:
 
 | Key | Meaning |
 |---|---|
-| `targets` | `<browser>-mv<2\|3>`. Default `["chrome-mv3", "firefox-mv3"]`. `chrome-mv2` and `edge-mv2` do not exist any more |
+| `targets` | `<browser>-mv<2\|3>`. Default `["chrome-mv3", "firefox-mv3"]`. `chrome-mv2` and `edge-mv2` do not exist any more, and neither does `opera-mv2`: Chrome and Edge removed Manifest V2 in the browser, Opera's store takes Manifest V3 only |
 | `manifest` | `.ts`/`.mts`/`.js`/`.mjs` module or `.json`. Default: the first `manifest.*` at the package root |
 | `scripts` | Output name → entry. Each is bundled as a classic **IIFE** script, `<name>.js`. An IIFE runs as a content script, an injected file, an MV2 background script and an MV3 service worker |
 | `pages` | Output name → HTML file. Each local `<script src>` is bundled: a `type="module"` script as ESM and a classic one as IIFE. The first becomes `<name>.js`. Each local `<link rel="stylesheet">` is copied by its file name. The rest of the page stays as written |
@@ -214,10 +214,11 @@ who rebuilds from source gets the same checksum.
 |---|---|
 | Chrome Web Store, Edge Add-ons | the `chrome-mv3` (or `edge-mv3`) zip |
 | addons.mozilla.org | the Firefox zip. Bundled code needs a sources archive for review |
+| Opera Add-ons | the `opera-mv3` zip. The store is Manifest V3 only |
 | Safari | the Safari folder, wrapped by Xcode's `safari-web-extension-converter` on macOS |
 
 Signing and submitting from the command line (`gjsify webext sign` for AMO, `gjsify webext
-submit` for AMO, the Chrome Web Store and Edge) is the next step on the roadmap. Until then,
+submit` for AMO, the Chrome Web Store and Edge — not Opera) is the next step on the roadmap. Until then,
 `web-ext sign` signs a Firefox build, and the other stores take the zip through their dashboards.
 Safari packaging needs a Mac with Xcode, and no other host can do it.
 
