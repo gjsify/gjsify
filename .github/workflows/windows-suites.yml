@@ -115,6 +115,7 @@ on:
     - cron: '30 5 * * *'
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # Coalesced on `main` push, NOT on `pull_request` — same construction and the
 # same reason as `macos-suites.yml`/`gtk-os-suites.yml`: this workflow is
@@ -138,6 +139,7 @@ jobs:
   # or never reports runs the suite rather than skipping it.
   scope:
     name: Scope the suite to this change
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -152,7 +154,7 @@ jobs:
   node-suites:
     name: Node-pillar suites (win32-x64 / cmd.exe)
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' && github.event.pull_request.draft != true }}
     runs-on: windows-latest
     timeout-minutes: 60
 

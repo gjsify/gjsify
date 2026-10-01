@@ -307,7 +307,7 @@ on:
     # the `ci:macos` label at run start to decide the darwin-x64 leg, so a
     # label added to an ALREADY-OPEN PR needs its own trigger to take effect —
     # without it, opting in needed a throwaway push.
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
 
 # Coalesced on `main` push, NOT on `pull_request` — same construction and the
 # same reason as `macos-suites.yml`: this workflow is ADVISORY, and keying the
@@ -330,6 +330,7 @@ jobs:
   # or never reports runs the suite rather than skipping it.
   scope:
     name: Scope the suite to this change
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -367,7 +368,7 @@ jobs:
     # `gjs` at all (see WHAT IT DOES NOT PROVE in the header).
     name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node-gi on Node)
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' && github.event.pull_request.draft != true }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -640,7 +641,7 @@ jobs:
     # `continue-on-error` goes.
     name: Shipped GTK closure loads; suites are probes (win32-x64 / node-gi on Node)
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' && github.event.pull_request.draft != true }}
     runs-on: windows-latest
     timeout-minutes: 60
 

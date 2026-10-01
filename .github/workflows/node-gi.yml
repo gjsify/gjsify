@@ -47,6 +47,7 @@ on:
       - 'website/**'
       - 'refs/**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -100,6 +101,8 @@ jobs:
   # merge will.
   scope:
     name: Scope the OS legs
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -168,6 +171,8 @@ jobs:
 
   build-test:
     name: Build & test (Node / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     # Backstop: the mainloop tests run a blocking GLib loop; a regression in the
     # libuv↔GLib bridge could hang run(), so cap the job rather than wait 6h.
@@ -293,6 +298,8 @@ jobs:
   # so the GTK/co-pump/--expose-gc legs are excluded (they stay Node's job above).
   cross-runtime:
     name: Bun + Deno conformance (Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
@@ -590,6 +597,8 @@ jobs:
   # like cross-runtime/gtk-smoke — the other jobs are untouched.
   consumer-sqlite:
     name: sqlite suite as node-gi consumer (Node / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -710,6 +719,8 @@ jobs:
   # gtk-host and a second recipe is a second thing to keep true.
   gtk-host-node:
     name: framework suites over the reverse bridge (Node + Xvfb / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -1185,6 +1196,8 @@ jobs:
   # the extra bun+deno legs come free from the harness's PATH-skip.
   consumer-suites:
     name: node-gi consumer harness (proof set / Node+Bun+Deno)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -3835,6 +3848,8 @@ jobs:
   # every build here runs under Node via a published `@gjsify/cli` (npm rolldown).
   storybook-node-gi-bundle:
     name: Adwaita Storybook --app node bundle (build / Node / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:

@@ -183,7 +183,7 @@ on:
     # the `ci:qemu` label at run start, so a label added to an ALREADY-OPEN PR
     # needs its own trigger to take effect — without it, opting in needed a
     # throwaway push.
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
     paths:
       - 'packages/framework/webgl/src/vala/**'
       - 'packages/framework/webgl/src/vapi/**'
@@ -296,6 +296,8 @@ jobs:
   # ----------------------------------------------------------------
   changes:
     name: Detect affected prebuild packages
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     outputs:
       # A JSON array of the package keys NOT to build, e.g. `["oxfmt-native"]`.
@@ -3923,6 +3925,8 @@ jobs:
   # ----------------------------------------------------------------
   check-committed-musl:
     name: Committed prebuilds on musl (linux-${{ matrix.arch }})
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
 

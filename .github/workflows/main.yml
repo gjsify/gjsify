@@ -2,6 +2,7 @@ name: GJS
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   # MERGE QUEUE READINESS. `CI gate (GJS)` is a required check, and GitHub's
   # merge queue waits for every required check on the queue's own
   # `gh-readonly-queue/main/…` commit, which only a `merge_group` trigger
@@ -261,7 +262,7 @@ jobs:
     # full suite. Downstream jobs read `needs.changes.outputs.*` as empty and
     # fall back to the historical full-run path, so a dispatch needs no gate of
     # its own; it reuses the branch the nightly has been proving every night.
-    if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
+    if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main' && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     outputs:
       skip-all: ${{ steps.classify.outputs.skip-all }}
@@ -574,7 +575,9 @@ jobs:
   # otherwise rebuild only the affected closure.
   build:
     needs: [changes, setup]
-    if: ${{ !cancelled() && needs.changes.outputs.skip-all != 'true' }}
+    # Draft PRs stop here: every heavy job below needs `build` to succeed, so they
+    # skip with it. `ready_for_review` starts the full run; `gate` scores skipped as pass.
+    if: ${{ !cancelled() && needs.changes.outputs.skip-all != 'true' && github.event.pull_request.draft != true }}
     strategy:
       fail-fast: false
       matrix:

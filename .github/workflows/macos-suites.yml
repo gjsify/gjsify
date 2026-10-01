@@ -110,7 +110,7 @@ on:
     # the `ci:macos` label at run start to decide the Intel leg (see WHY BOTH
     # ARCHITECTURES), so a label added to an ALREADY-OPEN PR needs its own
     # trigger to take effect — without it, opting in needed a throwaway push.
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
 
 # Coalesced on `main` push, NOT on `pull_request`. This workflow is ADVISORY —
 # it is not one of the three required checks — and until now every merge
@@ -142,6 +142,7 @@ jobs:
   # or never reports runs the suite rather than skipping it.
   scope:
     name: Scope the suite to this change
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -176,7 +177,7 @@ jobs:
   node-and-gjs-suites:
     name: Node-pillar suites (darwin-${{ matrix.arch }} / gjs + node)
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' && github.event.pull_request.draft != true }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -564,7 +565,7 @@ jobs:
   node-free-cold-bootstrap:
     name: Node-free cold bootstrap (darwin-${{ matrix.arch }} / gjs, no node)
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' && github.event.pull_request.draft != true }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
