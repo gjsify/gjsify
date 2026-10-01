@@ -1,5 +1,6 @@
 // Gamepad Web API for GJS — original implementation; one device source per platform
-// behind `GamepadSource` (ADR 0075): libmanette on Linux, the SDL3 shim on macOS
+// behind `GamepadSource` (ADR 0075): the SDL3 shim on macOS and Windows, libmanette on
+// Linux until the shim is proven there (`GJSIFY_GAMEPAD_BACKEND` switches it)
 // Reference: https://w3c.github.io/gamepad/
 
 export { GamepadButton } from './gamepad-button.js';
@@ -23,8 +24,8 @@ export type { GamepadSource, GamepadSourceDevice, GamepadSourceSink } from './so
 // this host", and only this tells them apart. Same role as
 // `isSecureRandomSource()` in @gjsify/webcrypto/random, `hasNativeSab()` and
 // `hasOcspSupport()`.
-export { hasGamepadBackend } from './backend.js';
-export type { GamepadBackendStatus } from './backend.js';
+export { describeGamepadBackend, hasGamepadBackend } from './backend.js';
+export type { GamepadBackendChoice, GamepadBackendStatus } from './backend.js';
 export { ManetteHapticActuator } from './haptic-actuator.js';
 export { MANETTE_TO_W3C_BUTTON, ManetteButton, W3CButton, W3C_BUTTON_COUNT } from './button-mapping.js';
 export { MANETTE_TO_W3C_AXIS, ManetteAxis, W3CAxis, W3C_AXIS_COUNT, TRIGGER_PRESS_THRESHOLD } from './axis-mapping.js';

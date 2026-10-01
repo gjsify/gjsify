@@ -24,6 +24,7 @@ import {
     _GI_BACKENDS,
     _diagnoseGiLoadError,
     _resetGamepadBackendCache,
+    describeGamepadBackend,
     hasGamepadBackend,
     loadGamepadBackend,
     reportGamepadBackendOnce,
@@ -90,6 +91,44 @@ const ABSENT_SPECIFIER = `gi://${ABSENT_NAMESPACE}`;
  * (ADR 0075) and never call the importer — which is the darwin cases' job to prove.
  */
 const onLinux = () => 'linux' as const;
+
+/** A `gi://GjsifyGamepad` stand-in whose monitor reports one pad named `name`. */
+function fakeSdlModule(name: string): GjsifyGamepadNamespace {
+    const device = {
+        get_name: () => name,
+        get_guid: () => '00000000000000000000000000000000',
+        get_buttons: () => Array.from<number>({ length: 17 }).fill(0),
+        get_axes: () => [0, 0, 0, 0],
+        has_rumble: () => false,
+        has_trigger_rumble: () => false,
+        rumble: () => false,
+        rumble_triggers: () => false,
+    };
+    class Monitor {
+        static new() {
+            return new Monitor();
+        }
+        private added: ((monitor: unknown, d: typeof device) => void) | null = null;
+        private reported = false;
+        update() {
+            if (this.reported) return;
+            this.reported = true;
+            this.added?.(this, device);
+        }
+        close() {}
+        connect(signal: string, handler: (monitor: unknown, d: typeof device) => void) {
+            if (signal === 'device-added') this.added = handler;
+            return 1;
+        }
+        disconnect() {}
+    }
+    return { Monitor } as unknown as GjsifyGamepadNamespace;
+}
+
+/** An environment with only `GJSIFY_GAMEPAD_BACKEND` set. */
+function backendEnv(value: string | undefined): (name: string) => string | undefined {
+    return (name) => (name === 'GJSIFY_GAMEPAD_BACKEND' ? value : undefined);
+}
 
 /** A Manette stand-in: only `Monitor` is touched by the probe. */
 function fakeManetteModule(): typeof Manette {
@@ -444,6 +483,7 @@ export default async () => {
             _resetGamepadBackendCache();
             const device = {
                 get_name: () => 'Shim Pad',
+                get_guid: () => '00000000000000000000000000000000',
                 get_buttons: () => Array.from<number>({ length: 17 }).fill(0),
                 get_axes: () => [0, 0, 0, 0],
                 has_rumble: () => false,
@@ -546,6 +586,163 @@ export default async () => {
             }
             expect(threw).toBe(true);
             expect(calls).toBe(1);
+        });
+    });
+
+    await describe('backend choice: win32, and the Linux switch (ADR 0075 Amendment 1)', async () => {
+        await it('uses the SDL3 shim on win32 and never probes gi://Manette', async () => {
+            _resetGamepadBackendCache();
+            let manetteImports = 0;
+            const backend = await loadGamepadBackend({
+                hostOs: () => 'win32',
+                importer: () => {
+                    manetteImports++;
+                    return Promise.resolve({ default: fakeManetteModule() });
+                },
+                sdlImporter: () => Promise.resolve({ default: fakeSdlModule('Win Pad') }),
+                // Ignored off Linux: there is only one backend there.
+                env: backendEnv('manette'),
+            });
+            expect(backend.status).toBe('sdl');
+            expect(manetteImports).toBe(0);
+            expect(await hasGamepadBackend()).toBe(true);
+            expect(await describeGamepadBackend()).toBe('SDL3 (gi://GjsifyGamepad)');
+        });
+
+        await it('answers win32 without the prebuild as absent, with advice that fits Windows', async () => {
+            _resetGamepadBackendCache();
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: () => 'win32',
+                    sdlImporter: () => Promise.reject(new Error(SDL_ABSENT_MESSAGE)),
+                });
+                expect(backend.status).toBe('absent');
+                reportGamepadBackendOnce(backend);
+            });
+            expect(captured.warnings).toHaveLength(1);
+            expect(captured.warnings[0]).toContain('@gjsify/gamepad-native');
+            expect(captured.warnings[0]).toContain('PATH on Windows');
+            expect(captured.warnings[0]).not.toContain('libmanette');
+        });
+
+        await it('keeps libmanette as the Linux default', async () => {
+            _resetGamepadBackendCache();
+            let sdlImports = 0;
+            const backend = await loadGamepadBackend({
+                hostOs: onLinux,
+                importer: importerResolving(fakeManetteModule()),
+                sdlImporter: () => {
+                    sdlImports++;
+                    return Promise.resolve({ default: fakeSdlModule('x') });
+                },
+                env: backendEnv(undefined),
+            });
+            expect(backend.status).toBe('manette');
+            expect(backend.shadow).toBeNull();
+            expect(sdlImports).toBe(0);
+        });
+
+        await it('switches Linux to the SDL3 shim with GJSIFY_GAMEPAD_BACKEND=sdl', async () => {
+            _resetGamepadBackendCache();
+            let manetteImports = 0;
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
+                    importer: () => {
+                        manetteImports++;
+                        return Promise.resolve({ default: fakeManetteModule() });
+                    },
+                    sdlImporter: () => Promise.resolve({ default: fakeSdlModule('Linux SDL Pad') }),
+                    env: backendEnv('SDL'),
+                });
+                expect(backend.status).toBe('sdl');
+                const manager = new GamepadManager();
+                manager.getGamepads();
+                await flushMicrotasks();
+                expect(manager.getGamepads()[0]?.id).toBe('Linux SDL Pad');
+                manager.dispose();
+            });
+            expect(manetteImports).toBe(0);
+            expect(captured.warnings).toStrictEqual([]);
+        });
+
+        await it('runs both with GJSIFY_GAMEPAD_BACKEND=compare, the page still on libmanette', async () => {
+            _resetGamepadBackendCache();
+            const captured = await capturingConsole(async () => {
+                // A Manette monitor that STARTS (the probe-only fake above does not
+                // iterate) and has no device.
+                class Monitor {
+                    iterate() {
+                        return { next: () => [false, null] };
+                    }
+                    connect() {
+                        return 1;
+                    }
+                    disconnect() {}
+                }
+                const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
+                    importer: importerResolving({ Monitor }),
+                    sdlImporter: () => Promise.resolve({ default: fakeSdlModule('SDL side') }),
+                    env: backendEnv('compare'),
+                });
+                expect(backend.status).toBe('manette');
+                expect(backend.shadow?.status).toBe('sdl');
+                const manager = new GamepadManager();
+                manager.getGamepads();
+                await flushMicrotasks();
+                // The fake Manette monitor has no device; the SDL side has one. The page
+                // sees Manette's answer, and the comparison says what differs.
+                expect(manager.getGamepads()).toStrictEqual([]);
+                manager.getGamepads();
+                manager.dispose();
+            });
+            expect(captured.warnings.some((w) => w.includes('comparing gi://Manette against gi://GjsifyGamepad'))).toBe(
+                true,
+            );
+            expect(captured.warnings.some((w) => w.includes('gi://GjsifyGamepad: connected "SDL side"'))).toBe(true);
+            expect(
+                captured.warnings.some((w) =>
+                    w.includes('gi://Manette sees 0 controller(s), gi://GjsifyGamepad sees 1'),
+                ),
+            ).toBe(true);
+            // A primary that failed to start would be reported here instead.
+            expect(captured.errors).toStrictEqual([]);
+            expect(await describeGamepadBackend()).toBe(
+                'libmanette (gi://Manette), compared against SDL3 (gi://GjsifyGamepad)',
+            );
+        });
+
+        await it('says so when compare mode has no shim to compare against', async () => {
+            _resetGamepadBackendCache();
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
+                    importer: importerResolving(fakeManetteModule()),
+                    sdlImporter: () => Promise.reject(new Error(SDL_ABSENT_MESSAGE)),
+                    env: backendEnv('compare'),
+                });
+                expect(backend.status).toBe('manette');
+                expect(backend.shadow?.status).toBe('absent');
+                reportGamepadBackendOnce(backend);
+            });
+            expect(captured.warnings).toHaveLength(1);
+            expect(captured.warnings[0]).toContain('nothing to compare against');
+        });
+
+        await it('keeps libmanette on an unknown value, and says so', async () => {
+            _resetGamepadBackendCache();
+            const captured = await capturingConsole(async () => {
+                const backend = await loadGamepadBackend({
+                    hostOs: onLinux,
+                    importer: importerResolving(fakeManetteModule()),
+                    env: backendEnv('sdl3'),
+                });
+                expect(backend.status).toBe('manette');
+                reportGamepadBackendOnce(backend);
+            });
+            expect(captured.warnings).toHaveLength(1);
+            expect(captured.warnings[0]).toContain('GJSIFY_GAMEPAD_BACKEND="sdl3"');
         });
     });
 

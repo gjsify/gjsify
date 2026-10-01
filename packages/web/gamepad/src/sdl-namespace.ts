@@ -6,6 +6,8 @@
 /** One controller: `GjsifyGamepad.Device`. */
 export interface GjsifyGamepadDevice {
     get_name(): string;
+    /** SDL's 32-hex-digit GUID; carries the USB vendor and product. */
+    get_guid(): string;
     /** W3C standard buttons 0–16, 0..1 (the triggers 6/7 analog, the rest 0 or 1). */
     get_buttons(): number[];
     /** W3C standard axes 0–3, -1..1. */
