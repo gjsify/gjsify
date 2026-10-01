@@ -1,9 +1,9 @@
 // Placement vectors — one per policy kind, asserted against the REAL GTK tree.
 //
 // Every assertion here reads `get_first_child()`/`get_next_sibling()` through
-// `conformance/gtkChildTypes`, never our own shadow links. A renderer that
-// asserts against its own bookkeeping agrees with itself while the window is
-// wrong, which is the failure this package exists to make impossible.
+// `conformance/gtkChildTypes`, never our own shadow links. A renderer that asserts against its own
+// bookkeeping agrees with itself while the window is wrong, which is the failure this package
+// exists to make impossible.
 
 import { expect, it, on } from '@gjsify/unit';
 
@@ -265,12 +265,12 @@ export default async () => {
                 // The placement is what this pins first — an uncurated `Gtk.AspectFrame`
                 // refuses its child by name, so the widget was unreachable.
                 //
-                // 16/9 AND NOT 1, and `obeyChild` written out, because the obvious
-                // spelling asserts nothing. MEASURED on a fresh instance, GTK's own
-                // defaults are `ratio: 1` and `obey-child: TRUE`, and the suite's label
-                // is roughly square — so `{ ratio: 1, obeyChild: false }` over a label
-                // answers 116 whether the props arrive or not, and the vector passed
-                // with `createElement('GtkAspectFrame')` and no props at all.
+                // 16/9 AND NOT 1, and `obeyChild` written out, because the obvious spelling
+                // asserts nothing. MEASURED on a fresh instance, GTK's own defaults are
+                // `ratio: 1` and `obey-child: TRUE`, and the suite's label is roughly
+                // square — so `{ ratio: 1, obeyChild: false }` over a label answers 116 whether the
+                // props arrive or not, and the vector passed with `createElement('GtkAspectFrame')`
+                // and no props at all.
                 //
                 // At 16/9 the two answers separate: 65 with the ratio applied, and the
                 // child's own shape when `obey-child` keeps its default.
@@ -282,25 +282,22 @@ export default async () => {
                 expect(widget.measure(Gtk.Orientation.VERTICAL, 116)[1]).toBe(65);
 
                 // AND THE TRAP ITSELF, which is the one thing the descriptor tells a
-                // consumer and was the one claim with no check behind it: a `ratio` is
-                // INERT while `obey-child` keeps its default. Without this the
-                // sentence in the descriptor is prose, and a GTK that flipped that
-                // default would leave the vector above green while the sentence a
-                // consumer acts on became false.
+                // consumer and was the one claim with no check behind it: a `ratio` is INERT while
+                // `obey-child` keeps its default. Without this the sentence in the descriptor is
+                // prose, and a GTK that flipped that default would leave the vector above green
+                // while the sentence a consumer acts on became false.
                 //
-                // THE CHILD IS A SIZED BOX AND NOT A LABEL, and that is the whole
-                // reason this line is trustworthy. Asserting it over the suite's own
-                // label passed under gjs and FAILED on the Node reverse bridge, where
-                // a different font makes that label something other than square and
-                // `obey-child` derives a different ratio from it. A `Gtk.Box` carries
-                // no text, so its natural size IS its request — measured, [32, 16]
-                // exactly — and the derived ratio is 2 in any font on any runtime.
+                // THE CHILD IS A SIZED BOX AND NOT A LABEL, and that is the whole reason this
+                // line is trustworthy. Asserting it over the suite's own label passed under gjs and
+                // FAILED on the Node reverse bridge, where a different font makes that label
+                // something other than square. A `Gtk.Box` carries no text, so its natural size IS
+                // its request — measured, [32, 16] exactly — and the derived ratio is 2 in any
+                // font on any runtime.
                 //
-                // 58 is then the answer, which is the number the descriptor cites,
-                // measured here beside it rather than quoted. A LABEL WOULD HAVE
-                // PASSED FOR THE WRONG REASON: its natural height is its line height,
-                // so a 32x16 request answers 32x18, and 32/18 is 16/9 to the pixel —
-                // both paths answer 65 and the assertion asserts nothing.
+                // 58 is then the answer, which is the number the descriptor cites, measured here
+                // beside it rather than quoted. A LABEL WOULD HAVE PASSED FOR THE WRONG REASON: its
+                // natural height is its line height, so a 32x16 request answers 32x18, and 32/18
+                // is 16/9 to the pixel — both paths answer 65 and the assertion asserts nothing.
                 const inert = createElement('GtkAspectFrame', { ratio: 16 / 9 });
                 const inertWidget = materialize(inert) as unknown as Gtk.AspectFrame;
                 const sized = createElement('GtkBox', { widthRequest: 32, heightRequest: 16 });
@@ -893,20 +890,19 @@ export default async () => {
             await it('a NULLABLE property actually clears — set_property(name, null) does not', async () => {
                 // The write, not the value, was the defect (see `writeProperty`): a JS
                 // `null` names no GType, so `set_property` guessed `gpointer`, GObject
-                // logged a CRITICAL and KEPT the old value — at exit 0. Every earlier
-                // removal vector here uses a property whose construction default is a
-                // non-null scalar, which is why it went unseen until an object-valued
-                // prop was removed after mount.
+                // logged a CRITICAL and KEPT the old value — at exit 0. Every earlier removal
+                // vector here uses a property whose construction default is a non-null scalar,
+                // which is why it went unseen until an object-valued prop was removed after
+                // mount.
                 //
-                // `tooltip-text` is the scalar half of the same defect: its construction
-                // default IS null, so removing it takes the accessor route.
+                // `tooltip-text` is the scalar half of the same defect: its construction default
+                // IS null, so removing it takes the accessor route.
                 //
-                // NOT the only string that could show it, and the first version of this
-                // note had the reason backwards. Measured: `new Gtk.Button().label` is
-                // NULL — `''` is GTK normalising the WRITE, not the constructed default —
-                // so a GtkButton label-removal vector WOULD discriminate too. It is
-                // `GtkLabel:label` whose constructed default really is `''`, which is why
-                // the pre-existing vector above it uses a label and proves nothing here.
+                // NOT the only string that could show it. Measured: `new Gtk.Button().label` is
+                // NULL — `''` is GTK normalising the WRITE, not the constructed default — so a
+                // GtkButton label-removal vector WOULD discriminate too. It is `GtkLabel:label`
+                // whose constructed default really is `''`, which is why the pre-existing vector
+                // above it uses a label and proves nothing here.
                 const button = createElement('GtkButton', { tooltipText: 'Save' });
                 const widget = materialize(button) as unknown as Gtk.Button;
                 expect(widget.tooltipText).toBe('Save');
@@ -1169,21 +1165,19 @@ export default async () => {
 
             await it('removing a page after a visible-child switch leaves nothing dangling', async () => {
                 // Reproduced from an application: an `Adw.ViewStack` behind a tab
-                // router logged hundreds of `gtk_widget_set_child_visible: assertion
-                // 'GTK_IS_WIDGET (widget)' failed` in twelve seconds, at exit 0.
-                // The defect is libadwaita's — `hideBeforeRemove` in `types.ts`
-                // carries the source lines — but THIS host is what drives it: a
-                // keyed reorder is `remove-all`, so every round removes every page.
-                // Measured in the application, unpatched twice and patched three
-                // times: 296 and 131 criticals against 0, 0, 0, with the React
-                // render count unchanged. The two unpatched runs differing by more
-                // than a factor of two is why neither is quoted as THE number.
+                // router logged hundreds of `gtk_widget_set_child_visible: assertion 'GTK_IS_WIDGET
+                // (widget)' failed` in twelve seconds, at exit 0. The defect is libadwaita's —
+                // `hideBeforeRemove` in `types.ts` carries the source lines — but THIS host is what
+                // drives it: a keyed reorder is `remove-all`, so every round removes every page.
+                // Measured in the application, unpatched twice and patched three times: 296 and 131
+                // criticals against 0, 0, 0, with the React render count unchanged. The two unpatched
+                // runs differing by more than a factor of two is why neither is quoted as THE
+                // number.
                 //
-                // Every precondition below was measured one at a time, and each one
-                // alone is silent: a stack never made visible, the switch without
-                // the remove, the remove without the switch. The read that fires is
-                // on UNMAP, so the window has to go away inside the test — measured,
-                // a queued resize and a direct `measure()` leave it quiet.
+                // Every precondition below was measured one at a time, and each one alone is silent:
+                // a stack never made visible, the switch without the remove, the remove without the
+                // switch. The read that fires is on UNMAP, so the window has to go away inside the
+                // test — measured, a queued resize and a direct `measure()` leave it quiet.
                 const stack = createElement('AdwViewStack');
                 const widget = materialize(stack) as unknown as Adw.ViewStack;
                 const [a, b] = ['a', 'b'].map((n) =>
@@ -1466,31 +1460,28 @@ export default async () => {
                 }
 
                 await it(`${d.gtype} defaultSlot "${d.children.defaultSlot}"`, async () => {
-                    // Where a child with NO `slot=` lands. WHICH slot that should
-                    // be is a choice and has no oracle — GTK has no opinion on
-                    // whether a bare `<adw-toolbar-view>` child belongs in
-                    // "content" — so this does not try to hold the declared value
-                    // against anything. Deriving both sides from `defaultSlot`
-                    // would compare the field with itself, and flipping it in the
-                    // descriptor would move the assertion with it.
+                    // Where a child with NO `slot=` lands. WHICH slot that should be is a
+                    // choice and has no oracle — GTK has no opinion on whether a bare
+                    // `<adw-toolbar-view>` child belongs in "content" — so this does not try to hold
+                    // the declared value against anything. Deriving both sides from `defaultSlot`
+                    // would compare the field with itself, and flipping it in the descriptor would
+                    // move the assertion with it.
                     //
-                    // What IS falsifiable is that the host resolves the field at
-                    // all, on the way IN and on the way BACK OUT, and neither was
-                    // measured: `appendChild`'s `child.slot ?? policy.defaultSlot`
-                    // reduced to the FIRST slot leaves the whole suite green
-                    // except these four cases, and `setterSlotOf`'s copy of the
-                    // same expression leaves it green outright — a `remove()` that
-                    // clears the wrong setter finds it empty, declines to clear,
-                    // and reports success with the widget still in the window.
+                    // What IS falsifiable is that the host resolves the field at all, on the way IN
+                    // and on the way BACK OUT, and neither was measured: `appendChild`'s
+                    // `child.slot ?? policy.defaultSlot` reduced to the FIRST slot leaves the whole
+                    // suite green except these four cases, and `setterSlotOf`'s copy of the same
+                    // expression leaves it green outright — a `remove()` that clears the wrong setter
+                    // finds it empty, declines to clear, and reports success with the widget still in
+                    // the window.
                     const policy = d.children;
                     if (policy.kind !== 'slotted') return;
                     const childTag = CHILD_TAG[d.gtype] ?? 'GtkButton';
-                    // A FINGERPRINT rather than the tree alone, and the extra half
-                    // is the point: measured, `GtkOverlay`'s `set_child` and
-                    // `add_overlay` produce byte-identical GType dumps, so a
-                    // dump-only comparison would be blind for exactly the
-                    // container whose two slots are hardest to tell apart. Asking
-                    // each setter slot whether it is occupied separates them.
+                    // A FINGERPRINT rather than the tree alone, and the extra half is the
+                    // point: measured, `GtkOverlay`'s `set_child` and `add_overlay` produce
+                    // byte-identical GType dumps, so a dump-only comparison would be blind for exactly
+                    // the container whose two slots are hardest to tell apart. Asking each setter
+                    // slot whether it is occupied separates them.
                     const fingerprint = (widget: Gtk.Widget): string =>
                         [
                             dumpTree(widget),

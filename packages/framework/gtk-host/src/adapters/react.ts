@@ -1,63 +1,47 @@
 // React on GTK4 — the whole adapter.
 //
-// The third contract over one host, and the one that answers the question the
-// other two could not: React does not publish a renderer *interface*, it
-// publishes a FACTORY. `react-reconciler` is `module.exports = function
-// $$$reconciler($$$hostConfig) { … }`, and the body opens by destructuring the
-// whole config into module-scope variables. So the contract is not a documented
-// list — it is whatever that factory reads, and it is readable at runtime.
-// `react.spec.ts` reads it through a recording Proxy and pins the count, which is
-// why nothing here is a hand-copied method list.
+// The third contract over one host, and the one that answers the question the other two could
+// not: React does not publish a renderer *interface*, it publishes a FACTORY.
+// `react-reconciler` is `module.exports = function $$$reconciler($$$hostConfig) { … }`, and the
+// body opens by destructuring the whole config into module-scope variables. So the contract is not
+// a documented list — it is whatever that factory reads, and it is readable at runtime.
+// `react.spec.ts` reads it through a recording Proxy and pins the count, which is why nothing here
+// is a hand-copied method list.
 //
 // What React asks for that the other two do not, and what each one cost:
 //
-//   - `clearContainer(container)`. React CLEARS the root before its first commit
-//     (`updateHostRoot` sets the `Snapshot` flag whenever `current.child` is null,
-//     with the comment "This handles the case of React rendering into a container
-//     with previous children"). On GTK that container is the application's own
-//     widget, and the app's chrome is in it. So this maps to the SHADOW children
-//     only and never to `el.foreign` — a vector holds it.
-//   - `commitUpdate` is the whole diff. React 18 split it in two — `prepareUpdate`
-//     in the render phase, `commitUpdate` in the commit phase — and 19 deleted the
-//     render half outright, so the payload is computed and applied in one place.
-//     `diffProps` did not change; only the phase it runs in did.
-//   - `getPublicInstance` IS `ref`. It returns the author's own widget, never the
-//     `GtkListBoxRow` the host wrapped it in — a `ref` that hands back a wrapper
-//     the author never wrote is a silent lie about which widget they hold.
-//   - `hideInstance`/`hideTextInstance` are `<Suspense>`/`<Offscreen>`. A text run
-//     owns no widget, so hiding one means emptying its contribution to the parent's
-//     text sink — and `unhideTextInstance` is handed the text back, so nothing has
-//     to be remembered.
+//   - `clearContainer(container)`. React CLEARS the root before its first commit (`updateHostRoot`
+//     sets the `Snapshot` flag whenever `current.child` is null). On GTK that container is the
+//     application's own widget, and the app's chrome is in it. So this maps to the SHADOW children
+//     only and never to `el.foreign`.
+//   - `commitUpdate` is the whole diff. React 18 split it in two and 19 deleted the render half
+//     outright, so the payload is computed and applied in one place.
+//   - `getPublicInstance` IS `ref`. It returns the author's own widget, never the `GtkListBoxRow`
+//     the host wrapped it in — a `ref` that hands back a wrapper the author never wrote is a
+//     silent lie about which widget they hold.
+//   - `hideInstance`/`hideTextInstance` are `<Suspense>`/`<Offscreen>`. A text run owns no widget,
+//     so hiding one means emptying its contribution to the parent's text sink — and
+//     `unhideTextInstance` is handed the text back, so nothing has to be remembered.
 //
-// BUILD RECIPE, and it is not optional. `--define 'process.env.NODE_ENV="production"'`,
-// exactly as the Vue adapter requires: `react-reconciler/index.js` is
-// `process.env.NODE_ENV === 'production' ? require('./cjs/react-reconciler.production.js') :
-// require('./cjs/react-reconciler.development.js')`, and the development bundle reaches
-// for `document`, `HTMLCanvasElement` and `Path2D`, which makes `--globals auto` inject
-// the GTK-backed DOM registers and pull gi://Gdk, GdkPixbuf, Pango and PangoCairo
-// into a bundle that needs none of them. The production `scheduler`'s
-// `navigator.scheduling` probe needs no flag: `navigator` injects Node's DOM-free one
-// from @gjsify/node-globals.
+// BUILD RECIPE, and it is not optional. `--define 'process.env.NODE_ENV="production"'`, exactly
+// as the Vue adapter requires: the development bundle reaches for `document`,
+// `HTMLCanvasElement` and `Path2D`, which makes `--globals auto` inject the GTK-backed DOM
+// registers and pull gi://Gdk, GdkPixbuf, Pango and PangoCairo into a bundle that needs none of
+// them.
 //
-// HOW THAT RECIPE IS HELD, and why the guard had to change shape. Until 0.29 the
-// member COUNT told the two bundles apart — production read 76, development 94 — so
-// `react.spec.ts` pinning 76 also caught a lost define. Measured on 0.33.0, both
-// bundles read 160, and the count can no longer distinguish them at all. The guard is
-// therefore on the BUNDLE CONTENT instead: the development bundle is the only one
-// carrying `document` / `HTMLCanvasElement` / `Path2D`, so their absence in the built
-// artifact is the fact we actually care about rather than a proxy for it.
+// HOW THAT RECIPE IS HELD: on the BUNDLE CONTENT, not a member count. The count stopped
+// distinguishing the two bundles when both read 160 on 0.33.0; the development bundle is the
+// only one carrying `document` / `HTMLCanvasElement` / `Path2D`, so their absence in the built
+// artifact is the fact we care about rather than a proxy for it.
 
 import Reconciler from 'react-reconciler';
-// `constants.js`, with the extension: `react-reconciler` ships no `exports` map,
-// and TypeScript's NodeNext resolver is faithful to Node ESM there — an
-// extensionless subpath of such a package does not resolve, and the error names
-// the module rather than the reason (`TS2307`). The `.js` spelling reaches both
+// `constants.js`, with the extension: `react-reconciler` ships no `exports` map, and an
+// extensionless subpath of such a package does not resolve under NodeNext (the error names the
+// module rather than the reason, `TS2307`). The `.js` spelling reaches both
 // `@types/react-reconciler/constants.d.ts` and the real file.
 import { ConcurrentRoot, DefaultEventPriority, NoEventPriority } from 'react-reconciler/constants.js';
-// A VALUE import, for exactly one member. React 19 asks the host for a
-// `HostTransitionContext` and reads it at construction, and the only way to
-// produce a context is React's own factory. It costs nothing measurable: the
-// production `react` bundle is already in the graph through the peer.
+// A VALUE import, for exactly one member. React 19 asks the host for a `HostTransitionContext` and
+// reads it at construction, and the only way to produce a context is React's own factory.
 import { createContext } from 'react';
 import type { ReactNode } from 'react';
 import type Gtk from '@girs/gtk-4.0';
@@ -84,17 +68,13 @@ export type ReactProps = Record<string, unknown>;
 /**
  * React's own props, which are not GObject properties.
  *
- * `children` arrives in `props` for every element — `React.createElement('gtk-box',
- * null, child)` produces `props.children` — and forwarding it produced
- * `<GtkBox> has no property "children"` on the very first nested element.
+ * `children` arrives in `props` for every element, and forwarding it produced `<GtkBox> has no
+ * property "children"` on the very first nested element.
  *
- * `ref` IS THE REACT 19 ADDITION, and it is measured rather than defensive. React 18
- * lifted both `key` and `ref` off the element before props existed, so this set held
- * `children` alone. React 19 made `ref` an ordinary prop — the change that removed
- * `forwardRef` — and it now reaches `createInstance` for host elements too: the first
- * run against 0.33.0 failed with `<GtkButton> has no property "ref". … or bind it as
- * a signal with onRef`, which is the host correctly refusing a prop React had
- * previously never handed it. `key` still never appears.
+ * `ref` IS THE REACT 19 ADDITION, and it is measured rather than defensive: React 19 made `ref`
+ * an ordinary prop — the change that removed `forwardRef` — so it now reaches `createInstance`
+ * for host elements too, failing with `<GtkButton> has no property "ref"`. `key` still never
+ * appears.
  */
 const RESERVED = new Set(['children', 'ref']);
 
@@ -107,15 +87,13 @@ const ownProps = (props: ReactProps | null | undefined): ReactProps | undefined 
 /**
  * The prop diff.
  *
- * It ran in the RENDER phase until React 18, where returning `null` from
- * `prepareUpdate` also told React not to schedule a commit for the fiber at all.
- * React 19 deleted that hook, so this runs inside `commitUpdate` and `null` now
- * means only "nothing to write" — the bailout it used to buy is gone, and no
- * amount of adapter code brings it back.
- * A key that DISAPPEARED becomes `undefined`, the host's spelling for "back to
- * what construction leaves behind". An AUTHORED `label={null}` is not translated
- * here and never was: the host reads `null` as removed too, which is what makes
- * that the same fact rather than a per-adapter courtesy.
+ * It ran in the RENDER phase until React 18, where returning `null` from `prepareUpdate` also told
+ * React not to schedule a commit for the fiber at all. React 19 deleted that hook, so this runs
+ * inside `commitUpdate` and `null` now means only "nothing to write".
+ *
+ * A key that DISAPPEARED becomes `undefined`, the host's spelling for "back to what construction
+ * leaves behind". An AUTHORED `label={null}` is not translated here: the host reads `null` as
+ * removed too, which is what makes that the same fact rather than a per-adapter courtesy.
  */
 function diffProps(oldProps: ReactProps, newProps: ReactProps): PropChange[] | null {
     let out: PropChange[] | null = null;
@@ -134,11 +112,10 @@ function diffProps(oldProps: ReactProps, newProps: ReactProps): PropChange[] | n
 /**
  * The object GTK holds for this node — the wrapper row when the parent demanded one.
  *
- * `Gtk.ListBox` addresses a `GtkListBoxRow` the host created, and hiding the child
- * INSIDE it leaves an empty row on screen. Read off the node's own `wrapper`
- * rather than through `addressOf`: the placement engine is the host's internal
- * (ADR 0027 § 7, and `scripts/check-adapter-import-direction.mjs` enforces it),
- * while `wrapper` is part of the node every adapter already holds.
+ * `Gtk.ListBox` addresses a `GtkListBoxRow` the host created, and hiding the child INSIDE it
+ * leaves an empty row on screen. Read off the node's own `wrapper` rather than through
+ * `addressOf`: the placement engine is the host's internal (ADR 0027 § 7), while `wrapper` is part
+ * of the node every adapter already holds.
  */
 const visibilityTargetOf = (el: HostElement): { set_visible(visible: boolean): void } => {
     const widget = materialize(el);
@@ -148,40 +125,32 @@ const visibilityTargetOf = (el: HostElement): { set_visible(visible: boolean): v
 /**
  * The one host context, shared by every element in the tree.
  *
- * GTK has no namespace switch (the DOM's HTML/SVG/MathML boundary), so there is
- * nothing to carry and a single frozen object serves the whole tree. Two reasons
- * it is an object and not `null`. React compares the result by IDENTITY to decide
- * whether to push a new context, so one shared instance is what makes that bailout
- * work. And React 19 reads `null` as "no context was provided at all" and logs
- * `Expected host context to exist` once per element — measured, non-fatal, and the
- * tree still renders, which is precisely the kind of noise that gets normalised.
+ * GTK has no namespace switch (the DOM's HTML/SVG/MathML boundary), so there is nothing to carry
+ * and a single frozen object serves the whole tree. Two reasons it is an object and not `null`:
+ * React compares the result by IDENTITY to decide whether to push a new context, and React 19
+ * reads `null` as "no context was provided at all" and logs `Expected host context to exist` once
+ * per element — measured, non-fatal, and precisely the kind of noise that gets normalised.
  */
 const HOST_CONTEXT: object = Object.freeze({});
 
 /**
  * The update priority React is currently working at.
  *
- * React 19 replaced the single `getCurrentEventPriority` read with a three-member
- * protocol the host has to STORE for: React writes the lane it is entering with
- * `setCurrentUpdatePriority` and reads it back. Module scope is correct across
- * ROOTS — `react-dom` keeps it the same way, and React saves and restores the value
- * around every entry point, so nesting is LIFO-safe. It is deliberately NOT claimed
- * to be correct across reconciler INSTANCES: `react.spec.ts` builds two more over a
- * Proxy of this same config, and `gtkHostConfig` is documented below as the seam for
- * a consumer who wants a differently configured one. They share this variable. No
- * interleave that corrupts it is known, and none is ruled out either.
+ * React 19 replaced the single `getCurrentEventPriority` read with a three-member protocol the
+ * host has to STORE for. Module scope is correct across ROOTS — React saves and restores the value
+ * around every entry point. It is deliberately NOT claimed to be correct across reconciler
+ * INSTANCES: `react.spec.ts` builds two more over a Proxy of this same config, and they share
+ * this variable.
  */
 let currentUpdatePriority: number = NoEventPriority;
 
 /**
  * The HostConfig, exported because it IS the contract.
  *
- * `react.spec.ts` builds a second reconciler over a Proxy of this object to read
- * the member set the INSTALLED `react-reconciler` asks for, so a version that
- * starts asking for something new fails a test instead of returning `undefined`
- * in a commit. It is also the seam for a consumer who needs a differently
- * configured reconciler (a `LegacyRoot`, a different event priority) without
- * restating the mapping.
+ * `react.spec.ts` builds a second reconciler over a Proxy of this object to read the member set the
+ * INSTALLED `react-reconciler` asks for, so a version that starts asking for something new fails a
+ * test instead of returning `undefined` in a commit. It is also the seam for a consumer who needs
+ * a differently configured reconciler (a `LegacyRoot`, a different event priority).
  */
 export const gtkHostConfig = {
     // --- modes ---------------------------------------------------------------
@@ -194,20 +163,17 @@ export const gtkHostConfig = {
     supportsHydration: false,
     isPrimaryRenderer: true,
 
-    // React 19's two new capability gates, declared for the same reason the three
-    // above are: answering `false` is what keeps their whole member families
-    // (thirteen for resources, five for singletons) from being called at all,
-    // rather than leaving them `undefined` in a commit path. Resources are the
-    // DOM's `<link>`/`<script>` hoisting and singletons are `<html>`/`<head>`/
-    // `<body>` — neither has a GTK counterpart, and inventing one would mean
-    // deciding that some widget is the document.
+    // React 19's two new capability gates, declared for the same reason the three above are:
+    // answering `false` is what keeps their whole member families from being called at all, rather
+    // than leaving them `undefined` in a commit path. Resources are the DOM's `<link>`/`<script>`
+    // hoisting and singletons are `<html>`/`<head>`/`<body>` — neither has a GTK counterpart, and
+    // inventing one would mean deciding that some widget is the document.
     supportsResources: false,
     supportsSingletons: false,
 
-    // Not declared: `supportsMicrotasks`. It only moves SYNC-lane flushing into a
-    // microtask; default-lane work goes through `scheduler` either way, so it
-    // would add a second scheduling path without removing the first. `flushSync`
-    // below is the one explicit flush, and the GLib main loop drives the rest.
+    // Not declared: `supportsMicrotasks`. It only moves SYNC-lane flushing into a microtask;
+    // default-lane work goes through `scheduler` either way, so it would add a second scheduling
+    // path without removing the first.
 
     noTimeout: -1 as const,
     scheduleTimeout: setTimeout,
@@ -234,22 +200,20 @@ export const gtkHostConfig = {
     /**
      * `false`, always — one text path instead of two.
      *
-     * `true` would tell React to skip text instances for this element and leave
-     * the string in `props.children` for the adapter to write. The host already
-     * owns that translation: a text NODE is concatenated into the descriptor's
-     * `textSink`, and a widget without one refuses text BY TAG NAME. Answering
-     * `true` would move that decision into the adapter, where it would be a
+     * `true` would tell React to skip text instances for this element and leave the string in
+     * `props.children` for the adapter to write. The host already owns that translation: a text NODE
+     * is concatenated into the descriptor's `textSink`, and a widget without one refuses text BY
+     * TAG NAME. Answering `true` would move that decision into the adapter, where it would be a
      * widget-knowledge test — the one thing ADR 0027 § 7 forbids an adapter.
      *
-     * It also keeps `resetTextContent` unreachable: React sets the `ContentReset`
-     * flag only when `shouldSetTextContent` was true for the PREVIOUS props.
+     * It also keeps `resetTextContent` unreachable: React sets the `ContentReset` flag only when
+     * `shouldSetTextContent` was true for the PREVIOUS props.
      */
     shouldSetTextContent: (): boolean => false,
 
     // --- host context --------------------------------------------------------
     //
-    // One object for the whole tree — see `HOST_CONTEXT` for why it is an object
-    // and not `null`, and why returning the parent's own is load-bearing.
+    // One object for the whole tree — see `HOST_CONTEXT`.
     getRootHostContext: (): object => HOST_CONTEXT,
     getChildHostContext: (parentHostContext: object): object => parentHostContext,
 
@@ -264,20 +228,17 @@ export const gtkHostConfig = {
 
     // --- commit fences -------------------------------------------------------
     //
-    // The DOM uses these to save and restore selection across a commit. GTK's
-    // focus and selection survive a widget move on their own — which is exactly
-    // what the identity-across-reorder vectors assert — so there is nothing to
-    // save. `null` is React's "no focused instance".
+    // The DOM uses these to save and restore selection across a commit. GTK's focus and selection
+    // survive a widget move on their own — which is exactly what the identity-across-reorder
+    // vectors assert — so there is nothing to save.
     prepareForCommit: (): null => null,
     resetAfterCommit: (): void => {},
     preparePortalMount: (): void => {},
 
     // --- update priority -----------------------------------------------------
     //
-    // React 18 asked ONE question here (`getCurrentEventPriority`, deleted in 19)
-    // and 19 asks three, because the host now OWNS the current-lane variable
-    // instead of deriving it per read. The stored value lives in
-    // `currentUpdatePriority` above.
+    // React 18 asked ONE question here (`getCurrentEventPriority`, deleted in 19) and 19 asks three,
+    // because the host now OWNS the current-lane variable instead of deriving it per read.
 
     getCurrentUpdatePriority: (): number => currentUpdatePriority,
     setCurrentUpdatePriority: (priority: number): void => {
@@ -287,14 +248,11 @@ export const gtkHostConfig = {
     /**
      * The priority an update gets when React is not already inside a lane.
      *
-     * React DOM derives this from the DOM event being handled (a click is
-     * discrete, a scroll continuous). A GTK signal handler is not a DOM event and
-     * there is no ambient event to read, so every update is a default-lane one —
-     * the same answer `react-art` and `react-nil` give. Consequence, stated
-     * because it is load-bearing: a `setState` from a GTK handler is CONCURRENT,
-     * so it lands when `scheduler` next runs, i.e. on the next GLib main-loop
-     * iteration. `flushSync` is the escape hatch, and the spec pumps the main
-     * context to prove the scheduled path works at all under GJS.
+     * React DOM derives this from the DOM event being handled (a click is discrete, a scroll
+     * continuous). A GTK signal handler is not a DOM event and there is no ambient event to read, so
+     * every update is a default-lane one — the same answer `react-art` and `react-nil` give.
+     * Consequence, stated because it is load-bearing: a `setState` from a GTK handler is CONCURRENT,
+     * so it lands when `scheduler` next runs, i.e. on the next GLib main-loop iteration.
      */
     resolveUpdatePriority: (): number =>
         currentUpdatePriority !== NoEventPriority ? currentUpdatePriority : DefaultEventPriority,
@@ -307,11 +265,10 @@ export const gtkHostConfig = {
 
     // --- scheduler tracing ---------------------------------------------------
     //
-    // The performance-track instrumentation React 19 emits for its own DevTools
-    // profiler. There is no event object to name and no DOM timeline to align
-    // against, so these answer honestly rather than fabricating a trace.
-    // `-1.1` is React's own sentinel for "this renderer has no timestamps" — a
-    // plain `-1` reads as a real, very early time.
+    // The performance-track instrumentation React 19 emits for its own DevTools profiler. There is no
+    // event object to name and no DOM timeline to align against, so these answer honestly rather
+    // than fabricating a trace. `-1.1` is React's own sentinel for "this renderer has no
+    // timestamps" — a plain `-1` reads as a real, very early time.
     trackSchedulerEvent: (): void => {},
     resolveEventType: (): null => null,
     resolveEventTimeStamp: (): number => -1.1,
@@ -331,11 +288,10 @@ export const gtkHostConfig = {
         hostInsert(child, container, before);
     },
 
-    // A TEARDOWN, like the Vue adapter and unlike the Solid one — and the
-    // difference is in the framework, not in the host. React MOVES a node with
-    // `insertBefore`/`appendChild` alone (`commitPlacement` never removes first),
-    // so `removeChild` is only ever a real unmount. The reorder vectors are what
-    // hold that claim: they assert the same widget objects survive.
+    // A TEARDOWN, like the Vue adapter and unlike the Solid one — and the difference is in the
+    // framework, not in the host. React MOVES a node with `insertBefore`/`appendChild` alone
+    // (`commitPlacement` never removes first), so `removeChild` is only ever a real unmount. The
+    // reorder vectors are what hold that claim.
     removeChild: (_parent: HostElement, child: HostNode): void => {
         destroy(child);
     },
@@ -344,19 +300,13 @@ export const gtkHostConfig = {
     },
 
     /**
-     * React clears the root before its FIRST commit — and the application's own
-     * chrome must survive it.
+     * React clears the root before its FIRST commit, and the application's own chrome must survive it.
+     * In the DOM that discards leftover markup. Here the container is a widget the application
+     * built and filled, so this clears what the HOST put there (the shadow children) and never
+     * `el.foreign`, which `adopt` recorded precisely so placement can offset past it.
      *
-     * `updateHostRoot` sets the `Snapshot` flag whenever the previous render
-     * produced no child, and `commitBeforeMutationEffects` then calls this on the
-     * container. In the DOM that discards leftover markup. Here the container is a
-     * widget the application built and filled, so this clears what the HOST put
-     * there (the shadow children) and never `el.foreign`, which `adopt` recorded
-     * precisely so placement can offset past it.
-     *
-     * `destroy` rather than `remove`, for the same reason `removeChild` uses it:
-     * GJS blocks JS callbacks during GC, so a detached node keeps its handlers
-     * for the life of the process.
+     * `destroy` rather than `remove`, for the same reason `removeChild` uses it: GJS blocks JS
+     * callbacks during GC, so a detached node keeps its handlers for the life of the process.
      */
     clearContainer: (container: HostElement): void => {
         destroyChildren(container);
@@ -365,12 +315,9 @@ export const gtkHostConfig = {
     /**
      * Diff AND apply — one phase, because React 19 deleted the other one.
      *
-     * The argument list is the change with teeth: React 18 passed
-     * `(instance, updatePayload, type, prevProps, nextProps, handle)` and 19 passes
-     * `(instance, type, prevProps, nextProps, handle)`. The payload slot was
-     * removed from the FRONT, so an adapter that kept the old signature would read
-     * the type string as its payload and iterate a string — which is why this is
-     * spelled out rather than left to positional luck.
+     * The argument list is the change with teeth: React 19 removed the `updatePayload` slot from the
+     * FRONT, so an adapter that kept the old signature would read the type string as its payload
+     * and iterate a string.
      */
     commitUpdate: (instance: HostElement, _type: string, prevProps: ReactProps, nextProps: ReactProps): void => {
         const changes = diffProps(prevProps, nextProps);
@@ -427,12 +374,10 @@ export const gtkHostConfig = {
 
     // --- the rest of what the factory reads ----------------------------------
     //
-    // React reads every member of the config at construction, so these exist to
-    // be honest about the answer rather than to leave `undefined` in a commit
-    // path. None of them has a GTK meaning: there is no DOM node to map back
-    // (`getInstanceFromNode` backs React DOM's event system), no `<ReactScope>`
-    // in a stable release, and no active-element blur to sequence around a
-    // commit — GTK moves focus with the widget.
+    // React reads every member of the config at construction, so these exist to be honest about the
+    // answer rather than to leave `undefined` in a commit path. None of them has a GTK meaning:
+    // there is no DOM node to map back, no `<ReactScope>` in a stable release, and no
+    // active-element blur to sequence around a commit — GTK moves focus with the widget.
     getInstanceFromNode: (): null => null,
     getInstanceFromScope: (): null => null,
     prepareScopeUpdate: (): void => {},
@@ -440,17 +385,13 @@ export const gtkHostConfig = {
 
     // --- suspending a commit (React 19) --------------------------------------
     //
-    // React 19 lets a host DELAY a commit until an asynchronous resource it owns
-    // has arrived — the DOM uses it to hold a commit until a stylesheet or an
-    // image has loaded, so the frame that appears is never half-styled. A GTK
-    // widget tree has no such resource: every widget this host creates exists the
-    // moment `createInstance` returns.
+    // React 19 lets a host DELAY a commit until an asynchronous resource it owns has arrived — the
+    // DOM uses it to hold a commit until a stylesheet or an image has loaded. A GTK widget tree has
+    // no such resource: every widget this host creates exists the moment `createInstance` returns.
     //
-    // `waitForCommitToBeReady` returning `null` is the load-bearing one — it is
-    // React's "commit now", and any function returned instead would be awaited.
-    // The three `maySuspendCommit*` predicates are what keep the rest of the
-    // family unreached, and `preloadInstance` answering `true` means "already
-    // loaded", not "loading started".
+    // `waitForCommitToBeReady` returning `null` is the load-bearing one — it is React's "commit
+    // now", and any function returned instead would be awaited. `preloadInstance` answering `true`
+    // means "already loaded", not "loading started".
     maySuspendCommit: (): boolean => false,
     maySuspendCommitOnUpdate: (): boolean => false,
     maySuspendCommitInSyncRender: (): boolean => false,
@@ -467,10 +408,8 @@ export const gtkHostConfig = {
 
     // --- form state (React 19) -----------------------------------------------
     //
-    // `useFormStatus` and `<form action={…}>` are DOM form semantics: React needs
-    // a context to publish the pending transition through and a way to reset a
-    // form element after an action. GTK has no form element — a `Gtk.Entry` is not
-    // part of a submittable group — so the context carries the "not pending"
+    // `useFormStatus` and `<form action={…}>` are DOM form semantics. GTK has no form element — a
+    // `Gtk.Entry` is not part of a submittable group — so the context carries the "not pending"
     // sentinel forever and the reset has nothing to reset.
     NotPendingTransition: null,
     HostTransitionContext: createContext(null),

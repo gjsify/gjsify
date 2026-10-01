@@ -1,8 +1,8 @@
 // The attribute machinery the two dialect surfaces share.
 //
-// Everything in here is HAND-WRITTEN on purpose: it is the part of the surface
-// that belongs to the FRAMEWORK rather than to GTK, and each member is here
-// because a measurement said the surface is unusable without it.
+// Everything in here is HAND-WRITTEN on purpose: it is the part of the surface that belongs to the
+// FRAMEWORK rather than to GTK, and each member is here because a measurement said the surface is
+// unusable without it.
 
 import type Gio from '@girs/gio-2.0';
 import type GObject from '@girs/gobject-2.0';
@@ -15,11 +15,10 @@ import type { HostNode } from './types.js';
 /**
  * A `notify::` handler.
  *
- * The host strips the emitting object (`next(...args.slice(1))` in `signals.ts`),
- * so what reaches the callback is the ParamSpec alone. Declared HERE rather than in
- * the generated file because it is the same for every property in GTK — and because
- * a generator that emitted it would have to import GObject for a type that has
- * nothing to do with the GIR it read.
+ * The host strips the emitting object, so what reaches the callback is the ParamSpec alone. Declared
+ * HERE rather than in the generated file because it is the same for every property in GTK — and a
+ * generator that emitted it would have to import GObject for a type that has nothing to do with
+ * the GIR it read.
  */
 export type NotifyHandler = (pspec: GObject.ParamSpec) => void;
 
@@ -28,37 +27,32 @@ declare const outParam: unique symbol;
 /**
  * A signal parameter GIR declares `out`/`inout` with `caller-allocates="0"`.
  *
- * GJS still passes an argument in that position, and what it holds is whatever
- * was in the memory the marshaller allocated: measured on gjs 1.88.1 / GTK
- * 4.22.4, a handler on `Gtk.SpinButton::input` receives `new_value` as
- * `6.9526682391035e-310`, and one on `Gtk.Editable::insert-text` receives
- * `position` as `1711500784`. Both arrive as ordinary numbers. Nothing warns.
+ * GJS still passes an argument in that position, and what it holds is whatever was in the memory
+ * the marshaller allocated: measured on gjs 1.88.1 / GTK 4.22.4, a handler on
+ * `Gtk.SpinButton::input` receives `new_value` as `6.9526682391035e-310`, and one on
+ * `Gtk.Editable::insert-text` receives `position` as `1711500784`. Both arrive as ordinary numbers.
+ * Nothing warns.
  *
- * So the slot is DECLARED — dropping it would silently shift every parameter
- * after it — and given a type nothing can be read out of, and nothing but
- * itself assigns to. Annotating the parameter `number` is then a compile error
- * naming the position, which is the only place a reader would have looked.
+ * So the slot is DECLARED — dropping it would silently shift every parameter after it — and given
+ * a type nothing can be read out of, and nothing but itself assigns to. Annotating the parameter
+ * `number` is then a compile error naming the position.
  *
- * `caller-allocates="1"` is a different thing and keeps its real type: there the
- * callee is handed a live object to FILL, as `Gtk.Overlay::get-child-position`
- * is handed a `Gdk.Rectangle`.
+ * `caller-allocates="1"` is a different thing and keeps its real type: there the callee is handed
+ * a live object to FILL, as `Gtk.Overlay::get-child-position` is handed a `Gdk.Rectangle`.
  */
 export type OutParam = { readonly [outParam]: never };
 
-// NOT emitted by the generator any more. Signal signatures are `@girs`'
-// `SignalSignatures` since the vocabulary migration (ADR 0029 § Amendment), so how an
-// out parameter is spelled is answered there. Kept because the rule above is a fact
-// about GJS rather than about this generator, and a consumer writing a signature by
-// hand still needs it. If `@girs` turns out to spell one `number`, that is a defect to
-// report upstream, not a reason to re-derive the type here.
+// Signal signatures are `@girs`' `SignalSignatures` since the vocabulary migration (ADR 0029 §
+// Amendment), so how an out parameter is spelled is answered there. Kept because the rule above is
+// a fact about GJS rather than about this generator, and a consumer writing a signature by hand
+// still needs it.
 
 /**
  * What may appear as a child, mirroring Solid's own `JSX.Element`.
  *
- * The shape is copied from `solid-js/types/jsx.d.ts` because a renderer's element
- * union is not a free choice: a string, a number and a boolean are all legal
- * children there, an array of children is legal recursively, and a FUNCTION is
- * not. Substituting our host node for the DOM's `Node` is the only change.
+ * The shape is copied from `solid-js/types/jsx.d.ts` because a renderer's element union is not a free
+ * choice: a string, a number and a boolean are all legal children there, an array of children is
+ * legal recursively, and a FUNCTION is not.
  */
 export type ElementChild = HostNode | ElementChildren | string | number | boolean | null | undefined;
 
@@ -67,10 +61,9 @@ export interface ElementChildren extends Array<ElementChild> {}
 /**
  * Add the `.once` spelling of every event prop, without generating 2× the members.
  *
- * `signals.ts` accepts `onClickedOnce` for every `onClicked`, including every
- * `onNotifyFooOnce`, which would be another ~1000 generated members. A mapped type
- * derives them from the interface instead — including the ones a consumer adds by
- * declaration merging.
+ * `signals.ts` accepts `onClickedOnce` for every `onClicked`, including every `onNotifyFooOnce`,
+ * which would be another ~1000 generated members. A mapped type derives them from the interface
+ * instead — including the ones a consumer adds by declaration merging.
  */
 export type WithOnce<T> = T & {
     [K in keyof T & string as K extends `on${string}` ? `${K}Once` : never]?: T[K];
@@ -84,11 +77,11 @@ export interface SlotAttribute {
 /**
  * GTK's ARIA surface, on every element of every dialect. Read by `setAccessibility()`.
  *
- * ONE OBJECT, not 53 flat `aria*` props, and the four reasons are in `setAccessibility`'s
- * own header — the load-bearing one being that TypeScript exempts a hyphenated JSX
- * attribute from excess-property checking while a key in a fresh object literal is
- * checked. `AccessibilityAttributes` is GENERATED, because the names and their value
- * types are GTK's and are stated nowhere a ParamSpec can be read from.
+ * ONE OBJECT, not 53 flat `aria*` props, and the four reasons are in `setAccessibility`'s own
+ * header — the load-bearing one being that TypeScript exempts a hyphenated JSX attribute from
+ * excess-property checking while a key in a fresh object literal is checked.
+ * `AccessibilityAttributes` is GENERATED, because the names and their value types are GTK's and are
+ * stated nowhere a ParamSpec can be read from.
  */
 export interface AccessibilityAttribute {
     accessibility?: AccessibilityAttributes | null;
@@ -97,12 +90,10 @@ export interface AccessibilityAttribute {
 /**
  * The `on:<raw-signal-name>` escape hatch, typed.
  *
- * `parseEventProp` takes `on:` + a signal name verbatim, which is how a signal
- * whose name resists the camelCase derivation gets bound at all. The handler type
- * is deliberately the widest one that is not `any`: parameters of `never` accept
- * a handler declared with any parameters, so nothing a consumer writes is refused.
- * An inline arrow's parameter arrives as `never` here, which is the price of an
- * escape hatch that carries no signal-specific knowledge.
+ * `parseEventProp` takes `on:` + a signal name verbatim, which is how a signal whose name resists
+ * the camelCase derivation gets bound at all. The handler type is deliberately the widest one that
+ * is not `any`: parameters of `never` accept a handler declared with any parameters, so nothing a
+ * consumer writes is refused.
  */
 export interface RawSignalAttributes {
     [key: `on:${string}`]: ((...args: never[]) => unknown) | undefined;
@@ -129,25 +120,20 @@ export interface JsxAttributes<T> extends AccessibilityAttribute, SlotAttribute,
 /**
  * Per-element attributes for Vue.
  *
- * Deliberately NOT `JsxAttributes`: Vue supplies `ref` and `key` itself through
- * `VNodeProps`, which every registered component's props are intersected with.
- * Declaring our own `ref` would intersect two different `ref` types and could
- * leave the property unusable, so the Vue surface adds only what Vue does not —
- * and `children` is a SLOT in Vue, never a prop.
+ * Deliberately NOT `JsxAttributes`: Vue supplies `ref` and `key` itself through `VNodeProps`, which
+ * every registered component's props are intersected with. Declaring our own `ref` would intersect
+ * two different `ref` types and could leave the property unusable.
  */
 export interface VueAttributes extends AccessibilityAttribute, SlotAttribute, RawSignalAttributes {}
 
 /**
  * The properties whose GObject type is a `GMenuModel`, in both spellings.
  *
- * A NAME LIST, not a type test, and the reason is measured rather than stylistic: the
- * obvious `Gio.MenuModel extends NonNullable<T[K]> ? …` also matches every property
- * typed as a wider GObject — `Gio.MenuModel extends GObject.Object` is TRUE — so the
- * widening would leak onto properties that take an entirely different object. The three
- * names below are the whole set on the shipped table (`menu-model` on the two menu
- * buttons, the popover menu and the menu bar; `extra-menu` on the text widgets;
- * `secondary-menu` on `AdwToolbarView`'s header bar), and `type-tests/` holds the
- * widening against real markup in both dialects.
+ * A NAME LIST, not a type test, and the reason is measured: the obvious `Gio.MenuModel extends
+ * NonNullable<T[K]> ? …` also matches every property typed as a wider GObject — `Gio.MenuModel
+ * extends GObject.Object` is TRUE — so the widening would leak onto properties that take an
+ * entirely different object. The names below are the whole set on the shipped table, and
+ * `type-tests/` holds the widening against real markup in both dialects.
  */
 type MenuModelProp = 'menuModel' | 'menu-model' | 'extraMenu' | 'extra-menu' | 'secondaryMenu' | 'secondary-menu';
 

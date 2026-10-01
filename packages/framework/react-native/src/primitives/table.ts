@@ -1,38 +1,31 @@
 // The primitive vocabulary, as DATA: one row per React Native primitive, saying
 // which widget it becomes and where each of its props goes.
 //
-// ADR 0032 § 2 asks for data rather than code here, so that lifting a
-// framework-neutral primitive vocabulary out of this later is a MOVE rather than a
-// rewrite. Nothing in this file imports React, and nothing in it imports `gi://` —
-// a row is a record of strings, and `resolve.ts` is the only thing that executes it.
+// ADR 0032 § 2 asks for data rather than code here, so that lifting a framework-neutral
+// primitive vocabulary out of this later is a MOVE rather than a rewrite. Nothing in this file
+// imports React, and nothing in it imports `gi://` — a row is a record of strings, and
+// `resolve.ts` is the only thing that executes it.
 //
-// The three structural facts that are NOT expressible as a per-prop route each got
-// their own declared field rather than a branch in the resolver: `content` (a
-// second styleable node inside the element), `overlayOnAbsoluteChild` (the element
-// becomes a different widget because of what is INSIDE it) and `switchOn` (one
-// React Native prop, two GTK widgets). Each is one line of data and the resolver
-// reads all three the same way for every primitive.
+// The three structural facts that are NOT expressible as a per-prop route each got their own
+// declared field rather than a branch in the resolver: `content` (a second styleable node
+// inside the element), `overlayOnAbsoluteChild` (the element becomes a different widget
+// because of what is INSIDE it) and `switchOn` (one React Native prop, two GTK widgets).
 //
-// WHY AN UNKNOWN PROP IS A THROW. A React Native prop this table does not carry is
-// refused by name, listing what the primitive does take. The alternative is a
-// silent drop, and a silent drop in a view layer is the failure this whole package
-// exists to remove: `<ScrollView onScroll={…}>` that never fires looks like a
-// callback bug in the application, forever. `children`, `key` and `ref` are the
-// only exceptions, because they are the framework's and never reach a widget.
+// WHY AN UNKNOWN PROP IS A THROW. A React Native prop this table does not carry is refused by
+// name, listing what the primitive does take. The alternative is a silent drop, and a silent
+// drop in a view layer is the failure this whole package exists to remove: `<ScrollView
+// onScroll={…}>` that never fires looks like a callback bug in the application, forever.
+// `children`, `key` and `ref` are the only exceptions, because they are the framework's.
 //
-// WHY `Modal` IS HERE NOW, and it is still the sharpest measurement of this file.
-// ADR 0032 maps it to `Adw.Dialog`, and an `Adw.Dialog` cannot be an ordinary
-// element: measured on libadwaita 1.9.3 / gjs 1.88.1, with the box ROOTED IN A
-// WINDOW — a detached box accepts the append in silence, so a re-test on a bare
-// box 'disproves' this and puts the naive mapping back — `box.append(dialog)` calls
-// `g_error()`, "Trying to add AdwDialog … to GtkBox. Use adw_dialog_present() to
-// show dialogs.", which is SIGABRT and a core dump, not an exception a host can
-// catch and not a warning a diagnostics gate can count. A dialog is PRESENTED
-// against a parent, never parented by it, which makes `<Modal>` a PORTAL rather
-// than an ordinary primitive. That is not a property of this table: it is a
-// property of the tree, so it was fixed in the tree. `@gjsify/gtk-host` grew a
-// placement axis for it (ADR 0045) and `AdwDialog` declares it, so the row below
-// is an ordinary row — the abort is unreachable because nothing is appended.
+// WHY `Modal` IS HERE. ADR 0032 maps it to `Adw.Dialog`, and an `Adw.Dialog` cannot be an
+// ordinary element: measured on libadwaita 1.9.3 / gjs 1.88.1, with the box ROOTED IN A
+// WINDOW — a detached box accepts the append in silence, so a re-test on a bare box
+// 'disproves' this — `box.append(dialog)` calls `g_error()`, "Trying to add AdwDialog … to
+// GtkBox. Use adw_dialog_present() to show dialogs.", which is SIGABRT and a core dump, not
+// an exception a host can catch and not a warning a diagnostics gate can count. A dialog is
+// PRESENTED against a parent, never parented by it, which makes `<Modal>` a PORTAL. That is
+// a property of the tree, so it was fixed in the tree: `@gjsify/gtk-host` grew a placement
+// axis for it (ADR 0045) and `AdwDialog` declares it, so the row below is an ordinary row.
 
 import type { AccessibleAttribute, AccessibleRoute } from './accessibility.js';
 import type { Orientation, WidgetFacts, WrapsInto } from './intents.js';
@@ -116,24 +109,21 @@ export interface RefusedRoute {
 /**
  * A prop the LAYER answers by calling a method when a signal fires.
  *
- * `accessibilityLiveRegion` is the whole of it, and the shape is forced by the
- * mismatch between the two platforms' models. React Native's prop is a DECLARATION
- * — "when this element's content changes, tell the user" — and the platform's
- * accessibility layer watches for the change. GTK has no such declaration: since
- * 4.14 it has `gtk_accessible_announce(self, message, priority)` (MEASURED on
- * gtk 4.22.4 — the method is on the `Gtk.Accessible` interface, so every widget has
- * it, and it takes a `GtkAccessibleAnnouncementPriority` of LOW/MEDIUM/HIGH), which
- * is an IMPERATIVE call: the caller supplies both the moment and the message.
+ * `accessibilityLiveRegion` is the whole of it, and the shape is forced by the mismatch between
+ * the two platforms' models. React Native's prop is a DECLARATION — "when this element's
+ * content changes, tell the user" — and the platform's accessibility layer watches for the
+ * change. GTK has no such declaration: since 4.14 it has `gtk_accessible_announce(self,
+ * message, priority)` (MEASURED on gtk 4.22.4 — on the `Gtk.Accessible` interface, so every
+ * widget has it), which is an IMPERATIVE call: the caller supplies both the moment and the
+ * message.
  *
- * So a live region can only be built where this layer knows both. It knows both on
- * exactly one primitive — `Text`, whose content IS one widget property, so
- * `notify::label` is the moment and `label` is the message. Everywhere else the
- * content is a SUBTREE and GTK emits nothing when one changes, which is why the
- * common route refuses the prop by name rather than this route answering it.
+ * So a live region can only be built where this layer knows both. It knows both on exactly one
+ * primitive — `Text`, whose content IS one widget property, so `notify::label` is the moment
+ * and `label` is the message. Everywhere else the content is a SUBTREE and GTK emits nothing
+ * when one changes, which is why the common route refuses the prop by name.
  *
- * Like {@link FileRoute} and {@link GestureRoute}, the table holds the whole of the
- * DECISION and none of the call: the priority is a `gi://Gtk` enum member and
- * nothing under `primitives/` imports `gi://`.
+ * Like {@link FileRoute} and {@link GestureRoute}, the table holds the whole of the DECISION
+ * and none of the call: nothing under `primitives/` imports `gi://`.
  */
 export interface AnnounceRoute {
     readonly to: 'announce';
@@ -169,14 +159,13 @@ export interface IgnoredRoute {
 /**
  * A prop whose value becomes a `Gio.File` — and the reason it is its own kind.
  *
- * `Gtk.Picture:file` takes a `Gio.File`, an OBJECT, and building one needs
- * `gi://Gio`. Nothing under `primitives/` imports `gi://` (that is what makes L2
- * testable without a display and reusable by a binding that never loads GTK), so the
- * table cannot produce the value — only the DECISION about it. So L2 does the whole
- * of the decision, which is where every refusal lives (`http:` has no synchronous
- * loader, a `require()` id has no asset registry, an array is a device-scale
- * picker), and hands the framework layer a `{ kind, value }` pair it turns into one
- * call: `Gio.File.new_for_path` or `Gio.File.new_for_uri`.
+ * `Gtk.Picture:file` takes a `Gio.File`, an OBJECT, and building one needs `gi://Gio`.
+ * Nothing under `primitives/` imports `gi://` (that is what makes L2 testable without a display
+ * and reusable by a binding that never loads GTK), so the table cannot produce the value —
+ * only the DECISION about it. So L2 does the whole of the decision, which is where every
+ * refusal lives (`http:` has no synchronous loader, a `require()` id has no asset registry, an
+ * array is a device-scale picker), and hands the framework layer a `{ kind, value }` pair it
+ * turns into one call.
  */
 export interface FileRoute {
     readonly to: 'file';
@@ -189,13 +178,12 @@ export interface FileRoute {
 /**
  * A prop bound through a gesture CONTROLLER rather than a signal on the widget.
  *
- * `TouchableWithoutFeedback` is the one primitive that needs it: it has no button
- * chrome, so its widget is a `Gtk.Box`, and a box emits no `clicked` (measured —
- * `Gtk.Button`'s two signals are `activate` and `clicked`, and a box has neither).
- * The desktop answer is a `Gtk.GestureClick` added to the widget, whose `released`
- * signal is the press completing. A controller is `add_controller(new
- * Gtk.GestureClick())` — a constructed OBJECT, so the same rule as {@link FileRoute}
- * applies: the table names the signal, the framework layer builds the controller.
+ * `TouchableWithoutFeedback` is the one primitive that needs it: it has no button chrome, so
+ * its widget is a `Gtk.Box`, and a box emits no `clicked` (measured — `Gtk.Button`'s two
+ * signals are `activate` and `clicked`, and a box has neither). The desktop answer is a
+ * `Gtk.GestureClick` added to the widget, whose `released` signal is the press completing. A
+ * controller is a constructed OBJECT, so the same rule as {@link FileRoute} applies: the table
+ * names the signal, the framework layer builds the controller.
  */
 export interface GestureRoute {
     readonly to: 'gesture';
@@ -329,31 +317,23 @@ export interface PrimitiveSpec {
  *   seven children on a line and wrap the eighth however much room was left — a
  *   layout that is plausible on screen and wrong. There is no "no limit" spelling:
  *   `0` is OUT OF RANGE for the `guint` (a GLib-GObject-CRITICAL, and the property
- *   keeps its old value), and writing G_MAXUINT stores 65535.
+ *   keeps its old value), and writing G_MAXUINT stores 65535. So the cap is kept
+ *   equal to the child count by `@gjsify/gtk-host`, the only layer that knows the
+ *   count (`ChildPolicy`'s `perLineCap`); a line can never hold more children than
+ *   exist, so the count forbids nothing 65535 allowed.
  *
- *   This table therefore pinned 65535, and **that correction is not made here any
- *   more** — the cap is kept equal to the child count by `@gjsify/gtk-host`, the
- *   only layer that knows the count (`ChildPolicy`'s `perLineCap`). A line can
- *   never hold more children than exist, so the count forbids nothing 65535
- *   allowed, and two things stop costing what they did.
+ *   That matters twice over, because the cost is quadratic in the CAP rather than
+ *   in the children. One `Gtk.FlowBox` holding TWO children, per HEIGHT-FOR-WIDTH
+ *   measure: 0.025 ms at a cap of 64, 18.6 ms at 8192, 391.5 ms at 32768, **1393.2
+ *   ms at 65535**. An application with five two-chip rows froze its main loop for
+ *   12.7 s at startup, and every screenshot of it looked right. (The width alone —
+ *   `measure(HORIZONTAL, -1)` — stays under 0.1 ms at every cap, so the orientation
+ *   is part of the claim.)
  *
- *   The MEASURE, whose cost is quadratic in the cap rather than in the children.
- *   One `Gtk.FlowBox` holding TWO children, per HEIGHT-FOR-WIDTH measure, GTK
- *   4.22.4: 0.025 ms at 64, 18.6 ms at 8192, 391.5 ms at 32768, **1393.2 ms at
- *   65535**. An application with five two-chip rows froze its main loop for 12.7 s
- *   at startup, and every screenshot of it looked right. (The width alone —
- *   `measure(HORIZONTAL, -1)` — stays under 0.1 ms at every cap, so the
- *   orientation is part of the claim.)
- *
- *   The NATURAL WIDTH, which is `content + column-spacing × (cap - 1)`, so a cap
- *   above the child count `n` carries `column-spacing × (cap - n)` px of gaps that
- *   do not exist. 12 children, `column-spacing: 8`: 683 px at a cap of 12 and
- *   **524 867 px** at 65535, the excess exactly 8 × 65 523. The old note here said
- *   the natural width was "unaffected by it — measured identical for 12 children
- *   at 12, 1024 and 65535", and that holds ONLY AT `column-spacing: 0`. Which is
- *   the measurement this table was least entitled to make, because the same table
- *   routes every `gap-*` into `column-spacing` (below) — a wrapping row with a gap
- *   is the case it creates, and it is the case the claim excluded.
+ *   And the NATURAL WIDTH is `content + column-spacing × (cap - 1)`, so a cap above
+ *   the child count `n` carries `column-spacing × (cap - n)` px of gaps that do not
+ *   exist: 12 children, `column-spacing: 8` gives 683 px at a cap of 12 and
+ *   **524 867 px** at 65535.
  *
  *   `selection-mode` defaults to SINGLE. A `Gtk.FlowBox` is a selection widget
  *   before it is a layout one, so a plain `<View>` would gain a focus ring and a
@@ -418,36 +398,26 @@ const ACCESSIBLE_IS_THE_DESKTOP_DEFAULT =
     'asks for two things, and GTK already answers one: every GTK widget is in the accessibility tree, so “this element is an accessibility element” is the desktop default rather than an opt-in. The other thing it asks — merge my whole subtree into ONE accessible node, which is what `accessible={true}` does on iOS — GTK has no mechanism for, and a desktop screen reader navigates the widget tree it is given. To take an element OUT of that tree, set `accessibilityRole="none"`: it is the one prop that writes `Gtk.Accessible:accessible-role`, and two props writing one property is the silent-drop shape this table refuses by name';
 
 /**
- * React Native's `accessibilityRole` → `Gtk.AccessibleRole`, and why it is a
- * PROPERTY route while its four siblings are not.
+ * React Native's `accessibilityRole` → `Gtk.AccessibleRole`, and why it is a PROPERTY route
+ * while its four siblings are not.
  *
- * The whole accessibility set used to be refused with one sentence: GTK carries
- * accessibility through `Gtk.Accessible.update_property()`, an imperative call
- * rather than a widget property. That is true of `label`, `help-text` and the
- * states — see `primitives/accessibility.ts`, which expresses them as a route
- * anyway, the way `accessibilityLiveRegion` already expressed `announce()`. It is
- * NOT true of the role, and the received wisdom that it is has a specific shape
- * worth naming: `Gtk.Accessible:accessible-role` is widely described as
- * construct-only, which is why an application holding a finished widget through a
- * ref cannot set it and has to drop the prop.
+ * `label`, `help-text` and the states go through `Gtk.Accessible.update_property()`, an
+ * imperative call rather than a widget property — see `primitives/accessibility.ts`. It is NOT
+ * true of the role, and the received wisdom that it is has a specific shape worth naming:
+ * `Gtk.Accessible:accessible-role` is widely described as construct-only, which is why an
+ * application holding a finished widget through a ref cannot set it.
  *
- * MEASURED on gtk 4.22.4 / gjs 1.88.1, on all eight widget classes this table
- * builds: the ParamSpec is `READABLE|WRITABLE` with no `CONSTRUCT_ONLY`, and a
- * post-construction write STICKS — `new Gtk.Box()` reads GENERIC, an assignment
- * of BUTTON reads back BUTTON, and `Gtk.test_accessible_has_role` agrees. This
- * repo already measures the same fact from the other side: `gtk-host`'s
- * `props.spec.ts` asserts `GtkButton`'s construct-only set is exactly
- * `['css-name']`. So the role is an ordinary property, and being one is strictly
- * better than an imperative call — the host coerces the nick, replays it through
- * `materialize`, and would rebuild the widget on a change if a future GTK made it
- * construct-only after all.
+ * MEASURED on gtk 4.22.4 / gjs 1.88.1, on every widget class this table builds: the ParamSpec is
+ * `READABLE|WRITABLE` with no `CONSTRUCT_ONLY`, and a post-construction write STICKS — `new
+ * Gtk.Box()` reads GENERIC, an assignment of BUTTON reads back BUTTON, and
+ * `Gtk.test_accessible_has_role` agrees. So the role is an ordinary property, and being one is
+ * strictly better than an imperative call.
  *
- * The MAPPING is not one-to-one and is not derived from the spelling. React
- * Native's list is Android's and iOS's traits merged; GTK's 85 roles are ARIA's.
- * Where a React Native name is one platform's spelling of a portable idea it is
- * mapped to that idea (`tabbar` → `tab-list`, `dropdownlist` → `combo-box`,
- * `viewgroup` → the `generic` a `Gtk.Box` already reports); where it names a
- * platform mechanism rather than a role it is refused BY NAME below.
+ * The MAPPING is not one-to-one and is not derived from the spelling. React Native's list is
+ * Android's and iOS's traits merged; GTK's roles are ARIA's. Where a React Native name is one
+ * platform's spelling of a portable idea it is mapped to that idea (`tabbar` → `tab-list`,
+ * `dropdownlist` → `combo-box`, `viewgroup` → the `generic` a `Gtk.Box` already reports); where
+ * it names a platform mechanism rather than a role it is refused BY NAME below.
  */
 const ACCESSIBLE_ROLES: Readonly<Record<string, string>> = {
     none: 'none',
@@ -493,14 +463,11 @@ const ACCESSIBLE_ROLES: Readonly<Record<string, string>> = {
 /**
  * Real React Native role spellings with no GTK member, each answered by name.
  *
- * EVERY ROLE A REASON NAMES IS ONE {@link ACCESSIBLE_ROLES} MAPS, and that is a
- * vector rather than a convention (`primitives.spec.ts`, "advises only values it
- * would accept"). Three of these used to point at ARIA spellings GTK does have —
- * `group`, `status`, `navigation` — which this layer nonetheless refuses, because
- * the KEYS here are React Native's 40 `accessibilityRole` names and those three are
- * not among them: they live on RN's separate ARIA-shaped `role` prop, which is not
- * a table key at all. A refusal whose advice is refused in turn is worse than the
- * generic "Known: …" it was written to replace.
+ * EVERY ROLE A REASON NAMES IS ONE {@link ACCESSIBLE_ROLES} MAPS, and that is a vector rather
+ * than a convention (`primitives.spec.ts`, "advises only values it would accept"). Note that
+ * `group`, `status` and `navigation` are refused here even though GTK has all three: they live
+ * on React Native's separate ARIA-shaped `role` prop, which is not a table key at all. A
+ * refusal whose advice is refused in turn is worse than the generic "Known: …" it replaced.
  */
 const ACCESSIBLE_ROLES_REFUSED: Readonly<Record<string, string>> = {
     keyboardkey:
@@ -521,19 +488,15 @@ const NO_ON_LAYOUT =
 /**
  * `accessibilityLiveRegion` — and the reason is NOT "GTK4 has no property".
  *
- * GTK has had `Gtk.Accessible.announce(message, priority)` since 4.14 (MEASURED on
- * gtk 4.22.4: the method is on the `Gtk.Accessible` interface, so it is on every
- * widget, and it takes LOW/MEDIUM/HIGH). What it does NOT have is the declaration
- * React Native's prop is — a flag that makes the accessibility layer watch this
- * element's content and speak the change. `announce` is imperative: the caller
- * supplies the moment and the message.
+ * GTK has had `Gtk.Accessible.announce(message, priority)` since 4.14. What it does NOT have
+ * is the declaration React Native's prop is — a flag that makes the accessibility layer watch
+ * this element's content and speak the change. `announce` is imperative: the caller supplies
+ * the moment and the message.
  *
- * So the prop is answerable exactly where this layer knows both, which is `Text`
- * and nowhere else: a `Gtk.Label`'s content IS a property, so `notify::label` is the
- * moment and `label` is the message ({@link AnnounceRoute}). A `View`'s content is a
- * subtree, and GTK emits nothing when a subtree changes — there is no
- * `notify::children`, and walking the tree on every frame to diff it is a screen
- * reader's job, not a view layer's.
+ * So the prop is answerable exactly where this layer knows both, which is `Text` and nowhere
+ * else (see {@link AnnounceRoute}). A `View`'s content is a subtree, and GTK emits nothing when
+ * a subtree changes — walking the tree on every frame to diff it is a screen reader's job, not
+ * a view layer's.
  */
 const NO_LIVE_REGION =
     'declares that a screen reader should speak this element when its CONTENT changes. GTK has the announcement — `Gtk.Accessible.announce(message, priority)` since 4.14 — but not the watch: it is an imperative call, and this element’s content is a SUBTREE, which GTK emits no signal for. `<Text>` answers this prop, because its content is one property (`Gtk.Label:label`) and so is both the moment and the message. Elsewhere, call `announce()` on the widget through a ref when you change the content';
@@ -567,12 +530,11 @@ const COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[]>> = {
         map: ACCESSIBLE_ROLES,
         refuses: ACCESSIBLE_ROLES_REFUSED,
     },
-    // HELP_TEXT and not DESCRIPTION, for two reasons that point the same way.
-    // React Native's hint says what HAPPENS when you act on the element, which is
-    // help text rather than a description of it; and `Gtk.Picture:alternative-text`
-    // — the `alt` prop on `<Image>` — writes DESCRIPTION (measured), so routing the
-    // hint there would put two props on one attribute, the silent-drop shape this
-    // table refuses by name elsewhere. HELP_TEXT needs GTK 4.16.
+    // HELP_TEXT and not DESCRIPTION, for two reasons that point the same way. React
+    // Native's hint says what HAPPENS when you act on the element, which is help text rather
+    // than a description of it; and `Gtk.Picture:alternative-text` — the `alt` prop on `<Image>`
+    // — writes DESCRIPTION (measured), so routing the hint there would put two props on one
+    // attribute. HELP_TEXT needs GTK 4.16.
     accessibilityHint: { to: 'accessible', from: 'value', attribute: HELP_TEXT_ATTRIBUTE },
     accessibilityState: { to: 'accessible', from: 'members', members: ACCESSIBLE_STATES, refuses: {} },
     accessibilityLiveRegion: { to: 'refused', why: NO_LIVE_REGION },
@@ -584,9 +546,9 @@ const POINTER_EVENTS: PropRoute = {
     names: ['can-target'],
     as: 'map',
     // `box-none` and `box-only` split hit-testing between a widget and its subtree.
-    // GTK's `can-target` is one boolean for the widget AND everything under it, so
-    // the two split values have no expression at all and are refused by the map's
-    // own "known values" message rather than approximated to the nearest boolean.
+    // GTK's `can-target` is one boolean for the widget AND everything under it, so the two
+    // split values have no expression at all and are refused by name rather than approximated
+    // to the nearest boolean.
     map: { auto: true, none: false },
 };
 
@@ -594,9 +556,9 @@ const TEXT_INPUT_COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[
     ...COMMON,
     multiline: { to: 'ignored', why: 'it chose the widget; it is not also a property' },
     editable: { to: 'property', names: ['editable'], as: 'boolean' },
-    // Both `Gtk.Entry` and `Gtk.TextView` install `input-purpose` (measured), which
-    // is the one keyboard-ish hint that survives onto a desktop: it is what tells
-    // an on-screen keyboard AND an input method what kind of text this is.
+    // Both `Gtk.Entry` and `Gtk.TextView` install `input-purpose` (measured), which is
+    // the one keyboard-ish hint that survives onto a desktop: it tells an input method what kind
+    // of text this is.
     keyboardType: {
         to: 'property',
         names: ['input-purpose'],
@@ -627,14 +589,12 @@ const TEXT_INPUT_COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[
     },
     autoCorrect: { to: 'ignored', why: 'an on-screen keyboard behaviour' },
     keyboardAppearance: { to: 'ignored', why: 'there is no on-screen keyboard to theme' },
-    // THE THREE PROPS WITH NO ADDRESSEE, written down once here rather than decided
-    // again in every application. Each one names a service on the other platform —
-    // an autofill provider, an on-screen keyboard — and a GTK desktop runs neither.
-    // `ignored` and not `refused` for the reason `autoCapitalize` above is: they
-    // arrive on perfectly ordinary React Native code that the author cannot rewrite
-    // into something a desktop would honour, so throwing would refuse a correct
-    // program. The DECLARED no-op is what keeps "GTK has no such service" apart from
-    // "the table forgot this name".
+    // THE PROPS WITH NO ADDRESSEE, written down once here rather than decided again in every
+    // application. Each names a service on the other platform — an autofill provider, an on-screen
+    // keyboard — and a GTK desktop runs neither. `ignored` and not `refused` for the reason
+    // `autoCapitalize` above is: they arrive on perfectly ordinary React Native code the author
+    // cannot rewrite, so throwing would refuse a correct program. The DECLARED no-op is what
+    // keeps "GTK has no such service" apart from "the table forgot this name".
     autoComplete: {
         to: 'ignored',
         why: 'is Android’s autofill hint, and there is no autofill service on a GTK desktop to hint to — a password manager fills a field through the accessibility bus or a paste, neither of which the widget declares anything for. `keyboardType` is the one hint that does land: it writes `Gtk.Entry:input-purpose`, which an input method reads',

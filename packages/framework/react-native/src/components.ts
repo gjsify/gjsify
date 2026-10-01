@@ -1,32 +1,26 @@
 // L3 — the React components. Thin, and thin is the point.
 //
-// Every one of the seven is the same two lines: ask L2 what this element becomes,
-// and hand the answer to `createElement(<GType name>, …)`. There is no widget name
-// in this file that L2 did not produce, no property mapping, and no styling
-// decision — those all live one layer down, where a Vue or Solid adapter can reach
-// them too (ADR 0032 § 1).
+// Every one of the seven is the same two lines: ask L2 what this element becomes, and hand the
+// answer to `createElement(<GType name>, …)`. There is no widget name in this file that L2 did
+// not produce, no property mapping, and no styling decision — those all live one layer down,
+// where a Vue or Solid adapter can reach them too (ADR 0032 § 1).
 //
-// `createElement` FROM `react`, NOT A JSX RUNTIME. A JSX runtime import would tie
-// this module to a dialect the consumer has not chosen: they point
-// `jsxImportSource` at `@gjsify/gtk-host/react` or at `react`, and importing
-// `react/jsx-runtime` here would decide it for them. `app-registry.ts` records the
-// same rule and the second half of its reason — a hand-built element literal's
-// `$$typeof` symbol is React-version-specific (`react.element` became
-// `react.transitional.element` in 19), so `createElement` is also the only spelling
-// that does not pin a React version.
+// `createElement` FROM `react`, NOT A JSX RUNTIME. A JSX runtime import would tie this module
+// to a dialect the consumer has not chosen: they point `jsxImportSource` at
+// `@gjsify/gtk-host/react` or at `react`, and importing `react/jsx-runtime` here would decide
+// it for them. It is also the only spelling that does not pin a React version, since a
+// hand-built element literal's `$$typeof` symbol is React-version-specific (`react.element`
+// became `react.transitional.element` in 19).
 //
-// WHAT THE PARENT CONTEXT IS AND IS NOT. `ParentContext` carries the four facts a
-// child needs about its parent (`intents.ts`' `ChildContext`). It is L3's CARRIER
-// for a parameter L2 takes as plain data, not the mechanism — which is the
-// distinction ADR 0032 § 6 asks anyone touching this to be able to state. A Vue
-// adapter would use `provide`/`inject`, and an attach-time resolver in the host
-// would read the shadow tree; all three call the same `resolvePrimitive(name,
-// props, { parent })` and none of them can see the others' carrier.
+// WHAT THE PARENT CONTEXT IS AND IS NOT. `ParentContext` carries the four facts a child needs
+// about its parent (`intents.ts`' `ChildContext`). It is L3's CARRIER for a parameter L2 takes
+// as plain data, not the mechanism — the distinction ADR 0032 § 6 asks anyone touching this to
+// be able to state. A Vue adapter would use `provide`/`inject`; all three call the same
+// `resolvePrimitive(name, props, { parent })` and none can see the others' carrier.
 //
-// WHY EVENT HANDLERS GO THROUGH A REF. The host strips the emitter before calling a
-// handler (`next(...args.slice(1))` in `signals.ts`) and `Gtk.Editable::changed`
-// carries no payload of its own, so `onChangeText(text)` cannot be built from the
-// signal arguments at all. L2 says WHICH widget property holds the value
+// WHY EVENT HANDLERS GO THROUGH A REF. The host strips the emitter before calling a handler and
+// `Gtk.Editable::changed` carries no payload of its own, so `onChangeText(text)` cannot be built
+// from the signal arguments at all. L2 says WHICH widget property holds the value
 // (`ResolvedEvent.read`); this file reads it off the widget its ref holds.
 
 import Gio from 'gi://Gio?version=2.0';
@@ -96,14 +90,13 @@ type AnyProps = Readonly<Record<string, unknown>>;
 /**
  * L2's `events` → host props, with STABLE identities.
  *
- * Stable because a new function per render makes the props change every render,
- * which makes the host disconnect and reconnect every handler every render — one
- * `g_signal_connect` per event per commit, for nothing. The dispatchers close over a
- * ref to the latest props instead, so the user's callback may change freely while
+ * Stable because a new function per render makes the host disconnect and reconnect every handler
+ * every render — one `g_signal_connect` per event per commit, for nothing. The dispatchers
+ * close over a ref to the latest props instead, so the user's callback may change freely while
  * the identity the host sees does not.
  *
- * The dependency is the SIGNAL LIST rather than `events`, whose array identity is
- * new on every call by construction.
+ * The dependency is the SIGNAL LIST rather than `events`, whose array identity is new on every
+ * call by construction.
  */
 function useSignals(
     events: readonly ResolvedEvent[],
@@ -116,9 +109,8 @@ function useSignals(
     const bound = useMemo(() => {
         const out: Record<string, () => void> = {};
         for (const event of events) {
-            // `on:<raw signal name>` — `parseEventProp` takes that spelling verbatim,
-            // which is the only one that works for `notify::active`: the camelCase
-            // form would kebab the whole string into `notify-active`.
+            // `on:<raw signal name>` — the only spelling that works for `notify::active`, since the
+            // camelCase form would kebab the whole string into `notify-active`.
             out[`on:${event.signal}`] = () => {
                 const callback = latest.current[event.prop];
                 if (typeof callback !== 'function') return;
@@ -132,12 +124,10 @@ function useSignals(
         }
         return out;
         // `signature` ALONE, deliberately. `events` is freshly allocated by every
-        // `resolvePrimitive` call, so including it invalidated the memo on every
-        // render and the host reconnected every signal on every commit — the exact
-        // opposite of what this function exists for. Dropping it is safe because the
-        // closures read only `event.prop`/`event.signal`/`event.read`, all three of
-        // which `signature` encodes; a stale array with an equal signature is
-        // behaviourally identical, and the CALLBACKS come from `latest.current`.
+        // `resolvePrimitive` call, so including it invalidated the memo on every render and the
+        // host reconnected every signal on every commit. Dropping it is safe because the
+        // closures read only what `signature` encodes, and the CALLBACKS come from
+        // `latest.current`.
     }, [signature]);
     return { props: bound, widgetRef };
 }
@@ -193,40 +183,27 @@ export function usePlan(primitive: string, authored: object): Rendered {
         children: childFacts(children, config.tokens),
     });
 
-    // THE ONE SILENT DROP THIS LAYER HAD, AND WHY IT IS NOW LOUD.
+    // THE SILENT DROP THIS LAYER MUST NOT HAVE.
     //
-    // `resolveIntent` answers what it can and hands back the rest as
-    // `plan.intent` — `expand` and `alignSelf` when no parent context exists,
-    // `overlay` when the parent never became one. Nothing read it, so at the ROOT of
-    // a tree `flex-1`, `self-*` and `absolute` did exactly nothing, with no message
-    // anywhere. That is the failure mode the whole partition is built against, sitting
-    // in the layer that argues for it.
+    // `resolveIntent` answers what it can and hands back the rest as `plan.intent` —
+    // `expand` and `alignSelf` when no parent context exists, `overlay` when the parent
+    // never became one. Read as nothing, at the ROOT of a tree `flex-1`, `self-*` and
+    // `absolute` did exactly nothing, with no message anywhere: the failure mode the whole
+    // partition is built against, sitting in the layer that argues for it.
     //
-    // A root element genuinely cannot answer these — `flex-1` means "grow along my
-    // parent's main axis" and there is no parent — so the honest answer is a refusal
-    // naming the utility and the position, not a no-op.
+    // A root element genuinely cannot answer these — `flex-1` means "grow along my parent's
+    // main axis" and there is no parent — so the honest answer is a refusal naming the
+    // utility and the position, not a no-op. Defining a root context as a column instead
+    // makes `flex-1` resolve, and the parity vector then caught the two bindings
+    // DISAGREEING: React wrote `vexpand` onto the adopted container widget and Solid did
+    // not, for the same authored tree. A feature whose two frameworks differ is worse than
+    // a refusal. The workaround is the container's own expand, which the application owns.
     //
-    // THE OBVIOUS FIX WAS TRIED AND WITHDRAWN, so nobody spends the afternoon again.
-    // Defining a root context as a column (React Native's root view IS one, so it
-    // reads as a definition rather than a guess) makes `flex-1` at the root resolve —
-    // and the parity vector immediately caught the two bindings DISAGREEING: React
-    // wrote `vexpand` onto the adopted container widget and Solid did not, for the
-    // same authored tree. A feature whose two frameworks differ is worse than a
-    // refusal, so this stays a refusal until that difference is understood. The
-    // workaround is the container's own expand, which the application owns anyway.
-    //
-    // THE MESSAGE NAMES THE ELEMENT, because naming the primitive is not enough: an
-    // application has many elements per primitive, and a consumer reported spending
-    // hours on a `<View> expand` refusal with twenty-five `<View className="flex-1
-    // bg-canvas">` sites to choose between. `describeElement` says what the author
-    // wrote; `primitives/errors.ts` says why those two fields and no more.
-    //
-    // AND IT NO LONGER OFFERS "or its parent is not a box", WHICH CANNOT BE THE CAUSE
-    // HERE. The only input to resolving `expand`, `alignSelf` and `overlay` is whether
-    // a parent record EXISTS (`primitives/intents.ts`); the four subjects that test
-    // `widget.box` or `parent.overlay` throw on the spot and never reach `remaining`,
-    // so they never arrive here. A reader chasing that clause for a `flex-1` refusal
-    // is chasing something that cannot apply, which is what the same consumer did.
+    // THE MESSAGE NAMES THE ELEMENT, not just the primitive: an application has many
+    // elements per primitive, and a consumer reported spending hours on a `<View> expand`
+    // refusal with twenty-five `<View className="flex-1 bg-canvas">` sites to choose
+    // between. `describeElement` says what the author wrote; `primitives/errors.ts` says
+    // why those two fields and no more.
     const unresolved = Object.keys(plan.intent);
     if (unresolved.length > 0) {
         throw new PrimitiveError(
@@ -242,24 +219,22 @@ export function usePlan(primitive: string, authored: object): Rendered {
 
     const signals = useSignals(plan.events, props);
     const userRef = (props as { ref?: Ref<unknown> }).ref;
-    // Memoised on the user's ref identity: a new callback ref every render makes
-    // React detach (call with null) and re-attach on every commit, which would leave
-    // `widgetRef.current` null for the duration of a handler that fired in between.
+    // Memoised on the user's ref identity: a new callback ref every render makes React detach
+    // (call with null) and re-attach on every commit, which would leave `widgetRef.current`
+    // null for the duration of a handler that fired in between.
     //
-    // TWO DIFFERENT VALUES, and the split is the point. This layer's own seams
-    // (`useSignals`, `useGestures`, `Pressable`'s state watch) need the WIDGET, and
-    // the application's `ref` gets what React Native gives it: an imperative handle
-    // where the component documents one (`TextInput`), the widget everywhere else.
-    // `plan.handle` is L2's answer, so both L3s hand back the same thing.
+    // TWO DIFFERENT VALUES, and the split is the point. This layer's own seams (`useSignals`,
+    // `useGestures`, `Pressable`'s state watch) need the WIDGET, and the application's `ref`
+    // gets what React Native gives it: an imperative handle where the component documents one
+    // (`TextInput`), the widget everywhere else.
     const handleKind = plan.handle;
     const tag = plan.node.tag;
     const mergedRef = useMemo(
         () => (widget: unknown) => {
             signals.widgetRef.current = widget;
-            // `null` on detach stays `null` — a handle wrapping a detached widget
-            // would be an object whose every method reaches a widget React has
-            // already dropped, and `ref.current === null` is how a React application
-            // asks whether it is mounted.
+            // `null` on detach stays `null` — a handle wrapping a detached widget would be an object
+            // whose every method reaches a widget React has already dropped, and
+            // `ref.current === null` is how a React application asks whether it is mounted.
             const published = widget === null || widget === undefined ? widget : createHandle(handleKind, widget, tag);
             if (typeof userRef === 'function') userRef(published);
             else if (userRef !== null && userRef !== undefined) (userRef as { current: unknown }).current = published;
@@ -303,15 +278,13 @@ export function usePlan(primitive: string, authored: object): Rendered {
 /**
  * L2's `files` → `Gio.File` values, one per node, with a STABLE identity.
  *
- * Memoised on the URIs rather than rebuilt per render, and for the same reason
- * `useSignals` memoises its dispatchers: a fresh `Gio.File` every render makes the
- * props change every render, so the host writes `Gtk.Picture:file` on every commit —
- * and writing that property makes GTK re-read and re-decode the image.
+ * Memoised on the URIs for the same reason `useSignals` memoises its dispatchers: a fresh
+ * `Gio.File` every render makes the host write `Gtk.Picture:file` on every commit — and
+ * writing that property makes GTK re-read and re-decode the image.
  *
- * This is the one place in L3 that constructs a `gi://` value, and L2 decided
- * everything about it: which shapes are refused, which schemes have a synchronous
- * loader, and whether the string is a path or a URI (`ResolvedFile`). All that is left
- * here is the call GTK needs.
+ * This is the one place in L3 that constructs a `gi://` value; L2 decided everything else —
+ * which shapes are refused, which schemes have a synchronous loader, and whether the string is
+ * a path or a URI (`ResolvedFile`).
  */
 function useFiles(files: readonly ResolvedFile[]): {
     readonly outer: AnyProps;
@@ -343,12 +316,11 @@ function useFiles(files: readonly ResolvedFile[]): {
 /**
  * L2's `gestures` → a `Gtk.GestureClick` on the widget, for as long as it is mounted.
  *
- * `TouchableWithoutFeedback` is the only primitive that needs it, and the reason it is
- * an effect rather than a prop is that a controller is not a property: it is
- * `widget.add_controller(new Gtk.GestureClick())`, which needs the widget to exist.
- * `press.ts` owns both halves of that and REMOVES the controller in the disposer —
- * GJS blocks JS callbacks during GC, so a controller left on a widget is a handler
- * connected for the life of the process.
+ * `TouchableWithoutFeedback` is the only primitive that needs it, and the reason it is an effect
+ * rather than a prop is that a controller is not a property: it is `widget.add_controller(new
+ * Gtk.GestureClick())`, which needs the widget to exist. `press.ts` owns both halves of that and
+ * REMOVES the controller in the disposer — GJS blocks JS callbacks during GC, so a controller left
+ * on a widget is a handler connected for the life of the process.
  */
 function useGestures(gestures: readonly ResolvedGesture[], props: AnyProps, widgetRef: { current: unknown }): void {
     const latest = useRef(props);
@@ -373,16 +345,14 @@ function useGestures(gestures: readonly ResolvedGesture[], props: AnyProps, widg
 /**
  * L2's `announcements` → a screen-reader announcement whenever the content changes.
  *
- * AN EFFECT AND NOT AN `on:<signal>` PROP, and the difference is the whole feature:
- * the host suppresses a `notify::` raised inside its OWN property write, and a
- * `<Text>`'s content IS a host write — so an announcement routed through the host's
- * handler map fires on a change made from outside React and NEVER on the one the
- * application made. `announce.ts` carries the measurement.
+ * AN EFFECT AND NOT AN `on:<signal>` PROP, and the difference is the whole feature: the host
+ * suppresses a `notify::` raised inside its OWN property write, and a `<Text>`'s content IS a host
+ * write — so an announcement routed through the host's handler map fires on a change made from
+ * outside React and NEVER on the one the application made. `announce.ts` carries the measurement.
  *
- * An effect also gets the first render right by construction: it runs after the commit
- * that wrote the initial text, so a mount announces nothing. React Native's live region
- * speaks an update, and a screen reader that read every label on first paint would be
- * unusable.
+ * An effect also gets the first render right by construction: it runs after the commit that wrote
+ * the initial text, so a mount announces nothing. React Native's live region speaks an update, and
+ * a screen reader that read every label on first paint would be unusable.
  */
 function useLiveRegions(announcements: readonly ResolvedAnnouncement[], widgetRef: { current: unknown }): void {
     // The SIGNATURE, exactly as `useSignals` and `useGestures` do it: `announcements`
@@ -410,14 +380,13 @@ function useLiveRegions(announcements: readonly ResolvedAnnouncement[], widgetRe
 /**
  * L2's `accessibility` → `Gtk.Accessible.update_property()`/`update_state()`.
  *
- * AN EFFECT, so the write lands on a widget that exists, and so the CLEANUP can
- * reset what it set: a prop going from a value to absent has to clear the
- * attribute, and re-running the effect on a changed set is what does it.
+ * AN EFFECT, so the write lands on a widget that exists, and so the CLEANUP can reset what it set:
+ * a prop going from a value to absent has to clear the attribute, and re-running the effect on a
+ * changed set is what does it.
  *
- * The SIGNATURE, exactly as `useSignals`, `useGestures` and `useLiveRegions` do it:
- * `plan.accessibility` is freshly allocated by every `resolvePrimitive` call, so
- * depending on the array itself would reset and rewrite every attribute on every
- * commit — which is an AT-SPI notification storm rather than a no-op.
+ * The SIGNATURE, as the three hooks above: `plan.accessibility` is freshly allocated by every
+ * `resolvePrimitive` call, so depending on the array itself would reset and rewrite every attribute
+ * on every commit — an AT-SPI notification storm rather than a no-op.
  */
 function useAccessibility(entries: readonly ResolvedAccessible[], widgetRef: { current: unknown }): void {
     const signature = entries.length === 0 ? '' : JSON.stringify(entries);
@@ -434,11 +403,10 @@ function useAccessibility(entries: readonly ResolvedAccessible[], widgetRef: { c
 /**
  * A plan plus its children → the React elements.
  *
- * THREE arrangements, and the plan says which one without this function ever
- * branching on a primitive name: no content node (children go straight in), a
- * content node (children go into it), and a content node with an `absoluteSlot`
- * (ordinary children go into it, absolutely positioned ones go into the OUTER node,
- * where `Gtk.Overlay`'s `add_overlay` slot takes them).
+ * THREE arrangements, and the plan says which one without this function ever branching on a
+ * primitive name: no content node (children go straight in), a content node (children go into it),
+ * and a content node with an `absoluteSlot` (ordinary children go into it, absolutely positioned
+ * ones go into the OUTER node, where `Gtk.Overlay`'s `add_overlay` slot takes them).
  */
 function render(rendered: Rendered): ReactElement {
     const { plan, children, inherited, extra, contentExtra, backdropExtra, published, tokens } = rendered;
