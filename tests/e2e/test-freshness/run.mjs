@@ -219,11 +219,19 @@ describe('gjsify test — bundle freshness (#1651)', { timeout: 300_000 }, () =>
  * The input set that can answer this is the BUNDLE's, not the app's: the
  * bundler is the only party that knows a bare specifier resolved through
  * `node_modules/@fixture/signal` into `packages/signal/src/`.
+ *
+ * TWO HOPS, not one, because a sibling that depends on a sibling is the shape
+ * the layout actually has: `packages/signal` imports `@fixture/acp` from its OWN
+ * `node_modules`, so the leaf is reachable from no directory under `app/` at
+ * all. A set derived from the app's tree cannot name it at ANY depth; only the
+ * bundler's own resolutions can.
  */
 function writeWorkspace(root) {
     mkdirSync(join(root, 'app', 'src'), { recursive: true });
     mkdirSync(join(root, 'app', 'node_modules', '@fixture'), { recursive: true });
     mkdirSync(join(root, 'packages', 'signal', 'src'), { recursive: true });
+    mkdirSync(join(root, 'packages', 'signal', 'node_modules', '@fixture'), { recursive: true });
+    mkdirSync(join(root, 'packages', 'acp', 'src'), { recursive: true });
     writeFileSync(
         join(root, 'package.json'),
         JSON.stringify(
@@ -257,6 +265,22 @@ function writeWorkspace(root) {
                 type: 'module',
                 private: true,
                 exports: { '.': './src/index.ts' },
+                dependencies: { '@fixture/acp': 'workspace:*' },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(root, 'packages', 'acp', 'package.json'),
+        JSON.stringify(
+            {
+                name: '@fixture/acp',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                exports: { '.': './src/index.ts' },
             },
             null,
             2,
@@ -274,11 +298,37 @@ function writeWorkspace(root) {
         join(root, 'app', 'node_modules', '@fixture', 'signal'),
         'dir',
     );
+    // The same edge one level down: `signal`'s own `node_modules`, so the leaf
+    // sits outside everything a walk started at `app/` can reach.
+    symlinkSync(
+        join('..', '..', '..', 'acp'),
+        join(root, 'packages', 'signal', 'node_modules', '@fixture', 'acp'),
+        'dir',
+    );
     writeSignal(root, 'ALPHA_SIGNAL');
+    writeAcp(root, 'ALPHA_ACP');
 }
 
+/**
+ * The middle package, which CARRIES the leaf's marker rather than declaring one
+ * of its own: a marker the app prints must be a value that travelled through
+ * the whole chain, so a rebuild that missed any hop is visible in the artifact.
+ */
 function writeSignal(root, marker) {
-    writeFileSync(join(root, 'packages', 'signal', 'src', 'index.ts'), `export const MARKER = '${marker}';\n`, 'utf-8');
+    writeFileSync(
+        join(root, 'packages', 'signal', 'src', 'index.ts'),
+        [
+            "import { MARKER as ACP_MARKER } from '@fixture/acp';",
+            `export const MARKER = '${marker}' + ':' + ACP_MARKER;`,
+            '',
+        ].join('\n'),
+        'utf-8',
+    );
+}
+
+/** The leaf: two hops from the app, and the only file the next arm moves. */
+function writeAcp(root, marker) {
+    writeFileSync(join(root, 'packages', 'acp', 'src', 'index.ts'), `export const MARKER = '${marker}';\n`, 'utf-8');
 }
 
 describe('gjsify test — a workspace package outside the app (postbote)', { timeout: 300_000 }, () => {
@@ -339,6 +389,19 @@ describe('gjsify test — a workspace package outside the app (postbote)', { tim
 
     it('does NOT rebuild when neither the app nor the package moved (negative arm)', async () => {
         assert.equal(rebuilt(await runTest()), false, 'an untouched workspace must not rebuild');
+    });
+
+    it('rebuilds when a package a SIBLING package imports changes', async () => {
+        // Two hops out, and the leaf lives in no directory under `app/`: the
+        // recorded input has to come from the bundler's own resolution, because
+        // no walk over the app's tree — of any depth — enumerates it. The
+        // negative arm above established the tree is otherwise untouched, so
+        // this edit is the ONLY thing that moved.
+        writeAcp(root, 'BRAVO_ACP');
+        assert.ok(rebuilt(await runTest()), 'an edit in packages/acp must invalidate the app bundle');
+        const emitted = bundle();
+        assert.match(emitted, /BRAVO_ACP/, 'the leaf’s marker must reach the bundle');
+        assert.doesNotMatch(emitted, /ALPHA_ACP/);
     });
 });
 
