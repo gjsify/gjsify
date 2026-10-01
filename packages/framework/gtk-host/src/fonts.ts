@@ -4,20 +4,21 @@
 // `GJSIFY_FONT_DIR` at the staged directory, because only the launcher knows whether the payload
 // became `/usr`, a `--prefix` tree, `/app`, `Contents/Resources` or a Windows program directory.
 // This is the side that reads it. It lives in the host layer rather than in each application
-// because otherwise every consumer that ships a face writes the same loop.
+// because otherwise every consumer that ships a face writes the same loop (ADR 0038 § "What this
+// does NOT decide", and `status/open-todos/README.md`).
 //
 // WHY THE CALL EXISTS AT ALL, since two of the three operating systems reach the directory without
 // it. On LINUX the stock `fonts.conf` finds the staged faces on its own — `<dir>/usr/share/fonts</dir>`
 // for a `.deb`/`.rpm`, and `<dir prefix="xdg">fonts</dir>` over the `XDG_DATA_DIRS` the launcher
 // sets everywhere else. On MACOS the bundle's `ATSApplicationFontsPath` has the OS activate the
 // directory for this app before any of its code runs — and where there is no bundle (`gjsify run`
-// on a Homebrew GTK) the call falls back to a fontconfig map, see `adoptFontconfigMap`. WINDOWS has
-// neither: GTK4 there is pangowin32, whose font map is filled exclusively by
-// `pango_win32_dwrite_font_map_populate()`, so an application shipping its own face silently gets
-// the DirectWrite system collection instead — measured on Windows 11 / GTK 4.22.4, in both
-// directions (ADR 0038 § W1-W5): a `FONTCONFIG_FILE` naming the staged directory moves the default
-// font map by zero families even when it is the ONLY configuration present, while `add_font_file`
-// on that same map — the one a `Gtk.Label` renders through — moves it by one.
+// on a Homebrew GTK) the call falls back to a fontconfig map, see `adoptFontconfigMap`. WINDOWS has neither: GTK4 there is
+// pangowin32, whose font map is filled exclusively by `pango_win32_dwrite_font_map_populate()`, so
+// an application shipping its own face silently gets the DirectWrite system collection instead —
+// measured on Windows 11 / GTK 4.22.4, in both directions (ADR 0038 § W1-W5): a `FONTCONFIG_FILE`
+// naming the staged directory moves the default font map by zero families even when it is the ONLY
+// configuration present, while `add_font_file` on that same map — the one a `Gtk.Label` renders
+// through — moves it by one.
 //
 // The failure this removes is the quiet kind: `pango_font_description_set_family("Brand")` against
 // a map with no such family does not throw, does not exit non-zero and writes nothing to stderr.
@@ -25,17 +26,20 @@
 //
 // MEASURED HERE TOO, on Fedora 44 / GJS / Pango 1.57.1 / `PangoCairoFcFontMap`, with an invented
 // family as the discriminator so that "it resolved" cannot mean "it was substituted":
-// `list_families()` goes 100 → 101 with the staged `Round9x13` present, and a 40pt "Wg" layout
-// measures 66x50 px against the 87x63 the invented `ZzzNoSuchFamilyQx` gets. Different METRICS,
-// not merely a call that returned true.
+// `list_families()` goes 100 → 101 with the staged `Round9x13` present, `get_family` answers it,
+// and a 40pt "Wg" layout measures 66x50 px against the 87x63 the invented `ZzzNoSuchFamilyQx`
+// gets. Different METRICS, not merely a call that returned true.
 //
 // CALL IT BEFORE ANY TEXT IS LAID OUT — measured, not stylistic, and the hazard is BACKEND-SPECIFIC
 // even though the instruction is not. The fc font map caches the FONTSET it resolved for a
 // description and `add_font_file` does not invalidate it, so a `Pango.Layout` that measured the
-// family before registration keeps measuring the fallback afterwards even though `list_families()`
-// now lists it: the symptom is not "no font" but a stale MEASUREMENT, which reads as "the font is
+// family before registration keeps measuring the fallback afterwards (87x63, not 66x50) even
+// though `list_families()` now lists it and a freshly created context's `load_font` returns the
+// real face: the symptom is not "no font" but a stale MEASUREMENT, which reads as "the font is
 // installed and Pango is ignoring it". On win32 `add_font_file` clears the map's cache and emits
-// `changed` (ADR 0038), so the same late call is recoverable there.
+// `changed` (ADR 0038), so the same late call is recoverable there. Registering early is therefore
+// free on the backend that recovers and load-bearing on the one that does not — which is why the
+// rule is stated flatly while `fonts.spec.ts` asserts only the portable half.
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
@@ -56,8 +60,9 @@ import {
     type UiFontPolicy,
 } from './ui-font.js';
 
-// The resolution half of this module's subject, re-exported so a caller asking "what do I actually
-// put in `font-family`" reaches it from the same entry point as `initFonts`.
+// The resolution half of this module's subject, re-exported so a caller that has to ask "what do
+// I actually put in `font-family`" reaches it from the same entry point as `initFonts` — there is
+// no useful order in which somebody needs one and not the other.
 export {
     describeFontFamilyMatch,
     matchFontFamilies,
@@ -67,7 +72,8 @@ export {
 } from './font-families.js';
 
 // The SIZE half, re-exported for the same reason: a caller reaching for "why is my GNOME app 16 %
-// small on Windows" and one reaching for "which face backs my family" arrive here.
+// small on Windows" and a caller reaching for "which face backs my family" are the same person on
+// two different days, and both arrive at this entry point.
 export {
     ADWAITA_UI_FONT_FAMILY,
     GNOME_UI_FONT_POINT_SIZE,
@@ -93,11 +99,12 @@ export interface InitFontsOptions extends Omit<ResolveFontSourcesOptions, 'env'>
      * DEFAULT: NOTHING. Registering faces and rewriting the user's font setting are two different
      * acts, and only the first is unambiguously this call's business — a runtime that changes a
      * font setting nobody asked it to change is a surprise, and it would also make `system`
-     * unreachable in practice. `size` is the RECOMMENDED value for an app shipping a bundled GTK;
-     * it is a recommendation in the documentation, not a default here.
+     * unreachable in practice, because the host's own value would already have been overwritten
+     * before a consumer could choose to keep it. `size` is the RECOMMENDED value for an app
+     * shipping a bundled GTK; it is a recommendation in the documentation, not a default here.
      *
      * Passing a policy still captures the baseline first, so switching back to `system` later
-     * works. See {@link applyUiFontPolicy}.
+     * works. See {@link applyUiFontPolicy}, which is also callable on its own at any time.
      */
     readonly uiFont?: UiFontPolicy | ApplyUiFontPolicyOptions;
 
@@ -105,11 +112,11 @@ export interface InitFontsOptions extends Omit<ResolveFontSourcesOptions, 'env'>
      * The family names this application will ASK FOR — checked against the map once registration
      * is done, and reported in {@link InitFontsResult.matches}.
      *
-     * Optional, and the reason to pass it is that nothing downstream can. A `font-family` declaration
-     * cannot know which file was supposed to back it, and `list_families()` alone cannot say which
-     * names arrived from the staged directory; this call is the one moment that has both. Every
-     * name that does not resolve is WARNED about here, which is the only place a missing family is
-     * ever loud.
+     * Optional, and the reason to pass it is that nothing downstream can. A `font-family`
+     * declaration cannot know which file was supposed to back it, and `list_families()` alone
+     * cannot say which of 84 names arrived from the staged directory; this call is the one moment
+     * that has both. Every name that does not resolve is WARNED about here, which is the only
+     * place a missing family is ever loud — Pango substitutes silently and the window renders.
      */
     readonly expectedFamilies?: readonly string[];
 }
@@ -125,11 +132,15 @@ export interface FontFaceFailure {
  *
  * WHY THE ATTRIBUTION IS PART OF THE RESULT rather than something a caller re-derives. Since the
  * GTK runtime bundle started carrying the GNOME UI typeface there are TWO sources, and the flat
- * {@link InitFontsResult.registered} / {@link InitFontsResult.declined} /
+ * {@link InitFontsResult.registered}, {@link InitFontsResult.declined} and
  * {@link InitFontsResult.failed} lists span both — so "did MY staged face arrive" stopped being
- * answerable from them the day a published bundle gained a face. The loop that hands each file to
- * the font map is the only place that knows which directory it came from; anything downstream is
- * reduced to comparing path prefixes, which is a guess about filesystem layout.
+ * answerable from them the day a published bundle gained a face, silently, with no caller
+ * changing a line. The loop that hands each file to the font map is the only place that knows
+ * which directory it came from; anything downstream is reduced to comparing path prefixes, which
+ * is a guess about filesystem layout rather than a measurement.
+ *
+ * The same argument {@link InitFontsResult.families} makes about the family diff, one field over:
+ * only the call that did the work is in a position to take the reading.
  */
 export interface FontSourceOutcome extends FontSource {
     /** Faces from THIS directory now on the default font map. */
@@ -182,9 +193,10 @@ export interface InitFontsResult {
     /**
      * The family names the default font map GAINED across this call, sorted.
      *
-     * THE FIELD #1542 IS ABOUT, and the reason it is a diff rather than a list: a caller can act only
-     * on a family NAME, the name is not derivable from the file, and no caller can take this
-     * measurement afterwards.
+     * THE FIELD #1542 IS ABOUT, and the reason it is a diff rather than a list: a caller can act
+     * only on a family NAME, the name is not derivable from the file, and no caller can take this
+     * measurement afterwards — `list_families()` alone cannot say which of 84 names arrived from
+     * the staged directory. Only the call that registered them is in a position to know.
      *
      * NOT a file → family map, and that is a limit rather than a shortcut: Pango exposes no link
      * from a registered file back to the family it produced, and attributing families by
@@ -194,9 +206,9 @@ export interface InitFontsResult {
      *
      * EMPTY IS NOT FAILURE, on two live paths: a map that declines runtime registration (macOS,
      * where a shipped `.app` has already activated the directory through
-     * `ATSApplicationFontsPath`) gains nothing here and is CORRECT, and a face whose family the map
-     * already holds adds no new name. {@link matches} is what tells those apart from nothing having
-     * worked, because it asks what the map holds NOW.
+     * `ATSApplicationFontsPath` before any code runs) gains nothing here and is CORRECT, and a
+     * face whose family the map already holds adds no new name. {@link matches} is what tells
+     * those apart from nothing having worked, because it asks what the map holds NOW.
      */
     readonly families: readonly string[];
     /**
@@ -204,8 +216,8 @@ export interface InitFontsResult {
      * declared. Empty when the caller declared none.
      *
      * This is the answer to the darwin row of #1542, where `declined: 5` is consistent BOTH with
-     * everything working and with nothing working: only what the map holds afterwards separates the
-     * two, which is what a match reads.
+     * everything working and with nothing working: the only thing that separates the two is what
+     * the map holds afterwards, which is what a match reads.
      */
     readonly matches: readonly FontFamilyMatch[];
     /**
@@ -213,10 +225,10 @@ export interface InitFontsResult {
      * so the faces could be registered at all — see {@link adoptFontconfigMap}.
      *
      * Reported because it is a whole-application consequence of one call: every widget created
-     * afterwards renders through FreeType instead of the platform rasteriser. It happens only where
-     * the default map DECLINED registration (a CoreText map — `gjsify run` on a Homebrew GTK), the
-     * faces brought a family that map does not already hold, fontconfig has a configuration of its
-     * own, and nobody pinned `PANGOCAIRO_BACKEND` (ADR 0038 § Amendment 5).
+     * afterwards renders through FreeType instead of the platform rasteriser. It happens only
+     * where the default map DECLINED registration (a CoreText map — `gjsify run` on a Homebrew
+     * GTK), the faces brought a family that map does not already hold, fontconfig has a
+     * configuration of its own, and nobody pinned `PANGOCAIRO_BACKEND` (ADR 0038 § Amendment 5).
      */
     readonly fontconfigFallback: boolean;
 }
@@ -231,16 +243,21 @@ const ENUMERATE_ATTRIBUTES = 'standard::name,standard::type';
  * the call falls through to the base implementation, which answers `G_IO_ERROR_NOT_SUPPORTED`.
  * That is not a failure to report: macOS is already correct declaratively, because the bundle's
  * `ATSApplicationFontsPath` had the OS activate the staged directory before the process started,
- * and the ordering makes the runtime call the wrong tool there rather than merely a redundant one —
- * `pangocoretext-fontmap.c` has no re-scan path, so a face registered after the map initialises
- * could not be recovered by poking it anyway.
+ * and the ordering makes the runtime call the wrong tool there rather than merely a redundant one
+ * — `pango_core_text_font_map_changed()` only bumps a serial, there is no
+ * `kCTFontManagerRegisteredFontsChangedNotification` observer and no re-scan path in
+ * `pangocoretext-fontmap.c`, so a face registered after the map initialises could not be recovered
+ * by poking it anyway.
  *
  * Keyed on the ERROR rather than on `process.platform`, which is the difference between a
  * capability test and a guess about who is asking. It costs no `gjsify.os` declaration (this
- * package makes no OS decision), and it stays right for any other map that declines — including a
- * darwin process whose backend is `fc` by selection rather than by platform (`@gjsify/node-gi`'s
- * loader pins `PANGOCAIRO_BACKEND=fc` on the bundled runtime, ADR 0038 § Amendment 3), which then
- * reaches this arm's other side and REGISTERS the faces.
+ * package makes no OS decision, and ADR 0018's candidate set is derived from the code that reads
+ * the host), and it stays right for any other map that declines. The OS name was never the thing
+ * being asked — which stopped being hypothetical: the backend is whichever one is selected rather
+ * than one per platform, and `@gjsify/node-gi`'s loader selects `PANGOCAIRO_BACKEND=fc` on the
+ * bundled windowing runtime (ADR 0038 § Amendment 3), so a darwin process on it reaches this
+ * arm's other side and REGISTERS the faces. A `process.platform` branch would have had to be
+ * found and reversed instead.
  */
 export function isUnsupportedByFontMap(error: unknown): boolean {
     return error instanceof GLib.Error && error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED);
@@ -255,7 +272,7 @@ export function isUnsupportedByFontMap(error: unknown): boolean {
  * spell one stable integer would add a load-time dependency for nothing.
  *
  * Exported so `fonts.spec.ts`'s independent probe spells the SAME integer rather than a second
- * literal that could drift from this one silently.
+ * literal that could drift from this one silently — see § duplication instead of a helper.
  */
 export const CAIRO_FONT_TYPE_FT = 1;
 
@@ -276,10 +293,11 @@ interface AdoptedFontMap {
  * WHY THIS EXISTS. A CoreText map implements no `add_font_file`, and on a shipped `.app` that is
  * fine: `ATSApplicationFontsPath` activated the directory at launch. `gjsify run` on a Homebrew GTK
  * has no bundle to carry that key, so an application's own face silently rendered as the fallback
- * sans during development — the one place a developer looks at it. `CTFontManagerRegisterFontsForURL`
- * needs a native symbol in a published prebuild AND has to run before Pango first builds its map,
- * while Homebrew's pango already carries the fontconfig backend — measured on macOS 27 arm64:
- * `PangoCairoFcFontMap`, 380 families, `add_font_file` accepted.
+ * sans during development — the one place a developer looks at it. The alternatives were weighed
+ * in the amendment: `CTFontManagerRegisterFontsForURL` needs a native symbol in a published
+ * prebuild AND has to run before Pango first builds its map (there is no re-scan path in
+ * `pangocoretext-fontmap.c`), while Homebrew's pango already carries the fontconfig backend —
+ * measured on macOS 27 arm64: `PangoCairoFcFontMap`, 380 families, `add_font_file` accepted.
  *
  * Every condition below exists so that this changes NOTHING where nothing was broken:
  *
@@ -287,10 +305,10 @@ interface AdoptedFontMap {
  *   or `@gjsify/node-gi`'s loader already selecting `fc` — so their choice stands.
  * - `new_for_font_type(FT)` answers NULL on a pango built without fontconfig.
  * - An fc map with NO families means fontconfig found no configuration; adopting it would trade
- *   one missing face for every glyph.
- * - If every family the faces bring is ALREADY on the platform map — the shipped `.app`, where the
- *   OS activated them, or a face the user installed — the platform map is kept and the faces stay
- *   `declined`.
+ *   one missing face for every glyph (the reason ADR 0038 § Amendment 3 scoped its own switch).
+ * - If every family the faces bring is ALREADY on the platform map — the shipped `.app`, where
+ *   the OS activated them, or a face the user installed — the platform map is kept and the faces
+ *   stay `declined`, exactly as before this existed.
  *
  * Only then is the default swapped, with `pango_cairo_font_map_set_default()`, which is the map
  * `gtk_widget_get_font_map()` falls back to. Widgets created BEFORE the call keep the map they
@@ -317,8 +335,8 @@ function adoptFontconfigMap(platformMap: Pango.FontMap, faces: readonly string[]
     }
 
     const gained = familyNames(candidate).filter((name) => !before.includes(name));
-    // Nothing new, or nothing the platform map lacks: the faces already reach the application, so
-    // replacing the rasteriser would buy nothing.
+    // Nothing new, or nothing the platform map lacks: the faces already reach the application
+    // (or none of them opened), so replacing the rasteriser would buy nothing.
     if (gained.every((name) => platformMap.get_family(name) !== null)) return undefined;
 
     (candidate as PangoCairo.FontMap).set_default();
@@ -335,13 +353,18 @@ function adoptFontconfigMap(platformMap: Pango.FontMap, faces: readonly string[]
  * `list_families()`. win32 clears its cache instead and recovers, so registering early is free
  * there and unrecoverable-if-missed on Linux (measured both ways; `fonts.spec.ts`).
  *
- * Nothing here is eager: this package owns no application lifecycle, and a module-load side effect
- * would decide an application's initialisation order invisibly — the same reason `gjsify ship`
- * stages the faces and names the directory instead of injecting the call.
+ * Nothing here is eager: this
+ * package is the element model renderers bind to and owns no application lifecycle, and a
+ * module-load side effect would decide an application's initialisation order invisibly — the same
+ * reason `gjsify ship` stages the faces and names the directory instead of injecting the call.
  *
  * Total, like `installDevtools`: a face that will not open costs one stderr line and appears in
- * {@link InitFontsResult.failed}, never an exception. Doing so SILENTLY is the defect this exists
- * against, so it is loud and it is reported.
+ * {@link InitFontsResult.failed}, never an exception. Taking an application down over a decorative
+ * face would be worse than rendering it in a fallback — but doing so SILENTLY is the defect this
+ * exists against, so it is loud and it is reported.
+ *
+ * Safe to call when the application ships no faces: `GJSIFY_FONT_DIR` is exported only when
+ * `gjsify ship` staged one, so an unset variable is the ordinary case and does nothing quietly.
  */
 export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     const requested = resolveFontSources({
@@ -359,9 +382,11 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     const failed: FontFaceFailure[] = [];
     const expected = options.expectedFamilies ?? [];
 
-    // Nothing staged and nothing asked about: answer without touching Pango at all. Reading the default
-    // font map INSTANTIATES it, and an application that ships no faces and names no family must not
-    // pay for that.
+    // Nothing staged and nothing asked about: answer without touching Pango at all. Reading the
+    // default font map INSTANTIATES it, and an application that ships no faces and names no family
+    // must not pay for that — neither variable is set unless something actually staged a
+    // directory, so this is the ordinary case and the one this call promises to pass through
+    // quietly.
     //
     // The condition is `expectedFamilies` as well as the sources, not the sources alone: "is the
     // family this application asks for actually here" is a fair question even when nothing was
@@ -389,7 +414,9 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     let before = requested.length === 0 ? [] : familyNames(fontMap);
 
     // Per source, then concatenated — the flat lists are the SUM and the per-source lists are the
-    // attribution. See {@link FontSourceOutcome}.
+    // attribution, and the sum cannot be split back up afterwards without guessing at path
+    // prefixes. See {@link FontSourceOutcome}. Mutable until the fallback below has had its say,
+    // because a face the platform map declined may still land on the map that replaces it.
     const outcomes = requested.map((source) => ({
         source,
         registered: [] as string[],
@@ -418,10 +445,10 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         }
     }
 
-    // THE DARWIN DEVELOPMENT RUN (ADR 0038 § Amendment 5). A CoreText map declines every face; a shipped
-    // `.app` does not care, because `ATSApplicationFontsPath` activated them before this ran — but
-    // `gjsify run` on a Homebrew GTK has no bundle and no `Info.plist`, so there the faces reached
-    // nothing at all.
+    // THE DARWIN DEVELOPMENT RUN, and the reason a declined face is not the end of the story
+    // (ADR 0038 § Amendment 5). A CoreText map declines every face; a shipped `.app` does not care,
+    // because `ATSApplicationFontsPath` activated them before this ran — but `gjsify run` on a
+    // Homebrew GTK has no bundle and no `Info.plist`, so there the faces reached nothing at all.
     const adopted = adoptFontconfigMap(
         fontMap,
         outcomes.flatMap((outcome) => outcome.declined),
@@ -454,25 +481,26 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         });
     }
 
-    // AFTER, and it is read once for both questions. `families` is what this call added; `matches` is
-    // what the caller's own names resolve to on the map as it now stands — deliberately NOT
-    // restricted to the diff, because a family the platform activated declaratively is on the map
-    // and did not arrive here.
+    // AFTER, and it is read once for both questions. `families` is what this call added;
+    // `matches` is what the caller's own names resolve to on the map as it now stands — which is
+    // deliberately NOT restricted to the diff, because a family the platform activated
+    // declaratively is on the map and did not arrive here.
     //
-    // The diff is taken ONLY where a BEFORE was taken, and the guard is load-bearing: with no font
-    // directory named there is no `before`, so subtracting an empty list from a live one would
-    // report every family on the host as added by a call that registered nothing.
+    // The diff is taken ONLY where a BEFORE was taken, and the guard is load-bearing rather than
+    // tidy: with no font directory named there is no `before`, so subtracting an empty list from
+    // a live one would report every family on the host as having been added by a call that
+    // registered nothing — a field whose whole purpose is to say what THIS call contributed.
     const after = familyNames(fontMap);
     const families = requested.length === 0 ? [] : after.filter((name) => !before.includes(name)).sort();
     const matches = matchFontFamilies(expected, after);
 
     // THE SETTING, after the faces. Registering a typeface and rewriting `gtk-font-name` are two
-    // different acts, so nothing happens here unless a policy was asked for — see
-    // `InitFontsOptions.uiFont`.
+    // different acts and only the first is unambiguously this call's business, so nothing happens
+    // here unless a policy was asked for — see `InitFontsOptions.uiFont`.
     //
     // The BASELINE is captured either way, and that is the load-bearing half: it is the only
     // moment this process is guaranteed to see the host's own value before anything overwrites
-    // it, and `system` is not expressible afterwards.
+    // it, and `system` is not expressible afterwards. Capturing costs one property read.
     captureUiFontBaseline();
     const uiFont = options.uiFont === undefined ? undefined : applyUiFontPolicy(options.uiFont);
 
@@ -483,11 +511,12 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         );
     }
 
-    // The loud line #1542 asked for, and the reason it is a warning rather than a throw: the report
-    // `registered: 5, declined: 0, failed: 0` was ACCURATE while the declared family was absent
-    // from the map and Pango substituted Tahoma. A result that says nothing failed while the font
-    // is unusable is worse than no result. `optical` is warned about too — it is the case that
-    // renders a window and is still wrong.
+    // The loud line #1542 asked for, and the reason it is a warning rather than a throw: the
+    // report `registered: 5, declined: 0, failed: 0` was ACCURATE while the declared family was
+    // absent from the map and Pango substituted Tahoma. A result that says nothing failed while
+    // the font is unusable is worse than no result. `optical` is warned about too — it is the
+    // case that renders a window and is still wrong, because the name the application wrote
+    // resolves to nothing.
     for (const match of matches) {
         if (match.kind === 'exact') continue;
         console.warn(`initFonts: ${describeFontFamilyMatch(match)}`);
@@ -514,7 +543,7 @@ export interface ApplyUiFontPolicyOptions extends PlanUiFontOptions {
      *
      * A seam, not a knob: the null arm below is the one a real consumer hit, and on a host with a
      * display there is no way to reach it through the default — `get_default()` never answers null
-     * once GTK is up.
+     * once GTK is up. Passing `null` explicitly is how the test for it exists at all.
      */
     readonly settings?: Gtk.Settings | null;
 }
@@ -522,13 +551,14 @@ export interface ApplyUiFontPolicyOptions extends PlanUiFontOptions {
 // THE BASELINE: `gtk-font-name` as this process first saw it.
 //
 // Module-level, captured once, never overwritten — because after the first write the host's own
-// value is gone. GTK keeps no previous value, and on Linux the setting a session actually applied
-// may itself be an override of the schema default, so a "restore" that read the schema would put
-// back something the user never had. The only correct source is what was observed BEFORE anyone
-// wrote, which means capturing is a separate act from applying and has to happen first.
+// value is gone. GTK keeps no previous value, Windows has no GSettings to re-read, and on Linux
+// the setting a session actually applied may itself be an override of the schema default, so a
+// "restore" that read the schema would put back something the user never had. The only correct
+// source is what was observed BEFORE anyone wrote, which means capturing is a separate act from
+// applying and has to happen first.
 //
-// `undefined` after capture is a real answer (a host whose `gtk-font-name` is unset), which is why
-// the flag is separate from the value.
+// `undefined` after capture is a real answer (a host whose `gtk-font-name` is unset), which is
+// why the flag is separate from the value rather than encoded as "undefined means uncaptured".
 let baselineCaptured = false;
 let baselineValue: string | undefined;
 
@@ -555,7 +585,8 @@ function captureUiFontBaseline(): string | undefined {
  * therefore gets the right answer by asking early, and `initFonts()` asks at startup.
  *
  * `undefined` means either "not captured yet, and the toolkit is not initialised" or "this host's
- * `gtk-font-name` is genuinely unset". Both lead to the same correct behaviour under `system`.
+ * `gtk-font-name` is genuinely unset". Both lead to the same correct behaviour under `system`:
+ * leave the setting alone.
  */
 export function uiFontBaseline(): string | undefined {
     return captureUiFontBaseline();
@@ -569,12 +600,15 @@ export function uiFontBaseline(): string | undefined {
  * captured before the first write, which is why switching `adwaita` → `system` at runtime
  * returns the host's own `Segoe UI 9` rather than an approximation of it.
  *
- * `Gtk.Settings.get_default()` answers null before `Gtk.init()`. That is not an error to throw over —
- * a program may register its faces before it initialises the toolkit — but it is NOT the same
- * answer as "the policy ran and had nothing to do", and reporting it as `unparsed` said it was. A
- * consumer that called this at module scope got a plan indistinguishable from a host that needed
- * no correction, so its setting silently did nothing. It now reports `uninitialised` and says so
- * once, because a caller that is too early can only find out from here.
+ * `Gtk.Settings.get_default()` answers null before `Gtk.init()`. That is not an error to throw
+ * over — a program may register its faces before it initialises the toolkit — but it is NOT the
+ * same answer as "the policy ran and had nothing to do", and reporting it as `unparsed` said it
+ * was. A consumer that called this at module scope got a plan indistinguishable from a host that
+ * needed no correction, so its setting silently did nothing: measured in Learn6502 0.8.0, where
+ * `ui-font: policy=size -> unparsed (unchanged)` was printed on macOS and on Windows — the one
+ * platform whose 16 px against GNOME's 19 is the reason the policy exists. It now reports
+ * `uninitialised` and says so once, because a caller that is too early can only find out from
+ * here.
  */
 export function applyUiFontPolicy(request: UiFontPolicy | ApplyUiFontPolicyOptions): UiFontPlan {
     const options: ApplyUiFontPolicyOptions = typeof request === 'string' ? { policy: request } : request;
@@ -634,12 +668,15 @@ function resolvedAdwaitaFamily(policy: UiFontPolicy): string | undefined {
  * THE QUESTION A PREFERENCES DIALOG HAS TO ASK BEFORE IT OFFERS THE OPTION. Forcing
  * `Adwaita Sans 11` on a host where that family never arrived — an old bundle, a system GTK with
  * no adwaita-fonts package — does not fail: Pango substitutes, and the user who picked "use the
- * Adwaita font" gets Tahoma. That is one substitution traded for another, with a setting that now
- * lies about what it did.
+ * Adwaita font" gets Tahoma. That is one substitution traded for another, with a setting that
+ * now lies about what it did.
  *
  * Answered as a {@link FontFamilyMatch} rather than a boolean because `optical` is a real third
- * state, measured on Windows: a family can be on the map under a decorated name
- * (`Merriweather 18pt`), in which case the honest thing is to ask for THAT name.
+ * state, measured on Windows: a family can be on the map under a decorated name (`Merriweather
+ * 18pt`), in which case the honest thing is to ask for THAT name — `match.family` — rather than
+ * to report the face as missing. `available` is the convenience for the common case.
+ *
+ * Call it AFTER `initFonts()`, which is what puts the bundled faces on the map.
  */
 export function adwaitaUiFontAvailability(family: string = ADWAITA_UI_FONT_FAMILY): UiFontAvailability {
     const match = matchFontFamily(family, familyNames(PangoCairo.FontMap.get_default()));
@@ -678,9 +715,9 @@ function familyNames(fontMap: Pango.FontMap): string[] {
  */
 function collectFaces(dir: Gio.File, out: string[], failed: FontFaceFailure[]): void {
     try {
-        // NOFOLLOW_SYMLINKS: a symlink then reports as `SYMBOLIC_LINK` rather than as whatever it points
-        // at, which both bounds the walk against a loop and matches the writer, whose
-        // `listFilesRecursive` REFUSES a symlink outright.
+        // NOFOLLOW_SYMLINKS: a symlink then reports as `SYMBOLIC_LINK` rather than as whatever it
+        // points at, which both bounds the walk against a loop and matches the writer, whose
+        // `listFilesRecursive` REFUSES a symlink outright ("the payload has to be self-contained").
         const children = dir.enumerate_children(ENUMERATE_ATTRIBUTES, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         for (let info = children.next_file(null); info !== null; info = children.next_file(null)) {
             const child = children.get_child(info);
@@ -694,10 +731,10 @@ function collectFaces(dir: Gio.File, out: string[], failed: FontFaceFailure[]): 
         }
     } catch (error) {
         // `enumerate_children` and `next_file` are both `throws="1"`, and this is their live path:
-        // the launcher exports `GJSIFY_FONT_DIR` only when it actually staged a face, so a directory
-        // that cannot be read is a payload promising faces it did not deliver. Reported rather than
-        // swallowed — the alternative is an application that renders in the wrong typeface and says
-        // nothing.
+        // the launcher exports `GJSIFY_FONT_DIR` only when it actually staged a face, so a
+        // directory that cannot be read is a payload promising faces it did not deliver. Reported
+        // rather than swallowed, for the reason the whole mechanism exists — the alternative is an
+        // application that renders in the wrong typeface and says nothing.
         failed.push({ path: dir.get_path() ?? '', message: messageOf(error) });
     }
 }
