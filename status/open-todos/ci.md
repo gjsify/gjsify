@@ -220,7 +220,11 @@ What would make the next occurrence cost minutes instead of an afternoon, in ord
 with a written retirement condition beside it, the arrangement
 [ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for: a
 knowingly-red gate teaches people to skip the job, and the next real finding then lands where
-nobody looks. Three are left; `conformance-win32` was promoted on 2026-09-19.
+nobody looks. Three are left; `conformance-win32` was promoted on 2026-09-19, went back to
+being a probe when the MP3/AAC widening (ADR 0056 § 7) outran the published payload, and
+was promoted again on 2026-10-01 by `check-probe-retirement.mjs` reporting its clause met —
+the check closing its own window, which is the arrangement working rather than being worked
+around.
 
 **What it costs while it stands.** A `continue-on-error` step's CONCLUSION is forced to
 `success`, so the job colour, the PR page, the REST/GraphQL checks and `gh pr checks` all
