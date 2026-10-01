@@ -2,7 +2,8 @@
 // AdwWidget — the documentation block for one Adwaita component: a window with the running
 // widget, and a window under it with the source. The source window's segmented control reads
 // Blueprint | TypeScript | More ▾; every other rendering (Web Components, NativeScript, Solid,
-// Vue, React, and the recorded reasons for the ones a widget has none of) is behind More.
+// Vue, React, and the recorded reasons for the ones a widget has none of) is behind More, and a
+// binding whose program is several files opens a section of one row per file there.
 //
 // Feed the sources as named MDX slots, one fenced code block each; a tab appears only where
 // its slot was given:
@@ -318,6 +319,16 @@ for (const binding of BINDINGS) {
     const file = blueprint!.split('/').pop()!;
     const compose = BLUEPRINT_PANE_FILES[binding.slot as keyof typeof BLUEPRINT_PANE_FILES];
     const files = compose({ markup: PANE_MARKUP[binding.slot](tree), access, file, tree });
+    // The role is what the menu's row picks the file BY and what a page-wide pick is stored by,
+    // so two files of one binding sharing one would make the other unreachable, at exit 0.
+    const roles = files.map((one) => one.role);
+    const duplicate = roles.find((role, index) => roles.indexOf(role) !== index);
+    if (duplicate !== undefined) {
+        throw new Error(
+            `AdwWidget(${title}): the "${binding.slot}" binding composes ${roles.length} file(s) with the roles ` +
+                `${roles.join(', ')} — "${duplicate}" twice. Each file needs a role of its own.`,
+        );
+    }
     bindings.push({ id: binding.slot, kind: 'files', label: binding.label, files });
 }
 
@@ -391,15 +402,36 @@ for (const group of groups) {
     const paneOf = (win: HTMLElement, id: string) =>
         win.querySelector<HTMLElement>(`:scope > .adw-widget-panes > .adw-widget-pane[data-pane="${id}"]`);
 
-    /** Shows pane `id` in `win`; an extra (not a segment of its own) is shown under the More segment. */
-    const select = (win: HTMLElement, id: string): boolean => {
+    /** The menu row a `pick` is, and the binding and file role it names — see `menuEntries`. */
+    const rowOf = (win: HTMLElement, pick: string) =>
+        win.querySelector<HTMLElement>(`.adw-widget-menu [data-pick="${pick}"]`);
+
+    /** Shows `role`'s file in a files pane; a role the pane has not got leaves it as it is. */
+    const showFile = (pane: HTMLElement, role: string | undefined) => {
+        const files = [...pane.querySelectorAll<HTMLElement>('.adw-widget-file')];
+        if (role === undefined || !files.some((file) => file.dataset.fileRole === role)) return;
+        for (const file of files) file.toggleAttribute('data-active', file.dataset.fileRole === role);
+    };
+
+    /**
+     * Shows the pane `pick` names in `win` — an extra (not a segment of its own) under the More
+     * segment, and, where the pick names a FILE, that file of it.
+     *
+     * A pick of a binding but not of a file it has — the bare id of an older preference, or a role
+     * another block's program does not have — lands on that binding's FIRST file, so the ticked
+     * row, the segment's name and the file on screen stay one fact.
+     */
+    const select = (win: HTMLElement, pick: string): boolean => {
+        const first = rowOf(win, pick);
+        const id = first?.dataset.pane ?? pick;
         const pane = paneOf(win, id);
         if (!pane) return false;
+        const item = first ?? win.querySelector<HTMLElement>(`.adw-widget-menu [data-pane="${id}"]`);
+        showFile(pane, item?.dataset.fileRole);
         for (const other of win.querySelectorAll<HTMLElement>(':scope > .adw-widget-panes > .adw-widget-pane')) {
             other.toggleAttribute('data-active', other === pane);
         }
         const more = win.querySelector<HTMLElement>('[data-more]');
-        const item = win.querySelector<HTMLElement>(`.adw-widget-menu [data-pick="${id}"]`);
         for (const tab of win.querySelectorAll<HTMLElement>(SEGMENTS)) {
             const on = tab === more ? item !== null : tab.dataset.impl === id;
             tab.setAttribute('aria-selected', String(on));
@@ -411,6 +443,8 @@ for (const group of groups) {
         }
         const label = more?.querySelector('[data-more-label]');
         if (label) label.textContent = item?.dataset.short ?? 'More';
+        // The segment ellipsizes a long file name, so the whole of it is in the tooltip.
+        if (more) more.title = item?.dataset.short ?? '';
         for (const entry of win.querySelectorAll<HTMLElement>('.adw-widget-menu [data-pick]')) {
             entry.setAttribute('aria-checked', String(entry === item));
         }
@@ -418,28 +452,28 @@ for (const group of groups) {
         return true;
     };
 
-    const applyPreference = (impl: string | null, skip?: Element) => {
-        if (!impl) return;
-        const isSegment = document.querySelector(`${WINDOW} .adw-widget-seg > [data-impl="${impl}"]`) !== null;
+    const applyPreference = (pick: string | null, skip?: Element) => {
+        if (!pick) return;
+        const isSegment = document.querySelector(`${WINDOW} .adw-widget-seg > [data-impl="${pick}"]`) !== null;
         for (const win of document.querySelectorAll<HTMLElement>(WINDOW)) {
             if (win === skip) continue;
-            // A segment the block lacks leaves it where the reader left it; a More pick the
-            // block lacks falls back to TypeScript.
-            if (!select(win, impl) && !isSegment) select(win, 'gjs');
+            // A segment the block lacks leaves it where the reader left it; a More pick the block
+            // lacks falls back to TypeScript.
+            if (!select(win, pick) && !isSegment) select(win, 'gjs');
         }
     };
 
     /** The reader's pick in one window: shown there, and remembered and mirrored to the others. */
-    const choose = (win: HTMLElement, id: string) => {
-        if (!select(win, id)) return;
+    const choose = (win: HTMLElement, pick: string) => {
+        if (!select(win, pick)) return;
         // A recorded reason is a fact about one block, not a rendering to follow.
-        if (paneOf(win, id)?.dataset.kind === 'refusal') return;
+        if (paneOf(win, rowOf(win, pick)?.dataset.pane ?? pick)?.dataset.kind === 'refusal') return;
         try {
-            localStorage.setItem(KEY, id);
+            localStorage.setItem(KEY, pick);
         } catch {
             // Private mode — selection just won't persist.
         }
-        applyPreference(id, win);
+        applyPreference(pick, win);
     };
 
     // Copy button → the ACTIVE pane's hidden Expressive Code copy button (EC handles the
@@ -449,7 +483,7 @@ for (const group of groups) {
         const btn = (event.target as HTMLElement).closest?.('.command-tabs-copy') as HTMLElement | null;
         if (!btn) return;
         const page = btn.closest(WINDOW)?.querySelector('.adw-widget-pane[data-active]');
-        // A pane of several files copies the one on screen, and only that one.
+        // A binding of several files copies the file on screen, and only that one.
         const active = page?.querySelector('.adw-widget-file[data-active]') ?? page;
         const ecButton = active?.querySelector<HTMLButtonElement>(EC_COPY);
         if (!ecButton) return;
@@ -511,7 +545,8 @@ for (const group of groups) {
 
     // Placement: from the More segment's rect, because the popover lives in the top layer and a
     // window's `overflow: hidden` cannot clip it. The arrow points at the segment; below it when
-    // there is room, above it otherwise.
+    // there is room for the WHOLE menu, above it otherwise — and a menu too tall for either side
+    // scrolls inside itself rather than being cut off (`max-height` on its rows).
     const MENU_WIDTH = 232;
     const place = (menu: HTMLElement) => {
         const more = menu.closest(WINDOW)?.querySelector<HTMLElement>('[data-more]');
@@ -519,7 +554,10 @@ for (const group of groups) {
         const rect = more.getBoundingClientRect();
         const width = Math.min(MENU_WIDTH, innerWidth - 16);
         const x = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, 8), innerWidth - width - 8);
-        const below = innerHeight - rect.bottom >= 320 || innerHeight - rect.bottom >= rect.top;
+        // Measured, so a menu of a different number of rows flips the side correctly; the
+        // viewport cap is what bounds it when neither side would hold it whole.
+        const height = Math.min(menu.scrollHeight, innerHeight - 32);
+        const below = innerHeight - rect.bottom >= height + 16 || innerHeight - rect.bottom >= rect.top;
         menu.dataset.side = below ? 'bottom' : 'top';
         menu.style.setProperty('--x', `${x}px`);
         menu.style.setProperty('--y', `${below ? rect.bottom + 8 : innerHeight - rect.top + 8}px`);
@@ -542,6 +580,9 @@ for (const group of groups) {
             if (!menu.matches?.('.adw-widget-menu')) return;
             const open = (event as ToggleEvent).newState === 'open';
             menu.closest(WINDOW)?.querySelector('[data-more]')?.setAttribute('aria-expanded', String(open));
+            // Placed again now that it is shown: a closed popover measures nothing, so the side
+            // was picked blind in `beforetoggle`.
+            if (open) place(menu);
             if (open) (menu.querySelector<HTMLElement>('[aria-checked="true"]') ?? menu.querySelector<HTMLElement>('[data-pick]'))?.focus();
         },
         true,
@@ -552,62 +593,13 @@ for (const group of groups) {
     addEventListener('resize', replaceOpenMenus);
     addEventListener('scroll', replaceOpenMenus, { capture: true, passive: true });
 
-    // Initial: restore the remembered implementation.
+    // Initial: restore the remembered implementation, file and all — a pick of a file carries both
+    // the binding and the file in it (`data-pick` on the menu row), so one restore covers both.
     try {
         applyPreference(localStorage.getItem(KEY));
     } catch {
         // ignore
     }
-
-    // THE FILE ROW of a pane of several files (AdwWidgetFiles). The pick is kept PER TAB and
-    // by the file's ROLE, not its name: `views/clamp.xml` and `views/avatar.xml` are both the
-    // NativeScript tab's `markup` file, so a reader who picked the markup on one block finds it
-    // on every other, and picking a web file leaves the NativeScript tabs where they were.
-    const FILE_KEY = 'gjsify-preferred-file';
-
-    const readFilePicks = (): Record<string, string> => {
-        try {
-            const stored = JSON.parse(localStorage.getItem(FILE_KEY) ?? '{}');
-            return stored !== null && typeof stored === 'object' ? stored : {};
-        } catch {
-            // Private mode, or a value this script did not write: nothing is remembered.
-            return {};
-        }
-    };
-
-    /** Shows `role`'s file in every pane of tab `tab`, the row included; unknown roles move nothing. */
-    const showFile = (tab: string, role: string) => {
-        for (const files of document.querySelectorAll<HTMLElement>(`.adw-widget-files[data-files-of="${tab}"]`)) {
-            const panels = [...files.querySelectorAll<HTMLElement>(':scope > .adw-widget-file')];
-            if (!panels.some((panel) => panel.dataset.fileRole === role)) continue;
-            for (const panel of panels) panel.toggleAttribute('data-active', panel.dataset.fileRole === role);
-            // `active-name` selects without emitting `notify::active`, so this cannot loop.
-            const row = files.querySelector(':scope > adw-toggle-group');
-            if (row?.getAttribute('active-name') !== role) row?.setAttribute('active-name', role);
-        }
-    };
-
-    document.addEventListener('notify::active', (event) => {
-        // Only a file row: a preview can hold a toggle group of its own, and its event bubbles
-        // through here too.
-        const row = event.target as HTMLElement;
-        if (!row?.matches?.('.adw-widget-files-row')) return;
-        const tab = (row.parentElement as HTMLElement | null)?.dataset.filesOf;
-        const role = (row as HTMLElement & { activeName: string | null }).activeName;
-        if (!tab || !role) return;
-        showFile(tab, role);
-        try {
-            localStorage.setItem(FILE_KEY, JSON.stringify({ ...readFilePicks(), [tab]: role }));
-        } catch {
-            // Private mode — the pick just won't persist.
-        }
-    });
-
-    customElements.whenDefined('adw-toggle-group').then(() => {
-        for (const [tab, role] of Object.entries(readFilePicks())) {
-            if (typeof role === 'string') showFile(tab, role);
-        }
-    });
 </script>
 
 <style is:global>
