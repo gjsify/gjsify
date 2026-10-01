@@ -6,7 +6,7 @@
 
 import { Writable, Readable } from 'node:stream';
 import GLib from '@girs/glib-2.0';
-import { nativeIsTty, nativeSetRawMode, nativeTerminalSize } from '@gjsify/terminal-native';
+import { nativeIsTty, nativeSetRawMode, nativeTerminalSize, noteRawMode } from '@gjsify/terminal-native';
 
 export class ReadStream extends Readable {
     isRaw = false;
@@ -22,9 +22,14 @@ export class ReadStream extends Readable {
     }
 
     setRawMode(mode: boolean) {
-        // The result is deliberately dropped: `isRaw` below is this class's own
-        // bookkeeping and tty has no stty-shaped fallback to run on a refusal.
-        nativeSetRawMode(this.fd, mode);
+        // The termios flags live on the terminal device, so raw mode is a
+        // DEBT this process owes it, and a process that dies owing it hands
+        // the shell a terminal with no echo and no ctrl-c. `noteRawMode` makes
+        // the change and records what it now owes in one call — the rule that
+        // was missing here, and that @gjsify/process got wrong twice (#1908).
+        // A descriptor that is not a terminal changes nothing and owes
+        // nothing, and must not release another owner's claim by trying.
+        noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
         if (this.isRaw !== mode) {
             this.isRaw = mode;
             this.emit('modeChange');
@@ -220,8 +225,9 @@ export class WriteStream extends Writable {
     }
 
     setRawMode(mode: boolean) {
-        // Result dropped, as on `ReadStream`: `isRaw` is this class's own state.
-        nativeSetRawMode(this.fd, mode);
+        // Same debt as ReadStream.setRawMode, and the same one call: a
+        // WriteStream on a terminal is a terminal the process can strand.
+        noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
         if (this.isRaw !== mode) {
             this.isRaw = mode;
             this.emit('modeChange');

@@ -1,9 +1,10 @@
 // Ported from refs/node-test/parallel/test-tty-{isatty,get-color-depth,has-colors,window-size,wrap,stream-constructors}.js
 // Original: MIT license, Node.js contributors
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import tty, { isatty, ReadStream, WriteStream } from 'node:tty';
 import process from 'node:process';
+import { isRawModeClaimed, noteRawMode, restoreClaimedRawModes } from '@gjsify/terminal-native';
 
 export default async () => {
     await describe('tty exports', async () => {
@@ -297,6 +298,67 @@ export default async () => {
             if ((process.stdin as { isTTY?: boolean }).isTTY !== undefined) {
                 expect(typeof (process.stdin as { isTTY?: boolean }).isTTY).toBe('boolean');
             }
+        });
+    });
+
+    // #1908 gave @gjsify/process a raw-mode claim and left THIS one documented as
+    // deliberately unfixed: a program that reaches for `tty.ReadStream#setRawMode`
+    // instead of `process.stdin` stranded the terminal just the same. The claim
+    // now lives in @gjsify/terminal-native — the one package both already depend
+    // on — and `Process`'s `exit` pays it, whoever took it on.
+    await describe('tty raw mode is a debt this process owes the terminal', async () => {
+        // The rule the call site obeys, exercised without a terminal: a claim
+        // exists exactly when the transition happened. Both halves were wrong
+        // once — the branch that changed nothing claimed nothing, and a claim
+        // taken on a transition that failed would restore a terminal this
+        // process never broke.
+        await it('claims the descriptor only where the transition happened', async () => {
+            const applied: string[] = [];
+            noteRawMode(41, true, () => { applied.push('raw 41'); return true; });
+            expect(isRawModeClaimed(41)).toBe(true);
+            // The owner turning it back off has PAID: a stale undo run at exit
+            // could fight whoever claimed the descriptor after it.
+            noteRawMode(41, false, () => { applied.push('sane 41'); return true; });
+            expect(isRawModeClaimed(41)).toBe(false);
+
+            // set_raw_mode returns false for a descriptor that is not a terminal
+            // (a piped stdin). Nothing changed, so nothing is owed.
+            noteRawMode(42, true, () => false);
+            expect(isRawModeClaimed(42)).toBe(false);
+            expect(applied).toStrictEqual(['raw 41', 'sane 41']);
+        });
+
+        // The wiring, on a real terminal: the whole point is that these two
+        // streams are what a GJS program holds, and the debt must be visible to
+        // the exit hook that pays it. Skipped where there is no TTY (see the
+        // `skip` map in test.mts) — the claim cannot be observed without one.
+        await on('Gjs', async () => {
+            await it('setRawMode(true) records the debt Process exit pays', async () => {
+                const read = new ReadStream(0);
+                read.setRawMode(true);
+                expect(isRawModeClaimed(0)).toBe(true);
+                expect(restoreClaimedRawModes()).toBe(1);
+                expect(isRawModeClaimed(0)).toBe(false);
+
+                // Node's own tty.WriteStream has no setRawMode, and neither does
+                // @types/node's — @gjsify/tty's does, and it is the same hole.
+                const write = new WriteStream(0) as WriteStream & { setRawMode(mode: boolean): unknown };
+                write.setRawMode(true);
+                expect(isRawModeClaimed(0)).toBe(true);
+                expect(restoreClaimedRawModes()).toBe(1);
+                expect(isRawModeClaimed(0)).toBe(false);
+            });
+
+            await it('setRawMode(false) pays the debt instead of leaving a stale undo', async () => {
+                const read = new ReadStream(0);
+                read.setRawMode(true);
+                expect(isRawModeClaimed(0)).toBe(true);
+                read.setRawMode(false);
+                // Paid in the normal close path: the exit hook has nothing left to
+                // undo, and cannot un-restore a terminal a later owner wants raw.
+                expect(isRawModeClaimed(0)).toBe(false);
+                expect(restoreClaimedRawModes()).toBe(0);
+            });
         });
     });
 };

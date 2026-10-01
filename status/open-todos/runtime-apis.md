@@ -306,20 +306,31 @@ whose `loop.run()` blocks after the tests quit (the reason for the guard). Closi
 way to tell GJS's evaluation spin apart from a running `GLib.MainLoop`.
 
 
-### `@gjsify/tty` still forgets a raw-mode claim, and nothing reaches it
+### `@gjsify/tty` claimed nothing, and the ledger had no home both owners could share
 
-`@gjsify/process`'s `ProcessReadStream.setRawMode` records what it owes the terminal and
-`Process`'s `exit` pays it — the native branch used to return without claiming anything,
-while the `stty` fallback claimed through an optional-chained `globalThis.process` behind an
-empty `catch`, so on any host with the prebuild installed the debt was never paid. Measured on
-a pty: a child that sets raw mode and exits left `ECHO=OFF ICANON=OFF ISIG=OFF`, i.e. the shell
-unusable. Fixed by the claim living in `@gjsify/process/src/raw-mode.ts`.
+CLOSED. `@gjsify/process`'s `ProcessReadStream.setRawMode` records what it owes the terminal and
+`Process`'s `exit` pays it — the native branch used to return without claiming anything, while the
+`stty` fallback claimed through an optional-chained `globalThis.process` behind an empty `catch`, so
+on any host with the prebuild installed the debt was never paid. Measured on a pty: a child that
+sets raw mode and exits left `ECHO=OFF ICANON=OFF ISIG=OFF`, i.e. the shell unusable.
 
-`@gjsify/tty`'s own `ReadStream.setRawMode` has the identical hole and is still unfixed. It is
-left alone on purpose, not overlooked: the package is `gjsify.runtimes.node: none`, nothing in
-this repo constructs it (`process.stdin` is the raw-mode owner everywhere it matters), and the
-one home both could share — `@gjsify/utils` or `@gjsify/terminal-native` — would mean a new
-cross-package dependency for a path no consumer reaches. What it needs when someone does reach
-it: the same claim, and the same `process` `exit` hook, which for a `gjsify.runtimes.node: none`
-package means reaching the process object the fragile way the old stty branch did — so the real
-fix is probably for `tty` to delegate rather than to duplicate.
+`@gjsify/tty`'s own `ReadStream.setRawMode` and `WriteStream.setRawMode` had the identical hole and
+were left alone on purpose, not overlooked: the package is `gjsify.runtimes.node: none`, nothing in
+this repo constructs it (`process.stdin` is the raw-mode owner everywhere it matters), and the one
+home both could share would mean a new cross-package dependency for a path no consumer reached. That
+reasoning was half right, and the half that was wrong is now gone: `@gjsify/terminal-native` is
+ALREADY a dependency of both, so moving the ledger there (`src/ts/raw-mode.ts`, re-exported from its
+index) added no edge at all — a second copy of the claim would have been two owners of one debt. The
+transition and the debt it creates are now one call, `noteRawMode(fd, mode, setRawMode)`, whose
+`setRawMode` is the same function for both directions so the undo cannot drift from the change, and
+which claims only where the transition HAPPENED: `Terminal.set_raw_mode` returns false for a pipe,
+and a claim taken there would restore a terminal this process never broke. The package still
+declares `runtimes.node: none` and nothing here constructs it; what changed is that a consumer that
+does construct it gets its terminal back.
+
+What is left is unchanged and not fixable from here: the debt is paid by `@gjsify/process`'s `exit`
+event, so a bundle that reaches `node:tty` without the process polyfill records the claim and has no
+payer, and SIGKILL admits no handler at all. A regression test that needs a real terminal cannot run
+on a host without one, so the two wiring tests in `packages/node/tty/src/index.spec.ts` stand down
+with that reason where fd 0 is a pipe (`run(…, { skip })` in its `test.mts`), and the rule itself is
+pinned without a terminal in `packages/node/process/src/raw-mode.spec.ts`.

@@ -6,6 +6,11 @@
 // and the only way out is `stty sane` typed blind. Measured: a prompt killed
 // mid-way left the terminal unusable until it was reset by hand.
 //
+// It lives HERE, beside the `set_raw_mode` every consumer calls, because this is
+// the one package `@gjsify/process` and `@gjsify/tty` already share: a registry
+// in either of them would mean a cross-package dependency for a path that has
+// to work in both, and a second copy would be two claims of one debt.
+//
 // The claim is per DESCRIPTOR, not per caller. Two objects wrapping the same
 // stdin must share one debt rather than stack two, and restoring a descriptor
 // is idempotent — so the newest claim's restore is the one that runs, and a
@@ -13,8 +18,11 @@
 //
 // What this cannot cover is stated rather than implied: SIGKILL admits no
 // handler at all, and GJS tearing down its main loop does not emit `exit`. The
-// hook is installed where the process object lives (`process-class.ts`), on its
-// `exit` event, which `process.exit()` emits before it dies.
+// hook that pays the debt is installed where the process object lives
+// (`@gjsify/process`'s `process-class.ts`), on its `exit` event, which
+// `process.exit()` emits before it dies — so whoever transitions the terminal
+// records the claim, the process pays it, and neither reaches for a global to
+// find the other.
 
 /** fd → the call that puts that descriptor back. One entry per descriptor. */
 const claimed = new Map<number, () => void>();
@@ -42,6 +50,33 @@ export function releaseRawMode(fd: number): void {
 /** Whether this process still owes `fd` a restore. */
 export function isRawModeClaimed(fd: number): boolean {
     return claimed.has(fd);
+}
+
+/**
+ * Make the raw-mode transition on `fd` and record what it now owes — or that it
+ * owes nothing. The rule in one place, because getting it wrong is the whole
+ * failure: one call used to take two branches and only one of them remembered,
+ * so the terminal was restored where the native module was absent and stranded
+ * everywhere else.
+ *
+ * `setRawMode` performs the change and reports whether it HAPPENED; that verdict
+ * is the return value, so a caller with a further fallback (the `stty` spawn in
+ * `@gjsify/process`) can take it without asking the terminal twice. It is the
+ * same function for both directions, so the undo cannot drift from the change: a
+ * claim taken on a transition that did not happen would restore a terminal this
+ * process never broke, and turning raw mode off through here PAYS the debt rather
+ * than recording it, so no stale undo can outlive the owner that made it.
+ */
+export function noteRawMode(fd: number, mode: boolean, setRawMode: (enable: boolean) => boolean): boolean {
+    if (!setRawMode(mode)) return false;
+    if (mode) {
+        claimRawMode(fd, () => {
+            setRawMode(false);
+        });
+    } else {
+        releaseRawMode(fd);
+    }
+    return true;
 }
 
 /**

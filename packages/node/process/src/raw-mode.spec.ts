@@ -11,9 +11,21 @@
 // These tests pin that a claim is per fd, so two objects wrapping the same
 // stdin share one debt instead of stacking two, and that paying it is
 // idempotent and survives a restore that throws.
+//
+// The module under test lives in @gjsify/terminal-native — the one package
+// @gjsify/process and @gjsify/tty already share, so neither pays a
+// cross-package dependency for a ledger both must write to. Its spec stays HERE
+// because this is where the debt is paid (`Process`'s `exit` event) and because
+// this package's test legs already exist; @gjsify/terminal-native ships none.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { claimRawMode, isRawModeClaimed, releaseRawMode, restoreClaimedRawModes } from './raw-mode.js';
+import {
+    claimRawMode,
+    isRawModeClaimed,
+    noteRawMode,
+    releaseRawMode,
+    restoreClaimedRawModes,
+} from '@gjsify/terminal-native';
 
 /** The terminal being put right again, recorded so a test can assert it happened. */
 function recorder(log: string[], name: string): () => void {
@@ -21,7 +33,7 @@ function recorder(log: string[], name: string): () => void {
 }
 
 export default async () => {
-    await describe('@gjsify/process raw-mode claims', async () => {
+    await describe('raw-mode claims (ledger in @gjsify/terminal-native)', async () => {
         await it('restores every descriptor that was claimed', async () => {
             const log: string[] = [];
             claimRawMode(0, recorder(log, 'stdin'));
@@ -103,6 +115,55 @@ export default async () => {
         await it('starts with nothing claimed', async () => {
             expect(isRawModeClaimed(7)).toBe(false);
             expect(restoreClaimedRawModes()).toBe(0);
+        });
+
+        // `noteRawMode` is the rule both streams call, and it is the rule that
+        // was wrong twice: a transition that changed nothing claimed nothing,
+        // and a transition that DID change the terminal claimed nothing on the
+        // native path. The undo is the same call inverted, so the two directions
+        // cannot drift apart — asserted here without a terminal, which is what
+        // makes it the part that can run on every host.
+        await it('notes the debt a real transition creates, and none a failed one does', async () => {
+            const applied: string[] = [];
+            const setRawMode = (enable: boolean) => {
+                applied.push(enable ? 'raw' : 'sane');
+                return true;
+            };
+
+            expect(noteRawMode(51, true, setRawMode)).toBe(true);
+            expect(isRawModeClaimed(51)).toBe(true);
+            expect(applied).toStrictEqual(['raw']);
+
+            // Turning it off pays the debt in the normal close path.
+            expect(noteRawMode(51, false, setRawMode)).toBe(true);
+            expect(isRawModeClaimed(51)).toBe(false);
+            expect(applied).toStrictEqual(['raw', 'sane']);
+
+            // set_raw_mode returns false for a descriptor that is not a terminal
+            // (a piped stdin). Nothing changed, so nothing is owed — and the
+            // verdict is handed back, so a caller with a stty fallback can take
+            // the same transition again by other means.
+            const refused = (enable: boolean) => {
+                applied.push(enable ? 'raw?' : 'sane?');
+                return false;
+            };
+            expect(noteRawMode(52, true, refused)).toBe(false);
+            expect(isRawModeClaimed(52)).toBe(false);
+            expect(applied).toStrictEqual(['raw', 'sane', 'raw?']);
+        });
+
+        // The undo has to be the transition, inverted — a hand-written second
+        // spelling of it is how the two paths came to differ in the first place.
+        await it('undoes a noted transition with the same call that made it', async () => {
+            const applied: string[] = [];
+            const setRawMode = (enable: boolean) => {
+                applied.push(enable ? 'raw' : 'sane');
+                return true;
+            };
+            noteRawMode(53, true, setRawMode);
+            restoreClaimedRawModes();
+            expect(applied).toStrictEqual(['raw', 'sane']);
+            expect(isRawModeClaimed(53)).toBe(false);
         });
     });
 };
