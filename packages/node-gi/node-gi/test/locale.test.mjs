@@ -72,6 +72,14 @@ const launcher = probeLauncher();
 // ended the wait was bun's own 5s per-test timeout SIGTERMing this process — so
 // the log named the test and not the child. Bounded here, the error names the
 // child and the runtime it was launched on.
+//
+// It is a BACKSTOP, not the fix, and it does not bind on every host: `bun test`
+// times a test out at 5s and `node --test`/`deno test` do not, so under a bun
+// parent bun still reaches the parent first. What actually closed the win32 ×
+// bun cell is `DEFAULT_PROBE_RUNTIME` above — the child no longer runs on the
+// runtime that hung. The value is two orders of magnitude over the measured
+// probe (50–110ms warm here, on node and on bun alike), because the thing it
+// must not do is fire on a cold CI runner loading the addon for the first time.
 const PROBE_TIMEOUT_MS = 60_000;
 
 /** Run the probe in a fresh process under `env` and parse its report. */
