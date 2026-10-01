@@ -65,6 +65,7 @@ export { BlueprintEmitError, BlueprintSyntaxError } from './errors.mjs';
 export { parseBlueprint } from './parser.mjs';
 export { emitGtkBuilderXml } from './emit-xml.mjs';
 export { projectToSharedNode } from './project.mjs';
+export { deriveExports, emitTypedModule, emitTypedSidecar, sidecarPathFor } from './typed-exports.mjs';
 export {
     accessibilityElement,
     accessibilityValue,

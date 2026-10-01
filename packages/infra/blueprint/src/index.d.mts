@@ -45,6 +45,14 @@ export type * from './ast.mjs';
  */
 export type * from './shared-node.mjs';
 
+/**
+ * ADR 0087's third exit: the typed export surface a `.blp` has, and the two texts derived from
+ * it. Its own file for the same reason the projection has one — a third exit is a third set of
+ * decisions, not a wider view of the first two.
+ */
+export type * from './typed-exports.mjs';
+export { deriveExports, emitTypedModule, emitTypedSidecar, sidecarPathFor } from './typed-exports.mjs';
+
 export { BlueprintEmitError, BlueprintSyntaxError } from './ast.mjs';
 
 /**
