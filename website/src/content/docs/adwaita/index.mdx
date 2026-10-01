@@ -64,24 +64,13 @@ To change how any of it looks, set the [design tokens](./theming/).
 
 ## How a widget page reads
 
-Every widget block is three windows. The first runs the widget in the browser port, so it
-follows the light and dark toggle like a real window. **GJS** holds the `@girs` program and
-the Blueprint declaration that goes with it. **UI frameworks** holds the same widget
-through an element model: the HTML that paints the preview, then Solid, Vue and React
-through `@gjsify/gtk-host`, then the NativeScript XML template that runs on a phone.
+Every widget block is one window. The widget runs on top, in the browser port, so it
+follows the light and dark toggle. Below it, **Blueprint** declares the widget and
+**TypeScript** builds it. Choose a tab once and every block on the site follows it.
 
-A block built from one Blueprint file reads in a different order, because there the file is
-the template every snippet refers to. **Blueprint** shows that file, straight under the
-preview and with no tabs. **Code** holds every program that loads it. Choose a tab once and
-every block on the site follows it.
-
-<MoreInfo title="The one-Blueprint block in full">
-**Code** holds the `@girs` TypeScript, which runs unchanged on GJS, Node.js, Deno and Bun,
-then the Web Components and NativeScript loaders, then Solid, Vue and React. The two loaders
-are several files each, picked in a small row under the tab bar: the layout in the port's
-own markup, generated from the Blueprint file, the code that loads it, and the same code
-building the Blueprint file instead.
-
+<MoreInfo title="Other bindings">
+The **Other bindings** menu in each window's header bar holds the same widget for the Web
+Components and NativeScript ports and for Solid, Vue and React through `@gjsify/gtk-host`.
 Where a widget is built in code rather than declared, a recorded reason takes the place of
 the snippet.
 
@@ -90,10 +79,8 @@ Libadwaita and GTK are the reference, typed by
 [`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). Both ports follow their
 naming and export the widgets as `Adw` and `Gtk` namespaces, beside a `Gio` namespace that
 holds `Gio.Menu` and `Gio.MenuItem`, so `import { Adw, Gio } from '@gjsify/adwaita-web'`
-builds a menu model the way GJS does. `Gtk.StringList` and `Gtk.Adjustment` sit in the
-`Gtk` namespace for the same reason. Built with `--gi-renderer`, a browser or NativeScript
+builds a menu model the way GJS does. Built with `--gi-renderer`, a browser or NativeScript
 bundle also answers `gi://Adw` and `gi://Gtk` from the port, and refuses `gi://Gio` by name.
-Where a port differs, the window that shows it says so.
 </MoreInfo>
 
 ## Browse the widgets
