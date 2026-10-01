@@ -35,7 +35,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { wireGdaProviders } from '../gtk-runtime.js';
 import {
+    DARWIN_REQUIRED_NAMESPACES,
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
     analyzeTypelibs,
@@ -392,6 +394,56 @@ test('WINDOWING_REQUIRED_NAMESPACES names what --windowing exists to add', () =>
     assert.deepEqual(WINDOWING_REQUIRED_NAMESPACES, ['Adw', 'GtkSource', 'Gst', 'GstApp']);
     for (const ns of ['GLib', 'GObject', 'Gio', 'Gtk', 'Gdk', 'Pango', 'GdkPixbuf', 'Graphene', 'cairo']) {
         assert.ok(REQUIRED_NAMESPACES.includes(ns), `${ns} is part of the bundle's promise`);
+    }
+});
+
+test('the darwin floor names Gda, and the shared floor does not', () => {
+    // `Gda` is darwin-only on purpose: the win32 builder and the published-tarball verifier
+    // read REQUIRED_NAMESPACES, and neither gvsbuild nor any earlier tarball carries libgda.
+    assert.deepEqual(DARWIN_REQUIRED_NAMESPACES, ['Gda']);
+    assert.ok(!REQUIRED_NAMESPACES.includes('Gda'));
+    assert.ok(!WINDOWING_REQUIRED_NAMESPACES.includes('Gda'));
+    // And it bites: a darwin bundle whose seeds lost libgda would DROP Gda-6.0 as unbacked
+    // and ship green, leaving `node:sqlite` to die at init on a Mac without brew libgda.
+    const plan = planTypelibSet({
+        typelibs: [
+            {
+                key: 'Gda-6.0',
+                namespace: 'Gda',
+                version: '6.0',
+                name: 'Gda-6.0.typelib',
+                file: 'x',
+                sharedLibraries: ['libgda-6.0.6.0.0.dylib'],
+                dependencies: [],
+            },
+        ],
+        libraries: new Set(),
+        caseInsensitive: false,
+        requiredNamespaces: DARWIN_REQUIRED_NAMESPACES,
+    });
+    assert.match(plan.problems.join('\n'), /required namespace Gda is not shippable/);
+});
+
+test('wireGdaProviders points libgda at the bundle, only when it carries a provider dir', () => {
+    // libgda reads GDA_TOP_BUILD_DIR as `<dir>/providers`; without it the provider dir is the
+    // brew keg compiled in, which a user's Mac has not got.
+    const saved = process.env.GDA_TOP_BUILD_DIR;
+    const bundle = mkdtempSync(join(tmpdir(), 'gda-bundle-'));
+    try {
+        delete process.env.GDA_TOP_BUILD_DIR;
+        wireGdaProviders({ dir: bundle });
+        assert.equal(process.env.GDA_TOP_BUILD_DIR, undefined, 'no provider dir, nothing to point at');
+
+        mkdirSync(join(bundle, 'lib', 'libgda-6.0', 'providers'), { recursive: true });
+        wireGdaProviders({ dir: bundle });
+        assert.equal(process.env.GDA_TOP_BUILD_DIR, join(bundle, 'lib', 'libgda-6.0'));
+
+        process.env.GDA_TOP_BUILD_DIR = '/operator/choice';
+        wireGdaProviders({ dir: bundle });
+        assert.equal(process.env.GDA_TOP_BUILD_DIR, '/operator/choice', 'an operator override wins');
+    } finally {
+        if (saved === undefined) delete process.env.GDA_TOP_BUILD_DIR;
+        else process.env.GDA_TOP_BUILD_DIR = saved;
     }
 });
 

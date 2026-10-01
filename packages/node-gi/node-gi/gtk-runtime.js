@@ -625,6 +625,26 @@ export function maybeWireGtkWindowingEnv() {
     if (existsSync(gioModules)) setIfUnset('GIO_MODULE_DIR', gioModules);
 }
 
+/**
+ * Point libgda at the bundle's database providers (darwin; `@gjsify/sqlite` / `node:sqlite`).
+ *
+ * libgda loads a provider as a GModule from a directory COMPILED IN as the build prefix —
+ * `<keg>/lib/libgda-6.0/providers` — and, with that keg absent, `Gda.Connection.new_from_string
+ * ('SQLite', …)` throws `No provider 'SQLite' installed`. With the keg PRESENT it is worse: brew's
+ * provider loads against brew's libgda and glib beside the bundle's own. The one override libgda
+ * has is `GDA_TOP_BUILD_DIR`, read as `<dir>/providers` at the first provider scan, which is long
+ * after this runs. In the JS and not in a launcher for the reason `GJSIFY_GI_LIBRARY_PATH` is:
+ * a signed app loses `DYLD_*`, never `process.env`.
+ * Set only when unset, so an operator pointing libgda elsewhere wins; a no-op for a bundle
+ * that carries no provider dir.
+ * @param {{ dir: string }} bundle
+ */
+export function wireGdaProviders(bundle) {
+    const gdaDir = join(bundle.dir, 'lib', 'libgda-6.0');
+    if (!existsSync(join(gdaDir, 'providers'))) return;
+    if (!process.env.GDA_TOP_BUILD_DIR) process.env.GDA_TOP_BUILD_DIR = gdaDir;
+}
+
 /** The plugin scanner's leaf name — the bundles ship the same tree on both OSes. */
 function gstScannerLeaf() {
     return process.platform === 'win32' ? 'gst-plugin-scanner.exe' : 'gst-plugin-scanner';
@@ -790,6 +810,7 @@ export function activateBundledGtkRuntime(native) {
             // variable REPLACES rather than extends.
             process.env.DYLD_FALLBACK_LIBRARY_PATH = composeDyldFallback([bundle.libDir]);
         }
+        wireGdaProviders(bundle);
     }
 
     activated = bundle;

@@ -357,7 +357,7 @@ jobs:
       # fails on every https URL. A transitive dep is a fact about today's formula; this
       # is the one the builder asserts.
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking libgda
 
       # Node 24 runs build-gtk-runtime-darwin.mjs (node:child_process/fs) and the publish.
       # No `registry-url` here — setting it makes actions/setup-node inject a

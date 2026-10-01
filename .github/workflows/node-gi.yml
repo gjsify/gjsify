@@ -1381,7 +1381,7 @@ jobs:
       # Build-time closure SOURCE only — these libraries are collected + relocated
       # into a self-contained bundle, they are NOT what the conformance job runs on.
       - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
-        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config
+        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config libgda
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -1544,6 +1544,12 @@ jobs:
           if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
             echo "gtk4/libadwaita is installed — not a clean batteries-included test"; exit 1
           fi
+          # libgda is the other build-time-only formula: the bundle carries its own libgda AND
+          # its SQLite provider, and a brew libgda would hide a bundle missing either (libgda
+          # compiles the provider dir in as the brew keg).
+          if brew list --formula 2>/dev/null | grep -qx 'libgda'; then
+            echo "libgda is installed — not a clean batteries-included test"; exit 1
+          fi
           echo "clean host — the GTK toolkit was never brew-installed in this job"
 
       # Stage the bundle + relocated addon in the SIBLING layout node-gi expects
@@ -1689,7 +1695,7 @@ jobs:
       # fails on every https URL. A transitive dep is a fact about today's formula; this
       # is the one the builder asserts.
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking libgda
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -1867,6 +1873,12 @@ jobs:
           brew list --formula 2>/dev/null | grep -iE 'gtk|pango|cairo|graphene|gdk|glib|gobject|harfbuzz' || echo "(none)"
           if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
             echo "gtk4/libadwaita is installed — not a clean batteries-included test"; exit 1
+          fi
+          # libgda is the other build-time-only formula: the bundle carries its own libgda AND
+          # its SQLite provider, and a brew libgda would hide a bundle missing either (libgda
+          # compiles the provider dir in as the brew keg).
+          if brew list --formula 2>/dev/null | grep -qx 'libgda'; then
+            echo "libgda is installed — not a clean batteries-included test"; exit 1
           fi
           echo "clean host — the GTK toolkit was never brew-installed in this job"
 
@@ -2151,6 +2163,12 @@ jobs:
           brew list --formula 2>/dev/null | grep -iE 'gtk|pango|cairo|graphene|gdk|glib|gobject|harfbuzz' || echo "(none)"
           if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
             echo "gtk4/libadwaita is installed — not a clean batteries-included test"; exit 1
+          fi
+          # libgda is the other build-time-only formula: the bundle carries its own libgda AND
+          # its SQLite provider, and a brew libgda would hide a bundle missing either (libgda
+          # compiles the provider dir in as the brew keg).
+          if brew list --formula 2>/dev/null | grep -qx 'libgda'; then
+            echo "libgda is installed — not a clean batteries-included test"; exit 1
           fi
           echo "clean host — the GTK toolkit was never brew-installed in this job"
 

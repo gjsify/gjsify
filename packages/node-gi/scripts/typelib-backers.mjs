@@ -97,6 +97,17 @@ export const REQUIRED_NAMESPACES = [
 ];
 
 /**
+ * What only the DARWIN bundle promises on top of {@link REQUIRED_NAMESPACES}: `Gda`, the
+ * backer of `node:sqlite`. Kept out of the shared list because the win32 builder and the
+ * published-tarball verifier read that one — gvsbuild's prefix carries no libgda, and every
+ * tarball published before this one rightly lacks it. A darwin bundle that cannot load
+ * `Gda-6.0` makes every local-database app die at init, so the namespace is a floor here
+ * for the same reason `Gtk` is: the planner would otherwise DROP it quietly when libgda
+ * fell out of the seed set, and the build would stay green.
+ */
+export const DARWIN_REQUIRED_NAMESPACES = ['Gda'];
+
+/**
  * What `--windowing` is FOR: libadwaita + GtkSourceView + GStreamer. Asserting the TYPELIBS here
  * (and not only the dylibs, which the workflows grep for) is what makes the superset's promise
  * checkable — with the drop filter in place, a missing libadwaita would otherwise take
