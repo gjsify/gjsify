@@ -179,5 +179,54 @@ export default async () => {
             await tick();
             expect(readable.readableFlowing).toBeNull();
         });
+
+        // Node's `on('data')` checks readableListening first: with a 'readable'
+        // listener present the stream stays in readable mode and does not flow.
+        await it('should not flow on on("data") while a "readable" listener exists', async () => {
+            const readable = source(3);
+            readable.on('readable', () => {});
+            readable.on('data', () => {});
+            expect(readable.readableFlowing).toBe(false);
+            await tick();
+            expect(readable.readableFlowing).toBe(false);
+        });
+
+        // Another 'readable' listener remains, so readable mode must survive the
+        // removal even with a 'data' listener attached.
+        await it('should leave readable mode alone while another "readable" listener remains', async () => {
+            const readable = source(3);
+            const first = (): void => {};
+            readable.on('data', () => {});
+            readable.on('readable', first);
+            readable.on('readable', () => {});
+            await tick();
+            readable.removeListener('readable', first);
+            await tick();
+            expect(readable.readableFlowing).toBe(false);
+        });
+
+        await it('should not flow after once("readable") fired with a "data" listener', async () => {
+            const readable = source(3);
+            readable.once('readable', () => {});
+            expect(readable.readableFlowing).toBe(false);
+            await tick();
+            // once() removes itself on fire; the deferred re-derivation then releases readable mode.
+            expect(readable.listenerCount('readable')).toBe(0);
+            expect(readable.readableFlowing).toBeNull();
+        });
+
+        await it('should not read(0) on a stream destroyed right after on("readable")', async () => {
+            let reads = 0;
+            const readable = new Readable({
+                read() {
+                    reads++;
+                },
+            });
+            readable.on('error', () => {});
+            readable.on('readable', () => {});
+            readable.destroy();
+            await tick();
+            expect(reads).toBe(0);
+        });
     });
 };
