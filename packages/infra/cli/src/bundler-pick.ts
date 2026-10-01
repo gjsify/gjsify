@@ -495,6 +495,12 @@ async function utilsCore(): Promise<NativeLibrarySurface> {
         // so loading `core` off disk would give the process a SECOND copy of that
         // singleton — inert today because only pure probe functions are read
         // through this edge, and a trap the first time that stops being true.
+        //
+        // Anchored at the BUNDLE, not the cwd, so unlike every resolution around
+        // it this one finds nothing when the bundle is the published
+        // `cli.gjs.mjs` — one loose file in `<cache>/gjsify/bootstrap/`, with no
+        // `node_modules` above it. Callers must therefore treat a throw as "not
+        // measured" (see `tryLoadNative`), never as "no engine".
         const href = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/native-library')).href;
         _utilsCore = (await import(/* @vite-ignore */ href)) as NativeLibrarySurface;
     }
@@ -636,16 +642,35 @@ async function tryLoadNative(): Promise<NativeRolldownSurface | null> {
             // past `diagnoseNativeEngine()`, which then never runs.
             // Separated from the engine's own failure so that "the engine is
             // absent" and "the measurement could not run" stay distinguishable
-            // at the one place that reports them.
-            let surface: NativeLibrarySurface;
+            // at the one place that reports them — and only a library the probe
+            // MEASURED as broken vetoes the engine. A probe that could not be
+            // LOADED does not: the engine's own load already answered twice
+            // over (the module imported, `hasNativeRolldown()` resolved its
+            // typelib), and under GJS there is no second engine to fall back to
+            // — the npm `rolldown` crate is a napi binary — so `null` here
+            // turned "nothing was measured" into "there is no bundler".
+            //
+            // What reaches that verdict is not exotic. `utilsCore()` resolves
+            // `@gjsify/utils/native-library` from THIS bundle's own directory,
+            // while every other resolution in this function goes through
+            // `resolveNpmPackage()` with its cwd/workspace anchors; the bundle
+            // that runs a cold `build:infra` is the PUBLISHED `cli.gjs.mjs`,
+            // which `install.mjs --fetch-only` caches as one loose file in
+            // `<cache>/gjsify/bootstrap/` with no `node_modules` beside it. On
+            // the release runner the probe therefore resolved nothing and
+            // `@gjsify/napi` did not publish (v0.53.0), and building utils'
+            // `lib/esm` first changed nothing — measured, which is why the
+            // asymmetry is fixed here and no clause was reordered.
+            let surface: NativeLibrarySurface | null = null;
             try {
                 surface = await utilsCore();
             } catch (err) {
                 _utilsCoreError = err;
-                return null;
             }
-            _nativeLibraryFailure = surface.probeNativeLibrary('GjsifyRolldown');
-            if (_nativeLibraryFailure) return null;
+            if (surface !== null) {
+                _nativeLibraryFailure = surface.probeNativeLibrary('GjsifyRolldown');
+                if (_nativeLibraryFailure) return null;
+            }
             return mod;
         } catch {
             return null;
