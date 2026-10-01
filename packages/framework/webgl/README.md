@@ -216,11 +216,40 @@ nm -u libgwebgl.dylib | sed -n 's/^ *_epoxy_//p' | grep -E '^gl[A-Z]'
 # then, per name, ctypes.CDLL('/System/Library/Frameworks/OpenGL.framework/OpenGL')
 ```
 
-**The GLES 3.0 spellings with no desktop-4.1 equivalent stay missing**, and this is the part
-the shader rewrite above does not reach: `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on desktop)
-and the mandatory ETC2/EAC compressed formats. Both surface as a **draw-time** error rather
-than a compile failure, so a shader that compiles is not evidence that a scene using them
-will render.
+**The GLES 3.0 spellings desktop 4.1 does not have are now supplied rather than refused**,
+which is the part the shader rewrite above could not reach. Both were draw-time matters, so
+a shader that compiles was never evidence that a scene using them would render.
+
+- **`GL_PRIMITIVE_RESTART_FIXED_INDEX`** is a GL 4.3 state, and WebGL 2.0 removes it and
+  "behaves as though it were always enabled". Where the context has it, that is one
+  `Enable` — and it has to be made, because GLES 3.0 gives it the initial value **disabled**
+  while desktop GL 3.1 gives `PRIMITIVE_RESTART` the initial value *enabled*, so neither
+  default can be assumed. Where the state is absent the layer emulates it the way ANGLE does
+  on the same backends: `GL_PRIMITIVE_RESTART` plus
+  `glPrimitiveRestartIndex(<max of the element type>)`, **per draw call**, because the value
+  is a function of the element type (`0xFF` / `0xFFFF` / `0xFFFFFFFF`). Measured on
+  macOS 27 / GL 4.1 core: an index buffer whose second triangle is built from the restart
+  index (255) paints the far half of the framebuffer white without the emulation and
+  leaves it the clear colour with it, and `GL_PRIMITIVE_RESTART_INDEX` reads `0xff` /
+  `0xffff` / `0xffffffff` after a draw as `UNSIGNED_BYTE` / `_SHORT` / `_INT`. The predicate
+  is the one the dialect rewrite above already uses — the `ARB_ES3_compatibility` EXTENSION,
+  not the OS — and `Enable`/`Disable` of the removed state is `INVALID_ENUM` on **every**
+  context, which is what stops a consumer switching off behaviour the layer now supplies.
+- **The ten ETC2/EAC compressed formats** are not a WebGL 2.0 requirement at all: the spec
+  removes them ("No ETC2 and EAC compressed texture formats") and re-offers them through
+  `WEBGL_compressed_texture_etc`, which this package does not implement, so `webgl2.idl`
+  names none of them. Handing the number to the driver is not a uniform outcome to leave to
+  chance — macOS's desktop GL 4.1 answers `INVALID_ENUM` anyway (measured), while on the
+  GLES 3.x context a Linux runner gets, every one of the ten is a *valid* format and the
+  upload would silently succeed. All four compressed entry points and
+  `getInternalformatParameter` now refuse them with the error WebGL specifies.
+
+Both are measured, in `status/open-todos/webgl.md` § "the GLES 3.0 restart / ETC2 refusal
+spec is owed": against the PREBUILT `libgwebgl` the far half reads white (the driver assembled
+the triangle built from the restart index) and against a locally built library it reads the
+clear colour. **No spec holds either yet** — the suite loads the prebuilt library, which still
+carries the previous Vala, so the spec owed here is written down in full there and lands once
+`main` refreshes the prebuilds.
 
 **Four WebGL1 extensions are core on desktop GL, so the version answers, not the list.**
 `OES_element_index_uint` (GL 1.1), `OES_standard_derivatives` (GL 2.0), `OES_texture_float` and
