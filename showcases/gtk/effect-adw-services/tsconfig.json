@@ -7,7 +7,8 @@
         "rootDir": "src",
         "strict": true,
         "skipLibCheck": true,
-        "types": ["@gjsify/vite-plugin-blueprint/types"]
+        "types": ["@gjsify/vite-plugin-blueprint/types"],
+        "allowArbitraryExtensions": true
     },
     "include": ["src/**/*"]
 }
