@@ -14,10 +14,8 @@
 // classifies and CARRIES the text; `GamepadManager._init()` prints it through
 // {@link reportGamepadBackendOnce}.
 //
-// Two backends (ADR 0075 + Amendment 1): `gi://GjsifyGamepad`, the SDL3 shim in
-// `@gjsify/gamepad-native`, on darwin and win32; `gi://Manette` on Linux until the SDL
-// source is proven there on real controllers and replaces it. Until then Linux can be
-// switched per process with `GJSIFY_GAMEPAD_BACKEND` (see {@link GamepadBackendChoice}).
+// Two backends (ADR 0075 + Amendment 1): the SDL3 shim on darwin and win32, libmanette
+// on Linux until SDL is proven there on real controllers — see {@link GamepadBackendChoice}.
 //
 // The load failure is split in two because a host WITHOUT the backend (no libmanette; no
 // gamepad-native prebuild for this target) and a host with a BROKEN install are different
