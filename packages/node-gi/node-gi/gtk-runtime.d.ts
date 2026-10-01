@@ -13,6 +13,8 @@ export function maybeReexecForGtkRuntime(): void;
 export function maybePrependGtkRuntimeDllPath(): void;
 /** Windows: wire the env for a full-windowing bundle's runtime data — GSettings schemas, gdk-pixbuf loaders, icon themes, fontconfig (no-op off win32 / for a display-free bundle). */
 export function maybeWireGtkWindowingEnv(): void;
+/** darwin: point libgda at the bundle's SQLite provider via `GDA_TOP_BUILD_DIR` (only when unset; no-op for a bundle without `lib/libgda-6.0/providers`). */
+export function wireGdaProviders(bundle: { dir: string }): void;
 /** Activate the bundled GTK runtime for the native engine, if one is present. */
 export function activateBundledGtkRuntime(native: {
     prependSearchPath: (p: string) => void;

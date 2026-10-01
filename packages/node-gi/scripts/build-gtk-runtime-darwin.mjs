@@ -94,6 +94,7 @@ import {
 import { decodeProbeProblems, spawnDecodeProbe } from './decode-probe.mjs';
 import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from './gst-plugins.mjs';
 import {
+    DARWIN_REQUIRED_NAMESPACES,
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
     formatTypelibProblems,
@@ -216,6 +217,12 @@ const SEED_PATTERNS = [
     // libharfbuzz-gobject.0.dylib absent — the win32 bundle bundles it only by
     // accident (its `^harfbuzz.*\.dll$` seed happens to match harfbuzz-gobject.dll).
     /^libharfbuzz-gobject\.[\d.]*dylib$/,
+    // libgda, the backer of `Gda-6.0.typelib` and so of `node:sqlite` (`@gjsify/sqlite` binds
+    // `gi://Gda?version=6.0`). A BASE seed, not a windowing one: a database needs no display,
+    // and it is the one dependency that took every local-database app down at init on a Mac
+    // without Homebrew libgda. Its closure is small — glib, libxml2 (OS), Homebrew's sqlite
+    // — and the SQLite PROVIDER needs no module of its own: § 2e measures why.
+    /^libgda-6\.0\..*\.dylib$/,
 ];
 
 // WINDOWING superset (opt-in via --windowing): also bundle libadwaita, whose dylib
@@ -892,6 +899,51 @@ if (WINDOWING) {
     }
 }
 
+// --- 2e. the libgda SQLite PROVIDER -----------------------------------------
+// libgda is a facade: a connection is served by a PROVIDER, a GModule libgda g_module_opens
+// out of one directory, so neither seed nor otool walk can see it (§ 2b–2d's shape again).
+// Measured on a bundle with libgda but WITHOUT this section, the build host's keg hidden:
+// `Gda.Connection.new_from_string('SQLite', …)` throws `No provider 'SQLite' installed`.
+// libgda does fall back to a built-in SQLite provider object, but only for its OWN use —
+// the name lookup the public API goes through never finds it. And the directory is
+// COMPILED IN as `<keg>/lib/libgda-6.0/providers`, so with the keg present the lookup
+// "worked" while loading brew's provider against brew's libgda and brew's glib next to the
+// bundle's own: a second GObject registry (`GNotificationCenterDelegate is implemented in
+// both …`) and a provider that never instantiated. The one override libgda has is
+// `GDA_TOP_BUILD_DIR` (gda-config.c `load_all_providers`), read as `<dir>/providers`;
+// `gtk-runtime.js` points it at `lib/libgda-6.0` in the JS, as it does every other
+// bundle variable — a signed app loses DYLD_*, not process.env.
+//
+// ONLY the SQLite provider, matched by name rather than "whatever the keg has": the MySQL
+// provider drags in mariadb-connector-c (+ openssl) for a database no gjsify package binds.
+// The specs and DTDs it reads are GResources inside the dylibs, so there is no data tree.
+const GDA_PROVIDER_LEAF = 'libgda-sqlite-6.0.dylib';
+const gdaProviderImages = []; // absolute paths in the bundle, for § 3
+const gdaProviderSources = new Map(); // leaf -> keg realpath, for § 5's attribution
+{
+    const gdaKeg = [...bundled.values()].find((src) => basename(src).startsWith('libgda-6.0.'));
+    const src = gdaKeg ? join(dirname(dirname(gdaKeg)), 'lib', 'libgda-6.0', 'providers', GDA_PROVIDER_LEAF) : null;
+    if (!src || !existsSync(src)) {
+        console.error(
+            `build-gtk-runtime: libgda is in the closure but its SQLite provider is not at ${src ?? '(no libgda keg)'} — ` +
+                '`node:sqlite` would die with `No provider \'SQLite\' installed`. Repair: brew install libgda.',
+        );
+        process.exit(1);
+    }
+    const providersOut = join(OUT, 'lib', 'libgda-6.0', 'providers');
+    mkdirSync(providersOut, { recursive: true });
+    const dest = join(providersOut, GDA_PROVIDER_LEAF);
+    copyFileSync(src, dest);
+    gdaProviderImages.push(dest);
+    recordBinarySource(gdaProviderSources, GDA_PROVIDER_LEAF, src);
+    // lib/libgda-6.0/providers/ is two levels below lib/.
+    relocate(dest, { id: true, depPrefix: '@loader_path/../..' });
+    console.log(
+        `build-gtk-runtime: libgda SQLite provider relocated (@loader_path/../..), ` +
+            `${(statSync(dest).size / 1024).toFixed(0)} KiB`,
+    );
+}
+
 // --- 3. verify the relocation ---------------------------------------------
 // A leftover absolute reference to a library we DID bundle is the whole failure
 // mode: the bundle looks complete, loads fine on the build host, and resolves
@@ -978,6 +1030,7 @@ verifyRelocation([
     ...pixbufLoaderImages,
     ...gstPluginImages,
     ...gioModuleImages,
+    ...gdaProviderImages,
 ]);
 
 // And the check verifyRelocation CANNOT make, because a duplicate is correctly
@@ -987,6 +1040,7 @@ const duplicatedModules = duplicatedModuleLeaves(bundledLeaves, [
     ...pixbufLoaderImages,
     ...gstPluginImages,
     ...gioModuleImages,
+    ...gdaProviderImages,
 ]);
 if (duplicatedModules.length > 0) {
     console.error(`build-gtk-runtime: ${formatDuplicatedModuleProblems(duplicatedModules, { flatDir: libOut })}`);
@@ -1004,7 +1058,11 @@ if (duplicatedModules.length > 0) {
 // is a build FAILURE, not a drop (Pango-1.0 → HarfBuzz-0.0 is exactly that case).
 const typelibOut = join(OUT, 'girepository-1.0');
 mkdirSync(typelibOut, { recursive: true });
-const requiredNamespaces = [...REQUIRED_NAMESPACES, ...(WINDOWING ? WINDOWING_REQUIRED_NAMESPACES : [])];
+const requiredNamespaces = [
+    ...REQUIRED_NAMESPACES,
+    ...DARWIN_REQUIRED_NAMESPACES,
+    ...(WINDOWING ? WINDOWING_REQUIRED_NAMESPACES : []),
+];
 // darwin resolves a bare-leaf g_module_open through dyld, which is case-SENSITIVE
 // even where the filesystem is not.
 const typelibPlan = planTypelibSet({
@@ -1321,7 +1379,13 @@ const brewInfoLicense = (formula) => {
 // third-party LGPL modules too, so "the terms travel with the binaries" is only true if
 // the per-binary table names them. They attribute through the same derivation as every
 // dylib — their realpath runs through …/Cellar/{gdk-pixbuf,librsvg}/<version>/… .
-const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources, ...gstPluginSources, ...gioModuleSources]);
+const shippedBinaries = new Map([
+    ...bundled,
+    ...pixbufLoaderSources,
+    ...gstPluginSources,
+    ...gioModuleSources,
+    ...gdaProviderSources,
+]);
 const { components: kegComponents, unattributed } = describeBrewKegs({
     files: shippedBinaries,
     fallbackLicense: brewInfoLicense,
