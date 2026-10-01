@@ -10,9 +10,8 @@ import MoreInfo from '../../../components/MoreInfo.astro';
 Adwaita is GNOME's design system for GTK 4: the rows, buttons, header bars and dialogs a
 GNOME app is made of. GJSify gives you the whole set from TypeScript, and the same widget
 renders as a real Libadwaita widget on the desktop and as a custom element in the browser.
-
-It is one design system GJSify supports, not a requirement. Libadwaita ships no entry, drop
-down or plain button; those GTK widgets are under [Gtk](/gjsify/gtk/).
+It is one design system GJSify supports, not a requirement; the GTK widgets libadwaita does
+not ship are under [Gtk](/gjsify/gtk/).
 
 ## Write the layout in Blueprint
 
@@ -59,9 +58,9 @@ To change how any of it looks, set the [design tokens](./theming/).
 | Package | What it holds |
 |---|---|
 | `@gjsify/adwaita-web` | the custom elements and the compiled stylesheet |
-| `@gjsify/adwaita-core` | the behaviour both ports share, with no rendering: breakpoints, color scheme, toast queue, row state machines |
+| `@gjsify/adwaita-core` | the behaviour both ports share, with no rendering |
 | `@gjsify/adwaita-fonts` | Adwaita Sans as TTF files plus the `@font-face` CSS |
-| `@gjsify/adwaita-icons` | the symbolic icons as importable SVG strings, plus a `toDataUri()` helper |
+| `@gjsify/adwaita-icons` | the symbolic icons as importable SVG strings |
 
 ## How a widget page reads
 
@@ -72,19 +71,19 @@ through an element model: the HTML that paints the preview, then Solid, Vue and 
 through `@gjsify/gtk-host`, then the NativeScript XML template that runs on a phone.
 
 A block built from one Blueprint file reads in a different order, because there the file is
-the template every snippet refers to. **Blueprint** shows that file. **Code** holds every
-program that loads it.
-
-Choose a tab once and every block on the site follows it. Where a widget is built in code
-rather than declared, a recorded reason takes the place of the snippet.
+the template every snippet refers to. **Blueprint** shows that file, straight under the
+preview and with no tabs. **Code** holds every program that loads it. Choose a tab once and
+every block on the site follows it.
 
 <MoreInfo title="The one-Blueprint block in full">
 **Code** holds the `@girs` TypeScript, which runs unchanged on GJS, Node.js, Deno and Bun,
 then the Web Components and NativeScript loaders, then Solid, Vue and React. The two loaders
 are several files each, picked in a small row under the tab bar: the layout in the port's
 own markup, generated from the Blueprint file, the code that loads it, and the same code
-building the Blueprint file instead. **Blueprint** sits straight under the preview and with
-no tabs.
+building the Blueprint file instead.
+
+Where a widget is built in code rather than declared, a recorded reason takes the place of
+the snippet.
 
 Libadwaita and GTK are the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1) and
