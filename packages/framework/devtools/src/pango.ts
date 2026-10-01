@@ -67,12 +67,21 @@ export const PANGO_MARKUP_SINKS: Readonly<Record<string, readonly string[]>> = {
  * The `<` side likewise accepts a tag (`<b>`, `</b>`, `<span …>`) — markup is a legal string to
  * write, it is only the RAW characters that abort the parse.
  */
-const RAW_MARKUP = /&(?![a-zA-Z][a-zA-Z0-9]*;|#\d+;|#x[0-9a-fA-F]+;)|<(?![a-zA-Z/!?])/;
+const RAW_MARKUP_SOURCE = '&(?![a-zA-Z][a-zA-Z0-9]*;|#\\d+;|#x[0-9a-fA-F]+;)|<(?![a-zA-Z/!?])';
+
+/**
+ * Two spellings of one pattern, because `matchAll` REFUSES a non-global RegExp rather than
+ * matching one pass, while a global one used with `.test()` carries `lastIndex` between calls — so
+ * sharing a single global regex would make `hasRawPangoMarkup('a & b')` answer true once and false
+ * forever after. Separate instances, no shared mutable state.
+ */
+const RAW_MARKUP = new RegExp(RAW_MARKUP_SOURCE);
+const RAW_MARKUP_GLOBAL = new RegExp(RAW_MARKUP_SOURCE, 'g');
 
 /** The raw markup characters in `text`, deduplicated; empty when the string parses as markup. */
 export function rawPangoMarkupIn(text: string): string[] {
     const found = new Set<string>();
-    for (const match of text.matchAll(RAW_MARKUP)) found.add(match[0]);
+    for (const match of text.matchAll(RAW_MARKUP_GLOBAL)) found.add(match[0]);
     return [...found];
 }
 

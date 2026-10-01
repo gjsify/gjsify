@@ -41,9 +41,11 @@ export default async () => {
         });
 
         await it('names the raw characters it found, once each', async () => {
-            expect(rawPangoMarkupIn('a & b & c')).toEqual(['&']);
-            expect(rawPangoMarkupIn('a & b < c')).toEqual(['&', '<']);
-            expect(rawPangoMarkupIn('clean')).toEqual([]);
+            // `toStrictEqual`, not `toEqual`: that one is `==` in this dialect, which an array
+            // literal can never satisfy — the elements match, the references do not.
+            expect(rawPangoMarkupIn('a & b & c')).toStrictEqual(['&']);
+            expect(rawPangoMarkupIn('a & b < c')).toStrictEqual(['&', '<']);
+            expect(rawPangoMarkupIn('clean')).toStrictEqual([]);
         });
     });
 
