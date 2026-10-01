@@ -116,9 +116,11 @@ export default defineConfig({
             favicon: '/favicon.svg',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' }],
             // Ordered for someone who wants to USE gjsify: everything above `More` answers "how do
-            // I…". `Adwaita`/`Gtk` stay group labels nested under `Widgets`, because arm 11 of
+            // I…". `Gtk`/`Adwaita` stay group labels nested under `Widgets`, because arm 11 of
             // `scripts/check-website-adwaita-gallery.mjs` holds a page's slug against its GROUP
-            // (ADR 0034 § 1).
+            // (ADR 0034 § 1). Gtk leads that group: it is the library Adwaita is built ON (there
+            // is no `Adw.Entry`, no `Adw.DropDown`, no `Adw.MenuButton`). The order is presentation
+            // only — arm 11 reads each group by its `label`, not by its position.
             sidebar: [
                 {
                     label: 'Start',
@@ -133,6 +135,14 @@ export default defineConfig({
                     label: 'Widgets',
                     items: [
                         {
+                            label: 'Gtk',
+                            items: [
+                                { slug: 'gtk', label: 'Gallery' },
+                                { slug: 'gtk/controls' },
+                                { slug: 'gtk/buttons' },
+                            ],
+                        },
+                        {
                             label: 'Adwaita',
                             items: [
                                 { slug: 'adwaita', label: 'Gallery' },
@@ -144,14 +154,6 @@ export default defineConfig({
                                 { slug: 'adwaita/presentation' },
                                 { slug: 'adwaita/feedback' },
                                 { slug: 'adwaita/theming' },
-                            ],
-                        },
-                        {
-                            label: 'Gtk',
-                            items: [
-                                { slug: 'gtk', label: 'Gallery' },
-                                { slug: 'gtk/controls' },
-                                { slug: 'gtk/buttons' },
                             ],
                         },
                     ],
