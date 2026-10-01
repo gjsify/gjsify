@@ -35,13 +35,19 @@ import {
  * `_variables.scss` is where that stack is argued about (it explains why
  * 'Cantarell' is dropped from it), so it is where it lives.
  *
- * The `var()` FALLBACK is a second copy by construction — it has to be, or a page
- * that loads the stylesheet without the theme tokens gets no stack at all — so it
- * is kept to the token's own value and nothing longer, and a tail entry landing in
- * `_variables.scss` (#1817 added 'Consolas') has to land here too.
+ * The repeat is still a SECOND COPY, and a copy of a value the conformance rule
+ * CAN see is the failure this constant was created to end — a tail edited in one
+ * place and not the other is an editor in one typeface and a label beside it in
+ * another, which is the same bug one argument shorter. It is a `var()` FALLBACK,
+ * so the token wins whenever the stylesheet is loaded and this only answers for a
+ * page that loaded the element without the theme. Nothing enforces the agreement:
+ * `stylesheet-font-families` reads `.css`/`.scss`, and reaching a TS string literal
+ * would make it a JS parser, which its own header rules out. So it stays a step of
+ * the same edit, and `status/open-todos/adwaita-web.md` § "`<adw-source-view>` has
+ * no browser suite" is where the missing check is tracked.
  */
 const MONO_FONT =
-    "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace)";
+    "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', 'Menlo', monospace)";
 
 /** The CodeMirror EditorView theme mapping `.cm-*` chrome to Adwaita tokens. */
 export const adwaitaEditorTheme = EditorView.theme({

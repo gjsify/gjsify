@@ -118,21 +118,37 @@
   --spacing-l: 18px;
   --spacing-xl: 24px;
 
-  // Typography — GNOME default: Adwaita Sans 11. The tail is a PLATFORM-NATIVE
-  // ladder, and it is there because the families above it resolve on a GNOME desktop
-  // and NOWHERE ELSE: 'Adwaita Sans' is NAMED, not shipped (`status/stylesheet-font-
-  // families.json`), and 'Cantarell' is its predecessor. A macOS host has neither,
-  // and the `sans-serif` generic is Helvetica there — #1817, a widget set that looks
-  // right on the machine it was authored on and lands on Helvetica in every screenshot
-  // a consumer takes. `system-ui` asks the host for its own UI face (San Francisco,
-  // Segoe UI); `-apple-system` and 'Segoe UI' are the pre-`system-ui` spellings of
-  // those same two answers, kept for the engines that need them.
+  // Typography — GNOME default: Adwaita Sans 11. The stack is a PROGRESSION, and the
+  // tail is what makes it one (#1817). 'Adwaita Sans' is installed on a GNOME desktop
+  // and nowhere else; 'Cantarell' is GNOME's own earlier UI face and the right second
+  // guess there; 'Inter' is the one cross-platform name an app usually has beside it.
   //
-  // The caption is this block's FIRST SENTENCE on purpose: `generate-adwaita-tokens.mjs`
-  // titles a group from the block touching its declaration, cut at the first `. `, so a
-  // caption written as a trailing line is unreachable and an uncapped one becomes a
-  // section header on the website's theming page.
-  --font-family: 'Adwaita Sans', 'Cantarell', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  // What was MISSING is macOS, and it was missing in the worst place. With no Apple face
+  // named, `sans-serif` resolved to Helvetica — measured on a Mac carrying neither
+  // Adwaita Sans nor Cantarell — which is the one typeface no libadwaita application is
+  // meant to look like, and the stylesheet said nothing about it. `system-ui` and its
+  // `-apple-system` alias are the two spellings every current engine resolves to the
+  // platform's own UI face (SF on macOS, Segoe UI Variable on Windows, Cantarell on
+  // GNOME), so they go after the named faces and BEFORE the generic: a generic asks the
+  // host for its DEFAULT, which is the substitution this is about, while `system-ui` asks
+  // for its UI face, which is what an Adwaita app wants.
+  //
+  // 'Segoe UI' stays ahead of them as the EXPLICIT Windows face: `system-ui` reached it
+  // only from Windows 8 and Segoe UI Variable only from Windows 11, so the name is still
+  // the portable spelling there. Held honest by the `stylesheet-font-families`
+  // conformance rule, whose ledger carries the reason for 'Adwaita Sans' — never delete
+  // one without the other.
+  //
+  // THE PERIOD ending this first sentence, and the absence of a comment block between
+  // these declarations, are both load-bearing rather than stylistic.
+  // `scripts/generate-adwaita-tokens.mjs` titles each token group by the first sentence
+  // of the comment block touching its FIRST declaration, so a caption with no terminator
+  // runs on into the next words — and a block sitting between two declarations starts a
+  // NEW group, which is how a paragraph about this mechanism became a section title in
+  // the website before it was moved in here. Everything past the first sentence is prose
+  // for that one reader; `check-generated-website-data.mjs` holds both derived artifacts
+  // against the run.
+  --font-family: 'Adwaita Sans', 'Cantarell', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-size-base: 11pt;
   --font-size-small: 9pt;
   --font-size-heading: 12pt;
@@ -186,14 +202,20 @@
   // second lands on a font whose figures do not line up — the exact property
   // `.monospace` exists for.
   //
-  // 'Consolas' is the same repair as `system-ui` beside it in `--font-family` (#1817):
-  // `ui-monospace` is the right way to ask and is not universally supported, and the
-  // engines without it fell to the `monospace` generic — Courier New on Windows. The
-  // `'SF Mono'` / `'Menlo'` pair answers on macOS and `ui-monospace` on Linux, so this
-  // is the Windows half, not a second opinion about the other two.
+  // The tail is the same PROGRESSION the sans stack is, for the same reason (#1817), and
+  // it had the gap in the other direction: `ui-monospace` covers macOS and GNOME but
+  // reaches Cascadia Mono only from Windows 10 1903, and no Windows face was named at
+  // all, so a Windows 10 host without it landed on the `monospace` GENERIC — Times New
+  // Roman, whose figures do not line up, which is the one thing this stack exists to
+  // provide. 'Cascadia Code' ships with Windows Terminal and 'Consolas' is on every
+  // Windows since Vista.
+  //
+  // ONE LINE, and not a style choice: the same generator reads this file with a line-based
+  // reader that REFUSES a declaration it cannot read rather than dropping the token
+  // without saying so, so a wrapped value makes it exit 1.
   --document-font-family: var(--font-family);
   --document-font-size: var(--font-size-base);
-  --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace;
+  --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', 'Menlo', monospace;
   --monospace-font-size: var(--font-size-base);
 }
 

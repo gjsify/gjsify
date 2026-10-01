@@ -232,7 +232,7 @@ export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = {
         light: '24px',
     },
     '--font-family': {
-        light: "'Adwaita Sans', 'Cantarell', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+        light: "'Adwaita Sans', 'Cantarell', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
     },
     '--font-size-base': {
         light: '11pt',
@@ -262,7 +262,7 @@ export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = {
         light: 'var(--font-size-base)',
     },
     '--monospace-font-family': {
-        light: "'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace",
+        light: "'Adwaita Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', 'Menlo', monospace",
     },
     '--monospace-font-size': {
         light: 'var(--font-size-base)',

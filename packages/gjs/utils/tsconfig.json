@@ -26,6 +26,12 @@
   "include": [
     "../../../node_modules/@girs/gjs/gjs.d.ts",
     "../../../node_modules/@girs/gjs/dom.d.ts",
+    // `src/font-map.ts` binds `gi://PangoCairo`, and every other GI namespace here is declared by
+    // `@girs/gjs`'s own re-export. Pango is not: `@girs/pango-1.0` ships an ambient module
+    // declaration per namespace and nothing includes it for us, so the file cannot be typed without
+    // these two lines.
+    "../../../node_modules/@girs/pango-1.0/pango-1.0-ambient.d.ts",
+    "../../../node_modules/@girs/pangocairo-1.0/pangocairo-1.0-ambient.d.ts",
     "src/**/*.mts",
     "src/**/*.ts"
   ],

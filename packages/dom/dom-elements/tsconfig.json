@@ -20,7 +20,20 @@
 		"skipLibCheck": true,
 		"composite": true,
 		"incremental": true,
-		"types": ["node", "@girs/gjs", "@girs/gdkpixbuf-2.0", "@girs/gio-2.0", "@girs/glib-2.0"],
+		"types": [
+			"node",
+			"@girs/gjs",
+			"@girs/gdkpixbuf-2.0",
+			"@girs/gio-2.0",
+			"@girs/glib-2.0",
+			// `font-face.spec.ts` measures what `load()` did to the font map, which means Pango and
+			// PangoCairo in the SPEC. `src/font-face.ts` itself reaches neither: it calls
+			// `registerFontFaces()` out of `@gjsify/utils/font-map`, so the two are devDependencies
+			// and the only reason this list grew. Each entry resolves the package's index.d.ts,
+			// which imports its own `*-ambient.d.ts` — that is what declares the `gi://` module.
+			"@girs/pango-1.0",
+			"@girs/pangocairo-1.0"
+		],
 		"lib": [
 			"es2015",
 			"es2016",

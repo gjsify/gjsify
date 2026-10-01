@@ -6,7 +6,7 @@
 ### macOS fonts: what a Mac WITHOUT Homebrew resolves is still unmeasured
 
 `add_font_file` is a vfunc the CoreText map does not implement, so on macOS every face used to
-answer `G_IO_ERROR_NOT_SUPPORTED`. Two of the three processes that hit that are closed:
+answer `G_IO_ERROR_NOT_SUPPORTED`. All three processes that hit that are closed:
 
 - **The bundled windowing runtime** selects `PANGOCAIRO_BACKEND=fc` (ADR 0038 § Amendment 3), so
   `initFonts()` registers both the runtime's Adwaita faces and the application's.
@@ -15,19 +15,44 @@ answer `G_IO_ERROR_NOT_SUPPORTED`. Two of the three processes that hit that are 
   default, only when fontconfig is configured, `PANGOCAIRO_BACKEND` is unset and the family is not
   already on the CoreText map (ADR 0038 § Amendment 5). Measured on macOS 27 arm64: `Round9x13`
   goes from `absent` to `exact`, `fonts.spec.ts` runs its discriminator suite as plain assertions.
+- **A Canvas `FontFace`** does not go through `initFonts()` at all — it is a page registering a face
+  at runtime — so it carried the same decline in its own body and swallowed it, which is how
+  `excalibur-jelly-jumper` under `gjsify run` rendered its text in the fallback sans unless
+  `initFonts()` had happened to run first. `FontFace.load()` now calls the same
+  `registerFontFaces()` out of **`@gjsify/utils/font-map`** — the lowest package `@gjsify/dom-elements`
+  (tier 1) and `@gjsify/gtk-host` (tier 3) may both depend on, so the fallback has ONE owner and the
+  two do not drift. Measured on macOS 27 arm64 by `dom-elements`' `font-face.spec.ts`: the family
+  goes from `absent` to present, and a 40pt "Wg" stops measuring what an invented family measures.
 
-**Still open.** Both routes put the font supply behind fontconfig, and the darwin bundle ships no
+**Still open.** All three routes put the font supply behind fontconfig, and the darwin bundle ships no
 `etc/fonts` (§ Amendment 4, *What this control does NOT prove*). Every Mac measured so far had
 Homebrew's `fonts.conf`; `font-script-coverage.test.mjs` simulates the no-Homebrew case, and until
 someone runs a shipped `.app` on a clean Mac, this line stays. A shipped `.app` on a CoreText map
 relies on `ATSApplicationFontsPath` alone; no leg here launches one, so that activation is Apple's
 documented behaviour rather than a measurement.
 
-**Also open:** `@gjsify/dom-elements`' `FontFace.load()` calls `add_font_file` on the default map
-itself and swallows the error, so a Canvas `FontFace` on a CoreText map (e.g.
-`excalibur-jelly-jumper` under `gjsify run` on macOS) still falls back to the default sans unless
-`initFonts()` ran first and adopted the fc map. The fix is to route it through the same fallback
-without making `dom-elements` depend on `@gjsify/gtk-host`.
+### macOS was green because the fallback RESCUED the bug, not because the bug was not there
+
+The three routes above all rest on a DECLINE — a map that answers `G_IO_ERROR_NOT_SUPPORTED` —
+and a decline is the one failure macOS can see. Linux and Windows both ACCEPT the face, so
+nothing above ever exercised the next question: whether a map that took a file can also SERVE it.
+It cannot, on the fc backend, once anything has asked for the family first (per-map negative
+resolution, `add_font_file` does not invalidate it — the measurement and the invalidation are in
+`status/open-todos/fonts.md`). The face lands on the map, `get_family` answers it, a fresh
+context's `load_font` hands back the right font, and every layout still measures the fallback.
+
+That is why this file's darwin rows could not have found it and why CI did: on macOS the family
+is DECLINED, so the fallback runs, and the fallback builds a FRESH map — a map that never saw the
+question and therefore cannot be poisoned. The product rescued the symptom while leaving the
+defect on the old map, and the rescue is invisible precisely where it works. On Fedora 44 the
+same spec went red, on all four runtimes identically, which is what a font-map cache looks like
+rather than what a GJS, node-gi, bun or deno difference looks like.
+
+The macOS leg's share of the fix is now that `registerFontFaces` asks the map whether it SERVES
+what it registered and takes the same route either way, so "register before anything lays text
+out" stopped being the only defence. What stays inferred on macOS: the poisoned-map numbers were
+taken against an fc map adopted here (the recipe and its limits are in `fonts.md`), not against a
+Fedora process, and no CI leg runs a macOS suite under that map.
 
 
 ### A globally installed GJS launcher still cannot load a system GTK on macOS

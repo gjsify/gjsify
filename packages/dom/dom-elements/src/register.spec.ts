@@ -1,12 +1,12 @@
 // GJS-only tests for dom-elements/register side effects.
 // Verifies that importing /register correctly wires browser globals onto globalThis:
 //   - FontFace, FontFaceSet, document.fonts (Excalibur FontSource.load() path)
-//   - FontFace.load() registers TTF in PangoCairo default FontMap (real font rendering)
 //   - globalThis.addEventListener/removeEventListener/dispatchEvent via __gjsify_globalEventTarget
 //     (Regression: Excalibur's Keyboard.init() calls window.addEventListener)
 //
 // These tests require /register to have run (GJS only — GTK/Gio present).
-// Cross-platform stub tests live in stubs.spec.ts.
+// Cross-platform stub tests live in stubs.spec.ts, and what `FontFace.load()` actually DOES to the
+// font map lives in font-face.spec.ts — this file is the wiring, not the class.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import '@gjsify/dom-elements/register';
@@ -58,27 +58,21 @@ export default async () => {
             });
         });
 
-        await describe('FontFace real load via PangoCairo', async () => {
-            // Verifies that a file:// URL triggers add_font_file on the PangoCairo
-            // default FontMap, making the font available to Canvas2D fillText.
-            // Uses DejaVuSans which is present on Fedora and most Linux distros.
-            const TTF = '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf';
-
-            await it('load() with file:// URL registers font and sets status=loaded', async () => {
-                const FF = (globalThis as Record<string, unknown>).FontFace as new (...args: unknown[]) => {
-                    status: string;
-                    load: () => Promise<void>;
-                };
-                const face = new FF('DejaVuTestFont', `url(file://${TTF})`);
-                expect(face.status).toBe('unloaded');
-                await face.load();
-                expect(face.status).toBe('loaded');
-            });
-
-            // Note: ink rendering test (fillText with registered font) lives in
-            // packages/dom/canvas2d-core or @gjsify/canvas2d tests — canvas2d
-            // depends on dom-elements so importing it here would be circular.
-        });
+        // The `FontFace.load()` MEASUREMENT — that the face reaches the Pango font map a Canvas
+        // `fillText` renders through — lives in `font-face.spec.ts`, not here. This file is the
+        // `/register` WIRING: that the class is on `globalThis` and that `load()` resolves. The two
+        // were one block, and it measured the class, which is what a COMMON spec is for
+        // (tests/AGENTS.md rule 7).
+        //
+        // It also asserted against `/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf`, which exists
+        // on a Fedora CI image and on no other host this repository runs on — so on macOS and Windows
+        // it registered nothing and passed anyway: the silent substitution ADR 0038 exists against,
+        // wearing a green tick. `FontFace.load` reports a face it cannot read now, and the run
+        // printed exactly that on the darwin-arm64 host this was measured on:
+        //
+        //   FontFace.load: /usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf could not be read as a
+        //   font (Adding font … to fontconfig configuration failed), so text asking for
+        //   "DejaVuTestFont" will render in a substituted one.
 
         await describe('window / Window identity', async () => {
             // Excalibur's `Screen._applyDisplayMode` branches on
