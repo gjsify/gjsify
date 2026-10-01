@@ -12,7 +12,11 @@
   "gjsify": {
     "webext": {
       "name": "webext-hello",
-      "targets": ["chrome-mv3", "firefox-mv2", "firefox-mv3"],
+      "targets": [
+        "chrome-mv3",
+        "firefox-mv2",
+        "firefox-mv3"
+      ],
       "manifest": "manifest.ts",
       "scripts": {
         "background": "src/background.ts",
@@ -22,11 +26,22 @@
         "popup": "src/popup/index.html"
       },
       "icons": {
-        "sizes": [16, 32, 48, 128],
+        "sizes": [
+          16,
+          32,
+          48,
+          128
+        ],
         "sources": {
-          "icon": { "default": "icons/icon.svg", "32": "icons/icon-small.svg" }
+          "icon": {
+            "32": "icons/icon-small.svg",
+            "default": "icons/icon.svg"
+          }
         },
-        "svg": ["firefox-mv2", "firefox-mv3"]
+        "svg": [
+          "firefox-mv2",
+          "firefox-mv3"
+        ]
       },
       "locales": "_locales",
       "outDir": "dist"
@@ -42,5 +57,5 @@
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
   "private": true,
-  "version": "0.52.0"
+  "version": "0.53.0"
 }
