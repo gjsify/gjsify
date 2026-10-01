@@ -87,7 +87,7 @@ export default defineConfig({
     integrations: [
         starlight({
             title: 'GJSify',
-            description: 'The TypeScript framework for native Linux apps — on GJS, Node.js, Deno and Bun',
+            description: 'GTK 4 & Adwaita everywhere, in type-safe TypeScript — on GJS, Node.js, Bun or Deno',
             // The widget gallery carries a `.blp` tab, and Shiki bundles no
             // Blueprint grammar. Scope and limits: the `_comment` header in
             // src/grammars/blueprint.tmLanguage.json.
