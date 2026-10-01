@@ -29,5 +29,9 @@ const skip: Record<string, string> = NO_TTY
           'setRawMode(false) pays the debt instead of leaving a stale undo': NO_TTY,
       }
     : {};
+if (!hasNativeTerminal()) {
+    skip['setRawMode leaves isRaw false when the transition did not happen'] =
+        'the GjsifyTerminal prebuild is not installed, so there is no verdict to honour';
+}
 
 run({ testSuite, terminalFallbackTestSuite }, { skip });

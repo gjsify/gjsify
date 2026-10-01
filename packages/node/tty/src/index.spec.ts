@@ -341,6 +341,24 @@ export default async () => {
                 expect(isRawModeClaimed(0)).toBe(false);
                 expect(restoreClaimedRawModes()).toBe(0);
             });
+
+            // Node leaves isRaw alone when the transition fails; a descriptor that
+            // is no terminal (999 is none) must not report raw mode it never entered.
+            await it('setRawMode leaves isRaw false when the transition did not happen', async () => {
+                let changes = 0;
+                const read = new ReadStream(999);
+                read.on('modeChange', () => changes++);
+                read.setRawMode(true);
+                expect(read.isRaw).toBe(false);
+                const write = new WriteStream(999) as WriteStream & {
+                    setRawMode(mode: boolean): unknown;
+                    isRaw: boolean;
+                };
+                write.on('modeChange', () => changes++);
+                write.setRawMode(true);
+                expect(write.isRaw).toBe(false);
+                expect(changes).toBe(0);
+            });
         });
     });
 };

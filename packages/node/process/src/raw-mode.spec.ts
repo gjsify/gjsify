@@ -165,5 +165,25 @@ export default async () => {
             expect(applied).toStrictEqual(['raw', 'sane']);
             expect(isRawModeClaimed(53)).toBe(false);
         });
+
+        // A failed `stty sane` fallback reports false, but the owner still let go:
+        // keeping the claim would leave a stale undo for the exit hook to run.
+        await it('releases the claim on turn-off even when the verdict is false', async () => {
+            noteRawMode(54, true, () => true);
+            expect(isRawModeClaimed(54)).toBe(true);
+            expect(noteRawMode(54, false, () => false)).toBe(false);
+            expect(isRawModeClaimed(54)).toBe(false);
+        });
+
+        // Two bundled copies of terminal-native must share one ledger.
+        await it('keeps the ledger on globalThis so copies share one', async () => {
+            claimRawMode(55, () => {});
+            const ledger = (globalThis as Record<symbol, unknown>)[
+                Symbol.for('@gjsify/terminal-native:raw-mode-claims')
+            ];
+            expect(ledger instanceof Map).toBe(true);
+            expect((ledger as Map<number, unknown>).has(55)).toBe(true);
+            releaseRawMode(55);
+        });
     });
 };

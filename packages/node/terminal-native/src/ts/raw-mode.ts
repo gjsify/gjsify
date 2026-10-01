@@ -26,8 +26,13 @@
 // process polyfill has a claim and nobody to pay it
 // (`status/open-todos/runtime-apis.md`).
 
-/** fd → the call that puts that descriptor back. One entry per descriptor. */
-const claimed = new Map<number, () => void>();
+// fd → the call that puts that descriptor back. One entry per descriptor.
+// Held on globalThis, not in module scope: two bundled copies of this package
+// would otherwise each keep a ledger, and a claim taken in one could never be
+// paid by the other.
+const LEDGER_KEY = Symbol.for('@gjsify/terminal-native:raw-mode-claims');
+const holder = globalThis as unknown as Record<symbol, Map<number, () => void> | undefined>;
+const claimed: Map<number, () => void> = (holder[LEDGER_KEY] ??= new Map());
 
 /**
  * Record that this process put `fd` into raw mode, and how to undo it.
@@ -70,15 +75,17 @@ export function isRawModeClaimed(fd: number): boolean {
  * than recording it, so no stale undo can outlive the owner that made it.
  */
 export function noteRawMode(fd: number, mode: boolean, setRawMode: (enable: boolean) => boolean): boolean {
-    if (!setRawMode(mode)) return false;
-    if (mode) {
+    const happened = setRawMode(mode);
+    if (!mode) {
+        // Turning off is the owner letting go, whatever the verdict: a failed
+        // `stty sane` fallback must not leave a stale undo for the exit hook.
+        releaseRawMode(fd);
+    } else if (happened) {
         claimRawMode(fd, () => {
             setRawMode(false);
         });
-    } else {
-        releaseRawMode(fd);
     }
-    return true;
+    return happened;
 }
 
 /**

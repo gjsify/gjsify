@@ -29,7 +29,11 @@ export class ReadStream extends Readable {
         // was missing here, and that @gjsify/process got wrong twice (#1908).
         // A descriptor that is not a terminal changes nothing and owes
         // nothing, and must not release another owner's claim by trying.
-        noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
+        const happened = noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
+        // Node's lib/tty.js returns before touching isRaw when the handle
+        // reports an error, so a descriptor that is not a terminal reports
+        // the mode it is in, not the one it was asked for.
+        if (!happened) return this;
         if (this.isRaw !== mode) {
             this.isRaw = mode;
             this.emit('modeChange');
@@ -227,7 +231,9 @@ export class WriteStream extends Writable {
     setRawMode(mode: boolean) {
         // Same debt as ReadStream.setRawMode, and the same one call: a
         // WriteStream on a terminal is a terminal the process can strand.
-        noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
+        const happened = noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
+        // Same as ReadStream.setRawMode, and the same reason.
+        if (!happened) return this;
         if (this.isRaw !== mode) {
             this.isRaw = mode;
             this.emit('modeChange');
