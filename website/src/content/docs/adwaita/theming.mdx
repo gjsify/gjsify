@@ -3,6 +3,7 @@ title: Theming
 description: "Re-theme the Adwaita web components through their design tokens: colours, fonts, dark mode and the accent, without forking the stylesheet."
 ---
 
+import MoreInfo from '../../../components/MoreInfo.astro';
 import { ADWAITA_TOKEN_COUNT, ADWAITA_TOKEN_GROUPS } from '../../../data/adwaita-tokens';
 
 Every colour, radius, spacing step and font in `@gjsify/adwaita-web` comes from a
@@ -12,10 +13,10 @@ upgrades.
 
 ## Re-theme a subtree
 
-Put the tokens on a container that wraps your widgets. This is the route that
-behaves the same in light and dark mode: the only rules that give a token a
-second, scheme-dependent value sit on `:root` and on the `.theme-dark` /
-`.theme-light` elements, so a container below them keeps your values in both.
+Put the tokens on a container that wraps your widgets. This is the route that behaves the
+same in light and dark mode: the only rules that give a token a second,
+scheme-dependent value sit on `:root` and on `.theme-dark` / `.theme-light`, so a
+container below them keeps your values in both.
 
 ```css
 .app {
@@ -36,10 +37,8 @@ second, scheme-dependent value sit on `:root` and on the `.theme-dark` /
 
 ## Re-theme the whole page
 
-`:root` works too, with one thing to watch: **most of the colour tokens get a
-second value in dark mode**, and that dark rule outranks a plain `:root`
-declaration. Tokens that mean the same thing in both schemes are safe on `:root`:
-the accent fill, the radii, the spacing scale, the fonts and the opacity tokens.
+`:root` works too, with one thing to watch: **most of the colour tokens get a second
+value in dark mode**, and that dark rule outranks a plain `:root` declaration.
 
 ```css
 :root {
@@ -49,14 +48,16 @@ the accent fill, the radii, the spacing scale, the fonts and the opacity tokens.
 }
 ```
 
-If you want to move one of the scheme-dependent colours globally, give it a dark
-counterpart as well, or move the override into a container as above.
+<MoreInfo title="Which tokens are safe on `:root`">
+Tokens that mean the same thing in both schemes: the accent fill, the radii, the spacing
+scale, the fonts and the opacity tokens. To move a scheme-dependent colour globally, give
+it a dark counterpart as well, or move the override into a container as above.
+</MoreInfo>
 
 ## Switch light and dark
 
-Dark mode applies on its own under `prefers-color-scheme: dark`. To pin a scheme
-for part of the page, put `.theme-dark` or `.theme-light` on **any** element, not
-only on `<html>`:
+Dark mode applies on its own under `prefers-color-scheme: dark`. To pin a scheme for part
+of the page, put `.theme-dark` or `.theme-light` on **any** element, not only on `<html>`:
 
 ```html
 <div class="theme-dark">
@@ -66,22 +67,22 @@ only on `<html>`:
 </div>
 ```
 
-Those two classes re-declare the full palette on the element they sit on. So if
-one element carries both your theme and a `.theme-*` class, write the selector so
-yours wins:
+<MoreInfo title="Overriding your own theme">
+Those two classes re-declare the full palette on the element they sit on, so if one
+element carries both your theme and a `.theme-*` class, write the selector so yours wins:
 
 ```css
 .app.theme-dark {
     --window-bg-color: #201d18;
 }
 ```
+</MoreInfo>
 
 ## Set the accent
 
 Adwaita has nine named accents: `blue` (the default), `teal`, `green`, `yellow`,
-`orange`, `red`, `pink`, `purple` and `slate`. Applying one sets both accent
-properties for you, picking the standalone variant that matches the target's
-current scheme:
+`orange`, `red`, `pink`, `purple` and `slate`. Applying one sets both accent properties
+for you, picking the standalone variant that matches the target's current scheme:
 
 ```ts
 import { applyAdwaitaAccent, clearAdwaitaAccent } from '@gjsify/adwaita-web';
@@ -126,16 +127,18 @@ new EventSource('/appearance').onmessage = (event) => applyDesktopAppearance(JSO
 adwaitaAccentSource();                   // 'app' | 'handoff' | 'system' | 'default'
 ```
 
-Prefer the handoff when you can. Browser support for `AccentColor` is uneven, and a
-browser may report a fixed default rather than the user's accent. On a GNOME desktop
-set to purple, the headless Firefox and Chromium that Playwright ships both reported a
-blue. A page cannot tell such a default from a real accent.
+<MoreInfo title="Prefer the handoff when you can">
+Browser support for `AccentColor` is uneven, and a browser may report a fixed default
+rather than the user's accent. On a GNOME desktop set to purple, the headless Firefox and
+Chromium that Playwright ships both reported a blue. A page cannot tell such a default
+from a real accent.
+</MoreInfo>
 
 ### Serve the handoff from GJS
 
-A gjsify server can read the desktop without opening a window, on Linux through the
-XDG Settings portal (GNOME, KDE, Flatpak) with a GSettings fallback on GNOME, and on Windows and
-macOS from the system settings:
+A gjsify server can read the desktop without opening a window, on Linux through the XDG
+Settings portal (GNOME, KDE, Flatpak) with a GSettings fallback on GNOME, and on Windows
+and macOS from the system settings:
 
 ```ts
 import { createServer, type ServerResponse } from 'node:http';
@@ -164,15 +167,17 @@ const stop = watchDesktopAppearance((next) => {
 });
 ```
 
-Start listening before your module awaits anything. On GJS today, a server started
-after a top-level await exits as soon as the module finishes loading.
-The [example](https://github.com/gjsify/gjsify/tree/main/examples/node/net-adwaita-appearance)
+<MoreInfo title="Two things before you ship that server">
+Start listening before your module awaits anything. On GJS today, a server started after a
+top-level await exits as soon as the module finishes loading. The
+[example](https://github.com/gjsify/gjsify/tree/main/examples/node/net-adwaita-appearance)
 is a complete server.
 
-A field the desktop does not report is left out, so the page falls through to its
-next source. The Windows and macOS readers have not been verified on those systems
-yet; the [package README](https://github.com/gjsify/gjsify/tree/main/packages/framework/adwaita-app#desktop-appearance-gjsifyadwaita-appappearance)
+A field the desktop does not report is left out, so the page falls through to its next
+source. The Windows and macOS readers have not been verified on those systems yet; the
+[package README](https://github.com/gjsify/gjsify/tree/main/packages/framework/adwaita-app#desktop-appearance-gjsifyadwaita-appappearance)
 lists what is measured where.
+</MoreInfo>
 
 ## The tokens
 
@@ -215,31 +220,35 @@ of your own.
 ## When tokens are not enough
 
 You can also write plain CSS. The components render in the light DOM, so a
-higher-specificity rule of yours wins the way it normally would. Tokens are the
-route that survives upgrades; a rule targeting internal markup is not. See
-[How It Works](/gjsify/how-it-works/#adwaita-on-the-web-light-dom-and-design-tokens)
-for what that boundary does and does not guarantee.
+higher-specificity rule of yours wins the way it normally would. Tokens are the route that
+survives upgrades; a rule targeting internal markup is not.
 
-If you would rather build a skin from the source, the SCSS partials ship with the
-package at `@gjsify/adwaita-web/scss/…`, with `@gjsify/adwaita-web/scss` as the
-entry point.
+<MoreInfo title="Building a skin from the source">
+The SCSS partials ship with the package at `@gjsify/adwaita-web/scss/…`, with
+`@gjsify/adwaita-web/scss` as the entry point.
+
+[How It Works](/gjsify/how-it-works/#adwaita-on-the-web-light-dom-and-design-tokens)
+explains what the light-DOM boundary does and does not guarantee.
+</MoreInfo>
 
 ## On the desktop, the accent is not yours to set through `AdwStyleManager`
 
 A native GTK app takes its accent from the user's GNOME setting, and
-`AdwStyleManager:accent-color` is the wrong handle for an app's own accent on every
-runtime: it is an **enum** (`AdwAccentColor` — nine named accents), so a token colour
-like `#9141ac` has no representation in it. It is read-only as well — libadwaita
-installs the property readable-only, and every closure measured agrees — but the enum
-is the reason that holds whatever a flag says, which is why it is the one given.
+`AdwStyleManager:accent-color` is the wrong handle on every runtime: it is an **enum**
+(`AdwAccentColor` — nine named accents), so a token colour like `#9141ac` has no
+representation in it. It is read-only as well — libadwaita installs the property
+readable-only, and every closure measured agrees — but the enum is the reason that holds
+whatever a flag says.
 
-A native app *can* still override the palette, and by the same mechanism this page
-uses on the web: redefining `--accent-bg-color` and its siblings on `:root`, in a
-`Gtk.CssProvider` above libadwaita's own. What is different on the desktop is the
-provider **priority** — see
-[Styling on GTK](/gjsify/frameworks/styling/#the-provider-priority-is-the-whole-design)
-for the three measurements and the registry that wraps them.
+Whether you should override the palette is a separate question, and the default answer is
+no: someone who picked an accent in Settings expects your app to use it. If your app
+renders on both, set the token for the web and leave the desktop alone unless the look is
+the point.
 
-Whether you should is a separate question, and the default answer is no: someone who
-picked an accent in Settings expects your app to use it. If your app renders on both,
-set the token for the web and leave the desktop alone unless the look is the point.
+<MoreInfo title="How a native app overrides the palette anyway">
+By the same mechanism this page uses on the web: redefining `--accent-bg-color` and its
+siblings on `:root`, in a `Gtk.CssProvider` above libadwaita's own. What is different on
+the desktop is the provider **priority** — see [Styling on
+GTK](/gjsify/frameworks/styling/#the-provider-priority-is-the-whole-design) for the three
+measurements and the registry that wraps them.
+</MoreInfo>
