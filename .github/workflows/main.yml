@@ -319,6 +319,98 @@ jobs:
           PROBE_OUTCOME: ${{ steps.classify.outcome }}
         run: node scripts/report-probe-outcome.mjs
 
+  # ── Already tested in the queue? ────────────────────────────────────
+  # A push to `main` is the merge commit the merge queue just validated, under a
+  # new SHA. GitHub's queue merges with SQUASH, so the queue branch's head IS
+  # the content that lands: measured over the 33 most recent squash merges
+  # (2026-09-29 → 2026-10-01), 33 of 33 had a tree-identical successful
+  # `merge_group` run of this workflow, and in each the landed SHA was that
+  # run's own `head_sha`. So the heavy legs below would re-measure, on the same
+  # tree, what the queue finished measuring minutes earlier.
+  #
+  # WHAT THAT COSTS TODAY. `GJS [merge_group]` is the largest single block of
+  # this repository's CI — ~43 % of all job-minutes in a 250-run sample
+  # (2026-10-01) — and the scarce resource is CONCURRENT SLOTS, not minutes
+  # (docs/ci-selective.md § What is scarce: queue = 77 % of job time, the pool
+  # pinned at exactly 20 for 5h05 of a 22h48 window). A duplicate run is
+  # therefore paid for by every PR waiting behind it, which is why this is
+  # worth a job.
+  #
+  # THE CLAIM IS ABOUT THE TREE, NOT THE SHA, for two measured reasons: a
+  # retried queue entry puts the same content under a second queue commit (tree
+  # `a8b9eb87` was the head of a successful run under both `pr-1907-…` and
+  # `pr-1909-…`), and under the queue's HEADGREEN grouping one group validates a
+  # BATCH, so the group head answers for the last squash commit of that batch
+  # rather than for its own PR alone. A test run observes a tree; the SHA is
+  # only the cheap first probe. Derivation + every fail-open path:
+  # `scripts/decide-push-scope.mjs`, tests `tests/e2e/ci-push-scope`.
+  #
+  # WHAT STAYS FULL, and why each is not a hedge:
+  #   · `build` — the ONLY writer of the build-output cache, and only caches
+  #     written on the `main` ref are visible to PR branches (a
+  #     `gh-readonly-queue/*` ref's are not). Skipping it would make every PR
+  #     build cold, which is the opposite of this job's purpose.
+  #   · `tree-checks` — #1183's class. It is the one job here that is gated by
+  #     NOTHING, deliberately, and this is not the place to start.
+  #   · `macos` — a `merge_group` run turns that leg OFF by construction (a
+  #     queue entry carries no labels; `setup`'s `macos-reason` says so), so the
+  #     queue proved nothing about it and the push is where it runs.
+  #   · `ci-summary` + `gate` — the spine. `report-gate-history.mjs` reads this
+  #     run's own jobs and `main`'s history, so it still reports, and a skipped
+  #     leg passes the gate exactly as a classifier skip does.
+  #   · the nightly schedule and `workflow_dispatch` — untouched full sweeps.
+  #
+  # WHAT IS GIVEN UP, said plainly: a `merge_group` run is SELECTIVE (it
+  # classifies against `merge_group.base_sha`) while a push to `main` has always
+  # been a FULL sweep. The change itself was measured on this very tree, so what
+  # is lost is not coverage of the change — it is the backstop against the
+  # CLASSIFIER mis-gating. The nightly is what carries that backstop now, which
+  # is the role docs/ci-selective.md already assigns it.
+  queue-proof:
+    name: Merge-queue proof
+    # Only a push to `main` can be proven, and only a push needs it: a PR has no
+    # queue commit behind it, a `merge_group` run IS the proof, and the nightly
+    # and a dispatch are full sweeps on purpose.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The lookup reads this repository's own run records — `actions: read` on
+      # GITHUB_TOKEN is the whole requirement. No PAT, no app, and nothing
+      # cross-repository.
+      actions: read
+    timeout-minutes: 10
+    outputs:
+      proven: ${{ steps.proof.outputs.proven }}
+      # Human-readable twin of `proven`, emitted by the same step that decides
+      # it, for the reason `setup`'s `macos-reason` exists: the reason a leg
+      # skipped lives next to the decision instead of being restated by the
+      # reporter.
+      reason: ${{ steps.proof.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: proof
+        name: Look for a successful merge_group run on this tree
+        # A lookup that crashes must neither red a commit that already landed
+        # nor claim `proven`: the outputs stay unset, every leg's `!= 'true'`
+        # then reads an empty string, and the run is the full sweep it has
+        # always been.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          node scripts/decide-push-scope.mjs \
+            --repo "$GITHUB_REPOSITORY" \
+            --sha "$GITHUB_SHA" \
+            --tree "$(git rev-parse HEAD^{tree})"
+      - name: 'Probe outcome: Look for a successful merge_group run on this tree'
+        if: always()
+        env:
+          PROBE_LABEL: 'Look for a successful merge_group run on this tree'
+          PROBE_OUTCOME: ${{ steps.proof.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+
   # ── Whole-tree checks ───────────────────────────────────────────────
   # The three claims in this workflow that are about the TREE rather than about
   # a set of workspaces: lint is clean, the tree is formatted, no dependency
@@ -1083,8 +1175,8 @@ jobs:
   # come from git, NOT the working tree, so what the cache restored cannot
   # make it pass.
   verify-bundles:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1127,8 +1219,8 @@ jobs:
   # the three.js example bundles exhaust the runner's RAM at cpu-count
   # parallelism.
   examples-build:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1235,8 +1327,8 @@ jobs:
   # no fresh in-job build is required. Selective when the classifier scoped the
   # change (the cache always has the unchanged packages' .d.ts here).
   check:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1290,8 +1382,8 @@ jobs:
   # shard 1. On a small selective closure most shards are near-empty no-ops; on
   # a global/main run the full suite is split 4 ways.
   test:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1396,8 +1488,8 @@ jobs:
   #      set is not simply "every package with runtimes.node != none"). Same
   #      shape as the CLI: build ONE engine-agnostic bundle, run it three times.
   cross-runtime:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1617,8 +1709,8 @@ jobs:
   # (lint-engines) moved to `examples-build`, so no shard waits for it here.
   # Gated when an `e2e` path was touched OR on a full run.
   e2e:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1748,8 +1840,8 @@ jobs:
   # runs, because a `node` that survived would silently turn this job back into a
   # duplicate of the `build` job's own cold-tree step.
   cold-bootstrap:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1861,8 +1953,8 @@ jobs:
   # `gjsify run test:integration` answers a DIFFERENT question — every suite,
   # opt-in, including the ones known to fail.
   integration:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1919,8 +2011,8 @@ jobs:
   # cache-only state). Gated when an example/showcase is in the closure (or a
   # full run).
   examples:
-    needs: [changes, setup, build, examples-build]
-    if: ${{ !cancelled() && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) }}
+    needs: [changes, setup, build, examples-build, queue-proof]
+    if: ${{ !cancelled() && needs.examples-build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/example-')) && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1997,8 +2089,8 @@ jobs:
   # a `chromium` project for local `--project=chromium` engine-diff runs; CI does
   # not pay for that download.
   browser:
-    needs: [changes, setup, build]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') }}
+    needs: [changes, setup, build, queue-proof]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.include-args != '') && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -2156,7 +2248,7 @@ jobs:
   # import (a second copy of it here would be the exact duplication AGENTS.md
   # names). Tracked in `status/open-todos/README.md`.
   ship-stage:
-    needs: [changes, setup, build]
+    needs: [changes, setup, build, queue-proof]
     # The same gate `e2e` carries, and it is safe for this leg specifically:
     # every path that can change ship behaviour is a GLOBAL trigger in
     # `affected-classify.ts` — `^packages/infra/cli/` (all of `utils/ship/**`),
@@ -2164,7 +2256,7 @@ jobs:
     # as `.github/ship-oracle/**` falls through to the full-run bail-out. So the
     # leg cannot skip on the PR that changes it, which is the #1183 class this
     # workflow already paid for once (`tree-checks`' header).
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') && needs.queue-proof.outputs.proven != 'true' }}
     name: Ship stage (assemble)
     runs-on: ubuntu-latest
     permissions:
@@ -3164,7 +3256,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
+    needs: [setup, changes, queue-proof, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -3182,6 +3274,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           R_SETUP: ${{ needs.setup.result }}
           R_CHANGES: ${{ needs.changes.result }}
+          R_QUEUE_PROOF: ${{ needs.queue-proof.result }}
           R_TREE: ${{ needs.tree-checks.result }}
           R_BUILD: ${{ needs.build.result }}
           R_VERIFY_BUNDLES: ${{ needs.verify-bundles.result }}
@@ -3205,6 +3298,8 @@ jobs:
           C_REASON: ${{ needs.changes.outputs.reason }}
           M_ENABLED: ${{ needs.setup.outputs.macos-enabled }}
           M_REASON: ${{ needs.setup.outputs.macos-reason }}
+          Q_PROVEN: ${{ needs.queue-proof.outputs.proven }}
+          Q_REASON: ${{ needs.queue-proof.outputs.reason }}
         run: |
           set -u
           {
@@ -3217,6 +3312,7 @@ jobs:
             echo "| --- | --- |"
             printf '| Matrix planner (setup) | `%s` |\n'        "$R_SETUP"
             printf '| Affected classifier (changes) | `%s` |\n' "$R_CHANGES"
+            printf '| Merge-queue proof (queue-proof) | `%s` |\n' "$R_QUEUE_PROOF"
             printf '| Whole-tree checks (lint/format/deps) | `%s` |\n' "$R_TREE"
             printf '| Build | `%s` |\n'                         "$R_BUILD"
             printf '| Committed bundles reproduce | `%s` |\n'   "$R_VERIFY_BUNDLES"
@@ -3241,6 +3337,8 @@ jobs:
             printf -- '- classifier reason: `%s`\n' "${C_REASON:-<unset — classifier did not run or crashed; jobs fall back to a full run>}"
             printf -- '- affected closure: `%s`\n' "${C_INCLUDE:-<empty — treated as a full run>}"
             printf -- '- macOS leg: `enabled=%s` — %s\n' "${M_ENABLED:-<unset>}" "${M_REASON:-<unset>}"
+            printf -- '- merge-queue proof: `proven=%s` — %s\n' \
+              "${Q_PROVEN:-<unset>}" "${Q_REASON:-<unset — not a push to main, or the lookup did not run; the heavy legs run in full>}"
             echo "- integration suites (\`tests/integration/**\`): the measured-green subset gates"
             echo "  this run via the \`integration\` job; the rest are held out with their cause"
             echo "  recorded per suite in status/integration-coverage.md."
@@ -3338,7 +3436,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
+    needs: [setup, changes, queue-proof, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -3433,6 +3531,7 @@ jobs:
           RESULTS: |
             setup=${{ needs.setup.result }}
             changes=${{ needs.changes.result }}
+            queue-proof=${{ needs.queue-proof.result }}
             tree-checks=${{ needs.tree-checks.result }}
             build=${{ needs.build.result }}
             verify-bundles=${{ needs.verify-bundles.result }}
