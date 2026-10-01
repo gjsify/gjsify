@@ -283,6 +283,27 @@ export default async () => {
                 expect(res.readable).toBe(false);
             });
 
+            await it('should stream through addListener as well as on', async () => {
+                // The flowing-mode entry is `on`; a consumer that subscribes
+                // with `addListener` (what `@xmpp/events`' onoff() resolves for a
+                // non-DOM target) must reach the same drain path.
+                const res = await fetchIncoming(OK_URL);
+                let delivered = 0;
+                await new Promise<void>((resolve, reject) => {
+                    res.addListener('data', (c: unknown) => {
+                        delivered += (c as Uint8Array).length;
+                    });
+                    res.on('end', () => resolve());
+                    res.on('error', reject);
+                });
+                expect(delivered > 0).toBe(true);
+            });
+
+            await it('should alias addListener to on', async () => {
+                const proto = IncomingMessage.prototype as unknown as Record<string, unknown>;
+                expect(proto.addListener).toBe(proto.on);
+            });
+
             await it("should emit string chunks after setEncoding('utf8')", async () => {
                 const body = await new Promise<string>((resolve, reject) => {
                     get(OK_URL, (res) => {

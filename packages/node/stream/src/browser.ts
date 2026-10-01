@@ -269,6 +269,15 @@ export class Readable extends Stream {
     }
 }
 
+// Same reason as the GJS entry: an `on()` override that starts flowing mode is
+// invisible to a consumer reaching the stream through `addListener`, so the
+// alias has to be the same function object, not a delegate. `off` needs no
+// alias here — nothing overrides `removeListener` on this class, and
+// `EventEmitter.off` already dispatches to it.
+Object.defineProperty(Readable.prototype, 'addListener', {
+    ...(Object.getOwnPropertyDescriptor(Readable.prototype, 'on') as PropertyDescriptor),
+});
+
 // ─── Writable ──────────────────────────────────────────────────────────────
 
 type WriteCb = (err?: Error | null) => void;

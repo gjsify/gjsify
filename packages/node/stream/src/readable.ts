@@ -281,11 +281,59 @@ export class Readable_ extends Stream_ {
         if (event === 'data' && this.readableFlowing !== false) {
             this.resume();
         }
-        // Attaching a 'readable' listener: if data is already buffered, schedule event
-        if (event === 'readable' && (this._buffer.length > 0 || this._readableState.ended)) {
-            this._scheduleReadable();
+        // Attaching a 'readable' listener puts the stream in readable mode: it
+        // stops flowing until the listener is gone again (Node sets kHasFlowing
+        // for exactly this, which is what makes `readableFlowing` false).
+        if (event === 'readable') {
+            this.readableFlowing = false;
+            if (this._buffer.length > 0 || this._readableState.ended) {
+                this._scheduleReadable();
+            } else if (!this._readableState.reading) {
+                // Nothing buffered yet and nothing is pulling, so `push` has no
+                // reason to fire 'readable' — kick one read. Node does the same
+                // (`nReadingNextTick` → `read(0)`), and without it a readable-mode
+                // consumer waits forever for a producer that only pushes inside
+                // `_read`.
+                nextTick(() => this.read(0));
+            }
         }
         return this;
+    }
+
+    removeListener(event: string | symbol, listener: (...args: unknown[]) => void): this {
+        const res = super.removeListener(event, listener);
+        if (event === 'readable') {
+            // Deferred like Node's: re-deriving synchronously would break
+            // `once('readable', fn)` cycles and a `resume()` in the same tick.
+            nextTick(() => this._updateReadableListening());
+        }
+        return res;
+    }
+
+    removeAllListeners(event?: string | symbol): this {
+        // The base picks its "remove EVERYTHING" branch by ARGUMENT COUNT, so forwarding
+        // the parameter positionally turns the no-arg form into a lookup of the key
+        // "undefined" — and every listener survives, which is how the override below
+        // shipped a stream whose `removeAllListeners()` was a silent no-op.
+        const res = event === undefined ? super.removeAllListeners() : super.removeAllListeners(event);
+        if (event === 'readable' || event === undefined) {
+            nextTick(() => this._updateReadableListening());
+        }
+        return res;
+    }
+
+    /**
+     * Leave readable mode once its last listener is gone: a surviving 'data'
+     * listener resumes flowing, otherwise the stream goes back to `null` (not
+     * paused) so a later `resume()` still starts it. Mirrors Node's
+     * `updateReadableListening`.
+     */
+    private _updateReadableListening(): void {
+        if (this.listenerCount('data') > 0) {
+            this.resume();
+        } else if (this.listenerCount('readable') === 0) {
+            this.readableFlowing = null;
+        }
     }
 
     unshift(chunk: unknown): void {
@@ -594,3 +642,20 @@ export class Readable_ extends Stream_ {
 (Readable_.prototype as unknown as Record<symbol, unknown>)[kAsyncDispose] = function (this: Readable_): Promise<void> {
     return streamAsyncDispose(this, this.readableEnded);
 };
+
+// Node aliases the two spellings of each hook onto Readable.prototype, so they
+// are the SAME function object — a delegate would not do. An override that
+// exists under one name only is invisible to the other: `@xmpp/events`' onoff()
+// resolves `addEventListener ?? addListener`, and @xmpp/tls subscribes 'data'
+// through that, so on a stream where `addListener` was the plain EventEmitter
+// method the server's bytes stayed in the readable buffer, no 'data' event ever
+// fired, and XMPP over direct TLS hung at "opening" until the client timed out.
+// Measured on Node v24: `Readable.prototype.addListener === .on` and
+// `Readable.prototype.off === .removeListener` are both true.
+const onDescriptor = Object.getOwnPropertyDescriptor(Readable_.prototype, 'on') as PropertyDescriptor;
+const removeListenerDescriptor = Object.getOwnPropertyDescriptor(
+    Readable_.prototype,
+    'removeListener',
+) as PropertyDescriptor;
+Object.defineProperty(Readable_.prototype, 'addListener', { ...onDescriptor });
+Object.defineProperty(Readable_.prototype, 'off', { ...removeListenerDescriptor });

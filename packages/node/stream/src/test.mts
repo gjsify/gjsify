@@ -13,6 +13,7 @@ import edgeCasesTestSuite from './edge-cases.spec.js';
 import transformTestSuite from './transform.spec.js';
 import pipeTestSuite from './pipe.spec.js';
 import inheritanceTestSuite from './inheritance.spec.js';
+import listenerAliasTestSuite from './listener-alias.spec.js';
 
 run({
     testSuite,
@@ -23,4 +24,5 @@ run({
     transformTestSuite,
     pipeTestSuite,
     inheritanceTestSuite,
+    listenerAliasTestSuite,
 });

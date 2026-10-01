@@ -62,6 +62,12 @@ class EventBus {
         else this.listeners.clear();
         return this;
     }
+    addListener(event: string, fn: (...args: unknown[]) => void): this {
+        return this.on(event, fn);
+    }
+    removeListener(event: string, fn: (...args: unknown[]) => void): this {
+        return this.off(event, fn);
+    }
 }
 
 export class ReadStream extends EventBus {

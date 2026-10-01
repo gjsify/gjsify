@@ -365,6 +365,15 @@ export class IncomingMessage extends EventEmitter {
     }
 }
 
+// The flowing-mode entry above is only reachable through `on`; a consumer that
+// subscribes with `addListener` (what `@xmpp/events`' `onoff()` resolves for a
+// non-DOM target) would never see 'data' on this response. Same function
+// object, as on Node — a delegate would leave the two out of step again. `off`
+// needs no alias: nothing overrides `removeListener` on this class.
+Object.defineProperty(IncomingMessage.prototype, 'addListener', {
+    ...(Object.getOwnPropertyDescriptor(IncomingMessage.prototype, 'on') as PropertyDescriptor),
+});
+
 // ─── ClientRequest ────────────────────────────────────────────────────────
 
 export class ClientRequest extends EventEmitter {
