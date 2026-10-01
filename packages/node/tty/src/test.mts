@@ -29,6 +29,12 @@ const skip: Record<string, string> = NO_TTY
           'setRawMode(false) pays the debt instead of leaving a stale undo': NO_TTY,
       }
     : {};
+// One skip of its own, and NOT the one above: this case needs a VERDICT, not a
+// terminal. Off GJS there is no prebuild, so `setRawMode` has no transition to
+// report and takes the env/GLib fallback, where `isRaw` follows the argument
+// rather than the device — a different contract, asserted by the suites that own
+// it. Guarding it with `NO_TTY` instead would hide it on the GJS leg too, where
+// fd 999 is exactly the descriptor that answers false.
 if (!hasNativeTerminal()) {
     skip['setRawMode leaves isRaw false when the transition did not happen'] =
         'the GjsifyTerminal prebuild is not installed, so there is no verdict to honour';

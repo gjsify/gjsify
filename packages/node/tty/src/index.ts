@@ -32,7 +32,9 @@ export class ReadStream extends Readable {
         const happened = noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true);
         // Node's lib/tty.js returns before touching isRaw when the handle
         // reports an error, so a descriptor that is not a terminal reports
-        // the mode it is in, not the one it was asked for.
+        // the mode it is in, not the one it was asked for. The verdict that
+        // decides it is `Terminal.set_raw_mode`'s own boolean, reached through
+        // the `nativeSetRawMode` accessor above.
         if (!happened) return this;
         if (this.isRaw !== mode) {
             this.isRaw = mode;

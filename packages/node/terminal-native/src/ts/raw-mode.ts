@@ -72,7 +72,10 @@ export function isRawModeClaimed(fd: number): boolean {
  * same function for both directions, so the undo cannot drift from the change: a
  * claim taken on a transition that did not happen would restore a terminal this
  * process never broke, and turning raw mode off through here PAYS the debt rather
- * than recording it, so no stale undo can outlive the owner that made it.
+ * than recording it, so no stale undo can outlive the owner that made it — and it
+ * pays it whatever the verdict, because an owner that asked to let go has let go
+ * whether or not the terminal heard it, and a claim the exit hook would then run
+ * is a restore of a state this process may never have reached.
  */
 export function noteRawMode(fd: number, mode: boolean, setRawMode: (enable: boolean) => boolean): boolean {
     const happened = setRawMode(mode);
