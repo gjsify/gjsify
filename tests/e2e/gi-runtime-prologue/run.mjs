@@ -72,6 +72,45 @@ const HOST_MARKER = (() => {
 /** A string only the fixture's own code can contain, so "is the banner ahead of it" is decidable. */
 const APP_MARKER = 'gi-prologue-fixture-ran';
 
+/** Printed by the fixture once a namespace has loaded WITH its GTypes registered. */
+const NS_MARKER = 'gi-prologue-namespace-loaded';
+
+/**
+ * Namespaces whose GJS override dereferences a GType AT IMPORT, so a failed
+ * `dlopen` of the typelib's bare-leaf backer surfaces as a throw instead of a
+ * silently type-less namespace object. That property is what makes the control
+ * below decidable, and it is why this is a short list and not "whatever the host
+ * has": a namespace that imports cleanly over a failed dlopen cannot tell a working
+ * prepend from a host that never needed one.
+ *
+ * Neither library lives in glib's keg, which is the only prefix Homebrew's `gjs`
+ * carries an rpath into — so on the host this whole mechanism is for, these are
+ * reachable through the prepend and through nothing else.
+ */
+const GTYPE_DEREFERENCING_NAMESPACES = ['Gtk-4.0', 'Adw-1'];
+
+/**
+ * The namespace this host's own prologue candidates supply, as `{ name, version }`,
+ * or `null` — computed from the SAME two gates the emitted prologue applies, so the
+ * suite and the bundle cannot disagree about which candidate is live here.
+ *
+ * `null` off darwin by construction: the host marker is what scopes the table, and
+ * the candidates are macOS prefixes. That is the measurement, not a gap in it — the
+ * Linux leg's job is the absence, which `prepends exactly the candidates this host
+ * actually has` already asserts.
+ */
+const PROLOGUE_SUPPLIED_NAMESPACE = (() => {
+    if (!existsSync(HOST_MARKER)) return null;
+    for (const dir of PROBED_DIRS) {
+        for (const typelib of GTYPE_DEREFERENCING_NAMESPACES) {
+            if (!existsSync(`${dir}/girepository-1.0/${typelib}.typelib`)) continue;
+            const [name, version] = typelib.split('-');
+            return { name, version, dir };
+        }
+    }
+    return null;
+})();
+
 function hasGjs() {
     const r = spawnSync('gjs', ['--version'], { stdio: 'ignore' });
     return r.status === 0 && r.error === undefined;
@@ -105,6 +144,22 @@ describe('the GI runtime-path prologue in a --app gjs bundle', { timeout: 5 * 60
                 `const host = globalThis as unknown as { imports: any };`,
                 `const repo = host.imports.gi.GIRepository.Repository.dup_default();`,
                 `console.log('${APP_MARKER}:' + repo.get_search_path().join(':'));`,
+                // The load the prologue actually reaches: `await import('gi://…')`,
+                // the established gjsify shape for an optional namespace. Appended to
+                // THIS fixture rather than built as a second bundle because a build is
+                // the expensive half of this suite, and every assertion above is about
+                // the same artifact. A static import would measure the OTHER half,
+                // which is still open — ADR 0085.
+                ...(PROLOGUE_SUPPLIED_NAMESPACE === null
+                    ? []
+                    : [
+                          `const ns = (await import('gi://${PROLOGUE_SUPPLIED_NAMESPACE.name}?version=${PROLOGUE_SUPPLIED_NAMESPACE.version}')) as any;`,
+                          // The member count, not a named class: the discriminator is
+                          // the THROW (this namespace registers GTypes at import, so a
+                          // failed dlopen cannot arrive here), and a name would tie the
+                          // fixture to one entry of the list above.
+                          `console.log('${NS_MARKER}:' + Object.keys(ns.default ?? ns).length);`,
+                      ]),
                 '',
             ].join('\n'),
         );
@@ -227,6 +282,83 @@ describe('the GI runtime-path prologue in a --app gjs bundle', { timeout: 5 * 60
                             : `${dir} is not this host's candidate and was prepended anyway`,
                     );
                 }
+            });
+        },
+    );
+
+    // ── the end-to-end half: a namespace that loads ONLY because of the prepend ──
+    //
+    // Everything above measures what the bundle SAYS (its bytes) and what the
+    // repository reports (its search path). This measures what the program can
+    // actually DO with it, which is the question the whole mechanism exists for and
+    // the one no Linux host can answer: there the candidates are gated off by the
+    // host marker, so there is no prepend to be the cause of anything.
+    //
+    // Skipped on a host that supplies no such namespace — the same kind of
+    // host-capability skip as `no gjs on PATH` above, and stated as a fact about the
+    // host rather than about the code. It is NOT a platform guard around an
+    // assertion that would otherwise fail: where it skips, there is no prepend, and
+    // `prepends exactly the candidates this host actually has` has already asserted
+    // that absence.
+    describe(
+        'a namespace only the prepended candidate can supply',
+        {
+            skip: !hasGjs()
+                ? 'no gjs on PATH'
+                : PROLOGUE_SUPPLIED_NAMESPACE === null
+                  ? 'no prologue candidate on this host supplies a GType-registering namespace'
+                  : false,
+        },
+        () => {
+            /** The loader variables DELETED, for the reason the runtime leg above states. */
+            function strippedEnv() {
+                const env = { ...process.env };
+                delete env.GI_TYPELIB_PATH;
+                delete env.LD_LIBRARY_PATH;
+                delete env.DYLD_LIBRARY_PATH;
+                delete env.DYLD_FALLBACK_LIBRARY_PATH;
+                return env;
+            }
+
+            it('does not load without the prologue — so the row below has a cause', () => {
+                // The CONTROL, and the reason it is a hand-written file rather than a
+                // second build: what it must not have is the prologue, and the one
+                // thing `gjsify build --app gjs` always emits is the prologue.
+                const dir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-gi-control-'));
+                try {
+                    const { name, version } = PROLOGUE_SUPPLIED_NAMESPACE;
+                    writeFileSync(join(dir, 'entry.js'), `await import('gi://${name}?version=${version}');\n`);
+                    const run = spawnSync('gjs', ['-m', join(dir, 'entry.js')], {
+                        encoding: 'utf-8',
+                        env: strippedEnv(),
+                        timeout: 60 * 1000,
+                    });
+                    assert.notEqual(
+                        run.status,
+                        0,
+                        `gi://${name} loaded with no repair at all — this host needs none, so nothing here measures the prologue:\n${run.stdout}\n${run.stderr}`,
+                    );
+                    // The bare-leaf dlopen, named: a non-zero exit for any other
+                    // reason would make the row below prove nothing.
+                    assert.match(run.stderr, /Failed to load shared library/, `unexpected failure:\n${run.stderr}`);
+                } finally {
+                    rmSync(dir, { recursive: true, force: true });
+                }
+            });
+
+            it('loads inside the bundle that carries it', () => {
+                const run = spawnSync('gjs', ['-m', join(projectDir, 'dist', 'app.js')], {
+                    cwd: projectDir,
+                    encoding: 'utf-8',
+                    env: strippedEnv(),
+                    timeout: 60 * 1000,
+                });
+                assert.equal(run.status, 0, `the bundle did not run:\n${run.stdout}\n${run.stderr}`);
+                const line = run.stdout.split('\n').find((l) => l.startsWith(`${NS_MARKER}:`));
+                assert.ok(line, `the namespace never loaded:\n${run.stdout}\n${run.stderr}`);
+                // A namespace object that loaded but registered nothing is what a
+                // failed dlopen looks like when the override does not throw.
+                assert.ok(Number(line.slice(NS_MARKER.length + 1)) > 0, `the namespace is empty: ${line}`);
             });
         },
     );
