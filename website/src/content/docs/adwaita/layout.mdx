@@ -82,8 +82,8 @@ from the Blueprint file instead of the markup.
 
 The first tab is one program for four runtimes. Built with `gjsify build --app gjs` it
 runs on GJS, and built with `--app node` the same source runs on Node.js, Deno and Bun
-through `node-gi`. It calls `Adw.init()` so that the builder knows `Adw.Clamp` in a
-bare script too; inside an `Adw.Application` the call is harmless.
+through `node-gi`. `build()` calls `Adw.init()` itself, so the builder knows `Adw.Clamp`
+in a bare script too; inside an `Adw.Application` the call is harmless.
 </MoreInfo>
 
 <AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
