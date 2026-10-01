@@ -3226,6 +3226,12 @@ jobs:
       # this wiring from the other side.
       - name: Check out the reporter
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/report-gate-history.mjs
+            scripts/report-probe-outcome.mjs
+          sparse-checkout-cone-mode: false
 
       - name: Report gates that did not run at this commit
         shell: bash
@@ -3300,6 +3306,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: .github/workflows/main.yml
+          sparse-checkout-cone-mode: false
       - name: The gate covers every job in this workflow
         shell: bash
         run: |

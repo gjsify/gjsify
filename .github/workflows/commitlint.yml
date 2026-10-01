@@ -71,6 +71,9 @@ jobs:
         with:
           # Fetch the full history so commitlint can walk back to the merge base.
           fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: commitlint.config.cjs
+          sparse-checkout-cone-mode: false
 
       # Self-contained commitlint action: brings its own @commitlint/cli +
       # @commitlint/config-conventional, auto-detects the repo's
