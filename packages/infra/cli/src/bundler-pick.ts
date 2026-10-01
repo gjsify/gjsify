@@ -513,6 +513,13 @@ let _utilsCoreError: unknown = null;
  * the `lib/esm` emit it then needs on a cold tree (`@gjsify/utils build:esm`
  * before the first bundler clause, rule 5 of
  * `scripts/check-build-infra-order.mjs`).
+ *
+ * SCOPE, since it decides what this unblocks: the release job runs `build:infra`
+ * with the PUBLISHED bundle, which is fixed code this change cannot reach — so on
+ * its own it does NOT unblock v0.53.0. What does is the `XDG_CACHE_HOME` line in
+ * release.yml's `publish-napi` job, which puts that bundle inside the workspace
+ * where ANY anchor finds this tree. This fix is what stops the next release from
+ * depending on that line.
  */
 export function resolveNativeLibraryModule(opts: ResolveNpmPackageOptions = {}): string {
     const specifier = '@gjsify/utils/native-library';

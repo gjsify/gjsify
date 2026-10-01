@@ -95,9 +95,12 @@ jobs:
       # `GJSIFY_BOOTSTRAP` is what the next step (and `resolve-gjsify.mjs`)
       # falls back to: this tree is installed but not yet built, so the
       # `node_modules/.bin` shim points at two files that do not exist yet.
+      # `XDG_CACHE_HOME` keeps that bundle inside the workspace, as
+      # `gjsify-setup` does everywhere else — see the `publish-napi` job for
+      # why a bundle in `~/.cache` cannot resolve this tree's packages.
       - name: Install dependencies (gjsify install --immutable)
         run: |
-          B=$(gjs -m install.mjs --fetch-only)
+          B=$(XDG_CACHE_HOME="$PWD/.gjsify-cache" gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
@@ -1780,9 +1783,26 @@ jobs:
       # job's tree is cold by design, so `resolve-gjsify.mjs` — which the next
       # step goes through — finds no usable `node_modules/.bin` shim and no
       # built bundle, and this is its last rung.
+      #
+      # `XDG_CACHE_HOME` is load-bearing TOO, and this job was the only one
+      # omitting it. It puts the cached bundle INSIDE the workspace, which is
+      # what `main.yml`/`napi.yml`/`deploy-docs.yml` all do. Without it the
+      # bundle lands in `~/.cache/gjsify/bootstrap/`, in NO workspace's
+      # node_modules chain, and the PUBLISHED bundle — which is what runs
+      # `build:infra` here, being fixed code no PR on this branch can change —
+      # resolves `@gjsify/utils/native-library` by walking up from ITS OWN
+      # location and finds nothing. MEASURED, same bundle, same cold tree:
+      # resolved from `$PWD/.gjsify-cache`, `not found in any node_modules
+      # directory` from `~/.cache` — with `@gjsify/utils` FULLY BUILT either
+      # way, so this is the anchor, not the emit. That killed the v0.53.0 train:
+      # `build:infra` died at its first bundler clause, `@gjsify/napi` and its
+      # two platform packages never reached npm, and the failure read as a
+      # missing bundler rather than a misplaced bundle. The `utilsCore()` half
+      # of the same defect is fixed in the CLI for every FUTURE release; this
+      # line is what unblocks THIS one.
       - name: Install dependencies (gjsify install --immutable)
         run: |
-          B=$(gjs -m install.mjs --fetch-only)
+          B=$(XDG_CACHE_HOME="$PWD/.gjsify-cache" gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
