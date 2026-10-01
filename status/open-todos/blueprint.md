@@ -538,24 +538,18 @@ The root fix is upstream and it is OURS: `MetaInfo` should declare `readonly str
 type, so every existing caller keeps compiling. That lands in ts-for-gir, ships in the next
 `@girs` release, and the pinned bump here is where this sidecar can tighten by one word.
 
-### The other in-repo `.blp` consumers still transcribe their ids by hand
+### The four scaffolds still transcribe their ids by hand, because they pin a plugin that cannot type them
 
-ADR 0088 migrated `showcases/gtk/adw-blueprint-layout` (both files) and proved the shape: GJS
-probe PASS, both bundles build, sidecars committed and gated. Not migrated:
+Every in-repo `.blp` consumer is on the ADR 0088 exports except `templates/{adw-canvas2d,adw-game,
+adw-webgl,gtk-minimal}`, and that is not an oversight. `process-template` rewrites each template's
+`workspace:^` to `^<the version in this tree>`, and until a release carries ADR 0088 that is a
+PUBLISHED `@gjsify/vite-plugin-blueprint` whose `*.blp` module exports `default` only. A scaffold
+migrated now generates a project whose `import Template, { GTypeName, InternalChildren, type Children }`
+fails with TS2614 on first `check`, and whose `.d.blp.ts` sidecar is ignored by the plugin that built
+it. The migration is mechanical and measured on the showcases; what it waits for is the release.
 
-- `showcases/gtk/effect-adw-services` — 5 internal children
-- `showcases/dom/{canvas2d-fireworks,excalibur-jelly-jumper,three-geometry-teapot,three-loader-ldraw,three-postprocessing-pixel}`
-  — 4–8 internal children each
-- `templates/{adw-canvas2d,adw-game,adw-webgl,gtk-minimal}` — the scaffolds `gjsify create` copies
-
-Each is mechanical — `gjsify blueprint types <dir>`, `allowArbitraryExtensions` in its tsconfig,
-`declare private _x` deleted in favour of `extends Children` — and each is a separate verification,
-because the DOM showcases each carry their own probe. The templates are NOT mechanical and were
-held back on purpose: migrating a scaffold changes what every new project starts with, and the
-`.d.blp.ts` would travel through `process-template` into `dist-templates/`. Decide that
-deliberately rather than as a sweep.
-
-The migration is also where a WRONG hand-written declaration surfaces: the derivation reads the
-`.blp`'s own type reference, so a `declare private _x: Adw.ActionRow` over a `Gtk.ListBoxRow` in
-the template stops compiling. That is the point, and it is why this is one review per consumer
-rather than one commit.
+When the release that carries the exports is out: run `gjsify blueprint types templates/<name>`, add
+`allowArbitraryExtensions` to the template's `tsconfig.json`, delete the `declare private _x` lines in
+favour of `extends Children`, and decide deliberately that the `.d.blp.ts` travels through
+`process-template` into `dist-templates/` — a scaffold's first commit then contains a generated file.
+Run the `create-app` e2e after, since it is the only thing that builds a scaffold the way a user does.
