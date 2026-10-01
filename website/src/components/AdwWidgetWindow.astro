@@ -5,11 +5,14 @@
 // and the copy button.
 //
 // `More` is the third segment and opens a popover menu of every other rendering (`bindings`).
-// A pick shows that rendering in place and the segment takes its name. The popover is the
-// Popover API's, so it sits in the top layer and the window's `overflow: hidden` cannot clip it.
+// A pick shows that rendering in place and the segment takes its name. A binding whose program
+// is several FILES contributes a menu SECTION — a dim heading, then one row per file — so the
+// file is picked from there rather than from a row of its own under the header bar. The popover
+// is the Popover API's, so it sits in the top layer and the window's `overflow: hidden` cannot
+// clip it.
 //
-// Without script the segmented control is inert and every pane is shown under a caption
-// (`@media (scripting: none)` below); the script in AdwWidget does the rest.
+// Without script the segmented control is inert and every pane and every file is shown under its
+// caption (`@media (scripting: none)` below); the script in AdwWidget does the rest.
 //
 // `check-website-adwaita-gallery.mjs` arm 9 holds that the preview is mounted once, in the
 // window above the source.
@@ -41,10 +44,68 @@ const panes = [...tabs, ...bindings];
 const slug = title.replaceAll(/[^A-Za-z0-9]+/g, '-');
 const paneId = (pane: WidgetPane) => `pane-${slug}-${pane.id}`;
 const menuId = `menu-${slug}`;
-const shortLabel = (pane: WidgetPane) => (pane.kind === 'refusal' ? pane.short : pane.label);
-// The recorded reasons go last, apart from the renderings that exist.
-const menuItems = [...bindings.filter((pane) => pane.kind !== 'refusal'), ...bindings.filter((pane) => pane.kind === 'refusal')];
-const firstRefusal = menuItems.findIndex((pane) => pane.kind === 'refusal');
+/**
+ * The More menu, the way GtkPopoverMenu builds one: a section is a dim heading over its rows,
+ * and a hairline separates one section from the one above it. A binding whose program is several
+ * FILES is a section of its own, one row per file; the renderings that are a single file share
+ * one unheaded section, and the recorded reasons are the last.
+ *
+ * A row carries its two halves as SEPARATE attributes: `data-pane` is the binding, `data-file-role`
+ * the file within it, and `data-pick` is both joined into the one string the reader's pick is
+ * remembered as. The script reads the halves off the row and never splits the string, so the
+ * separator exists here and nowhere else.
+ *
+ * `short` is what the segment reads while the row is shown — for a file, the binding and the file.
+ */
+type MenuEntry =
+    | { kind: 'separator' }
+    | { kind: 'heading'; text: string }
+    | { kind: 'row'; pick: string; pane: string; role?: string; label: string; short: string; refusal: boolean };
+function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
+    const entries: MenuEntry[] = [];
+    /** One section: a heading (or none) and the rows under it. */
+    const section = (heading: string | null, rows: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[]) => {
+        if (entries.length > 0) entries.push({ kind: 'separator' });
+        if (heading !== null) entries.push({ kind: 'heading', text: heading });
+        for (const row of rows) {
+            entries.push({ ...row, pick: row.role === undefined ? row.pane : `${row.pane}::${row.role}` });
+        }
+    };
+    // Everything that is neither a files binding nor a reason is one section of its own, the way
+    // GtkPopoverMenu keeps consecutive plain items in one: a hairline around each of the other two
+    // would otherwise read Solid, Vue and React as files of the binding above them.
+    const plain: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[] = [];
+    const reasons: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[] = [];
+    for (const pane of items) {
+        if (pane.kind === 'files') {
+            section(
+                pane.label,
+                pane.files.map((file) => ({
+                    pane: pane.id,
+                    role: file.role,
+                    label: file.label,
+                    short: `${pane.label} · ${file.label}`,
+                    refusal: false,
+                })),
+            );
+        } else if (pane.kind === 'refusal') {
+            reasons.push({
+                pane: pane.id,
+                label: pane.label,
+                // The reason's own short name; a rendering reads as itself.
+                short: pane.short,
+                refusal: true,
+            });
+        } else {
+            plain.push({ pane: pane.id, label: pane.label, short: pane.label, refusal: false });
+        }
+    }
+    if (plain.length > 0) section(null, plain);
+    if (reasons.length > 0) section('Not available', reasons);
+    return entries;
+}
+
+const entries = menuEntries(bindings);
 ---
 
 {
@@ -146,29 +207,31 @@ const firstRefusal = menuItems.findIndex((pane) => pane.kind === 'refusal');
     {
         bindings.length > 0 && (
             <div class="adw-widget-menu" id={menuId} popover role="menu" aria-label={`More renderings of ${title}`}>
-                {menuItems.map((pane, index) => (
-                    <>
-                        {index === firstRefusal && (
-                            <>
-                                <div class="adw-popover-separator" role="separator" />
-                                <div class="adw-popover-title" role="presentation">
-                                    Not available
-                                </div>
-                            </>
-                        )}
-                        <button
-                            type="button"
-                            role="menuitemradio"
-                            aria-checked="false"
-                            class:list={['adw-popover-item', { 'is-refusal': pane.kind === 'refusal' }]}
-                            data-pick={pane.id}
-                            data-short={shortLabel(pane)}
-                        >
-                            <span class="adw-popover-item-check" aria-hidden="true" />
-                            {pane.label}
-                        </button>
-                    </>
-                ))}
+                <div class="adw-widget-menu-rows">
+                    {entries.map((entry) =>
+                        entry.kind === 'separator' ? (
+                            <div class="adw-popover-separator" role="separator" />
+                        ) : entry.kind === 'heading' ? (
+                            <div class="adw-popover-title adw-popover-section-title" role="presentation">
+                                {entry.text}
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked="false"
+                                class:list={['adw-popover-item', { 'is-refusal': entry.refusal }]}
+                                data-pick={entry.pick}
+                                data-pane={entry.pane}
+                                data-file-role={entry.role}
+                                data-short={entry.short}
+                            >
+                                <span class="adw-popover-item-check" aria-hidden="true" />
+                                {entry.label}
+                            </button>
+                        ),
+                    )}
+                </div>
             </div>
         )
     }
@@ -304,6 +367,12 @@ const firstRefusal = menuItems.findIndex((pane) => pane.kind === 'refusal');
         display: none;
     }
 
+    /* The files of one program. The pane holds them all and shows the one the More menu's
+       section picked; the caption is what names it without script. */
+    .adw-widget-file:not([data-active]) {
+        display: none;
+    }
+
     .adw-widget-pane-caption {
         display: none;
     }
@@ -338,6 +407,18 @@ const firstRefusal = menuItems.findIndex((pane) => pane.kind === 'refusal');
     .adw-widget-menu:popover-open {
         display: flex;
         flex-direction: column;
+    }
+
+    /* A menu can be TALLER than the space under the segment — several sections, each a heading
+       plus a row per file — so it scrolls inside itself and stops at the viewport edge rather
+       than being clipped. `padding-block` is where the arrow is drawn, so the rows scroll
+       BETWEEN the surface's edges and it stays visible. */
+    .adw-widget-menu-rows {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        max-height: calc(100vh - 32px);
     }
 
     .adw-widget-menu[data-side='top'] {
@@ -388,14 +469,16 @@ const firstRefusal = menuItems.findIndex((pane) => pane.kind === 'refusal');
         z-index: 1;
     }
 
-    /* No script: the segments do nothing, so show every pane under its name instead. */
+    /* No script: the segments do nothing, so show every pane — and every file of it — under
+       its name instead. */
     @media (scripting: none) {
         .adw-widget-seg,
         .adw-widget-code-window .command-tabs-copy {
             display: none;
         }
 
-        .adw-widget-pane:not([data-active]) {
+        .adw-widget-pane:not([data-active]),
+        .adw-widget-file:not([data-active]) {
             display: block;
         }
 
