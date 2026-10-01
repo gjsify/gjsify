@@ -23,6 +23,27 @@
  * reads zero `N_OSO` stabs in them). Measured after the fix, on this Mac: two clean
  * builds of all nine darwin bridges buildable here differ in ZERO bytes.
  *
+ * THAT STORY IS ONE PACKAGE CLASS'S, AND THIS SCRIPT USED TO PRINT IT FOR EVERY
+ * RED. It then red-lined `main` naming a debug map in three images that carry
+ * none: the cargo cdylibs of `@gjsify/{lightningcss,oxfmt,rolldown}-native`
+ * differed in 16, 15 and a handful of bytes while all nine Vala bridges were
+ * byte-identical — and the first differing offset was 0x670 in one and 0x768 in
+ * the other, which is the `LC_UUID` PAYLOAD of each (read off the committed
+ * artifacts with `readMachOLayout`, on Linux: `libgjsify_lightningcss.dylib` has
+ * its uuid payload at exactly 0x670, `libgjsify_oxfmt.dylib` at exactly 0x768,
+ * `libgjsify_rolldown.dylib` at 0x6b8). So the region is MEASURED and it is not a
+ * debug map. What produced a different UUID for otherwise byte-identical output is
+ * NOT established and needs a darwin runner — `status/open-todos/prebuilds.md`
+ * carries the two candidates and the one measurement that would separate them.
+ *
+ * Two things follow, and both are in this file. A diagnostic now ASKS THE ARTIFACT
+ * (`classifyMachOBuildDiff` parses the load commands of both builds and names the
+ * region every differing byte falls in) instead of asserting a cause. And the
+ * second build happens in the SAME DIRECTORY PATH as the first, because a build
+ * path is an input: `cargo`/`rustc` record theirs where a `buildtype=plain` Vala
+ * build does not, so comparing `build/` against a differently-named `builddir/`
+ * was never a measurement of reproducibility for the three cargo bridges.
+ *
  * WHAT IS GATED, AND WHAT IS ONLY REPORTED.
  *
  *  1. GATED — a second clean build of the same package, staged through the SAME
@@ -59,16 +80,31 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { classifyMachOBuildDiff } from '../packages/infra/manifest-conformance/lib/binary.mjs';
+
 import { hostStagingTarget, resolveStageDir } from './stage-prebuild.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const STAGER = join(ROOT, 'scripts', 'stage-prebuild.mjs');
 /**
- * The second build's directory, in a name `gitignore` already covers (`builddir/`),
- * so a run that dies before its cleanup leaves nothing visible in `git status` — the
- * same reason the stager's own outputs are removed on every path.
+ * The second build's directory — the SAME ONE the first build used, and that is
+ * the point rather than an economy.
+ *
+ * A build directory's absolute path is a build INPUT. `rustc` records build paths
+ * unless told not to (no `--remap-path-prefix` here) and `cargo`'s `--target-dir`
+ * is derived from this name in every `meson.build` that drives one, while the Vala
+ * side, compiled `buildtype=plain`, records nothing of the kind. So the earlier
+ * `builddir/` spelling made the second build differ from the first in a way the
+ * nine Vala bridges structurally could not see and the three cargo bridges could:
+ * two builds at two paths are not one build twice.
+ *
+ * The cost is that the first build's tree is REMOVED to clear the path. That is
+ * affordable because the comparison is of the STAGED sets, and the first one is
+ * snapshotted before anything is deleted; the macOS job's remaining steps read
+ * `prebuilds/<target>/`, never `build/`. `build/` is gitignored, so a run that
+ * dies before its cleanup still leaves nothing in `git status`.
  */
-const REPRO_BUILD_DIR = 'builddir';
+const REPRO_BUILD_DIR = 'build';
 
 /**
  * Where two buffers' differing bytes are.
@@ -102,9 +138,14 @@ export function diffBytes(a, b) {
  * extension and REPLACES its destination, so a dropped or renamed artifact is
  * exactly what a git merge of two binary sets would have hidden.
  *
+ * Every differing Mach-O is also CLASSIFIED, so the report names the region the
+ * bytes are in rather than leaving the cause to be re-derived from a hex dump.
+ * `.typelib` and `.gir` are not Mach-O and come back `unreadable`, which is the
+ * honest answer for them — a byte count is all there is to say.
+ *
  * @param {string} aDir
  * @param {string} bDir
- * @returns {Array<{ file: string, bytes: number, firstAt: number | null }>}
+ * @returns {Array<{ file: string, bytes: number, firstAt: number | null, verdict: string, regions: string[] }>}
  */
 export function diffStagedSets(aDir, bDir) {
     const names = new Set([...readdirSync(aDir), ...readdirSync(bDir)]);
@@ -113,13 +154,63 @@ export function diffStagedSets(aDir, bDir) {
         const inA = existsSync(join(aDir, file));
         const inB = existsSync(join(bDir, file));
         if (!inA || !inB) {
-            out.push({ file, bytes: -1, firstAt: null });
+            out.push({ file, bytes: -1, firstAt: null, verdict: 'missing', regions: [] });
             continue;
         }
-        const { bytes, firstAt } = diffBytes(readFileSync(join(aDir, file)), readFileSync(join(bDir, file)));
-        if (bytes > 0) out.push({ file, bytes, firstAt });
+        const a = readFileSync(join(aDir, file));
+        const b = readFileSync(join(bDir, file));
+        const { bytes, firstAt } = diffBytes(a, b);
+        if (bytes === 0) continue;
+        const { verdict, regions, reasons } = classifyMachOBuildDiff(a, b);
+        out.push({ file, bytes, firstAt, verdict, regions: regions.length > 0 ? regions : reasons });
     }
     return out;
+}
+
+/**
+ * What the classified regions license saying about the CAUSE — and nothing more.
+ *
+ * The three cargo cdylibs land on `uuid-only`/`uuid-and-signature`, and the only
+ * honest text for that today names the candidates and the measurement that would
+ * separate them. Asserting one of them is what this script did wrong before.
+ *
+ * The debug-map reading is offered only where the SYMBOL TABLE actually moved,
+ * for the same reason the rest of this changed: it was printed unconditionally
+ * once already, over images that carry no debug map.
+ *
+ * @param {Array<{ verdict: string, regions: string[] }>} rows
+ * @returns {string}
+ */
+export function channelHint(rows) {
+    const uuid = rows.some((r) => r.verdict === 'uuid-only' || r.verdict === 'uuid-and-signature');
+    const symbols = rows.some((r) => r.regions.some((region) => region.includes('the symbol table')));
+    const lines = [];
+    if (uuid) {
+        lines.push(
+            '    The differing bytes are the `LC_UUID` payload (and, on arm64, the ad-hoc signature',
+            '    computed over it) — NOT a debug map: `nm -a` reads zero `N_OSO` stabs in the cargo',
+            '    cdylibs. Why the linker chose a different UUID for output that is otherwise identical',
+            '    is not established here. Two candidates, both needing a darwin runner to separate:',
+            '      (a) a build INPUT still differs between the two builds — this script now holds the',
+            '          build-directory path equal, so a residue would be elsewhere (TMPDIR, a cargo',
+            '          target path, a registry source path);',
+            "      (b) `strip = true` in each bridge's `[profile.release]`: the shipped bytes are a",
+            '          strict subset of the image the linker hashed, so anything varying only in the',
+            '          stripped part reaches the artifact through the UUID and nothing else — which is',
+            '          exactly this shape. Separate them by building twice with `strip = false`: the',
+            '          bytes that then differ OUTSIDE the UUID name the channel.',
+            '    See status/open-todos/prebuilds.md.',
+        );
+    }
+    if (symbols) {
+        lines.push(
+            '    A difference in the symbol table is the `-g` story: ld64 writes a DEBUG MAP into any',
+            "    image whose objects carry DWARF, one `N_OSO` stab per object holding that object's",
+            '    mtime. Every meson project here declares `buildtype=plain` for that reason — check',
+            '    that the project which differed still does. See docs/prebuilds.md.',
+        );
+    }
+    return lines.join('\n');
 }
 
 /**
@@ -146,12 +237,15 @@ function run(argv, cwd) {
  * `$GITHUB_STEP_SUMMARY` when there is one — the drift half is information, and
  * information nobody reads in a scrolled log is not information. Nothing here fails.
  *
- * @param {Array<{ pkg: string, file: string, bytes: number, firstAt: number | null }>} driftRows
+ * @param {Array<{ pkg: string, file: string, bytes: number, firstAt: number | null, regions: string[] }>} driftRows
  */
 function summarise(driftRows) {
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (!summary) return;
-    const rows = driftRows.length === 0 ? '' : driftRows.map((r) => `| ${r.pkg} | ${r.file} | ${r.bytes} |`).join('\n');
+    const rows =
+        driftRows.length === 0
+            ? ''
+            : driftRows.map((r) => `| ${r.pkg} | ${r.file} | ${r.bytes} | ${r.regions.join('; ') || '—'} |`).join('\n');
     appendFileSync(
         summary,
         [
@@ -163,8 +257,8 @@ function summarise(driftRows) {
                   'formula version is a legitimate byte change, and `commit-prebuilds` lands it. Reproducibility ' +
                   'is gated separately, above.',
             '',
-            '| artifact | file | differing bytes |',
-            '|---|---|---|',
+            '| artifact | file | differing bytes | where |',
+            '|---|---|---|---|',
             rows,
             '',
         ].join('\n'),
@@ -185,14 +279,14 @@ function main() {
     }
 
     let failures = 0;
-    /** @type {Array<{ pkg: string, file: string, bytes: number, firstAt: number | null }>} */
+    /** @type {Array<{ pkg: string, file: string, bytes: number, firstAt: number | null, regions: string[] }>} */
     const driftRows = [];
 
     for (const stagedDir of dirs) {
         const pkgDir = dirname(dirname(stagedDir));
         const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
         const name = `${pkg.name} (${basename(stagedDir)})`;
-        console.log(`\n[check-prebuild-reproducible] ${name}: second build in ${REPRO_BUILD_DIR}/`);
+        console.log(`\n[check-prebuild-reproducible] ${name}: second build, replacing ${REPRO_BUILD_DIR}/`);
 
         // The stager DERIVES the target directory from the host while this script
         // and every upload path name it literally. Asserted rather than assumed,
@@ -246,14 +340,13 @@ function main() {
                 console.error(
                     d.bytes < 0
                         ? `  ✗ ${d.file} — present in one build only`
-                        : `  ✗ ${d.file} — ${d.bytes} differing byte(s), first at 0x${d.firstAt.toString(16)}`,
+                        : `  ✗ ${d.file} — ${d.bytes} differing byte(s), first at 0x${d.firstAt.toString(16)} ` +
+                              `[${d.verdict}]`,
                 );
+                for (const region of d.regions) console.error(`      · ${region}`);
             }
-            console.error(
-                '    Every meson project declares `buildtype=plain` so no `-g` reaches ld64; a debug map\n' +
-                    "    (`N_OSO`, carrying each object's mtime) is what puts a timestamp in the image, and the\n" +
-                    '    `LC_UUID` and ad-hoc signature computed over it follow. See docs/prebuilds.md.',
-            );
+            const hint = channelHint(differ);
+            if (hint !== '') console.error(hint);
             failures++;
             continue;
         }
@@ -278,6 +371,7 @@ function main() {
                 file: d.file,
                 bytes: d.bytes,
                 firstAt: d.firstAt,
+                regions: d.regions,
             });
         }
     }
@@ -290,6 +384,7 @@ function main() {
             console.log(
                 `  ${r.pkg}  ${r.file}: ${r.bytes < 0 ? 'present on one side only' : `${r.bytes} differing byte(s)`}`,
             );
+            for (const region of r.regions) console.log(`      · ${region}`);
         }
     } else {
         console.log(
