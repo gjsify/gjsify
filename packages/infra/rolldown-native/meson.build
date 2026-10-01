@@ -66,7 +66,7 @@ if host_system == 'darwin'
     # place.
     #
     # The cdylib must be a FUNCTION OF ITS SOURCES, and on darwin that takes
-    # THREE steps, only the first of which `install_name_tool` could do.
+    # TWO steps, only the first of which `install_name_tool` could do.
     # MEASURED with rustc 1.98.1 / ld64-27037.1 (macOS 27, arm64); the whole
     # measurement and the reasoning behind each step: scripts/macho-set-uuid.mjs.
     #
@@ -84,15 +84,11 @@ if host_system == 'darwin'
     #    computed that field over the image it emitted and `install_name_tool`
     #    recomputes neither it nor the signature — and it is not a function of
     #    the emitted bytes even so, so pinning the name above still leaves 48
-    #    moving bytes (16 `LC_UUID` + 32 of the signature hashing it). This ld64
-    #    can neither pin it (`-uuid` is unknown here) nor drop it (an arm64 link
-    #    against a cdylib without `LC_UUID` is refused), so it is derived from
-    #    the image instead. Only the load COMMAND's size changes, never the
-    #    image's: `-no_uuid` would have taken 24 bytes out of the header.
-    # 3. Everything else — no flag, no step. What the script writes is a digest
-    #    of the image, so if the CODE ever stops being a function of the sources
-    #    the digest moves with it and `check-prebuild-reproducible.mjs` still
-    #    reds; nothing here hides content drift.
+    #    moving bytes (16 `LC_UUID` + 32 of the signature hashing it). It is
+    #    derived from the image instead, so if the CODE ever stops being a
+    #    function of the sources the UUID moves with it and
+    #    `check-prebuild-reproducible.mjs` still reds; nothing here hides
+    #    content drift.
     rust_cargo_link_args = ' -- -C link-arg=-Wl,-install_name,@rpath/' + rust_cdylib_name
     rust_cargo_cmd = 'cargo rustc --lib'
     # The repo's OWN script, from the package's own meson.build — so a bridge

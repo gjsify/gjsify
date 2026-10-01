@@ -299,9 +299,12 @@ and its 16-byte payload, and the value is now a digest of the bytes being shippe
 so it is more meaningful than what ld64 wrote. And it hides nothing: the digest is
 computed from the image, so if the CODE ever stops being a function of the sources
 the UUID moves with it and the gate still reds. Measured after the change, on this
-Mac: the rust cdylib is byte-identical across cargo target directories of different
-name LENGTH, and `check-prebuild-reproducible.mjs` is green over the whole darwin
-set. The ELF legs are untouched — a bare SONAME and no UUID load command have
+Mac (arm64): the rust cdylib is byte-identical across cargo target directories of
+different name LENGTH, and `check-prebuild-reproducible.mjs` is green over all
+twelve bridges for `darwin-arm64`. **`darwin-x64` is CI's measurement, not this
+Mac's** — its leg logs `macho-set-uuid` leaving the image unsigned, which is the
+x86_64 half of the re-sign rule and the half a single-machine check cannot reach.
+The ELF legs are untouched — a bare SONAME and no UUID load command have
 nothing to pin — which is why `rust_cargo_cmd` stays `cargo build` off darwin.
 
 **What remains is the half that cannot gate, and the reason is the runner, not

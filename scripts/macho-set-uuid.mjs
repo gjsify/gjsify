@@ -2,43 +2,26 @@
 /**
  * Make a Mach-O image's `LC_UUID` a function of the image.
  *
- * WHY THIS EXISTS. ld64 writes an `LC_UUID` into every image it links, and the
- * value is NOT a function of the bytes it emits: two links whose emitted images
- * are byte-identical outside that load command still get different UUIDs.
- * MEASURED here (macOS 27, arm64, rustc 1.98.1, `ld` 27037.1) by building
- * `@gjsify/lightningcss-native`'s cargo cdylib into two target directories whose
- * names differ in LENGTH — the images matched byte for byte outside the 16-byte
- * UUID payload and the 32 signature bytes that hash it, and the UUIDs differed.
- * So the shipped artifact carried an identity of the BUILD rather than of the
- * artifact, which is what `scripts/check-prebuild-reproducible.mjs` red-lined on
- * the three Rust bridges: 48 bytes, first at the `LC_UUID`, with no code change.
+ * WHY: ld64 writes an `LC_UUID` into every image it links and the value is NOT a
+ * function of the bytes it emits — two links whose images match byte for byte
+ * outside that payload still get different UUIDs. MEASURED (macOS 27, arm64,
+ * rustc 1.98.1, `ld` 27037.1); the control experiments, and the two flag-shaped
+ * answers that are both unavailable here (`ld: unknown options: -uuid`; `-no_uuid`
+ * makes the Vala link fail with `ld: missing LC_UUID load command`), are in
+ * status/open-todos/prebuilds.md. The gate that red-lined it is
+ * scripts/check-prebuild-reproducible.mjs.
  *
- * The two obvious repairs are both unavailable on this toolchain:
- *
- *  - PIN IT — `-Wl,-uuid <32 hex>` does not exist here (`ld: unknown options:
- *    -uuid`), and no `ld64.lld` ships with a CommandLineTools host.
- *  - DROP IT — `-Wl,-no_uuid` is the only identity flag ld64 has, and an arm64
- *    link against a cdylib that lacks `LC_UUID` is REFUSED outright (`ld:
- *    missing LC_UUID load command in '…'`), which is exactly the library each of
- *    those bridges links its Vala half against.
- *
- * `install_name_tool` cannot help either: it runs AFTER the link and recomputes
- * neither the UUID nor the signature, so a pinned install name fixes the load
- * command and the layout and leaves this last 48 bytes moving.
- *
- * So the UUID is written here, last, as a digest of the image that is about to
- * ship. The digest covers the whole file with the UUID payload and the
- * code-signature blob blanked: blanking the signature is not optional, because
- * the signature hashes the page holding the UUID and the two cannot both be
- * derived from the other. md5 is deliberate — it is 16 bytes, the size of the
- * field, and it is the digest ld64 itself puts there; nothing here is a
- * security boundary.
+ * So the UUID is written here, LAST, as a digest of the image about to ship.
+ * The digest covers the whole file with the UUID payload and the code-signature
+ * blob blanked: blanking the signature is not optional, because the signature
+ * hashes the page holding the UUID and the two cannot both be derived from the
+ * other. md5 is deliberate — 16 bytes, the size of the field, and the digest
+ * ld64 itself puts there; nothing here is a security boundary.
  *
  * Re-signing is `codesign --force --sign -`, and ONLY for an image that arrived
- * signed: ld64 signs arm64 output and leaves x86_64 output unsigned, and adding
- * a signature to an image that had none grows it by a page-aligned `__LINKEDIT`
- * tail. That is the same rule `scripts/relocate-macho.mjs` follows, for the same
- * reason.
+ * signed: ld64 signs arm64 and leaves x86_64 unsigned, and signing an unsigned
+ * image grows it by a page-aligned `__LINKEDIT` tail. Same rule as
+ * scripts/relocate-macho.mjs, for the same reason.
  *
  * Usage: node scripts/macho-set-uuid.mjs <mach-o>
  */
