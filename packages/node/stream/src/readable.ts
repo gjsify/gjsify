@@ -277,8 +277,10 @@ export class Readable_ extends Stream_ {
 
     on(event: string | symbol, listener: (...args: unknown[]) => void): this {
         super.on(event, listener);
-        // Attaching a 'data' listener switches to flowing mode (like Node.js)
-        if (event === 'data' && this.readableFlowing !== false) {
+        // Attaching a 'data' listener switches to flowing mode (like Node.js), unless
+        // a 'readable' listener holds the stream in readable mode (Node checks
+        // `readableListening` first).
+        if (event === 'data' && this.readableFlowing !== false && this.listenerCount('readable') === 0) {
             this.resume();
         }
         // Attaching a 'readable' listener puts the stream in readable mode: it
@@ -294,7 +296,9 @@ export class Readable_ extends Stream_ {
                 // (`nReadingNextTick` → `read(0)`), and without it a readable-mode
                 // consumer waits forever for a producer that only pushes inside
                 // `_read`.
-                nextTick(() => this.read(0));
+                nextTick(() => {
+                    if (!this.destroyed) this.read(0);
+                });
             }
         }
         return this;
@@ -329,9 +333,15 @@ export class Readable_ extends Stream_ {
      * `updateReadableListening`.
      */
     private _updateReadableListening(): void {
+        // A surviving 'readable' listener already holds the stream, so there is
+        // nothing to re-derive. Node calls `resume()` on this path too, but its
+        // `resume()` refuses to set kFlowing while kReadableListening is set, so
+        // `readableFlowing` ends up false either way — skipping the call only
+        // skips the `read(0)` that resume's nextTick would schedule.
+        if (this.listenerCount('readable') > 0) return;
         if (this.listenerCount('data') > 0) {
             this.resume();
-        } else if (this.listenerCount('readable') === 0) {
+        } else {
             this.readableFlowing = null;
         }
     }

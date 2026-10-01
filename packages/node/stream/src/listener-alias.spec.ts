@@ -205,14 +205,27 @@ export default async () => {
             expect(readable.readableFlowing).toBe(false);
         });
 
-        await it('should not flow after once("readable") fired with a "data" listener', async () => {
+        // `once('readable')` holds the stream in readable mode for exactly one emission
+        // and then removes itself — the case Node's `kReadableListening` sync in `on('data')`
+        // exists to support. With no 'data' listener the state falls back to null.
+        await it('should release readable mode once() after once("readable") fired', async () => {
             const readable = source(3);
             readable.once('readable', () => {});
             expect(readable.readableFlowing).toBe(false);
             await tick();
-            // once() removes itself on fire; the deferred re-derivation then releases readable mode.
             expect(readable.listenerCount('readable')).toBe(0);
             expect(readable.readableFlowing).toBeNull();
+        });
+
+        // …and with a 'data' listener left, the same removal RESUMES rather than nulling.
+        await it('should resume after once("readable") fired with a "data" listener', async () => {
+            const readable = source(3);
+            readable.once('readable', () => {});
+            readable.on('data', () => {});
+            expect(readable.readableFlowing).toBe(false);
+            await tick();
+            expect(readable.listenerCount('readable')).toBe(0);
+            expect(readable.readableFlowing).toBe(true);
         });
 
         await it('should not read(0) on a stream destroyed right after on("readable")', async () => {
