@@ -2446,7 +2446,7 @@ async function main() {
             console.error(
                 'A SHIPPED root entry hard-depends on a typelib its `gjsify.headless` promise forbids. The source ' +
                     'graph the promise was written against does not contain it: a GI binding the BUNDLER synthesises ' +
-                    '(`--globals auto`, a bare side-effect `import "gi://X"` inside a dependency, an alias ' +
+                    '(`--globals auto`, a bare side-effect import of `gi://X` inside a dependency, an alias ' +
                     'substitution) reaches no source file, so only the emitted artifact can see it. A `gi://X?…&optional` ' +
                     'import (ADR 0086) is NOT counted — it resolves in a try/catch and is not a hard dependency.',
             );

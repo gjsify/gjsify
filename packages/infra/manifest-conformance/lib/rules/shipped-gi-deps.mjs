@@ -532,7 +532,7 @@ export async function auditShippedGiDeps(ctx) {
                 `${name}: ${promise} but the SHIPPED root entry \`${rel}\` hard-depends on \`${form}\` (${ns}) — via ` +
                     `${path} (shipped-headless-violated). The SOURCE graph this promise was written against does not ` +
                     `contain it, and that is the point: a GI binding the BUNDLER synthesises — \`--globals auto\`, a ` +
-                    `bare side-effect \`import "gi://X"\` inside a dependency, an alias substitution — reaches no source ` +
+                    `bare side-effect import of \`gi://X\` inside a dependency, an alias substitution — reaches no source ` +
                     `file of this package, so only the emitted artifact can see it. Fix by moving the binding behind a ` +
                     `subpath the root does not import, by narrowing the bundle (\`excludeGlobals\` or an explicit ` +
                     `--globals\` allowlist), or by dropping the declaration if the package cannot keep it.`,
