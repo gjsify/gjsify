@@ -37,11 +37,27 @@
 // Runs on linux and darwin (the macOS leg in `macos-suites.yml`). SKIP (no
 // false failures off a capable host): another OS, no `gjs`, no built CLI
 // bundle, or no `@gjsify/rolldown-native` prebuild for this host target.
+//
+// WHAT ELSE BELONGS HERE: the same "no usable bundler engine under GJS" verdict
+// had a second cause, which no launcher or prebuild env touches. A probe that
+// cannot be LOADED must not veto an engine that loaded and resolved its
+// typelib — measured on v0.53.0's `publish-napi`, where the CLI doing the
+// probing was the published bundle in `~/.cache/gjsify/bootstrap/`, whose
+// `@gjsify/utils` resolution found no `node_modules` at all.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -246,6 +262,61 @@ describe('gjsify build under a bare `gjs -m` (no launcher)', { skip: SKIP, timeo
             'GIRepository.Repository.dup_default() + prepend_search_path + prepend_library_path must all exist — ' +
                 `gi-search-path.ts silently degrades to "launcher required" without them. Output:\n${r.stdout}${r.stderr}`,
         );
+    });
+
+    // The PUBLISHED bundle's shape, one hop past the launcher: `install.mjs
+    // --fetch-only` caches `cli.gjs.mjs` as ONE loose file in
+    // `<cache>/gjsify/bootstrap/`, with no `node_modules` anywhere above it,
+    // and that is the CLI that runs a cold `build:infra` (v0.53.0's
+    // `publish-napi`). The engine resolves anyway — `resolveNpmPackage()`
+    // anchors on the cwd, so the workspace's built facade answers — but the
+    // native-library probe resolved from the BUNDLE's own directory, found
+    // nothing, and `tryLoadNative()` read "could not measure" as "no engine":
+    // a build that worked died with "no usable bundler engine under GJS".
+    // Building `@gjsify/utils`'s `lib/esm` first changed nothing (measured),
+    // so the guard is the behaviour, not an ordering.
+    it('builds when the bundle itself sits outside every node_modules', () => {
+        const sandbox = join(tmpDir, 'published-bundle');
+        mkdirSync(sandbox, { recursive: true });
+        copyFileSync(CLI_BUNDLE, join(sandbox, 'cli.gjs.mjs'));
+        // Non-vacuity: an ancestor that DOES carry a node_modules would let the
+        // probe resolve and the case would pass without exercising anything.
+        for (let dir = sandbox; ; dir = dirname(dir)) {
+            assert.ok(
+                !existsSync(join(dir, 'node_modules')),
+                `${dir}/node_modules exists — the bundle would resolve @gjsify/utils and this case would measure nothing`,
+            );
+            if (dirname(dir) === dir) break;
+        }
+        const outfile = join(sandbox, 'out.node.mjs');
+        const r = spawnSync(
+            'gjs',
+            [
+                '-m',
+                join(sandbox, 'cli.gjs.mjs'),
+                'build',
+                join(tmpDir, 'src', 'index.ts'),
+                '--app',
+                'node',
+                '--outfile',
+                outfile,
+                '--no-minify',
+            ],
+            {
+                cwd: REPO_ROOT,
+                encoding: 'utf-8',
+                timeout: 4 * 60 * 1000,
+                env: envWithoutPrebuildPaths({ HOME: tmpDir, XDG_CACHE_HOME: join(tmpDir, '.cache') }),
+            },
+        );
+        const log = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+        assert.doesNotMatch(
+            log,
+            /no usable bundler engine under GJS/,
+            `a probe that could not be loaded must not veto the engine. Output:\n${log}`,
+        );
+        assert.equal(r.status, 0, `build must succeed from a bundle outside node_modules. Output:\n${log}`);
+        assert.match(readFileSync(outfile, 'utf-8'), /launcher-free-marker/, 'the build must have really run');
     });
 
     // DELIBERATELY NOT TESTED HERE: that `diagnoseNativeEngine()` no longer
