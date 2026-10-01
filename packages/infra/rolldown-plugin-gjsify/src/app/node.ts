@@ -16,6 +16,7 @@ import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
+import { giOptionalPlugin } from '../plugins/gi-optional.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { nodeNativeExternalPlugin } from '../plugins/node-native-external.js';
 import {
@@ -365,6 +366,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // `\0gjsify-entry:` ids `wrapInputWithSideEffects` produces (no-op when
         // nothing was injected).
         ...(virtualEntries.plugin ? [virtualEntries.plugin] : []),
+        // `gi://Ns?version=X&optional` → the guarded load, claimed `pre` and
+        // AHEAD of `gjsGiNodePlugin` on array order, because both match a flagged
+        // specifier and the optional arm has to win: the hard arm's lazy Proxy
+        // answers every member access with `load()` and is never `undefined`, so an
+        // app that degrades on `Ns === undefined` would compile and then throw at
+        // the first real access — on one target only (ADR 0086).
+        giOptionalPlugin('node'),
         // Claims `gi://Ns?version=X` (resolveId `pre` + array order) and rewrites it
         // onto the `@gjsify/node-gi` runtime so a real GJS/GI source builds and runs
         // on Node. Returns null for `@girs/*`.

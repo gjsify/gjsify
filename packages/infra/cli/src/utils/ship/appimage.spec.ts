@@ -328,6 +328,28 @@ export default async () => {
             expect(needs.some((need) => need.includes('gir1.2'))).toBe(false);
         });
 
+        await it('words an optional typelib as optional, because there is no Recommends field here', async () => {
+            // ADR 0086. A `.deb`/`.rpm` gets `Recommends:`; an AppImage has no
+            // package list at all, so the split survives as WORDING — and that is
+            // load-bearing rather than cosmetic. A user told a typelib is required
+            // and lacking it concludes the image is broken and installs something
+            // else; told it is optional, they skip it and the app degrades as
+            // written.
+            const needs = appImageHostRequirements({
+                app: 'gjs',
+                namespaces: ['Gtk-4.0', 'Notify-0.7'],
+                optionalNamespaces: ['Notify-0.7'],
+            });
+            expect(needs).toContain('the Gtk-4.0 typelib');
+            expect(needs).toContain('the Notify-0.7 typelib (optional)');
+            expect(needs).not.toContain('the Notify-0.7 typelib\n');
+        });
+
+        await it('says nothing is optional when the bundle marks nothing optional', async () => {
+            const needs = appImageHostRequirements({ app: 'gjs', namespaces: ['Gtk-4.0'] });
+            expect(needs.some((need) => need.includes('optional'))).toBe(false);
+        });
+
         await it('drops what the payload CARRIES, by the same rule the .deb drops it', async () => {
             // `hostProvidedNamespaces` is shared with `deriveDepends` precisely so
             // this cannot drift: a typelib in the payload is not a host

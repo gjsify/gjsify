@@ -30,6 +30,13 @@ import type { ShipSettings } from './types.js';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+/**
+ * The tag number `rpmRecommends` looks for. Named rather than inlined in the walk
+ * so the reader and the writer cannot drift on a number nothing else would notice
+ * — the same reason `rpm.ts` keeps its own `TAG` table.
+ */
+const RPM_TAG_RECOMMENDNAME = 5046;
+
 function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
     return {
         projectDir: '/p',
@@ -123,6 +130,43 @@ async function gunzipMember(archive: Uint8Array, name: string): Promise<Uint8Arr
     throw new Error(`no ar member named ${name}`);
 }
 
+/**
+ * The `RECOMMENDNAME` entries of a built `.rpm`, or `[]` when the tag is absent.
+ *
+ * A header walk rather than a byte search: the question this answers is "did the
+ * tag get written, at the right NUMBER, with the right count" — three fields of the
+ * index entry — and `index.includes('libnotify')` would pass on a package that wrote
+ * the name into the store under any tag at all, which is exactly the mistake
+ * rpm ≥ 4.19's separate dependency index spaces invite. The e2e `ship` suite is
+ * still the oracle (`rpm -qp --recommends`); this keeps the claim checkable where
+ * rpm does not run.
+ */
+function rpmRecommends(built: Uint8Array): string[] {
+    const view = new DataView(built.buffer, built.byteOffset, built.byteLength);
+    // Lead (96 bytes), then the SIGNATURE header; `padToEight` aligns the main
+    // header that follows. The main header itself is read in place, not skipped.
+    let offset = 96;
+    offset += 16 + view.getUint32(offset + 8) * 16 + view.getUint32(offset + 12);
+    while (offset % 8 !== 0) offset += 1;
+    const indexEntries = view.getUint32(offset + 8);
+    const indexBase = offset + 16;
+    const storeBase = indexBase + indexEntries * 16;
+    for (let i = 0; i < indexEntries; i++) {
+        const at = indexBase + i * 16;
+        if (view.getInt32(at) !== RPM_TAG_RECOMMENDNAME) continue;
+        const count = view.getInt32(at + 12);
+        const names: string[] = [];
+        let cursor = storeBase + view.getInt32(at + 8);
+        for (let n = 0; n < count; n++) {
+            const end = built.indexOf(0, cursor);
+            names.push(decoder.decode(built.subarray(cursor, end)));
+            cursor = end + 1;
+        }
+        return names;
+    }
+    return [];
+}
+
 export default async () => {
     await describe('buildDeb: control', async () => {
         const base = {
@@ -153,6 +197,36 @@ export default async () => {
             expect(control).toContain('Depends: gjs (>= 1.86), gir1.2-gtk-4.0');
         });
 
+        await it('writes an optional typelib to Recommends, and never to Depends', async () => {
+            // ADR 0086's packaging consequence. Debian Policy § 7.2: `Recommends`
+            // is installed by default and `--no-install-recommends` is the way out —
+            // the exact semantics of an `&optional` typelib. In `Depends:` it would
+            // mean apt REFUSES the package without the typelib, so an integration
+            // the author declared optional would decide whether the app installs.
+            const control = await debControl({
+                ...base,
+                payload: payload([['bin/hello', 0o755, 'x']]),
+                depends: ['gjs >= 1.86', 'gir1.2-gtk-4.0'],
+                recommends: ['gir1.2-notify-0.7'],
+            });
+            expect(control).toContain('Recommends: gir1.2-notify-0.7');
+            expect(control).toContain('Depends: gjs (>= 1.86), gir1.2-gtk-4.0\n');
+        });
+
+        await it('OMITS an empty Recommends rather than writing a field with no value', async () => {
+            // A field with an empty value is a parse error in a Debian control file,
+            // the same reason `formatDebDepend` exists and the reason
+            // `encodeValue` rejects rpm's empty arrays.
+            const control = await debControl({ ...base, payload: payload([['bin/hello', 0o755, 'x']]) });
+            expect(control).not.toContain('Recommends');
+            const withEmpty = await debControl({
+                ...base,
+                payload: payload([['bin/hello', 0o755, 'x']]),
+                recommends: [],
+            });
+            expect(withEmpty).not.toContain('Recommends');
+        });
+
         await it('keeps a wrapped summary on ONE line instead of forging a field', async () => {
             // A newline here does not corrupt the file, it invents a field.
             const control = await debControl({
@@ -172,6 +246,41 @@ export default async () => {
     });
 
     await describe('buildRpm', async () => {
+        await it('writes the RECOMMEND trio, and omits the tags when there is nothing to recommend', async () => {
+            // The TAG NUMBERS are the load-bearing part, and the independent oracle
+            // is rpm itself in `tests/e2e/ship` (`rpm -qp --recommends`). Here the
+            // claim is narrower and the one a wrong number breaks silently: a
+            // package with `Recommends:` written under the 4.18 numbers parses on
+            // nothing from 4.19 on, which is every rpm this project supports.
+            //
+            // MEASURED against a package `rpmbuild` produced and read back with rpm
+            // 6.0.2: 5046/5047/5048, in their OWN index space — NOT appended to the
+            // REQUIRE arrays as rpm ≤ 4.18 required, and NOT the 1099/1046/1047 that
+            // the pre-4.19 layout used.
+            const withRecommends = await buildRpm({
+                settings: settings(),
+                payload: payload([['bin/hello', 0o755, 'x']]),
+                prefix: FORMATS.rpm.prefix,
+                depends: ['gjs >= 1.86'],
+                recommends: ['libnotify'],
+                archLabel: 'noarch',
+                mtime: 1700000000,
+            });
+            expect(rpmRecommends(withRecommends)).toStrictEqual(['libnotify']);
+
+            const without = await buildRpm({
+                settings: settings(),
+                payload: payload([['bin/hello', 0o755, 'x']]),
+                prefix: FORMATS.rpm.prefix,
+                depends: ['gjs >= 1.86'],
+                archLabel: 'noarch',
+                mtime: 1700000000,
+            });
+            // rpm REJECTS a zero-count array (the rule `encodeValue` enforces), so
+            // the tags must be absent rather than empty.
+            expect(await rpmRecommends(without)).toStrictEqual([]);
+        });
+
         await it('writes the lead magic rpm validates before anything else', async () => {
             // Everything past the magic is checked by the real `rpm` in the e2e
             // suite; what this pins is that a package is produced at all, and

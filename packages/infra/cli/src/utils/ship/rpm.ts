@@ -37,6 +37,11 @@ export interface RpmInputs {
     payload: readonly PayloadEntry[];
     prefix: string;
     depends: readonly string[];
+    /**
+     * Soft dependencies, written as the `RECOMMEND*` tags — an `&optional` typelib
+     * (ADR 0086), which the package installs with and runs without.
+     */
+    recommends?: readonly string[];
     /** RPM architecture (`x86_64`, `noarch`, …). */
     archLabel: string;
     mtime: number;
@@ -76,6 +81,17 @@ const TAG = {
     REQUIREFLAGS: 1048,
     REQUIRENAME: 1049,
     REQUIREVERSION: 1050,
+    // The recommend trio. NOT the 1099/1046/1047 of rpm ≤ 4.18, which shared ONE
+    // index space with `REQUIRENAME`; since 4.19 each dependency tag carries its
+    // own arrays. MEASURED against a package `rpmbuild` produced and read back with
+    // `rpm` 6.0.2: RECOMMENDNAME is a STRING_ARRAY of its own right after
+    // PROVIDEVERSION, not an extension of the four REQUIRE entries. The numbers are
+    // in the 5000s for that reason and a wrong one is invisible here — rpm either
+    // ignores the tag or refuses the header, and `rpm -qp --recommends` is what
+    // says which (e2e `ship`).
+    RECOMMENDNAME: 5046,
+    RECOMMENDVERSION: 5047,
+    RECOMMENDFLAGS: 5048,
     RPMVERSION: 1064,
     POSTINPROG: 1086,
     POSTUNPROG: 1088,
@@ -285,6 +301,10 @@ function mainHeaderEntries(
     // From the PAYLOAD, not the settings — see the same call in `deb.ts`.
     const scripts = renderRpmScriptlets(readPayloadFacts(inputs.payload), inputs.prefix);
     const requires = buildRequires(inputs.depends, scripts, readShebangInterpreters(inputs.payload));
+    // OMITTED, not written empty: rpm rejects a zero-count array (the same rule
+    // `encodeValue` enforces), so a package with no `&optional` namespace carries
+    // no RECOMMEND tag at all.
+    const recommends = buildRecommends(inputs.recommends ?? []);
 
     const entries: RpmEntry[] = [
         { tag: TAG.HEADERI18NTABLE, type: RpmType.STRING_ARRAY, value: ['C'] },
@@ -340,6 +360,13 @@ function mainHeaderEntries(
         { tag: TAG.REQUIRENAME, type: RpmType.STRING_ARRAY, value: requires.names },
         { tag: TAG.REQUIREFLAGS, type: RpmType.INT32, value: requires.flags },
         { tag: TAG.REQUIREVERSION, type: RpmType.STRING_ARRAY, value: requires.versions },
+        ...(recommends.names.length > 0
+            ? [
+                  { tag: TAG.RECOMMENDNAME, type: RpmType.STRING_ARRAY, value: recommends.names },
+                  { tag: TAG.RECOMMENDFLAGS, type: RpmType.INT32, value: recommends.flags },
+                  { tag: TAG.RECOMMENDVERSION, type: RpmType.STRING_ARRAY, value: recommends.versions },
+              ]
+            : []),
 
         { tag: TAG.PAYLOADFORMAT, type: RpmType.STRING, value: 'cpio' },
         { tag: TAG.PAYLOADCOMPRESSOR, type: RpmType.STRING, value: 'gzip' },
@@ -453,6 +480,28 @@ function buildRequires(
         names.push(name);
         flags.push(SENSE.RPMLIB | SENSE.LESS | SENSE.EQUAL);
         versions.push(version);
+    }
+    return { names, flags, versions };
+}
+
+/**
+ * The three parallel `Recommends` arrays — the soft half of
+ * {@link buildRequires}, same relation spelling, no `RPMLIB` and no sense bits.
+ *
+ * `0` is the right flags value and not a missing one: rpm reads an unversioned
+ * recommendation as "any version", which is what an `&optional` typelib package
+ * means (the app asks for the NAMESPACE, never for a version of the package).
+ */
+function buildRecommends(recommends: readonly string[]): { names: string[]; flags: number[]; versions: string[] } {
+    const names: string[] = [];
+    const flags: number[] = [];
+    const versions: string[] = [];
+
+    for (const depend of recommends) {
+        const parsed = parseDepend(depend);
+        names.push(parsed.name);
+        flags.push(senseFor(parsed.relation));
+        versions.push(parsed.version ?? '');
     }
     return { names, flags, versions };
 }

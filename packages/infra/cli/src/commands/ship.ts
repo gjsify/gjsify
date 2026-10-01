@@ -83,7 +83,7 @@ import { compileSchemasForPayload, compileSchemasForStage } from '../utils/ship/
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { assertEntryRunsUnder } from '../utils/ship/entry-interpreter.js';
-import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
+import { scanGiRequirements } from '../utils/ship/gi-namespaces.js';
 import {
     assertLauncherMatchesInterpreter,
     assertPayloadMatchesArch,
@@ -656,8 +656,20 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `gi://` specifiers are what the emitted `Depends:` is derived from
     // (ADR 0024 § 6), and the packing host has the staged copy but no way to
     // tell which staged file is the entry.
-    const namespaces = scanGiNamespaces(bundleSource);
-    if (args.verbose) console.log(`${LOG} gi namespaces: ${namespaces.join(', ') || '(none)'}`);
+    const gi = scanGiRequirements(bundleSource);
+    const namespaces = gi.namespaces;
+    const optionalNamespaces = gi.optional;
+    if (args.verbose) {
+        const hard = namespaces.filter((ns) => !optionalNamespaces.includes(ns));
+        console.log(`${LOG} gi namespaces: ${namespaces.join(', ') || '(none)'}`);
+        // The split is worth its own line whenever it is non-empty: an author who
+        // wrote `&optional` and sees the namespace under the plain list has learned
+        // nothing about whether their package will declare it.
+        if (optionalNamespaces.length > 0) {
+            console.log(`${LOG} gi optional namespaces: ${optionalNamespaces.join(', ')}`);
+            console.log(`${LOG} gi required namespaces: ${hard.join(', ') || '(none)'}`);
+        }
+    }
 
     // PLACED, like the payload, and through the same map. `planOverlay` answers a
     // question about the FORMAT (`share/doc/<pkg>/copyright` for Debian policy,
@@ -700,8 +712,9 @@ async function assemble(args: ShipOptions): Promise<void> {
         // from the other direction (a third format taking rpm's package name
         // into a Debian `Depends:`, at exit 0).
         if (format.depends === null) continue;
-        deriveDepends(format.depends, {
+        const derived = deriveDepends(format.depends, {
             namespaces,
+            optionalNamespaces,
             hasIcons: facts.hasIcons,
             hasSchemas: facts.hasSchemas,
             interpreter: settings.app,
@@ -711,6 +724,19 @@ async function assemble(args: ShipOptions): Promise<void> {
             minGjsVersion: settings.minGjsVersion,
             minNodeVersion: settings.minNodeVersion,
         });
+        // Reported here and not inside `deriveDepends`, which is also called by
+        // `packOne` on a host that has no project — and this is the only place that
+        // does. An optional namespace nobody mapped produces NO package field, and
+        // the app runs without the typelib either way, so nothing downstream will
+        // ever say so again.
+        for (const namespace of derived.unmappedOptional) {
+            console.warn(
+                `${LOG} gi://${namespace} is imported optionally, but no ${format.depends} package is known ` +
+                    'to ship its typelib, so no Recommends entry names it. The package builds and runs ' +
+                    `without it. Add the row if the namespace should be recommended: \`gjsify.ship.typelibPackages.` +
+                    `${namespace} = { "${format.depends}": "…" }\`.`,
+            );
+        }
         // One warning per package, for the interpreter it actually declares. A
         // floor warning about a dependency this package does not emit is noise,
         // and a noisy warning is the one nobody reads when it matters.
@@ -725,7 +751,16 @@ async function assemble(args: ShipOptions): Promise<void> {
     // is sometimes packable elsewhere and sometimes not is a worse contract
     // than one that always is, and it is what lets the e2e suite compare the
     // one-process artifact with the two-phase one.
-    const manifest = writeStageManifest({ stageDir, settings, formats, mtime, namespaces, staged, overlay });
+    const manifest = writeStageManifest({
+        stageDir,
+        settings,
+        formats,
+        mtime,
+        namespaces,
+        optionalNamespaces,
+        staged,
+        overlay,
+    });
 
     if (args.stage) {
         // `(none)` spelled out, because an empty list printed as nothing after
@@ -765,6 +800,7 @@ async function assemble(args: ShipOptions): Promise<void> {
                 stageDir,
                 outRoot,
                 namespaces,
+                optionalNamespaces,
                 mtime,
                 sign,
                 notarize,
@@ -943,6 +979,9 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
     if (args.verbose) {
         for (const file of manifest.staged) console.log(`${LOG}   ${file.path}`);
         console.log(`${LOG} gi namespaces: ${manifest.namespaces.join(', ') || '(none)'}`);
+        if ((manifest.optionalNamespaces ?? []).length > 0) {
+            console.log(`${LOG} gi optional namespaces: ${manifest.optionalNamespaces?.join(', ')}`);
+        }
     }
 
     // The stage's own directory is not written to — `writeStage` wipes what it
@@ -979,6 +1018,7 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
                 stageDir,
                 outRoot,
                 namespaces: manifest.namespaces,
+                optionalNamespaces: manifest.optionalNamespaces ?? [],
                 mtime,
                 sign,
                 notarize,
@@ -1004,6 +1044,8 @@ interface PackInput {
     stageDir: string;
     outRoot: string;
     namespaces: readonly string[];
+    /** The optional subset of {@link namespaces} — ADR 0086's `&optional` typelibs. */
+    optionalNamespaces: readonly string[];
     /** What this RUN can sign with — resolved once, never per format. */
     sign: SignPlan;
     /** What this RUN can notarise with. */
@@ -1033,11 +1075,12 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // this answers used to be answered from the project's file lists, which are
     // absolute paths on the build host and therefore unavailable here.
     const facts = readPayloadFacts(assembled);
-    const depends =
+    const derived =
         format.depends === null
-            ? []
+            ? { requires: [] as string[], recommends: [] as string[], unmappedOptional: [] as string[] }
             : deriveDepends(format.depends, {
                   namespaces: input.namespaces,
+                  optionalNamespaces: input.optionalNamespaces,
                   hasIcons: facts.hasIcons,
                   hasSchemas: facts.hasSchemas,
                   interpreter: settings.app,
@@ -1047,6 +1090,8 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   minGjsVersion: settings.minGjsVersion,
                   minNodeVersion: settings.minNodeVersion,
               });
+    const depends = derived.requires;
+    const recommends = derived.recommends;
 
     // `--arch` is a CLAIM about the payload and nothing else compared it to one:
     // an x86-64 `.so` staged with `--arch arm64` packed at exit 0 and `rpm -qp
@@ -1138,7 +1183,9 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             : assembled;
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
-    const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
+    // `recommends` rides the shared input object, so a format that does not write the
+    // field (every non-deb/rpm row) simply ignores an extra property it never reads.
+    const common = { settings, payload, prefix: format.prefix, depends, recommends, archLabel, mtime };
 
     const outDir = join(outRoot, 'out');
     mkdirSync(outDir, { recursive: true });
@@ -1194,6 +1241,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 minGjsVersion: settings.minGjsVersion,
                 minNodeVersion: settings.minNodeVersion,
                 namespaces: input.namespaces,
+                optionalNamespaces: input.optionalNamespaces,
                 bundledTypelibs: facts.bundledTypelibs,
             });
             const appDir = appDirFor(outRoot);

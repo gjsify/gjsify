@@ -255,7 +255,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         ...(consoleShimPath ? [consoleAssignPlugin()] : []),
         // `gi://Ns?version=X&optional` → a guarded import (ADR 0086), claimed `pre`
         // so the externals policy never sees the flagged specifier.
-        giOptionalPlugin(),
+        giOptionalPlugin('gjs'),
         // Platform-file forks for the desktop, ADR 0032 § 9: `.gtk` → `.<os>` →
         // `.desktop` → base. BEFORE the alias layer, so a platform fork of a
         // module that also has a Node-builtin substitution wins over the

@@ -21,9 +21,13 @@ export { giRuntimePathsStub } from './plugins/gi-runtime-paths.js';
 export {
     giOptionalPlugin,
     giOptionalShimSource,
+    giOptionalNodeShimSource,
+    giOptionalMarkerSource,
     parseOptionalGiSpecifier,
     GI_OPTIONAL_FLAG,
+    GI_OPTIONAL_MARKER,
 } from './plugins/gi-optional.js';
+export type { GiOptionalTarget } from './plugins/gi-optional.js';
 export {
     bindConsoleLocally,
     consoleAssignPlugin,
