@@ -223,7 +223,7 @@ export function appImageHostRequirements(input: {
     minNodeVersion?: string;
     namespaces: readonly string[];
     /**
-     * The subset of {@link namespaces} the bundle marks optional (ADR 0086).
+     * The subset of {@link namespaces} the bundle marks optional (ADR 0087).
      *
      * An AppImage has no `Depends:` field, so "optional" cannot become a package
      * list here — it becomes WORDING instead. That is not cosmetic: an AppRun user

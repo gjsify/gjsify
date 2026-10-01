@@ -1044,7 +1044,7 @@ interface PackInput {
     stageDir: string;
     outRoot: string;
     namespaces: readonly string[];
-    /** The optional subset of {@link namespaces} — ADR 0086's `&optional` typelibs. */
+    /** The optional subset of {@link namespaces} — ADR 0087's `&optional` typelibs. */
     optionalNamespaces: readonly string[];
     /** What this RUN can sign with — resolved once, never per format. */
     sign: SignPlan;

@@ -1,4 +1,4 @@
-# 86. An optional GI namespace is declared on the import: `gi://Ns?version=X&optional`
+# 87. An optional GI namespace is declared on the import: `gi://Ns?version=X&optional`
 
 - Status: **Accepted** (amended 2026-10-01 — hard/optional split in packaging, and the
   `--app node` arm; both clauses below carry what changed)

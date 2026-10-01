@@ -35,7 +35,7 @@
 // pass the CLI already uses to compute its own runtime closure — so there is one
 // definition of "what does this file import" rather than two.
 //
-// HARD OR OPTIONAL, since ADR 0086: a `gi://Ns?version=X&optional` import still
+// HARD OR OPTIONAL, since ADR 0087: a `gi://Ns?version=X&optional` import still
 // appears in the emitted file, so this scanner still reports its namespace — and
 // `depends.ts` has to know it may be absent. The discriminator is the marker
 // statement the bundler's own optional shim emits (`GI_OPTIONAL_MARKER`, imported
@@ -85,7 +85,7 @@ export function scanGiNamespaces(source: string): string[] {
     return scanGiRequirements(source).namespaces;
 }
 
-/** {@link scanGiNamespaces}, plus which of them the artifact marks optional (ADR 0086). */
+/** {@link scanGiNamespaces}, plus which of them the artifact marks optional (ADR 0087). */
 export function scanGiRequirements(source: string): GiRequirements {
     const found = new Set<string>();
     const optional = new Set<string>();

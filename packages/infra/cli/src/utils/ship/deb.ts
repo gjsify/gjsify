@@ -39,7 +39,7 @@ export interface DebInputs {
      *
      * Debian Policy § 7.2: a recommended package is installed by default and
      * `--no-install-recommends` is the user's way out. That is what an `&optional`
-     * typelib is (ADR 0086) — the app runs without it and loses a feature — so
+     * typelib is (ADR 0087) — the app runs without it and loses a feature — so
      * putting it in `Depends:` would let an optional integration decide whether
      * the package installs at all.
      */

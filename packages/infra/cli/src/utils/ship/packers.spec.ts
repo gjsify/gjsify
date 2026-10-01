@@ -198,7 +198,7 @@ export default async () => {
         });
 
         await it('writes an optional typelib to Recommends, and never to Depends', async () => {
-            // ADR 0086's packaging consequence. Debian Policy § 7.2: `Recommends`
+            // ADR 0087's packaging consequence. Debian Policy § 7.2: `Recommends`
             // is installed by default and `--no-install-recommends` is the way out —
             // the exact semantics of an `&optional` typelib. In `Depends:` it would
             // mean apt REFUSES the package without the typelib, so an integration

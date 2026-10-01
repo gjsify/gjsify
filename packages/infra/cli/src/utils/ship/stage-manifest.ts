@@ -162,7 +162,7 @@ export interface StageManifest {
     /** GI namespaces the bundle imports, `Ns-Version` where the specifier pins one. */
     namespaces: string[];
     /**
-     * The subset of {@link namespaces} the BUNDLE marks optional (ADR 0086).
+     * The subset of {@link namespaces} the BUNDLE marks optional (ADR 0087).
      *
      * OPTIONAL on read, deliberately, and that is the {STAGE_SCHEMA_VERSION} header's
      * "a field an older reader would simply ignore" case: a stage written before the

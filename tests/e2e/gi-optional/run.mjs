@@ -1,5 +1,5 @@
 // E2E: a `gi://Ns?version=X&optional` import of an ABSENT typelib starts, on BOTH
-// build targets, and the packaging split follows the flag (ADR 0086).
+// build targets, and the packaging split follows the flag (ADR 0087).
 //
 // The control is the same program without the flag: it must keep dying at load, so the
 // first row cannot pass by the namespace happening to exist on the host.

@@ -212,7 +212,7 @@ export default async () => {
             }
         });
 
-        // ── hard vs optional (ADR 0086) ────────────────────────────────────
+        // ── hard vs optional (ADR 0087) ────────────────────────────────────
 
         await it('puts an optional typelib in Recommends, never in Depends', async () => {
             // THE POINT OF THE SPLIT. `&optional` means the app has a degrade path,

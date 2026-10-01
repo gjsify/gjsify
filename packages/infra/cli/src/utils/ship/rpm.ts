@@ -39,7 +39,7 @@ export interface RpmInputs {
     depends: readonly string[];
     /**
      * Soft dependencies, written as the `RECOMMEND*` tags — an `&optional` typelib
-     * (ADR 0086), which the package installs with and runs without.
+     * (ADR 0087), which the package installs with and runs without.
      */
     recommends?: readonly string[];
     /** RPM architecture (`x86_64`, `noarch`, …). */

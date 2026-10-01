@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// `&optional` flag on a `gi://` specifier (ADR 0086): what it is parsed to, the
+// `&optional` flag on a `gi://` specifier (ADR 0087): what it is parsed to, the
 // module a flagged import resolves to on each target, and the marker statement that
 // records the namespace as optional in the ARTIFACT — which is what `depends.ts`
 // reads (`@gjsify/cli`'s `depends.spec.ts` reads this same shim as its fixture, so

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // `import Goa from 'gi://Goa?version=1.0&optional'` — a GI namespace the app can run
-// without (ADR 0086). Composed by `--app gjs` and `--app node`.
+// without (ADR 0087). Composed by `--app gjs` and `--app node`.
 //
 // A plain `gi://` import is a hard edge: GJS loads the typelib when the specifier is
 // EVALUATED and a missing one aborts the module graph before the app decides anything.

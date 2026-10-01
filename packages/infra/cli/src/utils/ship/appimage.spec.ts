@@ -329,7 +329,7 @@ export default async () => {
         });
 
         await it('words an optional typelib as optional, because there is no Recommends field here', async () => {
-            // ADR 0086. A `.deb`/`.rpm` gets `Recommends:`; an AppImage has no
+            // ADR 0087. A `.deb`/`.rpm` gets `Recommends:`; an AppImage has no
             // package list at all, so the split survives as WORDING — and that is
             // load-bearing rather than cosmetic. A user told a typelib is required
             // and lacking it concludes the image is broken and installs something

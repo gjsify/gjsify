@@ -252,7 +252,7 @@ export interface DependsInputs {
     /** GI namespaces the bundle imports, in `Ns-Version` spelling. */
     namespaces: readonly string[];
     /**
-     * The subset of {@link namespaces} the bundle declares OPTIONAL (ADR 0086 —
+     * The subset of {@link namespaces} the bundle declares OPTIONAL (ADR 0087 —
      * `gi://Ns?version=X&optional`): a `Recommends:` entry, never a `Depends:`.
      *
      * Kept as its own list rather than filtered out of {@link namespaces}, because
@@ -366,7 +366,7 @@ export function hostProvidedNamespaces(
  * One format's dependency lists, split by how hard the requirement is.
  *
  * `requires` is what an absent package makes the app fail over; `recommends` is what
- * its absence only costs. A namespace the BUNDLE marked optional (ADR 0086) is the
+ * its absence only costs. A namespace the BUNDLE marked optional (ADR 0087) is the
  * second kind by declaration — the app's own `check()` degrades — and both `.deb`
  * and `.rpm` have a field for it, so there is no reason to declare it hard.
  */
