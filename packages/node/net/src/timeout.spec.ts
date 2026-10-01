@@ -2,6 +2,14 @@
 // test-net-allow-half-open.js, test-net-server-close.js, test-net-end-close.js
 // Original: MIT license, Node.js contributors
 
+// The 15 `on('error', () => {})` these tests carried are gone. Which replacement a
+// site gets is a claim about the SOCKET, not the host: a TCP peer reset needs unread
+// data queued in the closing side's receive buffer, and every scenario here either
+// writes nothing or drains what it is sent (a 'data' listener is attached wherever
+// the peer writes), so no side can close over unread data and win32 has no reset to
+// report either. The clients therefore reject on any error, and the accepted server
+// sockets — which never receive a byte — carry no handler at all.
+
 import { describe, it, expect } from '@gjsify/unit';
 import { createServer, connect, Socket } from 'node:net';
 import { Buffer } from 'node:buffer';
@@ -34,19 +42,16 @@ export default async () => {
         });
 
         await it('should emit timeout event on idle connection', async () => {
-            const { port, close } = await listenServer((sock) => {
-                // Don't send any data — let the client timeout
-                sock.on('error', () => {});
-            });
+            const { port, close } = await listenServer(); // server sends nothing — let the client time out
             try {
-                const timedOut = await new Promise<boolean>((resolve) => {
+                const timedOut = await new Promise<boolean>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.setTimeout(100, () => {
                             client.destroy();
                             resolve(true);
                         });
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                     setTimeout(() => {
                         client.destroy();
                         resolve(false);
@@ -73,7 +78,7 @@ export default async () => {
                 sock.on('error', () => clearInterval(interval));
             });
             try {
-                await new Promise<void>((resolve) => {
+                await new Promise<void>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.setTimeout(200, () => {
                             timeoutFired = true;
@@ -86,7 +91,7 @@ export default async () => {
                             resolve();
                         }, 400);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(timeoutFired).toBe(false);
             } finally {
@@ -96,11 +101,9 @@ export default async () => {
 
         await it('should cancel timeout with setTimeout(0)', async () => {
             let timeoutFired = false;
-            const { port, close } = await listenServer((sock) => {
-                sock.on('error', () => {});
-            });
+            const { port, close } = await listenServer();
             try {
-                await new Promise<void>((resolve) => {
+                await new Promise<void>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.setTimeout(100, () => {
                             timeoutFired = true;
@@ -112,7 +115,7 @@ export default async () => {
                             resolve();
                         }, 300);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(timeoutFired).toBe(false);
             } finally {
@@ -140,7 +143,7 @@ export default async () => {
                 sock.end();
             });
             try {
-                const result = await new Promise<{ data: string; ended: boolean }>((resolve) => {
+                const result = await new Promise<{ data: string; ended: boolean }>((resolve, reject) => {
                     let data = '';
                     let ended = false;
                     const client = connect(port, '127.0.0.1');
@@ -154,7 +157,7 @@ export default async () => {
                     client.on('close', () => {
                         resolve({ data, ended });
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(result.data).toBe('hello');
                 expect(result.ended).toBe(true);
@@ -223,7 +226,7 @@ export default async () => {
             });
             try {
                 const events: string[] = [];
-                await new Promise<void>((resolve) => {
+                await new Promise<void>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1');
                     client.on('connect', () => events.push('connect'));
                     client.on('ready', () => events.push('ready'));
@@ -232,7 +235,7 @@ export default async () => {
                         events.push('close');
                         resolve();
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(events).toContain('connect');
                 expect(events).toContain('ready');
@@ -245,14 +248,14 @@ export default async () => {
         await it('should set connecting=true during connect', async () => {
             const { port, close } = await listenServer((sock) => sock.end());
             try {
-                const wasConnecting = await new Promise<boolean>((resolve) => {
+                const wasConnecting = await new Promise<boolean>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1');
                     const val = client.connecting;
                     client.on('connect', () => {
                         client.destroy();
                         resolve(val);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(wasConnecting).toBe(true);
             } finally {
@@ -263,12 +266,12 @@ export default async () => {
         await it('should set connecting=false after connect', async () => {
             const { port, close } = await listenServer((sock) => sock.end());
             try {
-                const wasConnecting = await new Promise<boolean>((resolve) => {
+                const wasConnecting = await new Promise<boolean>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         resolve(client.connecting);
                         client.destroy();
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(wasConnecting).toBe(false);
             } finally {
@@ -283,7 +286,7 @@ export default async () => {
                 });
             });
             try {
-                const result = await new Promise<{ bytesRead: number; bytesWritten: number }>((resolve) => {
+                const result = await new Promise<{ bytesRead: number; bytesWritten: number }>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.write('hello');
                     });
@@ -294,7 +297,7 @@ export default async () => {
                             client.destroy();
                         }, 50);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(result.bytesWritten).toBe(5); // 'hello' = 5 bytes
                 expect(result.bytesRead).toBe(5); // echo back = 5 bytes
@@ -308,12 +311,12 @@ export default async () => {
         await it('should set destroyed=true', async () => {
             const { port, close } = await listenServer((sock) => sock.end());
             try {
-                const wasDestroyed = await new Promise<boolean>((resolve) => {
+                const wasDestroyed = await new Promise<boolean>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.destroy();
                         resolve(client.destroyed);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(wasDestroyed).toBe(true);
             } finally {
@@ -324,12 +327,12 @@ export default async () => {
         await it('should emit close event after destroy', async () => {
             const { port, close } = await listenServer((sock) => sock.end());
             try {
-                const closeFired = await new Promise<boolean>((resolve) => {
+                const closeFired = await new Promise<boolean>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.destroy();
                     });
                     client.on('close', () => resolve(true));
-                    client.on('error', () => {});
+                    client.on('error', reject);
                     setTimeout(() => resolve(false), 3000);
                 });
                 expect(closeFired).toBe(true);
@@ -394,9 +397,7 @@ export default async () => {
 
     await describe('net Server maxConnections', async () => {
         await it('should accept connections up to maxConnections', async () => {
-            const { port, server, close } = await listenServer((sock) => {
-                sock.on('error', () => {});
-            });
+            const { port, server, close } = await listenServer();
             server.maxConnections = 2;
             try {
                 // Connect 2 clients — should work
@@ -423,7 +424,7 @@ export default async () => {
                 sock.on('data', (data: Buffer) => sock.write(data));
             });
             try {
-                const echoed = await new Promise<string>((resolve) => {
+                const echoed = await new Promise<string>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.write('test-echo');
                     });
@@ -432,7 +433,7 @@ export default async () => {
                         client.destroy();
                         resolve(data);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(echoed).toBe('test-echo');
             } finally {
@@ -446,7 +447,7 @@ export default async () => {
                 sock.on('data', (data: Buffer) => sock.write(data));
             });
             try {
-                const received = await new Promise<Buffer>((resolve) => {
+                const received = await new Promise<Buffer>((resolve, reject) => {
                     const client = connect(port, '127.0.0.1', () => {
                         client.write(testData);
                     });
@@ -454,7 +455,7 @@ export default async () => {
                         client.destroy();
                         resolve(data);
                     });
-                    client.on('error', () => {});
+                    client.on('error', reject);
                 });
                 expect(received.length).toBe(testData.length);
                 for (let i = 0; i < testData.length; i++) {

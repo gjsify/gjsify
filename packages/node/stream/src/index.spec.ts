@@ -654,6 +654,41 @@ export default async () => {
             });
             expect(errorEmitted).toBeTruthy();
         });
+
+        // A `code` is what lets a consumer tell this apart from any other
+        // 'error' event; without it the only option is to ignore the event.
+        await it('codes the error ERR_STREAM_WRITE_AFTER_END', async () => {
+            const err = await new Promise<Error & { code?: string }>((resolve) => {
+                const writable = new Writable({
+                    write(_chunk, _encoding, callback) {
+                        callback();
+                    },
+                });
+                writable.on('error', resolve);
+                writable.end();
+                writable.write('after-end');
+            });
+            expect(err.code).toBe('ERR_STREAM_WRITE_AFTER_END');
+        });
+
+        // Duplex re-implements the writable half, so it needs its own check —
+        // the shared constructor is what keeps the two from drifting apart.
+        await it('codes the error on Duplex too', async () => {
+            const err = await new Promise<Error & { code?: string }>((resolve) => {
+                const duplex = new Duplex({
+                    write(_chunk, _encoding, callback) {
+                        callback();
+                    },
+                    read() {
+                        /* no data */
+                    },
+                });
+                duplex.on('error', resolve);
+                duplex.end();
+                duplex.write('after-end');
+            });
+            expect(err.code).toBe('ERR_STREAM_WRITE_AFTER_END');
+        });
     });
 
     await describe('Writable: _final', async () => {

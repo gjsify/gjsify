@@ -5,6 +5,25 @@
 import { describe, it, expect } from '@gjsify/unit';
 import * as net from 'node:net';
 
+/**
+ * Is this socket error the peer aborting the connection rather than a real fault?
+ *
+ * Closing a TCP connection that still has unread data queued in the peer's receive
+ * buffer makes the stack send RST instead of FIN, and the sender's next read reports
+ * `ECONNRESET`. Whether that surfaces depends on the OS, which is why it needs naming
+ * rather than blanket tolerance: win32 delivers the reset to a server socket whose
+ * client simply walked away, darwin and linux deliver a clean FIN and the read reports
+ * EOF. `read ECONNRESET` is that event, not a bug — a spec that has no reader for the
+ * peer's data provokes it.
+ *
+ * Deliberately narrow: `EPIPE` is OUR write to a socket the peer already closed, and a
+ * `ERR_STREAM_*` code comes from the stream layer above the socket, so neither is a peer
+ * reset and a test that swallows one of those is hiding something real.
+ */
+export function isPeerReset(err: unknown): boolean {
+    return (err as { code?: string } | null | undefined)?.code === 'ECONNRESET';
+}
+
 export default async () => {
     await describe('net.Socket destroy', async () => {
         await it('should be safe to call destroy() multiple times', async () => {
@@ -132,6 +151,44 @@ export default async () => {
                     resolve();
                 }, 100),
             );
+        });
+    });
+
+    await describe('net socket error classification', async () => {
+        // The classifier the tolerated-handler sites use, exercised over every code a
+        // socket can produce. A test that tolerates "the peer reset" on one OS and
+        // "nothing" on another is a claim about the HOST, and the only way to hold it
+        // without a Windows machine is to pin the DECISION here: `isPeerReset` is a pure
+        // function of the code, so this pins it identically on every leg, and the
+        // tolerated handler is then just `!isPeerReset(err) → reject`.
+        await it('classifies ECONNRESET as a peer reset and nothing else', async () => {
+            // The one code tolerated: win32 reports it on a server socket whose client
+            // closed without reading, where darwin/linux report a clean EOF.
+            expect(isPeerReset(Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }))).toBe(true);
+            // Our own write to a closed peer — a real fault, not a peer reset.
+            expect(isPeerReset(Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }))).toBe(false);
+            // The stream layer, above the socket: `write after end` is a caller error.
+            expect(
+                isPeerReset(Object.assign(new Error('write after end'), { code: 'ERR_STREAM_WRITE_AFTER_END' })),
+            ).toBe(false);
+            // Anything unrecognised, and the shapes an absent code arrives in.
+            expect(isPeerReset(Object.assign(new Error('boom'), { code: 'ENOTAREALCODE' }))).toBe(false);
+            expect(isPeerReset(new Error('read ECONNRESET'))).toBe(false); // message without a code
+            expect(isPeerReset(null)).toBe(false);
+            expect(isPeerReset(undefined)).toBe(false);
+        });
+
+        // The tolerated handler is a decision, so pin the DECISION it makes on a
+        // synthetic reset — the win32 branch, forced on a host that never produces one.
+        await it('the tolerated handler passes a peer reset through and rejects the rest', async () => {
+            const handled: string[] = [];
+            const onSocketError = (err: Error & { code?: string }): void => {
+                if (isPeerReset(err)) handled.push(err.code!);
+                else handled.push(`REJECTED:${err.code ?? err.message}`);
+            };
+            onSocketError(Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }));
+            onSocketError(Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+            expect(handled).toStrictEqual(['ECONNRESET', 'REJECTED:EPIPE']);
         });
     });
 

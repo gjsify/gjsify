@@ -4,9 +4,23 @@
 // test-net-settimeout.js, test-net-bytes-read.js, test-net-server-max-connections.js
 // Original: MIT license, Node.js contributors
 
+// Every site below used to register a blanket `on('error', () => {})`. They are
+// now either `reject` or absent, so an unexpected error fails the test it happened
+// in. Which is which is a claim about the SOCKET, never about the host it runs on:
+// a TCP peer reset needs unread data queued in the closing side's receive buffer,
+// and each site below either writes nothing in either direction or drains what it
+// is sent, so no side can close over unread data. That argument holds on every OS.
+//
+// The one site where a side DOES close over unread data is the write-after-end case
+// further down — and there the tolerated code is `ECONNRESET`, because win32 reports
+// that reset where darwin/linux report a clean EOF. `isPeerReset` classifies it and
+// `error.spec.ts` pins the classification over every code a socket can produce, which
+// is what lets the win32 claim be held without a Windows host.
+
 import { describe, it, expect } from '@gjsify/unit';
 import net, { isIP, isIPv4, isIPv6, createServer, createConnection, connect, Socket, Server } from 'node:net';
 import { Buffer } from 'node:buffer';
+import { isPeerReset } from './error.spec.js';
 
 export default async () => {
     await describe('net', async () => {
@@ -634,9 +648,10 @@ export default async () => {
                                 server.close(() => resolve());
                             });
                         });
-                        client.on('error', () => {
-                            // Expected — we destroyed the socket
-                        });
+                        // The server sends nothing and the client is destroyed by its own
+                        // timeout, so neither side has unread data queued at close — which
+                        // is what a peer reset requires. No code is tolerated.
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -665,7 +680,10 @@ export default async () => {
                     server.listen(0, () => {
                         const addr = server.address() as { port: number };
                         client = createConnection({ port: addr.port, host: '127.0.0.1' });
-                        client.on('error', () => {});
+                        // Destroyed by the server's own connection handler. Nothing is written
+                        // in either direction, so no side closes over unread data and there is
+                        // no reset to tolerate on any OS.
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -763,7 +781,9 @@ export default async () => {
                             expect(client.destroyed).toBe(true);
                             server.close(() => resolve());
                         });
-                        client.on('error', () => {}); // Ignore errors from destroyed socket
+                        // The server half-closes without writing, and the client destroys
+                        // itself: no unread data anywhere, so no peer reset on any OS.
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -783,7 +803,7 @@ export default async () => {
                             });
                             client.destroy();
                         });
-                        client.on('error', () => {}); // Ignore
+                        client.on('error', reject);
                     });
                     server.on('error', reject);
                 });
@@ -956,12 +976,21 @@ export default async () => {
             });
 
             await it('should handle write after end gracefully', async () => {
-                const server = createServer((socket) => {
-                    socket.on('error', () => {}); // Ignore ECONNRESET from client closing
-                    socket.end('done');
-                });
-
                 await new Promise<void>((resolve, reject) => {
+                    const server = createServer((socket) => {
+                        // The client below writes after `end()` and never reads this
+                        // socket's 'done', so it closes with unread data queued in its
+                        // receive buffer — which makes the stack send RST, not FIN.
+                        // darwin/linux report that as a clean EOF and emit nothing
+                        // (measured here, 73 runs); win32 reports it as
+                        // `read ECONNRESET` on THIS socket. That code is tolerated and
+                        // nothing else, so a genuine server-side fault still fails.
+                        socket.on('error', (err) => {
+                            if (!isPeerReset(err)) reject(err);
+                        });
+                        socket.end('done');
+                    });
+
                     server.listen(0, () => {
                         const addr = server.address() as { port: number };
                         const client = createConnection({ port: addr.port, host: '127.0.0.1' }, () => {
@@ -969,12 +998,23 @@ export default async () => {
                             // Write after end should not crash
                             const result = client.write('after end');
                             expect(result).toBe(false);
-                            client.on('error', () => {}); // Ignore write-after-end error
-                            client.on('close', () => {
-                                server.close(() => resolve());
-                            });
                         });
-                        client.on('error', () => {});
+                        // The ONE error this scenario legitimately produces: Node
+                        // rejects a write past end() with ERR_STREAM_WRITE_AFTER_END,
+                        // on the write callback and as an 'error' event. Two blanket
+                        // handlers used to be registered on this socket (here and in
+                        // the connect callback), so the single error they hid was
+                        // hidden twice over. Asserting it arrives keeps the tolerance
+                        // honest — a tolerated error nobody checks is a swallow again.
+                        let tolerated: string | undefined;
+                        client.on('error', (err: Error & { code?: string }) => {
+                            tolerated = err.code;
+                            if (err.code !== 'ERR_STREAM_WRITE_AFTER_END') reject(err);
+                        });
+                        client.on('close', () => {
+                            expect(tolerated).toBe('ERR_STREAM_WRITE_AFTER_END');
+                            server.close(() => resolve());
+                        });
                     });
                     server.on('error', reject);
                 });

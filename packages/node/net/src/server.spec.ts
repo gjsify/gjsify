@@ -6,6 +6,8 @@ import type { Server, Socket } from 'node:net';
 import { createServer, createConnection } from 'node:net';
 import { Buffer } from 'node:buffer';
 
+import { isPeerReset } from './error.spec.js';
+
 /**
  * Attach the `'error'` listener a client or server socket needs to survive a
  * peer that resets instead of closing cleanly.
@@ -35,17 +37,23 @@ import { Buffer } from 'node:buffer';
  * A bare `client.on('error', reject)` is the shape that fails, because it turns
  * teardown noise into the spec's verdict. The one deliberate exception is the
  * connection-refused spec, whose subject IS the error.
+ *
+ * The two differ ONLY in where a non-reset goes, so both ask `isPeerReset` rather
+ * than each spelling `err.code !== 'ECONNRESET'`: the rule — which codes count as a
+ * peer reset, and why `EPIPE` and `ERR_STREAM_*` do not — is stated once in
+ * `error.spec.ts` and pinned there over four codes, and a second copy of the
+ * comparison here would be a second rule that could drift from it unseen.
  */
 function tolerateReset(socket: { on(event: 'error', listener: (err: NodeJS.ErrnoException) => void): unknown }): void {
     socket.on('error', (err) => {
-        if (err.code !== 'ECONNRESET') throw err;
+        if (!isPeerReset(err)) throw err;
     });
 }
 
 /** `reject`, but a peer RST is teardown noise rather than a failure — see {@link tolerateReset}. */
 function rejectUnlessReset(reject: (err: unknown) => void): (err: NodeJS.ErrnoException) => void {
     return (err) => {
-        if (err.code !== 'ECONNRESET') reject(err);
+        if (!isPeerReset(err)) reject(err);
     };
 }
 
