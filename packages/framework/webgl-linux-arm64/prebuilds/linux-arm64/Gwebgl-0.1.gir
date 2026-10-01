@@ -776,6 +776,32 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="beforeIndexedDraw" c:identifier="gwebgl_web_gl_rendering_context_base_beforeIndexedDraw">
+			<return-value transfer-ownership="full">
+				<type name="none" c:type="void"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
+				</instance-parameter>
+				<parameter name="elementType" transfer-ownership="none">
+					<type name="gint" c:type="gint"/>
+				</parameter>
+			</parameters>
+		</method>
+		<virtual-method name="beforeIndexedDraw" invoker="beforeIndexedDraw">
+			<return-value transfer-ownership="full">
+				<type name="none" c:type="void"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
+				</instance-parameter>
+				<parameter name="elementType" transfer-ownership="none">
+					<type name="gint" c:type="gint"/>
+				</parameter>
+			</parameters>
+		</virtual-method>
 		<method name="enable" c:identifier="gwebgl_web_gl_rendering_context_base_enable">
 			<return-value transfer-ownership="full">
 				<type name="none" c:type="void"/>
@@ -1787,6 +1813,16 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="acceptsGles3AsWritten" c:identifier="gwebgl_web_gl_rendering_context_base_acceptsGles3AsWritten">
+			<return-value transfer-ownership="full">
+				<type name="gboolean" c:type="gboolean"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
+				</instance-parameter>
+			</parameters>
+		</method>
 		<method name="shaderSource" c:identifier="gwebgl_web_gl_rendering_context_base_shaderSource">
 			<return-value transfer-ownership="full">
 				<type name="none" c:type="void"/>
@@ -2493,6 +2529,19 @@
 				</parameter>
 			</parameters>
 		</method>
+		<method name="refuseEtc2Eac" c:identifier="gwebgl_web_gl_rendering_context_base_refuseEtc2Eac">
+			<return-value transfer-ownership="full">
+				<type name="gboolean" c:type="gboolean"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
+				</instance-parameter>
+				<parameter name="internalFormat" transfer-ownership="none">
+					<type name="gint" c:type="gint"/>
+				</parameter>
+			</parameters>
+		</method>
 		<method name="readPixels" c:identifier="gwebgl_web_gl_rendering_context_base_readPixels">
 			<return-value transfer-ownership="full">
 				<array length="7" c:type="guint8*">
@@ -2930,6 +2979,21 @@
 	<record name="WebGLRenderingContextBaseClass" c:type="GwebglWebGLRenderingContextBaseClass" glib:is-gtype-struct-for="WebGLRenderingContextBase">
 		<field name="parent_class" readable="0" private="1">
 			<type name="GObject.ObjectClass" c:type="GObjectClass"/>
+		</field>
+		<field name="beforeIndexedDraw">
+			<callback name="beforeIndexedDraw" c:type="beforeIndexedDraw">
+				<return-value transfer-ownership="full">
+					<type name="none" c:type="void"/>
+				</return-value>
+				<parameters>
+					<parameter name="self" transfer-ownership="none">
+						<type name="Gwebgl.WebGLRenderingContextBase" c:type="GwebglWebGLRenderingContextBase*"/>
+					</parameter>
+					<parameter name="elementType" transfer-ownership="none">
+						<type name="gint" c:type="gint"/>
+					</parameter>
+				</parameters>
+			</callback>
 		</field>
 	</record>
 	<record name="WebGLRenderingContextBasePrivate" c:type="GwebglWebGLRenderingContextBasePrivate" disguised="1"/>
