@@ -64,12 +64,13 @@ To change how any of it looks, set the [design tokens](./theming/).
 
 ## How a widget page reads
 
-Every widget block is one window. The widget runs on top, in the browser port, so it
-follows the light and dark toggle. Below it, **Blueprint** declares the widget and
-**TypeScript** builds it. Choose a tab once and every block on the site follows it.
+Every widget block is two windows. The widget runs in the first, in the browser port, so it
+follows the light and dark toggle. The source window below it has **Blueprint**, which
+declares the widget, and **TypeScript**, which builds it. Choose a segment once and every
+block on the site follows it.
 
-<MoreInfo title="Other bindings">
-The **Other bindings** menu in each window's header bar holds the same widget for the Web
+<MoreInfo title="More">
+The **More** segment in the source window opens a menu of the same widget for the Web
 Components and NativeScript ports and for Solid, Vue and React through `@gjsify/gtk-host`.
 Where a widget is built in code rather than declared, a recorded reason takes the place of
 the snippet.
