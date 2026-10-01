@@ -326,6 +326,8 @@ export function auditStylesheetFontFamilies(ctx) {
      * shipped, so a claim there is outside what this rule means.
      */
     const unbuilt = [];
+    /** Package REL paths whose declared shipped tree is absent, for the stale-entry arm. */
+    const unbuiltPackages = new Set();
 
     for (const pkg of ctx.packages) {
         if (pkg.private) continue;
@@ -336,7 +338,22 @@ export function auditStylesheetFontFamilies(ctx) {
             if (/[*?[\]{}!]/.test(entry)) return false;
             return !existsSync(join(pkg.dir, entry.replace(/^\.\//, '')));
         });
-        if (absentRoots.length > 0) unbuilt.push(`${pkg.manifest.name} (${absentRoots.join(', ')})`);
+        // A package only counts as UNANSWERED when it has a stylesheet that the missing
+        // root could have carried. `@gjsify/gtk-runtime-darwin-arm64` declares
+        // `files: ["index.js","index.d.ts","gtk"]` and its `gtk/` payload is a NATIVE
+        // bundle whose presence on a given runner is the OS axis's question
+        // (`prebuild-artifacts`), not this rule's — it ships no stylesheet at all, so
+        // nothing of its was ever going to be inspected here. Counting it made the shipped
+        // scope fail on the wrong host for a file no font claim lives in.
+        const anySheet = findStylesheets(pkg.dir).length > 0;
+        if (absentRoots.length > 0 && anySheet) {
+            unbuilt.push(`${pkg.manifest.name} (${absentRoots.join(', ')})`);
+            // Names whose shipped tree is ABSENT, so the stale-entry arm below can tell
+            // "the entry describes nothing any more" from "the tree this entry describes
+            // has not been built". Those are opposite verdicts and the rule used to report
+            // the second as the first.
+            unbuiltPackages.add(pkg.rel);
+        }
         const sheets = [];
         for (const absolute of findStylesheets(pkg.dir)) {
             const rel = toPosixPath(absolute.slice(pkg.dir.length + 1));
@@ -424,6 +441,14 @@ export function auditStylesheetFontFamilies(ctx) {
 
     for (const key of Object.keys(ledger)) {
         if (usedLedgerKeys.has(key)) continue;
+        // An entry for a package whose shipped tree is NOT ON DISK describes a claim this
+        // run could not read — not a claim that no longer exists. Reporting it as stale is
+        // how a self-retiring ledger becomes a tripwire: the entry was added for a real
+        // claim, the arm below cannot see the claim on an unbuilt checkout, and the ledger
+        // then demands its own deletion on every fresh clone. Found by running the issue's
+        // own repro, which is the only way this state is ever reached.
+        const owner = key.split(':')[0]?.trim();
+        if (unbuiltPackages.has(owner)) continue;
         failures.push(
             `${LEDGER_PATH} carries "${key}", which matches no font-family claim in any shipped stylesheet. Either ` +
                 `the package/family was renamed or the declaration is gone; delete the entry or fix its key.`,
@@ -432,11 +457,29 @@ export function auditStylesheetFontFamilies(ctx) {
 
     const notes = [];
     if (unbuilt.length > 0) {
-        notes.push(
+        const report =
             `${unbuilt.length} package(s) declare shipped paths that are not on disk, so no stylesheet of theirs ` +
-                `was inspected: ${unbuilt.join(', ')}. Build them and re-run to answer for those, or read this ` +
-                `rule's green line as covering the rest only.`,
-        );
+            `was inspected: ${unbuilt.join(', ')}. Build them and re-run to answer for those, or read this ` +
+            `rule's green line as covering the rest only.`;
+        // A SHIPPED audit asked for this population by name, so "I inspected nothing" is
+        // not a caveat — it is the whole of the answer, and reporting it as one is what
+        // #1898 measured: the same command exits 0 on a fresh checkout and 1 after
+        // `build:examples`, for no reason other than which of those trees it ran on. The
+        // `--scope` runs that exist to gate a release cannot carry a caveat shaped like
+        // the defect they were built to close, so there the unbuilt population FAILS
+        // unless the caller said `--allow-unbuilt` (the seam `package-outputs` already
+        // has). The default whole-tree sweep keeps the note: that job installs nothing and
+        // builds nothing on purpose, and a gate that can never pass is worse than one
+        // that says what it did not do.
+        if (ctx.options?.shippedAudit && !ctx.allowUnbuilt) {
+            failures.push(
+                `${report} This run audited a population BY NAME, and a package whose shipped tree is absent is a ` +
+                    'package the audit could not answer for — build it (a shipped scope is meant to run on a built ' +
+                    'tree) or pass --allow-unbuilt to record the gap without failing on it.',
+            );
+        } else {
+            notes.push(report);
+        }
     }
 
     return {

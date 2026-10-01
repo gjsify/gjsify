@@ -127,3 +127,12 @@ export {
 } from './rules/nativescript-platforms.mjs';
 export { fieldCoverageRule, declaredGjsifyFields } from './rules/field-coverage.mjs';
 export { repositoryDirectoryRule, expectedDirectory, auditRepositoryDirectory } from './rules/repository-directory.mjs';
+export {
+    shippedGiDepsRule,
+    auditShippedGiDeps,
+    collectShippedPackages,
+    parseGiSpecifier,
+    scanBundleGiNamespaces,
+    shippedRootEntries,
+    walkShippedGraph,
+} from './rules/shipped-gi-deps.mjs';

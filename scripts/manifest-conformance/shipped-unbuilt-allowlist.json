@@ -1,0 +1,10 @@
+{
+  "$comment": "Packages a `--scope=ship` / `--scope=examples` run may not answer for on this runner, each with a reason and an issue. An entry that no longer describes a live gap FAILS (self-retiring), so a package that starts building cannot leave a standing excuse behind. This excuses a package for being UNREAD — it is NOT a way to buy out a `shipped-headless-violated` finding, which has no ledger. Read: scripts/manifest-conformance/shipped-unbuilt-ledger.mjs",
+  "entries": [
+    {
+      "package": "@gjsify/napi",
+      "reason": "Workspace-EXCLUDED on purpose: the N-API host builds in `napi.yml`'s own container, not in the root `gjsify run build`, so its `lib/` is absent from the tree the audit and the cut both read. Its shipped output is a native addon plus a small JS facade, and the facade is what `packages/napi/AGENTS.md` says the host owns.",
+      "issue": "https://github.com/gjsify/gjsify/issues/1898"
+    }
+  ]
+}

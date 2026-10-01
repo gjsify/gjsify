@@ -232,6 +232,25 @@ jobs:
       # ride a tag out to npm. The audit already runs on every PR — it just never
       # ran on the tree the bump creates, which exists for only these few seconds.
       #
+      # The SECOND half of step 4 is new, and it is the one #1898 was filed about.
+      # The plain `--check --strict` reported success for packages whose shipped
+      # tree it had never opened: `@gjsify/example-*` is excluded from
+      # `gjsify run build`, so a rule whose subject is a BUILT BUNDLE had nothing
+      # to read and the run still exited 0 — measured, the same command exits 0 on
+      # a fresh checkout and 1 after `build:examples`, for no reason other than
+      # which tree it ran on. `--scope=ship` names the published closure and makes
+      # the unread half fatal, which is what turns the line into a gate over the
+      # bytes a tag would ship.
+      #
+      # It is here, not only on a PR, because the cut is the last moment the shipped
+      # tree exists. It runs AFTER `verify-committed-bundles --rebuild`, which is the
+      # step that finalises those bytes: auditing first would grade a tree the rebuild
+      # then changes, which is the whole staleness circularity
+      # `verify-committed-bundles.mjs` exists to break, one step later in the same
+      # chain. The showcases are the other half of #1898 and are NOT in this job's
+      # tree — `npm:publish` builds them AFTER this hook — so they are audited by
+      # `--scope=examples` in `main.yml`'s `examples-build` job instead.
+      #
       # A SECOND hook fires later, and it has to: `after:bump` sees the bumped
       # TREE, but CHANGELOG.md is not regenerated until the changelog plugin's
       # `beforeRelease`. So `before:git:beforeRelease` —
