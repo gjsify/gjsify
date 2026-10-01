@@ -113,13 +113,29 @@ export function constructOnlyNames(klass: GObject.ObjectClass, gtypeName: string
     return names;
 }
 
-/** The GI object a GType NAME belongs to, CONFIRMED by the GType that object carries. */
+/**
+ * The GI object a GType NAME belongs to, CONFIRMED by the GType that object carries.
+ *
+ * THE `$gtype` READ IS THE DISCRIMINATOR, and there is no `typeof` in front of it.
+ * There was one, and it refused EVERY class: a GObject class is the CONSTRUCTOR in
+ * GJS, so `typeof Gtk.PrintUnixDialog` is `'function'` while `Gtk.init` is too, and
+ * `Gtk.MAJOR_VERSION` a number — the filter could not tell those apart from each other
+ * and chose the wrong side, admitting exactly the enums. So the defect read as "the
+ * enum path works" while this answered `undefined` for a class that is present and
+ * constructible: measured on gjs 1.88.1 / GTK 4.24.0,
+ * `type_from_name('GtkPrintUnixDialog')` answers null until something touches the type,
+ * which left this namespace read as the only route to it.
+ *
+ * `$gtype` is GJS's own contract for "this is a GI type", on a constructor and on an
+ * enum object alike — `refs/gjs/gi/gtype.cpp` `actual_gtype_recurse()`: "we don't have
+ * a GType wrapper object — grab the `$gtype` property on that". A namespace member
+ * that is not a type carries none, and is refused here on the same evidence.
+ */
 function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
     for (const [prefix, ns] of GI_NAMESPACES) {
         if (!gtypeName.startsWith(prefix)) continue;
-        const candidate = ns[gtypeName.slice(prefix.length)];
-        if (!candidate || typeof candidate !== 'object') continue;
-        const gtype = (candidate as { $gtype?: GObject.GType }).$gtype;
+        const candidate = ns[gtypeName.slice(prefix.length)] as { $gtype?: GObject.GType } | undefined;
+        const gtype = candidate?.$gtype;
         if (!gtype || GObject.type_name(gtype) !== gtypeName) continue;
         return candidate as Record<string, unknown>;
     }
@@ -132,8 +148,14 @@ function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
  * `type_from_name` is asked FIRST because it is the answer that needs no table. It
  * answers null until something has touched the type, which is why the table is still
  * reachable at all: reading `Gio.PasswordSave` is what registers `GPasswordSave`.
+ *
+ * NEITHER BRANCH IS THE FIX ALONE, and the order is what makes the measured case work:
+ * a type nobody has read is absent from `type_from_name`, and a name
+ * {@link giTypeObject} cannot reach is absent from the table. Exported because it is
+ * THE answer to "does this host have that type" — a consumer gating on a GTK version
+ * asks here rather than walking a namespace list of its own.
  */
-function gtypeOfName(gtypeName: string): GObject.GType | undefined {
+export function gtypeOfName(gtypeName: string): GObject.GType | undefined {
     const registered = GObject.type_from_name(gtypeName);
     if (registered) return registered;
     return (giTypeObject(gtypeName) as { $gtype?: GObject.GType } | undefined)?.$gtype;
@@ -294,6 +316,13 @@ export const lookupEnumNick = (gtypeName: string, nick: string): number | undefi
 };
 
 /**
+ * Whether this GType is an enum or a bitfield — the question {@link enumMembers} asks
+ * of the type it found, and the same predicate `coerce` routes its two nicks branches on.
+ */
+const isEnumish = (gtype: GObject.GType): boolean =>
+    GObject.type_is_a(gtype, GObject.TYPE_ENUM) || GObject.type_is_a(gtype, GObject.TYPE_FLAGS);
+
+/**
  * The member names an installed enum or bitfield registers, or `undefined` if this
  * host has none.
  *
@@ -304,11 +333,22 @@ export const lookupEnumNick = (gtypeName: string, nick: string): number | undefi
  * which is the whole remaining reason {@link GI_NAMESPACES} exists.
  *
  * `$gtype` and anything non-numeric are not members; GJS puts both on the same object.
+ *
+ * AND THE TYPE HAS TO BE ONE, or the widened {@link giTypeObject} turns this into a
+ * second answer rather than a wider one. It now returns a CLASS as readily as an enum,
+ * and a class carries no numeric members — `undefined` would be wrong (the type is
+ * there) and `[]` is worse (it reads as "an enum that registers nothing", which is the
+ * claim every caller is entitled to trust). The GType the lookup already confirmed is
+ * what asks, so this is the same predicate the nicks branches above are routed on
+ * rather than a new way of spelling it.
  */
 export function enumMembers(gtypeName: string): string[] | undefined {
     const enumObject = giTypeObject(gtypeName);
-    if (!enumObject) return undefined;
-    return Object.keys(enumObject).filter((key) => key !== '$gtype' && typeof enumObject[key] === 'number');
+    const gtype = (enumObject as { $gtype?: GObject.GType } | undefined)?.$gtype;
+    if (!gtype || !isEnumish(gtype)) return undefined;
+    return Object.keys(enumObject as Record<string, unknown>).filter(
+        (key) => key !== '$gtype' && typeof (enumObject as Record<string, unknown>)[key] === 'number',
+    );
 }
 
 /** What a refusal calls the value it got — the kind with its article, so the sentence reads. */
