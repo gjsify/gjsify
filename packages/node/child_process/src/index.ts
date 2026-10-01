@@ -537,8 +537,12 @@ function _watchStdioForClose(child: ChildProcess): (code: number | null, signal:
         queueMicrotask(() => {
             for (const stream of streams) {
                 if (stream.destroyed || stream.readableEnded) continue;
-                // A consumer that attached a listener reads the stream itself;
-                // only a genuinely untouched one is ours to drain.
+                // STRICTER than Node's `flushStdio`, which resumes every readable
+                // stream and only guards on `readableListening`. Checking `data`
+                // as well is the safe direction: a stream nobody reads is the one
+                // that would otherwise never reach EOF, and a `data` listener is
+                // proof someone IS reading it, so leaving it alone can only delay
+                // a stream that is already draining on its own.
                 if (stream.listenerCount('data') > 0 || stream.listenerCount('readable') > 0) continue;
                 stream.resume();
             }

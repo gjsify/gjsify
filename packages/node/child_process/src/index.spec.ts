@@ -472,12 +472,19 @@ export default async () => {
             // `exit` means the process is gone; `close` means its stdio is too.
             // A grandchild inherits the stdout pipe here, so the pipe outlives the
             // direct child and `LATE` arrives AFTER `exit`. Emitting `close`
-            // beside `exit` made this exact order unreachable: a consumer ending
-            // on `close` lost the tail. The order-only test above cannot see it,
-            // because for a child that writes and exits in one breath both
-            // events already land in that order.
+            // beside `exit` made that unreachable: a consumer ending on `close`
+            // lost the tail. The order-only test above cannot see it, because for
+            // a child that writes and exits in one breath both events already
+            // land in that order.
+            //
+            // Only the RELATIVE order of the three facts the fix owns is asserted.
+            // `data:EARLY` versus `exit` is a race nobody controls — the child's
+            // write and the process reaping are independent, so a busy host can
+            // deliver the reaping first — and pinning it would make this test
+            // flaky rather than stricter. `data:LATE` after `exit` and `close`
+            // last are exactly what the fix guarantees.
             const { spawn } = await import('node:child_process');
-            const child = spawn(...earlyThenLateStdout(300));
+            const child = spawn(...earlyThenLateStdout(500));
             const events: string[] = [];
             let out = '';
             child.stdout!.on('data', (chunk: Buffer) => {
@@ -488,7 +495,8 @@ export default async () => {
             child.on('close', () => events.push('close'));
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
             expect(out).toBe('EARLYLATE');
-            expect(events).toStrictEqual(['data:EARLY', 'exit', 'data:LATE', 'close']);
+            expect(events.indexOf('exit')).toBeLessThan(events.indexOf('data:LATE'));
+            expect(events[events.length - 1]).toBe('close');
         });
 
         await it('should emit non-zero exit code for failing command', async () => {
