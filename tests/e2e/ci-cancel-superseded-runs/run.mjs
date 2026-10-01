@@ -337,7 +337,10 @@ describe('the merge_group runs whose queue entry is gone', () => {
     });
 
     it('refuses to run without its own run id or repository', () => {
-        assert.throws(() => deadQueueRunIds({ runs: [], liveRefs: [], repo: REPO, selfRunId: undefined }), /own run id/);
+        assert.throws(
+            () => deadQueueRunIds({ runs: [], liveRefs: [], repo: REPO, selfRunId: undefined }),
+            /own run id/,
+        );
         assert.throws(() => deadQueueRunIds({ runs: [], liveRefs: [], repo: undefined, selfRunId: 1 }), /repository/);
     });
 
@@ -350,7 +353,9 @@ describe('the merge_group runs whose queue entry is gone', () => {
                 cwd: MONOREPO_ROOT,
                 encoding: 'utf8',
                 env: { ...process.env, REPO, GITHUB_RUN_ID: String(SELF_RUN_ID) },
-                input: JSON.stringify({ workflow_runs: [queueRun({ id: 1, branch: QUEUE_LIVE }), queueRun({ id: 2 })] }),
+                input: JSON.stringify({
+                    workflow_runs: [queueRun({ id: 1, branch: QUEUE_LIVE }), queueRun({ id: 2 })],
+                }),
             });
             assert.equal(result.status, 0, result.stderr);
             assert.equal(result.stdout.trim(), '2');
@@ -360,10 +365,14 @@ describe('the merge_group runs whose queue entry is gone', () => {
     });
 
     it('is annotated without a pull request when the event is a merge_group', () => {
-        const result = runCancelScript(['33857585236'], { 33857585236: ['completed'] }, {
-            event: { action: 'checks_requested', merge_group: { head_ref: QUEUE_LIVE } },
-            env: { CANCEL_REASON: 'whose queue entry is gone' },
-        });
+        const result = runCancelScript(
+            ['33857585236'],
+            { 33857585236: ['completed'] },
+            {
+                event: { action: 'checks_requested', merge_group: { head_ref: QUEUE_LIVE } },
+                env: { CANCEL_REASON: 'whose queue entry is gone' },
+            },
+        );
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /::notice::1 of 1 run\(s\) whose queue entry is gone stopped\./);
         assert.doesNotMatch(result.stdout, /PR #/);
