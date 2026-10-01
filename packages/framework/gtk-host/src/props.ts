@@ -21,26 +21,22 @@ import type { WidgetDescriptor } from './types.js';
 /**
  * Where a GType NAME is looked up, when the name is all a caller has.
  *
- * NOT on the coercion path any more, and that is the repair: `coerce` holds the
- * ParamSpec's own `value_type` and has GTK read the nick off THAT, so it needs no
- * namespace list at all. What still needs somewhere to look is the name-keyed
- * question {@link lookupEnumNick} and {@link enumMembers} ask, because
- * `GObject.type_from_name` answers null for a type nothing in the process has
- * touched yet — measured on a fresh process, `GPasswordSave` is exactly that case.
+ * NOT on the coercion path: `coerce` holds the ParamSpec's own `value_type` and has GTK read the
+ * nick off THAT, so it needs no namespace list at all. What still needs somewhere to look is the
+ * name-keyed question {@link lookupEnumNick} and {@link enumMembers} ask, because
+ * `GObject.type_from_name` answers null for a type nothing in the process has touched yet —
+ * measured on a fresh process, `GPasswordSave` is exactly that case.
  *
- * THE PREFIX NO LONGER DECIDES. It says where to look; the candidate is confirmed
- * against the GType it carries itself, so an entry that matched by accident cannot
- * answer. That is what lets `G` — the prefix Gio, GLib and GObject share — appear
- * more than once: `GPasswordSave` is `Gio.PasswordSave`, and while `G` mapped to
- * GObject alone this host offered `GPasswordSaveNick` in its type surface and then
- * refused all three of those nicks at the call.
+ * THE PREFIX NO LONGER DECIDES. It says where to look; the candidate is confirmed against the
+ * GType it carries itself, so an entry that matched by accident cannot answer. That is what lets
+ * `G` — the prefix Gio, GLib and GObject share — appear more than once.
  *
  * Enumerating the namespaces instead would need no table at all, and is rejected on a
  * measurement: `Object.keys(Gio)` emits a deprecation warning
- * (`DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME`) and `Object.keys(GLib)` three
- * "cannot be safely stored in a JS Number" warnings, so the derivation would itself
- * trip the diagnostics gate every spec here runs under. A namespace missing from this
- * list is held RED instead, by `generated.spec.ts`.
+ * (`DESKTOP_APP_INFO_LOOKUP_EXTENSION_POINT_NAME`) and `Object.keys(GLib)` three "cannot be
+ * safely stored in a JS Number" warnings, so the derivation would itself trip the diagnostics
+ * gate every spec here runs under. A namespace missing from this list is held RED by
+ * `generated.spec.ts`.
  */
 const GI_NAMESPACES: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
     ['Gtk', Gtk as unknown as Record<string, unknown>],
@@ -62,16 +58,13 @@ export function toPropertyName(name: string): string {
 /**
  * A props object without the keys a framework reserves for itself.
  *
- * The SET is per-framework and stays with the adapter that owns it — Vue's is
- * `@vue/shared`'s `isReservedProp`, React's is `children` — but the LOOP was
- * written twice, byte-for-byte apart from the identifier names. That is the second
- * copy this repo lifts on: the two would drift, and the drifted one fails in a
- * consumer while the host stays green.
+ * The SET is per-framework and stays with the adapter that owns it; the LOOP is here because two
+ * adapters each wrote their own, and the drifted one fails in a consumer while the host stays
+ * green.
  *
  * `undefined` rather than `{}` for an empty result, and that is load-bearing:
- * `createElement(tag, undefined)` skips the property loop entirely, so a vnode
- * whose props are ALL reserved must not look like a vnode with one unknown
- * property.
+ * `createElement(tag, undefined)` skips the property loop entirely, so a vnode whose props are ALL
+ * reserved must not look like a vnode with one unknown property.
  */
 export function withoutKeys(
     props: Record<string, unknown> | null | undefined,
@@ -117,20 +110,14 @@ export function constructOnlyNames(klass: GObject.ObjectClass, gtypeName: string
 /**
  * The GI object a GType NAME belongs to, CONFIRMED by the GType that object carries.
  *
- * THE `$gtype` READ IS THE DISCRIMINATOR, and there is no `typeof` in front of it.
- * There was one, and it refused EVERY class: a GObject class is the CONSTRUCTOR in
- * GJS, so `typeof Gtk.PrintUnixDialog` is `'function'` while `Gtk.init` is too, and
- * `Gtk.MAJOR_VERSION` a number — the filter could not tell those apart from each other
- * and chose the wrong side, admitting exactly the enums. So the defect read as "the
- * enum path works" while this answered `undefined` for a class that is present and
- * constructible: measured on gjs 1.88.1 / GTK 4.24.0,
- * `type_from_name('GtkPrintUnixDialog')` answers null until something touches the type,
- * which left this namespace read as the only route to it.
- *
- * `$gtype` is GJS's own contract for "this is a GI type", on a constructor and on an
- * enum object alike — `refs/gjs/gi/gtype.cpp` `actual_gtype_recurse()`: "we don't have
- * a GType wrapper object — grab the `$gtype` property on that". A namespace member
- * that is not a type carries none, and is refused here on the same evidence.
+ * THE `$gtype` READ IS THE DISCRIMINATOR, and there is no `typeof` in front of it: a GObject
+ * class is the CONSTRUCTOR in GJS, so `typeof Gtk.PrintUnixDialog` is `'function'` while
+ * `Gtk.init` is too and `Gtk.MAJOR_VERSION` a number — a `typeof` filter cannot tell those apart
+ * and chooses the wrong side, admitting exactly the enums. `$gtype` is GJS's own contract for
+ * "this is a GI type", on a constructor and on an enum object alike — `refs/gjs/gi/gtype.cpp`
+ * `actual_gtype_recurse()`: "we don't have a GType wrapper object — grab the `$gtype` property on
+ * that". A namespace member that is not a type carries none, and is refused here on the same
+ * evidence.
  */
 function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
     for (const [prefix, ns] of GI_NAMESPACES) {
@@ -146,15 +133,13 @@ function giTypeObject(gtypeName: string): Record<string, unknown> | undefined {
 /**
  * The GType a name registers on this host, forcing the registration if it has to.
  *
- * `type_from_name` is asked FIRST because it is the answer that needs no table. It
- * answers null until something has touched the type, which is why the table is still
- * reachable at all: reading `Gio.PasswordSave` is what registers `GPasswordSave`.
+ * `type_from_name` is asked FIRST because it is the answer that needs no table. It answers null
+ * until something has touched the type, which is why the table is still reachable at all: reading
+ * `Gio.PasswordSave` is what registers `GPasswordSave`.
  *
- * NEITHER BRANCH IS THE FIX ALONE, and the order is what makes the measured case work:
- * a type nobody has read is absent from `type_from_name`, and a name
- * {@link giTypeObject} cannot reach is absent from the table. Exported because it is
- * THE answer to "does this host have that type" — a consumer gating on a GTK version
- * asks here rather than walking a namespace list of its own.
+ * NEITHER BRANCH IS THE FIX ALONE, and the order is what makes the measured case work: a type
+ * nobody has read is absent from `type_from_name`, and a name {@link giTypeObject} cannot reach is
+ * absent from the table.
  */
 export function gtypeOfName(gtypeName: string): GObject.GType | undefined {
     const registered = GObject.type_from_name(gtypeName);
@@ -165,10 +150,10 @@ export function gtypeOfName(gtypeName: string): GObject.GType | undefined {
 /**
  * One lazily built `Gtk.Builder`, the parser almost every nick in this file goes through.
  *
- * Constructing one costs nothing and needs no `Gtk.init()` (measured), and 10 000
- * parses take 12 ms — so the ONE parser is affordable on the property path, which is
- * what keeps a second nick-resolution rule out of everything but the one input the
- * parser provably cannot answer (see {@link startsNumeric}).
+ * Constructing one costs nothing and needs no `Gtk.init()` (measured), and 10 000 parses take 12 ms
+ * — so the ONE parser is affordable on the property path, which is what keeps a second
+ * nick-resolution rule out of everything but the one input the parser provably cannot answer (see
+ * {@link startsNumeric}).
  */
 let nickParser: Gtk.Builder | undefined;
 
@@ -179,9 +164,7 @@ const FLAG_SEPARATOR = '|';
  * `g_ascii_strtoull(text, …, 0)` would consume the WHOLE string.
  *
  * The one input whose NUMERIC reading is what the author wrote: `inputHints="5"` and
- * `licenseType="18"`. Base 0, so `0x12` is 18 — the parser's own base, and a vector
- * pins it, because a narrower `/^\d+$/` here would turn a hex literal GTK accepts into
- * a refusal.
+ * `licenseType="18"`. Base 0, so `0x12` is 18 — the parser's own base.
  */
 const isWholeNumber = (text: string): boolean => /^[+-]?(?:0[xX][0-9a-fA-F]+|[0-9]+)$/.test(text.trim());
 
@@ -201,36 +184,29 @@ const isWholeNumber = (text: string): boolean => /^[+-]?(?:0[xX][0-9a-fA-F]+|[0-
  *   - `GtkInputHints` `"0nope"` -> `[true, 0]` and `"0|spellcheck"` -> `[true, 0]`,
  *     i.e. every flag cleared with the rest of the set thrown away.
  *
- * This is the same class as {@link hasBlankMember}: GTK's parser answers, and the
- * answer is wrong. Reach across the installed libraries: 1 of 1366 enum members and 0
- * of 406 bitfield members over the six namespaces {@link GI_NAMESPACES} reaches, and in
- * the shipped surface exactly one nick — `GtkLicense.0bsd`. No nick anywhere is made of
- * digits ALONE, so `isWholeNumber` and this predicate never both want the same string;
- * if one ever arrives, the NICK wins, which is what `parseNickText` orders below.
+ * This is the same class as {@link hasBlankMember}: GTK's parser answers, and the answer is wrong.
+ * Across the installed libraries 1 of 1366 enum members and 0 of 406 bitfield members are affected,
+ * and in the shipped surface exactly one nick — `GtkLicense.0bsd`. No nick anywhere is made of
+ * digits ALONE, so `isWholeNumber` and this predicate never both want the same string; if one ever
+ * arrives, the NICK wins, which is what `parseNickText` orders below.
  */
 const startsNumeric = (member: string): boolean => /^[+-]?[0-9]/.test(member.trim());
 
 /**
  * The number an enum or bitfield member nick names, read off the INSTALLED type itself.
  *
- * The second resolution route, and it stays confined to `startsNumeric` members on
- * purpose — the parser is authoritative for everything else and is MEASURED to be:
- * swept over the six namespaces, `value_from_string_type(nick)` agrees with the
- * member's own number on 1365 of 1366 enum members and 406 of 406 bitfield members, the
- * single exception being the `0bsd` the parser truncates. Replacing the parser wholesale
- * with this transform would trade a resolver that matches GTK's `.ui` dialect exactly
- * for one that only derives it, and a GObject type that registers an explicit nick
- * differing from its member name would then resolve here and nowhere else.
+ * The second resolution route, and it stays confined to `startsNumeric` members on purpose — the
+ * parser is authoritative for everything else and is MEASURED to be: `value_from_string_type(nick)`
+ * agrees with the member's own number on 1365 of 1366 enum members and 406 of 406 bitfield
+ * members, the single exception being the `0bsd` the parser truncates.
  *
- * NOT the generated nick table. `generated.spec.ts` validates that table by resolving
- * every nick in it through {@link lookupEnumNick}; consulting it here would make the
- * check validate itself. The installed type's members are a fact about the running
- * library, which is what that check needs on the other side of the comparison.
+ * NOT the generated nick table: `generated.spec.ts` validates that table by resolving every nick
+ * in it through {@link lookupEnumNick}, so consulting it here would make the check validate itself.
  *
- * A namespace missing from {@link GI_NAMESPACES} answers `undefined`, and that is the
- * safe direction: `Gsk` is absent and carries the four `GskTransformCategory` nicks
- * above, so a property of that type entering the surface is REFUSED by name rather than
- * silently given another member's value.
+ * A namespace missing from {@link GI_NAMESPACES} answers `undefined`, and that is the safe
+ * direction: `Gsk` is absent and carries the four `GskTransformCategory` nicks above, so a property
+ * of that type entering the surface is REFUSED by name rather than silently given another member's
+ * value.
  */
 function memberNickValue(valueType: GObject.GType, nick: string): number | undefined {
     const members = giTypeObject(GObject.type_name(valueType));
@@ -241,34 +217,28 @@ function memberNickValue(valueType: GObject.GType, nick: string): number | undef
 /**
  * The number GTK's own `.ui` parser reads out of `text` for an enum or flags GType.
  *
- * WHY GTK AND NOT GOBJECT. `GObject.enum_get_value_by_nick` and
- * `flags_get_value_by_nick` are both present on the GJS namespace and both unusable
- * from it: the only way to reach a class is `GObject.type_class_ref`, which hands back
- * a `GObject.TypeClass` that GJS refuses to convert to `GObject.EnumClass`
- * ("Object is of type GObject.TypeClass - cannot convert"). Re-measured on gjs 1.88.1,
- * still true. What IS reachable is `gtk_builder_value_from_string_type`, the parser a
- * `.ui` file's every enum and flags attribute goes through — so the spellings this host
- * accepts are now GTK's own, including the `|`-joined SET that GObject will not resolve.
+ * WHY GTK AND NOT GOBJECT. `GObject.enum_get_value_by_nick` and `flags_get_value_by_nick` are
+ * both present on the GJS namespace and both unusable from it: the only way to reach a class is
+ * `GObject.type_class_ref`, which hands back a `GObject.TypeClass` that GJS refuses to convert to
+ * `GObject.EnumClass` ("Object is of type GObject.TypeClass - cannot convert"). What IS reachable
+ * is `gtk_builder_value_from_string_type`, the parser a `.ui` file's every enum and flags attribute
+ * goes through — so the spellings this host accepts are now GTK's own, including the `|`-joined SET
+ * that GObject will not resolve.
  *
- * WHERE THE CUT IS. The parser's numeric reading is only ever what the AUTHOR wrote
- * when the whole string is a number, so that is the only shape allowed to reach it with
- * a digit in front: a member that merely STARTS numeric would come back truncated and
- * silent ({@link startsNumeric}). Such a member is a nick, and it is resolved off the
- * installed type's members instead. The gate is in front of the parser rather than
- * behind it because the parser's answer is indistinguishable from a real one — `0` is
- * `GTK_LICENSE_UNKNOWN`, a legal value — so there is nothing to check afterwards.
+ * WHERE THE CUT IS. The parser's numeric reading is only ever what the AUTHOR wrote when the whole
+ * string is a number, so that is the only shape allowed to reach it with a digit in front: a member
+ * that merely STARTS numeric would come back truncated and silent ({@link startsNumeric}). Such a
+ * member is a nick, and it is resolved off the installed type's members instead. The gate is in
+ * FRONT of the parser rather than behind it because the parser's answer is indistinguishable from a
+ * real one — `0` is `GTK_LICENSE_UNKNOWN`, a legal value — so there is nothing to check afterwards.
  *
- * A `startsNumeric` member inside a SET is refused rather than resolved. No bitfield in
- * any installed vocabulary has a digit-leading nick (0 of 874), so the shape only
- * arises from a mistake — `"0|spellcheck"`, which GTK reads as plain `0` — and
- * resolving half a set off one route and half off the other is a second dialect for a
- * case that does not exist. If a digit-leading FLAG nick ever ships, this refuses it
- * loudly and the vector that pins it turns red, which is the order we want.
+ * A `startsNumeric` member inside a SET is refused rather than resolved: no bitfield in any
+ * installed vocabulary has a digit-leading nick, so the shape only arises from a mistake —
+ * `"0|spellcheck"`, which GTK reads as plain `0`.
  *
- * The `catch` is not defensive: the call is `throws="1"` and raises a GError for an
- * unparseable value ("Unknown flag: 'nope'", "Could not parse enum: 'sideways'").
- * Turning that into `undefined` is what lets the caller name the tag and the property,
- * which a GError out of GTK cannot.
+ * The `catch` is not defensive: the call is `throws="1"` and raises a GError for an unparseable
+ * value ("Unknown flag: 'nope'", "Could not parse enum: 'sideways'"). Turning that into `undefined`
+ * is what lets the caller name the tag and the property, which a GError out of GTK cannot.
  */
 function parseNickText(valueType: GObject.GType, text: string): number | undefined {
     if (!isWholeNumber(text)) {
@@ -289,11 +259,9 @@ function parseNickText(valueType: GObject.GType, text: string): number | undefin
 /**
  * A member of a nick SET that names nothing — `""`, `"a|"`, `"|"`, `"a||b"`.
  *
- * Refused here rather than handed on, because this is the one input GTK's parser
- * answers SILENTLY: measured, `""` and `" "` both parse to `[true, 0]`, and a leading
- * empty member is dropped without a word. Zero is a legal flags value, so the caller
- * gets a widget with every flag cleared and no diagnostic — the exact silent-wrong
- * value this file exists to refuse.
+ * Refused here rather than handed on, because this is the one input GTK's parser answers SILENTLY:
+ * measured, `""` and `" "` both parse to `[true, 0]`. Zero is a legal flags value, so the caller
+ * gets a widget with every flag cleared and no diagnostic.
  */
 const hasBlankMember = (text: string): boolean =>
     text.split(FLAG_SEPARATOR).some((member) => member.trim().length === 0);
@@ -301,15 +269,12 @@ const hasBlankMember = (text: string): boolean =>
 /**
  * The value a nick names on an enum or bitfield GType, or undefined if it names none.
  *
- * Exported for the generated surface's own check: the type surface offers a union
- * of nicks per enum, and a nick this host cannot resolve would type-check and then
- * be refused at runtime. `generated.spec.ts` resolves every emitted nick through
- * this function, so the GIR-member-to-nick spelling is measured rather than
- * assumed. Also the primitive a renderer needs for a "did you mean" diagnostic.
+ * Exported for the generated surface's own check: the type surface offers a union of nicks per
+ * enum, and a nick this host cannot resolve would type-check and then be refused at runtime.
+ * Also the primitive a renderer needs for a "did you mean" diagnostic.
  *
- * The NAME is kept in the signature although a GType would need no lookup, because
- * every caller has the name and not the type — the check reads it off a generated
- * table, a renderer off `GObject.type_name(spec.value_type)`.
+ * The NAME is kept in the signature although a GType would need no lookup, because every caller
+ * has the name and not the type.
  */
 export const lookupEnumNick = (gtypeName: string, nick: string): number | undefined => {
     const gtype = gtypeOfName(gtypeName);
@@ -327,21 +292,16 @@ const isEnumish = (gtype: GObject.GType): boolean =>
  * The member names an installed enum or bitfield registers, or `undefined` if this
  * host has none.
  *
- * The INVERSE of {@link lookupEnumNick}, and it exists for the one question that
- * function cannot answer: a nick the vocabulary never emitted is absent from every
- * list a check could iterate, so only the host's own members can reveal it. GJS
- * offers no route to a `GEnumClass`, so the members come off the namespace object —
- * which is the whole remaining reason {@link GI_NAMESPACES} exists.
+ * The INVERSE of {@link lookupEnumNick}, and it exists for the one question that function cannot
+ * answer: a nick the vocabulary never emitted is absent from every list a check could iterate, so
+ * only the host's own members can reveal it. GJS offers no route to a `GEnumClass`, so the members
+ * come off the namespace object — the whole remaining reason {@link GI_NAMESPACES} exists.
  *
  * `$gtype` and anything non-numeric are not members; GJS puts both on the same object.
  *
- * AND THE TYPE HAS TO BE ONE, or the widened {@link giTypeObject} turns this into a
- * second answer rather than a wider one. It now returns a CLASS as readily as an enum,
- * and a class carries no numeric members — `undefined` would be wrong (the type is
- * there) and `[]` is worse (it reads as "an enum that registers nothing", which is the
- * claim every caller is entitled to trust). The GType the lookup already confirmed is
- * what asks, so this is the same predicate the nicks branches above are routed on
- * rather than a new way of spelling it.
+ * AND THE TYPE HAS TO BE ONE, or the widened {@link giTypeObject} turns this into a second answer
+ * rather than a wider one: a CLASS carries no numeric members, and `[]` would read as "an enum
+ * that registers nothing", which is the claim every caller is entitled to trust.
  */
 export function enumMembers(gtypeName: string): string[] | undefined {
     const enumObject = giTypeObject(gtypeName);
@@ -368,34 +328,27 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
     if (value === null || value === undefined) return value;
     const valueType = spec.value_type;
 
-    // A `GMenuModel` property authored as an ARRAY is the portable menu model
-    // (ADR 0042), and this is where it becomes a real `Gio.Menu` — the same seam and the
-    // same reason as the enum branch below: GObject cannot store what was written, and
-    // the ParamSpec is what says so. It is the ONLY spelling a declarative dialect has,
-    // since a `GMenuModel` is a GObject with no literal form, and it is why
-    // `Adw.SplitButton`, `Gtk.MenuButton` and `Gtk.PopoverMenu` have framework snippets
-    // at all. A real `Gio.MenuModel` still passes straight through, so the imperative
-    // path every existing application uses is untouched.
+    // A `GMenuModel` property authored as an ARRAY is the portable menu model (ADR 0042), and this is
+    // where it becomes a real `Gio.Menu` — the same seam and the same reason as the enum branch
+    // below: GObject cannot store what was written, and the ParamSpec is what says so. It is the
+    // ONLY spelling a declarative dialect has, since a `GMenuModel` is a GObject with no literal
+    // form. A real `Gio.MenuModel` still passes straight through, so the imperative path every
+    // existing application uses is untouched.
     if (GObject.type_is_a(valueType, Gio.MenuModel.$gtype) && isPortableMenu(value)) {
         return buildGioMenu(value);
     }
 
-    // A `Gio.ListModel` property authored as an ARRAY is the portable list model (ADR
-    // 0046), and this is where it becomes a real `Gtk.StringList`. TWO ParamSpec facts
-    // decide it, and neither is the property's NAME: `model` is also what `Gtk.ListView`
-    // calls its `Gtk.SelectionModel`, which IS a `Gio.ListModel` — so the first test
-    // alone would build a string list for it, and what GTK does with that is worse than
-    // a diagnostic (measured, GTK 4.22.4 / gjs 1.88.1): `set_property` — the route a
-    // GObject value takes — turns the mismatch into NULL and logs NOTHING, so the view is
-    // empty at exit 0 and the diagnostics gate is quiet; constructed with it, GJS throws a
-    // TypeError from inside `materialize`, after `el.props` has recorded the array a
-    // rebuild would replay. The second test asks whether the property can HOLD what this
-    // branch builds, and where it cannot the refusal names the type GTK wants, at the call
-    // that authored it. A real `Gio.ListModel` passes straight through, as the menu does
-    // above; a string or an object is refused by name, because the total normaliser
-    // would have turned either into an EMPTY list without a word. What a built list does
-    // to the one the widget already holds is `setProp`'s question, answered in
-    // `list-model.ts`: spliced, never replaced.
+    // A `Gio.ListModel` property authored as an ARRAY is the portable list model (ADR 0046), and this
+    // is where it becomes a real `Gtk.StringList`. TWO ParamSpec facts decide it, and neither is the
+    // property's NAME: `model` is also what `Gtk.ListView` calls its `Gtk.SelectionModel`, which IS
+    // a `Gio.ListModel` — so the first test alone would build a string list for it, and what GTK
+    // does with that is worse than a diagnostic (measured, GTK 4.22.4 / gjs 1.88.1): `set_property`
+    // turns the mismatch into NULL and logs NOTHING, so the view is empty at exit 0 and the
+    // diagnostics gate is quiet. The second test asks whether the property can HOLD what this branch
+    // builds, and where it cannot the refusal names the type GTK wants. A string or an object is
+    // refused by name, because the total normaliser would have turned either into an EMPTY list
+    // without a word. What a built list does to the one the widget already holds is `setProp`'s
+    // question, answered in `list-model.ts`: spliced, never replaced.
     if (GObject.type_is_a(valueType, Gio.ListModel.$gtype) && !(value instanceof GObject.Object)) {
         if (!isPortableListModel(value)) throw err.badListModel(tag, spec.get_name(), kindOf(value));
         if (!GObject.type_is_a(Gtk.StringList.$gtype, valueType)) {
@@ -404,13 +357,12 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
         return buildStringList(value);
     }
 
-    // A `Gtk.Adjustment` property authored as an OBJECT is the portable adjustment (ADR
-    // 0047), and this is where it becomes a real `Gtk.Adjustment` — for all seven
-    // interfaces that carry one, keyed on the ParamSpec and not on `adjustment` /
-    // `hadjustment` / `vadjustment`. A bare NUMBER is refused by name rather than read as
-    // the value: `value` is a property of its own on every one of those widgets, and the
-    // one thing GObject would do with the number is guess a GType for it and store
-    // nothing, at exit 0.
+    // A `Gtk.Adjustment` property authored as an OBJECT is the portable adjustment (ADR 0047), and this
+    // is where it becomes a real `Gtk.Adjustment` — for all seven interfaces that carry one, keyed
+    // on the ParamSpec and not on `adjustment` / `hadjustment` / `vadjustment`. A bare NUMBER is
+    // refused by name rather than read as the value: `value` is a property of its own on every one
+    // of those widgets, and the one thing GObject would do with the number is guess a GType for it
+    // and store nothing, at exit 0.
     if (GObject.type_is_a(valueType, Gtk.Adjustment.$gtype) && !(value instanceof GObject.Object)) {
         if (!isPortableAdjustment(value)) throw err.badAdjustment(tag, spec.get_name(), kindOf(value));
         return buildAdjustment(value);
@@ -422,12 +374,10 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
         throw err.badEnum(tag, spec.get_name(), value, GObject.type_name(valueType));
     }
 
-    // FLAGS TAKE THE SAME SILENT-DROP PATH AS ENUMS, and a nick SET
-    // ("spellcheck|lowercase") is not something GObject resolves — which is why this
-    // branch refused every string by name for as long as that was the whole truth.
-    // GTK's own `.ui` parser does resolve one, so the refusal is replaced by the
-    // answer and kept for the two inputs that still have none: an unknown member, and
-    // a blank one, which GTK reads as zero without a word.
+    // FLAGS TAKE THE SAME SILENT-DROP PATH AS ENUMS, and a nick SET ("spellcheck|lowercase") is not
+    // something GObject resolves. GTK's own `.ui` parser does resolve one, so the refusal is
+    // replaced by the answer and kept for the two inputs that still have none: an unknown member,
+    // and a blank one, which GTK reads as zero without a word.
     if (GObject.type_is_a(valueType, GObject.TYPE_FLAGS) && typeof value === 'string') {
         const gtypeName = GObject.type_name(valueType);
         if (hasBlankMember(value)) throw err.blankFlags(tag, spec.get_name(), value, gtypeName);
