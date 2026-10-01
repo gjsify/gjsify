@@ -54,8 +54,9 @@
 //      cannot see it: the block has a title, the title has a meta, and the page is in
 //      the sidebar.
 //   6. Every port in `AdwWidget`'s {@link WINDOWS} is provided by at least one block.
-//      The component renders a tab only for a slot a page actually gave it, so an
-//      entry nothing provides renders nowhere — a port declared to every reader of the
+//      The component renders a pane only for a slot a page actually gave it — a tab for a
+//      slot of `TABS`, a section of the More menu for one of `BINDINGS` — so an entry
+//      nothing provides renders nowhere: a port declared to every reader of the
 //      component and shipped to none of them. The two arms are each other's inverse:
 //      5 refuses a page naming a port the component has not got, 6 refuses a component
 //      naming a port no page has got.
@@ -109,15 +110,15 @@
 //      cannot outlive what it was recorded for. The partition and the DISTANCE are
 //      PRINTED on every run and written down nowhere: a count in a header is the
 //      drift this gallery has already paid for twice.
-//  13. Every TAB slot is filled on every block, or it is ledgered in
+//  13. Every PANE slot is filled on every block, or it is ledgered in
 //      {@link PARTIAL_TAB_SLOTS} with the reason it stays per-page. Arms 5 and 6 are
-//      each satisfied by ONE block writing a slot, so a tab on 3 of 40 blocks and a tab
+//      each satisfied by ONE block writing a slot, so a pane on 3 of 40 blocks and a pane
 //      on all 40 are the same shape to them — and that shape has now got in three
 //      times: the `nativescript` XML template as a slot on 4 of 40 until #1502, the
 //      hand-written attribute pane (110 of its attributes named on their page, 54 not),
 //      and the `react-native` tab on 3 of 40, all three on one page. A port that cannot
 //      express every widget has a home that says so on every block, which is a data
-//      GROUP with a refusal pane; the ledger is for a tab that is genuinely per-page,
+//      GROUP with a refusal pane; the ledger is for a pane that is genuinely per-page,
 //      and it is empty. The coverage is PRINTED, because each of the three had to be
 //      measured by hand before anyone could see it.
 //
@@ -131,16 +132,19 @@
 //      A `blueprint="…"` naming no file under `website/src/blueprints/` fails too.
 //      So does the shape's ORDER: the `.blp` is the first tab, ahead of the code that loads it.
 //   9. The running widget sits in its own window above the source window, and the markup
-//      that paints it is shown.
+//      that paints it is shown. And a binding of several FILES is a section of the More menu
+//      with one row per file.
 //
 //      In {@link WIDGET_COMPONENT}: the fence the live pane mounts (`MARKUP_SLOT`) is a
 //      BINDINGS entry that some block fills. Drop it and every block paints a widget whose
 //      markup a reader cannot read, at exit 0, with the fence still authored and gated.
 //
 //      In {@link WINDOW_COMPONENT}: the preview is mounted exactly once, and BEFORE the source
-//      window (`data-impl-tabs`), which is drawn once. Both are source-text reads over the files
-//      with COMMENTS BLANKED OUT, each with a floor: no source window, no pane map or no
-//      `MARKUP_SLOT` found is a failure, not a clean run.
+//      window (`data-impl-tabs`), which is drawn once; and the menu opens a section per files
+//      binding, which is the only way a reader reaches the second and third file of such a
+//      program. All three are source-text reads over the files with COMMENTS BLANKED OUT, each
+//      with a floor: no source window, no pane map, no files section or no `MARKUP_SLOT` found
+//      is a failure, not a clean run.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -286,6 +290,14 @@ const WINDOW_COMPONENT = 'website/src/components/AdwWidgetWindow.astro';
 const PREVIEW_MOUNT = 'adw-widget-preview-tpl';
 const SOURCE_WINDOW = 'data-impl-tabs';
 const PANE_MAP = 'panes.map(';
+/**
+ * The branch that opens a files binding's SECTION, the binding's files, and the row that names a
+ * file's own role — the third because a row built from the pane's label alone would tick one file
+ * while showing another.
+ */
+const FILES_SECTION = "pane.kind === 'files'";
+const FILES_ROWS = 'pane.files';
+const FILES_ROLE = 'role: file.role';
 
 /**
  * The same file with its comments blanked out.
@@ -374,6 +386,37 @@ function livePreviewDeclaration(bindingSlots, markupSlot, provided) {
 }
 
 /**
+ * Arm 9, over the file that DRAWS the menu: a binding of several FILES is a section of the
+ * More menu with one row per file, not one row for the whole binding.
+ *
+ * The section is the ONLY way a reader reaches the second and third file of such a program —
+ * the pane itself shows one file and the window has no row of its own — so a menu that collapsed
+ * back to one row per binding would hide `app.ts (Blueprint)` and `main.js` at exit 0, with the
+ * pane and every file still in the DOM. `check-website-blueprint-markup.mjs` reads the built page
+ * and holds that the section lists exactly the composed files; this arm holds that the component
+ * still HAS the branch, in the repo-scoped gate that runs without a build.
+ *
+ * Both reads need their markers FOUND: a file whose branch was renamed would otherwise leave
+ * these two counts at zero and the arm passing vacuously.
+ *
+ * Returns the reasons the file is wrong, empty when it is right.
+ */
+function filesSectionsInMenu(root) {
+    const problems = [];
+    const text = withoutComments(readFileSync(join(root, WINDOW_COMPONENT), 'utf8'));
+    for (const [marker, what] of [
+        [FILES_SECTION, 'a binding of several files opens no section'],
+        [FILES_ROWS, 'the section draws no row per file'],
+        [FILES_ROLE, 'no row names the file it shows'],
+    ]) {
+        if (text.split(marker).length - 1 === 0) {
+            problems.push(`${what} (\`${marker}\` in ${WINDOW_COMPONENT})`);
+        }
+    }
+    return problems;
+}
+
+/**
  * Blocks whose `preview` fence is NOT the markup a reader should copy, so the
  * component shows a hand-written `web` fragment on that tab instead — and why.
  *
@@ -389,10 +432,10 @@ const MARKUP_OVERRIDE_LEDGER = {
 };
 
 /**
- * TAB slots filled on SOME blocks and not all, with the reason each one may stay a
- * tab — arm 13's input, and empty, which is the state it is meant to keep.
+ * PANE slots filled on SOME blocks and not all, with the reason each one may stay a
+ * per-page pane — arm 13's input, and empty, which is the state it is meant to keep.
  *
- * A tab is a per-page fence: forty pages have to write it, and the ones that do not
+ * A pane is a per-page fence: forty pages have to write it, and the ones that do not
  * are silent. Arms 5 and 6 are both satisfied by ONE block writing it, so a footnote
  * and a port look identical to them, which is how the same shape got in three times
  * (see arm 13). A port that genuinely cannot express every widget already has a home
@@ -1082,7 +1125,7 @@ for (const port of ports) {
     if (provided.has(port)) continue;
     failures.push(
         `${WIDGET_COMPONENT} declares the port "${port}" in WINDOWS, and no <AdwWidget> block under\n` +
-            `    ${GALLERY} provides it. The component renders a tab only where a page gave it that slot, so\n` +
+            `    ${GALLERY} provides it. The component renders a pane only where a page gave it that slot, so\n` +
             '    the entry renders nowhere at all: a port declared to every reader of the component and\n' +
             '    shipped to none of them. Write the first snippet, or drop the entry.',
     );
@@ -1097,7 +1140,7 @@ for (const port of ports) {
 for (const slot of corpusSlots) {
     if (ports.has(slot)) {
         failures.push(
-            `${WIDGET_COMPONENT} declares "${slot}" in CORPUS_SLOTS and renders it as a tab. A corpus\n` +
+            `${WIDGET_COMPONENT} declares "${slot}" in CORPUS_SLOTS and renders it as a pane. A corpus\n` +
                 '    slot is one no window renders; the two lists cannot both be right.',
         );
         continue;
@@ -1119,9 +1162,9 @@ for (const slot of corpusSlots) {
     );
 }
 
-// --- arm 13: a TAB is a pane on EVERY block, or the ledger says why not ---
+// --- arm 13: a PANE slot is filled on EVERY block, or the ledger says why not ---
 //
-// THE INCIDENT, three times, which is what makes it a class rather than a habit. A tab
+// THE INCIDENT, three times, which is what makes it a class rather than a habit. A pane
 // is a fence forty pages have to write, and the pages that do not write it say nothing.
 //
 //   · the `nativescript` XML template was a SLOT until #1502, filled on 4 blocks of 40
@@ -1139,13 +1182,13 @@ for (const slot of corpusSlots) {
 // The remedy an entry here competes with is not "write 37 more fences". A port that
 // cannot express every widget gets a data GROUP with a refusal pane, which puts a pane
 // on every block and says WHY where there is no snippet — see {@link PaneGroup}, and
-// see the two groups the frameworks window already carries. The ledger is for a tab
+// see the two groups the frameworks window already carries. The ledger is for a pane
 // that is genuinely per-page, and it is empty.
 //
 // SELF-RETIRING, like arm 12's: an entry naming a slot that has since reached every
 // block fails here, so a reason cannot outlive what it was recorded for.
 
-/** Which shape a tab slot belongs to, or null for a slot every block writes. */
+/** Which shape a pane slot belongs to, or null for a slot every block writes. */
 const shapeOfSlot = (slot) =>
     oneBlueprintSlots.includes(slot) ? 'one-Blueprint' : fromTheBlueprint.includes(slot) ? 'markup' : null;
 
@@ -1203,15 +1246,15 @@ for (const [slot, blocksWithIt] of providedBy) {
     if (blocksWithIt.size === expected) {
         if (reason === undefined) continue;
         failures.push(
-            `${slot}: ledgered in PARTIAL_TAB_SLOTS as a tab that cannot be filled everywhere, and it is\n` +
+            `${slot}: ledgered in PARTIAL_TAB_SLOTS as a pane that cannot be filled everywhere, and it is\n` +
                 `    now on all ${blocks.length} blocks. A stale exemption reads as considered when it is merely\n` +
-                '    forgotten, and this one would license the next three-block tab. Delete the entry.',
+                '    forgotten, and this one would license the next three-block pane. Delete the entry.',
         );
         continue;
     }
     if (reason !== undefined) continue;
     failures.push(
-        `${WIDGET_COMPONENT} renders the tab "${slot}", and only ${blocksWithIt.size} of ${expected}\n` +
+        `${WIDGET_COMPONENT} renders the pane "${slot}", and only ${blocksWithIt.size} of ${expected}\n` +
             `    ${shape === null ? '' : `${shape} `}<AdwWidget> blocks under ${GALLERY} write that fragment. ` +
             `The other ${expected - blocksWithIt.size} draw the\n` +
             '    window without it and say nothing, which is how a footnote comes to hold a window pane —\n' +
@@ -1224,9 +1267,9 @@ for (const [slot, blocksWithIt] of providedBy) {
 for (const slot of Object.keys(PARTIAL_TAB_SLOTS)) {
     if (providedBy.has(slot)) continue;
     failures.push(
-        `${slot}: ledgered in PARTIAL_TAB_SLOTS, and no window of ${WIDGET_COMPONENT} renders a tab of\n` +
+        `${slot}: ledgered in PARTIAL_TAB_SLOTS, and no window of ${WIDGET_COMPONENT} renders a pane of\n` +
             '    that name on any block. Arm 13 polices nothing for it, so the entry is a reason recorded\n' +
-            '    against a tab that is not there.',
+            '    against a pane that is not there.',
     );
 }
 
@@ -1270,6 +1313,13 @@ for (const problem of previewMountPlacement(ROOT)) {
 }
 for (const problem of livePreviewDeclaration(bindingSlots, markupSlot, provided)) {
     failures.push(`${WIDGET_COMPONENT} ${problem}`);
+}
+for (const problem of filesSectionsInMenu(ROOT)) {
+    failures.push(
+        `${WINDOW_COMPONENT} ${problem}. The More menu is the only place a reader reaches the second\n` +
+            '    and third file of such a program, so a binding collapsed to one row would show one file\n' +
+            '    and hide the rest at exit 0. See arm 9.',
+    );
 }
 
 // --- arm 11: a block is filed under the library that owns its GType ---
@@ -1396,7 +1446,8 @@ console.log(
 );
 console.log(
     `check-website-adwaita-gallery: two windows per block — segments [${tabSlots.join(' ')}], bindings ` +
-        `More [${bindingSlots.join(' ')}] — every fragment slot written is one the component renders or a corpus slot an ` +
+        `More [${bindingSlots.join(' ')}], a binding of several files a section of one row per file — every fragment ` +
+        `slot written is one the component renders or a corpus slot an ` +
         `arm reads (${[...corpusSlots].join(', ')}), ${overriding.size} block(s) override the markup binding, all ` +
         `ledgered, and the widget is mounted once, above the source window of ${WINDOW_COMPONENT}.`,
 );
