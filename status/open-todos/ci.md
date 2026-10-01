@@ -375,22 +375,6 @@ Deferred rather than half-built, and the two halves are not equally urgent: the
 build half had a live blocker behind it, this one has a verified-true claim.
 
 
-### Two CI comments still say rolldown-native has no Apple target
-
-`.github/workflows/main.yml:736-739` says it "does not compile for Apple targets
-at all (its Rust core wakes the GLib loop with `eventfd(2)`)", and
-`prebuilds.yml:1029-1040` lists it under "WHAT IS DELIBERATELY NOT HERE" as "not
-in the REQUIRED matrix". Both are contradicted by `prebuilds.yml:1225-1570`, where
-`build-prebuilds-macos` builds, stages and load-tests it on both darwin arches
-with `exit $rc`, and by `prebuilds.yml:1701`, which records the promotion and says
-the load test was made FATAL there.
-
-The website prose that repeated this has been corrected, so a reader is no longer
-misled. These are the upstream source of that claim, and a stale comment is how it
-grows back. Left for a commit of its own because both files path-filter CI job
-selection, and editing them from a docs branch is churn where it is riskiest.
-
-
 ### A timed-out `describe` can still register a hook, and it lands on its parent
 
 `@gjsify/unit` scopes `beforeEach`/`afterEach` per `describe` (#1554): a frame is pushed on
