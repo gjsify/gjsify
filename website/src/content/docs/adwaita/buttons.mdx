@@ -125,14 +125,13 @@ opens a menu with the alternatives.
 
 ## Toggle Group
 
-For a small set of mutually exclusive options, such as a view mode, use a
-**toggle group**: a linked row where exactly one toggle is active at a time. Each
-toggle takes an icon, a label, or both, and the style classes `.flat` and
-`.round` adapt the group for a toolbar or give it a pill shape.
+For a small set of mutually exclusive options, such as a view mode, use a **toggle
+group**: a linked row where exactly one toggle is active at a time. Each toggle takes an
+icon, a label, or both, and the style classes `.flat` and `.round` adapt the group for a
+toolbar or give it a pill shape.
 
-Each toggle carries a **name**, and the group's `active-name` picks the active one
-by it, so code that switches the view mode says `'grid'` instead of counting
-toggles.
+Each toggle carries a **name**, and the group's `active-name` picks the active one by it,
+so code that switches the view mode says `'grid'` instead of counting toggles.
 
 <MoreInfo title="Keyboard and accessibility">
 A toggle group is a **single tab stop**, the way `Adw.ToggleGroup` routes focus:

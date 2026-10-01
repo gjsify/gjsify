@@ -116,8 +116,8 @@ can do the same, from whichever of these sources it has, highest first:
    tag says `content="system"`.
 4. **Adwaita blue**, the stylesheet's own value.
 
-Every source is snapped to the nearest of the nine accents, which is what libadwaita
-does with the system colour. The page then matches a native window on the same desktop.
+Every source is snapped to the nearest of the nine accents, which is what libadwaita does
+with the system colour, so the page matches a native window on the same desktop.
 
 ```ts
 import { adwaitaAccentSource, applyDesktopAppearance, applySystemAccent } from '@gjsify/adwaita-web';
@@ -240,15 +240,15 @@ representation in it. It is read-only as well — libadwaita installs the proper
 readable-only, and every closure measured agrees — but the enum is the reason that holds
 whatever a flag says.
 
-Whether you should override the palette is a separate question, and the default answer is
-no: someone who picked an accent in Settings expects your app to use it. If your app
-renders on both, set the token for the web and leave the desktop alone unless the look is
-the point.
-
 <MoreInfo title="How a native app overrides the palette anyway">
 By the same mechanism this page uses on the web: redefining `--accent-bg-color` and its
 siblings on `:root`, in a `Gtk.CssProvider` above libadwaita's own. What is different on
 the desktop is the provider **priority** — see [Styling on
 GTK](/gjsify/frameworks/styling/#the-provider-priority-is-the-whole-design) for the three
 measurements and the registry that wraps them.
+
+Whether you should override the palette at all is a separate question, and the default answer
+is no: someone who picked an accent in Settings expects your app to use it. If your app
+renders on both, set the token for the web and leave the desktop alone unless the look is
+the point.
 </MoreInfo>

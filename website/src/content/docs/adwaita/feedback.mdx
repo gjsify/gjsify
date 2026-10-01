@@ -132,11 +132,14 @@ desktop.
 
 ## Alert Dialog
 
-Ask a question the user has to answer: a bold **heading**, some **body** text and a
-row of **responses**. Each response is a button with a string ID, and that ID is what
-reaches your code. Give one response a **destructive** or **suggested** appearance to
-mark the consequence, and set the **default** and **close** responses so Enter and
-Escape do the right thing.
+Ask a question the user has to answer: a bold **heading**, some **body** text and a row of
+**responses**. Each response is a button with a string ID, and that ID is what reaches your
+code. Set the **default** and **close** responses so Enter and Escape do the right thing.
+
+<MoreInfo title="Marking the consequence">
+Give one response a **destructive** or **suggested** appearance and the choice reads at a
+glance before the reader commits to it.
+</MoreInfo>
 
 <AdwWidget title="Adw.AlertDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
