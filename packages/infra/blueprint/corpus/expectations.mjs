@@ -1013,4 +1013,58 @@ export const RULE_EXPECTATIONS = [
         ],
         note: 'The three buttons survive and their ROLE does not: a renderer handed them without the responses would show a dialog whose buttons answer nothing. The ids are lost beside them and that pairing is the point — the XML names each widget by its id, so the two facts travel together there and are dropped together here. The menu ids take no loss of their own: the menu is one loss and everything inside it goes with it.',
     },
+    {
+        file: '57-extern-body-blocks.blp',
+        node: {
+            tag: 'GtkGrid',
+            children: [
+                {
+                    tag: 'CorpusExternBlocks',
+                    id: 'probe',
+                    props: { orientation: 'vertical' },
+                    styleClasses: ['palette', 'dim-label'],
+                },
+                { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
+            ],
+        },
+        lost: [
+            { kind: 'extern', line: 4, detail: '`$CorpusExternBlocks` — the projection read nothing inside it' },
+            { kind: 'signal', line: 19, detail: '`clicked`' },
+            { kind: 'signal', line: 20, detail: '`notify::active`, and that it is `swapped`' },
+            { kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' },
+            { kind: 'layout', line: 12, detail: 'the whole `layout { }`, as on any class' },
+        ],
+        note: 'What this exit shows and the golden does not: `styleClasses` and `props` survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1`. The four losses are the four losses their own rule files take (`11-signal`, `19-layout`, `20-accessibility`) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one. The `extern` loss sits at the OBJECT and the other four at their blocks, so a reader can tell which is the tag and which is the content.',
+    },
+    {
+        file: '58-extern-composition.blp',
+        node: {
+            tag: 'CorpusExternBase',
+            template: 'CorpusExternView',
+            children: [
+                {
+                    tag: 'GtkOverlay',
+                    slot: 'content',
+                    children: [
+                        { tag: 'CorpusExternCanvas', id: 'canvas', slot: 'child' },
+                        {
+                            tag: 'CorpusExternFab',
+                            id: 'fab',
+                            slot: 'overlay',
+                            props: { halign: 'end' },
+                            styleClasses: ['osd'],
+                        },
+                    ],
+                },
+                { tag: 'CorpusExternInspector', id: 'inspector', slot: 'sidebar' },
+            ],
+        },
+        lost: [
+            { kind: 'extern', line: 3, detail: 'the PARENT `$CorpusExternBase`, which is what becomes the root tag' },
+            { kind: 'extern', line: 5, detail: '`$CorpusExternCanvas` in a `child:` property' },
+            { kind: 'extern', line: 8, detail: '`$CorpusExternFab` under an `[overlay]` bracket' },
+            { kind: 'extern', line: 15, detail: '`$CorpusExternInspector` in a second named property' },
+        ],
+        note: 'Four extern tags, every one spelled as the XML spells it, and the tree between them is whole — `slot` is `content`, `child`, `overlay` and `sidebar`, read the same way whether the object under it is extern or not. That is the projection decision this file pins: `extern` is a LOSS and not a refusal, so the shape still comes out, and ADR 0070 is what refuses to hand it to a renderer. The `GtkOverlay` in the middle is the one real class, and it carries two extern children without either of them changing how it projects.',
+    },
 ];

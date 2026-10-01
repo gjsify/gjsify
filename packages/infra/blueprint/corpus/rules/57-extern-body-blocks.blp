@@ -1,0 +1,26 @@
+using Gtk 4.0;
+
+Gtk.Grid {
+  $CorpusExternBlocks probe {
+    orientation: vertical;
+
+    accessibility {
+      label: "an extern widget with an ARIA block";
+      checked: true;
+    }
+
+    layout {
+      column: 1;
+      row: 2;
+    }
+
+    styles ["palette", "dim-label"]
+
+    clicked => $onExternClicked();
+    notify::active => $onExternNotify() swapped;
+  }
+
+  Gtk.Box genuine {
+    orientation: vertical;
+  }
+}
