@@ -41,8 +41,8 @@
 // `GJSIFY_OXFMT=native|npm` is the explicit override (native throws when the
 // prebuild isn't loadable instead of silently switching engines).
 //
-// oxlint has NO native path yet: its JS-plugin host (the internal
-// `gjsify/register-class-order` rule wired via `.oxlintrc.json` jsPlugins)
+// oxlint has NO native path yet: its JS-plugin host (the
+// `@gjsify/oxlint-plugin-gjsify` rules wired via `.oxlintrc.json` jsPlugins)
 // lives in the Node launcher, so a native oxlint bridge could only run the
 // Rust rule subset. Lint stays Node-spawned until that trade-off is decided
 // (tracked in status/open-todos/README.md).

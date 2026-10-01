@@ -1,0 +1,16 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": false,
+        "declaration": true,
+        "declarationMap": false,
+        // The sources import each other with explicit `.ts` specifiers, because
+        // oxlint's plugin host `import()`s `src/index.ts` DIRECTLY (this repo's own
+        // `.oxlintrc.json` wires the source path, and `tests/e2e/oxc-plugin` runs it
+        // that way). `rewriteRelativeImportExtensions` is what lets one spelling
+        // serve both: type-stripping resolves `./x.ts` in place, and the emitted
+        // `lib/index.js` gets `./x.js`. Without it, `allowImportingTsExtensions`
+        // is an error under `noEmit: false`.
+        "rewriteRelativeImportExtensions": true
+    }
+}

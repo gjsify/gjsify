@@ -1064,7 +1064,16 @@ gjsify lint --fix        # apply safe fixes
 | `--config-path <path>` | nearest one | `.oxlintrc.json` override. |
 | `--verbose` | `false` | Echo the resolved oxlint launcher and args. |
 
-oxlint is spawned through its Node launcher so its JavaScript plugin host is available. That host is what runs GJSify's own plugin, `@gjsify/oxlint-plugin-gjsify`, wired in through `jsPlugins` in the workspace `.oxlintrc.json`. Its seven rules:
+oxlint is spawned through its Node launcher so its JavaScript plugin host is available. That host is what runs GJSify's own plugin, `@gjsify/oxlint-plugin-gjsify`. Add it to your own `.oxlintrc.json` to get the same rules:
+
+```json
+{
+    "jsPlugins": ["@gjsify/oxlint-plugin-gjsify"],
+    "rules": { "gjsify/prefer-blueprint-template": "error" }
+}
+```
+
+An oxlint plugin that cannot be loaded is a configuration error rather than a skipped rule, so the package has to be installed before the config names it. The gjsify workspace itself points `jsPlugins` at the plugin's source path instead, so its own lint runs on an unbuilt checkout. The seven rules:
 
 | Rule | Catches |
 |---|---|

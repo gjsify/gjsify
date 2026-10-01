@@ -1,14 +1,17 @@
-// Internal oxlint JS plugin for gjsify.
+// oxlint JS plugin for gjsify — PUBLISHED as `@gjsify/oxlint-plugin-gjsify`.
 //
-// Loaded by oxlint via `jsPlugins` in `.oxlintrc.json` (referenced by source
-// path — oxlint `import()`s this `.ts` file directly, relying on Node's
-// type-stripping). oxlint's plugin host reads the module's DEFAULT export and
-// expects a `{ meta: { name }, rules }` shape (see
-// `refs/oxc/apps/oxlint/src-js/plugins/load.ts` → `registerPlugin`). The newer
+// oxlint loads a plugin via `jsPlugins` in `.oxlintrc.json`, and its plugin host
+// reads the module's DEFAULT export expecting a `{ meta: { name }, rules }` shape
+// (see `refs/oxc/apps/oxlint/src-js/plugins/load.ts` → `registerPlugin`). The newer
 // `definePlugin` helper is an identity function and is not exported by the
 // published `oxlint@1.66/1.67`, so we export the plain object directly.
 //
-// NOT published to npm (`private: true`) — internal tooling only.
+// TWO LOADING PATHS, one source. This repo's own `.oxlintrc.json` names the SOURCE
+// path (`src/index.ts`) — oxlint `import()`s it directly and Node's type-stripping
+// handles the types, so `gjsify lint` needs no build step — while a consumer names
+// the PACKAGE and gets `lib/index.js` from `tsc` (see `tsconfig.build.json`).
+// `rewriteRelativeImportExtensions` is what lets one set of `./x.ts` imports serve
+// both, so neither path needs its own copy of the rules.
 
 import { deferredProcessExitRule } from './deferred-process-exit.ts';
 import { noCssSideEffectImportRule } from './no-css-side-effect-import.ts';

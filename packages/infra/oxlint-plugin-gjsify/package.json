@@ -1,20 +1,30 @@
 {
     "name": "@gjsify/oxlint-plugin-gjsify",
     "version": "0.53.0",
-    "description": "Internal oxlint JS plugin for gjsify — GObject.registerClass field-ordering + deferred-process-exit rules. NOT published to npm.",
-    "private": true,
+    "description": "oxlint JS plugin with gjsify's own lint rules for GJS/GTK code — Blueprint templates, translatable widget labels, GObject.registerClass field order, GJS-correct process exit, anchored deferral markers, and the CSS side-effect import that tree-shakes away. Wire it through `jsPlugins` in `.oxlintrc.json`.",
     "type": "module",
-    "main": "src/index.ts",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        },
+        "./package.json": "./package.json"
     },
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "clear": "gjsify clear lib tsconfig.tsbuildinfo",
-        "check": "gjsify tsc --noEmit"
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify tsc -p tsconfig.build.json"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/gjsify/gjsify.git"
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/oxlint-plugin-gjsify"
     },
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
@@ -25,14 +35,21 @@
         "oxc",
         "plugin",
         "gjs",
-        "gobject"
+        "gtk",
+        "blueprint",
+        "gobject",
+        "lint"
     ],
     "license": "MIT",
     "peerDependencies": {
         "oxlint": "^1.72.0"
     },
     "devDependencies": {
+        "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "tier": 1
     }
 }

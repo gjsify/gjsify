@@ -1,6 +1,88 @@
 # @gjsify/oxlint-plugin-gjsify
 
-An internal oxlint JS plugin with gjsify-specific lint rules:
+An [oxlint](https://oxc.rs/docs/guide/usage/linter/linter.html) JS plugin carrying the lint
+rules gjsify needs for GJS and GTK code — and that oxlint's own Rust rule set cannot have,
+because each one is a claim about a HOST (GJS's exit semantics, `xgettext`'s view of a
+Blueprint file) rather than about JavaScript.
+
+## Installation
+
+```bash
+npm install --save-dev @gjsify/oxlint-plugin-gjsify oxlint
+```
+
+`oxlint` is a peer dependency: the plugin runs inside oxlint's JavaScript plugin host, so the
+two versions have to be the ones you actually run.
+
+## Usage
+
+Add the package to `jsPlugins` in `.oxlintrc.json` and switch on the rules you want. The
+rules are namespaced `gjsify/<rule>`, from the plugin's `meta.name`:
+
+```json
+{
+    "jsPlugins": ["@gjsify/oxlint-plugin-gjsify"],
+    "rules": {
+        "gjsify/prefer-blueprint-template": "error",
+        "gjsify/no-literal-widget-label": "error"
+    }
+}
+```
+
+Then run `npx oxlint .`, or `gjsify lint` if your project uses the gjsify CLI (which spawns
+the same oxlint). `gjsify fix` applies the autofixes below.
+
+> **A missing plugin is a hard failure, not a silent skip.** oxlint reports
+> `Failed to load JS plugin` and exits non-zero rather than linting without the rules, so a
+> scaffolded project that names the plugin but has not installed it fails loudly at the
+> config step. If you see that message, run the install above.
+
+### Which rules to enable
+
+Not all seven suit every project. Two are about GTK application interface and are the reason
+this package exists for most gjsify apps; the rest are narrower.
+
+| Rule | Reports | Autofix |
+|---|---|---|
+| `prefer-blueprint-template` | a widget subclass that assembles its interface in TypeScript instead of declaring it in a Blueprint `.blp` | no — writing the `.blp` is the work |
+| `no-literal-widget-label` | user-visible text hard-coded into a widget, where no catalogue can ever hold it | no — the repair is context-dependent |
+| `register-class-order` | static GObject metadata declared below the `GObject.registerClass` static block | **yes** — hoists the fields |
+| `deferred-process-exit` | a bare `process.exit()` with statements after it, which does not halt under GJS | no — usually `return process.exit(...)` |
+| `todo-needs-anchor` | a `TODO`/`FIXME`/`HACK`/`XXX` that names nothing to track it | no |
+| `no-css-side-effect-import` | a bare `import '<something that is CSS>'`, which tree-shakes away to nothing under a gjsify build | no |
+| `spawn-node-binary` | `spawn(process.execPath, …)` under the GJS bundle, where that path is `gjs-console` | no |
+
+Two of them are aimed at this repository rather than at consumers, and are listed here only
+because they ship in the same plugin: `spawn-node-binary` fires on `spawn(process.execPath, …)`,
+which this repo scopes to its own CLI sources in `.oxlintrc.json` and a consumer has to scope
+itself (or leave off), and `no-css-side-effect-import` depends on how YOUR build treats CSS —
+under a real CSS pipeline the side-effect form is correct. Enable what you have measured.
+
+### Scope-outs
+
+Library code that implements widgets FOR others — renderers, storybook fixtures, component
+catalogues — legitimately builds widgets at runtime, and `prefer-blueprint-template` reports
+every one. Scope those directories off in `.oxlintrc.json` rather than disabling line by line
+(the paths below are examples, not paths of yours):
+
+```json
+{
+    "overrides": [
+        {
+            "files": ["packages/web/adwaita-app/**", "**/*.story.ts"],
+            "rules": { "gjsify/prefer-blueprint-template": "off" }
+        }
+    ]
+}
+```
+
+With `reportUnusedDisableDirectives` on — which `gjsify format --init` writes — a directive that
+suppresses nothing is itself an error, so a scope-out that stops applying retires itself.
+
+## Rules
+
+Each rule's own trade-offs — what it deliberately does NOT report, and why — are documented
+with its implementation:
 
 - `gjsify/register-class-order` — enforces that static GObject metadata fields (`GTypeName`, `Properties`, `Signals`, etc.) are declared above `GObject.registerClass` static blocks, with autofix to reorder them automatically.
 - `gjsify/deferred-process-exit` — a bare `process.exit()` does not halt under GJS (no atexit; the GLib main loop may still be armed): the call returns, the statements after it still run, and the requested exit code can be lost. The rule flags a statement containing a bare `process.exit()` when another statement follows it in the same statement list; tail-position exits are deliberately not flagged, and there is no autofix (the right repair — usually `return process.exit(...)` — is context-dependent, and a wrong one is a syntax error).
@@ -13,13 +95,12 @@ An internal oxlint JS plugin with gjsify-specific lint rules:
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
-## Installation
+### How gjsify itself wires it
 
-This is an internal workspace package — installed automatically as part of gjsify, not separately.
-
-## Usage
-
-The plugin is wired via `.oxlintrc.json` in the gjsify workspace root:
+The gjsify repository runs all seven rules. Its root `.oxlintrc.json` names the SOURCE path
+(`./packages/infra/oxlint-plugin-gjsify/src/index.ts`) rather than the package name, because
+oxlint `import()`s a `.ts` file directly through Node's type-stripping and `gjsify lint` must
+work on an unbuilt checkout — the same rules, loaded without a build step:
 
 ```json
 {
@@ -35,8 +116,6 @@ The plugin is wired via `.oxlintrc.json` in the gjsify workspace root:
     }
 }
 ```
-
-Run via `gjsify lint` or `gjsify fix` (which also applies autofix).
 
 ## License
 

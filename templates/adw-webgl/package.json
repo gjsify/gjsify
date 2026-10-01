@@ -24,6 +24,7 @@
         "@girs/gtk-4.0": "5.4.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/dom-elements": "workspace:^",
+        "@gjsify/oxlint-plugin-gjsify": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
