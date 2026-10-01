@@ -314,11 +314,17 @@ export default async () => {
         // process never broke.
         await it('claims the descriptor only where the transition happened', async () => {
             const applied: string[] = [];
-            noteRawMode(41, true, () => { applied.push('raw 41'); return true; });
+            noteRawMode(41, true, () => {
+                applied.push('raw 41');
+                return true;
+            });
             expect(isRawModeClaimed(41)).toBe(true);
             // The owner turning it back off has PAID: a stale undo run at exit
             // could fight whoever claimed the descriptor after it.
-            noteRawMode(41, false, () => { applied.push('sane 41'); return true; });
+            noteRawMode(41, false, () => {
+                applied.push('sane 41');
+                return true;
+            });
             expect(isRawModeClaimed(41)).toBe(false);
 
             // set_raw_mode returns false for a descriptor that is not a terminal
