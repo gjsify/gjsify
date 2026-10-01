@@ -1,14 +1,13 @@
-// How the gjsify toolchain is invoked on each host runtime — ONE definition for
-// every command window, because the slideshow and the quick-start CTA each
-// carried their own and the deno line drifted.
+// How the gjsify toolchain is invoked on each host runtime — ONE definition for every command
+// window, because the slideshow and the quick-start CTA each carried their own and the deno line
+// drifted.
 //
-// `@latest` is not decoration: the runners reuse a CACHED unpinned bin, and deno
-// adds a second rule (`minimumDependencyAge`, 24 h) refusing anything newer.
-// Measured verifying this page against published packages,
-// `deno run -A npm:@gjsify/cli@latest --version` answered 0.25.1 on a warm cache
-// and 0.35.0 on an empty one, never the published 0.37.0 — so `three-loader-ldraw`'s
-// deno tab was a documented command that could not work. Same flags the CLI's own
-// `PIN_HINT` prints (`packages/infra/cli/src/commands/showcase.ts`); keep in step.
+// `@latest` is not decoration: the runners reuse a CACHED unpinned bin, and deno adds a second
+// rule (`minimumDependencyAge`, 24 h) refusing anything newer. Measured verifying this page against
+// published packages, `deno run -A npm:@gjsify/cli@latest --version` answered 0.25.1 on a warm
+// cache and 0.35.0 on an empty one, never the published 0.37.0 — so `three-loader-ldraw`'s deno
+// tab was a documented command that could not work. Same flags the CLI's own `PIN_HINT` prints
+// (`packages/infra/cli/src/commands/showcase.ts`); keep in step.
 
 /** The runtimes a command window can offer a tab for. */
 export type Runtime = 'gjs' | 'node' | 'bun' | 'deno';
@@ -37,14 +36,11 @@ export function invocationCommands(suffix: string): { runtime: string; code: str
 }
 
 /**
- * The same four tabs for a SCRIPT of several commands, each introduced by a
- * comment LINE.
+ * The same four tabs for a SCRIPT of several commands, each introduced by a comment LINE.
  *
- * Above the command, not trailing it: the deno invocation is 58 characters before
- * its own arguments start, so a trailing comment puts the explanation past 90
- * columns in a window that shows about 55. Comments on their own line leave the
- * longest line exactly as long as the command itself — the width these windows
- * were already sized for.
+ * Above the command, not trailing it: the deno invocation is 58 characters before its own arguments
+ * start, so a trailing comment puts the explanation past 90 columns in a window that shows about
+ * 55.
  */
 export function invocationScript(steps: { args: string; comment: string }[]): { runtime: string; code: string }[] {
     return (Object.keys(RUNTIME_INVOCATION) as Runtime[]).map((rt) => ({

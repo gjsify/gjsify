@@ -1,12 +1,9 @@
-// Regenerate src/data/coverage.ts from the project's status DATA, so the
-// website's pillar-coverage bars sit two derivation steps from the package
-// manifests with no hand-typed number in between. Source: `statusSummary()` in
-// `scripts/generate-status.mjs` — the function behind the status snapshot's
-// Summary table, returning `{category, total, full, partial, stub}` as NUMBERS.
-// Re-parsing the rendered STATUS.md is not an option (gitignored on-demand
-// render, ADR 0016); importing the counts also validates them, since
-// `statusSummary()` throws rather than emit numbers `audit-runtimes --check`
-// would reject.
+// Regenerate src/data/coverage.ts from the project's status DATA, so the website's
+// pillar-coverage bars sit two derivation steps from the package manifests with no hand-typed
+// number in between. Source: `statusSummary()` in `scripts/generate-status.mjs`, returning
+// `{category, total, full, partial, stub}` as NUMBERS. Re-parsing the rendered STATUS.md is not
+// an option (gitignored on-demand render, ADR 0016); importing the counts also validates them,
+// since `statusSummary()` throws rather than emit numbers `audit-runtimes --check` would reject.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -70,13 +67,12 @@ export function tallyOverview(): {
 }
 `;
 
-// The generated body is `JSON.stringify` output — quoted keys, no trailing
-// commas — while the committed file is oxfmt's. Left alone, every `run start`
-// and every `run build` rewrote a TRACKED file into a style the formatter
-// disagrees with, so simply viewing the site left the tree dirty and a later
-// `git add -A` would commit the churn. Formatting here rather than matching
-// oxfmt's style by hand: a hand-copied style is a second copy of the formatter's
-// rules, and it drifts the first time they change.
+// The generated body is `JSON.stringify` output while the committed file is oxfmt's. Left
+// alone, every `run start` and every `run build` rewrote a TRACKED file into a style the
+// formatter disagrees with, so simply viewing the site left the tree dirty and a later
+// `git add -A` would commit the churn. Formatting here rather than hand-copying oxfmt's style:
+// a hand-copied style is a second copy of the formatter's rules, and it drifts the first time
+// they change.
 function formatGenerated(path) {
     const result = spawnSync('gjsify', ['format', path], { stdio: 'inherit' });
     if (result.error || result.status !== 0) {
@@ -84,23 +80,21 @@ function formatGenerated(path) {
     }
 }
 
-// `--check` compares instead of writing, for the reason the sibling generators
-// carry: a generator nothing verifies is a generator nothing runs, and this one's
-// output ships as the website's coverage numbers. Measured on 2026-08-23, the
-// committed file said 16 where the tree held 17 and 13 where it held 14 — simply
-// building the site made it dirty, which is how it stayed wrong.
+// `--check` compares instead of writing, for the reason the sibling generators carry: a
+// generator nothing verifies is a generator nothing runs, and this one's output ships as the
+// website's coverage numbers. Measured on 2026-08-23, the committed file said 16 where the tree
+// held 17 and 13 where it held 14 — simply building the site made it dirty, which is how it
+// stayed wrong.
 //
-// THE DATA, not the bytes: the committed file has been through `gjsify format`, and
-// a byte comparison would make this check depend on finding that binary. The numbers
-// are what the website publishes, so the numbers are what is compared.
+// THE DATA, not the bytes: a byte comparison would make this check depend on finding the
+// `gjsify format` binary the committed file has been through.
 if (process.argv.includes('--check')) {
     // The KEY may be quoted or not, and that is the whole trap: this generator emits
-    // `JSON.stringify` output (`"total": 41`) while the committed file is oxfmt's
-    // (`total: 41`), so a pattern anchored on `total\s*:` matches the committed side
-    // and NOTHING on the generated one — which reported three zeros out of 48 real
-    // counts and called a freshly regenerated file stale. `stub` is in the list
-    // because it is one of the four the interface declares; leaving it out would let
-    // a stub-only change pass.
+    // `JSON.stringify` output (`"total": 41`) while the committed file is oxfmt's (`total: 41`),
+    // so a pattern anchored on `total\s*:` matches the committed side and NOTHING on the
+    // generated one — which reported three zeros out of 48 real counts and called a freshly
+    // regenerated file stale. `stub` is in the list because it is one of the four the interface
+    // declares; leaving it out would let a stub-only change pass.
     const numbers = (text) =>
         [...text.matchAll(/["']?\b(total|full|partial|stub)["']?\s*:\s*(\d+)/g)]
             .map(([, k, v]) => `${k}=${v}`)
