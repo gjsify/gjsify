@@ -223,8 +223,12 @@ import type { WebGL2RenderingContext, WebGLRenderingContext } from '@gjsify/webg
 import type { OurHTMLCanvasElement } from './html-canvas-element.js';
 import { WebGLBridge } from '@gjsify/webgl';
 import { makeTestFBO, destroyTestFBO } from './test-utils.js';
-import GLib from '@girs/glib-2.0';
-import Gtk from '@girs/gtk-4.0';
+// `gi://`, not `@girs/*`: both are VALUE uses here (`GLib.MainContext.default()`,
+// `Gtk.init()`, `new Gtk.Window()`), and this spec is a NEW file — the pending list
+// in `scripts/check-girs-runtime-imports.mjs` is for directories still mid-migration,
+// and a file that arrives after it does not join.
+import GLib from 'gi://GLib?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 /** `GL_PRIMITIVE_RESTART_FIXED_INDEX`, `GL_PRIMITIVE_RESTART` and
  *  `GL_PRIMITIVE_RESTART_INDEX` — none of them WebGL enums, so spelled out. */
