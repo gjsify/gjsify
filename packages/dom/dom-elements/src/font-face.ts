@@ -68,9 +68,11 @@ export class FontFace {
  * (Excalibur's `FontSource.load`) that treat a rejection as a crash, and taking a page down over a
  * decorative face is worse than the substitution. Loud is the part that was missing.
  *
- * THREE OUTCOMES, and the third is the one that renders a working canvas and is still wrong — the
- * Windows optical-size rename, where the face is on the map as `Merriweather 18pt` and the name the
- * page wrote (`Merriweather`) resolves to nothing.
+ * FOUR OUTCOMES, and the third and fourth are the ones that render a working canvas and are still
+ * wrong. The third is the Windows optical-size rename, where the face is on the map as
+ * `Merriweather 18pt` and the name the page wrote (`Merriweather`) resolves to nothing. The fourth is
+ * a face that IS under the name the page wrote and still is not used, because the font map had already
+ * resolved that name to the fallback before the face arrived and caches the answer — `unreachable`.
  */
 function reportRegistration(family: string, registration: FontFaceRegistration): void {
     for (const failure of registration.failed) {
@@ -84,6 +86,20 @@ function reportRegistration(family: string, registration: FontFaceRegistration):
             `FontFace.load: no font map in this process would take ${path} — Pango answers a family it ` +
                 `does not hold with the default sans, and nothing else says so. A shipped .app reaches ` +
                 `its faces through ATSApplicationFontsPath; a bare \`gjsify run\` needs initFonts() first.`,
+        );
+    }
+    // A face the map TOOK and still cannot serve: a different failure with a different remedy, so it
+    // is reported here rather than through `declined` above. The face IS on the map and `get_family`
+    // answers the family, so pointing at `ATSApplicationFontsPath` or at `initFonts()` would name the
+    // one thing that has already happened. Where the fontconfig fallback took over this list is EMPTY
+    // — that is the fix working — so a line here means the substitution is real and nothing in this
+    // process was able to prevent it.
+    for (const path of registration.unreachable) {
+        console.warn(
+            `FontFace.load: ${path} is registered and "${family}" is a family this font map holds, but ` +
+                'text asking for it will still render in a substituted one: the map had already ' +
+                'resolved that family to the fallback, and that cached answer cannot be asked again. ' +
+                'Register the face before anything lays text out.',
         );
     }
     if (registration.registered.length === 0) return;

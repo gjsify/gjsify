@@ -4,20 +4,27 @@
 // every platform. The property that only a CoreText map exhibits — declining a face outright, and the
 // fontconfig fallback that rescues it — is measured where it can be observed, in `@gjsify/gtk-host`'s
 // `fonts.spec.ts` and in `dom-elements`' `font-face.spec.ts`. What belongs HERE is the decision logic,
-// and the one piece of it that can be exercised everywhere is `isUnsupportedByFontMap`: ADR 0038 §
-// Amendment says of that function that keying it on the error rather than on `process.platform`
-// "becomes checkable from a Linux runner — a synthesised `GLib.Error` in the Gio domain exercises it,
-// where a platform read could only ever be asserted on macOS". This file is that runner, and it is the
-// whole reason the function has no OS branch in it.
+// and there are now two of those decisions. One is `isUnsupportedByFontMap`: ADR 0038 § Amendment says
+// of that function that keying it on the error rather than on `process.platform` "becomes checkable
+// from a Linux runner — a synthesised `GLib.Error` in the Gio domain exercises it, where a platform
+// read could only ever be asserted on macOS". This file is that runner, and it is the whole reason the
+// function has no OS branch in it. The other is `fontMapServesFamily`, the reading that tells a face a
+// map TOOK from one it can SERVE, which no single leg can produce on demand and which is therefore held
+// through its probe seam for the same reason: the comparison is where the decision lives, so that is
+// what is asserted.
 //
-// The synthesised error is the point rather than a shortcut: the real decline needs a CoreText map, so
-// a test waiting for one would assert nothing on every other platform and the absence of an OS branch
-// would be untested everywhere but the host that motivated the design.
+// The synthesised error and the synthesised probe are the point rather than a shortcut: the real
+// decline needs a CoreText map and the real poison needs a fontconfig map that was asked before the face
+// arrived, so a test waiting for either would assert nothing on every other platform and the absence of
+// an OS branch in both functions would be untested everywhere but the host that motivated the design.
 
 import { describe, expect, it } from '@gjsify/unit';
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
+// Type position only — the probe signatures below are typed against it, and nothing here reads a
+// Pango member at value.
+import type Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
 import {
@@ -25,6 +32,7 @@ import {
     fontErrorMessage,
     fontMapFamilies,
     fontMapHasFamily,
+    fontMapServesFamily,
     isUnsupportedByFontMap,
     registerFontFaces,
 } from './font-map.js';
@@ -34,6 +42,49 @@ const CAIRO_FONT_TYPE_FT_HEADER_VALUE = 1;
 
 /** A family that cannot exist, so "registered" and "substituted" cannot look alike. */
 const INVENTED_FAMILY = 'ZzzNoSuchFamilyQx';
+
+/** A second one, because a control that is accidentally real makes every family look served. */
+const INVENTED_FAMILY_TWO = 'ZzzAlsoNoSuchFamilyQx';
+
+/** The showcase face's family. */
+const FACE_FAMILY = 'Round9x13';
+
+/**
+ * Can the map of the backend THIS PROCESS compiled in accept runtime registration?
+ *
+ * MEASURED by making the call and reading the ERROR, never by asking `process.platform` — the same
+ * discipline `isUnsupportedByFontMap` exists for, and for the same reason: the backend is whichever
+ * pango was COMPILED IN plus `PANGOCAIRO_BACKEND`, so a platform string is not the question. Any
+ * OTHER GError is a broken PROBE rather than an unsupported map, and is thrown rather than tolerated:
+ * a face this suite could not open would silently turn every gated assertion below into a tolerated
+ * xfail. On a SCRATCH map, so the probe cannot contaminate the default map.
+ */
+function probeRegistrationSupport(face: string | undefined): boolean {
+    if (face === undefined) return false;
+    try {
+        PangoCairo.FontMap.new().add_font_file(face);
+        return true;
+    } catch (error) {
+        if (isUnsupportedByFontMap(error)) return false;
+        throw error;
+    }
+}
+
+/**
+ * Why the registration-backed assertions cannot hold where they are marked expected-failing: the map
+ * of the backend this process compiled in implements no `add_font_file` vfunc, so
+ * `pango_font_map_add_font_file()` falls through to Pango's base implementation and answers
+ * `G_IO_ERROR_NOT_SUPPORTED`. That is the CoreText map on macOS (ADR 0038 § Amendment 2), and it is
+ * the reason `initFonts()` falls back to a fontconfig map there rather than registering on it — which
+ * is asserted in `@gjsify/gtk-host`'s `fonts.spec.ts` and `@gjsify/dom-elements`' `font-face.spec.ts`,
+ * the two suites that own the end-to-end discriminator.
+ */
+const NO_REGISTRATION_REASON =
+    'the font map of the backend this process compiled in implements no `add_font_file` vfunc — on ' +
+    'macOS `PangoCairoCoreTextFontMap`, where `pango_font_map_add_font_file()` falls through to ' +
+    "Pango's base implementation and answers G_IO_ERROR_NOT_SUPPORTED (ADR 0038 § Amendment 2). These " +
+    'assertions register a real face to have something to measure, so they retire themselves if Pango ' +
+    'ever implements the vfunc there, or wherever `PANGOCAIRO_BACKEND` selects another backend.';
 
 /**
  * A GError in the Gio domain, which is what `add_font_file` raises on a map that implements no
@@ -138,6 +189,108 @@ export default async () => {
         });
     });
 
+    // THE DECISION, HELD FROM A HOST THAT CANNOT PRODUCE THE POISON.
+    //
+    // The condition `fontMapServesFamily` exists to catch needs a fontconfig map that resolved a
+    // family to the fallback and then had the face registered on it — reachable on a Linux leg and on
+    // a Mac with `PANGOCAIRO_BACKEND=fontconfig`, and on neither of the other two CI hosts. So what
+    // is asserted here is the COMPARISON, through the probe seam, which is where the decision
+    // actually lives: whether it is a comparison against a control family at all, which family it
+    // compares against, and that it reads the map it was handed. Same reasoning as the synthesised
+    // GError above, one level up: a platform-gated assertion of this would prove nothing anywhere
+    // except the host that motivated it.
+    await describe('fontMapServesFamily — the decision, through the probe', async () => {
+        await it('answers "not served" when the map measures the family exactly as it measures the control', async () => {
+            // THE CASE THIS FUNCTION EXISTS FOR. A map that took a face and cannot serve it measures
+            // the requested family identically to a family that does not exist — that identity IS the
+            // substitution, and a check keyed on `get_family` answers `true` here.
+            const poisoned = (): string => '86x66';
+            expect(fontMapServesFamily(PangoCairo.FontMap.get_default(), FACE_FAMILY, poisoned)).toBe(false);
+        });
+
+        await it('answers "served" when the two readings differ', async () => {
+            // The other arm, and it is not the complement by construction: a probe that returns
+            // something new on every call satisfies it, which is what "distinct from the control"
+            // means and the reason the control has to be read rather than assumed.
+            const distinct = (_map: Pango.FontMap, family: string): string => `${family} 66x50`;
+            expect(fontMapServesFamily(PangoCairo.FontMap.get_default(), FACE_FAMILY, distinct)).toBe(true);
+        });
+
+        await it('compares against a family that CANNOT exist, not against the family it was handed', async () => {
+            // A control that accidentally resolved would make EVERY family look served and turn the
+            // classifier into a rubber stamp — so the control is not a constant the caller may pass but
+            // a name the function picks, and it is picked to be one no font map holds.
+            const asked: string[] = [];
+            fontMapServesFamily(PangoCairo.FontMap.get_default(), FACE_FAMILY, (_map, family) => {
+                asked.push(family);
+                return family === FACE_FAMILY ? '66x50' : '86x66';
+            });
+            expect(asked).toContain(FACE_FAMILY);
+            expect(asked.filter((family) => family !== FACE_FAMILY).length).toBeGreaterThan(0);
+            expect(fontMapHasFamily(PangoCairo.FontMap.get_default(), asked[1] ?? INVENTED_FAMILY)).toBe(false);
+        });
+
+        await it('reads the map it was handed, and no other', async () => {
+            // The map is a parameter rather than a lookup because the whole claim is about a MAP
+            // INSTANCE: the fc map's negative resolution is cached per instance, so a decision taken
+            // against the process default would answer for a map the caller never registered on. A
+            // fresh map is the remedy, which makes that substitution the bug rather than a detail.
+            const scratch = PangoCairo.FontMap.new();
+            const seen: unknown[] = [];
+            const record = (map: Pango.FontMap): string => {
+                seen.push(map);
+                return '86x66';
+            };
+            fontMapServesFamily(scratch, FACE_FAMILY, record);
+            expect(seen.length).toBeGreaterThan(0);
+            for (const map of seen) expect(map).toBe(scratch);
+        });
+    });
+
+    await describe('fontMapServesFamily — on the real map, every host', async () => {
+        const source = findFaceSource();
+
+        await it('answers "not served" for a family no map holds', async () => {
+            // PORTABLE, and load-bearing rather than a smoke test: it asserts that the CONTROL reads
+            // as substituted on this host. Measured here under both backends (86x66 on the fc map,
+            // 80x55 on CoreText), and the risk it rules out is the one that would make every other
+            // assertion in this file pass for the wrong reason — a control that resolved to something
+            // real would report every family as served.
+            const map = PangoCairo.FontMap.get_default();
+            expect(fontMapHasFamily(map, INVENTED_FAMILY)).toBe(false);
+            expect(fontMapServesFamily(map, INVENTED_FAMILY)).toBe(false);
+        });
+
+        await it('reads two families that cannot exist alike, so the answer is not one spelling', async () => {
+            // The negative control for the control. If two invented families measured differently the
+            // comparison would be deciding on the SPELLING rather than on the typeface, and the
+            // real-map assertions in the two font specs would be measuring Pango's name matching.
+            expect(fontMapServesFamily(PangoCairo.FontMap.get_default(), INVENTED_FAMILY_TWO)).toBe(false);
+        });
+
+        // The remedy's premise, where a face can be registered at all: a map that was never asked
+        // about the family holds no cached answer for it, so the same registration that leaves an
+        // already-asked map serving the fallback serves the face here. This is what makes a FRESH map
+        // the invalidation — asserted on a SCRATCH map, because registering on the default one would
+        // both contaminate the suites above and make the result order-dependent.
+        await it.failing(
+            'serves a family on a map that was never asked about it',
+            async () => {
+                const scratch = PangoCairo.FontMap.new();
+                expect(fontMapHasFamily(scratch, FACE_FAMILY)).toBe(false);
+                scratch.add_font_file(source as string);
+                // The map holds it, which is the claim a name check makes and the one that was already
+                // true of the broken case — so the assertion is the reading, not the name.
+                expect(fontMapHasFamily(scratch, FACE_FAMILY)).toBe(true);
+                expect(fontMapServesFamily(scratch, FACE_FAMILY)).toBe(true);
+                // And the default map never saw any of it.
+                expect(fontMapHasFamily(PangoCairo.FontMap.get_default(), FACE_FAMILY)).toBe(false);
+            },
+            NO_REGISTRATION_REASON,
+            { when: !probeRegistrationSupport(source) },
+        );
+    });
+
     await describe('registerFontFaces — nothing to register', async () => {
         await it('answers with the map in force, and accounts for no face', async () => {
             const registration = registerFontFaces([]);
@@ -200,6 +353,10 @@ export default async () => {
                 // § Amendment 5), and a test pinned to either arm would be red on the other platform.
                 expect(registration.registered.length + registration.declined.length).toBe(1);
                 expect(registration.failed.length).toBe(0);
+                // AND NOTHING IS LEFT UNSERVED. The fourth bucket is the one a face can land in while
+                // still counting as `registered`, so on the ordinary path it has to be empty — the
+                // product reports a rescue there only when it attempted one.
+                expect(registration.unreachable.length).toBe(0);
 
                 // And the family is on the map that answered — the property a caller needs and the one
                 // a `true` return value does not give. (The Windows optical-size rename is why the

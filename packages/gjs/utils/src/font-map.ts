@@ -28,11 +28,23 @@
 // hold (in a shipped `.app`, `ATSApplicationFontsPath` activated the directory before any code ran,
 // so there is nothing to rescue). Every condition keeps a case that already worked unchanged.
 // ADR 0038 § Amendment 5, measured on macOS 27 arm64.
+//
+// THE SECOND FACE OF IT, and the one that turned CI red on a Linux-only condition. A DECLINE is not
+// the only way a face reaches nothing: a map that TAKES a file can still not serve it. The fc font
+// map caches the resolution it arrived at for a description, and `add_font_file` does not invalidate
+// that cache — so a family that was asked for BEFORE the face arrived keeps measuring the fallback
+// for the life of the map, while `get_family` answers it and a fresh context's `load_font` hands back
+// the real face. Measured numbers and the readings that lie, in {@link fontMapServesFamily}. A face
+// accepted and then not served is the same defect as one declined, so it takes the same route: the
+// remedy is the only invalidation JS has, a FRESH map of the same backend, which has no such entry.
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
-import type Pango from 'gi://Pango?version=1.0';
+// A VALUE import where the subpath used a type-only one, for {@link layoutSize}. No new namespace
+// reaches the process: `PangoCairo`'s own typelib imports `Pango-1.0`, so anywhere this subpath
+// loads, that one loads.
+import Pango from 'gi://Pango?version=1.0';
 
 /**
  * `CAIRO_FONT_TYPE_FT` from `cairo.h` — the value `pango_cairo_font_map_new_for_font_type()` maps to
@@ -83,6 +95,24 @@ export interface FontFaceRegistration {
      * lands here and is CORRECT: the OS activated the directory before the process started.
      */
     readonly declined: readonly string[];
+    /**
+     * Faces this call put on the map that no layout can be served by — registered, `get_family`
+     * answers the family, and text asking for it still measures the fallback. A SUBSET of
+     * {@link registered}, and disjoint from {@link declined}.
+     *
+     * ITS OWN FIELD rather than a third bucket beside the two above, and the difference is what
+     * happened to the map. `declined` is a map that would not TAKE the face, which for a shipped
+     * `.app` is the correct outcome; a face here was TAKEN and then could not SERVE it. A caller
+     * reading `declined` tells its user that no font map would take this file and points at
+     * `ATSApplicationFontsPath` and `initFonts()` — advice that is wrong here, because the face is
+     * already on the map and re-running a registration cannot help. That is why the distinction is
+     * data rather than a comment: one is silent and correct, the other is loud and necessary, and
+     * a caller cannot tell them apart without laying text out itself.
+     *
+     * EMPTY where the fontconfig fallback took over, which is the whole point of it: then the faces
+     * render and there is nothing left to report.
+     */
+    readonly unreachable: readonly string[];
     /** Faces that failed for any other reason, plus any the fontconfig map could not open either. */
     readonly failed: readonly FontFaceFailure[];
     /**
@@ -191,6 +221,70 @@ export function fontMapHasFamily(fontMap: Pango.FontMap, family: string): boolea
 }
 
 /**
+ * How {@link fontMapServesFamily} takes its reading: a value that is EQUAL for a family the map
+ * serves and for one it substitutes.
+ *
+ * A seam, so the decision can be held from a host that cannot produce the condition — the same
+ * discipline {@link isUnsupportedByFontMap} exists for, and the reason `font-map.spec.ts` can assert
+ * the decision on every leg instead of only where a poisoned map can be built.
+ */
+export type FontFamilyProbe = (fontMap: Pango.FontMap, family: string) => string;
+
+/** A family name that cannot exist, so a served family and a substituted one cannot measure alike. */
+const CONTROL_FAMILY = 'ZzzGjsifySubstitutionControlQx';
+
+/**
+ * Pixel size of a two-glyph layout in `family` — the reading behind {@link fontMapServesFamily}.
+ *
+ * The same two glyphs at the same size that `@gjsify/gtk-host`'s `fonts.spec.ts` and
+ * `@gjsify/dom-elements`' `font-face.spec.ts` assert with, so the product and the tests cannot
+ * disagree about what a substitution looks like. 40 pt because a difference that only appears at
+ * one size is not a discriminator, and two glyphs because one measures its advance alone.
+ */
+function layoutSize(fontMap: Pango.FontMap, family: string): string {
+    const description = new Pango.FontDescription();
+    description.set_family(family);
+    description.set_size(40 * Pango.SCALE);
+    const layout = Pango.Layout.new(fontMap.create_context());
+    layout.set_font_description(description);
+    layout.set_text('Wg', -1);
+    return layout.get_pixel_size().join('x');
+}
+
+/**
+ * Does this map actually SERVE `family`, or does asking for it get the fallback?
+ *
+ * A LAYOUT, because that is the only reading that does not lie, and the readings that look cheaper
+ * were measured first (pango 1.58.2 / gjs 1.88.1, on the fc map Fedora has, reached here with
+ * `PANGOCAIRO_BACKEND=fontconfig`) on a map that had resolved the family to the fallback and then
+ * had the face registered on it:
+ *
+ *   `get_family(name)`                  answers it
+ *   `list_families()`                   contains it
+ *   `load_font(desc).describe()`        the requested family — from a FRESH context
+ *   `get_serial()`                      1, exactly as on an unpoisoned map
+ *   `Pango.Layout` pixel size           THE FALLBACK — 86x66, identical to an invented family
+ *
+ * So the map holds the face, hands the right font to a caller that asks for it by name, reports the
+ * same serial as a healthy map, and lays every glyph out in Verdana: a per-map-instance cache of the
+ * negative resolution, which `add_font_file` does not invalidate and which nothing in JS reaches.
+ * Warming a context with `load_font` first does not help (measured — still 86x66), and neither does a
+ * context created after the registration; only a map that never saw the question serves it, which is
+ * the fresh map {@link probeFontconfigMap} builds.
+ *
+ * Which is also why the equality is against a control family rather than against a fixed number: the
+ * fallback's metrics are the host's business (Verdana 86x66 here, 87x63 on the Fedora 44 leg), and a
+ * number pinned to one host's default sans would red everywhere else while proving nothing extra.
+ */
+export function fontMapServesFamily(
+    fontMap: Pango.FontMap,
+    family: string,
+    probe: FontFamilyProbe = layoutSize,
+): boolean {
+    return probe(fontMap, family) !== probe(fontMap, CONTROL_FAMILY);
+}
+
+/**
  * The faces the map declined, tried against a fontconfig-backed map — and whether that map replaced
  * the default.
  *
@@ -236,6 +330,7 @@ function probeFontconfigMap(
     namespace: FontMapNamespace,
     platformMap: Pango.FontMap,
     faces: readonly string[],
+    stale: readonly string[] = [],
 ): FontconfigProbe {
     if (faces.length === 0) return NO_PROBE;
     if (GLib.getenv('PANGOCAIRO_BACKEND') !== null) return NO_PROBE;
@@ -261,7 +356,14 @@ function probeFontconfigMap(
     // opened, so there is nothing the platform map is missing. The per-face `failed` map is returned
     // all the same: on the second reading that is the only thing this call learned.
     if (gained.length === 0) return { map: candidate, before, failed, adopted: false };
-    if (gained.every((name) => platformMap.get_family(name) !== null)) {
+    // "THE PLATFORM MAP ALREADY HAS THIS FAMILY" and "the platform map already SERVES it" are
+    // different claims, and only the second is what this guard is for — a shipped `.app` activated
+    // its directory and the platform rasteriser keeps rendering. `stale` names the families measured
+    // to be served by nobody, and they are precisely the ones whose presence in `get_family` would
+    // otherwise refuse the very swap this function exists to make: the map answering for a family it
+    // cannot lay out is the definition of the bug, not a reason to keep it.
+    const alreadyReached = (name: string): boolean => !stale.includes(name) && platformMap.get_family(name) !== null;
+    if (gained.every(alreadyReached)) {
         return { map: candidate, before, failed, adopted: false };
     }
 
@@ -282,6 +384,7 @@ function noRegistration(): FontFaceRegistration {
         before: [],
         registered: [],
         declined: [],
+        unreachable: [],
         failed: [],
         fontconfigFallback: false,
     };
@@ -310,6 +413,7 @@ export function registerFontFaces(faces: readonly string[], map?: Pango.FontMap)
     const before = fontMapFamilies(target);
     const registered: string[] = [];
     const declined: string[] = [];
+    const unreachable: string[] = [];
     const failed: FontFaceFailure[] = [];
 
     for (const path of faces) {
@@ -328,18 +432,42 @@ export function registerFontFaces(faces: readonly string[], map?: Pango.FontMap)
         }
     }
 
-    // THE DARWIN DEVELOPMENT RUN (ADR 0038 § Amendment 5). A CoreText map declines every face; a
-    // shipped `.app` does not care, because `ATSApplicationFontsPath` activated them before this ran —
-    // but `gjsify run` on a Homebrew GTK has no bundle and no `Info.plist`, so there the faces reached
-    // nothing at all. A declined face is therefore not the end of the story, and each one is
-    // re-accounted from what the probe learned, in this order:
+    // A face the map ACCEPTED is not thereby reachable, and the reading that settles it is the one
+    // `fontMapServesFamily` documents. Taken over the families this call's faces BROUGHT — the diff of
+    // the family list, which is the only statement of "what did these files register as" that Pango
+    // makes — and only where this call registered something, so a map that takes no face never pays
+    // for a layout.
+    //
+    // It asks the map about the family it just gained, which RESOLVES it, and that is why this is
+    // safe here and was not safe as a rule for callers: the poisoning being detected is exactly this
+    // question, and by the time it is asked the answer is already fixed for the life of the map. The
+    // only thing done with a poisoned map afterwards is to leave it.
+    let stale: readonly string[] = [];
+    if (registered.length > 0) {
+        const gained = fontMapFamilies(target).filter((name) => !before.includes(name));
+        stale = gained.filter((name) => !fontMapServesFamily(target, name));
+        if (stale.length > 0) unreachable.push(...registered);
+    }
+
+    // THE DARWIN DEVELOPMENT RUN (ADR 0038 § Amendment 5), and its second face. A declined face and a
+    // face no layout can be served are the same problem from here — nothing in this process renders
+    // them — and both are re-accounted from what the probe learned, in this order:
     //
     //   failed      fontconfig could not open it either — a real answer, and where the swap was
     //               refused it is the ONLY one there is (see `FontconfigProbe`)
     //   registered  the probe adopted its map, so the face is on the map now in force
     //   declined    nothing here can take it: a shipped `.app`, whose faces the OS already activated
-    if (declined.length > 0) {
-        const probe = probeFontconfigMap(namespace, target, declined);
+    //   unreachable nothing here can SERVE it, though the map took it all the same
+    //
+    // The accepted-but-unreachable faces go into the probe TOGETHER rather than one by one, and that
+    // is a limit of Pango's API rather than a choice: it exposes no link from a registered file back
+    // to the family it produced, so one unreachable family cannot be attributed to one file. Five
+    // faces of two families would otherwise rescue whichever one happened to register first and call
+    // the other four failures. A swap is the whole process default anyway, so all-or-nothing is what
+    // `probeFontconfigMap` already decides.
+    const rescued = [...declined, ...unreachable];
+    if (rescued.length > 0) {
+        const probe = probeFontconfigMap(namespace, target, rescued, stale);
         const stillDeclined: string[] = [];
         for (const path of declined) {
             const message = probe.failed.get(path);
@@ -349,6 +477,24 @@ export function registerFontFaces(faces: readonly string[], map?: Pango.FontMap)
         }
         declined.length = 0;
         declined.push(...stillDeclined);
+
+        // An accepted face needs no re-accounting of its own: it stays in `registered` — the map
+        // took it, and `get_family` answers the family — and `unreachable` is the refinement that
+        // says a layout still gets the fallback. Two ways out of that refinement, and neither adds a
+        // path anywhere the sibling loop above already put it: the fallback adopted its map, so the
+        // faces are served now; or fontconfig could not open the file either, which is a `failed`
+        // and not an unreachable face.
+        if (probe.adopted) unreachable.length = 0;
+        else {
+            const stillUnreachable = unreachable.filter((path) => !probe.failed.has(path));
+            for (const path of unreachable) {
+                const message = probe.failed.get(path);
+                if (message !== undefined) failed.push({ path, message });
+            }
+            unreachable.length = 0;
+            unreachable.push(...stillUnreachable);
+        }
+
         if (probe.adopted && probe.map !== null) {
             // The diff has to be taken on the map that is now in force, or every family the two
             // backends merely SPELL differently would be credited to this call.
@@ -358,11 +504,21 @@ export function registerFontFaces(faces: readonly string[], map?: Pango.FontMap)
                 before: probe.before,
                 registered,
                 declined,
+                unreachable,
                 failed,
                 fontconfigFallback: true,
             };
         }
     }
 
-    return { available: true, map: target, before, registered, declined, failed, fontconfigFallback: false };
+    return {
+        available: true,
+        map: target,
+        before,
+        registered,
+        declined,
+        unreachable,
+        failed,
+        fontconfigFallback: false,
+    };
 }

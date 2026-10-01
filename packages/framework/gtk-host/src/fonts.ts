@@ -40,6 +40,14 @@
 // `changed` (ADR 0038), so the same late call is recoverable there. Registering early is therefore
 // free on the backend that recovers and load-bearing on the one that does not — which is why the
 // rule is stated flatly while `fonts.spec.ts` asserts only the portable half.
+//
+// AND WHAT A LATE CALLER GETS NOW. `registerFontFaces` takes the reading itself
+// (`fontMapServesFamily`) and, where a face is on the map but not served, replaces the default map the
+// only way JS can invalidate one — a fresh fontconfig map, which holds no cached answer. So the rule
+// above is now about not PAYING for the rescue rather than about correctness: a late call reports
+// `fontconfigFallback: true`, and where no fallback is available it reports the face in `unreachable`
+// and this function says so. Registering early is still right; what is withdrawn is the claim that
+// skipping it renders the wrong typeface for the life of the process with nothing said.
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
@@ -157,6 +165,14 @@ export interface FontSourceOutcome extends FontSource {
     readonly registered: readonly string[];
     /** Faces from THIS directory the font map declined — see {@link isUnsupportedByFontMap}. */
     readonly declined: readonly string[];
+    /**
+     * Faces from THIS directory that are on the map and that no layout can be served by — the map had
+     * already resolved their family to the fallback and caches that answer. Disjoint from
+     * {@link declined} and a subset of {@link registered}; `FontFaceRegistration.unreachable` in
+     * `@gjsify/utils/font-map` owns the reading and the fresh-map fallback that normally clears this
+     * list, so a non-empty one means that fallback was unavailable and the substitution is real.
+     */
+    readonly unreachable: readonly string[];
     /** Faces from THIS directory that failed otherwise, plus the directory itself if unreadable. */
     readonly failed: readonly FontFaceFailure[];
 }
@@ -195,6 +211,19 @@ export interface InitFontsResult {
      * {@link isUnsupportedByFontMap}.
      */
     readonly declined: readonly string[];
+    /**
+     * Faces that are on the map and that no layout can be served by, across every {@link sources}
+     * entry: the map resolved their family to the fallback before the face arrived and caches that
+     * answer, so registering the face changed `list_families()` and nothing else. A SUBSET of
+     * {@link registered} — the face really is on the map and `get_family` answers its family — which
+     * is why it is reported beside the flat lists rather than inside them.
+     *
+     * EMPTY wherever the fontconfig fallback took over, which is the whole point of it: then a fresh
+     * map serves the faces and there is nothing left to say. Non-empty means that fallback was
+     * unavailable (`PANGOCAIRO_BACKEND` pinned, no fontconfig configuration, no fc backend) and the
+     * substitution will happen whatever the application does next.
+     */
+    readonly unreachable: readonly string[];
     /**
      * Faces that failed for any other reason, across every {@link sources} entry. Each was warned
      * about; none threw.
@@ -253,8 +282,11 @@ const ENUMERATE_ATTRIBUTES = 'standard::name,standard::type';
  * fontconfig backend rather than tidiness: it caches the FONTSET resolved for a description and
  * `add_font_file` does not invalidate it, so a `Pango.Layout` that measured the family first keeps
  * measuring the fallback for the life of the process even though the family is then in
- * `list_families()`. win32 clears its cache instead and recovers, so registering early is free
- * there and unrecoverable-if-missed on Linux (measured both ways; `fonts.spec.ts`).
+ * `list_families()`. win32 clears its cache instead and recovers, so registering early is free there
+ * and unrecoverable-if-missed on Linux (measured both ways; `fonts.spec.ts`). Calling it late is no
+ * longer SILENTLY wrong, though: `registerFontFaces` measures what it registered, replaces the default
+ * map when a face turned out to be unserved, and reports what it could not rescue in
+ * {@link InitFontsResult.unreachable} — see the file header for what that leaves of the rule.
  *
  * Nothing here is eager: this
  * package is the element model renderers bind to and owns no application lifecycle, and a
@@ -282,6 +314,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
     const sources: FontSourceOutcome[] = [];
     const registered: string[] = [];
     const declined: string[] = [];
+    const unreachable: string[] = [];
     const failed: FontFaceFailure[] = [];
     const expected = options.expectedFamilies ?? [];
 
@@ -302,6 +335,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
             uiFont: undefined,
             registered,
             declined,
+            unreachable,
             failed,
             families: [],
             matches: [],
@@ -325,6 +359,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         source,
         registered: [] as string[],
         declined: [] as string[],
+        unreachable: [] as string[],
         failed: [] as FontFaceFailure[],
     }));
 
@@ -350,17 +385,20 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         if (registration.map !== undefined) fontMap = registration.map;
         outcome.registered.push(...registration.registered);
         outcome.declined.push(...registration.declined);
+        outcome.unreachable.push(...registration.unreachable);
         outcome.failed.push(...registration.failed);
     }
 
     for (const outcome of outcomes) {
         registered.push(...outcome.registered);
         declined.push(...outcome.declined);
+        unreachable.push(...outcome.unreachable);
         failed.push(...outcome.failed);
         sources.push({
             ...outcome.source,
             registered: outcome.registered,
             declined: outcome.declined,
+            unreachable: outcome.unreachable,
             failed: outcome.failed,
         });
     }
@@ -395,6 +433,22 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         );
     }
 
+    // THE OTHER SILENT SUBSTITUTION, and the one that renders a window in the RIGHT family name and
+    // the WRONG typeface: the font map holds the family — `matches` below will call it `exact`, and
+    // #1542's diff will list it — while every layout keeps measuring the fallback, because the map had
+    // already resolved that family before the face arrived and caches the answer. Reported here rather
+    // than left to `matches`, which cannot see it by construction. Where the fontconfig fallback took
+    // over this list is empty, so what is being said here is that no map in this process can serve the
+    // face at all.
+    for (const path of unreachable) {
+        console.warn(
+            `initFonts: ${path} is registered and its family is on the font map, but text asking for it ` +
+                'will still render substituted: the font map had already resolved that family to the ' +
+                'fallback and the cached answer cannot be invalidated. Call initFonts() before any text ' +
+                'is laid out.',
+        );
+    }
+
     // The loud line #1542 asked for, and the reason it is a warning rather than a throw: the
     // report `registered: 5, declined: 0, failed: 0` was ACCURATE while the declared family was
     // absent from the map and Pango substituted Tahoma. A result that says nothing failed while
@@ -412,6 +466,7 @@ export function initFonts(options: InitFontsOptions = {}): InitFontsResult {
         uiFont,
         registered,
         declined,
+        unreachable,
         failed,
         families,
         matches,

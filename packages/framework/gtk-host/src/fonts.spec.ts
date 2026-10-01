@@ -352,6 +352,15 @@ export default async () => {
             // THE DARWIN DEVELOPMENT RUN (ADR 0038 § Amendment 5): `gjsify run` on a Homebrew GTK
             // resolves CoreText, has no `Info.plist` to activate anything, and before this the face
             // reached nothing. The first registration of the staged face is the call that swaps.
+            //
+            // STILL THE DECLINE ALONE, and deliberately: `registerFontFaces` also replaces the map when
+            // a face is TAKEN and not served (the fc backend's cached negative resolution), but this
+            // suite never asks the default map about `FACE_FAMILY` before registering it — the
+            // ordering note at the top of this file is what guarantees that — so on a Linux leg there
+            // is nothing to rescue and nothing to swap. The rescue has its own end-to-end
+            // discriminator in `dom-elements`' `font-face.spec.ts`, whose "absent before" arm is the
+            // pre-query that triggers it; asserting it here would mean poisoning the default map on
+            // purpose, which this suite's ordering exists to prevent.
             expect(firstFallback).toBe(FALLBACK);
             // The default map now ACCEPTS registration wherever the swap happened — asked of the
             // map itself rather than read off a type name, which node-gi reports as the
@@ -386,9 +395,13 @@ export default async () => {
             'measures the family DIFFERENTLY from an invented one',
             async () => {
                 // The assertion that makes the one above a finding rather than a call that
-                // returned true: different metrics are a different FACE, not a substitution. This
-                // is also the FIRST time this process asks the default map to resolve
-                // `FACE_FAMILY`, and that is deliberate — see the ordering suite below.
+                // returned true: different metrics are a different FACE, not a substitution. Note
+                // where this process first asked the default map to resolve `FACE_FAMILY`: it was
+                // back in the suite above, where `initFonts` registered the staged face, because a
+                // registration now measures every family its faces bring. That is the POINT rather
+                // than a hazard — a cached answer that is CORRECT is what the face needs, and the
+                // ordering suite below covers the other case, the one where the answer was cached
+                // before the face existed and no amount of registering can change it.
                 expect(layoutSize(FACE_FAMILY)).not.toBe(layoutSize(INVENTED_FAMILY));
             },
             NO_REACH_REASON,
