@@ -6,8 +6,8 @@
 // and the reported size must come from the bytes and not from what was asked for.
 
 import { describe, expect, it } from '@gjsify/unit';
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 import { CaptureShotError, captureShot, pngSize } from './shot.js';
 

@@ -23,8 +23,8 @@
 // together. A caller with its own transport (the peer socket, a fake in a test) passes its own
 // one-liner.
 
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 /** Fetches PNG bytes for a scope (`''`/`window` for the active window, a widget path for one widget). */
 export type PngSource = (scope: string) => Promise<Uint8Array>;
