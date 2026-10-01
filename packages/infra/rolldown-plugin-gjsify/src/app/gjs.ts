@@ -10,6 +10,7 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
 import { externalsPlugin } from '../plugins/externals.js';
 import { napiNodeAddonPlugin } from '../plugins/napi-node-addon.js';
+import { giOptionalPlugin } from '../plugins/gi-optional.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import {
     platformResolvePlugin,
@@ -252,6 +253,9 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // A module assigning the global `console` gets a local binding, or the inject
         // below turns its assignment into `ASSIGN_TO_IMPORT` and fails the build.
         ...(consoleShimPath ? [consoleAssignPlugin()] : []),
+        // `gi://Ns?version=X&optional` → a guarded import (ADR 0086), claimed `pre`
+        // so the externals policy never sees the flagged specifier.
+        giOptionalPlugin(),
         // Platform-file forks for the desktop, ADR 0032 § 9: `.gtk` → `.<os>` →
         // `.desktop` → base. BEFORE the alias layer, so a platform fork of a
         // module that also has a Node-builtin substitution wins over the

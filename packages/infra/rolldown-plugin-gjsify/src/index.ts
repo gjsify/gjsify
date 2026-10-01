@@ -19,6 +19,12 @@ export type { NodeModulesPathRewriteOptions, RewriteResult } from './plugins/rew
 export { processStubPlugin, GJS_PROCESS_STUB, composeBanner } from './plugins/process-stub.js';
 export { giRuntimePathsStub } from './plugins/gi-runtime-paths.js';
 export {
+    giOptionalPlugin,
+    giOptionalShimSource,
+    parseOptionalGiSpecifier,
+    GI_OPTIONAL_FLAG,
+} from './plugins/gi-optional.js';
+export {
     bindConsoleLocally,
     consoleAssignPlugin,
     freeConsoleAssignmentInsertion,
