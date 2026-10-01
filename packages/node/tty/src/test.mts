@@ -1,7 +1,6 @@
 import '@gjsify/node-globals/register/process';
 import { run } from '@gjsify/unit';
 import { hasNativeTerminal } from '@gjsify/terminal-native';
-import { isatty } from './index.js';
 import testSuite from './index.spec.js';
 import terminalFallbackTestSuite from './terminal-fallback.gjs.spec.js';
 
@@ -13,26 +12,16 @@ import terminalFallbackTestSuite from './terminal-fallback.gjs.spec.js';
  * bug. Stated as a skip with its reason rather than run green having checked
  * nothing.
  *
- * The catch is a real failure mode, not a shrug: both probes reach GI, which the
- * Node leg's host has no way to answer, and a leg that cannot answer has no
- * terminal to watch — the same condition the reason below names.
+ * The prebuild check is the whole probe. `hasNativeTerminal()` is false off GJS,
+ * where `imports.gi` does not exist, and that leg has no terminal to watch
+ * either — the same condition the reason below names — so there is nothing here
+ * to reach GI for, and no reason to guard the guard.
  */
-function noTtyReason(): string {
-    let prebuild = false;
-    let tty = false;
-    try {
-        prebuild = hasNativeTerminal();
-        tty = prebuild && isatty(0);
-    } catch {
-        /* no GI on this leg */
-    }
-    if (tty) return '';
-    return prebuild
-        ? 'fd 0 is not a terminal on this host, so setRawMode changes nothing and can owe nothing'
-        : 'the GjsifyTerminal prebuild is not installed, so no transition can be made';
-}
-
-const NO_TTY = noTtyReason();
+const NO_TTY = !hasNativeTerminal()
+    ? 'the GjsifyTerminal prebuild is not installed, so no transition can be made'
+    : process.stdin.isTTY
+      ? ''
+      : 'fd 0 is not a terminal on this host, so setRawMode changes nothing and can owe nothing';
 
 const skip: Record<string, string> = NO_TTY
     ? {

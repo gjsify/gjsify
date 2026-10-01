@@ -157,28 +157,30 @@ export class ProcessReadStream extends EventEmitter {
         // sees the real terminal and the setting persists in the kernel tty driver.
         // Only works when fd 0 is actually a TTY.
         //
-        // The debt is recorded here too. The hook this path used to register
-        // reached for `globalThis.process` through an optional chain inside an
-        // empty `catch` — so on any host where that global was absent the cleanup
-        // silently did not exist, the same terminal restored by luck. The spawn is
-        // fire-and-forget, so there is no success to test: a changed terminal is
-        // claimed, which is the side that costs the user their shell.
+        // `noteRawMode` is the same rule the native branch obeys, and it needs a
+        // verdict from here too — `Gio.Subprocess.get_successful()` is it, so a
+        // fallback that changed nothing claims nothing. The hook this path used to
+        // register reached for `globalThis.process` through an optional chain inside
+        // an empty `catch`, so on any host where that global was absent the cleanup
+        // silently did not exist — the same terminal, restored by luck.
         noteRawMode(this.fd, mode, (enable) => {
-            this._setRawModeViaStty(enable);
-            return true;
+            return this._setRawModeViaStty(enable);
         });
         this.isRaw = mode;
         return this;
     }
 
-    private _setRawModeViaStty(mode: boolean): void {
+    /** Whether the spawn left the terminal in the state asked for, which is what
+     * makes a claim on it honest: `stty` exits non-zero without touching a
+     * descriptor that is not a TTY, and that must claim nothing. */
+    private _setRawModeViaStty(mode: boolean): boolean {
         try {
             const _gi: Record<string, unknown> | undefined = (
                 globalThis as { imports?: { gi?: Record<string, unknown> } }
             ).imports?.gi;
             // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
             const Gio: any = _gi?.Gio ?? _gi?.['Gio'];
-            if (!Gio) return;
+            if (!Gio) return false;
             // G_SUBPROCESS_FLAGS_STDIN_INHERIT = 1 << 1 = 2
             // Makes stty inherit our fd 0 (the real TTY) so tcsetattr targets the same tty.
             const STDIN_INHERIT = Gio.SubprocessFlags?.STDIN_INHERIT ?? 2;
@@ -194,8 +196,10 @@ export class ProcessReadStream extends EventEmitter {
             const launcher = new Gio.SubprocessLauncher({ flags: STDIN_INHERIT });
             const proc = launcher.spawnv(argv);
             proc.wait(null);
+            return proc.get_successful();
         } catch {
             /* stty not available or not a TTY */
+            return false;
         }
     }
 

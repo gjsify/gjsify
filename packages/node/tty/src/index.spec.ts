@@ -4,7 +4,7 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 import tty, { isatty, ReadStream, WriteStream } from 'node:tty';
 import process from 'node:process';
-import { isRawModeClaimed, noteRawMode, restoreClaimedRawModes } from '@gjsify/terminal-native';
+import { isRawModeClaimed, restoreClaimedRawModes } from '@gjsify/terminal-native';
 
 export default async () => {
     await describe('tty exports', async () => {
@@ -307,37 +307,13 @@ export default async () => {
     // now lives in @gjsify/terminal-native — the one package both already depend
     // on — and `Process`'s `exit` pays it, whoever took it on.
     await describe('tty raw mode is a debt this process owes the terminal', async () => {
-        // The rule the call site obeys, exercised without a terminal: a claim
-        // exists exactly when the transition happened. Both halves were wrong
-        // once — the branch that changed nothing claimed nothing, and a claim
-        // taken on a transition that failed would restore a terminal this
-        // process never broke.
-        await it('claims the descriptor only where the transition happened', async () => {
-            const applied: string[] = [];
-            noteRawMode(41, true, () => {
-                applied.push('raw 41');
-                return true;
-            });
-            expect(isRawModeClaimed(41)).toBe(true);
-            // The owner turning it back off has PAID: a stale undo run at exit
-            // could fight whoever claimed the descriptor after it.
-            noteRawMode(41, false, () => {
-                applied.push('sane 41');
-                return true;
-            });
-            expect(isRawModeClaimed(41)).toBe(false);
-
-            // set_raw_mode returns false for a descriptor that is not a terminal
-            // (a piped stdin). Nothing changed, so nothing is owed.
-            noteRawMode(42, true, () => false);
-            expect(isRawModeClaimed(42)).toBe(false);
-            expect(applied).toStrictEqual(['raw 41', 'sane 41']);
-        });
-
-        // The wiring, on a real terminal: the whole point is that these two
-        // streams are what a GJS program holds, and the debt must be visible to
-        // the exit hook that pays it. Skipped where there is no TTY (see the
-        // `skip` map in test.mts) — the claim cannot be observed without one.
+        // What is left to prove HERE is the WIRING: that these two streams are the
+        // call sites. `noteRawMode`'s own rule — a claim exists exactly where the
+        // transition happened — is pinned without a terminal in @gjsify/process's
+        // raw-mode spec, so a real terminal is all that is missing to observe the
+        // debt reach the exit hook that pays it. Skipped where there is none (see
+        // the `skip` map in test.mts) — `set_raw_mode` returns false for a pipe,
+        // so asserting a claim there would be asserting the bug.
         await on('Gjs', async () => {
             await it('setRawMode(true) records the debt Process exit pays', async () => {
                 const read = new ReadStream(0);

@@ -22,7 +22,9 @@
 // (`@gjsify/process`'s `process-class.ts`), on its `exit` event, which
 // `process.exit()` emits before it dies — so whoever transitions the terminal
 // records the claim, the process pays it, and neither reaches for a global to
-// find the other.
+// find the other. That also means a bundle reaching `node:tty` WITHOUT the
+// process polyfill has a claim and nobody to pay it
+// (`status/open-todos/runtime-apis.md`).
 
 /** fd → the call that puts that descriptor back. One entry per descriptor. */
 const claimed = new Map<number, () => void>();
