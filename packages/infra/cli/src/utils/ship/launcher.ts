@@ -193,7 +193,7 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
  * IT EXECS WHAT THE BUNDLE CARRIES. `runtime` comes from
  * `utils/ship/app-runtime.ts` and names the interpreter, the relocated GTK
  * closure and the node-gi addon staged inside `Contents/` — so the exec line is
- * `"$here/node"` and the two locators below point into `Contents/Frameworks`.
+ * `"$here/node"` and the two locators below point into `dirs.native`.
  * When the stage carries none of them every line here is byte-identical to what
  * M2a wrote, which is what keeps a bundle assembled without the runtime packages
  * exactly as (un)usable as it was rather than differently broken.
@@ -290,7 +290,7 @@ function renderAppBundleLauncher(
     // `node_modules`, and a shipped `.app` has neither: its JavaScript is one
     // bundled file under `Contents/Resources/lib`, so `import.meta.url` there
     // resolves node-gi's "package root" to the bundle's directory and every probed
-    // path lands beside the bundle instead of in `Contents/Frameworks`.
+    // path lands beside the bundle instead of in `dirs.native`.
     //
     // `NODE_GI_NATIVE` is the same problem for the addon: `prebuildAddonPath()`
     // joins `prebuilds/<target>/node_gi.node` onto that same wrong root

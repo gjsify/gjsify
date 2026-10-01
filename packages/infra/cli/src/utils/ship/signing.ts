@@ -18,7 +18,10 @@
 //     an ad-hoc `LC_CODE_SIGNATURE` already (they must — `install_name_tool`
 //     invalidates the original during relocation). So the darwin leg re-signs
 //     every image, and the result is new BYTES for the packer rather than a
-//     container around the old ones.
+//     container around the old ones. § A16's corollary of this — "the same
+//     identity everywhere, so library validation has nothing to object to" — is
+//     measured FALSE for the ad-hoc identity, and the darwin row's
+//     `entitlements` is where that correction lives.
 //  4. THE ORDER IS STRUCTURAL, not conventional (§ A17). `readStage` compares
 //     each file's SIZE against `.gjsify-ship-stage.json`, and a size is no more
 //     re-sign-proof than a digest. BOTH halves are measured and they agree:
@@ -66,10 +69,10 @@
 //    `.dmg` is stapled and the `.zip` is told what a user has to do instead.
 //
 // WHAT IS STILL NOT DONE, deliberately: `signtool` is never given a timestamp URL
-// (see the win32 row), and the entitlement § A16 is about —
-// `com.apple.security.cs.disable-library-validation` — is NOT granted, because
-// § A4's re-sign of every image in the closure is the design of record and
-// granting the entitlement would quietly make it look unnecessary.
+// (see the win32 row), and the named-identity half of § A16 is untested because it
+// needs a certificate — the GRANT of `disable-library-validation` is the measured
+// ad-hoc answer, and § A4's re-sign of every image stays the design of record for
+// the Developer ID that notarisation will actually require.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
@@ -112,14 +115,19 @@ export interface SignerDescriptor {
     /** argv after {@link tool}, for ONE file. */
     args: (input: SignArgs) => readonly string[];
     /**
-     * The entitlements this signer asks for, or `[]` where the OS has none.
+     * The entitlements this signer asks for, given the identity in hand.
+     *
+     * A FUNCTION, not a list, and the darwin row's second argument is what makes
+     * that necessary: the set depends on whether the identity is a real one, and
+     * one entitlement is exactly wrong in one of the two directions. It is a
+     * measured difference, not a preference — see {@link SIGNERS}.darwin.
      *
      * `[]` is an ANSWER and not an omission — the same rule `Layout.metadata`
      * states. Windows has no equivalent concept at all, and a signer that granted
      * nothing on macOS would be a different decision from one that has nothing to
      * grant.
      */
-    entitlements: readonly string[];
+    entitlements: (adhoc: boolean) => readonly string[];
     /**
      * Does this signer seal the ARTIFACT ROOT after signing the images inside it?
      *
@@ -189,32 +197,52 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
             ...(adhoc ? [] : ['--timestamp']),
             file,
         ],
-        // FOUR OF THE REFERENCE'S SIX, and both omissions are decisions:
+        // FIVE OF THE REFERENCE'S SIX for an ad-hoc identity, FOUR for a real one,
+        // and the difference is the one § A16 left open — now MEASURED, on
+        // darwin-arm64 with the published `@gjsify/gtk-runtime-darwin-arm64` staged
+        // into the bundle (`utils/ship/layout.ts` carries the rest of that run).
         //
-        //  * `com.apple.security.cs.get-task-allow` is granted by
-        //    `refs/node/tools/osx-entitlements.plist:15` and is a DEBUGGING
-        //    entitlement — it lets another process attach to this one. Apple's
-        //    notarisation rules refuse a Developer-ID artifact carrying it, so
-        //    shipping it would trade a working debug build for an artifact that
-        //    cannot be distributed. The reference signs its own build; we sign what
-        //    a stranger downloads.
-        //  * `com.apple.security.cs.disable-library-validation` is § A16's open
-        //    question and stays open. § A4's design of record is that every Mach-O
-        //    in the closure is re-signed with the SAME identity as the launcher, so
-        //    library validation has nothing to object to — and granting the
-        //    entitlement anyway would make that re-sign look optional the first
-        //    time somebody reads this list.
+        // § A16's premise was that library validation has nothing to object to
+        // because every Mach-O carries the SAME identity as the launcher. That is
+        // true for a Developer ID and FALSE for `--sign -`: an ad-hoc signature has
+        // no team at all, so the running process and the dylib it dlopens report
+        // different team IDs and the load is refused —
         //
-        // The four that remain are what a shipped V8 needs under a hardened
-        // runtime, plus the one our own loader story needs:
-        // `@gjsify/node-gi`'s `maybeReexecForGtkRuntime` sets `DYLD_*` for its
-        // child on darwin, and a hardened process may not do that without
-        // `allow-dyld-environment-variables`.
-        entitlements: [
+        //   dlopen(…/prebuilds/darwin-arm64/node_gi.node): code signature in
+        //   <378B2FDA-…> '…node_gi.node' not valid for use in process: mapping
+        //   process and mapped file (non-platform) have different Team IDs
+        //
+        // — at `require('@gjsify/node-gi')`, the FIRST thing a shipped `.app` does,
+        // with every image correctly signed. Same bundle, same signer, same argv,
+        // one more entitlement: `interpreter:`/`gtk-runtime:`/`chrome: ok`/
+        // `render: 480x320`/`done: 0`.
+        //
+        // So it is granted WHERE IT IS NEEDED, which is ad-hoc only. A Developer ID
+        // signs the whole closure with one team and needs nothing, and Apple's
+        // notarisation rules read a `disable-library-validation` entitlement on a
+        // Developer-ID artifact as shipping unsigned code — so granting it there
+        // would trade a distributable artifact for a locally runnable one. The
+        // GRANT therefore stays what § A16 asked to know: § A4's re-sign of every
+        // image is the design of record, and the entitlement is what makes the
+        // ad-hoc proof of it RUNNABLE rather than a signature `codesign` accepts and
+        // dyld refuses.
+        //
+        // The four both share are what a shipped V8 needs under a hardened runtime,
+        // plus the one our own loader story needs: `@gjsify/node-gi`'s
+        // `maybeReexecForGtkRuntime` sets `DYLD_*` for its child on darwin, and a
+        // hardened process may not do that without `allow-dyld-environment-variables`.
+        //
+        // `get-task-allow` is absent from both, and that is a decision:
+        // `refs/node/tools/osx-entitlements.plist:15` grants it, it is a DEBUGGING
+        // entitlement — it lets another process attach to this one — and Apple's
+        // notarisation rules refuse a Developer-ID artifact carrying it. The
+        // reference signs its own build; we sign what a stranger downloads.
+        entitlements: (adhoc) => [
             'com.apple.security.cs.allow-jit',
             'com.apple.security.cs.allow-unsigned-executable-memory',
             'com.apple.security.cs.disable-executable-page-protection',
             'com.apple.security.cs.allow-dyld-environment-variables',
+            ...(adhoc ? ['com.apple.security.cs.disable-library-validation'] : []),
         ],
         // The `.app` is a bundle, and a bundle's signature is the seal over its
         // whole tree — the images alone leave `codesign --verify` with nothing to
@@ -223,9 +251,10 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
         sealAddPrefix: (bundleRoot) => `${bundleRoot}/Contents/_CodeSignature/`,
         configKey: 'gjsify.ship.sign.darwin.identity',
         gap:
-            'the images are signed and the bundle is sealed; UNVERIFIED end to end — no macOS host in this ' +
-            'repository has run a `--sign` over a real `.app`, and ADR 0024 § A16 still leaves library ' +
-            'validation unmeasured',
+            'the images are signed and the bundle is sealed, and the seal survives both the `.zip` and the ' +
+            '`.dmg` round trip; § A16 stands measured in ONE direction only — library validation refuses an ' +
+            'ad-hoc-signed dylib, so the ad-hoc identity grants `disable-library-validation` while a named ' +
+            'one does not, and no run in this repository has ever held the named one',
     },
     win32: {
         layoutOs: 'win32',
@@ -247,8 +276,10 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
         // Windows has no equivalent concept. An Authenticode signature carries no
         // capability claims — what a hardened runtime and an entitlement do on
         // macOS is done on Windows by the manifest and by AppContainer, neither of
-        // which this signer touches.
-        entitlements: [],
+        // which this signer touches. `() => []` rather than `[]` because the field is
+        // a function of the identity (see the darwin row), and this one ignores the
+        // argument instead of reading `adhoc` out of it.
+        entitlements: () => [],
         // A Windows program directory is a DIRECTORY and nothing more: there is no
         // manifest to seal and no per-directory signature format. `signtool` signs
         // images, one at a time, which is what the loop above already does.
@@ -454,9 +485,10 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
 
     const adhoc = input.identity === ADHOC_IDENTITY;
     let entitlements: string | undefined;
-    if (signer.entitlements.length > 0) {
+    const granted = signer.entitlements(adhoc);
+    if (granted.length > 0) {
         mkdirSync(dirname(input.entitlementsPath), { recursive: true });
-        writeFileSync(input.entitlementsPath, renderEntitlements(signer.entitlements));
+        writeFileSync(input.entitlementsPath, renderEntitlements(granted));
         entitlements = input.entitlementsPath;
     }
     const run = async (file: string, what: string): Promise<void> => {

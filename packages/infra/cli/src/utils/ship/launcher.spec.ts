@@ -111,11 +111,13 @@ export default async () => {
             const node = { ...settings([]), app: 'node' } as ShipSettings;
             const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.darwin, CARRIED);
             expect(
-                rendered.includes('GJSIFY_GTK_RUNTIME="$contents/Frameworks/node-gi/prebuilds/darwin-arm64/gtk"'),
+                rendered.includes('GJSIFY_GTK_RUNTIME="$contents/Resources/native/node-gi/prebuilds/darwin-arm64/gtk"'),
             ).toBe(true);
             expect(rendered.includes('export GJSIFY_GTK_RUNTIME')).toBe(true);
             expect(
-                rendered.includes('NODE_GI_NATIVE="$contents/Frameworks/node-gi/prebuilds/darwin-arm64/node_gi.node"'),
+                rendered.includes(
+                    'NODE_GI_NATIVE="$contents/Resources/native/node-gi/prebuilds/darwin-arm64/node_gi.node"',
+                ),
             ).toBe(true);
             expect(rendered.includes('export NODE_GI_NATIVE')).toBe(true);
         });
@@ -138,7 +140,7 @@ export default async () => {
             // reads can answer it in a signed bundle.
             const withTypelibs = { ...settings([]), app: 'node', typelibFiles: ['/p/gi/Foo-1.typelib'] };
             const rendered = renderLauncher(withTypelibs as ShipSettings, 'app.node.mjs', LAYOUTS.darwin, CARRIED);
-            expect(rendered.includes('GJSIFY_GI_LIBRARY_PATH="$contents/Frameworks"')).toBe(true);
+            expect(rendered.includes('GJSIFY_GI_LIBRARY_PATH="$contents/Resources/native"')).toBe(true);
             expect(rendered.includes('export GJSIFY_GI_LIBRARY_PATH')).toBe(true);
             // Not emitted when the app carries no GI library of its own: an empty
             // entry makes GI search a directory that is not there, forever.

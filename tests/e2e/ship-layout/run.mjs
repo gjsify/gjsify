@@ -124,14 +124,18 @@ const ARCH = 'arm64';
  * the rules are ordered the way the design orders them: the launcher first
  * (it is the one file whose NAME changes), then the carried native files, which
  * are the reason a layout is more than a prefix — on macOS they leave the bundle
- * directory for `Contents/Frameworks`.
+ * directory for `Contents/Resources/native`, which is NOT Apple's
+ * `Contents/Frameworks`: `codesign` scans that one for nested code and reads the
+ * version-named directories the relocated GTK closure carries as versioned
+ * bundles, refusing the bundle seal (`utils/ship/layout.ts` has the measurement).
  */
 const LAYOUT_MAP = {
     linux: (rel) => rel,
     darwin: (rel) => {
         const under = (dir, tail) => `${APP_NAME}.app/Contents/${dir}/${tail}`;
         if (rel === `bin/${BINARY}`) return under('MacOS', BINARY);
-        if (rel.startsWith(`lib/${BINARY}/gi/`)) return under('Frameworks', rel.slice(`lib/${BINARY}/gi/`.length));
+        if (rel.startsWith(`lib/${BINARY}/gi/`))
+            return under('Resources/native', rel.slice(`lib/${BINARY}/gi/`.length));
         if (rel.startsWith(`lib/${BINARY}/`)) return under('Resources/lib', rel.slice(`lib/${BINARY}/`.length));
         if (rel.startsWith('share/')) return under('Resources/share', rel.slice('share/'.length));
         throw new Error(`the darwin map has no rule for ${rel}`);
@@ -389,7 +393,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         // launcher that exports one is claiming something the loader will not see.
         assert.ok(!launcher.includes('DYLD_'), 'the macOS launcher must not export a DYLD_ variable');
         assert.match(launcher, /contents=\$\(dirname -- "\$here"\)/);
-        assert.match(launcher, /GI_TYPELIB_PATH="\$contents\/Frameworks"/);
+        assert.match(launcher, /GI_TYPELIB_PATH="\$contents\/Resources\/native"/);
         // The bundle's own share dir and NO Linux system default after it: the XDG spec's
         // `/usr/local/share:/usr/share` is Homebrew's on an Intel Mac, absent on Apple
         // Silicon, and Apple's own `/usr/share` carries no schemas and no icon theme.
@@ -476,7 +480,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
     // ── the darwin payload, read back by an independent parser ────────────
 
     it('reads every staged Mach-O back from Linux, and refuses an empty set', () => {
-        const frameworks = join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'Frameworks');
+        const nativeDir = join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'Resources', 'native');
         const images = [];
         for (const rel of listPayload(stages.darwin)) {
             const info = readLibrary(join(stages.darwin, rel));
@@ -492,9 +496,11 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             assert.equal(info.format, 'macho', `${rel} is not Mach-O`);
             assert.equal(info.os, 'darwin', `${rel} says it is for ${info.os}`);
             assert.equal(info.arch, ARCH, `${rel} is built for ${info.arch}`);
-            // Where the layout claims it put them. `Contents/Frameworks` is the
-            // half of this layout that a prefix substitution cannot express.
-            assert.ok(join(stages.darwin, rel).startsWith(frameworks), `${rel} is not in Contents/Frameworks`);
+            // Where the layout claims it put them. `dirs.native` is the half of
+            // this layout a prefix substitution cannot express, and the whole of
+            // the reason it is `Contents/Resources/native`: nothing may land under
+            // `Contents/Frameworks`, which is what the next case holds on its own.
+            assert.ok(join(stages.darwin, rel).startsWith(nativeDir), `${rel} is not in Contents/Resources/native`);
         }
         console.log(`  read ${images.length} Mach-O image(s) with manifest-conformance/lib/binary.mjs`);
     });
@@ -505,7 +511,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         // the darwin leg re-signs the closure IN the stage, all of them change,
         // and that is the moment the arrival check has to become Mach-O-aware
         // rather than a per-file sha256.
-        const staged = join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'Frameworks', 'libgwebgl.dylib');
+        const staged = join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'Resources', 'native', 'libgwebgl.dylib');
         assert.equal(sha256(staged), sha256(join(DARWIN_PREBUILD, 'libgwebgl.dylib')));
         const info = readLibrary(staged);
         // Already ad-hoc signed at bundle-build time, which is the fact § A4

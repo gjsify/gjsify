@@ -494,20 +494,23 @@ jobs:
       # --verify` on the images, and `.github/ship-oracle/verify-signed-arrival.mjs`
       # for the claim no verifier makes: that signing changed nothing else.
       #
-      # `GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1` is not decoration. Every darwin
-      # assertion in that file is behind `hasCommand('codesign')`, so on a host
-      # without one the suite passes having proved nothing — this variable turns
-      # that into a failure, which is what stops this step from being the green
-      # leg that checked nothing. Watched red: the same command on Linux fails
-      # exactly that assertion and nothing else.
+      # `GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1` is not decoration. Every
+      # darwin assertion in that file is behind `hasCommand(...)`, so on a host
+      # without `codesign` — or without the `ditto`/`hdiutil` the two CONTAINER
+      # cases extract with — the suite passes having proved nothing. This variable
+      # turns that into a failure, which is what stops this step from being the
+      # green leg that checked nothing. Watched red: the same command on Linux
+      # fails exactly that assertion and nothing else.
       #
       # WHAT IT DOES NOT PROVE: the 106-image GTK closure. This runs over two
-      # compiled fixtures, so it measures the pipeline and the comparator, not
-      # the scale — and it says nothing about a Developer ID, which is a
-      # different VALUE for the same flag and no other code path.
+      # compiled fixtures plus two version-named DIRECTORIES — enough for the
+      # `Contents/Frameworks` nested-code rule to bite (a dylib fixture cannot
+      # reach it) — so it measures the pipeline, the comparator and the two
+      # container round trips, not the scale. It says nothing about a Developer
+      # ID, which is a different VALUE for the same flag and no other code path.
       - name: Ad-hoc sign a Mach-O payload and compare its arrival (#1354 M6)
         env:
-          GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN: '1'
+          GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS: '1'
         run: node --test tests/e2e/ship-signing/run.mjs
 
       # Blueprint reaches a `--library` build here for the first time. ADR 0053

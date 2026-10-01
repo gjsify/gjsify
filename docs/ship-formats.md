@@ -400,8 +400,10 @@ DIFFERS between layouts, which is what keeps "one payload" from being a claim ab
 
 `Contents/MacOS` is the first layout that is not a `prefix` substitution. The carried GI files
 (`gjsify.ship.bundledTypelibs`) sit inside `lib/<name>/` on Linux and leave the bundle directory
-entirely on macOS for `Contents/Frameworks`, and the launcher's own NAME changes on Windows
-(`<binaryName>.cmd`). What is the OS's and what is the app's:
+entirely on macOS for `Contents/Resources/native` — deliberately NOT Apple's
+`Contents/Frameworks`, whose nested-code scan reads a version-named directory as a versioned bundle
+and refuses the bundle seal, and which the relocated GTK closure fills with three — and the
+launcher's own NAME changes on Windows (`<binaryName>.cmd`). What is the OS's and what is the app's:
 
 | | fixed by the OS | from the consumer's `gjsify.ship` |
 |---|---|---|
@@ -880,9 +882,9 @@ a second parser*. It is an independent reader despite being ours — the mutatio
 
 **Ad-hoc signing needs no Apple Developer Program membership**, which is why the whole pipeline plus
 its oracle is a green CI leg with no secret in it (`macos-suites.yml`, and
-`GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1` is what stops that leg passing on a host with no
-`codesign`). A real Developer ID later is a different VALUE for the same flag, not a different code
-path.
+`GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS=1` is what stops that leg passing on a host with no
+`codesign`, no `ditto` or no `hdiutil`). A real Developer ID later is a different VALUE for the same
+flag, not a different code path.
 
 **Notarisation is a SECOND, unrelated credential** (§ A15). `--notarize <keychain-profile>` runs
 `xcrun notarytool submit --keychain-profile <p> --wait <artifact>`, and the guard tests exactly the
@@ -893,13 +895,30 @@ is not implemented — `status/open-todos/README.md` carries it, with what was m
 
 **Stapling, the bundle seal and the hardened runtime landed with ADR 0040**, and they are not at the
 same confidence level — which is the distinction worth keeping, because "no macOS host of its own"
-was the reason given for all three and it is only true of two. The ad-hoc `macos-suites` leg IS a
-macOS host: it has MEASURED that `codesign` accepts `--options runtime --entitlements` with
+was the reason given for all three and it is only true of the first two. The ad-hoc `macos-suites`
+leg IS a macOS host: it has MEASURED that `codesign` accepts `--options runtime --entitlements` with
 `--sign -`, that the seal lands in `Contents/_CodeSignature/` (four components on macos-26) and that
 it changes nothing else in the payload, and that `codesign --verify --strict` accepts the BUNDLE on
-both arches. What has never run is the ZIP round trip with a seal in it — which needs no credential
-and is the next measurement — plus `notarytool` and `stapler`, which need an Apple account.
-`status/open-todos/README.md` carries all three with their measurements attached.
+both arches. The ZIP round trip with a seal in it is measured too (below); `notarytool` and `stapler`
+need an Apple account. `status/open-todos/README.md` carries what is left with its measurements.
+
+**BOTH CONTAINERS ARE READ BACK BY SOMETHING THAT IS NOT OURS**, and the round trip is what the seal
+existed for. `tests/e2e/ship-signing`'s darwin half signs a payload and then, per format:
+`ditto -x -k` extracts the archive this tree wrote and `codesign --verify --deep --strict` runs on
+what came out (all four `_CodeSignature/` components intact, the launcher still `0755`); `hdiutil
+attach -nobrowse -readonly` mounts the image this tree asked `hdiutil` to write and the same verify
+runs on the bundle INSIDE it, with `mount` asserted to report `read-only, noowners`. The same three
+rows were then run against a real GTK application on darwin-arm64 / macOS 27 — `gjsify ship darwin
+--sign -`, 121 of 1252 payload files signed ad-hoc, the seal written — and the app OPENS A WINDOW
+from both containers with `PATH=/usr/bin:/bin:/usr/sbin:/sbin` and every `DYLD_*`,
+`GI_TYPELIB_PATH`, `GJSIFY_GTK_RUNTIME`, `NODE_GI_NATIVE`, `GJSIFY_GI_LIBRARY_PATH` and
+`XDG_DATA_DIRS` unset (`interpreter:`/`gtk-runtime:` naming paths inside the extracted bundle,
+`chrome: ok`, `render: 480x320 17207`, `done: 0`). Two defects surfaced on the way there and both
+are fixed here: `dirs.native` moved OUT of Apple's `Contents/Frameworks`, whose nested-code scan
+reads a version-named directory as a versioned bundle and refuses the seal; and the ad-hoc identity
+is granted `disable-library-validation`, because library validation compares TEAM IDs and an ad-hoc
+signature has none. Both are measured, with the numbers and the reproductions, in
+[ADR 0040](adr/0040-gui-launcher-and-the-macos-seal.md)'s amendment of 2026-09-30.
 
 |the `<App>.app` is SEALED after every Mach-O inside it is signed. The reason it was not is recorded
 in ADR 0040 as a factual error rather than a deferral: Apple's extended-attribute rule is for a
@@ -909,9 +928,10 @@ permits exactly those additions and refuses every other one; `partitionSignedFil
 function that decides it, and the only half of the seal checkable without a Mac
 |`--options runtime` and `--entitlements` on both identities, `--timestamp` on a named one only. The
 hardened runtime is a code-directory bit, which an ad-hoc signature has; a timestamp is a CMS
-countersignature over a certificate, which it has not. Four entitlements are granted and two of the
-reference's six deliberately are not — `get-task-allow` (notarisation refuses it) and
-`disable-library-validation` (ADR 0024 § A16's question, and § A4's re-sign is the design of record)
+countersignature over a certificate, which it has not. `entitlements` is a FUNCTION of the identity:
+four of the reference's six on both, `disable-library-validation` on `-` alone, and `get-task-allow`
+on neither — notarisation refuses it, and the library-validation one is § A4's premise measured FALSE
+for ad-hoc, which has no team for the loader to match
 |`xcrun stapler staple` runs after a successful notarisation on the formats whose container can hold
 a ticket — `canCarryTicket` in `formats.ts`. The `.dmg` can; the `.zip` cannot, and Apple's own
 remedy (staple the items that went into the archive, then re-create it) is printed instead of a
