@@ -60,6 +60,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
+import { FACADE_PACKAGES } from './off-disk-toolchain-deps.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -82,7 +83,12 @@ const nodeRequire = createRequire(import.meta.url);
  */
 const HOST_IS_GJS = typeof globalThis.imports?.gi !== 'undefined';
 
-const FACADES = ['rolldown-native', 'lightningcss-native'];
+// The native facades this script builds. Named here by the SHARED constant, not
+// spelled out a second time: `check-build-infra-order.mjs` rule 5 reads the same
+// list to know that the `node scripts/bootstrap-native-facades.mjs` clause
+// already emits these two before any bundler clause runs, so a facade added in
+// one place and forgotten in the other would read as an un-emitted edge.
+const FACADES = FACADE_PACKAGES.map((n) => n.slice('@gjsify/'.length));
 
 // Workspace packages whose `lib/esm/**` must exist before anything below spawns a
 // CLI, and that `build:infra` only DECLARATION-builds beforehand. Two edges reach

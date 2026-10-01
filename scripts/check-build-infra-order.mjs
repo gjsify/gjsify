@@ -36,6 +36,7 @@
 import { existsSync, globSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { readIndexPaths } from './manifest-conformance/git-index.mjs';
+import { FACADE_PACKAGES, NOT_OWED, offDiskToolchainDeps } from './off-disk-toolchain-deps.mjs';
 
 const rootIndex = process.argv.indexOf('--root');
 const ROOT = rootIndex === -1 ? '.' : process.argv[rootIndex + 1];
@@ -742,45 +743,25 @@ for (const p of depOrderProblems) console.error(`  ✗ ${p}`);
 // call in the CONSUMER. Manifest-derived rules cannot see it, and rules 2–4 are
 // blind because a `createRequire(...).resolve()` edge is not an import statement.
 
-/** Roots of the bundler toolchain whose sources run inside `gjsify build`. */
-const TOOLCHAIN_ROOTS = ['@gjsify/cli', '@gjsify/rolldown-plugin-gjsify'];
-
-/**
- * A workspace specifier resolved OFF DISK rather than imported.
- *
- * The load-bearing part is `import.meta.url` in the same call: the reason this
- * edge follows the WORKSPACE is precisely that it is anchored at the module's own
- * location, so the resolution walks this tree's `node_modules`. Anchoring on it
- * also keeps the pattern off unrelated `resolve…(…)` helpers (a spec file's
- * `resolveWorkspaceProtocol('workspace:~', '@gjsify/util', ws)` is a pure
- * function on strings) and off type-only imports, which name the specifier but
- * never resolve it.
- */
-const OFF_DISK_RESOLVE = /'(@gjsify\/[^'"]+)'/;
-const RESOLVE_CALL = /\bresolve\w*\s*\(|resolveNpmPackage\s*\(/;
-/** Test/bundle-only sources: they never reach the published JS the bundler runs. */
-const NOT_SHIPPED = /\.(?:spec|test)\.[cm]?[jt]sx?$|(?:^|\/)test\.[cm]?tsx?$/;
-
-function offDiskResolves(entry) {
-    const found = new Map(); // package name -> { file, spec }
-    for (const file of tsconfigInputs(entry.dir, 'tsconfig.json') ?? []) {
-        if (NOT_SHIPPED.test(file)) continue;
-        let raw;
-        try {
-            raw = readFileSync(file, 'utf8');
-        } catch {
-            continue;
-        }
-        for (const line of blankNonCode(raw).split('\n')) {
-            if (!line.includes('import.meta.url') || !RESOLVE_CALL.test(line)) continue;
-            const m = OFF_DISK_RESOLVE.exec(line);
-            if (!m) continue;
-            const name = m[1].split('/').slice(0, 2).join('/');
-            if (!found.has(name)) found.set(name, { file, spec: m[1] });
-        }
-    }
-    return found;
-}
+// The SCAN lives in `scripts/off-disk-toolchain-deps.mjs`, shared with
+// `scripts/bootstrap-native-facades.mjs` and `tests/e2e/bootstrap-cold-tree`. This
+// rule used to carry its own copy and that e2e another, and the two disagreed
+// about the same tree: the e2e read a `const specifier = '@gjsify/x'` resolved by
+// name further down, this rule read only a literal on the resolve line — so it
+// reported 2 specifiers where the toolchain has 5, and the four it missed are the
+// ones the tree writes in that form on purpose (`css-as-string.ts` and
+// `bundler-pick.ts` both name the specifier in a `const` precisely so tsc and
+// Rolldown do not resolve an optional peer at build time). A guard that goes
+// quiet on a refactor which changes nothing about the dependency is a guard that
+// can be turned off by an edit that looks like a style change.
+//
+// `import.meta.url` is what the scan requires, and it is the load-bearing part:
+// the reason these edges follow the WORKSPACE is precisely that they are
+// anchored at the module's own location, so the resolution walks this tree's
+// `node_modules`. Requiring it also keeps the pattern off unrelated `resolve…(…)`
+// helpers (a spec file's `resolveWorkspaceProtocol('workspace:~', '@gjsify/util',
+// ws)` is a pure function on strings) and off type-only imports, which name the
+// specifier but never resolve it.
 
 /**
  * The first clause that REACHES `gjsify build`, or `null` when the chain has none.
@@ -851,50 +832,66 @@ for (const [i, clause] of clauses.entries()) {
 }
 
 const offDiskProblems = [];
-let toolchainScanned = 0;
 let offDiskSpecifiers = 0;
+let offDiskOrdered = 0;
+const offDiskExempt = [];
 if (firstBundlerAt === null) {
     // A chain with no bundler clause has nothing to order, and that is not this
     // rule's blind spot — rule 1 already fails a chain with no facade clause.
     console.log('build-infra-order: off-disk rule skipped — no clause reaches `gjsify build`.');
 } else {
-    // The union, because the plugin is in the CLI's own closure: scanning per
-    // root would report its one finding twice under two different names.
-    const toolchain = new Set();
-    for (const toolRoot of TOOLCHAIN_ROOTS) {
-        if (!byName.has(toolRoot)) continue;
-        for (const name of productionClosure(toolRoot, byName)) toolchain.add(name);
-    }
-    for (const name of toolchain) {
-        const found = offDiskResolves(byName.get(name));
-        if (found.size) toolchainScanned++;
-        for (const [dep, { file, spec }] of found) {
-            const depEntry = byName.get(dep);
-            if (!depEntry) continue; // not a workspace package — npm resolves it
-            offDiskSpecifiers++;
-            const at = jsEmittedAt.get(dep);
-            const rel = relative(ROOT, file).split(sep).join('/');
-            if (at !== undefined && at < firstBundlerAt) continue;
-            // Tracked in git is a cold tree's guarantee too, and the same one
-            // rule 2 counts.
-            if (!uncommittedTypesTarget(depEntry, spec, dep)) continue;
-            const where =
-                at === undefined
-                    ? `no \`build:infra\` clause emits its JavaScript, so a cold tree has none at that point`
-                    : `its JavaScript is emitted at clause ${at + 1}, which is after that clause`;
-            offDiskProblems.push(
-                `clause ${firstBundlerAt + 1} is the first \`gjsify build\` in \`build:infra\`, and the bundler ` +
-                    `toolchain resolves '${spec}' OFF DISK from ${rel} — but ${where}. Nothing in the chain can ` +
-                    'build anything until it resolves (#1901 on v0.53.0: the release `publish-napi` job died ' +
-                    'with `Cannot find module "@gjsify/utils/native-library"`, so @gjsify/napi and its platform ' +
-                    'packages never published). Add a tsc-only clause that emits its `lib/esm` (`build:esm`, ' +
-                    `i.e. \`gjsify tsc\` with \`emitDeclarationOnly: false\`) before clause ${firstBundlerAt + 1}.`,
-            );
+    // A fixture tree has no `node_modules`, so the package location is read from
+    // the manifest index rather than through a symlink — which is also what makes
+    // `packages/gjs/utils` expressible here, where `packages/infra/<name>` said a
+    // package was misplaced when it meant inexpressible.
+    const { deps, scanned } = offDiskToolchainDeps(ROOT);
+    for (const [dep, { file, spec }] of deps) {
+        const depEntry = byName.get(dep);
+        if (!depEntry) continue; // not a workspace package — npm resolves it
+        offDiskSpecifiers++;
+
+        // The facades are emitted by the `node scripts/bootstrap-native-facades.mjs`
+        // clause itself, and rule 1 already holds that clause ahead of every
+        // bundler clause — so the ordering this rule asks for is the ordering that
+        // clause already has. A name here that stops being a facade is a claim
+        // that went stale in the file that owns the build.
+        if (FACADE_PACKAGES.includes(dep)) {
+            offDiskExempt.push(`  · ${spec} — the facade clause builds it, and rule 1 orders that clause first`);
+            continue;
         }
+        // A declared non-obligation, each with the reason it holds. Printed, so a
+        // stale exemption is visible in the output rather than invisible in a
+        // hand-kept list.
+        const notOwed = NOT_OWED.get(dep);
+        if (notOwed) {
+            offDiskExempt.push(`  · ${spec} — not owed: ${notOwed}`);
+            continue;
+        }
+
+        const at = jsEmittedAt.get(dep);
+        if (at !== undefined && at < firstBundlerAt) {
+            offDiskOrdered++;
+            continue;
+        }
+        // Tracked in git is a cold tree's guarantee too, and the same one
+        // rule 2 counts.
+        if (!uncommittedTypesTarget(depEntry, spec, dep)) continue;
+        const where =
+            at === undefined
+                ? `no \`build:infra\` clause emits its JavaScript, so a cold tree has none at that point`
+                : `its JavaScript is emitted at clause ${at + 1}, which is after that clause`;
+        offDiskProblems.push(
+            `clause ${firstBundlerAt + 1} is the first \`gjsify build\` in \`build:infra\`, and the bundler ` +
+                `toolchain resolves '${spec}' OFF DISK from ${file} — but ${where}. Nothing in the chain can ` +
+                'build anything until it resolves (#1901 on v0.53.0: the release `publish-napi` job died ' +
+                'with `Cannot find module "@gjsify/utils/native-library"`, so @gjsify/napi and its platform ' +
+                'packages never published). Add a tsc-only clause that emits its `lib/esm` (`build:esm`, ' +
+                `i.e. \`gjsify tsc\` with \`emitDeclarationOnly: false\`) before clause ${firstBundlerAt + 1}.`,
+        );
     }
-    if (toolchainScanned && !offDiskSpecifiers) {
+    if (scanned && !offDiskSpecifiers) {
         console.error(
-            `::error::the off-disk rule scanned ${toolchainScanned} toolchain package(s) and resolved no ` +
+            `::error::the off-disk rule scanned ${scanned} toolchain package(s) and resolved no ` +
                 '@gjsify/* resolve-off-disk specifier. The pattern stopped matching and this rule silently ' +
                 'stopped reading the bundler toolchain.',
         );
@@ -902,12 +899,15 @@ if (firstBundlerAt === null) {
     }
 }
 console.log(
-    `build-infra-order: off-disk rule resolved ${offDiskSpecifiers} workspace specifier(s) across ` +
-        `${toolchainScanned} toolchain package(s), against clause ${firstBundlerAt + 1}, the first bundler clause.`,
+    `build-infra-order: off-disk rule resolved ${offDiskSpecifiers} workspace specifier(s) across the ` +
+        `bundler toolchain — ${offDiskOrdered} ordered before clause ${firstBundlerAt + 1}, the first bundler ` +
+        `clause, ${offDiskExempt.length} carried by the facade clause or a declared non-obligation.`,
 );
+for (const e of offDiskExempt) console.log(e);
 for (const p of offDiskProblems) console.error(`  ✗ ${p}`);
 
-const total = problems.length + orderProblems.length + sweepProblems.length + depOrderProblems.length + offDiskProblems.length;
+const total =
+    problems.length + orderProblems.length + sweepProblems.length + depOrderProblems.length + offDiskProblems.length;
 if (total) {
     console.error(`build-infra-order: ${total} problem(s).`);
     process.exit(1);

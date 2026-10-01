@@ -24,12 +24,13 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { resolveGjsifySpawn } from '../../../scripts/resolve-gjsify.mjs';
+import { FACADE_PACKAGES, NOT_OWED, offDiskToolchainDeps } from '../../../scripts/off-disk-toolchain-deps.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
@@ -38,12 +39,14 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 // resolves inside the fixture and nowhere else. `resolve-gjsify.mjs` is that
 // sibling: it picks the `.cmd` member of npm's shim trio on Windows and routes
 // it through `%COMSPEC%`, because `node_modules/.bin/gjsify` exists there and is
-// the one member the OS cannot execute.
+// the one member the OS cannot execute. `off-disk-toolchain-deps.mjs` is the
+// other: the script names its facades through the SHARED list, so it must not
+// resolve them from a list of its own that a reader would take for the fact.
 //
 // Listed rather than copying `scripts/` wholesale: the point of this fixture is
 // that the tree holds the MINIMUM the script needs, so a new undeclared
 // dependency has to show up here as an edit.
-const SCRIPT_FILES = ['bootstrap-native-facades.mjs', 'resolve-gjsify.mjs'];
+const SCRIPT_FILES = ['bootstrap-native-facades.mjs', 'resolve-gjsify.mjs', 'off-disk-toolchain-deps.mjs'];
 const NO_RECURSE_ENV = 'GJSIFY_BOOTSTRAP_NO_BUILD_INFRA';
 
 /**
@@ -195,9 +198,13 @@ describe('bootstrap-native-facades on a cold tree', { timeout: 60_000 }, () => {
         // the GJS-hosted `build:infra` still dies, reported as "no usable bundler
         // engine": it names the engine, never the package that is missing.
         //
-        // So the list is checked against the SOURCES instead of trusted, and the
-        // `specifier` indirection in css-as-string.ts is spelled as the concrete
-        // specifier it resolves — a variable would read as "no runtime edge".
+        // So the list is checked against the SOURCES instead of trusted, over the
+        // whole production closure of both toolchain roots — through the SAME scan
+        // `check-build-infra-order.mjs` rule 5 orders with, because this suite used
+        // to carry a third copy of it with its own roots list and its own two regexes,
+        // and the copies disagreed: the rule's matched the one-line literal form
+        // only, so the two-line `const specifier = '@gjsify/x'` that keeps tsc and
+        // Rolldown off an optional peer read as "no runtime edge" to it.
         const script = readFileSync(join(MONOREPO_ROOT, 'scripts', 'bootstrap-native-facades.mjs'), 'utf8');
         const listed = new Set(
             (script.match(/const CLI_RUNTIME_DEPS = \[([^\]]*)\]/)?.[1] ?? '')
@@ -207,35 +214,29 @@ describe('bootstrap-native-facades on a cold tree', { timeout: 60_000 }, () => {
         );
         assert.ok(listed.size > 0, 'CLI_RUNTIME_DEPS did not parse — the assertion below would pass vacuously');
 
-        const roots = ['cli', 'rolldown-plugin-gjsify'].map((p) => join(MONOREPO_ROOT, 'packages', 'infra', p, 'src'));
-        // A `resolve()` of a literal `@gjsify/<name>` specifier, or a const assigned
-        // one and resolved by name — the two shapes in the tree today.
-        const literal = /createRequire\([^)]*\)\.resolve\(\s*'(@gjsify\/[a-z0-9-]+)/g;
-        const indirect = /const specifier\s*=\s*'(@gjsify\/[a-z0-9-]+)'/g;
-        // Exempt with a reason each, so the list cannot grow into a blanket:
-        //   the two facades build themselves, and `@gjsify/tsc`'s `/bundle`
-        //   subpath is a COMMITTED artifact (like the CLI's own `dist/`), so no
-        //   emit is owed on any tree. `@gjsify/oxfmt-native` is a native facade
-        //   reached only from `format`, which no `build:infra` clause runs.
-        const exempt = new Set(['rolldown-native', 'lightningcss-native', 'tsc', 'oxfmt-native']);
+        // The positive fact, and the same refusal `check-build-infra-order.mjs`
+        // makes: a scan that resolved nothing is a scan whose pattern stopped
+        // matching, and an empty `missing` would then read as a tree that is fine.
+        const { deps, scanned } = offDiskToolchainDeps(MONOREPO_ROOT);
+        assert.ok(scanned > 0, 'the shared scan covered no toolchain package — the list below would pass vacuously');
+        assert.ok(deps.size > 0, `the shared scan resolved no off-disk specifier across ${scanned} package(s)`);
 
+        // Every carve-out carries the reason it holds, so the set cannot grow into a
+        // blanket: an entry with a reason is a claim, an entry without is a shrug.
+        for (const [name, reason] of NOT_OWED) {
+            assert.equal(typeof reason, 'string', `${name} is exempt with no reason`);
+            assert.ok(
+                reason.length > 40,
+                `${name} is exempt with a reason too short to be one: ${JSON.stringify(reason)}`,
+            );
+        }
+
+        // The facades build themselves, so `CLI_RUNTIME_DEPS` must not list them —
+        // and the exemption is the SHARED one, not a second hand-kept set here.
+        const exempt = new Set([...FACADE_PACKAGES, ...NOT_OWED.keys()]);
         const missing = [];
-        for (const dir of roots) {
-            for (const file of readdirSync(dir, { recursive: true, withFileTypes: true })) {
-                // A spec is a fixture, not a build input: `app-runtime.spec.ts`
-                // names `@gjsify/node-gi` to assert a staging report, and no
-                // `build:infra` clause ever loads one.
-                if (!file.isFile() || !/\.(ts|mts|js|mjs)$/.test(file.name)) continue;
-                if (/\.(spec|test)\.[^.]+$/.test(file.name) || file.name.startsWith('test.')) continue;
-                const filePath = join(file.parentPath, file.name);
-                const source = readFileSync(filePath, 'utf8');
-                for (const re of [literal, indirect]) {
-                    for (const [, specifier] of source.matchAll(re)) {
-                        const name = specifier.replace('@gjsify/', '');
-                        if (!listed.has(name) && !exempt.has(name)) missing.push(`${name} (${filePath})`);
-                    }
-                }
-            }
+        for (const [name, { file }] of deps) {
+            if (!listed.has(name.slice('@gjsify/'.length)) && !exempt.has(name)) missing.push(`${name} (${file})`);
         }
         assert.deepEqual(
             missing,

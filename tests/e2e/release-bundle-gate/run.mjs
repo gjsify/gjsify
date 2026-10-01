@@ -26,10 +26,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { offDiskToolchainDeps } from '../../../scripts/off-disk-toolchain-deps.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/release-bundle-gate/ → monorepo root is 3 levels up.
@@ -1284,22 +1285,87 @@ describe('check-build-infra-order: the resolve-off-disk edge', () => {
     // file's pure helper over version strings. Scanning it would make the rule
     // cry wolf on every workspace package with a `resolve…` helper.
     it('ignores a resolve call with no import.meta.url anchor, and a type-only import', () => {
+        const result = runOffDiskGuard('gjsify workspace @gjsify/utils build:esm && ' + FACADE, {
+            '@gjsify/cli': {
+                ...CLI,
+                sources: {
+                    'index.spec.ts':
+                        "expect(resolveWorkspaceProtocol('workspace:~', '@gjsify/utils', ws)).toBe('~1');\n",
+                    'pick.ts': "import type * as U from '@gjsify/utils/native-library';\nexport type X = U;\n",
+                },
+            },
+            '@gjsify/utils': utilsFixture(),
+        });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /off-disk rule resolved 0 workspace specifier\(s\)/);
+    });
+
+    // The shape a REFACTOR produces, and the reason the scan is shared rather
+    // than written twice. Naming the specifier in a `const` is how both
+    // `css-as-string.ts` and `bundler-pick.ts` keep tsc and Rolldown from
+    // resolving an optional peer at build time; the edge it opens is the same
+    // edge, byte for byte. A guard reading only the one-line literal form
+    // therefore goes silent on an edit that changes nothing about the
+    // dependency — which is exactly how this rule read 2 specifiers where the
+    // toolchain has 5.
+    it('reads the two-line form: a const specifier resolved by name later', () => {
+        const indirect = [
+            "const specifier = '@gjsify/utils/native-library';",
+            'const resolved = createRequire(import.meta.url).resolve(specifier);',
+            'export const href = resolved;',
+            '',
+        ].join('\n');
         const result = runOffDiskGuard(
-            'gjsify workspace @gjsify/utils build:esm && ' + FACADE,
+            `gjsify workspace @gjsify/utils build:types && ${FACADE} && ` +
+                'gjsify workspace @gjsify/semver build && gjsify workspace @gjsify/utils build',
+            {
+                '@gjsify/cli': { ...CLI, sources: { 'addon.ts': indirect } },
+                '@gjsify/utils': utilsFixture(),
+                '@gjsify/semver': SEMVER,
+            },
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /resolves '@gjsify\/utils\/native-library' OFF DISK/);
+        assert.match(result.stderr, /its JavaScript is emitted at clause 4, which is after that clause/);
+    });
+
+    // A `const` with no resolver behind it is not an edge. Reading every
+    // `@gjsify/*` string in the toolchain would demand an emit for a name only a
+    // line of prose mentions.
+    it('ignores a const specifier nothing ever resolves', () => {
+        const result = runOffDiskGuard('gjsify workspace @gjsify/utils build:esm && ' + FACADE, {
+            '@gjsify/cli': {
+                ...CLI,
+                sources: { 'notes.ts': "const specifier = '@gjsify/utils/native-library';\nexport default 1;\n" },
+            },
+            '@gjsify/utils': utilsFixture(),
+        });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /off-disk rule resolved 0 workspace specifier\(s\)/);
+    });
+
+    // The carve-out, because a rule that cannot say what it is NOT reading is a
+    // rule nobody can trust. The facades are built by the bootstrap clause, and
+    // rule 1 already holds that clause ahead of every bundler clause — so
+    // demanding an emit of them would demand one that already happens, in a shape
+    // this rule cannot see. The reason is printed with them, so a stale carve-out
+    // shows in the output instead of hiding in a hand-kept list.
+    it('does not demand an emit of a facade the bootstrap clause builds', () => {
+        const result = runOffDiskGuard(
+            'gjsify workspace @gjsify/rolldown-native build:types && ' +
+                FACADE +
+                ' && gjsify workspace @gjsify/semver build',
             {
                 '@gjsify/cli': {
                     ...CLI,
-                    sources: {
-                        'index.spec.ts':
-                            "expect(resolveWorkspaceProtocol('workspace:~', '@gjsify/utils', ws)).toBe('~1');\n",
-                        'pick.ts': "import type * as U from '@gjsify/utils/native-library';\nexport type X = U;\n",
-                    },
+                    sources: { 'engine.ts': RESOLVE_SRC.replace('@gjsify/utils', '@gjsify/rolldown-native') },
                 },
-                '@gjsify/utils': utilsFixture(),
+                '@gjsify/rolldown-native': utilsFixture(),
+                '@gjsify/semver': SEMVER,
             },
         );
         assert.equal(result.status, 0, result.output);
-        assert.match(result.stdout, /off-disk rule resolved 0 workspace specifier\(s\)/);
+        assert.match(result.stdout, /@gjsify\/rolldown-native\/native-library — the facade clause builds it/);
     });
 
     it("holds for this repo's own build:infra, with a non-zero count", () => {
@@ -1308,5 +1374,29 @@ describe('check-build-infra-order: the resolve-off-disk edge', () => {
         const read = /off-disk rule resolved (\d+) workspace specifier\(s\)/.exec(result.stdout);
         assert.ok(read, `no off-disk count in output:\n${result.output}`);
         assert.ok(Number(read[1]) > 0, `the off-disk rule resolved 0 specifiers:\n${result.output}`);
+    });
+
+    // The guard must read the WHOLE shared scan, not a narrowed view of it. That
+    // is what keeps the two consumers from drifting apart again: the guard's
+    // count and the scan's are the same number BY CONSTRUCTION, so a filter added
+    // on the guard's side breaks this while every other case here still passes.
+    it('orders exactly what the shared scan finds on this tree', () => {
+        const { deps } = offDiskToolchainDeps(MONOREPO_ROOT);
+        const result = spawnSync(process.execPath, [ORDER_GUARD], { cwd: MONOREPO_ROOT, encoding: 'utf8' });
+        assert.equal(result.status, 0, result.output);
+        const read = /off-disk rule resolved (\d+) workspace specifier/.exec(result.stdout);
+        assert.ok(read, `no off-disk count in output:\n${result.output}`);
+        assert.equal(Number(read[1]), deps.size, `the guard read ${read[1]}, the shared scan found ${deps.size}`);
+        // And every specifier it found IS a workspace package, so the scan is not
+        // reporting npm names as if they were ours — the guard drops those, and
+        // that is why the count above is the number of WORKSPACE specifiers.
+        const groups = readdirSync(join(MONOREPO_ROOT, 'packages'));
+        for (const name of deps.keys()) {
+            const bare = name.slice('@gjsify/'.length);
+            assert.ok(
+                groups.some((g) => existsSync(join(MONOREPO_ROOT, 'packages', g, bare, 'package.json'))),
+                `the shared scan reports ${name}, which no manifest under packages/ declares`,
+            );
+        }
     });
 });
