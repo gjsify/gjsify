@@ -647,8 +647,19 @@ jobs:
           GJS_ONLY="$RUNNER_TEMP/gjs-only-bin"
           mkdir -p "$GJS_ONLY"
           ln -sfn "$(command -v gjs)" "$GJS_ONLY/gjs"
-          NODE_LESS=""
+          # Built by APPENDING onto `$GJS_ONLY`, not by seeding an empty string and
+          # writing `NODE_LESS="$NODE_LESS:$d"`. That idiom leaves a LEADING COLON:
+          # the first iteration prepends `:` to nothing, so the exported PATH is
+          # `$GJS_ONLY::<dir>:<dir>`, and an empty PATH component means the CURRENT
+          # DIRECTORY to every resolver that follows POSIX (bash's own `command -v`,
+          # GLib's `g_find_program_in_path`). Measured: with `PATH=:/usr/bin:/bin`
+          # and an executable `./node`, `command -v node` answers `node` and running
+          # it executes the impostor. The assertion three lines below would then
+          # pass a host that HAS a reachable node, or fail one that does not,
+          # depending on what the checkout root happens to hold — which is the
+          # opposite of what this job exists to decide.
           IFS=':' read -ra DIRS <<< "$PATH"
+          KEEP=("$GJS_ONLY")
           for d in "${DIRS[@]}"; do
             [ -n "$d" ] || continue
             [ "$d" = "$GJS_ONLY" ] && continue
@@ -656,9 +667,13 @@ jobs:
               echo "dropping $d (it holds a node)"
               continue
             fi
-            NODE_LESS="$NODE_LESS:$d"
+            KEEP+=("$d")
           done
-          export PATH="$GJS_ONLY:$NODE_LESS"
+          JOINED=""
+          for d in "${KEEP[@]}"; do
+            JOINED="${JOINED:+$JOINED:}$d"
+          done
+          export PATH="$JOINED"
           {
             echo 'PATH<<GJSIFY_NODELESS_EOF'
             echo "$PATH"
@@ -722,8 +737,103 @@ jobs:
             exit 1
           fi
 
+      # The install, and — WHEN IT DIES ON A SIGNAL — the crash report.
+      #
+      # WHY THIS IS NOT A BARE COMMAND ANY MORE. Run 36817473106 (arm64) ended this
+      # step with `Bus error: 10` and exit 138 and nothing else: the whole log said
+      # about the fault was the shell's one-line rendering of SIGBUS. `install.mjs`
+      # had already succeeded there (the log prints `0.52.0`), so the crash is in
+      # the install's own link phase, after 1665/1665 downloads — and a reader
+      # could not tell a gjsify defect from a GJS/SpiderMonkey/dyld fault, because
+      # the artefact that would say which is never collected. macOS writes a report
+      # for a crashing process into ~/Library/Logs/DiagnosticReports and then
+      # discards it at job teardown; nothing here was keeping it.
+      #
+      # `if: always()` is the load-bearing part: a step that only runs on SUCCESS
+      # never runs in the case it exists for. `ulimit -c unlimited` is set first
+      # because the report is generated from the signal, and a core-limited
+      # process can be reported without one — but the default on this image is
+      # `core 0`, which is the case that produces NO report at all.
+      #
+      # `sample` needs the process ALIVE, so it cannot help a process that already
+      # died; the DiagnosticReports entry is the artefact. `eu-stack`, what the
+      # Linux leg's `hang-watchdog` uses, is elfutils and absent on macOS by
+      # construction. A MISSING report is reported as missing, never skipped in
+      # silence — the same rule `hang-watchdog.ts` follows.
+      #
+      # NOTHING HERE MASKS THE VERDICT. `rc` is the step's own exit status and it
+      # is propagated unchanged; this only adds a report on the way past. The job
+      # keeps proving exactly what it was created to prove.
       - name: Install the workspace (no node)
-        run: '"$HOME/.local/bin/gjsify" install --immutable'
+        run: |
+          ulimit -c unlimited
+          MARK="$RUNNER_TEMP/pre-install.marker"
+          touch "$MARK"
+          rc=0
+          "$HOME/.local/bin/gjsify" install --immutable || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "gjsify install --immutable exited $rc"
+            if [ "$rc" -gt 128 ]; then
+              echo "::warning::the install died on signal $((rc - 128)) — a native crash, not a CLI error."
+              echo "::warning::its exit code says nothing about WHERE; the reports below are what do."
+            fi
+            REPORTS="$HOME/Library/Logs/DiagnosticReports"
+            # THE WAIT IS LOAD-BEARING, and it is here because the obvious version
+            # of this step was measured to collect nothing. macOS writes a crash
+            # report from a SEPARATE process, so it does not exist when the
+            # crashed one dies: measured on darwin-arm64, a process killed with
+            # SIGBUS had produced no report at the instant `find` ran and the
+            # report appeared ~8 s later. A check that runs immediately reports
+            # "no artefact" for a crash that DID produce one — which is the exact
+            # false negative this step exists to remove. Poll a bounded window.
+            for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+              if [ -n "$(find "$REPORTS" -name '*.ips' -newer "$MARK" 2>/dev/null | head -1)" ]; then
+                break
+              fi
+              sleep 2
+            done
+            # Filtered BY MTIME against a marker written BEFORE the install ran,
+            # not by `ls -1t | head`. Measured on a macOS host: the reports
+            # directory already holds unrelated entries (`ExcUserFault_…`,
+            # `gjs-console-…` from days earlier), so newest-first dumps image
+            # leftovers and buries — or, with a tight bound, displaces — the one
+            # report this step exists to collect. `find -newer` cannot select a
+            # report the crash did not produce.
+            #
+            # `while read`, NOT `mapfile`: this image's bash is 3.2 and `mapfile`
+            # arrived in bash 4 — measured: `mapfile: command not found`. Under
+            # the `bash -e` GitHub runs steps with, that 127 aborts the step
+            # BEFORE the report is read and before `exit "$rc"` propagates the
+            # verdict, so the one artefact this step exists to collect is the one
+            # thing lost and the real exit code is replaced by 127.
+            #
+            # The `|| true` matters under `-e` for the same reason as in
+            # `gjsify-setup`'s tarball count — a MISSING directory is the normal
+            # case on a run where nothing crashed.
+            COUNT=0
+            while IFS= read -r f; do
+              [ -n "$f" ] || continue
+              COUNT=$((COUNT + 1))
+              echo "=== crash report: $(basename "$f") ==="
+              # A `.ips` is one enormous JSON line, so `head`/line-oriented reads
+              # are useless on it and the signal itself is a substring of it.
+              # Pull the three facts that decide the verdict — the exception, the
+              # terminating signal, and the faulting frames — and stop.
+              grep -aoE '"exception"[^}]*}' "$f" | head -1 || true
+              grep -aoE '"termination"[^}]*}' "$f" | head -1 || true
+              grep -ao '"symbol":"[^"]*"' "$f" | head -25 || true
+            done < <(find "$REPORTS" -name '*.ips' -newer "$MARK" 2>/dev/null | head -5) || true
+            if [ "$COUNT" -eq 0 ]; then
+              if [ "$rc" -gt 128 ]; then
+                echo "::warning::no crash report newer than this step in $REPORTS."
+                echo "::warning::macOS did not write one for this signal, so the crash is UNATTRIBUTABLE"
+                echo "::warning::— which is not the same as the install having been fine."
+              else
+                echo "No crash report for exit $rc — expected, this was a CLI error, not a signal."
+              fi
+            fi
+          fi
+          exit "$rc"
 
       - name: build:infra from cold, with node absent
         run: |
