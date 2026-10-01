@@ -170,6 +170,12 @@ const SHARED_SCRIPTS = [
     // fails a check instead of going quiet.
     'scripts/manifest-conformance/**',
     'packages/infra/manifest-conformance/**',
+    // Writes 16 bytes into every darwin Rust cdylib, from the three bridges'
+    // `meson.build`, so editing it changes shipped artifacts. It sits here for the
+    // reason the registry globs above do: an input of the build that is not in the
+    // trigger rebuilds nothing, and the change reaches the next `commit-prebuilds`
+    // weeks later attributed to whatever run happened to come after it.
+    'scripts/macho-set-uuid.mjs',
 ];
 
 // ─── argv ──────────────────────────────────────────────────────────────────

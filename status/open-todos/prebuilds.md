@@ -240,6 +240,70 @@ It is also what the three cargo cdylibs contradict — an output whose bytes are
 equal outside a UUID cannot have hashed to two UUIDs — which is the whole reason
 their cause is open above rather than deduced from this paragraph.
 
+#### The three cargo cdylibs were never measured, and they do not reproduce either
+
+That last count is the whole gap: `buildtype=plain` fixed the nine bridges a laptop
+without rustc can build, and the three cargo cdylibs were left out of the
+measurement rather than found reproducible — `nm -a` reads zero `N_OSO` stabs in
+them, which says the debug map is not the cause, not that the cause is gone. A
+`ci:macos` run said so: the gate red-lined on `@gjsify/lightningcss-native`,
+`@gjsify/oxfmt-native` and `@gjsify/rolldown-native`, **48 differing bytes each,
+first at the `LC_UUID`** (0x670 / 0x768 / 0x6b8), and nothing in `__TEXT`,
+`__DATA_CONST` or the symbol table.
+
+**The cause is rustc, and `install_name_tool` could never have reached it.**
+Measured with rustc 1.98.1 / `ld` 27037.1 on macOS 27 / arm64: rustc gives a
+cdylib the ABSOLUTE path of its own output as `LC_ID_DYLIB` —
+`<builddir>/cargo-target/release/deps/libgjsify_lightningcss.dylib` — so the build
+directory's name and LENGTH reach the artifact twice over. Once in the recorded
+name, and once in the load-command block's SIZE, which is why two clean builds
+from `build/` and `builddir/` also sat 8 bytes apart in `__TEXT`'s first section
+address before a single byte of content was compared. And the per-build `(1)`
+figures: 47 here, 48 on the runner, because a UUID is 16 bytes of digest and two of
+them collided on one byte by chance.
+
+`meson.build` normalised the name with `install_name_tool` afterwards, which is
+right and was never enough, because ld64 had already computed the `LC_UUID` and
+the ad-hoc `LC_CODE_SIGNATURE` over the image it emitted — with the absolute path
+still in it — and `install_name_tool` recomputes neither. Worse, ld64's UUID is
+not a function of the bytes it emits **at all**: with the name pinned at the link
+so the two images were byte-identical outside the UUID payload, the UUIDs still
+differed, and `md5` of each image with the UUID and the signature blanked was the
+SAME value for both. So the shipped artifact carried an identity of the BUILD.
+Control experiments that pin the rest of the link: the UUID does not move with the
+output name, the output directory, an input's path or its length, an input's mtime,
+nor the length of the link command line (two extra `-Wl` flags change nothing) —
+and it does move with the cargo target directory's name length.
+
+**Neither available flag was an option, which is the part worth remembering.**
+`-Wl,-uuid <32 hex>` does not exist on this toolchain (`ld: unknown options:
+-uuid`), and no `ld64.lld` ships with a CommandLineTools host, so it cannot be
+pinned. `-Wl,-no_uuid` is worse than useless here: an arm64 link against a dylib
+that lacks `LC_UUID` is REFUSED (`ld: missing LC_UUID load command in '…'`), and
+the Vala half of each of these three bridges links exactly that library — so it
+fails the build, it does not remove a field.
+
+**So the fix is in the link, and the UUID is derived from the artifact.**
+`cargo rustc --lib -- -C link-arg=-Wl,-install_name,@rpath/<leaf>` (ld64 takes the
+LAST `-install_name`, verified, and a `-C link-arg` lands after rustc's own, so it
+wins), and then `scripts/macho-set-uuid.mjs` writes the UUID last, as `md5` of the
+whole image with the UUID payload and the signature blob blanked — the signature
+has to be blanked because it hashes the page the UUID lives in, so neither can be
+derived from the other — and re-signs with `codesign --force --sign -` ONLY for an
+image that arrived signed (ld64 signs arm64 and leaves x86_64 unsigned, and adding
+a signature to an unsigned image grows it by a page-aligned `__LINKEDIT` tail, which
+is why `relocate-macho.mjs` has the same rule).
+
+Note what this is NOT: `-no_uuid` in disguise. The load command keeps its 24 bytes
+and its 16-byte payload, and the value is now a digest of the bytes being shipped,
+so it is more meaningful than what ld64 wrote. And it hides nothing: the digest is
+computed from the image, so if the CODE ever stops being a function of the sources
+the UUID moves with it and the gate still reds. Measured after the change, on this
+Mac: the rust cdylib is byte-identical across cargo target directories of different
+name LENGTH, and `check-prebuild-reproducible.mjs` is green over the whole darwin
+set. The ELF legs are untouched — a bare SONAME and no UUID load command have
+nothing to pin — which is why `rust_cargo_cmd` stays `cargo build` off darwin.
+
 **What remains is the half that cannot gate, and the reason is the runner, not
 the repo.** `scripts/check-prebuild-reproducible.mjs` runs in the existing
 `build-prebuilds-macos` leg and rebuilds every package that run staged, then

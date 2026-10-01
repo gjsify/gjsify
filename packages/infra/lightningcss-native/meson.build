@@ -50,16 +50,56 @@ if host_system == 'darwin'
     lib_rpath = '@loader_path'
     # Normalise the cdylib's LC_ID_DYLIB to @rpath/<leaf> BEFORE the Vala
     # library links against it: ld64 copies the dependency's install name
-    # verbatim into the dependent's LC_LOAD_DYLIB. rustc's own install name has
-    # varied across releases (absolute build path in older rustc, @rpath/<leaf>
-    # in current ones); pinning it here makes the recorded dependency
-    # rustc-version-independent, and @rpath/ is never longer than an absolute
-    # path so install_name_tool can always rewrite in place.
-    rust_cdylib_post = ' && install_name_tool -id "@rpath/' + rust_cdylib_name + '" "$3"'
+    # verbatim into the dependent's LC_LOAD_DYLIB. Pinning it here makes the
+    # recorded dependency rustc-version-independent, and @rpath/ is never
+    # longer than an absolute path so install_name_tool can always rewrite in
+    # place.
+    #
+    # The cdylib must be a FUNCTION OF ITS SOURCES, and on darwin that takes
+    # THREE steps, only the first of which `install_name_tool` could do.
+    # MEASURED with rustc 1.98.1 / ld64-27037.1 (macOS 27, arm64); the whole
+    # measurement and the reasoning behind each step: scripts/macho-set-uuid.mjs.
+    #
+    # 1. THE INSTALL NAME, at the LINK. rustc still gives a cdylib the ABSOLUTE
+    #    path of its own output as `LC_ID_DYLIB`
+    #    (`<builddir>/cargo-target/release/deps/<leaf>`), so the build
+    #    directory's name and LENGTH reach the artifact: the recorded name, the
+    #    load-command block's size, and therefore every section address after it.
+    #    Without this, two builds from `build/` and `builddir/` differ by 8 bytes
+    #    of pure layout before any content is compared. ld64 takes the LAST
+    #    `-install_name` (verified), and a `-C link-arg` lands after rustc's own,
+    #    so this one wins. `install_name_tool` then keeps the recorded dependency
+    #    rustc-version-independent.
+    # 2. THE UUID, after every other edit (the script, which re-signs). ld64
+    #    computed that field over the image it emitted and `install_name_tool`
+    #    recomputes neither it nor the signature — and it is not a function of
+    #    the emitted bytes even so, so pinning the name above still leaves 48
+    #    moving bytes (16 `LC_UUID` + 32 of the signature hashing it). This ld64
+    #    can neither pin it (`-uuid` is unknown here) nor drop it (an arm64 link
+    #    against a cdylib without `LC_UUID` is refused), so it is derived from
+    #    the image instead. Only the load COMMAND's size changes, never the
+    #    image's: `-no_uuid` would have taken 24 bytes out of the header.
+    # 3. Everything else — no flag, no step. What the script writes is a digest
+    #    of the image, so if the CODE ever stops being a function of the sources
+    #    the digest moves with it and `check-prebuild-reproducible.mjs` still
+    #    reds; nothing here hides content drift.
+    rust_cargo_link_args = ' -- -C link-arg=-Wl,-install_name,@rpath/' + rust_cdylib_name
+    rust_cargo_cmd = 'cargo rustc --lib'
+    # The repo's OWN script, from the package's own meson.build — so a bridge
+    # built outside the workspace has to say so itself rather than silently
+    # skipping the step that makes its artifact reproducible.
+    set_uuid_tool = meson.current_source_dir() / '..' / '..' / '..' / 'scripts' / 'macho-set-uuid.mjs'
+    rust_cdylib_post = ' && install_name_tool -id "@rpath/' + rust_cdylib_name + '" "$3"' \
+                      + ' && ' + find_program('node').full_path() + ' "' + set_uuid_tool + '" "$3"'
 else
     rust_cdylib_name = 'libgjsify_lightningcss.so'
     shared_lib_name = 'libgjsifylightningcss.so'
     lib_rpath = '$ORIGIN'
+    # ELF records a bare SONAME and no UUID load command, and its link line is
+    # already a function of the sources: the darwin branch's steps have no ELF
+    # spelling, so this one is left exactly as it was.
+    rust_cargo_link_args = ''
+    rust_cargo_cmd = 'cargo build'
     rust_cdylib_post = ''
 endif
 
@@ -72,6 +112,10 @@ endif
 # will package — so meson tracks it as a build artifact and serializes
 # the Vala link step behind it.
 # ----------------------------------------------------------------------------
+# `cargo rustc --lib -- <args>` rather than `cargo build`, so the link args reach
+# the FINAL crate's rustc and no other: the dependency rlibs and any build
+# script are linked without them, and a pinned `-install_name` on an executable
+# is not a thing ld64 wants.
 cargo = find_program('cargo')
 
 rust_sources = files(
@@ -93,7 +137,8 @@ rust_cdylib = custom_target('gjsify-lightningcss-rust',
     input:  rust_sources,
     output: rust_cdylib_name,
     command: ['sh', '-c',
-              'cargo build --release ${CI:+--locked} --manifest-path "$1" --target-dir "$2" && cp "$2/release/'
+              rust_cargo_cmd + ' --release ${CI:+--locked} --manifest-path "$1" --target-dir "$2"'
+                  + rust_cargo_link_args + ' && cp "$2/release/'
                   + rust_cdylib_name + '" "$3"' + rust_cdylib_post,
               'sh',
               meson.current_source_dir() / 'src/rust/Cargo.toml',

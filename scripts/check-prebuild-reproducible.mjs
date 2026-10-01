@@ -20,8 +20,19 @@
  * reaches it. The fix is at the source instead: every meson project declares
  * `buildtype=plain`, so no `-g` reaches the linker — 13 of the sixteen committed
  * darwin dylibs; the three cargo cdylibs never carried a debug map at all (`nm -a`
- * reads zero `N_OSO` stabs in them). Measured after the fix, on this Mac: two clean
- * builds of all nine darwin bridges buildable here differ in ZERO bytes.
+ * reads zero `N_OSO` stabs in them), which is NOT the same as saying they
+ * reproduce — a `ci:macos` run measured 48 differing bytes in each of them, first
+ * at the `LC_UUID`, with identical code. That second cause is rustc's
+ * absolute-path install name plus an ld64 UUID that is not a function of the bytes
+ * ld64 emits; it is fixed in the three Rust bridges' `meson.build` and by
+ * `scripts/macho-set-uuid.mjs`, and status/open-todos/prebuilds.md carries the
+ * measurement. After both fixes, on this Mac, two clean builds of every darwin
+ * bridge buildable here differ in ZERO bytes.
+ *
+ * And those three are why the obvious next guess was MEASURED rather than skipped:
+ * `-Wl,-no_uuid`, which the paragraph above rejects on cost grounds, would have
+ * FAILED their build outright — an arm64 link against a dylib without `LC_UUID`
+ * is refused — so it was never an option for them at all.
  *
  * THAT STORY IS ONE PACKAGE CLASS'S, AND THIS SCRIPT USED TO PRINT IT FOR EVERY
  * RED. It then red-lined `main` naming a debug map in three images that carry
@@ -170,9 +181,9 @@ export function diffStagedSets(aDir, bDir) {
 /**
  * What the classified regions license saying about the CAUSE — and nothing more.
  *
- * The three cargo cdylibs land on `uuid-only`/`uuid-and-signature`, and the only
- * honest text for that today names the candidates and the measurement that would
- * separate them. Asserting one of them is what this script did wrong before.
+ * The three cargo cdylibs land on `uuid-only`/`uuid-and-signature`; that cause is now
+ * measured and fixed (install name + `macho-set-uuid.mjs`), so the text names it as
+ * the thing to check, not as a guess.
  *
  * The debug-map reading is offered only where the SYMBOL TABLE actually moved,
  * for the same reason the rest of this changed: it was printed unconditionally
@@ -189,17 +200,10 @@ export function channelHint(rows) {
         lines.push(
             '    The differing bytes are the `LC_UUID` payload (and, on arm64, the ad-hoc signature',
             '    computed over it) — NOT a debug map: `nm -a` reads zero `N_OSO` stabs in the cargo',
-            '    cdylibs. Why the linker chose a different UUID for output that is otherwise identical',
-            '    is not established here. Two candidates, both needing a darwin runner to separate:',
-            '      (a) a build INPUT still differs between the two builds — this script now holds the',
-            '          build-directory path equal, so a residue would be elsewhere (TMPDIR, a cargo',
-            '          target path, a registry source path);',
-            "      (b) `strip = true` in each bridge's `[profile.release]`: the shipped bytes are a",
-            '          strict subset of the image the linker hashed, so anything varying only in the',
-            '          stripped part reaches the artifact through the UUID and nothing else — which is',
-            '          exactly this shape. Separate them by building twice with `strip = false`: the',
-            '          bytes that then differ OUTSIDE the UUID name the channel.',
-            '    See status/open-todos/prebuilds.md.',
+            "    cdylibs. In the three Rust bridges the cause is rustc's absolute-path install name plus",
+            '    an ld64 `LC_UUID` that is not a function of the bytes ld64 emits; their `meson.build`',
+            '    pins the name and `scripts/macho-set-uuid.mjs` writes the UUID last. A difference here',
+            '    means that step was skipped or a new input reached the image. See docs/prebuilds.md.',
         );
     }
     if (symbols) {
