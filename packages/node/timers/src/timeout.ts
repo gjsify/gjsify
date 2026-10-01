@@ -176,10 +176,12 @@ export class Immediate {
         this._args = args;
         // Use a microtask so setImmediate fires before setTimeout(0). The
         // dispatch goes through `_onImmediate` so there is ONE path to the
-        // callback — the same one a library invoking it directly takes.
+        // callback — the same one a library invoking it directly takes — and it
+        // carries `_args`, because that is the only record of them: an Immediate
+        // has no host handle to hand the arguments to.
         Promise.resolve().then(() => {
             if (!this._cancelled) {
-                this._onImmediate();
+                this._onImmediate(...this._args);
             }
         });
     }

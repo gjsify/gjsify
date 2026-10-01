@@ -8,5 +8,6 @@ import testSuiteTimers from './index.spec.js';
 import testSuitePromises from './promises.spec.js';
 import extendedTestSuite from './extended.spec.js';
 import timeoutTestSuite from './timeout.spec.js';
+import timeoutGjsTestSuite from './timeout.gjs.spec.js';
 
-run({ testSuiteTimers, testSuitePromises, extendedTestSuite, timeoutTestSuite });
+run({ testSuiteTimers, testSuitePromises, extendedTestSuite, timeoutTestSuite, timeoutGjsTestSuite });
