@@ -118,9 +118,9 @@
 //      hand-written attribute pane (110 of its attributes named on their page, 54 not),
 //      and the `react-native` tab on 3 of 40, all three on one page. A port that cannot
 //      express every widget has a home that says so on every block, which is a data
-//      GROUP with a refusal pane; the ledger is for a pane that is genuinely per-page,
-//      and it is empty. The coverage is PRINTED, because each of the three had to be
-//      measured by hand before anyone could see it.
+//      GROUP with its refusal map beside it; the ledger is for a pane that is genuinely
+//      per-page, and it is empty. The coverage is PRINTED, because each of the three had
+//      to be measured by hand before anyone could see it.
 //
 //      "EVERY BLOCK" MEANS EVERY BLOCK OF THE SLOT'S SHAPE. A one-Blueprint block
 //      (`<AdwWidget blueprint="…">`) builds the widget from one `.blp`, so it writes the
@@ -439,7 +439,7 @@ const MARKUP_OVERRIDE_LEDGER = {
  * are silent. Arms 5 and 6 are both satisfied by ONE block writing it, so a footnote
  * and a port look identical to them, which is how the same shape got in three times
  * (see arm 13). A port that genuinely cannot express every widget already has a home
- * that says so on every block: a data GROUP with a refusal pane ({@link PaneGroup}).
+ * that says so on every block: a data GROUP whose refusal map records why ({@link PaneGroup}).
  * That is the fix an entry here is competing with, and it is why the bar is high.
  */
 const PARTIAL_TAB_SLOTS = {};
@@ -1180,10 +1180,10 @@ for (const slot of corpusSlots) {
 // stops the next one needing to be noticed by hand.
 //
 // The remedy an entry here competes with is not "write 37 more fences". A port that
-// cannot express every widget gets a data GROUP with a refusal pane, which puts a pane
-// on every block and says WHY where there is no snippet — see {@link PaneGroup}, and
-// see the two groups the frameworks window already carries. The ledger is for a pane
-// that is genuinely per-page, and it is empty.
+// cannot express every widget gets a data GROUP whose snippets and refusal map cover every
+// block between them — the component refuses a block in neither, so the coverage is a fact
+// and not a hope. See {@link PaneGroup}, and the two groups the component already carries.
+// The ledger is for a pane that is genuinely per-page, and it is empty.
 //
 // SELF-RETIRING, like arm 12's: an entry naming a slot that has since reached every
 // block fails here, so a reason cannot outlive what it was recorded for.
@@ -1258,9 +1258,9 @@ for (const [slot, blocksWithIt] of providedBy) {
             `    ${shape === null ? '' : `${shape} `}<AdwWidget> blocks under ${GALLERY} write that fragment. ` +
             `The other ${expected - blocksWithIt.size} draw the\n` +
             '    window without it and say nothing, which is how a footnote comes to hold a window pane —\n' +
-            '    three times so far. Fill it everywhere, give the port a data GROUP with a refusal pane so\n' +
-            `    every block carries one, or add "${slot}" to PARTIAL_TAB_SLOTS in this script with the reason\n` +
-            '    it has to stay per-page.',
+            '    three times so far. Fill it everywhere, give the port a data GROUP whose snippets and\n' +
+            `    refusal map cover every block, or add "${slot}" to PARTIAL_TAB_SLOTS in this script with the\n` +
+            '    reason it has to stay per-page.',
     );
 }
 
