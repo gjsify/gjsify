@@ -13,6 +13,8 @@ export {
 } from './peer-transport.js';
 export type { DevtoolsPeerServer } from './peer-transport.js';
 export { captureWidget, captureWidgetPng, type CaptureBlocker, type CaptureResult } from './screenshot.js';
+export { CaptureShotError, captureShot, pngSize } from './shot.js';
+export type { CaptureShotOptions, PngSize, PngSource, ShotFailure, ShotResult } from './shot.js';
 export { buildVariant, variantKindFor } from './gvariant.js';
 export type { VariantKind } from './gvariant.js';
 export { activateAction, changeActionState, describeActions } from './actions.js';
@@ -29,6 +31,7 @@ export {
     widgetType,
 } from './widget-tree.js';
 export { dumpCss, removeCss, swapCss } from './css.js';
+export { hasRawPangoMarkup, isPangoMarkupSink, PANGO_MARKUP_SINKS, rawPangoMarkupIn } from './pango.js';
 export { dumpGSettings } from './gsettings.js';
 
 // Re-export the transport-agnostic contract so a consumer needs one import.

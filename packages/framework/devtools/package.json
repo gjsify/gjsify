@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./shot": {
+            "types": "./lib/types/shot.d.ts",
+            "default": "./lib/esm/shot.js"
         }
     },
     "files": [
