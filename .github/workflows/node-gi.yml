@@ -1488,12 +1488,9 @@ jobs:
   # arches), and THAT one is authoritative for what a consumer installs. Before this pair
   # was split that way, every conformance leg tested an artifact nobody receives.
   #
-  # ALL THREE Node-API runtimes, since #1393 — this row is the one ADR 0024 § 4 assigns
-  # to macOS and Windows (a `.app` / a program directory ships it), and it was proven for
-  # Node alone, while the bun/deno legs over the HOMEBREW row sat green and were easy to
-  # misread as "bun works on macOS": they say bun works on macOS against a system GTK a
-  # user will not have. Same curated subset, same staged bundle, same env-free claim —
-  # see the note on the two legs below for what "env-free" can and cannot mean there.
+  # ALL THREE Node-API runtimes, since #1393 — the row ADR 0024 § 4 assigns to macOS and
+  # Windows. The green bun/deno legs sit over the HOMEBREW row: they say bun works on macOS
+  # against a system GTK a user will not have. "env-free": see the two legs below.
   macos-gtk-batteries-included:
     name: macOS batteries-included conformance (no brew GTK / darwin-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -1621,14 +1618,13 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node scripts/cross-runtime.mjs node
 
-      # The same subset on Bun + Deno, against the SAME bundle (#1393) — the two cells
-      # this row was missing. They inherit the DYLD_FALLBACK_LIBRARY_PATH the ORCHESTRATOR's
-      # own re-exec set, because cross-runtime.mjs runs under NODE and spawns the per-file
-      # children with its own environment; `maybeReexecForGtkRuntime()` is Node-shaped and
-      # returns early under Bun/Deno, which is why the leaf-soname dlopens the FULL subset
-      # needs still resolve here. So there is NO CORE leg for them: CORE exists to prove
-      # the addon's link closure resolves with NO DYLD in the launching environment at all,
-      # a claim only the Node process can make.
+      # The same subset on Bun + Deno, against the SAME bundle (#1393). They inherit the
+      # DYLD_FALLBACK_LIBRARY_PATH the ORCHESTRATOR's own re-exec set, because
+      # cross-runtime.mjs runs under NODE and spawns the per-file children with its own
+      # environment; `maybeReexecForGtkRuntime()` is Node-shaped and returns early under
+      # Bun/Deno, which is why the leaf-soname dlopens the FULL subset needs still resolve.
+      # No CORE leg: CORE proves the addon's link closure resolves with NO DYLD in the
+      # launching environment at all, a claim only the Node process can make.
       - name: Conformance FULL subset — no brew GTK (Bun)
         working-directory: packages/node-gi/node-gi
         env:
@@ -2509,14 +2505,12 @@ jobs:
   # `release.yml` publishes. It is the minimal-closure check; the same conformance on the
   # SHIPPED shape runs in windows-gtk-windowing and is authoritative for the tarball.
   #
-  # ALL THREE Node-API runtimes, since #1393. This was the FIRST bun/deno run on a Windows
-  # runner in this repository — nothing installed either runtime here before, so even the
-  # unglamorous question ("do they run on Windows at all") was open. The loader story is
-  # the easy half: on win32 node-gi prepends the bundle's `gtk/bin` to PATH IN-PROCESS and
-  # Windows re-reads that at each `LoadLibrary`, so there is no launch-time capture to lose
-  # the way darwin's DYLD one is — index.js does that wiring before it loads the addon, on
-  # every runtime. What the two legs prove beyond the Node one is a `.node` PREBUILD plus
-  # that PATH-prepend behaving under Bun and Deno.
+  # ALL THREE Node-API runtimes, since #1393 — the FIRST bun/deno run on a Windows runner.
+  # The loader story is the easy half: on win32 node-gi prepends the bundle's `gtk/bin` to
+  # PATH IN-PROCESS and Windows re-reads that at each `LoadLibrary`, so there is no
+  # launch-time capture to lose the way darwin's DYLD one is — index.js wires it before the
+  # addon loads, on every runtime. The two legs prove a `.node` PREBUILD plus that
+  # PATH-prepend behaving under Bun and Deno.
   windows-batteries-included:
     name: Windows batteries-included conformance (no gvsbuild / windows-latest x64)
     runs-on: windows-latest
@@ -2531,8 +2525,8 @@ jobs:
         with:
           node-version: '24'
 
-      # Node is the ORCHESTRATOR here (cross-runtime.mjs runs under it and spawns one
-      # child per file); bun/deno are what those children are.
+      # Node is the ORCHESTRATOR (cross-runtime.mjs runs under it and spawns one child per
+      # file); bun/deno are what those children are.
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -2598,10 +2592,9 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node scripts/cross-runtime.mjs node
 
-      # The same subset and the same staged bundle on Bun + Deno (#1393) — no split here
-      # either, because the PATH-prepend is per-process and in-process on win32, so the
-      # single Node step's reasoning holds verbatim for every runtime. Deno's teardown
-      # carve-out (#47) is cross-runtime.mjs's own, so it applies here unchanged.
+      # The same subset and the same staged bundle on Bun + Deno (#1393): no split, because the
+      # PATH-prepend is per-process and in-process on win32, so the Node step's reasoning holds
+      # verbatim. Deno's teardown carve-out (#47) is cross-runtime.mjs's own, so it applies.
       - name: Conformance subset — no gvsbuild GTK (Bun)
         working-directory: packages/node-gi/node-gi
         env:
