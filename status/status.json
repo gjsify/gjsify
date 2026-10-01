@@ -326,6 +326,10 @@
       "status": "full",
       "note": "Vala+Rust cdylib GI bridge to oxc's formatter — the Node-free engine behind `gjsify format`/`fix` under GJS (npm `oxfmt` is a Rust napi binary GJS cannot load). Links the pure-Rust oxfmt CLI core via Cargo path-deps into `refs/oxc`, pinned in lockstep with the npm `oxfmt` devDep (`refs-pin` + `refsLockstep` machine-checked). `Formatter.run(args)` = the full CLI in-process (.oxfmtrc/.editorconfig resolution, ignore handling, --write/--check/--list-different) + single-shot `Formatter.format()`. Not covered (napi-only upstream): the Prettier ExternalFormatter (CSS/HTML/Vue/Markdown), `.oxfmtrc.ts`, --init/--migrate, LSP + stdin."
     },
+    "@gjsify/oxlint-plugin-gjsify": {
+      "status": "full",
+      "note": "oxlint JS plugin carrying gjsify's own lint rules (published; `jsPlugins` in `.oxlintrc.json`): `prefer-blueprint-template` + `no-literal-widget-label` (a widget tree assembled in TypeScript is untranslatable — ADR 0033), `register-class-order` (autofix), `deferred-process-exit` (a bare `process.exit()` does not halt under GJS), `todo-needs-anchor`, `no-css-side-effect-import`, `spawn-node-binary`. Two loading paths over one source: this repo's `.oxlintrc.json` names `src/index.ts` (Node type-stripping, no build), a consumer names the package and gets `lib/index.js`. `oxlint` is a peer dependency — the rules run in oxlint's JS plugin host."
+    },
     "@gjsify/path": {
       "status": "full",
       "note": "POSIX + Win32. Validated on-device on NativeScript V8 (integration suite)."
