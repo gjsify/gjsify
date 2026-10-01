@@ -223,12 +223,12 @@
 # fixed in the ENGINE by #1488, merged 2026-09-03, and still counted here, because the
 # fix is in the addon's C++ and these legs install the PUBLISHED addon (see the table
 # above): the first release carrying it is what removes them, not the merge. 2 are inherited from
-# the gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
-# Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
-# `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
-# `get_path()` answers the NATIVE path and GLib correctly hands back
-# `\nonexistent-gjsify-vector.png`. The URI reading is excluded by the code: the
-# assertion calls `get_path()`, not `get_uri()`. So the layer's own win32-specific
+# the gtk-host table defect the gtk-host step below describes (#1446, FIXED since this
+# measurement), and 2 are POSIX-shaped ASSERTIONS — the Image/ImageBackground vectors
+# round-trip `/nonexistent-gjsify-vector.png` through `Gio.File.new_for_path` and assert
+# `get_path()` returns it unchanged, where `get_path()` answers the NATIVE path and GLib
+# correctly hands back `\nonexistent-gjsify-vector.png`. The URI reading is excluded by the
+# code: the assertion calls `get_path()`, not `get_uri()`. So the layer's own win32-specific
 # defect count is ZERO. This is the mirror of `docs/code-anti-patterns.md`'s "a
 # filesystem path SPLIT on `'/'` alone" (#1143/#1148,
 # `scripts/check-posix-path-slice.mjs`): a POSIX-shaped EXPECTED VALUE rather than a
@@ -742,25 +742,44 @@ jobs:
 
       # GATING ON darwin, A PROBE HERE, and the asymmetry is a measured finding
       # rather than a concession — see WHAT THE SECOND RUN FOUND in the header.
-      # `@gjsify/gtk-host`'s generated widget table offers `GtkPageSetupUnixDialog`
-      # and `GtkPrintUnixDialog`, which GTK does not build on Windows, so six
-      # assertions in `generated.spec.ts` / `conformance.spec.ts` fail on one root
-      # cause. That is this layer's defect, not the operating system's, and it is
-      # owned by the generator subtree.
+      # THE BLOCKER IS FIXED (#1446); WHAT IS LEFT IS THE MEASUREMENT. The generated
+      # widget table is produced from ONE platform's GIR, so it carried
+      # `GtkPageSetupUnixDialog` and `GtkPrintUnixDialog` — classes GTK does not build
+      # on Windows — and six assertions in `generated.spec.ts` / `conformance.spec.ts`
+      # dereferenced their absence as `Cannot read properties of undefined`, five of
+      # them naming no row at all. A table row's class is now resolved through ONE
+      # question — does the RUNNING typelib have it — and an absent class is refused BY
+      # NAME (`absent-class`) wherever a class would have been dereferenced, with the
+      # whole absent set printed by the suite that weighs it. The rows STAY in the
+      # generated artefact: the GIR says they exist in that release, and the generator
+      # reads one GIR pool with no second platform to compare against, so a platform
+      # claim in the artefact would be a guess.
       #
-      # RETIREMENT CONDITION: when the table stops offering Unix-only rows on a
-      # Windows host, delete `continue-on-error` and this comment. The steps ABOVE
-      # stay gating, so the win32 leg still fails loudly if the published bundle
-      # stops carrying a loadable Gtk + Adw — which is the claim ADR 0024 § 4 rests
-      # on and the reason this leg exists.
+      # RETIREMENT CONDITION: the blocker is gone, so what is left is the promotion this
+      # check exists for — delete `continue-on-error` and this comment once the step has
+      # been GREEN in five measured runs. The steps ABOVE stay gating, so the win32 leg
+      # still fails loudly if the published bundle stops carrying a loadable Gtk + Adw —
+      # which is the claim ADR 0024 § 4 rests on and the reason this leg exists.
       #
-      # The clauses below are that sentence as DATA, evaluated every run by
-      # `scripts/check-probe-retirement.mjs`. The generated table is the subject rather
-      # than #1446 alone, because an issue can be closed by a decision while the rows
-      # stay — and the rows are what the suite dereferences.
-      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPrintUnixDialog
-      #   retire-when: tree-lacks packages/framework/gtk-host/src/generated/widgets.ts GtkPageSetupUnixDialog
-      #   retire-when: issue-closed 1446
+      # The clause below is that sentence as DATA, evaluated every run by
+      # `scripts/check-probe-retirement.mjs`. It used to be two `tree-lacks` clauses over
+      # `src/generated/widgets.ts` plus `issue-closed 1446`, and BOTH `tree-lacks` ones
+      # were the wrong proxy: they asked the two rows to LEAVE the file, which is the fix
+      # #1446's own analysis rejects — a platform claim derived from one GIR pool, or
+      # from a NAME (`*Unix*`), breaks on the next absent class nobody spelled that way.
+      # They could never have come true, so they would have held this probe forever.
+      # `probe-green 5` is the thing every proxy was standing in for.
+      #
+      # THE NAME BELOW IS DELIBERATELY NOT RENAMED, and it is the one thing here that is
+      # load-bearing. `probe-green` joins this probe's recorded outcomes by STEP NAME
+      # against completed `main` runs, so a rename in the SAME change that introduces the
+      # clause empties the window to zero runs and the check REFUSES — "Renamed, removed,
+      # or never run — whichever it is, nothing is being measured" — on a REQUIRED check,
+      # which is a deadlock no wait heals. Measured here: 0 of 30 runs, the check red,
+      # the clause unanswerable until after the merge it blocks. So the label keeps saying
+      # what the probe was blocked on, and the paragraph above it carries the current
+      # truth. Whoever promotes the step deletes it, name included.
+      #   retire-when: probe-green 5
       - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
         id: gtk-host-probe
         continue-on-error: true
@@ -778,9 +797,12 @@ jobs:
         run: node scripts/report-probe-outcome.mjs
 
       # See the darwin job's copy of this step for why the published addon means an
-      # unreleased engine fix is invisible here. On top of that, win32 has its own
-      # two: the gtk-host table's Unix-only rows (#1446) and the POSIX-shaped image
-      # assertions in the header's attribution.
+      # unreleased engine fix is invisible here. On top of that, win32 had its own
+      # two — the gtk-host table's Unix-only rows (#1446, since FIXED) and the
+      # POSIX-shaped image assertions in the header's attribution, which no fix of
+      # ours can move. So the clauses below still name #1446, and the tree-lacks pair
+      # can no longer come true: re-attributing this step is `status/open-todos/ci.md`'s
+      # rn-probe-win32 entry, and it waits on the image assertions being reworded.
       #
       # RETIREMENT CONDITION, as data. The first clause is ALREADY MET — node-gi 0.46.0
       # carried #1438's engine fix on 2026-09-03 — and is kept rather than dropped because

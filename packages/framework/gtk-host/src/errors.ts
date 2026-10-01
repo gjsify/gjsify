@@ -32,6 +32,33 @@ export const err = {
                 // exist, `nearestRegistered`, only ever answers for a mount container.
                 `Being a real GType in the installed typelib is not enough on its own.`,
         ),
+    /**
+     * A row of the table naming a class the RUNNING typelib does not carry.
+     *
+     * The one absence a version cannot explain. The table is generated from one
+     * platform's GIR, and a platform does not BUILD every class GTK describes:
+     * the Unix print stack is `#ifdef`-ed out on Windows, so its two dialogs are
+     * in the GIR and in no `Gtk-4.0.typelib` that a Windows build produces. The
+     * generated half is a claim about a library release, not about this host, so
+     * the row is right and the class is not here — and `GtkPageSetupUnixDialog`
+     * is NOT the whole shape of the failure, because the next absent class is not
+     * spelled "Unix" either.
+     *
+     * So nothing in this host dereferences a row's class before asking: the
+     * refusal names the tag instead of letting `undefined.list_properties()` or
+     * `undefined.$gtype` report a defect against whatever row the caller happened
+     * to be walking. Same shape as `unknownTag` — a tag this process cannot
+     * honour is refused BY NAME, because GTK's own failure mode here is silence.
+     */
+    absentClass: (gtype: string) =>
+        new GtkHostError(
+            'absent-class',
+            `<${gtype}> is in the widget table and the running GTK has no class for it. The table is ` +
+                `generated from one GIR, on one host, and a platform omits what it does not build — GTK ` +
+                `does not build its Unix print dialogs on Windows, so no typelib there registers them. ` +
+                `Use a widget this GTK really has (the portable print dialog is GtkPrintDialog, not ` +
+                `GtkPrintUnixDialog), and expect the same refusal for any class a future platform drops.`,
+        ),
     missingConstructProp: (tag: string, prop: string) =>
         new GtkHostError(
             'missing-construct-prop',

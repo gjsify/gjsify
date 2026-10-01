@@ -27,6 +27,7 @@ import {
     unhandledPlacement,
     unhandledPolicy,
 } from '../policies.js';
+import { classOf } from '../registry.js';
 import type { ChildPolicy, HostElement, NodePlacement, WidgetDescriptor } from '../types.js';
 
 /** Every method name a policy names, so the check does not have to know the shapes. */
@@ -117,9 +118,12 @@ export function descriptorProblems(
 ): DescriptorProblem[] {
     const problems: DescriptorProblem[] = [];
     for (const d of descriptors) {
-        let Klass: { $gtype: GObject.GType; prototype: object } | undefined;
+        // The class this row resolves to, or `null` when the running typelib has no
+        // such class — the one question a table generated on ONE platform cannot ask
+        // itself, and the only place it can be answered.
+        let Klass: { $gtype: GObject.GType; prototype: object } | null;
         try {
-            Klass = d.ctor() as unknown as { $gtype: GObject.GType; prototype: object };
+            Klass = classOf(d) as unknown as { $gtype: GObject.GType; prototype: object } | null;
         } catch (e) {
             problems.push({ gtype: d.gtype, problem: `ctor() threw: ${(e as Error).message}` });
             continue;
@@ -130,7 +134,10 @@ export function descriptorProblems(
         // class that is not here, so it is skipped; whether the absence itself is
         // acceptable is judged in one place, by `explains every class the installed
         // library does not have` in generated.spec.ts, which weighs it against the
-        // library version the surface was generated from.
+        // library version the surface was generated from AND names every row it
+        // skipped — a platform omits classes the GIR describes (GTK's two Unix print
+        // dialogs, absent from every Windows typelib), which is a fact no version
+        // comparison can see.
         if (!Klass) continue;
         const actual = GObject.type_name(Klass.$gtype);
         if (actual !== d.gtype) {

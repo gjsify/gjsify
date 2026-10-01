@@ -63,12 +63,16 @@ export type {
 } from './attrs.js';
 export {
     clearRegistry,
+    classOf,
+    hasClass,
     hasWidget,
     lookupWidget,
     nearestRegistered,
     registerWidget,
     registerWidgets,
     registeredTags,
+    requireClass,
+    type InstalledClass,
 } from './registry.js';
 export {
     ADW_DESCRIPTORS,

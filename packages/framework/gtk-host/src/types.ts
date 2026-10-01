@@ -424,6 +424,20 @@ export type ChildPolicy =
 export interface GeneratedWidget {
     readonly gtype: string;
     readonly tag: string;
+    /**
+     * Availability-CONDITIONAL, and the declared type deliberately does not say so.
+     *
+     * A row comes from one platform's GIR, so on a platform whose GTK does not
+     * build the class this reads `Gtk.PrintUnixDialog` and gets `undefined` —
+     * the whole of GTK's Unix print stack is compiled out on win32 (#1446).
+     * Widening the signature to `| undefined` would force every `ctor()` reader
+     * to handle the absence, and they all handle it through ONE predicate
+     * instead (`classOf`/`requireClass`, `registry.ts`); annotating the signature
+     * as well would be a second statement of the same fact that nothing checks.
+     * The gap this leaves is real and deliberate: a reader that bypasses both
+     * gets `undefined` where the type promised a class — which is why every
+     * call site refuses rather than dereferences.
+     */
     readonly ctor: () => GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object);
 }
 

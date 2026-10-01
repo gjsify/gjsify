@@ -247,7 +247,7 @@ NOTHING and is counted as neither:
 |---|---|---|---|---|---|
 | `conformance-win32` | 2026-09-11, 0.49.0 | **58** | 5 | 8 | PROMOTED to a gate |
 | darwin `rn-probe` | 2026-09-03, 0.46.0 | **0** | 70 | 1 | condition was WRONG |
-| `gtk-host-probe` (win32) | no — #1446 open | 0 | 70 | 1 | left a probe |
+| `gtk-host-probe` (win32) | no — blocker fixed 2026-09-30, now awaits 5 green runs | 0 | 70 | 1 | left a probe |
 | `rn-probe-win32` | 1 of 2 clauses | 0 | 70 | 1 | left a probe |
 
 `conformance-win32`'s five reds are all between 04:24Z and 06:16Z on 2026-09-11, inside the
@@ -297,13 +297,33 @@ a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now
   Whoever picks this up: re-measure arm64 once a node-gi release carries the vfunc OUT
   write-back, and the x64 death needs a local reproduction before it can be counted as
   anything.
-- `gtk-host-probe` (win32) — condition: *the table stops offering Unix-only rows on a
-  Windows host*. Blocked on the entry above (#1446); unchanged, now spelled as `tree-lacks`
-  clauses over `src/generated/widgets.ts` plus `issue-closed 1446`.
-- `rn-probe-win32` — needs #1446 as well as the release, plus the two POSIX-shaped image
-  assertions attributed in the workflow header (`get_path()` answering the NATIVE path),
-  which are the suite's expectation and not a win32 defect. Its release clause is MET and
-  kept, because a met clause is how a conjunction shows which half is left.
+- `gtk-host-probe` (win32) — **the blocker is FIXED (#1446, 2026-09-30), the promotion is
+  not.** A table row's class is now resolved through one question — does the RUNNING
+  typelib have it — so a class GTK does not build on Windows is refused by name
+  (`absent-class`) instead of dereferenced into `Cannot read properties of undefined`, and
+  the suite prints the whole absent set. What the step still needs is to be GREEN: the
+  condition is now `probe-green 5`, the one clause that is not a proxy. Its two
+  `tree-lacks` clauses over `src/generated/widgets.ts` are GONE, and they were the wrong
+  proxy twice over — they asked the two Unix print dialogs to LEAVE the generated
+  artefact, which is the fix #1446's own analysis rejects (one GIR pool, no second
+  platform, and a name-pattern claim breaks on the next absent class nobody spelled
+  `Unix`), so they could never have come true and would have held the probe forever.
+  Whoever promotes it deletes `continue-on-error` when the check reports RIPE — which is
+  a FOLLOWING PR, not this one, and the step's NAME is why. `probe-green` joins the
+  recorded outcomes by step name against completed `main` runs, so renaming the step in
+  the same change that adds the clause empties that window to zero and the check REFUSES
+  on a REQUIRED check — measured here, 0 of 30 runs, a deadlock no wait heals. The name
+  therefore still reads as the blocker it was; the workflow comment above it carries the
+  current truth. The promoting PR deletes the step, name included, so the stale half
+  never outlives the probe.
+- `rn-probe-win32` — the #1446 half is CLOSED with it (the gtk-host table rows), so what
+  is left is the two POSIX-shaped image assertions attributed in the workflow header
+  (`get_path()` answering the NATIVE path), which are the suite's expectation and not a
+  win32 defect — no fix of ours makes `get_path()` answer a Windows path. Its release
+  clause is MET and kept, because a met clause is how a conjunction shows which half is
+  left, and its two `tree-lacks` clauses now name rows the gtk-host design deliberately
+  KEEPS, so that conjunction cannot come true as written: re-attributing it is the next
+  step, and it needs the image assertions reworded first.
 
 
 ### Nothing runs `build:infra` on a cold tree with no `node`

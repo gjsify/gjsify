@@ -32,7 +32,7 @@ import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, t
 import { reconcileStringList } from './list-model.js';
 import { applyAccessibilityPlan, isAccessibleClass, planAccessibility } from './accessibility.js';
 import { coerce, isConstructOnly, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
-import { lookupWidget, nearestRegistered } from './registry.js';
+import { lookupWidget, nearestRegistered, requireClass } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ export function materialize(el: HostElement): GObject.Object {
     for (const name of el.descriptor.requiresProps ?? []) {
         if (!(name in el.props)) throw err.missingConstructProp(el.descriptor.gtype, name);
     }
-    const Klass = el.descriptor.ctor();
+    const Klass = requireClass(el.descriptor);
     const specs = paramSpecs(Klass, el.descriptor.gtype);
     const initial: Record<string, unknown> = {};
     for (const [name, value] of Object.entries(el.props)) {
@@ -249,7 +249,7 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     // inside `materialize` — during a perfectly valid construct-only write, which
     // left the widget detached and null. Nothing is written down until the
     // installed GTK has agreed to it.
-    const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
+    const specs = paramSpecs(requireClass(el.descriptor), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, name);
     // A renderer removing a prop hands `undefined` OR `null`, and neither is
     // storable: `set_property(name, undefined)` throws "Could not guess unspecified
@@ -452,7 +452,7 @@ export function setEventHandler(el: HostElement, prop: string, next: ((...args: 
 function assertSignalExists(el: HostElement, prop: string): void {
     const signal = toSignalName(prop, el.descriptor.eventAliases);
     const base = signal.split('::')[0];
-    const gtype = (el.descriptor.ctor() as unknown as { $gtype: GObject.GType }).$gtype;
+    const gtype = requireClass(el.descriptor).$gtype;
     if (GObject.signal_lookup(base, gtype) === 0) {
         throw err.unknownSignal(el.descriptor.gtype, prop, base);
     }
@@ -486,7 +486,7 @@ function assertSignalExists(el: HostElement, prop: string): void {
 export function setAccessibility(el: HostElement, next: unknown): void {
     const requested = (next ?? null) as Record<string, unknown> | null;
     const plan = planAccessibility(el.descriptor.gtype, el.accessibility, requested);
-    if (requested !== null && !isAccessibleClass(el.descriptor.ctor())) {
+    if (requested !== null && !isAccessibleClass(requireClass(el.descriptor))) {
         throw err.notAccessible(el.descriptor.gtype);
     }
     if (el.widget) applyAccessibilityPlan(el.widget, plan);
@@ -707,7 +707,7 @@ function writeTextSink(el: HostElement, text: string): void {
     ) {
         throw err.occupiedSlot(el.descriptor.gtype, 'text', slotSetter);
     }
-    const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
+    const specs = paramSpecs(requireClass(el.descriptor), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, sink);
     beginHostWrite(el.widget);
     try {
@@ -1100,7 +1100,7 @@ function restoreTextSink(el: HostElement): void {
     const camel = sink.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
     const recorded = el.props[sink] ?? el.props[camel];
     if (typeof recorded !== 'string' || recorded === '') return;
-    const spec = requireSpec(paramSpecs(el.descriptor.ctor(), el.descriptor.gtype), el.descriptor.gtype, sink);
+    const spec = requireSpec(paramSpecs(requireClass(el.descriptor), el.descriptor.gtype), el.descriptor.gtype, sink);
     beginHostWrite(el.widget);
     try {
         (el.widget as unknown as { set_property(n: string, v: unknown): void }).set_property(

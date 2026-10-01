@@ -3,57 +3,6 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### `@gjsify/gtk-host`'s generated table offers two Unix-only GTK classes on every OS
-
-Found by `gtk-os-suites.yml`'s win32 leg on its first complete run (2026-08-31): the
-suite reported **6 of 2264** on `win32-x64` against **2274/2274** on darwin-arm64 and
-darwin-x64, all six on one root cause. Only the set-comparison assertion named it; the
-other five dereferenced an `undefined`:
-
-```
-GtkPageSetupUnixDialog: Cannot read properties of undefined (reading 'list_properties')
-GtkPrintUnixDialog:     Cannot read properties of undefined (reading 'list_properties')
-```
-
-Both are `…UnixDialog` — GTK does not build them on Windows. `src/generated/` is
-produced from the GIR on a LINUX host, so it bakes in Linux-only classes and then
-`generated.spec.ts` / `conformance.spec.ts` compare that table against the INSTALLED
-typelib, where two rows have no class at all.
-
-**A version skew is the obvious second hypothesis and it is ruled out.** The two
-bundles' `Gtk-4.0.typelib` differ in size (559 728 win32 against 567 784 darwin) and
-the win32 GTK is gvsbuild's against Homebrew's, so "the Windows GTK is older" reads as
-the likelier story — and it would send someone to bump a version. The full
-capitalised-identifier diff of the two typelibs is 12 names and they are ONE subsystem:
-`GtkPageSetupUnixDialog`, `GtkPrintUnixDialog`, `GtkPrinter`, `GtkPrintJob`,
-`GtkPrintCapabilities`, `PrintBackend`, `PrinterFunc`, `PrintJobCompleteFunc` — GTK's
-Unix print stack, entire, and nothing else. An older GTK would be missing classes
-scattered across unrelated subsystems. The portable replacements `GtkPrintDialog` and
-`GtkFileDialog` are in BOTH, and both Unix dialogs are in the Linux system GTK 4.22.
-Corroborating from the suite side: `refuses a type whose namespace it cannot import`
-stays GREEN, so no namespace is missing — a class inside a present one is.
-
-So the repair is to mark that subsystem Unix-only. A GIR bump would fix nothing. Nothing about it is the operating
-system's fault or the bundle's: the published `@gjsify/gtk-runtime-win32-x64` verified
-clean (33 backed typelibs, `windowing=true`, decode probe green) and
-`check-batteries.mjs` passed before the suite started.
-
-Two things to fix, and they are separable:
-
-1. **The table.** Either the generator marks a row's platform availability, or the
-   table stops offering a class the running GTK does not have. This is the one that
-   makes the win32 leg gating again — the step is `continue-on-error` with that as its
-   retirement condition, now spelled as `retire-when:` clauses over
-   `src/generated/widgets.ts` and #1446 rather than as a sentence. The day both rows
-   leave the table and the issue closes, `scripts/check-probe-retirement.mjs` fails and
-   names the step; nobody has to re-read this paragraph for that to happen.
-2. **The diagnosis.** Five of the six assertions die as a bare `TypeError: Cannot read
-   properties of undefined (reading '$gtype')`, which does not say WHICH row. A
-   conformance test whose subject is "the table vs the installed typelib" should report
-   an absent class by name rather than dereference it — otherwise the next OS finding
-   arrives as six anonymous type errors, which is how this one nearly did.
-
-
 ### `systemGiLibraryDirs()` lives in three places, pinned by a test rather than shared
 
 The darwin bare-leaf `dlopen` gap is one rule with THREE consumers now:

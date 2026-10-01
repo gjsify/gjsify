@@ -29,7 +29,7 @@ import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index
 import type { GtkHostError } from './errors.js';
 import { adopt, createElement, destroy, insert, materialize, remove, setProp } from './host.js';
 import { isPortal, isUnparented, outsideParentOf, placementOf, portalOf } from './policies.js';
-import { lookupWidget, registerWidget, registerWidgets } from './registry.js';
+import { classOf, lookupWidget, registerWidget, registerWidgets } from './registry.js';
 import { createRoot as createReactRoot } from './adapters/react.js';
 import {
     createElement as solidCreateElement,
@@ -323,8 +323,8 @@ export default async () => {
                 const dialogs: string[] = [];
                 const withoutPortal: string[] = [];
                 for (const d of BUILTIN_DESCRIPTORS) {
-                    const Klass = d.ctor() as unknown as { $gtype?: GObject.GType } | undefined;
-                    if (!Klass?.$gtype) continue;
+                    const Klass = classOf(d);
+                    if (!Klass) continue;
                     if (!GObject.type_is_a(Klass.$gtype, Adw.Dialog.$gtype)) continue;
                     dialogs.push(d.gtype);
                     if (!portalOf(d)) withoutPortal.push(d.gtype);
@@ -438,12 +438,22 @@ export default async () => {
                 const roots: string[] = [];
                 const undeclared: string[] = [];
                 const unpresentable: string[] = [];
+                // A row this host has no class for cannot be walked, and its absence is
+                // weighed elsewhere (#1446) — counted here because it is exactly what a
+                // population floor has to allow for.
+                let absent = 0;
                 for (const d of BUILTIN_DESCRIPTORS) {
-                    const Klass = d.ctor() as unknown as { $gtype?: GObject.GType; prototype?: object } | undefined;
-                    if (!Klass?.$gtype) continue;
+                    const Klass = classOf(d) as unknown as {
+                        $gtype: GObject.GType;
+                        prototype: Record<string, unknown>;
+                    } | null;
+                    if (!Klass) {
+                        absent++;
+                        continue;
+                    }
                     if (!GObject.type_is_a(Klass.$gtype, Gtk.Root.$gtype)) continue;
                     roots.push(d.gtype);
-                    if (typeof (Klass.prototype as Record<string, unknown>).present !== 'function') {
+                    if (typeof Klass.prototype.present !== 'function') {
                         unpresentable.push(d.gtype);
                         continue;
                     }
@@ -457,12 +467,25 @@ export default async () => {
                 // the insert instead. A second name appearing here is a new case to
                 // decide, not a number to bump.
                 expect(unpresentable).toStrictEqual(['GtkDragIcon']);
-                // The population, for the same reason the dialog walk asserts its
-                // own: an empty walk satisfies both lines above while checking
-                // nothing.
+                // Named members, for the same reason the dialog walk asserts its own:
+                // an empty walk satisfies the lines below while checking nothing.
                 expect(roots.includes('GtkWindow')).toBe(true);
                 expect(roots.includes('AdwApplicationWindow')).toBe(true);
-                expect(roots.length >= 19).toBe(true);
+                // The population, and the floor is `roots PLUS the rows this host has no
+                // class for` rather than a fixed number: 19 on a typelib carrying the
+                // whole table, 17 on a Windows one, which builds neither GtkPrintUnixDialog
+                // nor GtkPageSetupUnixDialog and both are `Gtk.Root`. MEASURED, not
+                // predicted — the first run of this floor under a simulated platform
+                // omission failed on 17, which is the number and the cause together. The
+                // excuse is bounded by the absent count and PRINTED beside the result, so
+                // a walk that found nothing still reads 0 + (a handful) and still fails:
+                // an empty walk satisfies the two lines above while checking nothing.
+                if (absent > 0) {
+                    console.error(
+                        `  (${roots.length} Gtk.Root row(s) walked, ${absent} table row(s) this host has no class for)`,
+                    );
+                }
+                expect(roots.length + absent >= 19).toBe(true);
             });
 
             // THE CHECK THAT MAKES THE ABSENCE VISIBLE, which is the direction the
