@@ -254,6 +254,21 @@ NOTHING and is counted as neither:
 widening window that closed when 0.49.0 published at 08:08:06Z; it was green in all 48
 measured runs afterwards and stayed advisory for every one of them.
 
+**A clause met by a PUBLISH is anchored to the publish time (#1961).** The check runs in the
+required `Detect runtime-triplet drift` job with `--online`, and it used to fail whenever every
+clause of a probe was met — `npm-tarball-has` / `npm-version-min` turn true the moment a
+release lands, while the probe outcomes the verdict is about were recorded by jobs that staged
+the PREVIOUS artifact. Measured 2026-10-01: the win32 job 110335949275 started 11:41:58Z and
+staged the older `latest`; `@gjsify/gtk-runtime-win32-x64@0.53.0` was published 12:56:00Z. The
+clause was met from then on, and every PR and the merge queue went red until a run could
+start after the publish. Those two verbs now carry `time[version]` from the packument (for
+`npm-version-min`, the first release satisfying the minimum), and such a probe is ripe only
+once a run whose job STARTED after that time has recorded an outcome — green or red, either
+is the measurement. Until then it prints `met — awaiting a run after <time>` as a `::notice`
+and does not fail. An outcome read that cannot complete is UNKNOWN, and a run in which every
+online clause is unknown still exits 1. Tests: `tests/e2e/ci-probe-outcomes`, with `curl` and
+`gh` faked on `PATH`.
+
 Both met conditions were verified off the artifacts rather than off the dates, cache-busted
 (`npm view` and a bare curl read a 300 s edge cache, `docs/publishing.md`): the published
 `@gjsify/gtk-runtime-win32-x64` tarball carries `gstvorbis.dll` at 0.49.0 and 0.51.1 and not
