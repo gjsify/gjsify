@@ -24,7 +24,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -184,6 +184,67 @@ describe('bootstrap-native-facades on a cold tree', { timeout: 60_000 }, () => {
         } finally {
             for (const r of [bootstrapHost, withBundle, bare]) rmSync(r, { recursive: true, force: true });
         }
+    });
+
+    it('covers every package the CLI resolves at RUN time', () => {
+        // The edge `ensureCliEntryLinks()` cannot see, and the one that cost
+        // v0.53.0 its `@gjsify/napi`: a RUNTIME `createRequire(…).resolve()` of a
+        // sibling, which the bundler never inlines, so the package's own `lib/esm`
+        // must already exist on a cold tree. A static import is not this hazard —
+        // the CLI entry is a bundle — which is why the Node link probe passes and
+        // the GJS-hosted `build:infra` still dies, reported as "no usable bundler
+        // engine": it names the engine, never the package that is missing.
+        //
+        // So the list is checked against the SOURCES instead of trusted, and the
+        // `specifier` indirection in css-as-string.ts is spelled as the concrete
+        // specifier it resolves — a variable would read as "no runtime edge".
+        const script = readFileSync(join(MONOREPO_ROOT, 'scripts', 'bootstrap-native-facades.mjs'), 'utf8');
+        const listed = new Set(
+            (script.match(/const CLI_RUNTIME_DEPS = \[([^\]]*)\]/)?.[1] ?? '')
+                .split(',')
+                .map((n) => n.trim().replace(/^'|'$/g, ''))
+                .filter(Boolean),
+        );
+        assert.ok(listed.size > 0, 'CLI_RUNTIME_DEPS did not parse — the assertion below would pass vacuously');
+
+        const roots = ['cli', 'rolldown-plugin-gjsify'].map((p) => join(MONOREPO_ROOT, 'packages', 'infra', p, 'src'));
+        // A `resolve()` of a literal `@gjsify/<name>` specifier, or a const assigned
+        // one and resolved by name — the two shapes in the tree today.
+        const literal = /createRequire\([^)]*\)\.resolve\(\s*'(@gjsify\/[a-z0-9-]+)/g;
+        const indirect = /const specifier\s*=\s*'(@gjsify\/[a-z0-9-]+)'/g;
+        // Exempt with a reason each, so the list cannot grow into a blanket:
+        //   the two facades build themselves, and `@gjsify/tsc`'s `/bundle`
+        //   subpath is a COMMITTED artifact (like the CLI's own `dist/`), so no
+        //   emit is owed on any tree. `@gjsify/oxfmt-native` is a native facade
+        //   reached only from `format`, which no `build:infra` clause runs.
+        const exempt = new Set(['rolldown-native', 'lightningcss-native', 'tsc', 'oxfmt-native']);
+
+        const missing = [];
+        for (const dir of roots) {
+            for (const file of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+                // A spec is a fixture, not a build input: `app-runtime.spec.ts`
+                // names `@gjsify/node-gi` to assert a staging report, and no
+                // `build:infra` clause ever loads one.
+                if (!file.isFile() || !/\.(ts|mts|js|mjs)$/.test(file.name)) continue;
+                if (/\.(spec|test)\.[^.]+$/.test(file.name) || file.name.startsWith('test.')) continue;
+                const filePath = join(file.parentPath, file.name);
+                const source = readFileSync(filePath, 'utf8');
+                for (const re of [literal, indirect]) {
+                    for (const [, specifier] of source.matchAll(re)) {
+                        const name = specifier.replace('@gjsify/', '');
+                        if (!listed.has(name) && !exempt.has(name)) missing.push(`${name} (${filePath})`);
+                    }
+                }
+            }
+        }
+        assert.deepEqual(
+            missing,
+            [],
+            'these packages are resolved at RUN time (so the bundler never inlines them) but no CLI_RUNTIME_DEPS ' +
+                'entry builds their lib/esm, so a cold tree cannot finish — the GJS-hosted build:infra reports it ' +
+                'as "no usable bundler engine", naming the engine instead of the package. Add each to ' +
+                `CLI_RUNTIME_DEPS in scripts/bootstrap-native-facades.mjs.\n  ${missing.join('\n  ')}`,
+        );
     });
 
     it('refuses to recurse: a marked child with no entry fails loudly', () => {
