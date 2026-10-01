@@ -1,63 +1,55 @@
 // The FOURTH door into a widget of this package — GJS's signal verbs on every class.
 //
-// WHY IT EXISTS. This port already emits the GObject SIGNAL NAMES: `adw-switch-row.ts`
-// exports `NOTIFY_ACTIVE = 'notify::active'` and says so. Only the SUBSCRIBE VERB
-// differed. A GJS snippet writes `row.connect('notify::active', cb)` and gets a numeric
-// handler id back, `row.disconnect(id)` removes exactly that one; the port offered
-// NativeScript's `on()` / `addEventListener()`, which return nothing. So the one line
-// every event snippet has could not run verbatim, on a surface where the widget name,
-// the property names and the construct-props bag already can (ADR 0034 § Amendment 14).
+// WHY IT EXISTS. This port already emits the GObject SIGNAL NAMES: `adw-switch-row.ts` exports
+// `NOTIFY_ACTIVE = 'notify::active'` and says so. Only the SUBSCRIBE VERB differed. A GJS
+// snippet writes `row.connect('notify::active', cb)` and gets a numeric handler id back,
+// `row.disconnect(id)` removes exactly that one; the port offered NativeScript's `on()` /
+// `addEventListener()`, which return nothing. So the one line every event snippet has could not
+// run verbatim, on a surface where the widget name, the property names and the construct-props
+// bag already can (ADR 0034 § Amendment 14).
 //
 // WHY A MIXIN AT `extends`, WHEN THE BAG IS A FUNCTION CALLED PER CONSTRUCTOR. ADR 0034
-// § Amendment 13 refused a base class and a mixin for the construct-props bag: the
-// widget classes extend EIGHT different `@nativescript/core` bases, and the bag has to
-// run LAST in each concrete class's OWN constructor, after that class's children exist.
-// Both reasons are about constructor ORDER, and neither reaches a METHOD. `connect` and
-// `disconnect` carry no per-class state and run whenever a caller says, so the natural
-// place for them is where the port MEETS the platform — the `extends` of every class
-// whose base is a `@nativescript/core` class — and a subclass of a port class inherits
-// them like any other method. That is one token per such class, `extends
-// withSignals(GridLayout)`, and no per-class body at all; a TypeScript mixin keeps the
-// base's own type surface (the objection to a mixin in § Amendment 13 was re-declaring
-// eight of them, which a generic one does not). Held by arm 6 of
-// `check-nativescript-xml-doors.mjs`: a class extending a platform base without the
-// wrapper fails, and so does a port-derived class wrapping again.
+// § Amendment 13 refused a base class and a mixin for the construct-props bag: the widget
+// classes extend EIGHT different `@nativescript/core` bases, and the bag has to run LAST in
+// each concrete class's OWN constructor, after that class's children exist. Both reasons are
+// about constructor ORDER, and neither reaches a METHOD. `connect` and `disconnect` carry no
+// per-class state, so the natural place for them is where the port MEETS the platform — the
+// `extends` of every class whose base is a `@nativescript/core` class — and a subclass of a
+// port class inherits them like any other method: one token per such class, `extends
+// withSignals(GridLayout)`, no per-class body at all. Held by arm 6 of
+// `check-nativescript-xml-doors.mjs`: a class extending a platform base without the wrapper
+// fails, and so does a port-derived class wrapping again.
 //
-// THE NAMES DO NOT SHADOW ANYTHING. Measured against `@nativescript/core@9.1.0-alpha.11`,
-// the version the storybook showcase installs: `Observable`, `ViewBase`, `View`,
-// `LayoutBase` and their platform variants declare no `connect` and no `disconnect` —
-// the one `disconnect()` in the whole package is `GesturesObserver`'s, which is not a
-// view and not a base of anything here — and no runtime `.js` assigns either name. This
-// matters because the base is hostile territory: `ViewBase`'s own constructor ASSIGNS
-// `this.cssClasses = new Set()`, so a name it owns, taken by a subclass, kills the widget
-// inside its own constructor (the `styleClasses` entry in
+// THE NAMES DO NOT SHADOW ANYTHING. Measured against `@nativescript/core@9.1.0-alpha.11`, the
+// version the storybook showcase installs: `Observable`, `ViewBase`, `View`, `LayoutBase` and
+// their platform variants declare no `connect` and no `disconnect` — the one `disconnect()` in
+// the whole package is `GesturesObserver`'s, not a view and not a base of anything here — and
+// no runtime `.js` assigns either name. This matters because the base is hostile territory:
+// `ViewBase`'s own constructor ASSIGNS `this.cssClasses = new Set()`, so a name it owns, taken
+// by a subclass, kills the widget inside its own constructor (the `styleClasses` entry in
 // `scripts/check-vocabulary-alignment.mjs` records that incident). The ambient slice in
-// `../ns-core.d.ts` cannot hold this in the other direction — a name a future core adds
-// would be shadowed by this mixin without a type error — so the measurement is written
-// here with its version, and `status/open-todos/README.md` carries the rest of that limit.
+// `../ns-core.d.ts` cannot hold this in the other direction, so the measurement is written
+// here with its version.
 //
 // WHAT THE CALLBACK RECEIVES. GJS passes the emitting object FIRST, then the signal's own
-// arguments — `(self, pspec)` for a `notify::` signal. NativeScript passes one payload
-// object. The callback here gets `(self, data)`: `self` is what a verbatim GJS snippet
-// reads (`row.connect('notify::active', (row) => row.active)`), and `data` is the
-// NativeScript payload, which is what the port's own `notify::` events carry the new
-// value in. A `GParamSpec` is not reconstructed: a snippet reading `pspec.name` is the
-// declared remainder, and the value it wants is on `self`.
+// arguments — `(self, pspec)` for a `notify::` signal. NativeScript passes one payload object.
+// The callback here gets `(self, data)`: `self` is what a verbatim GJS snippet reads (`row
+// .connect('notify::active', (row) => row.active)`), and `data` is what the port's own
+// `notify::` events carry the new value in. A `GParamSpec` is not reconstructed: a snippet
+// reading `pspec.name` is the declared remainder, and the value it wants is on `self`.
 //
 // THE SEAM CARRIES `GtkWidget`'s LAYOUT PROPERTIES TOO. This mixin is the one place every
-// class meets the platform, which makes it the one place a property every GTK widget
-// inherits can be written once: `withSignals` applies `withGtkWidgetLayout`
-// (`widget-layout.ts`) beneath itself, so `halign`, `valign`, `hexpand`, `vexpand`,
-// `marginStart` and `marginEnd` arrive with `connect` on every class and on every class a
-// later change adds, with no second wrapper to forget. Held against the ambient slice the
-// same way as the two method names above: `View` declares none of the six.
+// class meets the platform, which makes it the one place a property every GTK widget inherits
+// can be written once: `withSignals` applies `withGtkWidgetLayout` (`widget-layout.ts`)
+// beneath itself, so `halign`, `valign`, `hexpand`, `vexpand`, `marginStart` and `marginEnd`
+// arrive with `connect` on every class and on every class a later change adds. Held against
+// the ambient slice the same way as the two method names above: `View` declares none of the six.
 //
-// AN UNKNOWN HANDLER ID THROWS. `g_signal_handler_disconnect` logs a CRITICAL for an id
-// nothing holds and returns; GJS surfaces it as a warning, fatal only under
-// `G_DEBUG=fatal-criticals`. The port throws instead, for the reason the construct-props
-// bag throws on an unknown key: a silent no-op is the failure `xml-values.ts` exists to
-// refuse, and a disconnect that quietly did nothing leaves a handler firing after the
-// caller was told it was gone.
+// AN UNKNOWN HANDLER ID THROWS. `g_signal_handler_disconnect` logs a CRITICAL for an id nothing
+// holds and returns; GJS surfaces it as a warning, fatal only under `G_DEBUG=fatal-criticals`.
+// The port throws instead, for the reason the construct-props bag throws on an unknown key: a
+// silent no-op is the failure `xml-values.ts` exists to refuse, and a disconnect that quietly
+// did nothing leaves a handler firing after the caller was told it was gone.
 
 import type { EventData, Observable } from '@nativescript/core';
 
