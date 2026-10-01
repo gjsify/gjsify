@@ -480,6 +480,74 @@ function _capturePidAtSpawn(proc: Gio.Subprocess): number {
 }
 
 /**
+ * Split `exit` from `close` the way Node does: `exit` is the process, `close` is
+ * the process AND its stdio.
+ *
+ * Firing them back to back is what this replaces. The gap is not theoretical — a
+ * child that exits while a grandchild still holds the write end of its stdout
+ * keeps producing output AFTER `exit`, so a consumer that ends on `close` gets a
+ * truncated stream. Node's own accounting is one close per readable pipe
+ * (`_closesNeeded` in `child_process.js`); an `ignore`/`inherit` slot never
+ * builds a socket, so it adds nothing — here that is simply a null stream.
+ *
+ * The listeners are attached at SPAWN time, not at exit, and that placement is
+ * load-bearing: a short-lived child can be drained to EOF and closed before the
+ * process is even reaped, and a listener attached afterwards would wait on an
+ * event that already happened — `close` would never fire at all.
+ *
+ * @returns the half to call from the process-exit callback.
+ */
+function _watchStdioForClose(child: ChildProcess): (code: number | null, signal: string | null) => void {
+    const streams = [child.stdout, child.stderr].filter((s): s is Readable => s !== null);
+    if (streams.length === 0) {
+        return (code, signal) => {
+            child.emit('exit', code, signal);
+            child.emit('close', code, signal);
+        };
+    }
+    let pending = streams.length;
+    let hasExited = false;
+    let exitCode: number | null = null;
+    let exitSignal: string | null = null;
+    const closeIfDone = (): void => {
+        if (hasExited && pending === 0) child.emit('close', exitCode, exitSignal);
+    };
+    for (const stream of streams) {
+        // 'end' is followed by 'close' (autoDestroy), so one stream settles twice.
+        let settled = false;
+        const settleOnce = (): void => {
+            if (settled) return;
+            settled = true;
+            pending -= 1;
+            closeIfDone();
+        };
+        stream.once('end', settleOnce);
+        stream.once('close', settleOnce);
+    }
+    return (code, signal) => {
+        exitCode = code;
+        exitSignal = signal;
+        hasExited = true;
+        child.emit('exit', code, signal);
+        // Node's `flushStdio`, and it cannot be optional: a stream nobody reads
+        // is never pulled, so it never reaches EOF and `close` would never come
+        // for a consumer that only wants the exit code. Running it after the
+        // `exit` listeners is what preserves Node's documented "one last chance
+        // to consume the output" for a consumer that starts reading there.
+        queueMicrotask(() => {
+            for (const stream of streams) {
+                if (stream.destroyed || stream.readableEnded) continue;
+                // A consumer that attached a listener reads the stream itself;
+                // only a genuinely untouched one is ours to drain.
+                if (stream.listenerCount('data') > 0 || stream.listenerCount('readable') > 0) continue;
+                stream.resume();
+            }
+        });
+        closeIfDone();
+    };
+}
+
+/**
  * Bounded `communicate()` shared by the two synchronous exec wrappers.
  *
  * `Gio.Subprocess.communicate()` blocks the calling thread and never iterates
@@ -768,6 +836,7 @@ function _execImpl(
         ensureMainLoop();
         armTimeout(proc);
         armAbort(proc);
+        const onProcessExit = _watchStdioForClose(child);
 
         // `child.stdout`/`child.stderr` stay null on an exec-returned child, unlike
         // Node: `communicate_async` owns the pipe and a competing Reader would split
@@ -856,8 +925,12 @@ function _execImpl(
 
                 if (ctx.callback) ctx.callback(error, stdout, stderr);
 
-                child.emit('exit', exitStatus, signal);
-                child.emit('close', exitStatus, signal);
+                // No piped stream exists on an exec child: `communicate_async`
+                // owns both pipes and only completes at EOF, so the callback
+                // above already holds every byte. This is why exec never had the
+                // truncated-stream bug, and it still goes through the shared
+                // rule so the two paths cannot drift apart.
+                onProcessExit(exitStatus, signal);
             } catch (err: unknown) {
                 const error = err instanceof Error ? err : new Error(String(err));
                 if (ctx.callback) ctx.callback(error as ExecError, '', '');
@@ -1106,6 +1179,9 @@ export function spawn(
         const stderrPipe = proc.get_stderr_pipe();
         if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
 
+        // Armed once the piped streams exist, so no `close` can be missed.
+        const onProcessExit = _watchStdioForClose(child);
+
         // `{ once: true }` plus explicit removal on exit, so a late abort cannot
         // fire against an already-gone child.
         const abortSignal = options?.signal;
@@ -1166,8 +1242,7 @@ export function spawn(
                 if (child.stdin && !child.stdin.destroyed) {
                     child.stdin.destroy();
                 }
-                child.emit('exit', exitStatus, signal);
-                child.emit('close', exitStatus, signal);
+                onProcessExit(exitStatus, signal);
             } catch (err: unknown) {
                 child.emit('error', err instanceof Error ? err : new Error(String(err)));
             }

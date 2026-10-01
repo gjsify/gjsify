@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import {
     SHELL_PWD,
     cat,
+    earlyThenLateStdout,
     echo,
     echoErr,
     exitOk,
@@ -455,7 +456,7 @@ export default async () => {
             expect(code).toBe(0);
         });
 
-        await it('should emit close event after exit', async () => {
+        await it('should emit close after exit', async () => {
             const { spawn } = await import('node:child_process');
             const child = spawn(...echo('hello'));
             const events: string[] = [];
@@ -465,6 +466,29 @@ export default async () => {
             expect(events.length).toBe(2);
             expect(events[0]).toBe('exit');
             expect(events[1]).toBe('close');
+        });
+
+        await it('should emit close only after the piped stdout has ended', async () => {
+            // `exit` means the process is gone; `close` means its stdio is too.
+            // A grandchild inherits the stdout pipe here, so the pipe outlives the
+            // direct child and `LATE` arrives AFTER `exit`. Emitting `close`
+            // beside `exit` made this exact order unreachable: a consumer ending
+            // on `close` lost the tail. The order-only test above cannot see it,
+            // because for a child that writes and exits in one breath both
+            // events already land in that order.
+            const { spawn } = await import('node:child_process');
+            const child = spawn(...earlyThenLateStdout(300));
+            const events: string[] = [];
+            let out = '';
+            child.stdout!.on('data', (chunk: Buffer) => {
+                out += chunk.toString();
+                events.push(`data:${chunk.toString()}`);
+            });
+            child.on('exit', () => events.push('exit'));
+            child.on('close', () => events.push('close'));
+            await new Promise<void>((resolve) => child.on('close', () => resolve()));
+            expect(out).toBe('EARLYLATE');
+            expect(events).toStrictEqual(['data:EARLY', 'exit', 'data:LATE', 'close']);
         });
 
         await it('should emit non-zero exit code for failing command', async () => {
