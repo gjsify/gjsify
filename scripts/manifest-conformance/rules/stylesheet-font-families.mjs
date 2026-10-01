@@ -329,6 +329,22 @@ export function auditStylesheetFontFamilies(ctx) {
     /** Package REL paths whose declared shipped tree is absent, for the stale-entry arm. */
     const unbuiltPackages = new Set();
 
+    // `--scope` filters the UNBUILT population here, and for the reason
+    // `collectShippedPackages` filters on the same option: through `createContext`'s
+    // `only` a scope would also narrow every LEDGER, so `field-coverage` reported
+    // `gjsify.buildCache` as declared by no package and the arm below called its own
+    // `adwaita-web` entries stale — findings about the narrowing, not about a package. A
+    // scope names the packages whose SHIPPED OUTPUT this run must answer for; the rest of
+    // the repository keeps existing and keeps being inspected below.
+    //
+    // The patterns are applied, not interpreted, and the rule names no package of this
+    // repository — `shippedScope` arrives from `audit-runtimes.mjs`, so this file stays
+    // portable. Without the filter the SHIP gate failed in the core `build` job on five
+    // `@gjsify/example-*` showcases it had excluded on purpose: they build on the
+    // examples schedule and are answered for by `--scope=examples` on the tree that job
+    // builds.
+    const scope = ctx.options?.shippedScope ?? null;
+
     for (const pkg of ctx.packages) {
         if (pkg.private) continue;
         const declared = Array.isArray(pkg.manifest?.files) ? pkg.manifest.files : [];
@@ -347,11 +363,15 @@ export function auditStylesheetFontFamilies(ctx) {
         // scope fail on the wrong host for a file no font claim lives in.
         const anySheet = findStylesheets(pkg.dir).length > 0;
         if (absentRoots.length > 0 && anySheet) {
-            unbuilt.push(`${pkg.manifest.name} (${absentRoots.join(', ')})`);
+            if (!scope || !scope.some((re) => re.test(pkg.manifest.name))) {
+                unbuilt.push(`${pkg.manifest.name} (${absentRoots.join(', ')})`);
+            }
             // Names whose shipped tree is ABSENT, so the stale-entry arm below can tell
             // "the entry describes nothing any more" from "the tree this entry describes
             // has not been built". Those are opposite verdicts and the rule used to report
-            // the second as the first.
+            // the second as the first. Recorded for every unbuilt package, scoped or not:
+            // the ledger is read over the whole tree, so an out-of-scope package's entry
+            // is just as unreadable here as an in-scope one.
             unbuiltPackages.add(pkg.rel);
         }
         const sheets = [];
