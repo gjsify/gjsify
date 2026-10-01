@@ -657,7 +657,15 @@ function onlineWindow({ jobStartedAt, red }) {
     fixture(
         'annotations.json',
         red
-            ? [[{ annotation_level: 'warning', title: 'Probe failed (not gating)', message: `${label} exited non-zero; x` }]]
+            ? [
+                  [
+                      {
+                          annotation_level: 'warning',
+                          title: 'Probe failed (not gating)',
+                          message: `${label} exited non-zero; x`,
+                      },
+                  ],
+              ]
             : [[]],
     );
     const shim = (name, body) => {
@@ -691,7 +699,10 @@ describe('a clause met by a publish waits for a run that started after it', () =
     it('does NOT fail on a red outcome from a job that started before the publish', () => {
         const { code, out } = onlineWindow({ jobStartedAt: '2026-10-01T11:41:58Z', red: true });
         assert.equal(code, 0, out);
-        assert.match(out, /::notice title=Probe retirement awaiting a run::.*met, awaiting a run after 2026-10-01T12:56:00/);
+        assert.match(
+            out,
+            /::notice title=Probe retirement awaiting a run::.*met, awaiting a run after 2026-10-01T12:56:00/,
+        );
         assert.doesNotMatch(out, /retirement condition is now MET/);
     });
 
