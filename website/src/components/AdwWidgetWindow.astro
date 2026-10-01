@@ -215,9 +215,10 @@ const entries = menuEntries(bindings);
                                 data-pane={entry.pane}
                                 data-file-role={entry.role}
                                 data-short={entry.short}
+                                title={entry.label}
                             >
                                 <span class="adw-popover-item-check" aria-hidden="true" />
-                                {entry.label}
+                                <span class="adw-popover-item-label">{entry.label}</span>
                             </button>
                         ),
                     )}
@@ -329,9 +330,11 @@ const entries = menuEntries(bindings);
             0 2px 6px 2px rgba(0, 0, 6, 0.03);
     }
 
+    /* No fixed cap: the label takes the room the header bar leaves the segments — their row is
+       `flex: 1` — and the group's own `max-width: 100%` is what bounds it on a narrow window,
+       after which this ellipsizes. */
     .adw-widget-seg-label {
         min-width: 0;
-        max-width: 11rem;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -376,7 +379,10 @@ const entries = menuEntries(bindings);
         left: var(--x, 0);
         top: var(--y, 0);
         margin: 0;
-        width: min(232px, calc(100vw - 16px));
+        /* Wide enough for a file name in one line — `views/button-content.xml` is the longest
+           the composers produce — and no wider than the space is for. `place()` measures the
+           same width; a row too long even here ellipsizes, with its whole name in its title. */
+        width: min(276px, calc(100vw - 16px));
         box-sizing: border-box;
         padding: 6px;
         overflow: visible;
@@ -432,16 +438,29 @@ const entries = menuEntries(bindings);
         box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.08);
     }
 
-    /* Rows are the skin's own `.adw-popover-item`; this only lets a long label wrap. */
+    /* Rows are the skin's own `.adw-popover-item`. A file name longer than the surface
+       ellipsizes rather than wrapping — one row per file, whatever the name — and the whole of
+       it is in the row's own title. */
     .adw-widget-menu .adw-popover-item {
         position: relative;
         z-index: 1;
         gap: 6px;
+        min-width: 0;
+    }
+
+    .adw-widget-menu .adw-popover-item-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .adw-widget-menu .adw-popover-title {
         position: relative;
         z-index: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     /* No script: the segments do nothing, so show every pane — and every file of it — under

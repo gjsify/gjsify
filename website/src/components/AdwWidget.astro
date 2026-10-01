@@ -520,7 +520,7 @@ for (const group of groups) {
     // window's `overflow: hidden` cannot clip it. The arrow points at the segment; below it when
     // there is room for the WHOLE menu, above it otherwise — and a menu too tall for either side
     // scrolls inside itself rather than being cut off (`max-height` on its rows).
-    const MENU_WIDTH = 232;
+    const MENU_WIDTH = 276;
     const place = (menu: HTMLElement) => {
         const more = menu.closest(WINDOW)?.querySelector<HTMLElement>('[data-more]');
         if (!more) return;
