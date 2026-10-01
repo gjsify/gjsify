@@ -6,10 +6,10 @@ import rawModeTestSuite from './raw-mode.spec.js';
 import detectTestSuite from './detect.spec.js';
 import terminalFallbackTestSuite from './terminal-fallback.gjs.spec.js';
 run({
-  testSuite,
-  extendedTestSuite,
-  streamsTestSuite,
-  rawModeTestSuite,
-  detectTestSuite,
-  terminalFallbackTestSuite,
+    testSuite,
+    extendedTestSuite,
+    streamsTestSuite,
+    rawModeTestSuite,
+    detectTestSuite,
+    terminalFallbackTestSuite,
 });
