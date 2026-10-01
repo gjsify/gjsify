@@ -115,13 +115,10 @@ export default defineConfig({
             },
             favicon: '/favicon.svg',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' }],
-            // Labels stay short: a page's full story belongs in its title/description. Ordered for
-            // someone who wants to USE gjsify, not to understand how it is built: everything above
-            // `Internals` answers "how do I…". ADR 0034 § 1 decides which of `Adwaita`/`Gtk` a
-            // widget goes in, and arm 11 of `scripts/check-website-adwaita-gallery.mjs` holds both
-            // halves of that — a block's namespace against its section directory, a page's slug
-            // against the GROUP it is listed in. The older sidebar arm reads the groups as one flat
-            // set and can see neither.
+            // Ordered for someone who wants to USE gjsify: everything above `More` answers "how do
+            // I…". `Adwaita`/`Gtk` stay group labels nested under `Widgets`, because arm 11 of
+            // `scripts/check-website-adwaita-gallery.mjs` holds a page's slug against its GROUP
+            // (ADR 0034 § 1).
             sidebar: [
                 {
                     label: 'Start',
@@ -130,58 +127,39 @@ export default defineConfig({
                         { slug: 'getting-started' },
                         { slug: 'guides/install' },
                         { slug: 'runtimes' },
+                    ],
+                },
+                {
+                    label: 'Widgets',
+                    items: [
+                        {
+                            label: 'Adwaita',
+                            items: [
+                                { slug: 'adwaita', label: 'Gallery' },
+                                { slug: 'adwaita/boxed-lists' },
+                                { slug: 'adwaita/buttons' },
+                                { slug: 'adwaita/layout' },
+                                { slug: 'adwaita/navigation' },
+                                { slug: 'adwaita/view-switching' },
+                                { slug: 'adwaita/presentation' },
+                                { slug: 'adwaita/feedback' },
+                                { slug: 'adwaita/theming' },
+                            ],
+                        },
+                        {
+                            label: 'Gtk',
+                            items: [
+                                { slug: 'gtk', label: 'Gallery' },
+                                { slug: 'gtk/controls' },
+                                { slug: 'gtk/buttons' },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    label: 'Platforms & shipping',
+                    items: [
                         { slug: 'platform-support' },
-                    ],
-                },
-                {
-                    label: 'Guides',
-                    items: [
-                        { slug: 'guides/native-adwaita-app' },
-                        { slug: 'patterns/gobject-classes' },
-                        { slug: 'patterns/bridges', label: 'Bridge Widgets' },
-                        { slug: 'guides/web-views' },
-                        { slug: 'guides/storybook' },
-                        { slug: 'guides/devtools' },
-                        { slug: 'guides/vite-plugin' },
-                        { slug: 'guides/webrtc' },
-                        { slug: 'guides/browser-extensions' },
-                    ],
-                },
-                {
-                    label: 'UI Frameworks',
-                    items: [
-                        { slug: 'frameworks', label: 'Overview' },
-                        { slug: 'frameworks/solid', label: 'Solid' },
-                        { slug: 'frameworks/vue', label: 'Vue' },
-                        { slug: 'frameworks/react', label: 'React' },
-                        { slug: 'frameworks/react-native', label: 'React Native' },
-                        { slug: 'frameworks/styling', label: 'Styling on GTK' },
-                    ],
-                },
-                {
-                    label: 'Adwaita',
-                    items: [
-                        { slug: 'adwaita', label: 'Gallery' },
-                        { slug: 'adwaita/boxed-lists' },
-                        { slug: 'adwaita/buttons' },
-                        { slug: 'adwaita/layout' },
-                        { slug: 'adwaita/navigation' },
-                        { slug: 'adwaita/view-switching' },
-                        { slug: 'adwaita/presentation' },
-                        { slug: 'adwaita/feedback' },
-                        { slug: 'adwaita/theming' },
-                    ],
-                },
-                // Beside `Adwaita`, not under it. The pages here document widgets
-                // whose GType belongs to GTK, which is ADR 0034 § 1's rule and the
-                // one `@gjsify/gtk-host` already names its tags by.
-                {
-                    label: 'Gtk',
-                    items: [{ slug: 'gtk', label: 'Gallery' }, { slug: 'gtk/controls' }, { slug: 'gtk/buttons' }],
-                },
-                {
-                    label: 'Ship your app',
-                    items: [
                         { slug: 'ship', label: 'Overview' },
                         { slug: 'ship/linux-packages', label: 'Linux' },
                         { slug: 'ship/macos', label: 'macOS' },
@@ -196,60 +174,96 @@ export default defineConfig({
                     ],
                 },
                 {
-                    label: 'Packages',
+                    label: 'Reference',
                     items: [
+                        { slug: 'cli-reference' },
                         { slug: 'packages/overview' },
                         { slug: 'packages/node', label: 'Node.js' },
                         { slug: 'packages/web', label: 'Web APIs' },
                         { slug: 'packages/dom', label: 'DOM & Graphics' },
+                        { slug: 'coverage' },
+                        { slug: 'versioning' },
                     ],
                 },
                 {
-                    label: 'Reference',
-                    items: [{ slug: 'cli-reference' }, { slug: 'coverage' }, { slug: 'versioning' }],
-                },
-                {
-                    label: 'Showcases',
+                    // Third-party paradigms gjsify can host but does not own, a page here
+                    // is an offer rather than a route, and so is most of this group: the
+                    // apps people build with gjsify do not need any of it.
+                    label: 'More',
                     collapsed: true,
                     items: [
-                        { slug: 'showcases', label: 'Overview' },
-                        { slug: 'showcases/adwaita-storybook' },
-                        { slug: 'showcases/canvas2d-fireworks' },
-                        { slug: 'showcases/excalibur-jelly-jumper' },
-                        { slug: 'showcases/three-geometry-teapot' },
-                        { slug: 'showcases/three-loader-ldraw' },
-                        { slug: 'showcases/three-postprocessing-pixel' },
-                        { slug: 'showcases/minimalist-browser' },
-                        { slug: 'showcases/webrtc-loopback' },
-                        { slug: 'showcases/webrtc-video' },
-                        { slug: 'showcases/express-webserver' },
-                    ],
-                },
-                {
-                    // Third-party paradigms gjsify can host but does not own, and does not
-                    // recommend by default. A page here is an offer, not a route: it has to
-                    // say who should skip it before it says what it does.
-                    label: 'Experiments',
-                    collapsed: true,
-                    items: [{ slug: 'experiments/effect', label: 'Effect' }],
-                },
-                {
-                    label: 'Internals',
-                    collapsed: true,
-                    items: [
-                        { slug: 'how-it-works' },
-                        { slug: 'projects/ts-for-gir' },
-                        { slug: 'projects/node-gi' },
-                        { slug: 'projects/napi' },
-                    ],
-                },
-                {
-                    label: 'Contributing',
-                    collapsed: true,
-                    items: [
-                        { slug: 'contributing/development-setup' },
-                        { slug: 'contributing/architecture' },
-                        { slug: 'contributing/tdd-workflow' },
+                        {
+                            label: 'Frameworks',
+                            items: [
+                                { slug: 'frameworks', label: 'Overview' },
+                                { slug: 'frameworks/solid', label: 'Solid' },
+                                { slug: 'frameworks/vue', label: 'Vue' },
+                                { slug: 'frameworks/react', label: 'React' },
+                                { slug: 'frameworks/react-native', label: 'React Native' },
+                                { slug: 'frameworks/styling', label: 'Styling on GTK' },
+                            ],
+                        },
+                        {
+                            label: 'Guides',
+                            items: [
+                                { slug: 'guides/native-adwaita-app' },
+                                { slug: 'guides/web-views' },
+                                { slug: 'guides/storybook' },
+                                { slug: 'guides/devtools' },
+                                { slug: 'guides/vite-plugin' },
+                                { slug: 'guides/webrtc' },
+                                { slug: 'guides/browser-extensions' },
+                            ],
+                        },
+                        {
+                            label: 'Patterns',
+                            items: [
+                                { slug: 'patterns/gobject-classes' },
+                                { slug: 'patterns/bridges', label: 'Bridge Widgets' },
+                            ],
+                        },
+                        {
+                            // The mechanism, the rationale and the bridge projects:
+                            // everything a newcomer can skip and an author can need.
+                            label: 'Internals',
+                            items: [
+                                { slug: 'how-it-works' },
+                                { slug: 'projects/ts-for-gir' },
+                                { slug: 'projects/node-gi' },
+                                { slug: 'projects/napi' },
+                            ],
+                        },
+                        {
+                            label: 'Showcases',
+                            items: [
+                                { slug: 'showcases', label: 'Overview' },
+                                { slug: 'showcases/adwaita-storybook' },
+                                { slug: 'showcases/canvas2d-fireworks' },
+                                { slug: 'showcases/excalibur-jelly-jumper' },
+                                { slug: 'showcases/three-geometry-teapot' },
+                                { slug: 'showcases/three-loader-ldraw' },
+                                { slug: 'showcases/three-postprocessing-pixel' },
+                                { slug: 'showcases/minimalist-browser' },
+                                { slug: 'showcases/webrtc-loopback' },
+                                { slug: 'showcases/webrtc-video' },
+                                { slug: 'showcases/express-webserver' },
+                            ],
+                        },
+                        {
+                            // Third-party paradigms gjsify can host but does not own, and does not
+                            // recommend by default. A page here is an offer, not a route: it has to
+                            // say who should skip it before it says what it does.
+                            label: 'Experiments',
+                            items: [{ slug: 'experiments/effect', label: 'Effect' }],
+                        },
+                        {
+                            label: 'Contributing',
+                            items: [
+                                { slug: 'contributing/development-setup' },
+                                { slug: 'contributing/architecture' },
+                                { slug: 'contributing/tdd-workflow' },
+                            ],
+                        },
                     ],
                 },
             ],
