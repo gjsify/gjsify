@@ -28,13 +28,9 @@ glyph up to a full profile header.
 <AdwWidget title="Adw.Avatar" blueprint="adwaita/avatar.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './avatar.blp';
+    import { build } from './avatar.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const avatar = builder.get_object('avatar') as Adw.Avatar;
+    const { avatar } = build();
     avatar.text = 'Grace Hopper';
     ```
   </Fragment>
@@ -67,13 +63,9 @@ space while the message applies.
 <AdwWidget title="Adw.Banner" blueprint="adwaita/banner.blp" stage="flex-direction: column; align-items: stretch;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './banner.blp';
+    import { build } from './banner.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const banner = builder.get_object('banner') as Adw.Banner;
+    const { banner } = build();
     banner.title = 'Metered connection: 2 updates paused';
     ```
   </Fragment>
@@ -111,14 +103,10 @@ A space lists **alternatives**, `...` is a **range**, `+` means the shortcuts ar
 <AdwWidget title="Adw.ShortcutLabel" blueprint="adwaita/shortcut-label.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './shortcut-label.blp';
+    import { build } from './shortcut-label.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const copy = builder.get_object('copy_shortcut') as Adw.ShortcutLabel;
-    copy.accelerator = '<Control><Shift>C';
+    const { copy_shortcut } = build();
+    copy_shortcut.accelerator = '<Control><Shift>C';
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -196,14 +184,10 @@ give the user a way out, such as a button that creates their first document.
 <AdwWidget title="Adw.StatusPage" blueprint="adwaita/status-page.blp" padding="flush" stage="height: 400px; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './status-page.blp';
+    import { build } from './status-page.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const button = builder.get_object('new_button') as Gtk.Button;
-    button.connect('clicked', () => console.log('Create a document'));
+    const { new_button } = build();
+    new_button.connect('clicked', () => console.log('Create a document'));
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -235,14 +219,10 @@ so a single-line title stays vertically centred.
 <AdwWidget title="Adw.WindowTitle" blueprint="adwaita/window-title.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './window-title.blp';
+    import { build } from './window-title.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const windowTitle = builder.get_object('window_title') as Adw.WindowTitle;
-    windowTitle.subtitle = '4 unread messages';
+    const { window_title } = build();
+    window_title.subtitle = '4 unread messages';
     ```
   </Fragment>
   <Fragment slot="webloader">
