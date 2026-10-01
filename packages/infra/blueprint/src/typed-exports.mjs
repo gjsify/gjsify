@@ -194,15 +194,33 @@ export function emitTypedSidecar(file) {
             '',
             `/** The class \`template $${template.GTypeName}\` defines. */`,
             `export declare const GTypeName: '${template.GTypeName}';`,
-            '',
-            '/** Every id inside the template, in source order — what `registerClass` is given. */',
-            `export declare const InternalChildren: readonly [${template.children.map((one) => `'${one.id}'`).join(', ')}];`,
-            '',
-            '/** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */',
-            'export interface Children {',
-            ...template.children.map((one) => `    ${one.member}: ${one.type};`),
-            '}',
         );
+        // A template with no ids gets NEITHER, rather than an empty tuple and an empty
+        // interface: `extends {}` constrains nothing and `InternalChildren: []` is a list
+        // `registerClass` would iterate zero times. The consumer writes what it wrote before —
+        // `{ GTypeName, Template }` — and the absence is the honest statement that the template
+        // declares no internal child. `toolbar-view.blp` is exactly this file.
+        if (template.children.length > 0) {
+            lines.push(
+                '',
+                '/**',
+                ' * Every id inside the template, in source order — what `registerClass` is given.',
+                ' *',
+                " * A MUTABLE tuple, and the `readonly` is missing for a reason that is not ours: `@girs`",
+                " * declares `GObject.MetaInfo['InternalChildren']` as `string[]`, so a `readonly` tuple is",
+                ' * refused at the call site with TS4104 and the consumer would have to spread it — the',
+                ' * boilerplate ADR 0087 exists to remove. The tuple still pins the exact ids and arity,',
+                ' * which is the property that matters. `status/open-todos/blueprint.md` carries the',
+                ' * upstream half.',
+                ' */',
+                `export declare const InternalChildren: [${template.children.map((one) => `'${one.id}'`).join(', ')}];`,
+                '',
+                '/** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */',
+                'export interface Children {',
+                ...template.children.map((one) => `    ${one.member}: ${one.type};`),
+                '}',
+            );
+        }
     }
 
     if (template === undefined && objects.length > 0) {
@@ -251,11 +269,11 @@ export function emitTypedModule(file, xml) {
     lines.push(`const xml = ${JSON.stringify(xml)};`, 'export default xml;');
 
     if (template !== undefined) {
-        lines.push(
-            '',
-            `export const GTypeName = '${template.GTypeName}';`,
-            `export const InternalChildren = [${template.children.map((one) => `'${one.id}'`).join(', ')}];`,
-        );
+        lines.push('', `export const GTypeName = '${template.GTypeName}';`);
+        // Both halves agree on the absence — see the sidecar emitter for why there is one.
+        if (template.children.length > 0) {
+            lines.push(`export const InternalChildren = [${template.children.map((one) => `'${one.id}'`).join(', ')}];`);
+        }
     }
 
     if (template === undefined && objects.length > 0) {

@@ -12,15 +12,22 @@
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
-import type Gtk from 'gi://Gtk?version=4.0';
 
-import Template from './header-bar.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './header-bar.blp';
+
+// ADR 0087: the class name, the id list and the type of every internal child come from the
+// `.blp` that declares them. Renaming `menuButton` in the template now fails THIS file's
+// type-check; before, the three hand-written copies stayed valid and `_menuButton` was
+// silently `undefined` at run time.
+//
+// `extends Children` on a merged interface and not fields in the class body: `registerClass`
+// installs the members, so a class field would be initialised to `undefined` at construction
+// and shadow the installed property.
+export interface GalleryHeaderBar extends Children {}
 
 export class GalleryHeaderBar extends Adw.Bin {
-    declare private _menuButton: Gtk.MenuButton;
-
     static {
-        GObject.registerClass({ GTypeName: 'GalleryHeaderBar', Template, InternalChildren: ['menuButton'] }, this);
+        GObject.registerClass({ GTypeName, Template, InternalChildren }, this);
     }
 
     constructor() {

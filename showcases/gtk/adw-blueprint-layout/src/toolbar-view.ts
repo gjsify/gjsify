@@ -10,10 +10,13 @@
 import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject?version=2.0';
 
-import Template from './toolbar-view.blp';
+import Template, { GTypeName } from './toolbar-view.blp';
 
+// ADR 0087. No `InternalChildren` and no `Children` here, and that is the sidecar being honest
+// rather than an omission: this template declares no id, so there is nothing to export and
+// nothing to merge into the class.
 export class GalleryToolbarView extends Adw.Bin {
     static {
-        GObject.registerClass({ GTypeName: 'GalleryToolbarView', Template }, this);
+        GObject.registerClass({ GTypeName, Template }, this);
     }
 }

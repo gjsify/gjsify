@@ -98,6 +98,20 @@ export default async () => {
             expect((thrown as BlueprintEmitError).message.includes('collides with the Gtk.Builder')).toBe(true);
         });
 
+        await it('gives a childless template neither InternalChildren nor Children', async () => {
+            // `extends {}` constrains nothing and `InternalChildren: []` is a list
+            // `registerClass` iterates zero times, so the absence is what says the template
+            // declares no internal child. `toolbar-view.blp` is this file.
+            const file = parseBlueprint('using Gtk 4.0;\ntemplate $Plain: Gtk.Box {\n  Gtk.Label { }\n}\n', 's.blp');
+            const sidecar = emitTypedSidecar(file);
+            expect(sidecar.includes("export declare const GTypeName: 'Plain';")).toBe(true);
+            expect(sidecar.includes('InternalChildren')).toBe(false);
+            expect(sidecar.includes('Children')).toBe(false);
+            // And no `gi://` import either: nothing in the emitted text names a widget type.
+            expect(sidecar.includes('gi://')).toBe(false);
+            expect(emitTypedModule(file, '<interface/>').includes('InternalChildren')).toBe(false);
+        });
+
         await it('exports no class for a template that names an existing type', async () => {
             // `template ListItem { }` compiles to `<template class="GtkListItem">` — the type
             // already exists, so there is no class to register and a `GTypeName` export would
