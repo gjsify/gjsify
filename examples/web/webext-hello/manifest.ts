@@ -4,7 +4,7 @@
 
 interface ManifestContext {
     target: string;
-    browser: 'chrome' | 'edge' | 'firefox' | 'safari';
+    browser: 'chrome' | 'edge' | 'firefox' | 'opera' | 'safari';
     manifestVersion: 2 | 3;
     mode: 'production' | 'development';
     version: string;
