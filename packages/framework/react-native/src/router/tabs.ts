@@ -1,42 +1,33 @@
 // `<Tabs>` — React Navigation's tab router, rendered onto `Adw.ViewStack` plus
 // `Adw.ViewSwitcher`.
 //
-// AND THE SWITCHER IS THE BETTER WIDGET, not a substitute for a tab bar. A React
-// Native tab bar is a fixed row of views the application lays out and re-lays-out
-// itself; `Adw.ViewSwitcher` is DRIVEN BY THE STACK'S OWN PAGE MODEL, so:
+// AND THE SWITCHER IS THE BETTER WIDGET, not a substitute for a tab bar. A React Native tab bar
+// is a fixed row of views the application lays out and re-lays-out itself; `Adw.ViewSwitcher` is
+// DRIVEN BY THE STACK'S OWN PAGE MODEL, so adding a route file adds a button with no tab-bar
+// bookkeeping anywhere, the labels come from `Adw.ViewStackPage:title` — which is also what a
+// screen reader announces, so the accessible name is the visible one by construction — and it has
+// a NARROW and a WIDE policy, which is what lets an application's own breakpoint restyle it from
+// the SAME declaration. A tab bar has one shape and the application owns every pixel of the other.
 //
-//   - adding a route file adds a button, with no tab-bar bookkeeping anywhere;
-//   - the labels come from `Adw.ViewStackPage:title`, which is also what a screen
-//     reader announces, so the accessible name is the visible one by construction;
-//   - it has a NARROW and a WIDE policy, which is what lets an application's own
-//     breakpoint restyle it as the window widens — icons over labels in a narrow
-//     window, icons beside labels in a wide one — from the SAME declaration. A tab
-//     bar has one shape and the application owns every pixel of the other.
+// MEASURED on libadwaita 1.9.3: the default policy is NARROW (0), the phone-shaped one, so this
+// layer sets WIDE explicitly. A desktop window starts wide, and a switcher that defaults to the
+// narrow layout on a 900 px window looks like a bug rather than a choice.
 //
-// MEASURED on libadwaita 1.9.3: the default policy is NARROW (0), which is the
-// phone-shaped one, so this layer sets WIDE explicitly. A desktop window starts wide,
-// and a switcher that defaults to the narrow layout on a 900 px window looks like a
-// bug rather than a choice.
+// WHERE THE HEADER BAR COMES FROM is `chrome.ts`' rule. As the outermost navigator this one owns
+// the window's single bar and puts the switcher in its title; INSIDE another navigator it builds
+// no bar at all — the switcher is contributed to the enclosing page's header bar, which is what
+// stops a nested navigator from drawing a second close button.
 //
-// WHERE THE HEADER BAR COMES FROM is `chrome.ts`' rule. As the outermost navigator
-// this one owns the window's single bar and puts the switcher in its title. INSIDE
-// another navigator it builds no bar at all: the switcher is contributed to the
-// enclosing page's header bar, which is where a hand-written Adwaita application puts
-// it — and it is what stops a nested navigator from drawing a second close button.
+// ONE PAGE IS ONE `Adw.ViewStackPage`, ADDRESSED BY ROUTE KEY — `set_visible_child_name` is how
+// focus is set, and `notify::visible-child-name` is how the USER'S click comes back. The reverse
+// direction is not optional either: without it a click on the switcher changes the widget and not
+// React's state.
 //
-// ONE PAGE IS ONE `Adw.ViewStackPage`, ADDRESSED BY ROUTE KEY — the same join key the
-// stack navigator uses, for the same reason: `set_visible_child_name` is how focus is
-// set, and `notify::visible-child-name` is how the USER'S click comes back. The
-// reverse direction is not optional here either; without it a click on the switcher
-// changes the widget and not React's state, and every hook in the tab that just
-// appeared reads the wrong route.
-//
-// AND THE REVERSE DIRECTION NEEDS AN ECHO GUARD THIS LAYER OWNS, because
-// `Adw.ViewStack` emits that one signal for three different events and only one of
-// them is a click: the user's, the layer's own `set_visible_child_name`, and
-// libadwaita's pick of a first page while the reconciler is still INSERTING them
-// (`add_page` selects a page whenever the stack has none). `shownRef` is that guard —
-// `onVisibleChildChanged` carries what it replaced, and why the obvious guard raced.
+// AND THE REVERSE DIRECTION NEEDS AN ECHO GUARD THIS LAYER OWNS, because `Adw.ViewStack` emits
+// that one signal for three different events and only one of them is a click: the user's, the
+// layer's own `set_visible_child_name`, and libadwaita's pick of a first page while the reconciler
+// is still INSERTING them. `shownRef` is that guard — `onVisibleChildChanged` carries what it
+// replaced, and why the obvious guard raced.
 
 import { TabActions, TabRouter, useNavigationBuilder } from '@react-navigation/core';
 import type {
@@ -58,10 +49,10 @@ import {
     type ReactElement,
     type ReactNode,
 } from 'react';
-// The only RUNTIME `gi://` imports in `src/router/` — `stack.ts`, `chrome.ts` and
-// `root.ts` all reach GTK through the widget table and take `@girs` types only.
-// Deliberate: the adaptive layout asks two questions no element can carry, an
-// ancestor lookup by GType and a natural-width measurement, and both are calls.
+// The only RUNTIME `gi://` imports in `src/router/` — `stack.ts`, `chrome.ts` and `root.ts` all
+// reach GTK through the widget table and take `@girs` types only. Deliberate: the adaptive layout
+// asks two questions no element can carry, an ancestor lookup by GType and a natural-width
+// measurement, and both are calls.
 import Adw from 'gi://Adw?version=1';
 import Gtk from 'gi://Gtk?version=4.0';
 
@@ -85,12 +76,11 @@ export interface TabScreenOptions {
     /**
      * The switcher button's icon, as an icon-theme name (`go-home-symbolic`).
      *
-     * NOT OPTIONAL DECORATION, which is why it is here rather than left to the
-     * application. `Adw.ViewSwitcher` reserves the icon whether or not one is set —
-     * MEASURED, the same five tabs measure 317/647 px with icons and without — and a
-     * page with no `icon-name` draws the icon theme's missing-image glyph in the space
-     * it reserved. So the choice was never "icons or no icons"; it was "your icon or a
-     * broken one".
+     * NOT OPTIONAL DECORATION, which is why it is here rather than left to the application.
+     * `Adw.ViewSwitcher` reserves the icon whether or not one is set — MEASURED, the same five
+     * tabs measure 317/647 px with icons and without — and a page with no `icon-name` draws the
+     * icon theme's missing-image glyph in the space it reserved. So the choice was never "icons or
+     * no icons"; it was "your icon or a broken one".
      *
      * A name the theme does not carry draws that same glyph, and nothing says so.
      * `Gtk.IconTheme.has_icon()` is the check worth running when picking one.
@@ -117,33 +107,25 @@ type TabDescriptor = Pick<
 /**
  * Put the stack on the focused page, or leave it alone because that page is not there yet.
  *
- * THE PRESENCE CHECK IS THE TERMINATING CONDITION, and the reason it has to be explicit is
- * that the obvious guard is a bet rather than a test. Writing
- *
- *     if (stack.get_visible_child_name() !== focused) stack.set_visible_child_name(focused);
- *
- * reads as "set it unless it is already set", and it terminates only when the set TAKES.
+ * THE PRESENCE CHECK IS THE TERMINATING CONDITION, and the obvious guard is a bet rather than a
+ * test. Writing `if (stack.get_visible_child_name() !== focused) stack.set_visible_child_name(
+ * focused)` reads as "set it unless it is already set", and it terminates only when the set TAKES.
  * MEASURED on libadwaita 1.9.3: `set_visible_child_name` with a name the stack does not hold
- * changes nothing, emits NO `notify::visible-child-name`, and prints
- * `Adwaita-WARNING: Child name '…' not found in AdwViewStack`. So `get_visible_child_name()`
- * still answers the old page, the comparison is still unequal, and the effect — which has no
- * dependency array on purpose, because a page can materialise on a render where `focused` did
- * not change — repeats the failing call on every render for as long as the mismatch lasts.
+ * changes nothing, emits NO `notify::visible-child-name`, and prints `Adwaita-WARNING: Child name
+ * '…' not found in AdwViewStack`. So the getter still answers the old page, the comparison is
+ * still unequal, and the effect — which has no dependency array on purpose, because a page can
+ * materialise on a render where `focused` did not change — repeats the failing call on every
+ * render for as long as the mismatch lasts.
  *
- * A focused route whose page React has not committed yet is an ORDINARY intermediate state,
- * not a fault: the effect runs after the commit that added the OTHER pages, and the missing
- * one arrives on a later commit. So the answer is to do nothing and let the next render try,
- * which is what "not there yet" deserves — and one warning per render for a normal state is
- * how a log stops being read.
+ * A focused route whose page React has not committed yet is an ORDINARY intermediate state, not a
+ * fault, so the answer is to do nothing and let the next render try — one warning per render for a
+ * normal state is how a log stops being read.
  *
- * AND THE SET HAS A SECOND WAY TO DO NOTHING, which is why presence alone is not the whole
- * gate. `adw_view_stack_set_visible_child_name` ends on
- * `if (gtk_widget_get_visible (page->widget)) set_visible_child (...)`, so a page that is
- * there but HIDDEN changes nothing, emits no notify and — unlike the missing name — prints
- * NOTHING AT ALL (measured). That is the same non-terminating state by the quieter road: the
- * caller would be told the stack shows `focused` while it shows the other page, and no log
- * anywhere would disagree. Both no-op paths are therefore asked about BEFORE the write, which
- * is also what keeps each one attributable to its own failing assertion.
+ * AND THE SET HAS A SECOND WAY TO DO NOTHING, which is why presence alone is not the whole gate.
+ * `adw_view_stack_set_visible_child_name` ends on `if (gtk_widget_get_visible (page->widget))
+ * set_visible_child (...)`, so a page that is there but HIDDEN changes nothing, emits no notify and
+ * — unlike the missing name — prints NOTHING AT ALL (measured). That is the same non-terminating
+ * state by the quieter road. Both no-op paths are therefore asked about BEFORE the write.
  *
  * @returns whether the stack now shows `focused`.
  */
@@ -175,28 +157,24 @@ function TabsView(props: TabsViewProps): ReactElement {
     const chrome = useChrome('Tabs', props.headerShown !== false);
 
     /**
-     * Narrow means THE SWITCHER GOES TO THE BOTTOM, which is Adwaita's own answer and
-     * not a phone imitation: `Adw.ViewSwitcherBar` exists for exactly this, and every
-     * adaptive GNOME application moves the switcher there when the window stops being
-     * a desktop window. It matters beyond aesthetics because the same window runs on a
-     * Linux phone, where this IS the tab bar.
+     * Narrow means THE SWITCHER GOES TO THE BOTTOM, which is Adwaita's own answer and not a phone
+     * imitation: `Adw.ViewSwitcherBar` exists for exactly this, and the same window runs on a Linux
+     * phone, where this IS the tab bar.
      *
-     * Without it the switcher stays in the header bar and is allocated less than it
-     * asks for, which does not look like a limit — it looks like a bug. MEASURED on
-     * libadwaita 1.9.3, five labelled tabs: the switcher's natural width is 647 px and
-     * its minimum is 317, so between those two every label is ellipsised to "…" and
-     * the window shows five identical buttons.
+     * Without it the switcher stays in the header bar and is allocated less than it asks for, which
+     * does not look like a limit — it looks like a bug. MEASURED on libadwaita 1.9.3, five labelled
+     * tabs: the switcher's natural width is 647 px and its minimum is 317, so between those two
+     * every label is ellipsised to "…" and the window shows five identical buttons.
      */
     const [narrow, setNarrow] = useState(false);
 
     /**
      * The switcher's `stack` is set IMPERATIVELY, from a ref.
      *
-     * It is an object-valued GObject property whose value is another widget in the
-     * same tree, and a declarative prop would need the host to marshal a widget
-     * reference into a `GValue` at a moment when the other widget may not have been
-     * materialised yet. One `set_stack` after both exist is exactly the guarantee
-     * that is needed and the only one available.
+     * It is an object-valued GObject property whose value is another widget in the same tree, and a
+     * declarative prop would need the host to marshal a widget reference into a `GValue` at a moment
+     * when the other widget may not have been materialised yet. One `set_stack` after both exist is
+     * exactly the guarantee that is needed and the only one available.
      */
     const wire = useCallback(() => {
         const stack = stackRef.current;
@@ -210,60 +188,49 @@ function TabsView(props: TabsViewProps): ReactElement {
     }, []);
 
     /**
-     * TWO TRIGGERS, and each covers the other's gap.
+     * TWO TRIGGERS, and each covers the other's gap. The layout effect fires when this navigator
+     * renders the switcher itself: the refs are attached during the commit, in tree order, so the
+     * switcher's may run before the stack exists. The REF callbacks fire when the switcher is
+     * CONTRIBUTED to an enclosing header bar (`chrome.ts`) — that element is rendered by the level
+     * above, so the commit that mounts it need not re-render this component and an effect here
+     * would never run for it. `wire` is idempotent, so both firing is free.
      *
-     * The layout effect is the one that fires when this navigator renders the switcher
-     * itself: the refs are attached during the commit, in tree order, so the switcher's
-     * may run before the stack exists.
-     *
-     * The REF callbacks are the ones that fire when the switcher is CONTRIBUTED to an
-     * enclosing header bar (`chrome.ts`) — that element is rendered by the level above,
-     * so the commit that mounts it need not re-render this component at all, and an
-     * effect here would never run for it. `wire` is idempotent, so both firing is free.
-     *
-     * `useCallback` with stable deps on both: the host disconnects and re-attaches a
-     * ref whose identity changed on every commit, which would leave the widget
-     * unreachable in between.
+     * `useCallback` with stable deps on both: the host disconnects and re-attaches a ref whose
+     * identity changed on every commit, which would leave the widget unreachable in between.
      */
     useLayoutEffect(wire);
     /**
      * WHERE THE BREAKPOINT COMES FROM: the header bar, measured, not a number.
      *
-     * libadwaita's own example writes `max-width: 550px`, and a router cannot: the
-     * width at which a switcher stops fitting is the width of ITS OWN LABELS plus
-     * whatever that window's header bar puts around them, and both are the
-     * application's. MEASURED here on the five labels this was found with, the bar
-     * wants 671 px; the same bar with the user's window controls on one side wants
-     * 52 px more than one with none (also measured), so even the surrounding chrome is
-     * a setting rather than a constant.
+     * libadwaita's own example writes `max-width: 550px`, and a router cannot: the width at which a
+     * switcher stops fitting is the width of ITS OWN LABELS plus whatever that window's header bar
+     * puts around them, and both are the application's. MEASURED on five labels, the bar wants
+     * 671 px; the same bar with the user's window controls on one side wants 52 px more than one
+     * with none, so even the surrounding chrome is a setting rather than a constant.
      *
-     * So the threshold is `Adw.HeaderBar`'s own natural width WHILE IT HOLDS THE
-     * SWITCHER, which is by definition the width below which it cannot show it at
-     * natural size. Natural width does not depend on the allocation, so this reads the
-     * same in an already-narrow window as in a wide one.
+     * So the threshold is `Adw.HeaderBar`'s own natural width WHILE IT HOLDS THE SWITCHER, which
+     * is by definition the width below which it cannot show it at natural size. Natural width does
+     * not depend on the allocation, so this reads the same in an already-narrow window as in a
+     * wide one.
      *
-     * Re-read on every commit where the switcher is in a bar, so a tab whose title
-     * changes moves the threshold with it. While NARROW the switcher is not rendered
-     * at all, `switcherRef` is null, and the cached threshold is what the breakpoint
-     * keeps — which is also what stops the obvious feedback loop: a switcher that has
-     * been taken out of the bar measures nothing, and a threshold recomputed from that
-     * would never let the window be wide again.
+     * Re-read on every commit where the switcher is in a bar, so a tab whose title changes moves
+     * the threshold with it. While NARROW the switcher is not rendered at all and the cached
+     * threshold is what the breakpoint keeps — which also stops the obvious feedback loop: a
+     * switcher taken out of the bar measures nothing, and a threshold recomputed from that would
+     * never let the window be wide again.
      *
-     * ROOTED, not merely mapped, and the difference is the window controls: the same
-     * five-tab header bar measures 671 px detached and 739 px once it is inside a
-     * window (measured). Both the application bootstrap and the test harness render
-     * into a container that is already in the window, so the first read is the right
-     * one — which matters, because the `threshold === thresholdRef.current` early
-     * return means a first bad read would never be corrected.
+     * ROOTED, not merely mapped, and the difference is the window controls: the same five-tab
+     * header bar measures 671 px detached and 739 px once it is inside a window (measured). Both
+     * the application bootstrap and the test harness render into a container already in the
+     * window, so the first read is the right one — which matters, because the
+     * `threshold === thresholdRef.current` early return means a first bad read is never corrected.
      *
-     * The bin's own minimum comes from its CHILD rather than from a constant. It needs
-     * one — `Adw.BreakpointBin` warns "does not have a minimum size" on every
-     * allocation without it — but a written-in 360x294 is not that minimum: measured, a
-     * bin with a breakpoint reports its REQUEST as its minimum and ignores the child,
-     * so a page needing 600 px inside it produces one `Adwaita-WARNING: … exceeds
-     * AdwBreakpointBin width` per sub-minimum allocation where GTK used to simply
-     * refuse the resize, and a written-in height raised the window's minimum above
-     * libadwaita's own 200. Taking the child's minimum leaves the window exactly as
+     * The bin's own minimum comes from its CHILD rather than from a constant. `Adw.BreakpointBin`
+     * warns "does not have a minimum size" on every allocation without one, but a written-in
+     * 360x294 is not that minimum: measured, a bin with a breakpoint reports its REQUEST as its
+     * minimum and ignores the child, so a page needing 600 px inside it produces one
+     * `Adwaita-WARNING: … exceeds AdwBreakpointBin width` per sub-minimum allocation where GTK
+     * used to simply refuse the resize. Taking the child's minimum leaves the window exactly as
      * constrained as it was before this widget existed.
      */
     const applyThreshold = useCallback((): void => {
@@ -275,22 +242,19 @@ function TabsView(props: TabsViewProps): ReactElement {
         const threshold = bar.measure(Gtk.Orientation.HORIZONTAL, -1)[1];
         if (threshold === thresholdRef.current) return;
         thresholdRef.current = threshold;
-        // BEHIND the early return, because this measures the whole page and the effect
-        // above runs on every commit: in front of it, a real application paid 500 ms of
-        // extra startup for a number that had not changed. The threshold moving is the
-        // occasion — both answer to the tab set, and the bin's minimum is a floor under
-        // the window rather than a per-frame fact.
+        // BEHIND the early return, because this measures the whole page and the effect above runs
+        // on every commit: in front of it, a real application paid 500 ms of extra startup for a
+        // number that had not changed. The threshold moving is the occasion.
         const child = bin.get_child();
         if (child !== null) {
-            // The CHILD's minimum, floored at libadwaita's own. A page's minimum height
-            // is 0 — it scrolls, so it will be any height asked of it — and
-            // `Adw.BreakpointBin` refuses to be told nothing: "does not have a minimum
-            // height, set the 'height-request' property", once per allocation.
+            // The CHILD's minimum, floored at libadwaita's own. A page's minimum height is 0 — it
+            // scrolls, so it will be any height asked of it — and `Adw.BreakpointBin` refuses to be
+            // told nothing, once per allocation.
             //
             // 360x200 is not a number chosen here: MEASURED, that is what an
-            // `Adw.ApplicationWindow` already enforces on itself, against 122x54 for a
-            // plain `Gtk.Window`. So at the top level the floor constrains nothing that
-            // was not already constrained, and the child wins wherever it is larger.
+            // `Adw.ApplicationWindow` already enforces on itself, against 122x54 for a plain
+            // `Gtk.Window`. So at the top level the floor constrains nothing that was not already
+            // constrained, and the child wins wherever it is larger.
             bin.set_size_request(
                 Math.max(child.measure(Gtk.Orientation.HORIZONTAL, -1)[0], 360),
                 Math.max(child.measure(Gtk.Orientation.VERTICAL, -1)[0], 200),
@@ -307,12 +271,10 @@ function TabsView(props: TabsViewProps): ReactElement {
             breakpointRef.current = breakpoint;
             bin.add_breakpoint(breakpoint);
         }
-        // No `queue_resize` here, and it was tried: a breakpoint added to a bin that
-        // ALREADY matches DOES announce itself. Measured on libadwaita 1.9.3 against a
-        // window presented at 400 px — `current-breakpoint` was set before any resize
-        // was asked for, whether the breakpoint was added after the first allocation or
-        // its condition changed on a live one. A window that STARTS narrow starts with
-        // its bottom bar without help, which is the case a phone always takes.
+        // No `queue_resize` here: a breakpoint added to a bin that ALREADY matches DOES announce
+        // itself. Measured on libadwaita 1.9.3 against a window presented at 400 px —
+        // `current-breakpoint` was set before any resize was asked for. A window that STARTS
+        // narrow starts with its bottom bar without help, which is the case a phone always takes.
     }, []);
 
     const attachStack = useCallback(
@@ -346,12 +308,11 @@ function TabsView(props: TabsViewProps): ReactElement {
         (widget: unknown): void => {
             const arriving = (widget ?? null) as Adw.BreakpointBin | null;
             const leaving = binRef.current;
-            // A BIN THAT GOES TAKES ITS BREAKPOINT AND ITS THRESHOLD WITH IT. Only
-            // `headerShown` flipping remounts one, and without this both guards fail
-            // together on the way back: the cached threshold makes `applyThreshold`
-            // return before it looks, and a `breakpointRef` still pointing at the dead
-            // bin's breakpoint takes the `set_condition` branch — so the NEW bin never
-            // gets a breakpoint at all and `narrow` freezes wherever it stood.
+            // A BIN THAT GOES TAKES ITS BREAKPOINT AND ITS THRESHOLD WITH IT. Without this both guards fail
+            // together on the way back: the cached threshold makes `applyThreshold` return before
+            // it looks, and a `breakpointRef` still pointing at the dead bin's breakpoint takes the
+            // `set_condition` branch — so the NEW bin never gets a breakpoint at all and `narrow`
+            // freezes wherever it stood.
             if (leaving !== null && leaving !== arriving) {
                 const orphan = breakpointRef.current;
                 if (orphan !== null) leaving.remove_breakpoint(orphan);
@@ -367,12 +328,10 @@ function TabsView(props: TabsViewProps): ReactElement {
     /**
      * A breakpoint with NO SETTERS, used purely as the width predicate.
      *
-     * libadwaita would apply the two setters itself (`reveal` on the bar, an unset
-     * `title-widget` on the bar above) and that was the first shape this took. It puts
-     * the same fact in two places: React decides what is in the header bar on every
-     * other commit, and a setter that reaches around it leaves the two disagreeing the
-     * moment a tab is added. The condition is libadwaita's; the placement stays
-     * React's.
+     * libadwaita would apply the two setters itself (`reveal` on the bar, an unset `title-widget` on
+     * the bar above). That puts the same fact in two places: React decides what is in the header
+     * bar on every other commit, and a setter that reaches around it leaves the two disagreeing
+     * the moment a tab is added. The condition is libadwaita's; the placement stays React's.
      */
     const onBreakpoint = useCallback((): void => {
         const bin = binRef.current;
@@ -384,11 +343,9 @@ function TabsView(props: TabsViewProps): ReactElement {
     /**
      * The switcher, as ONE element whichever header bar ends up holding it.
      *
-     * `slot: 'title'` is `Adw.HeaderBar.set_title_widget`, so the switcher sits where
-     * the window title would be — Adwaita's own placement for it, and the reason a
-     * routed application looks like a desktop application rather than a phone with a
-     * tab bar. The element is memoised because it is handed UP into another
-     * component's state when this navigator is not the chrome owner, and a fresh
+     * `slot: 'title'` is `Adw.HeaderBar.set_title_widget`, so the switcher sits where the window title
+     * would be — Adwaita's own placement for it. The element is memoised because it is handed UP
+     * into another component's state when this navigator is not the chrome owner, and a fresh
      * element per render would re-contribute in a loop.
      */
     const switcher = useMemo(
@@ -400,18 +357,15 @@ function TabsView(props: TabsViewProps): ReactElement {
      * What the header bar shows INSTEAD of the switcher once the switcher has gone
      * to the bottom.
      *
-     * Not "nothing", which is what withdrawing the title widget alone leaves. An
-     * `Adw.HeaderBar` with no title widget falls back to the enclosing
-     * `Adw.NavigationPage`'s title, and under a route group that title is the group's
-     * own name — a window whose header read "(tabs)" the moment the switcher moved.
-     * The focused tab's title is the honest answer and the one a phone-shaped Adwaita
-     * window shows: the switcher says where you can go, and when it is at the bottom
-     * the bar says where you are.
+     * Not "nothing", which is what withdrawing the title widget alone leaves. An `Adw.HeaderBar` with
+     * no title widget falls back to the enclosing `Adw.NavigationPage`'s title, and under a route
+     * group that title is the group's own name — a window whose header read "(tabs)" the moment
+     * the switcher moved. The focused tab's title is the honest answer and the one a phone-shaped
+     * Adwaita window shows.
      */
-    // The SAME fallback the switcher button uses below, `title ?? route.name`, and off
-    // the same route object. With `?? ''` the two disagreed for any tab that sets no
-    // title: the button read "six" and the header bar went blank — the empty title
-    // area this widget exists to prevent, reached by a different door.
+    // The SAME fallback the switcher button uses below, `title ?? route.name`. With `?? ''` the two
+    // disagreed for any tab that sets no title: the button read "six" and the header bar went
+    // blank — the empty title area this widget exists to prevent.
     const focusedRoute = state.routes[state.index];
     const focusedTitle =
         (focusedRoute === undefined ? undefined : descriptors[focusedRoute.key]?.options.title) ??
@@ -438,19 +392,15 @@ function TabsView(props: TabsViewProps): ReactElement {
     /**
      * A caller's persistent bar, in a box of its own.
      *
-     * The box carries the slot so that `bottomBar` can be ANY node — a fragment, or a
-     * component whose root element the caller does not control. Without it the caller
-     * would have to know that its outermost element needs `slot="bottom"`, which is a
-     * host detail leaking into an application.
+     * The box carries the slot so that `bottomBar` can be ANY node — a fragment, or a component whose
+     * root element the caller does not control. Without it the caller would have to know that its
+     * outermost element needs `slot="bottom"`, which is a host detail leaking into an application.
      *
-     * `null` when there is nothing, rather than an empty box — and the reason is NOT
-     * the obvious one. "An empty bottom bar is a strip of dead pixels" was the guess,
-     * and it is false: measured, an empty `Gtk.Box` as a bottom bar takes no height and
-     * the view stack above it is allocated exactly as much either way, so a mutant that
-     * always rendered the wrapper passed every geometric assertion. What the guard
-     * actually saves is the widget and the element — one per tab layout, per render —
-     * for a caller that asked for no bar. That is real but invisible, so it is NOT
-     * gated by a vector; `router.spec.ts` says the same thing where it stops asserting.
+     * `null` when there is nothing, rather than an empty box — and NOT for the reason one would
+     * guess: measured, an empty `Gtk.Box` as a bottom bar takes no height and the view stack above
+     * it is allocated exactly as much either way. What the guard actually saves is the widget and
+     * the element — one per tab layout, per render — for a caller that asked for no bar. That is
+     * real but invisible, so it is NOT gated by a vector.
      */
     const persistentBar = useMemo(
         () =>
@@ -463,11 +413,10 @@ function TabsView(props: TabsViewProps): ReactElement {
     /**
      * Contribute the switcher upward instead of building a second header bar.
      *
-     * The condition is the whole chrome rule for this navigator: an inner `<Tabs>` with
-     * a bar above it puts its switcher in that bar. With no bar above — `headerShown:
-     * false` on the enclosing screen — there is nothing to contribute to, so the
-     * fallback below renders a bar, and `chrome.decorated` decides whether it carries
-     * the window controls.
+     * The condition is the whole chrome rule for this navigator: an inner `<Tabs>` with a bar above it
+     * puts its switcher in that bar. With no bar above — `headerShown: false` on the enclosing
+     * screen — there is nothing to contribute to, so the fallback below renders a bar, and
+     * `chrome.decorated` decides whether it carries the window controls.
      */
     const titleSlot = chrome.titleSlot;
     const contributes = titleSlot !== null && props.headerShown !== false;
