@@ -446,6 +446,20 @@ export const CORPUS_RULES = [
         surprise:
             'an action widget is the only annotation whose content is emitted somewhere ELSE: the child gets `type="action"` and the response goes into an `<action-widgets>` block the PARENT writes after all its children, in source order and whatever order the children came in. The widget is named by the element\'s TEXT, not an attribute, so a child without an id cannot be written at all — the oracle refuses it and so does this. `default` is `default="True"`, capital T, because the oracle writes a Python bool straight out. The menu ids are here for a different reason: they are REFERENCE TARGETS, so accepting them without indexing them would have turned `menu-model: namedSub` into a refusal on a file the oracle compiles — the obligation `indexObjectIds` wrote down for whoever lifted the limit',
     },
+    {
+        file: '57-extern-body-blocks.blp',
+        isolates:
+            'the four BLOCKS a body may hold, inside an extern object — `accessibility { }`, `layout { }`, `styles [ ]` and two signals — beside a real sibling writing the same property',
+        surprise:
+            'extern-ness stops at the VOCABULARY and nowhere else: all four blocks emit exactly as they do on a GIR class, including the ARIA table\'s `checked: true` → `<state name="checked">1</state>`, which is resolved against `ARIA_VALUE_TYPES` and not against the widget — so the one output an extern body changes is the one the WIDGET would have answered. `orientation: vertical` on line 5 and the identical line 24 on a `Gtk.Box` prove it in the same file, `vertical` against `1`. ADR 0062 blocker 1 was measured as the nesting alone; what the 42 `.blp` of the pinned `refs/map-editor` consumer actually write is this — `$PixelRpgTilePalette` carrying `styles [ ]`, `$PixelRpgFloatingFab` carrying properties under an `[overlay]` — so a body that accepted properties and refused a block would have passed rules 32-35 and failed the consumer',
+    },
+    {
+        file: '58-extern-composition.blp',
+        isolates:
+            'composition as a real application writes it — an extern template with an extern PARENT, whose own children are extern in three positions at once: a `child:` property, an `[overlay]` bracket and a second named property',
+        surprise:
+            'nothing here is new syntax and that is the finding: the file is rules 32 and 34 in one tree, and it exists because the CONSUMER shape is the composition and not either half. `refs/map-editor` writes `template $AtlasView : $PixelRpgResponsiveEditorView` with `$PixelRpgAtlasCanvas` in a `child:` and `$PixelRpgFloatingFab` under `[overlay]` in one file, and seven of its templates name an extern parent. The projection is where it bites — four `extern` losses in one tree, which is what makes `?shared-tree` refuse this whole family (ADR 0070), and the tags are still spelled right, so the loss says the projection READ nothing inside, never that the tree is wrong',
+    },
 ];
 
 /**

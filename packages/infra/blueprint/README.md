@@ -286,6 +286,21 @@ would drift.
     name, and the `extern` loss says the projection read nothing inside the object — never that
     the tag is unknown.
 
+    **And extern-ness stops at the VOCABULARY, which rules 32-35 above could not show.**
+    They probe properties and a `setters { }` target; a body may also hold `accessibility { }`,
+    `layout { }`, `styles [ ]` and signals, and all four emit on an extern object exactly as on a
+    GIR class — including `checked: true` becoming `<state name="checked">1</state>`, resolved
+    against the ARIA table rather than against the widget. So an implementation that read
+    properties in an extern body and refused a block would have been byte-equal on every one of
+    rules 32-35. What found it was the CONSUMER: the 42 `.blp` of the pinned `refs/map-editor`
+    write `styles [ ]` inside `$PixelRpgTilePalette`, properties inside a `$PixelRpgFloatingFab`
+    under an `[overlay]`, and an extern PARENT on seven of their templates.
+    `rules/57-extern-body-blocks.blp` is the four blocks in one extern object beside a real
+    sibling writing the same property — the `vertical` / `1` pair of item 14, held one more time
+    where a block could have hidden it — and `rules/58-extern-composition.blp` is the shape an
+    application actually writes: an extern template with an extern parent and extern children in
+    a `child:`, an `[overlay]` and a second named property at once.
+
 15. **A `bind` has two output shapes and the source decides which — including by its
     brackets.** `bind labelOne.label` is `<property … bind-source="labelOne"
     bind-property="label"/>` and `bind (labelOne.label)` is a `<binding>` element wrapping a

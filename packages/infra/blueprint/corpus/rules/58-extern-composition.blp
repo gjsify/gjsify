@@ -1,0 +1,16 @@
+using Gtk 4.0;
+
+template $CorpusExternView : $CorpusExternBase {
+  content: Gtk.Overlay {
+    child: $CorpusExternCanvas canvas {};
+
+    [overlay]
+    $CorpusExternFab fab {
+      halign: end;
+
+      styles ["osd"]
+    }
+  };
+
+  sidebar: $CorpusExternInspector inspector {};
+}

@@ -42,8 +42,8 @@ the `@girs` 5.3.0 bump, and again on each of the
 eleven constructs that closed the subset, and once more against the PUBLISHED `@girs` 5.4.0
 rather than a local build — **95 of 95** in `tests/samples` and **272 of 273** wild, 0 silently
 wrong, the one remainder being a deliberately invalid fixture the oracle refuses too:
-56 rule files and 46
-reality probes, all 102 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
+58 rule files and 46
+reality probes, all 104 goldens byte-equal, `SHADOW_DIVERGENCES` empty, and 21 refused `.blp` each
 naming their construct, their file and their line. The refusal count went DOWN by four and that
 is the shape of this change: a fixture pinning a construct the parser now reads is a fixture
 that has to be retired, and the corpus check is what says so. Those four are held to the tree by
@@ -82,6 +82,20 @@ consumer, and it does not make `SharedNode` able to RENDER one. An extern tag is
 nothing, so the projection names a new loss kind, `extern`, beside it. The 58 sites ADR 0062
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
 `showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
+
+**And the census counted the nesting, which was half of the construct — ADR 0062 is Accepted on
+the other half.** What a real application
+writes inside an extern object is not just properties: the 42 `.blp` of the pinned
+`refs/map-editor` carry `styles [ ]`, an `accessibility`-shaped body, an `[overlay]` bracket and a
+signal in there, and seven of their templates name an extern PARENT. An implementation that read
+properties in an extern body and refused a BLOCK would have been byte-equal on all four of rule
+files 32-35 and would have broken that consumer on upgrade. Rule files `57-extern-body-blocks` and
+`58-extern-composition` are the two that could see it, and the consumer itself is the measurement:
+all 42 byte-equal to `blueprint-compiler` 0.20.4, nothing in it changed to get there. **What is
+still open is not the language**: `adw-blueprint-layout` is unconverted, there is no `.blp` emitter
+to invert a projection, and `binding`/`breakpoint`/`signal` are what the 4 shipped files that do
+not round-trip lose — not the `template`/`object-id`/`slot` trio ADR 0062's blocker 3 named, all
+three of which have a field now.
 
 **Expressions landed, and they are the largest construct family in the language.** `bind` and
 `expr` now take the whole grammar — lookup chains, casts, `$closure(…)` calls, `typeof<Type>`,

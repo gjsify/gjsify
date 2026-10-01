@@ -1,6 +1,6 @@
 # 62. The Blueprint conversion frontier is composition, not `.ui` files
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-01) — see [Amendment 1](#amendment-1-2026-10-01--blocker-1-is-closed-and-measured-on-the-consumer)
 - Date: 2026-09-15
 - Deciders: Pascal Garber
 - Related: [ADR 0029 (girs widget vocabulary)](0029-girs-widget-vocabulary.md),
@@ -110,8 +110,11 @@ is the next section.
 
 ### `prefer-blueprint-template` visits a class, and the scaffold is not one
 
-`prefer-blueprint-template.ts:243` returns `{ ClassDeclaration: check, ClassExpression: check }`.
-A file that assembles a whole window inside a callback is invisible to it, whatever it builds.
+At the revision this was read, `prefer-blueprint-template.ts` returned
+`{ ClassDeclaration: check, ClassExpression: check }` and nothing else. A file that assembles a
+whole window inside a callback is invisible to that, whatever it builds. (#1690 has since added a
+`Program` entry point, so the rule as it stands returns three — the paragraph below is the state
+that produced the decision.)
 
 **PR #1690 is this finding being closed while this ADR is in review**, so read the paragraph as
 the state that produced the decision below rather than as the state of the tree. It teaches the
@@ -155,9 +158,9 @@ the construct is not exotic, it is how Blueprint applications are built past one
 
 **Blocker 3 is the one that makes conversion a one-way door.** A `.blp` that carries a
 `template`, an object id or a slot cannot be projected back into the shape ADR 0051 renders from,
-so every tree converted today is a tree that leaves the shared corpus. ADR 0058 § 6 keeps all
-three as refusals on purpose, and § 3 decides `slot` by a GIR lookup rather than a field — but
-the lookup's guard is not built, and no inverter exists.
+so every tree converted today is a tree that leaves the shared corpus. ADR 0058 § 6 keeps TWO of
+the three as refusals on purpose — `slot` is not in its list of ten, because § 3 decides it by a
+GIR lookup rather than a field — but the lookup's guard is not built, and no inverter exists.
 
 ### ADR 0058's census is one kind stale, and the number in its title moved
 
@@ -223,7 +226,9 @@ entry take stage C to 42 of 42 and make ADR 0053 clause 5's flip available.
 **Nothing for conversion.** #474 widens which DECLARATIONS carry vocabulary data inside a
 namespace that already has one — Gtk-4.0 `PROP_ENUMS` 67 → 126, Adw-1 37 → 50. Its own commit
 message records that the namespace-level gate is untouched: a namespace emits a vocabulary only
-if it declares a concrete `GtkWidget` descendant, **142 of 705 GIRs before and after**.
+if it declares a concrete `GtkWidget` descendant, **142 of 705 GIRs before and after**. The 142 is
+right and independently confirmed at three versions; the denominator is #474's commit message and
+is stale — ADR 0029 § Amendment counted 718 `.gir` at the v5.2.0 tag.
 
 Measured at 5.1.0: `@girs/gtk-4.0/vocabulary` and `@girs/adw-1/vocabulary` resolve;
 `@girs/gio-2.0/vocabulary`, `@girs/glib-2.0/vocabulary` and `@girs/gdk-4.0/vocabulary` are
@@ -244,10 +249,13 @@ still refuses a namespace is this package's own dependency set, which is finite 
 and whose completeness `PROVENANCE.requiredVocabularies` now makes checkable — see the blueprint
 package README § What the goldens settled, item 11.
 
-**@girs 5.2.0 is publishing as this lands, and it is half-published.** `gio-2.0` is already at
-5.2.0 while `gtk-4.0` and `adw-1` — the two this package pins — still end at 5.1.0. That is the
-ordinary shape of a `@girs` release, alphabetical and so roughly reverse-topological, and it is
-why the bump is its own PR: a pin to a version npm does not yet serve fails every runner.
+**@girs 5.2.0 was mid-publish as this was read, and that is a window and not a state.** `gio-2.0`
+was at 5.2.0 while `gtk-4.0` and `adw-1` — the two this package pins — still ended at 5.1.0, which
+is the ordinary shape of a `@girs` release: alphabetical, and so roughly reverse-topological. It is
+why the bump is its own PR, a pin to a version npm does not yet serve failing every runner. **The
+window closed the same day**: ADR 0029 re-measured all three at the v5.2.0 tag, the package has
+since been bumped twice past it, and `package.json` pins 5.4.0 — so read this paragraph for the
+release SHAPE and never for which version is served. Decision 4 below is spent with it.
 
 ## Decision
 
@@ -281,7 +289,7 @@ third entry point needed on the way: a `vfunc_activate` inside an `Application` 
 It is one of seven constructs the oracle compiles and this parser refuses, it is the one that 49
 files and 58 sites need, and it is the one stopping the repository's own best Blueprint showcase
 from composing its two widgets. It also has an oracle to be held against on every run, which is
-the property ADR 0030 § 5 asks of any parser change.
+the property ADR 0030 clause 1 asks of any parser change.
 
 ### 4. The `@girs` 5.2.0 bump lands as its own PR, and deletes the ledger entry with it
 
@@ -293,12 +301,20 @@ these are one commit and not two.
 for, and clause 7's demotion of `blueprint-compiler` to oracle-only becomes a deletion list that
 can actually be written. Nothing a user sees changes.
 
-### 5. ADR 0058's census is corrected where it stands, not superseded
+### 5. ADR 0058's census is corrected HERE, and 0058 points at the correction
 
 `responses` joins the produced kinds; twelve becomes thirteen; 9-of-38 becomes 7-of-42. Every
 decision 0058 takes survives the correction — the `translatable` field, the `slot` lookup, the
 style-class reasoning and the ten-now-eleven refusals are all unaffected, because none of them
 rests on the count.
+
+**The clause originally read "corrected where it stands", and no such edit was ever made** — so
+0058's title, its § 6 and the index row all kept saying twelve while this page said thirteen, and
+a reader of either alone got one number with no signal that the other existed. Rewriting a
+measurement inside the ADR that took it is also the wrong move: 0058's census is true of the 38
+files it read, and editing its digits would destroy the dated reading without recording it. So the
+correction lives on this page, which is dated for it, and 0058 § 6 carries a pointer here. Two
+ADRs stating different counts is only a defect while neither names the other.
 
 ## Consequences
 
@@ -317,8 +333,10 @@ rests on the count.
 
 - **Convert the showcases now.** 17 of 24 showcases have no `.blp`, which looks like the backlog.
   Most author their trees in JSX, Vue SFCs or Solid — a different notation over the same
-  vocabulary, which ADR 0053's own § Context says is on Blueprint's LEVEL rather than below it.
-  Converting them would replace one declarative form with another and prove nothing.
+  vocabulary, which puts them where ADR 0053's own § Context puts Blueprint and `SharedNode`: on
+  the NOTATION level, not on the runtime-format level below it. (0053 says that of those two and
+  does not name JSX, Vue or Solid; the reading is this ADR's.) Converting them would replace one
+  declarative form with another and prove nothing.
 - **Convert `packages/framework/storybook/src/window.ts`** — the largest single site at 38
   constructions, and the rule's own finding. It is a harness whose job is to instantiate other
   people's widgets; its tree is data-driven by construction, which is the case the rule's header
@@ -327,8 +345,8 @@ rests on the count.
   fails every runner, and pinning ahead of a publish is the shape `girs-partial-publish-window`
   already cost a session.
 - **Add `$extern` support in this PR.** This is the survey that decides what to convert; a parser
-  feature inside it would be the shape ADR 0058 § 7's last alternative names — a decision taken
-  inside the PR that found it convenient.
+  feature inside it would be the shape ADR 0058 § Alternatives rejected names in its last
+  bullet — a decision taken inside the PR that found it convenient.
 - **Do nothing and revisit after the emitter.** Defensible for the SHAPE question, which ADR 0058
   already defers. It is not defensible for `templates/gtk-minimal`, which ships to strangers on
   every release and needs no shape decision at all.
@@ -355,3 +373,81 @@ rests on the count.
 - `$extern` is its own PR against `corpus/refused/extern-type.blp`, promoting it to a rule file
   with a golden, per ADR 0053 clause 6.
 - Follow-ups are tracked in `status/open-todos/README.md` per governance; this ADR records the *why*.
+
+## Amendment 1, 2026-10-01 — blocker 1 is closed, and measured on the consumer
+
+**This ADR is Accepted, and every clause of its Decision has been executed.** Clause 2 by #1690,
+clause 3 by #1694, clause 4 by the `@girs` bumps that have since taken the pin to 5.4.0. What is
+amended here is not a decision but the FRONTIER the ADR describes, which has moved twice — and the
+second move is the one worth writing down, because the survey that produced this ADR could not see
+it.
+
+**Every count below is a second dated reading, under the same rule as the first.** Taken
+2026-10-01 in a worktree of its own on `origin/main` at `d8af6cae4c`, against
+`blueprint-compiler` 0.20.4 on PATH and `@girs` 5.4.0 as `packages/infra/blueprint/package.json`
+pins it — the published tarballs, not a local build. The corpus numbers are what
+`node scripts/check-blueprint-corpus.mjs --require-oracle` prints; the shipped-file and consumer
+numbers re-parse each `.blp` with `src/parser.mjs`, emit it with `src/emit-xml.mjs` and project it
+with `src/project.mjs`, which is the reading stages C and D already hold per line. Read them as a
+date, like § How the numbers here were obtained says of the ones above.
+
+### Blocker 1 was measured as the nesting, and the nesting was half of it
+
+#1694 made `$Name` legal wherever an object is — a child, a `[slot]` child, a property value, a
+root, a template parent — with `rules/32-extern-nested.blp` through `35-extern-real-class.blp` as
+the goldens. That is the construct the census counted, 49 files and 58 sites, and it compiles.
+
+It is not what an application writes. Re-measured against the pinned consumer — the 42 `.blp` of
+`refs/map-editor`, which is the repository this ADR already cites for
+`$PixelRpgTeleportOverlay teleports {}` — the extern objects there carry `styles [ ]`, properties,
+an `[overlay]` bracket and a signal, and seven of their templates name an extern PARENT. **An
+implementation that took properties inside an extern body and refused a BLOCK would have passed
+all four of those rule files and failed the consumer on upgrade**, which is the shape ADR 0030
+clause 1 exists to prevent and the reason this amendment adds fixtures rather than closing the
+item. `rules/57-extern-body-blocks.blp` writes all four blocks inside one extern object beside a
+real sibling writing the same property; `rules/58-extern-composition.blp` is an extern template
+with an extern parent and extern children in three positions at once. Corpus 56 rules to 58, 102
+goldens to 104, every one byte-equal.
+
+**The consumer is green and that is the whole measurement.** All 42 files parse, emit, and are
+BYTE-EQUAL to `blueprint-compiler` 0.20.4; none is refused by either compiler. Nothing in
+`map-editor` was changed to get there, and nothing in it is committed from here.
+
+### The projection takes a declared loss, and `extern` is already the right kind
+
+`?shared-tree` treats an extern type as **lossy, by the `extern` kind ADR 0067 and 0068 left
+standing** — not lossless, and not a refusal. The alternative was to call it lossless because the
+tag survives, and that is the trap `rules/35-extern-real-class.blp` was written for: `$GListStore`
+projects a tag GtkBuilder DOES resolve, so "the tag is unknown" is not what the kind can mean.
+What it means is that the projection read NOTHING inside the object — no vocabulary, so no
+property resolved and no member numbered — and a renderer handed that tree would mount a widget it
+cannot construct. ADR 0070's refusal then does the work: the plugin hands back the loss list
+instead of a partial tree, and the 5 `map-editor` files whose only loss is `extern` are refused
+for exactly one reason, named. A loss kind per position (`extern-child`, `extern-parent`) was
+considered and rejected: the line number already carries the position, and the kind is what the
+consumer branches on.
+
+### Blocker 3 moved further than blocker 1, and the three constructs it named are not what blocks it now
+
+The table above says 0 of 11 shipped `.blp` round-trip, on `template`, `object-id` and `slot`. All
+three have a field now — ADR 0066 for the first two, the projection's own `slot` for the third —
+and **42 of 46 shipped `.blp` project with no loss at all.** The four that do not lose `binding`,
+`breakpoint` and `signal`, which is a different list: a grammar and one whole construct, not
+GtkBuilder addressing. Blocker 3's one-way-door argument is therefore spent for the constructs it
+named, and what remains of it is the half this ADR never claimed to close — **there is still no
+inverter**, no `.blp` emitter, so a tree converted out of `SharedNode` cannot be written back.
+
+### What is still open, and it is not blocker 1
+
+| what | state |
+|---|---|
+| `$extern` as syntax, in every object position | **closed** (#1694) |
+| `$extern` bodies: `accessibility`, `layout`, `styles`, signals | **closed** here, with the consumer as the measurement |
+| blocker 2, a namespace with no vocabulary | **closed** at `@girs` 5.3.0 — what refuses now is this package's own dependency set, which `PROVENANCE.requiredVocabularies` makes checkable |
+| blocker 3's named three | **closed** (ADR 0066, and `slot`) |
+| the `.blp` emitter / inverter | **open** — unchanged from ADR 0058 § 7 |
+| `binding`, `breakpoint`, `signal` as projection losses | **open** — the 4 shipped files that do not round-trip, and the reason `?shared-tree` refuses them |
+| `showcases/gtk/adw-blueprint-layout` composing in TypeScript | **open** — the proof case this ADR named is now unblocked at the parser and has not been converted |
+| the assembly census's own numbers | **open**, and deliberately: § 4.6 of `docs/reports/2026-09-16-parallel-day-survey.md` prices a re-measurement as its own PR |
+
+The first row is what made this ADR's title true, and the last three are why Accepted is not Done.

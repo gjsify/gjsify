@@ -395,6 +395,13 @@ hard error naming its line on any path but GTK's. Nothing in this measurement ar
 spelling — six of them are unreachable from every shipped file, and the three that block
 every shipped file are GtkBuilder addressing the other two surfaces cannot consume.
 
+**The census this rests on moved, and the correction is on another page.**
+[ADR 0062 § 5](0062-the-blueprint-conversion-frontier-is-composition.md) re-derived it over 42
+files: `responses` became a produced kind rather than a refusal, so the twelve in this ADR's title
+is thirteen and this list of ten is eleven, and 9-of-38 round-tripping is 7-of-42. The numbers
+HERE are left as the dated reading of 38 files that they are. None of the decisions above rests on
+the count — which is why the correction could be a pointer rather than a supersession.
+
 ### 7. This is Proposed, and it supersedes nothing
 
 ADR 0051 Decision 1 keeps `ADWAITA_GALLERY_SHARED_TREES` the authored form and this ADR does
