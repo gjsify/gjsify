@@ -54,6 +54,23 @@ A `DevtoolsToolProfile` maps the generic + app-specific DBus methods to MCP tool
 - **browser** — the [`@gjsify/devtools-browser`](../devtools-browser) web-debugging tools: `navigate`, `page_screenshot`, `eval_js`, `inspect_element`, `dom_tree`, `get_network`, … (+ generics).
 - **cdp** — the [`@gjsify/devtools-cdp`](../devtools-cdp) WebKit-remote-inspector tools: `cdp_send` (any `Domain.command`), `cdp_connect` / `cdp_discover_targets` / `cdp_drain_events`, plus ~13 curated typed tools (`cdp_runtime_evaluate`, `cdp_dom_get_document`, `cdp_css_get_computed_style_for_node`, …) generated from the protocol spec (+ generics).
 
+## Quick start — `gjsify devtools` (for scripts, not agents)
+
+The bridge is the wrong shape for a Makefile, a CI step or a shell script: an MCP answer is base64
+inside a JSON-RPC frame, so `Screenshot` cannot be piped into a file. `gjsify devtools` is the same
+client with an argv front end — `shot`, `find`, `activate`, `key`, `tree`, `property`, `resize`,
+`present`, `status`, `actions`, `css`, `gsettings`, `instances`, `toplevels`, `focused`:
+
+```bash
+gjsify devtools shot /tmp/app.png --bus-name org.example.App   # file + the size the PNG carries
+gjsify devtools find Adw.StatusPage:error --bus-name org.example.App   # stdout = the widget path
+gjsify devtools help                                          # every operation and flag
+```
+
+It speaks the same transport precedence as the bridge above, `--address` included, so it works on a
+bus-less host where `gdbus` does not. Set `gjsify.devtools.busNameBase` in `package.json` and the
+flag stops being needed.
+
 ## Library API
 
 ```ts
@@ -66,9 +83,25 @@ await runDevtoolsMcp(storybookProfile('org.example.Storybook'));
 await runDevtoolsMcp({ name: 'my-app-devtools', version: '0.10.0', busNameBase: 'org.example.App' });
 ```
 
+### `runDevtoolsCli(argv, options?)` — the argv front end
+
+```ts
+import { runDevtoolsCli } from '@gjsify/devtools-mcp';
+
+// → 0 done, 1 the app said no, 2 the request itself was wrong.
+await runDevtoolsCli(['find', 'Adw.StatusPage:error', '--bus-name', 'org.example.App']);
+```
+
+It returns the exit code rather than calling `System.exit`, so a host owns the process. `options
+.createClient` swaps in any `DevtoolsCliClient` — a test fake, or a transport of your own — which is
+the same structural seam `DbusDevtoolsClient` is declared behind. The screenshot invariants (empty
+bytes are a failure, the size comes from the PNG) live in [`@gjsify/devtools`](../devtools)'s
+`captureShot`, so a caller driving the plane from its own code gets them by importing a function.
+
 ## Exports
 
 - `runDevtoolsMcp(profile)` — build the MCP server, register the profile's tools, serve over `GjsStdioTransport`.
+- `runDevtoolsCli(argv, options?)` — the argv front end behind `gjsify devtools`; returns the exit code. `DevtoolsCliClient` (the subset of `DbusDevtoolsClient` it uses), `DevtoolsCliGlobalOptions`, `RunDevtoolsCliOptions`.
 - `DbusDevtoolsClient` — the DBus client (`control()` for raw GVariant replies, `jsonCall()` for `…->s` JSON methods, `transport` for the resolved transport, `describeTarget()` for diagnostics).
 - `chooseClientTransport(input)` — the precedence above as a pure function; `connectToDevtools(ctx, deps?)` — that precedence turned into a live connection (dial-then-fallback; `deps` exists so every row is testable on a host with no bus daemon); `ClientTransportChoice`, `DbusDevtoolsClientOptions`, `DevtoolsInstanceRef`.
 - `registerGenericTools`, `storybookProfile` / `registerStorybookTools`.

@@ -8,6 +8,7 @@ there you can take a screenshot, dump the widget tree, activate an action, swap 
 and read the app's state, from three places:
 
 - **A shell**, with `gdbus`, d-feet or GNOME Builder. No AI, no dev server.
+- **A script**, with `gjsify devtools` — the same plane with an argv front end, so a screenshot lands in a file.
 - **An AI agent** (Claude Code, the MCP Inspector) over MCP, via `gjsify debug`.
 - **CI**, where the same calls make an end-to-end UI test harness with no agent involved.
 
@@ -120,6 +121,37 @@ hyphen is not legal in a D-Bus path element, so it becomes an underscore on the 
 
 This is also how you write a headless UI test: script a sequence of `ActivateAction`,
 `ChangeActionState` and `Screenshot` calls, then assert on `GetStatus`.
+
+### `gdbus` cannot save a PNG, so `gjsify devtools` can
+
+`Screenshot` answers a GVariant `ay`, and `gdbus` prints binary as text. Unpacking that variant
+into a file was a per-consumer GJS script, and each one had to decide the same two things: that an
+EMPTY answer (`ay[0]`, which is what a window that was never realised returns) is a failure rather
+than a 0-byte `.png` called a screenshot, and that the size to report comes from the PNG rather
+than from the resize it asked for. `gjsify devtools` is that script, once:
+
+```bash
+gjsify devtools resize 1280 900 --bus-name org.example.App
+gjsify devtools shot /tmp/app.png --bus-name org.example.App --settle 500
+# wrote /tmp/app.png (84311 bytes, 1100×900)
+```
+
+The printed size is out of the PNG header. `ResizeWindow` answers with the size it was **asked**
+for, whether or not the window honoured it, so a resize the app ignored still looks like it worked
+— measured in a consumer: 1280 requested, 1100 in the file, four checks green.
+
+`find`, `activate` and `key` are the same idea for driving a widget, and they print to stdout and
+exit non-zero when the app says no, which is what makes a script able to fail:
+
+```bash
+row=$(gjsify devtools find Adw.StatusPage:error --bus-name org.example.App) || exit 1
+gjsify devtools activate "$row" --bus-name org.example.App
+```
+
+`--timeout <seconds>` (default 30) polls `GetStatus` until the plane answers, because a fixed sleep
+is wrong in one direction or the other — a cold start measured 94 s before the first call was
+served. `gjsify devtools help` lists every operation and flag. From your own code, the same
+invariants are `captureShot` from [`@gjsify/devtools`](https://www.npmjs.com/package/@gjsify/devtools).
 
 ## 3. Drive it from an AI agent
 
@@ -292,6 +324,7 @@ new command cannot slip past the pause policy by accident. Anything you return f
 ## See also
 
 - [CLI reference → `gjsify debug`](../../cli-reference/#gjsify-debug),
+  [`gjsify devtools`](../../cli-reference/#gjsify-devtools),
   [`gjsify browse`](../../cli-reference/#gjsify-browse),
   [`gjsify storybook`](../../cli-reference/#gjsify-storybook)
 - Package READMEs:

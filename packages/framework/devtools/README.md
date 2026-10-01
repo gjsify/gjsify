@@ -149,14 +149,61 @@ Three of those need their reason stated, because the obvious use is the wrong on
 
 `opts.extend` adds app-specific methods (§ below); `opts.instance` / `GJSIFY_DEVTOOLS_INSTANCE` scope a multi-instance app.
 
-### Calling one by hand
+### Calling one by hand — or from `gjsify devtools`
+
+`gdbus` reaches the plane, and it is the right tool for reading a status string. It cannot do the
+two things a script actually needs: `gdbus` cannot write BINARY (so a screenshot comes back as an
+`ay` variant nobody can save), and it speaks only the session bus (which macOS and Windows do not
+have — see above). So both halves live in this package instead of in every consumer's own script:
 
 ```bash
-gdbus call --session --dest <app-id> --object-path <path>/devtools \
-  --method org.gjsify.Devtools.Screenshot ""
+gjsify devtools shot /tmp/app.png --bus-name org.example.App   # PNG on disk + its real size
+gjsify devtools find Adw.StatusPage:error --bus-name org.example.App   # → a widget path
+gjsify devtools activate /toplevel:0/child:3 --bus-name org.example.App
+gjsify devtools help                                          # every operation and flag
 ```
 
-That returns an `ay` variant. `gdbus` itself cannot save binary, so unpack it from a tiny GJS caller.
+Set `gjsify.devtools.busNameBase` in `package.json` once and the flag stops being needed. Progress
+goes to **stderr**, the result to **stdout**, so `$(gjsify devtools find …)` is the widget path.
+**Exit codes are the contract**: `0` done, `1` the app said no (no match, refused key, no image),
+`2` the request itself was wrong (unknown operation, no `--bus-name`).
+
+`gjsify devtools` is the scriptable peer of [`gjsify debug`](../devtools-mcp) (MCP over stdio, for
+an AI agent) — same transport, same client, different front end. `--address` reaches the peer
+socket on a bus-less host, and `--timeout <s>` waits for `GetStatus` to answer rather than sleeping:
+a cold start measured 94 s before the first call was served.
+
+### Getting a screenshot onto disk — `captureShot`
+
+`gdbus call … Screenshot` returns an `ay` variant, and unpacking one into a file was a 60-line GJS
+script per consumer. `captureShot` is that script, once:
+
+```ts
+import { captureShot } from '@gjsify/devtools/shot';
+
+const shot = await captureShot(
+    async (scope) => client.control(instance, 'Screenshot', tuple(scope), '(ay)'),
+    '/tmp/app.png',
+    'window',
+);
+shot.width; // 1100 — read out of the PNG, NOT the size asked for
+```
+
+The `./shot` entry point is deliberately GTK-free: the client side of a screenshot needs Gio and
+GLib only, so a headless client does not drag this package's app-side GTK adapter in with it.
+
+Two invariants ride along, each paid for with a measured incident:
+
+- **Empty bytes are a FAILURE, not a picture.** `Screenshot` answers `ay[0]` when there is no active
+  window or the window was never realised — a deliberate contract, see `CaptureBlocker`. Writing
+  that yields a 0-byte `.png`, a success line and exit 0: a rig that reports success while handing
+  on a file nothing can open. `captureShot` retries, then throws `CaptureShotError('empty-answer')`
+  **without writing the file**.
+- **The size comes from the PNG, never from the request.** `ResizeWindow` answers with the size it
+  was ASKED for, whether or not the window honoured it, and `default-width` reads back that same
+  asked-for value. Measured in a consumer: 1280 requested, 1100 in the file, four checks green.
+  `pngSize()` reads the IHDR header instead, which is the one number about a screenshot that cannot
+  be faked — so `resize` cannot report its own failure and `shot` can.
 
 ## App-specific methods — a `DevtoolsExtension`
 
@@ -175,6 +222,31 @@ const myExtension: DevtoolsExtension = {
 installDevtools(this, { extend: [myExtension] });
 ```
 
+## The Adwaita markup trap
+
+A widget property that Pango parses as markup turns a bare `&` or `<` into a **parse error**, and
+the label renders **blank**. Nothing throws, nothing fails, and the only symptom is a screenshot
+somebody looks at. German UI text is full of `&` ("Kosten & Förderung"), so it is a recurring class.
+
+```ts
+import { hasRawPangoMarkup, isPangoMarkupSink } from '@gjsify/devtools';
+
+isPangoMarkupSink('AdwActionRow', 'title');        // true — `use-markup` is @default true
+hasRawPangoMarkup('Kosten & Förderung');           // true — the label would render empty
+hasRawPangoMarkup('Kosten &amp; Förderung');      // false — an entity is markup, and valid
+hasRawPangoMarkup('<b>Kosten</b> & Ertrag');       // false — markup you wrote on purpose
+```
+
+The interesting half is `PANGO_MARKUP_SINKS`, the list of properties that parse markup at all,
+because the traps cut both ways. `Gtk.Label:label` and `AdwWindowTitle:title` are plain text —
+reporting `&` there teaches an audience to switch the check off. And **`AdwAlertDialog:heading` and
+`:body` are plain text by default**: `heading-use-markup` / `body-use-markup` are both
+`@default false` in `@girs/adw-1`, so a sink list that includes them is wrong, however plausible it
+looks. Every row class inherits markup titles from `AdwPreferencesRow:use-markup` (`@default true`,
+"subclasses may also use it for other labels, such as subtitle") — which is where the trap in most
+apps comes from. Runtime values need `GLib.markup_escape_text()` at the point of use; this checks
+literals, it does not claim a rendered string is clean.
+
 ## Exports
 
 - `installDevtools(app, options)` → returns a `DevtoolsService`, or `null` when the env gate is off **or the transport could not come up**. It never throws: every failure is one stderr line naming the address and the way out. `uninstallDevtools(service)` — opt-in lifecycle; it stops the socket *and* retracts the published address.
@@ -183,6 +255,8 @@ installDevtools(this, { extend: [myExtension] });
 - `startDevtoolsPeerServer(service, objectPath, address?)` → `DevtoolsPeerServer` — the bus-less transport by hand; it throws `DevtoolsPeerServerError` (with `address` + `reason`) when the address is unusable, which is what `installDevtools` catches. `chooseDevtoolsTransport(input)` — the precedence table above as a pure function; `writeDevtoolsAddressFile` / `removeDevtoolsAddressFile` — publish/retract a peer address.
 - `captureWidgetPng` (GSK screenshot), `buildVariant` / `variantKindFor` / `VariantKind` (GVariant), `activateAction` / `changeActionState` / `describeActions` (GAction bridge).
 - widget-tree helpers (`dumpTree`, `getWidgetProperty`, `listToplevels`, `resolveWidgetPath`, …), `dumpCss` / `swapCss` / `removeCss`, `dumpGSettings`, `buildDevtoolsIfaceXml`.
+- **client-side, from the GTK-free `./shot` entry point**: `captureShot(source, path, scope?, options?)` → `ShotResult` (with `width`/`height` read from the PNG) or `CaptureShotError`; `pngSize(bytes)` → `{ width, height }` or `null` for bytes that are not a PNG.
+- markup-trap helpers (root entry point): `hasRawPangoMarkup(text)`, `rawPangoMarkupIn(text)`, `isPangoMarkupSink(class, property)`, `PANGO_MARKUP_SINKS`.
 - the re-exported `@gjsify/devtools-protocol` contract.
 
 > **GJS gotcha:** the long-lived `Gio.DBusExportedObject` is reachable only through a self-cycle, which SpiderMonkey's GC can collect mid-run. `installDevtools` roots the service in a module-level set to defeat this — keep that rooting if you wire the service by hand.
