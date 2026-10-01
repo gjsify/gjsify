@@ -57,10 +57,10 @@ one flag whose default would reach your disk.
 
 | Template | |
 |---|---|
-| `gtk-minimal` | `Gtk.Window` + `Gtk.Label`; no Adwaita, no Blueprint. |
+| `gtk-minimal` | `Gtk.ApplicationWindow` declared in Blueprint; no Adwaita. |
 | `adw-canvas2d` | Adwaita app rendering through the HTML Canvas 2D API (Blueprint UI). |
 | `adw-webgl` | Adwaita app rendering through WebGL + three.js (Blueprint UI). |
-| `adw-game` | Adwaita game shell on Excalibur.js; WebGL with a Canvas 2D fallback. |
+| `adw-game` | Adwaita game shell on Excalibur.js; WebGL with a Canvas 2D fallback (Blueprint UI). |
 | `cli` | Command-line tool using yargs. |
 | `web-server-hono` | HTTP server using Hono (Web-standard fetch-style API). |
 | `web-server-express` | HTTP server using Express. |
