@@ -8,6 +8,7 @@ import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/core';
 import { nativeTerminal } from '@gjsify/terminal-native';
 import { StringDecoder } from '@gjsify/string_decoder';
+import { claimRawMode, releaseRawMode } from './raw-mode.js';
 import { getGjsGlobal, getGioNamespace } from './internal/gjs.js';
 
 const _encoder = new TextEncoder();
@@ -120,7 +121,6 @@ export class ProcessReadStream extends EventEmitter {
     private _stdinGio: any = null;
     private _reading = false;
     private _flowing = false;
-    private _sttyCleanupRegistered = false;
     private _mainLoopHeld = false;
     // True while a read_bytes_async is in-flight. Prevents a second concurrent
     // read from starting when pause()+resume() fires between GLib iterations.
@@ -148,6 +148,13 @@ export class ProcessReadStream extends EventEmitter {
             const ok = nativeTerminal.Terminal.set_raw_mode(this.fd, mode);
             if (ok) {
                 this.isRaw = mode;
+                // This is the branch that used to claim nothing. The same call took
+                // two paths and only ONE of them remembered to be undone, so the
+                // terminal was restored on a host without the prebuild and stranded
+                // on every host with it — the normal case.
+                this._noteRawMode(mode, () => {
+                    nativeTerminal.Terminal.set_raw_mode(this.fd, false);
+                });
                 return this;
             }
             // set_raw_mode returned false — fd may not be a TTY (e.g. piped stdin).
@@ -159,6 +166,21 @@ export class ProcessReadStream extends EventEmitter {
         this._setRawModeViaStty(mode);
         this.isRaw = mode;
         return this;
+    }
+
+    /**
+     * Record what this stream owes the terminal, or clear the debt.
+     *
+     * `releaseRawMode` matters as much as the claim: the owner turning raw mode
+     * off in the normal `close()` path has PAID, and an exit hook that ran the
+     * stale undo afterwards could fight a later owner that wanted raw mode.
+     */
+    private _noteRawMode(mode: boolean, restore: () => void): void {
+        if (mode) {
+            claimRawMode(this.fd, restore);
+        } else {
+            releaseRawMode(this.fd);
+        }
     }
 
     private _setRawModeViaStty(mode: boolean): void {
@@ -185,15 +207,11 @@ export class ProcessReadStream extends EventEmitter {
             const proc = launcher.spawnv(argv);
             proc.wait(null);
 
-            // Register a one-time exit handler to restore cooked mode when the process
-            // exits — without this the shell inherits raw mode and becomes unusable.
-            if (mode && !this._sttyCleanupRegistered) {
-                this._sttyCleanupRegistered = true;
-                const proc_ = (globalThis as { process?: { once?: (e: string, fn: () => void) => void } }).process;
-                if (proc_?.once && typeof proc_.once === 'function') {
-                    proc_.once('exit', () => this._setRawModeViaStty(false));
-                }
-            }
+            // The undo for this path, recorded next to the change that needed it.
+            // It used to reach for `globalThis.process` through an optional chain and
+            // sit behind an empty catch, so on any host where that global was absent
+            // the cleanup silently did not exist — the same terminal, restored by luck.
+            this._noteRawMode(mode, () => this._setRawModeViaStty(false));
         } catch {
             /* stty not available or not a TTY */
         }

@@ -28,11 +28,14 @@
  * REPORT MODE. `ctx.options.darwinDeploymentTarget === 'report'` turns every finding
  * into a printed note instead of a failure. It exists for exactly one situation: the
  * floor was lowered (or first declared) and the committed artifacts are only rebuilt
- * by CI after the change merges — `prebuilds.yml`'s `commit-prebuilds` on `main`. A
- * per-package exemption would have to live in generated manifests and be cleared by
- * the commit that lands the artifacts; one caller option, flipped back once they
- * have landed, is the smaller honest thing. The default is `'enforce'`, which is
- * what a consumer running this rule on its own package gets.
+ * by CI after the change merges. A per-package exemption would have to live in
+ * generated manifests and be cleared by the commit that lands the artifacts; one
+ * caller option, flipped back once they have landed, is the smaller honest thing.
+ * The default is `'enforce'`, which is what a consumer running this rule on its own
+ * package gets — and what gjsify itself gets, since `commit-prebuilds` has landed the
+ * rebuilt images and no caller passes the option any more. It is a TRANSITION aid, not
+ * a severity level: nothing in this repository may re-acquire it, because a mode that
+ * any caller can pin is a mode that silently stops holding the floor.
  *
  * PORTABLE: files and file headers only. The floor is gjsify's platform contract,
  * not this repository's layout — a consumer's darwin prebuild that needs a newer

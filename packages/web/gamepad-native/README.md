@@ -66,13 +66,22 @@ Set `MACOSX_DEPLOYMENT_TARGET` to the repository floor (ADR 0074) for a build yo
 gjsify workspace @gjsify/gamepad-native run test:meson
 ```
 
-Three meson tests cover the zero-device path, which is all a host without a controller
+Four meson tests cover the zero-device path, which is all a host without a controller
 can prove. None of them uses a fake:
 
 - `monitor-lifecycle`: C. 20 start/update/close cycles, two monitors at once, and a
   dispose without close.
 - `monitor-lifecycle-gjs`: the same through the typelib under `gjs`, which proves the GIR
   annotations `@gjsify/gamepad` relies on.
+- `monitor-lifecycle-node`: the same through the typelib on **Node**, on the
+  `@gjsify/node-gi` bridge — the runtime a `--app node` bundle and every Windows program
+  reaches `gi://` through (ADR 0024 § 4), and the one whose girepository is not GJS's.
+  There is no `GLib.MainLoop` in that process and none is needed: node-gi's uv pump
+  dispatches the thread-default context, so the test waits on an ordinary timer. It is
+  registered only when the addon is actually built — `@gjsify/node-gi` is not a workspace
+  member (ADR 0005), so a plain checkout has none until `npm install` in
+  `packages/node-gi/node-gi`; `prebuilds.yml`'s macOS leg does exactly that before
+  `meson setup`.
 - `monitor-lifecycle-leaks`: the C test under `leaks --atExit`, which must report 0 leaks.
   It runs through `test/leaks-verdict.sh`, which reads that report rather than `leaks`'
   exit status — Xcode 16.4's `leaks` reports and then never returns on the macOS 15

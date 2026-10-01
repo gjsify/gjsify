@@ -170,6 +170,12 @@ duplication — nine ad-hoc spellings including `const IS_WIN32 = platform ===
 
 ## Defect 4 re-measured — `Adw.init()` does not fault where the runtime is present
 
+> **Superseded in part on 2026-09-30.** The run below is accurate and its conclusion
+> is not: defect 4 is NOT a duplicate of defect 2, and the session this section
+> calls interactive was read wrongly. See
+> [Amendment — defect 4 is an upstream GDK/Win32 NULL dereference](#amendment-2026-09-30--defect-4-is-an-upstream-gdkwin32-null-dereference)
+> below, and the open TODO `status/open-todos/windows.md`.
+
 Recorded here because the Context table above uses it as one of the four
 motivating defects, and the ADR must not keep citing a finding its own
 implementation contradicted.
@@ -190,18 +196,56 @@ requireGi('Gtk','4.0')   ok        Gtk.init()  returned
 requireGi('Adw','1')     ok        Adw.init()  returned      exit 0
 ```
 
-**No access violation.** So defect 4 is a duplicate of defect 2, and the two
-were one bug: the undeclared prerequisite, surfacing at first real USE rather
-than at load — exactly the failure mode the issue predicted.
+**No access violation** — on that host, in that session. The conclusion drawn
+from it at the time, that defect 4 is a duplicate of defect 2, is **retracted**:
+see the amendment below.
 
 Precision about the session, because the original report turned on it ("only
 reproducible outside an interactive console session — which is also what a
 GitHub Windows runner is"): the probe ran **non-interactively**, with
 `process.stdout.isTTY` and `process.stdin.isTTY` both `false` and stdin on the
-null device, which is the condition that report named. It ran in the
-INTERACTIVE user session (`SESSIONNAME=Console`), so a session-0 / service
-context is still untested and is the one place the original symptom could
-survive. That is a narrower gap than the issue described, not a closed one.
+null device, which is the condition that report named. It was recorded here as
+having run in the INTERACTIVE user session on the strength of
+`SESSIONNAME=Console` — **and that reading does not survive re-measurement.** On
+the same VM on 2026-09-30, a shell reached over `ssh` reports `SESSIONNAME`
+UNSET and a process window station named `Service-0x0-<luid>$`: Win32-OpenSSH
+logs in as a service, so an SSH shell IS the session-0 context this section
+called untested. Whatever produced `SESSIONNAME=Console` was therefore not an
+SSH shell — the variable is set by the interactive logon, and a probe that saw
+it ran somewhere else. The gap this paragraph described as narrower than the
+issue was in fact open, and the amendment closes it.
+
+## Amendment (2026-09-30) — defect 4 is an upstream GDK/Win32 NULL dereference
+
+Re-measured on the same VM with published `@gjsify/node-gi` 0.52.0 +
+`@gjsify/gtk-runtime-win32-x64` 0.52.0 (GTK 4.22.4, libadwaita 1.9.1), VC++
+redistributable present. `Adw.init()` takes an `0xC0000005` 4 runs out of 4 in
+an `ssh` shell and under a `schtasks` S4U task — both on a per-logon
+`Service-0x0-<luid>$` window station — and exits 0 as `SYSTEM`
+(`Service-0x0-3e7$`) and in an interactive `WinSta0` session.
+
+`cdb` puts the faulting frame inside GTK, below `gtk_settings_get_for_display`,
+and the cause is a single unguarded pointer chase in
+`gdk_win32_display_get_setting()`'s `gtk-im-module` branch
+(`gdk/win32/gdkwin32misc.c:393`): `notification_sink` is NULL because
+`CoCreateInstance(CLSID_TF_ThreadMgr)` returns `E_FAIL` on a service window
+station — measured directly, `S_OK` under SYSTEM on the same machine. A GTK
+regression since 4.17.0 (`28aacf3db4`). `GDK_DEBUG=default-settings` avoids it.
+
+Three consequences for THIS ADR, which is why the amendment lives here:
+
+- **Defect 4 was never a duplicate.** Defects 2 and 4 share a symptom class
+  (`0xC0000005` at first real use) and nothing else; the MSVC prerequisite is
+  one bug and this is another, in a dependency, on an axis value the pipeline
+  had no leg for.
+- **The OS axis is not the whole discriminator — the SESSION is a second one.**
+  A `windows-latest` runner and a Windows service are the same OS, the same
+  runtime and the same bundle, and one of them cannot run GTK at all. §5's
+  "capability, not a platform name" applies one level finer than the ADR stated.
+- **A capability probe has to reach the capability.** The 0.30.0 run above
+  stopped at "`Adw.init()` returned" in a session where GTK works, exactly as
+  the `Gtk.init_check()`-only probe it was written to improve on stopped short
+  of `present()`. Both reported health from a call that cannot see the defect.
 
 ## darwin re-measured — the axis found its own four, and one of them was ADR-shaped
 

@@ -912,23 +912,32 @@ jobs:
 
       # ── macOS leg: build the bundles HERE, run them THERE ────────────────
       # `@gjsify/rolldown-native` is the only bundler engine that runs under
-      # GJS, and it does not compile for Apple targets at all (its Rust core
-      # wakes the GLib loop with `eventfd(2)`) — see
-      # website/src/content/docs/platform-support.md. On macOS `gjsify build`
-      # therefore has to run under Node + npm `rolldown`, which would mean a
-      # full `gjsify install` (a ~2 GB, ~16 min cold extract) on a runner billed
-      # at 10x. So the build stays on this Fedora leg — where npm rolldown /
-      # rolldown-native, node_modules and the build cache already exist — and
-      # macOS executes the result.
+      # GJS, and it reaches Apple: `gjsify.platforms` declares `darwin-arm64`
+      # and `darwin-x64`, both carrying committed artifacts, so `gjsify build`
+      # on a Mac uses it rather than npm `rolldown`. An earlier version of this
+      # comment claimed the bridge "does not compile for Apple targets at all"
+      # (its Rust core woke the GLib loop with `eventfd(2)`); that was true once
+      # and stopped being true when `prebuilds.yml`'s `build-prebuilds-macos`
+      # promoted it out of `-experimental`, and it is written out at that job's
+      # build step rather than here.
+      #
+      # The build still happens HERE rather than there, and the reason is SLOTS,
+      # not capability: this Fedora leg already has `node_modules` and the build
+      # cache, while a macOS runner would spend a full `gjsify install` (a ~2 GB,
+      # ~16 min cold extract) plus that build on a pool measured pinned at its cap
+      # (`docs/ci-selective.md` § What is scarce) to produce bytes whose
+      # portability the next paragraph asserts. So macOS executes the result.
       #
       # That is sound because `--app gjs` output is a SINGLE self-contained file
       # whose only unbundled imports are `gi://GLib|Gio|GioUnix` (verified with
       # `grep -oE 'gi://[^"]+'` on every bundle in this set): platform-neutral
       # JS plus three typelibs the macOS host provides. What this DOES verify is
       # runtime behaviour on macOS/arm64 — the gap this leg exists to close.
-      # What it does NOT verify is the gjsify build toolchain on macOS; that is
-      # a separate gap owned by `cli-cross-platform.yml`, and it cannot be
-      # closed here while the native bundler has no Apple target at all.
+      # What it does NOT verify is the gjsify BUILD toolchain on macOS. That is
+      # a different question with its own leg: `macos-suites.yml` installs,
+      # bootstraps and builds the tree on both arches, and its
+      # `node-free-cold-bootstrap` job repeats the whole chain from a cold tree
+      # with `node` unresolvable.
       #
       # Each bundle is copied to a flat staging dir so the macOS side can just
       # glob it — the package list stays defined exactly once (workflow `env`).

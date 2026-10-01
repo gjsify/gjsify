@@ -54,29 +54,6 @@ Two things to fix, and they are separable:
    arrives as six anonymous type errors, which is how this one nearly did.
 
 
-### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
-
-Noticed while diffing the two published 0.45.0 closures for the entry above, and
-independent of it — nothing measured so far needs the namespace, which is why it is a
-line here rather than a defect.
-
-Typelib counts are 47 on darwin-arm64 and 45 on win32-x64. All but four of the
-differences are platform-correct (`GdkMacos-4.0` / `GioUnix-2.0` / `GLibUnix-2.0`
-against `GdkWin32-4.0` / `GioWin32-2.0` / `GLibWin32-2.0`). The remainder:
-
-| only on darwin | only on win32 |
-|---|---|
-| `AppStream-1.0`, `Xmlb-2.0`, `GDesktopEnums-3.0` | **`GIRepository-2.0`** |
-
-`GIRepository-2.0` being present on win32 and absent on darwin is the asymmetric one.
-Both builders share `typelib-backers.mjs` and neither names it in `REQUIRED_NAMESPACES`
-or `WINDOWING_REQUIRED_NAMESPACES`, so it arrives — or does not — through each
-platform's closure walk rather than by decision. A consumer that introspects the
-repository itself from `gi://GIRepository` would therefore work on Windows and fail on
-macOS, and no check would say so. Either both should carry it or neither should; deciding
-which is a question for whoever owns the bundle contract.
-
-
 ### `systemGiLibraryDirs()` lives in three places, pinned by a test rather than shared
 
 The darwin bare-leaf `dlopen` gap is one rule with THREE consumers now:

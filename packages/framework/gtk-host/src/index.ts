@@ -30,6 +30,7 @@ export { addressOf, isPortal, placementOf, portalOf, reorderMode } from './polic
 export { toSignalName, isEventProp } from './signals.js';
 export {
     constructOnlyNames,
+    gtypeOfName,
     isConstructOnly,
     isWritable,
     lookupEnumNick,

@@ -119,6 +119,10 @@ const WORKFLOW = join(ROOT, '.github', 'workflows', 'prebuilds.yml');
  * `packages/infra/manifest-conformance/lib/rules/` and are not under this path
  * at all — so the glob forced eight architectures to recompile for changes that
  * cannot reach a byte of any prebuild, while covering none of the half that can.
+ * `check-prebuild-reproducible.mjs` is the fourth, and the one that says so most
+ * directly: it BUILDS each package a second time and compares the two sets of
+ * bytes, which is a measurement of the build rather than an input to it — it
+ * changes no artifact, so editing it must not recompile anything.
  *
  * NOTHING GOES UNVERIFIED BY THIS. They stay in the `paths:` filter, so a run
  * still starts and the jobs that read the COMMITTED artifacts still run — and
@@ -147,6 +151,7 @@ const WORKFLOW = join(ROOT, '.github', 'workflows', 'prebuilds.yml');
 const VERIFY_ONLY_TRIGGERS = [
     'scripts/check-refs-pin.mjs',
     'scripts/check-prebuild-loader-path.mjs',
+    'scripts/check-prebuild-reproducible.mjs',
     'scripts/manifest-conformance/**',
 ];
 

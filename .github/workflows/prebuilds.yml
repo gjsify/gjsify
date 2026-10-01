@@ -157,6 +157,7 @@ on:
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
+      - 'scripts/check-prebuild-reproducible.mjs'
       - 'scripts/manifest-conformance/**'
       - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
@@ -225,6 +226,7 @@ on:
       - 'scripts/stage-prebuild.mjs'
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
+      - 'scripts/check-prebuild-reproducible.mjs'
       - 'scripts/manifest-conformance/**'
       - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
@@ -1138,21 +1140,10 @@ jobs:
   # glib/gobject-introspection/vala/meson (+ one library each), not libgjs and
   # mozjs-140 — so there is no source build anywhere in this job.
   #
-  # WHAT IS DELIBERATELY NOT HERE, and why (each is a hard blocker, not an
-  # oversight — do not "fix" one by adding it to the matrix):
-  #
-  #   • @gjsify/rolldown-native — the Rust blocker is GONE (the three
-  #     `libc::eventfd(2)` descriptors became portable anonymous pipes in
-  #     src/rust/src/wakeup.rs, and `cargo check --target aarch64-apple-darwin`
-  #     passes), and meson.build is darwin-ready. It is not in the REQUIRED
-  #     matrix only because nothing has yet LINKED it on a real macOS host,
-  #     generated its typelib, or loaded it under Homebrew `gjs` — and it needs
-  #     `json-glib` on top of this job's brew closure plus
-  #     `git submodule update --init refs/rolldown` and a rustup toolchain.
-  #     (Since promoted — see its build step below; this bullet is kept for the
-  #     reasoning.)
-  #     CONSEQUENCE UNTIL THEN: `gjsify build` still has no engine on macOS —
-  #     this job closes the format/CSS half of the toolchain, not the bundler half.
+  # Nothing is held out of this job any more. Its one exclusion,
+  # `@gjsify/rolldown-native`, was promoted on the evidence recorded at its
+  # build step below — together with the Rust blocker that had to die first,
+  # which is what kept it out for as long as it did.
   #
   # NAMING: `darwin-arm64` — the `${process.platform}-${process.arch}` convention
   # every job in this workflow now uses, on every OS (`linux-x64`, `linux-arm64`,
@@ -1353,6 +1344,16 @@ jobs:
       # it shipped linux-only there was no `gjsify build` on any Mac at all. That
       # is why it belongs in the required job rather than behind a dispatch.
       #
+      # THE RUST BLOCKER THAT HELD IT BACK, kept because "it builds now" says
+      # nothing to the next person wondering why. Its core woke the GLib loop
+      # with three `libc::eventfd(2)` descriptors and `eventfd` does not exist on
+      # Darwin; they became portable anonymous pipes in `src/rust/src/wakeup.rs`,
+      # `cargo check --target aarch64-apple-darwin` passed, and `meson.build` was
+      # already darwin-ready. What was still missing then was EVIDENCE — nothing
+      # had linked it on a real macOS host, generated its typelib, or loaded it
+      # under Homebrew `gjs` — and the run above is what produced that. A cargo
+      # check is a compiler's opinion; the `load-tests` step below is a dlopen.
+      #
       # `--depth 1` (not the `--recursive` the oxc row uses): rolldown's own
       # submodules are test fixtures the Cargo path-dep never reaches, and the
       # shallow fetch still lands the pinned commit that `refs-pin` verifies.
@@ -1420,6 +1421,19 @@ jobs:
       # subsystems (ADR 0075 Amendment 1) — so it adds `cmake` to the brew closure
       # and nothing to the runtime: the library needs system frameworks and the
       # host's GLib, no Homebrew SDL.
+      # `@gjsify/node-gi` for the node leg of this shim's suite (ADR 0075 Amendment 1
+      # — SDL3 is the backend on every OS, and Node is how a `--app node` bundle and
+      # every Windows program reach `gi://`). It is NOT a workspace member (ADR 0005),
+      # so nothing installs it here: `npm install` in its own directory builds the
+      # N-API addon with node-gyp, which needs the glib/gobject `.pc` files
+      # gobject-introspection already pulled in above. BEFORE `meson setup`, because
+      # meson decides whether to register `monitor-lifecycle-node` by looking for that
+      # addon on disk — a leg registered after the setup would silently not exist.
+      - name: Build @gjsify/node-gi (for the gamepad node leg)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
       - name: Build @gjsify/gamepad-native (C shim + static SDL3)
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         working-directory: packages/web/gamepad-native
@@ -1427,11 +1441,11 @@ jobs:
           meson setup build .
           meson compile -C build
 
-      # The zero-device path, against the real library and a real SDL: C and gjs
-      # lifecycles, and the C one again under `leaks --atExit` (0 leaks or red).
-      # A runner has no controller, so this is all CI can prove; input from a
+      # The zero-device path, against the real library and a real SDL: C, gjs and
+      # node-gi lifecycles, and the C one again under `leaks --atExit` (0 leaks or
+      # red). A runner has no controller, so this is all CI can prove; input from a
       # real device is ADR 0075's hardware check.
-      - name: Test @gjsify/gamepad-native (lifecycle, gjs, leaks)
+      - name: Test @gjsify/gamepad-native (lifecycle, gjs, node, leaks)
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         working-directory: packages/web/gamepad-native
         run: meson test -C build --print-errorlogs
@@ -1586,6 +1600,38 @@ jobs:
         if: ${{ !contains(needs.changes.outputs.skip, '"webgl"') }}
         working-directory: packages/framework/webgl
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # Two builds of one commit must be the same bytes, and until this ran nothing
+      # said so: `commit-prebuilds` re-committed all sixteen committed darwin
+      # dylibs on every run, every one at an identical size, with zero bytes of code
+      # changed. Measured on darwin-arm64, two clean builds of @gjsify/terminal-native
+      # differed in 112 of 39152 bytes — the `LC_UUID`, one byte of an `N_OSO` stab's
+      # `n_value` (an intermediate object's mtime) and the ad-hoc signature computed
+      # over both. `buildtype=plain` in every meson project is the fix; this is what
+      # holds it.
+      #
+      # The committed comparison is in the same script and is REPORTED, not gated —
+      # it cannot gate: the Homebrew closure this job installs is unpinned, so a moved
+      # formula is a legitimate byte difference, and `commit-prebuilds` exists to land
+      # exactly those. See the script's header for both halves.
+      #
+      # It REPLACES each staged set with the second build's (through the same stager,
+      # so relocation and re-signing are inside the comparison). When the check passes
+      # the two are byte-identical, which is why the uploads below are unaffected —
+      # and a passed check is then also a statement about the bytes being committed.
+      - name: Rebuild every staged prebuild and compare the bytes
+        run: |
+          set -euo pipefail
+          dirs=()
+          while IFS= read -r d; do
+            [ -n "$d" ] && dirs+=("$d")
+          done < <(node .github/prebuild-toolchain/darwin-bridges.mjs prebuild-dirs \
+                     --target "$PREBUILD" --skip "${PREBUILD_SKIP:-}")
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "no bridge was rebuilt on this run — nothing to compare"
+            exit 0
+          fi
+          node scripts/check-prebuild-reproducible.mjs --target "$PREBUILD" "${dirs[@]}"
 
       # A typelib whose recorded shared-library leaf still says `.so` is found via
       # GI_TYPELIB_PATH but never loads — the exact silent failure this job's

@@ -305,3 +305,21 @@ from `listen` is not a drop-in fix: under a test runner's own `mainloop.run()` i
 whose `loop.run()` blocks after the tests quit (the reason for the guard). Closing this needs a
 way to tell GJS's evaluation spin apart from a running `GLib.MainLoop`.
 
+
+### `@gjsify/tty` still forgets a raw-mode claim, and nothing reaches it
+
+`@gjsify/process`'s `ProcessReadStream.setRawMode` records what it owes the terminal and
+`Process`'s `exit` pays it — the native branch used to return without claiming anything,
+while the `stty` fallback claimed through an optional-chained `globalThis.process` behind an
+empty `catch`, so on any host with the prebuild installed the debt was never paid. Measured on
+a pty: a child that sets raw mode and exits left `ECHO=OFF ICANON=OFF ISIG=OFF`, i.e. the shell
+unusable. Fixed by the claim living in `@gjsify/process/src/raw-mode.ts`.
+
+`@gjsify/tty`'s own `ReadStream.setRawMode` has the identical hole and is still unfixed. It is
+left alone on purpose, not overlooked: the package is `gjsify.runtimes.node: none`, nothing in
+this repo constructs it (`process.stdin` is the raw-mode owner everywhere it matters), and the
+one home both could share — `@gjsify/utils` or `@gjsify/terminal-native` — would mean a new
+cross-package dependency for a path no consumer reaches. What it needs when someone does reach
+it: the same claim, and the same `process` `exit` hook, which for a `gjsify.runtimes.node: none`
+package means reaching the process object the fragile way the old stty branch did — so the real
+fix is probably for `tty` to delegate rather than to duplicate.

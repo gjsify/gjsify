@@ -1,3 +1,8 @@
+# `buildtype=plain` = NO `-g`. ld64 emits a DEBUG MAP into any image whose objects
+# carry DWARF — one `N_OSO` stab per object, holding its MTIME — so with `-g` every
+# rebuild of this commit differed in bytes (plus the `LC_UUID` and the ad-hoc signature
+# computed over them) and `commit-prebuilds` re-committed all 16 darwin dylibs. That map
+# names intermediate `.o` files no consumer can have. Why: docs/prebuilds.md.
 # GjsifyWebView2 — the win32 backend for @gjsify/iframe (ADR 0035).
 #
 # TWO BUILDS, ONE DESCRIPTION, and the split is not "Windows vs the rest" — it is
@@ -22,7 +27,8 @@
 # most permissive, and pinning a standard there answers a question this source
 # does not ask. Every other host gets its compiler's default, which is at least
 # C17.
-project('GjsifyWebView2', ['c'], version: '1.0')
+project('GjsifyWebView2', ['c'], version: '1.0',
+        default_options: ['buildtype=plain'])
 
 gnome = import('gnome')
 fs = import('fs')

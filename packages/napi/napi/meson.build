@@ -4,11 +4,16 @@
 # code compiled into ONE shared library + GIR + typelib. The native part here
 # is C++ (JSAPI is C++); the shim is intrinsically pinned to GJS's mozjs
 # major and must be rebuilt when GJS bumps (ADR 0011).
+# `buildtype=plain` = NO `-g`. ld64 emits a DEBUG MAP into any image whose objects
+# carry DWARF — one `N_OSO` stab per object, holding its MTIME — so with `-g` every
+# rebuild of this commit differed in bytes (plus the `LC_UUID` and the ad-hoc signature
+# computed over them) and `commit-prebuilds` re-committed all 16 darwin dylibs. That map
+# names intermediate `.o` files no consumer can have. Why: docs/prebuilds.md.
 project('GjsifyNapi', ['c', 'cpp', 'vala'],
     version: '1.0',
     # Match GJS's own build (refs/gjs/meson.build): C++17, no RTTI, no
     # exceptions — mozjs-140 has no stable C++ ABI and is built the same way.
-    default_options: ['cpp_std=c++17'])
+    default_options: ['cpp_std=c++17', 'buildtype=plain'])
 
 dependencies = [
     dependency('glib-2.0'),

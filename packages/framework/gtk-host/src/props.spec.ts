@@ -14,7 +14,15 @@ import { camelOf } from './generator/names.mjs';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
-import { constructOnlyNames, paramSpecs, removedValue, toPropertyName } from './props.js';
+import {
+    constructOnlyNames,
+    enumMembers,
+    gtypeOfName,
+    lookupEnumNick,
+    paramSpecs,
+    removedValue,
+    toPropertyName,
+} from './props.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
 import { hasWidget } from './registry.js';
 
@@ -51,6 +59,92 @@ export default async () => {
                 // every widget, which is why a raw construct-only census reads ~3x
                 // higher than the number of widgets that actually need a rebuild.
                 expect(constructOnlyNames(Gtk.Button, 'GtkButton')).toStrictEqual(['css-name']);
+            });
+        });
+
+        await gated(diagnostics, 'a GType NAME to its installed type', async () => {
+            await it('reads the GType of a CLASS, which GJS makes a constructor', async () => {
+                // THE DEFECT, AND IT IS THE WHOLE REASON THIS LOOKUP IS NOT A `typeof`.
+                // A GObject class is the CONSTRUCTOR function in GJS, so the namespace
+                // read had to survive a `'function'`, and the `typeof candidate !==
+                // 'object'` filter in front of it refused every class and admitted only
+                // the enums — which is why this read looked healthy while answering
+                // `undefined` for a class that is present and constructible.
+                //
+                // `GtkSnapshot` on purpose: no table row carries it and no suite reads
+                // it, so `type_from_name` cannot have registered it and the assertion
+                // measures the TABLE branch rather than the cache in front of it. The
+                // premise is asserted FIRST, because reading the member is itself what
+                // registers it — check it after and the check is vacuous.
+                // Measured on gjs 1.88.1 / GTK 4.24.0, before the fix:
+                // `gtypeOfName('GtkSnapshot')` answered `undefined`.
+                expect(GObject.type_from_name('GtkSnapshot')).toBe(null);
+                expect(typeof Gtk.Snapshot).toBe('function');
+                const gtype = gtypeOfName('GtkSnapshot');
+                expect(gtype === undefined).toBe(false);
+                // NON-ZERO, which is the claim a consumer gating on a GTK version
+                // branches on. `type_name` of `G_TYPE_INVALID` is null, so this is the
+                // assertion that would catch a zero answering as a hit.
+                expect(gtype !== undefined && GObject.type_name(gtype) === 'GtkSnapshot').toBe(true);
+                // And it is the SAME GType the class itself carries, so the lookup
+                // confirmed the candidate rather than taking the name on trust.
+                //
+                // BY NAME, NOT BY IDENTITY: the two runtimes box a GType differently —
+                // GJS gives a NUMBER, so `toBe` compares by value, while node-gi
+                // marshals a FRESH `Napi::External` per call (`MakeGTypeHandle`,
+                // node-gi/src/marshal.cc:353 — its own test asserts `typeof back ===
+                // 'object'`, gtype.test.mjs:72). Two reads of one type are then two
+                // objects, so identity is no claim either runtime agrees on; this
+                // case passes it on node-gi only by accident, `type_from_name` having
+                // missed so both sides read the handle cached on the class. The
+                // NON-ZERO claim above is unaffected: `type_name` of `G_TYPE_INVALID`
+                // is null, never a name, so a zero still fails it.
+                expect(gtype !== undefined && GObject.type_name(gtype) === GObject.type_name(Gtk.Snapshot.$gtype)).toBe(
+                    true,
+                );
+            });
+
+            await it('answers for an enum and for one of its members, through the same path', async () => {
+                // The other half, so the fix cannot be a class-only special case: the
+                // path already served enums and must still. `GtkOrientation` is both an
+                // enum and the `value_type` of a property every shipped widget carries.
+                const gtype = gtypeOfName('GtkOrientation');
+                expect(gtype === undefined).toBe(false);
+                // BY NAME, for the marshalling reason the class case above sets out:
+                // `GtkOrientation` IS in `type_from_name`, so the left side is a
+                // freshly marshalled External while `Gtk.Orientation.$gtype` is the
+                // one handle cached on the class — two objects, and `toBe` fails.
+                // The name is what both runtimes agree on, and a zero cannot pass it.
+                expect(
+                    gtype !== undefined && GObject.type_name(gtype) === GObject.type_name(Gtk.Orientation.$gtype),
+                ).toBe(true);
+                expect(enumMembers('GtkOrientation')).toContain('VERTICAL');
+                expect(lookupEnumNick('GtkOrientation', 'vertical')).toBe(Gtk.Orientation.VERTICAL);
+                // The member the parser itself cannot answer, so the SECOND resolution
+                // route — the one that reads members off the namespace object rather
+                // than asking the parser — is on the table too. `0bsd` parses to 0 in
+                // `GtkLicense` (measured, GTK 4.22.5) while the member is 18.
+                expect(lookupEnumNick('GtkLicense', '0bsd')).toBe(Gtk.License['0BSD']);
+            });
+
+            await it('refuses a name no namespace member carries', async () => {
+                // The guard the `typeof` was reaching for, stated as its own case: a
+                // NON-GI member of the same namespace (`Gtk.init` is a plain function,
+                // `Gtk.MAJOR_VERSION` a number) carries no `$gtype` and a name nothing
+                // defines has no member at all. Neither may answer as a type.
+                expect(gtypeOfName('GtkThisClassDoesNotExist')).toBe(undefined);
+                expect(gtypeOfName('GtkInit')).toBe(undefined);
+                expect(gtypeOfName('GtkMajorVersion')).toBe(undefined);
+            });
+
+            await it('reports members for an enum and nothing for a class', async () => {
+                // WHY `enumMembers` RE-CHECKS the kind rather than trusting the widened
+                // lookup: it now finds a CLASS as readily as an enum, and a class carries
+                // no numeric members. `undefined` (no such enum here) is the honest
+                // answer; `[]` would read as "an enum that registers nothing", which is
+                // the claim every caller of this function is entitled to trust.
+                expect(enumMembers('GtkSnapshot')).toBe(undefined);
+                expect(enumMembers('GtkOrientation')).toContain('HORIZONTAL');
             });
         });
 

@@ -9,8 +9,11 @@
 // e2e): a banner is the entry chunk's BODY and ESM evaluates imports first, so a
 // STATIC `import … from 'gi://Ns'` has already loaded its typelib before this runs.
 // What is left is what loads LATER — `await import('gi://Soup')` and the other
-// optional namespaces. Reaching the static ones changes how a bundle acquires GI
-// namespaces at all; that is an ADR, filed in the same entry.
+// optional namespaces. Confirmed on darwin-arm64 in the same shape (macOS 27 / M4 /
+// Homebrew, the bundle loading Gtk through `await import` and failing through a
+// static one). Reaching the static ones changes how a bundle acquires GI namespaces
+// at all: ADR 0085 decides to lower them here, in `renderChunk`, to awaited dynamic
+// imports placed after this prologue — proposed, not implemented.
 //
 // TWO KINDS OF DIRECTORY, split by WHOSE FACT each is. `dirs` describe the SHIPPED
 // TREE, so they are baked, relative to the program. `systemProbes` describe the host

@@ -9,8 +9,9 @@
 // launcher goes through, so the only repair that survives is one the process makes to
 // girepository's own search paths from the inside. Measurements, and what this reaches
 // (loads AFTER module evaluation starts, not a static `gi://` import):
-// `status/open-todos.md` § "A globally installed GJS launcher still cannot load a
-// system GTK on macOS".
+// `status/open-todos/macos.md` § "A globally installed GJS launcher still cannot load a
+// system GTK on macOS", and the darwin-arm64 end-to-end run under it. The static half is
+// ADR 0085 (`docs/poc/gi-prologue-import-order.md` is its placement study).
 //
 // A SHIPPED BUNDLE RUNS ON A MACHINE THE BUILD NEVER SAW, which rules out both
 // tempting sources. `systemGiLibraryDirs()` MEASURES the build host and answers `[]`

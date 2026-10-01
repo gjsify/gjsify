@@ -137,16 +137,14 @@ The fix is to credit from git rather than from the filesystem. What makes it mor
 
 ### Nothing byte-compares a committed prebuild, and macOS re-commits noise
 
-AGENTS.md already records that committed `prebuilds/**` binaries are unguarded
-(provenance proves the inputs; nothing compares the bytes). The v0.26.0 sweep
+docs/build-artifacts.md records that committed `prebuilds/**` binaries had no byte
+guard at all (provenance proved the inputs; nothing compared the bytes). The v0.26.0 sweep
 showed the other half of that gap: `commit-prebuilds` pushed six darwin-arm64
 dylibs whose sizes were IDENTICAL to their predecessors (37144 -> 37144, and so
 on) but whose bytes differed — non-reproducible Mach-O output (timestamps,
 UUIDs). So every macOS prebuild run commits binary churn with no semantic
 change, and that push moved `main` out from under an already-verified sweep
-mid-release. Worth fixing at the source (reproducible flags) rather than by
-suppressing the commit, since byte-reproducibility is what would let a future
-check compare a committed prebuild against a CI-built one at all.
+mid-release.
 
 **Now measured to the byte, because the same non-reproducibility killed the
 commit channel outright** (fixed separately, by removing the rebase — see the
@@ -162,14 +160,50 @@ ad-hoc `LC_CODE_SIGNATURE` blob, whose hashes cover the header those bytes are
 in. Zero bytes of `__TEXT`, `__DATA_CONST`, the string table, the chained
 fixups or the exports trie differ in any of the sixteen.
 
-That names the fix precisely rather than as "reproducible flags": the UUID needs
-`-Wl,-no_uuid` (or a `--build-id`-style deterministic value) and the `N_OSO`
-timestamps need the object mtimes normalised — `ZERO_AR_DATE=1` handles the
-archive case, but these are direct `.o` references from meson's per-target
-directory. The arm64 signature follows automatically once the bytes it hashes
-are stable. Worth doing: it is the last thing standing between this repo and a
-byte-comparison of a committed prebuild against a CI-built one.
+**Both halves landed, and the byte count reproduces on a laptop.** Rebuilt on
+macOS 27 / arm64: two clean builds of `@gjsify/terminal-native`, 39 152 B each,
+differing in **112 bytes** — the 16-byte `LC_UUID` payload at 0x438, one byte of
+the single `N_OSO` stab's `n_value` at 0x8530 (its low byte, because the two
+builds fell a minute apart), and 95 bytes of the ad-hoc `LC_CODE_SIGNATURE` at
+0x9760. So the ledger's darwin-x64 reading is the same defect on arm64 with the
+signature added, and nothing else is in it.
 
+**The cause is one flag, and it is not the UUID.** ld64 emits a DEBUG MAP into
+any image whose objects carry DWARF — measured directly, by linking a `-g`
+object with and without `-g` on the LINK line and reading the map both times —
+so the stab's mtime is written whatever the link line says, and meson's default
+`debug` buildtype is what puts `-g` on the compile. Every `meson.build` here now
+declares `buildtype=plain`. Re-measured the same way, two clean builds differ in
+**zero bytes** for all nine darwin bridges a laptop can build without rustc;
+`@gjsify/gamepad-native` already had it, through `minsize`, for a different
+reason. `nm -a` over the committed set closes the count: **13 of the 16
+committed darwin-arm64 dylibs carried `N_OSO` stabs (1–4 each) and the three
+cargo cdylibs carry none**, so no rustc channel existed to fix.
+
+The ledger's earlier proposal — "the UUID needs `-Wl,-no_uuid` and the `N_OSO`
+timestamps need the object mtimes normalised" — is wrong on both halves, which is
+worth keeping because it is the obvious next guess. The UUID is a HASH over the
+image including the stab, so stabilising the stab stabilises it: with `-g` gone
+the UUID is byte-identical across builds and `-no_uuid` would buy nothing but a
+missing `LC_UUID` load command. And there is no flag that normalises an object
+mtime — `ZERO_AR_DATE=1` is `ar`, ld64's `-oso_prefix` rewrites the stab's PATH,
+not its `n_value`, and touching `.o` files to a fixed date would leave the debug
+map pointing at a timestamp no file carries.
+
+**What remains is the half that cannot gate, and the reason is the runner, not
+the repo.** `scripts/check-prebuild-reproducible.mjs` runs in the existing
+`build-prebuilds-macos` leg and rebuilds every package that run staged, then
+requires the two sets of bytes to be equal — so reproducibility is now GATED, on
+the same `ci:macos` / push-to-`main` footing as the leg that already ran. The
+same script compares the fresh bytes against the committed ones and REPORTS the
+difference per file, because a gate there would be red on `main` for a correct
+reason: the macOS runners install Homebrew unpinned, so a fresh build legitimately
+differs from the committed artifact whenever a formula version moved, and landing
+exactly those bytes is what `commit-prebuilds` is for. Closing this properly needs
+a pinned Homebrew closure (or recorded per-formula versions to normalise), which
+is a bigger decision than a byte comparison. Until then the ledger keeps its
+claim, narrowed to what is true: the darwin artifact is reproducible and gated as
+such; the committed-vs-fresh comparison is measured and printed, not enforced.
 
 ### `@gjsify/lightningcss-native` references `gnu_get_libc_version`, which musl lacks
 
@@ -309,15 +343,3 @@ needs a musl symbol set to be sound, so it is a policy change to `prebuild-libc`
 Publishing `-musl` packages makes the question moot for the bridges that can be built twice.
 Either way the CLI's install-time report stays useful for the residue, and neither is decidable
 from a working copy.
-
-
-### Enforce the macOS 15.0 floor on committed darwin prebuilds
-
-ADR 0074 declared one macOS floor (`DARWIN_DEPLOYMENT_TARGET`, 15.0) and the
-`prebuild-darwin-target` rule that holds every committed darwin image's `LC_BUILD_VERSION`
-`minos` to it. The rule runs in REPORT mode in `scripts/audit-runtimes.mjs`
-(`darwinDeploymentTarget: 'report'`), because the committed darwin-arm64 prebuilds still
-record `minos 26.0` and only `prebuilds.yml`'s `commit-prebuilds` on `main` can replace
-them. Once that job has landed the rebuilt artifacts (the rule's REPORT-MODE note disappears
-from `audit-runtimes --check`), delete the `darwinDeploymentTarget: 'report'` line so a
-regression fails instead of printing.

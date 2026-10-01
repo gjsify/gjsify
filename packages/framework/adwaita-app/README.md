@@ -216,9 +216,62 @@ more helpful and would show a licence line on Windows that Linux does not.
 - `createNavShell(window, options): NavShell` — builds the
   `Adw.NavigationSplitView` (sidebar `Gtk.ListBox` + content `Gtk.Stack`) into
   `window` (which owns the responsive `Adw.Breakpoint`, default `max-width: 720px`).
-  Returns `{ widget, stack, contentHeader, selectById, selectByIndex }`.
+  Returns `{ widget, stack, contentHeader, setItems, selectById, selectByIndex }`.
 - `resolveInitialNavIndex(items, wantedId?)`, `findNavItem(items, id)` — pure
   helpers (e.g. to turn a `${PREFIX}_VIEW` dev hook into a start index).
+
+`NavShellOptions` beyond `items` / `onSelect`: `sidebarTitle`, `sidebarHeaderStart`,
+`sidebarHeaderEnd`, `collapseWidth`, and the three below.
+
+#### A sidebar that fills asynchronously
+
+`setItems(items)` rebuilds the rows in place and replaces the items behind them, so
+`row-selected` → `onSelect(item, index)` and `selectById` / `selectByIndex` always
+resolve against the items you last passed. A hand-rolled `append` does not: inserting a
+row shifts every row below it, and an index read against the array the shell was built
+with hands `onSelect` the wrong item with no error anywhere.
+
+```ts
+const shell = createNavShell(this, {
+    items: [],
+    onSelect: (item) => shell.stack.set_visible_child_name(item.id),
+});
+
+loadInbox().then((threads) => {
+    shell.setItems(threads.map((t) => ({ id: t.id, label: t.subject, icon: 'mail-inbox-symbolic' })));
+    shell.selectById(threads[0].id);
+});
+```
+
+The `Gtk.Stack` stays yours: `setItems` does not touch it, so a page outliving its item
+is your call to keep or drop.
+
+The selected id survives a `setItems` if the new items still carry it, and `onSelect`
+does **not** fire — a rebuild is not a selection, and re-announcing the same item would
+make `onSelect` fire on every list update. An item that is gone leaves nothing selected;
+`selectById` is how you pick the replacement deliberately.
+
+#### Group headers
+
+`headerFunc(row, before)` goes straight into `Gtk.ListBox.set_header_func`. `before` is
+the `NavItem` of the row above `row`, or `null` for the first row — a header is a
+comparison against the previous section, so that is what it hands you. Return `null` to
+draw no header. (The `NavItem` is passed, not the row: the row is right there as `row`.)
+
+```ts
+createNavShell(this, {
+    items: NAV,
+    onSelect: (item) => shell.stack.set_visible_child_name(item.id),
+    headerFunc: (_row, before) =>
+        before && before.id.startsWith('pinned/') ? null : new Gtk.Label({ cssClasses: ['heading'], label: 'Threads' }),
+});
+```
+
+#### Bottom bars
+
+`sidebarBottomBar` and `contentBottomBar` are the respective `Adw.ToolbarView`s'
+`add_bottom_bar` — a control under the sidebar list, and one under the content stack
+rather than inside it.
 
 ### Async view mounting
 

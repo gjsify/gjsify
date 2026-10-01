@@ -102,33 +102,93 @@ emits arch-independent C + GIR, and the Windows half needs only a
 `windows-11-arm` runner and an arm64 prefix. Tracked as #1117.
 
 
-### win32 `Adw.init()` — measured NOT to fault; two narrower gaps remain
+### win32 `Adw.init()` DOES fault on a non-interactive window station — and the bug is GDK's
 
-#997's second finding (an `0xC0000005` access violation in `Adw.init()` on
-win32) did not reproduce. Measured on the win11-gjsify VM with the published
-`@gjsify/node-gi` 0.30.0 prebuild plus `@gjsify/gtk-runtime-win32-x64`, on a
-host where `checkMsvcRuntime()` reports the Visual C++ runtime PRESENT: GLib
-2.88.1 resolves, `Gtk.init()` returns, `Adw.init()` returns, exit 0. Per the
-issue's own decisive test that makes it a DUPLICATE of the first finding — the
-undeclared MSVC prerequisite, surfacing at first real use rather than at load.
-Full write-up, including the session characterisation, is in ADR 0018.
+#997's second finding (an `0xC0000005` access violation in `Adw.init()` on win32) is
+REAL. It is not libadwaita's, not the MSVC prerequisite, and not node-gi's: it is one
+unguarded pointer chase in GDK/Win32, reachable from any GTK4 application on a
+window station where the Text Services Framework cannot be instantiated. Measured
+2026-09-30 on the win11-gjsify VM (Windows 11 Pro 25H2, Node 24.18.1, published
+`@gjsify/node-gi` 0.52.0 + `@gjsify/gtk-runtime-win32-x64` 0.52.0, GTK 4.22.4,
+libadwaita 1.9.1, VC++ redistributable PRESENT):
 
-What is NOT closed by that run, stated so neither reads as covered:
+| context | session | window station | outcome |
+|---|---|---|---|
+| `ssh` shell as the normal user | 0 | `Service-0x0-<luid>$` | **0xC0000005 in `Adw.init()`**, 4/4 |
+| `schtasks` S4U, same user | 0 | `Service-0x0-<luid>$` | **0xC0000005** |
+| `schtasks` as `SYSTEM` | 0 | `Service-0x0-3e7$` | exit 0 |
+| `schtasks` `-LogonType Interactive` | 1 | `WinSta0` | exit 0 |
 
-- **Session 0.** The probe was non-interactive (`isTTY` false on both ends,
-  stdin on the null device — the condition the original report named) but ran in
-  the interactive user session (`SESSIONNAME=Console`). A service / session-0
-  context is the one place the original symptom could still live, and it is also
-  what some CI agents look like.
-- **The GTK bundle did not arrive with `npm install @gjsify/node-gi`.** The
-  install script reported *"using the shipped prebuild for win32-x64"* and
-  nothing else; `@gjsify/gtk-runtime-win32-x64` (78 MB) had to be installed
-  EXPLICITLY before any namespace would resolve. That may be npm 11 declining to
-  run install scripts by default (`npm warn allow-scripts`, which did fire here
-  and forced the script to be run by hand) rather than a gap in the package —
-  the two are not separable from this one observation. Worth one deliberate
-  measurement on a clean host with scripts approved, because "install node-gi and
-  it works" is what the win32 story currently promises.
+**The faulting frame**, from `cdb` (`Microsoft.WinDbg`, winget). The bundle ships no
+PDBs, so every frame names the nearest preceding EXPORT, not the real function:
+
+```
+gtk_4_1!gdk_win32_surface_set_urgency_hint+0x3472   test byte ptr [rax+0Ch],1   rax=0
+gtk_4_1!gtk_settings_reset_property+0xebc
+gtk_4_1!gtk_settings_get_for_display+0x2cf
+ffi_8!ffi_call → girepository_2_0_0!gi_function_info_invoke → node_gi
+```
+
+`adw_init()` is only the messenger — it reaches that frame through
+`adw_style_manager_ensure()` → `register_display()` → `adw_style_manager_constructed()`
+→ `gtk_settings_get_for_display()`. A probe calling `Gtk.Settings.get_for_display()`
+directly, with libadwaita never loaded, faults identically. `Gtk.init()` itself returns:
+it opens the display but creates no `GtkSettings`.
+
+**Root cause.** `gdk_win32_display_get_setting()` answers `gtk-im-module` with
+
+```c
+GDK_WIN32_DISPLAY (display)->input_locale_items->notification_sink->input_locale_is_ime ? "ime" : ""
+```
+
+— `gdk/win32/gdkwin32misc.c:393` at 4.22.4, byte-identical on `main` at 4.23.2, and no
+NULL guard anywhere on the chase. `notification_sink` stays NULL whenever
+`gdk_win32_display_lang_notification_init()` takes one of its three early returns, and
+the first is `CoCreateInstance(CLSID_TF_ThreadMgr)` failing. Measured directly on the
+same machine, same minute, from the same two contexts: that call returns **`E_FAIL`
+(0x80004005)** on the SSH user's `Service-0x0-2d6a70$` and **`S_OK`** on SYSTEM's
+`Service-0x0-3e7$`. TSF's thread manager cannot be created on a per-logon *service*
+window station. `input_locale_is_ime` is the bitfield at offset 0x0C — the `rax+0Ch`
+read above, with `rax` zero.
+
+A REGRESSION with a date: GTK **4.17.0**, commit `28aacf3db4` ("GDK/Win32: Drop input
+locale global variables", 2024-08-20), replaced the static `_gdk_input_locale_is_ime` —
+a global that cannot be NULL — with that two-level chase and added no guard. Every
+release since carries it.
+
+**`GDK_DEBUG=default-settings` is a measured workaround.** The first two lines of
+`gdk_win32_display_get_setting()` return FALSE under that flag, so the `gtk-im-module`
+branch is never reached. With it, the same probe in the same SSH session runs
+`Adw.init()` to completion, constructs a `Gtk.Window` and exits 0. The price is GTK's
+own default settings instead of Windows' font, double-click and theme values — which
+costs nothing in a context where no window can be shown to anybody anyway.
+
+**Nothing lands in this repository, on purpose.** The fix belongs in GDK (filed as a
+row in `status/upstream-patch-candidates.md`). Setting the flag from node-gi's
+windowing loader would have to KNOW it is in such a context before `gdk_display_open()`
+reads the debug flags, and the only precise discriminator is the TSF probe itself — a
+win32-only COM call added to the addon for a bug we do not own. The window-station NAME
+is reachable by the same native route and is NOT precise: SYSTEM's `Service-0x0-3e7$`
+is every bit as non-interactive and works. If this ever reaches a gjsify CI leg, that
+native probe plus an auto-set `GDK_DEBUG=default-settings` is the shape to build; until
+then the flag is documented and upstream carries the fix.
+
+### `npm install @gjsify/node-gi` never brings the GTK bundle — and npm 11 is not the reason
+
+Measured 2026-09-30 on a clean directory with node-gi 0.52.0, which separates what one
+earlier observation could not. After `npm install @gjsify/node-gi` **and** after running
+`node_modules/@gjsify/node-gi/scripts/install.mjs` by hand — i.e. with npm 11's
+`allow-scripts` gate taken out of the picture — `node_modules/@gjsify` holds exactly one
+entry: `node-gi`. The install script does not fetch a runtime bundle and is not supposed
+to: node-gi declares no `optionalDependencies`, which ADR 0023 makes deliberate, because
+whoever ships the application picks the runtime.
+
+So the promise "install node-gi and it works" is kept by a DIAGNOSTIC, not by a
+dependency, and that diagnostic fires at the first `requireGi`: the addon itself loads,
+its GI dependency closure does not, and `describeAddonLoadFailure()` names
+`npm install @gjsify/gtk-runtime-win32-x64`, the `GJSIFY_GTK_RUNTIME` override and the
+VC++ redistributable. Working as designed; nothing open here beyond keeping that message
+accurate.
 
 
 ### win32 MP3 through the OS decoder: the upstream library route is still open

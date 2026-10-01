@@ -40,7 +40,7 @@ import { VALUE_TYPES, VALUE_TYPES_PROVENANCE, VALUE_TYPES_UNDECLARED } from './g
 import { ARIA_SLOTS } from './generated/accessibility.js';
 import { DECLS, ENUM_NICKS, FLAG_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/names.mjs';
-import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
+import { enumMembers, gtypeOfName, isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
 import { hasWidget, lookupWidget } from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
@@ -102,13 +102,19 @@ const installedCtor = (descriptor: {
  * found something. Two namespaces are enough by construction — the vocabulary drops
  * every base outside Gtk and Adw, which is why `GObject`'s `notify` and
  * `Gio.ActionGroup`'s four signals cannot appear as omissions here.
+ *
+ * NOT A SECOND LOOKUP, or it is the one this package used to ship. This walked `Gtk`
+ * and `Adw` itself to find a name's `$gtype` — the same question
+ * {@link gtypeOfName} asks, answered from a narrower table and through a different
+ * read, and the two answers drifted: this one never consulted `type_from_name` and never
+ * reached outside Gtk/Adw, so a chain link in `GObject` or `Gio` answered "absent" here
+ * and could answer elsewhere. The two-namespace restriction is KEPT, because it is what
+ * this check's argument rests on; only the walk is gone, so the restriction and the
+ * lookup cannot disagree about what the six-namespace table would have said.
  */
 const declarationGType = (gtype: string): GObject.GType | null => {
-    const adw = gtype.startsWith('Adw');
-    if (!adw && !gtype.startsWith('Gtk')) return null;
-    const ns = (adw ? Adw : Gtk) as unknown as Record<string, unknown>;
-    const klass = ns[gtype.slice(3)] as { $gtype?: GObject.GType } | undefined;
-    return klass?.$gtype ?? null;
+    if (!gtype.startsWith('Adw') && !gtype.startsWith('Gtk')) return null;
+    return gtypeOfName(gtype) ?? null;
 };
 
 const writableSpecs = (gtype: string): string[] | null => {

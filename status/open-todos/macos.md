@@ -150,36 +150,46 @@ gjsify shape for exactly the optional namespaces this is about (`@gjsify/fetch`'
 Soup, `@gjsify/dom-elements`' PangoCairo, `@gjsify/gamepad`'s Manette, the prebuilt
 `gi://Gjsify*` bridges) — and NOT a GTK app whose `gi://Gtk` is a static import.
 
+**A Mac has now run a bundle carrying it — macOS 27, Apple M4 (darwin-arm64),
+Homebrew `/opt/homebrew`, gjs 1.88.1, under `env -u DYLD_FALLBACK_LIBRARY_PATH -u
+DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH`.** A `--app gjs` bundle whose GI use is
+`await import('gi://Gtk?version=4.0')` loads and prints `GtkWidget`, with
+`/opt/homebrew/lib` first on the repository's search path; the same program without
+the prologue fails on the bare-leaf dlopen. The host marker fires and is non-vacuous
+in both directions: `/System/Library/CoreServices/SystemVersion.plist` exists, the
+one probed candidate holding a `girepository-1.0/` is prepended, and `/usr/local/lib`
++ `/opt/local/lib` are not. So the e2e's stand-in host measured the right thing, and
+the darwin leg of this entry is closed — what remains is the STATIC-import half,
+which the same run confirms is still out of reach.
+
 **Still open here**, in the order they gate each other:
 
-1. Make the prologue precede the static imports. Every shape found so far changes
-   how a `--app gjs` bundle acquires GI namespaces (a second emitted file imported
-   first, or lowering the externals to `globalThis.imports.gi.Ns` accessors in the
-   body), which also moves the ground under `ship/gi-namespaces.ts` — it reads the
-   `gi://` specifiers off the emitted bundle to compute package dependencies. ADR
-   first, per § Governance.
-2. A darwin end-to-end run: the PREPEND is macOS-measured (the table above) and the
-   wiring is measured on linux — against a stand-in host for the darwin side, since
-   this workspace has no Mac in it — but no Mac has yet run a bundle carrying it.
-   That covers the host marker too: its absence is what a Linux run measures.
-3. The link-closure half below, which no prologue can reach.
+1. Make the prologue precede the static imports. **Decided in
+   [ADR 0085](../../docs/adr/0085-gi-namespaces-are-acquired-after-the-prologue.md)
+   (Proposed, gating): lower the static `gi://` externals, in the entry chunk, to
+   top-level `await import()` after the prologue** — one artifact, and the `gi://`
+   specifier stays in it, which is what keeps `ship/gi-namespaces.ts` reading the
+   file it already reads (measured: the accessor lowerings answer `[]` there, i.e.
+   an empty typelib dependency set, the ADR 0024 § 6 defect a third time). The
+   placement study behind it — eleven rows, including the `globalThis.imports.gi.Ns`
+   and GJS-resource-loader alternatives, all three of which DO load — is
+   `docs/poc/gi-prologue-import-order.{md,gjs.mjs}`. Implementation is owed, not
+   done.
+2. The link-closure half below, which no prologue can reach.
 
 
 ### The darwin loader repair still leans on an env variable outside GI's reach
 
 `activateGiLibraryPath()` now tells GI itself where a typelib's bare-leaf backer lives, which is what makes bun and deno work on macOS at all. It cannot cover everything: a dylib pulled in by ANOTHER dylib's own link closure never passes through GI, so `maybeReexecForGtkRuntime()` (Node) and the launcher preamble (`bin-shim.ts`, every runtime) stay as the belt for that class.
 
-Two consequences worth closing later, neither blocking: the Node re-exec is now redundant for everything GI resolves and could be narrowed to the closure case once a darwin CI leg proves it; and `hostGtkIsWorthTrying()` on an Apple-silicon host still answers from `systemGiLibraryDirs()`, whose `/opt/homebrew/lib` probe was never in dyld's default fallback — measured only on x86_64 so far.
+One consequence worth closing later, not blocking: the Node re-exec is now redundant for everything GI resolves and could be narrowed to the closure case once a darwin CI leg proves it.
+
+**The Apple-silicon half is measured and correct.** On macOS 27 / M4, `systemGiLibraryDirs()` answers `["/opt/homebrew/lib"]` and `hostGtkIsWorthTrying()` answers `true` — unchanged with `pkg-config` off `PATH` and `GI_TYPELIB_PATH`/`PKG_CONFIG_PATH` deleted, so the answer comes from the `PROBED_GI_LIBDIRS` table and not from the pkg-config source. That the prefix was never in dyld's default fallback is exactly why the probe is there, and it is what the arm64 run confirms: `/opt/homebrew/lib` is found, `/usr/local/lib` and `/opt/local/lib` hold no `girepository-1.0/` on this host and are correctly refused.
 
 
 ### `os.cpus().times` on darwin needs a Mach call GJS cannot make
 
 `@gjsify/os`'s darwin reader reports the documented all-zero `times` — every field present and numeric, none of them meaningful — and `package.json#gjsify.os.darwin` is `"partial"` with that as its printed reason. Linux reads the per-CPU tick counters from `/proc/stat`. The macOS equivalent is Mach's `host_processor_info(PROCESSOR_CPU_LOAD_INFO)`, the same call libuv makes, and it is unreachable from GJS without a native bridge; no userland tool prints the cumulative per-core totals Node returns (`top -l 1` and `iostat` give an INSTANTANEOUS aggregate percentage, which is a different quantity — deriving one from the other would be fabrication, not degradation). Closing it means a native bridge, so it is a scope decision rather than a task. `src/index.spec.ts` carries `it.failing('cpu times should have non-zero values', …, { when: isDarwin() && gjs })`, which runs the assertion and fails the day a reader exists — so this entry retires itself rather than needing to be remembered.
-
-
-### A loopback teardown race survives on darwin, on the native-Node leg only
-
-`@gjsify/net`'s `server.spec.ts` still reports 1-2 of 381 failing under NATIVE Node on darwin (`read ECONNRESET`), against 381 green under GJS on the same host. It was 2-4 before `withServer` took ownership of the accepted sockets and the affected specs learned to tolerate exactly `ECONNRESET`, so what is left is narrower, not closed. The mechanism is the kernel's: BSD resets a connection that is closed while unread data is buffered where Linux delivers a FIN, and an `'error'` event with no listener is re-thrown. The remaining failures wander between `close event after end` and `localPort after connect`, which is the signature of a socket outliving the spec that made it — the next thing to try is owning the CLIENT sockets' lifecycle the way the server's now is. Per this repo's testing rules a native-Node failure is a statement about the TEST, and our implementation is the one that is green.
 
 
 ### `@gjsify/webkit-native` — what the darwin WebKit backend still owes
@@ -197,7 +207,27 @@ ADR 0022 landed the backend and `@gjsify/iframe`'s 291 tests pass on darwin. **I
 
 The e2e half is DONE: `macos-suites.yml`'s node-pillar leg runs `node-free-bootstrap`, `workspace-node-free-gjs`, `launcher-free-build`, `node-script` and `tsc-node-fallback` on both darwin arches — install, orchestration, build, `--node-script` and the tsc fallback, each through `gjs -m dist/cli.gjs.mjs` with `node` resolving nowhere. Wiring them up is what found the defects nothing had seen (a bare `sysctl` that killed the CLI at module evaluation, `/proc`-only process-tree and liveness probes, SIP stripping the launcher's `DYLD_*` inside compound scripts); `docs/bundled-toolchains.md` § macOS has them and the manual recipe.
 
-What no darwin leg runs is the shape Linux's `cold-bootstrap` job does: the whole repository's `build:infra` from a tree with no build outputs, with `node` moved aside. Both darwin jobs still install and build the tree under Node. Cost is the reason, not effort: it is a second full build on 10x-billed minutes. The condition to measure: a darwin job whose install + `build:infra` go through `gjs -m` with `command -v node` failing, green on both arches.
+**The job is WIRED and the local arm64 measurement is RED, so this entry stays.** `macos-suites.yml`'s `node-free-cold-bootstrap` is the darwin answer to `main.yml`'s `cold-bootstrap`: its own cold checkout (`no node_modules`, `no lib/esm`, `no CLI bundle` — each asserted, never assumed), `brew install gjs json-glib`, every PATH entry holding a `node` dropped with a `gjs`-only symlink dir in its place, `command -v node` asserted to FAIL inside the job so it cannot pass vacuously, then `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. It runs on every event — the cost is a fixed per-run job on the macOS pool, which is what that pool is short of (slots, not billed minutes; `docs/ci-selective.md` § What is scarce), the same price `prebuilds.yml`'s `build-prebuilds-macos` pays; the Intel leg rides the same `ci:macos` label `main.yml` uses, so a PR without it runs arm64-only.
 
-**The lesson this entry used to carry stands**: it once told the DOCS to keep describing the node-free toolchain as Linux-only, which outlived the promotion it was waiting for — a ledger item that instructs the docs has no retirement trigger. State the condition to measure, not the prose to keep.
+**Measured 2026-09-30 on a stock Mac (macOS 27 arm64, gjs 1.88.1, SIP ON, Homebrew `node@24` moved off PATH): the install is GREEN, `build:infra` is RED.** It got further than this entry expected and then died on the first `process.stdout.columns` read inside `build:infra`'s nested `gjsify workspace @gjsify/vite-plugin-blueprint build`, with the half-loadable-namespace symptom `docs/bundled-toolchains.md` § macOS already describes:
+
+    Failed to load shared library 'libgjsifyterminal.dylib' referenced by the typelib
+    JS ERROR: Error: Unsupported type void, deriving from fundamental void
+    get columns@…/@gjsify/cli/dist/cli.gjs.mjs
+
+**The cause is a RELEASE LAG, not a defect to fix here — measured, not inferred.** A cold tree has exactly one CLI (ADR 0002): the release bundle `install.mjs` fetches. That is v0.52.0, cut at `1304a6ed6` on 2026-09-24, and it PREDATES the very fix that makes this work — `0bdb54b18` ("fix: make the node-free toolchain work on macOS", #1797, 2026-09-26) added that repair two days later. It carries **no `get_typelib_path` at all** (0 occurrences against 3 `prepend_library_path`), `colocateNativeLibrary` being the repair in question — one that prepends a typelib's OWN directory to girepository's library path before the first class access. An isolated probe on this host doing exactly what that helper does resolves `GjsifyTerminal`, reads `get_typelib_path`, prepends its directory and loads `Terminal.get_size(1)` cleanly, so the repair is what closes this and it is on `main`. A nested `gjsify` is where it bites, and the launcher cannot rescue it: ESM evaluates a module's imports before its body, so `@gjsify/terminal-native`'s loader runs before `activateNativePrebuilds()`, and the launcher's `DYLD_LIBRARY_PATH` already names the directory the missing dylib sits in — it does survive on this host (measured: inherited → stripped; exported by the `/bin/sh` itself → present), which is exactly why the fix has to be in-process.
+
+**The first CI run came back RED TOO, and earlier than the local one — the SIP-off prediction below did NOT hold.** Run 36763723877, both arches (`macos-15` 15.7.9 and `macos-latest`), 2026-09-30: the job dies in its FIRST step, `gjs -m install.mjs`, not at `build:infra` as the local measurement did, and on a different library:
+
+    GLib-GIRepository-WARNING: Failed to load shared library 'libgjs.0.dylib' referenced by the typelib:
+      dlopen(libgjs.0.dylib, 0x0009)
+    Gjs-CRITICAL: JS ERROR: Error: Unsupported type void, deriving from fundamental void
+
+`libgjs.0.dylib` is GJS's OWN library, reached as a bare leaf — the shape `docs/prebuilds.md` records as girepository reporting its LAST attempt rather than the one that would have worked. So the ledger entry as written (a release lag in the published bundle, expected green on a SIP-off runner) does not describe what CI measured, and neither does it describe the whole cause: whatever puts the GJS library directory on the loader's path is being lost on this job in a way the local run did not reproduce, and that is a fact about the JOB, not about the release. The two runs are not the same finding, so the earlier claim that a green CI run and a red local run would be "the two halves of one finding" is withdrawn — they are two failures at two different steps, and the CI one is the earlier and simpler.
+
+**The open question is ANSWERED, and the cause was the JOB, not the release.** The node-pillar leg above carries a step this job lacked: `Make libgjs resolvable without a DYLD_ variable` — a symlink from `$prefix/opt/gjs/lib/libgjs.0.dylib` into `$prefix/opt/glib/lib/`, the one directory the `gjs` binary's rpath names. `GjsPrivate-1.0.typelib`, which Gio's core override loads from `_init`, records its library by bare leaf, so `gjs -m install.mjs` — which imports `Gio` in its first lines — died at the first typelib load on both arches. The local Mac had the repair (measured there on 2026-09-19, which is why the local run was green); a fresh `brew install gjs` on a runner does not create it. The step is in the job now, and the leg runs unconditionally — the cost is a fixed per-run job on a pool measured pinned at its cap, which is the price of the answer this job exists to give.
+
+**The second CI run cleared that and died on the NEXT missing formula — again the JOB, not the release.** Run 36782997923, both arches: the symlink repair held (the job cleared the `Gio` import and the cold-tree assertions), and then `gjs -m install.mjs` died at MODULE LOAD: `Requiring Soup, version 3.0: Typelib file for namespace 'Soup', version '3.0' not found`. `install.mjs` calls its `loadSoup()` at module top level, so `gi://Soup?version=3.0` links BEFORE the first byte downloads; its DYLD re-exec repairs the dylib's bare-leaf dlopen but cannot help the TYPELIB, which girepository resolves through its own default paths. The node-pillar leg needs no libsoup — its CLI bundle is rebuilt from source and its node-free install runs against an empty lockfile (nothing to fetch). `brew install libsoup` puts both the typelib and the dylib where they are found; it is in the job now.
+
+**The lesson this entry used to carry stands**: it once told the DOCS to keep describing the node-free toolchain as Linux-only, which outlived the promotion it was waiting for — a ledger item that instructs the docs has no retirement trigger. State the condition to measure, not the prose to keep. One copy of the old claim does remain, and it is NOT to be edited before a CI run is green: `website/src/content/docs/platform-support.mdx` says "What is missing is a CI job that drives `gjs -m install.mjs` all the way to `gjsify build` with no Node on the machine." Correcting it is this entry's last act, not this PR's.
 

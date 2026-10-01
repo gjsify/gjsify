@@ -56,6 +56,36 @@ export const REQUIRED_NAMESPACES = [
     'GObject',
     'Gio',
     'GModule',
+    // `GIRepository` is not GTK — it is the one namespace BOTH batteries-included bundles
+    // exist to make usable, because it is how a consumer reaches the bundle at all: the
+    // `gi-runtime-paths` prologue in `rolldown-plugin-gjsify` (injected into every bundle)
+    // and the CLI's own `utils/gi-search-path.ts` both do
+    // `imports.gi.GIRepository.Repository.dup_default()` and then
+    // `prepend_search_path(<bundle>/girepository-1.0)`. Neither names a version and both
+    // degrade to a silent no-op when the namespace is absent — every staged prebuild stops
+    // being found, with no error anywhere. That is the same silent class
+    // `typelib-symbols.mjs` exists for, and the difference is that this list is what can
+    // actually close it: a `TYPELIB_API_FLOOR` entry is SKIPPED for a bundle that ships no
+    // such namespace, so only presence here makes it unskippable.
+    //
+    // THE VERSION IS THE PREFIX'S, AND IT DIVERGES — read the entry, not the file name.
+    // girepository renamed its library soname 1.0 → 2.0 (GLib ≥ 2.80 merged it into the glib
+    // tree) and its typelibs followed: a current Homebrew prefix ships BOTH
+    // `GIRepository-2.0.typelib`, whose own `shared_library` field still reads
+    // `libgirepository-1.0.1.dylib` — a library modern glib no longer builds — and
+    // `GIRepository-3.0.typelib` naming `libgirepository-2.0.0.dylib`. So § 4's symmetry
+    // rule DROPS the 2.0 typelib on darwin, correctly: shipping it would put back the
+    // "resolves, then dies in the constructor" lie this module exists to prevent. Measured on
+    // a local darwin-arm64 build, 2026-09: 34 typelibs shipped, `GIRepository-3.0.typelib`
+    // among them, `GIRepository-2.0` in the drop list naming its absent 1.0.1 dylib.
+    // gvsbuild's Windows prefix does still build the 1.0 series, so the win32 bundle carries
+    // the 2.0 typelib. The NAMESPACE is therefore present on both platforms and the FILE is
+    // not the same file — which is why this entry is versionless and why requiring
+    // `GIRepository-2.0` specifically would be a requirement no darwin Homebrew prefix can
+    // satisfy. A consumer pinning `gi://GIRepository?version=2.0` is not portable across the
+    // two bundles; every consumer in this repository is versionless, which is what makes the
+    // namespace the right contract to state.
+    'GIRepository',
     'cairo',
     'Pango',
     'PangoCairo',

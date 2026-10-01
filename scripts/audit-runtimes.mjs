@@ -1727,14 +1727,13 @@ function repoContext() {
         discoveryRoots: ['packages'],
         extra: {
             fieldCoverage: 'enforce',
-            // REPORT, not enforce, and only until the rebuilt darwin prebuilds land. ADR 0074
-            // declared the macOS 15.0 floor while the committed darwin-arm64 images still
-            // record 26.0 (built on `macos-latest` with no deployment target). They are only
-            // ever rebuilt by `prebuilds.yml`'s `commit-prebuilds` on `main`, AFTER this
-            // lands, so enforcing now would red every PR on bytes no PR can fix. Every
-            // violation is still printed on every run. Flip to 'enforce' once
-            // `commit-prebuilds` has landed them — status/open-todos/prebuilds.md tracks it.
-            darwinDeploymentTarget: 'report',
+            // No `darwinDeploymentTarget` here, so ADR 0074's floor ENFORCES. This repository
+            // passed `darwinDeploymentTarget: 'report'` for exactly one window — between the ADR
+            // declaring the macOS 15.0 floor and `prebuilds.yml`'s `commit-prebuilds` landing the
+            // rebuilt images on `main`, the only job that can produce them. Those 30 committed
+            // darwin images measure 15.0 (28) or 11.0 (`@gjsify/webkit-native`'s own API floor),
+            // so the option has no caller left: it is the rule's one-shot escape for a CONSUMER
+            // whose artifacts a CI of its own has yet to rebuild, not a mode this repo rides in.
             uncheckedFields: UNCHECKED_FIELDS,
             // Empty unless `--media-payload` was passed, which is the ordinary state and
             // the reason `media-capabilities` reports what it did NOT inspect: the
