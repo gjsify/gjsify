@@ -9,9 +9,13 @@
 // grows straight back; this is the ratchet.
 //
 // The ceilings in `status/comment-budget.json` are MEASURED, not chosen: each is
-// what that tree actually had when it was last cleaned. A ratio rather than a line
-// count, because new code arrives with proportionate comments and a line budget
-// would block a new package while a ratio does not.
+// what that tree actually had when it was last cleaned or rebaselined. The ledger was
+// rebaselined once, for every tree, on 2026-10-01 — by then 12 of the 15 measured
+// ABOVE their committed ceiling (`packages/framework` 0.498 against 0.244), so a
+// tightening-only `--update` could never reach them again and the ratchet was dead for
+// exactly the trees that had grown. A ratio rather than a line count, because new code
+// arrives with proportionate comments and a line budget would block a new package while
+// a ratio does not.
 //
 // REPORTED IN CI, NOT GATED, and that is a deliberate exception to this repo's own
 // rule — `reportUnusedDisableDirectives` in `.oxlintrc.json` records what it learned
@@ -37,12 +41,15 @@
 //   node scripts/check-comment-budget.mjs --warn     # report + annotate (CI)
 //   node scripts/check-comment-budget.mjs --check    # gate (local, cleanup commits)
 //   node scripts/check-comment-budget.mjs --update   # re-baseline after a cleanup
+//   node scripts/check-comment-budget.mjs --rebaseline  # raise OVER ceilings
 //   node scripts/check-comment-budget.mjs --files    # the files it counts
 //   node scripts/check-comment-budget.mjs --scope    # the tracked files it is ABOUT,
 //                                                    # before the extension question
 //
-// Raising a ceiling is a reviewed, one-line commit. Lowering one is free, and
-// `--update` after a cleanup does it — so the budget only tightens.
+// `--update` only ever tightens, so it is what an ordinary cleanup commit runs and the
+// budget still ratchets. `--rebaseline` is the reviewed exception: it raises a tree that
+// already measures OVER its ceiling to that measured value and leaves every other ceiling
+// where it is, which makes the whole act one command instead of 12 hand-edited lines.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -241,15 +248,17 @@ if (process.argv.includes('--scope')) answerProbe(trackedFiles(null));
 
 const mode = process.argv.includes('--check')
     ? 'check'
-    : process.argv.includes('--update')
-      ? 'update'
-      : process.argv.includes('--warn')
-        ? 'warn'
-        : 'print';
+    : process.argv.includes('--rebaseline')
+      ? 'rebaseline'
+      : process.argv.includes('--update')
+        ? 'update'
+        : process.argv.includes('--warn')
+          ? 'warn'
+          : 'print';
 
 const totals = measure();
 
-if (mode === 'update') {
+if (mode === 'update' || mode === 'rebaseline') {
     /** @type {Record<string, number>} */
     const previous = existsSync(BUDGET_FILE) ? JSON.parse(readFileSync(BUDGET_FILE, 'utf8')) : {};
     /** @type {Record<string, number>} */
@@ -258,18 +267,22 @@ if (mode === 'update') {
     for (const area of AREAS) {
         const t = totals.get(area);
         if (t.files === 0) continue;
-        // ONLY EVER TIGHTENS, as the header has always promised and the code did not do:
-        // it wrote the measured value unconditionally, so `--update` on a GROWN tree
-        // raised the ceiling to fit — measured here, `scripts` 0.586 -> 0.591, blessing
-        // the exact drift the ratchet exists to catch. Raising stays possible as a
-        // reviewed edit to the ledger, in the commit that needs it.
+        // `--update` ONLY EVER TIGHTENS, as the header has always promised and the code
+        // did not do: it wrote the measured value unconditionally, so `--update` on a
+        // GROWN tree raised the ceiling to fit — measured here, `scripts` 0.586 -> 0.591,
+        // blessing the exact drift the ratchet exists to catch.
         const measured = Number(ratio(t).toFixed(3));
         const stored = previous[area];
-        out[area] = stored === undefined ? measured : Math.min(stored, measured);
+        out[area] =
+            stored === undefined
+                ? measured
+                : mode === 'update'
+                  ? Math.min(stored, measured)
+                  : Math.max(stored, measured);
         if (out[area] !== stored) moved.push(`${area}: ${stored === undefined ? 'new' : stored} -> ${out[area]}`);
     }
     writeFileSync(BUDGET_FILE, `${JSON.stringify(out, null, 4)}\n`);
-    process.stdout.write(`check-comment-budget: wrote ${BUDGET_FILE} (${Object.keys(out).length} areas)\n`);
+    process.stdout.write(`check-comment-budget: wrote ${BUDGET_FILE} (${Object.keys(out).length} areas, --${mode})\n`);
     for (const m of moved) process.stdout.write(`  ${m}\n`);
     process.exit(0);
 }
@@ -369,7 +382,8 @@ for (const f of failures) {
             '  What stays: the incident behind a rule, GI/GNOME quirks, spec links, error text,\n' +
             '  and the reason a kept `catch` is kept.\n' +
             `  If the tree genuinely needs more commentary, raise its ceiling in ${BUDGET_FILE}\n` +
-            '  in the same commit, so the increase is reviewed rather than accumulated.\n',
+            '  in the same commit (--rebaseline writes what the tree measures today), so the\n' +
+            '  increase is reviewed rather than accumulated.\n',
     );
 }
 

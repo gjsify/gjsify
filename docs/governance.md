@@ -174,6 +174,17 @@ Adding a margin to the ceilings was considered and rejected: it weakens the ratc
 exactly its own size, and it is a second, weaker fix for a problem de-gating already
 closed.
 
+**The rebaseline (2026-10-01).** De-gating had left the ledger's VALUES behind: by then 12
+of the 15 trees measured ABOVE their committed ceiling — `packages/framework` 0.498
+against 0.244 — so `--update`, which only ever tightens, could no longer reach them and the
+ratchet was dead for exactly the trees that had grown. Every over-ceiling ceiling was raised
+to what its tree measures on that base, in one commit written by a new `--rebaseline` mode
+(`--update` is untouched and still only tightens); the three trees still under their ceiling
+— `packages/node`, `packages/dom`, `examples` — keep theirs, so they ratchet down as
+before. Every ceiling in `status/comment-budget.json` is now a measured value, and the next
+`--update` after a cleanup tightens from there. What the rebaseline buys is a live ratchet,
+not a lower number: the cut work is unchanged, only the baseline it is measured against.
+
 ### `check-agent-context-size` — from an exact ledger to a base-relative check
 
 This one stays a gate: it asserts a fact with a real cost behind it (past 32 KiB Codex

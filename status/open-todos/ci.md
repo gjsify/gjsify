@@ -460,7 +460,7 @@ honest) or whether "fails further in" is acceptable. Nobody has hit it yet
 because every host that runs those has Node.
 
 
-### `showcases` is 193 comment lines over its ceiling, and always was
+### `showcases` was 193 comment lines over its ceiling — the ceiling is rebaselined, the restatement is not
 
 `check-comment-budget.mjs` globbed `'*.ts' '*.mts' '*.mjs' '*.js' '*.cjs'` — a list
 written before this tree had a `.tsx` file in it — so it never opened the 19 tracked
@@ -475,14 +475,17 @@ along:
   3.5 — a type-test is mostly prose about what `tsc` has to reject, which is the material
   a whole-tree ratio suits least.
 
-**The ceiling was not raised, and `--update` cannot raise it** (it writes
-`min(stored, measured)`). The gate REPORTS rather than gates: `--warn`, which is what CI
-runs, exits 0 over an above-ceiling tree, so the honest number is what landed and
-`showcases` now raises an Actions warning it did not raise before. Closing it means
-cutting genuine restatement in those seven showcase files, or deciding a showcase's job
-IS to be commented and saying so in a reviewed ceiling change. Not by moving full-line
-comments onto code lines — the script's own header records that ~1670 trailing comments
-are already invisible to it, so that direction buys a number and no clarity.
+**Both ceilings were raised to what the tree measures, on 2026-10-01** — the ledger-wide
+rebaseline in [governance.md](../../docs/governance.md) § `check-comment-budget`, which had
+found 12 of 15 trees measuring over. `--update` still cannot raise a ceiling (it writes
+`min(stored, measured)`), which is why that needed a new `--rebaseline` mode rather than
+the flag this entry expected. The gate REPORTS rather than gates: `--warn`, which is what
+CI runs, exits 0 over an above-ceiling tree, so nothing in the merge could have closed
+this. What is still OPEN is the question the two numbers only located: whether those seven
+showcase files carry comment WHY, or whether a showcase's job IS to be commented and that
+belongs in `docs/`. Not by moving full-line comments onto code lines — the script's own
+header records that ~1670 trailing comments are already invisible to it, so that direction
+buys a number and no clarity.
 
 
 ### Manifest-conformance follow-ups
