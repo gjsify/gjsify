@@ -1663,6 +1663,16 @@ jobs:
       # so relocation and re-signing are inside the comparison). When the check passes
       # the two are byte-identical, which is why the uploads below are unaffected —
       # and a passed check is then also a statement about the bytes being committed.
+      # The second build REUSES `build/`, deleting it first: a build directory's path
+      # is an input (cargo's `--target-dir` is derived from it and rustc records build
+      # paths), so building at a second path was not building the same thing twice.
+      # Nothing after this step reads `build/`.
+      #
+      # WHAT A RED MEANS IS NOW READ OFF THE ARTIFACT, not asserted here. The debug-map
+      # story above is the Vala bridges'; the three cargo cdylibs carry no `N_OSO` stab
+      # at all, and when they differed the bytes were their `LC_UUID` payload. The
+      # script parses both images' load commands and names the region — do not re-add a
+      # fixed cause to this comment.
       - name: Rebuild every staged prebuild and compare the bytes
         run: |
           set -euo pipefail

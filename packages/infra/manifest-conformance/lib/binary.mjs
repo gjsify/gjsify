@@ -1042,6 +1042,8 @@ export function checkPrebuildDir(dir, { verbose = true } = {}) {
 const LC_SEGMENT_64 = 0x19;
 /** `LC_UUID`. */
 const LC_UUID = 0x1b;
+/** `LC_SYMTAB` — read for its `symoff`/`stroff`, which is where a debug map's stabs live. */
+const LC_SYMTAB = 0x02;
 
 /**
  * @typedef {object} MachOCommand
@@ -1059,6 +1061,7 @@ const LC_UUID = 0x1b;
  * @property {{offset: number, dataoff: number, datasize: number} | null} codeSignature
  * @property {MachOCommand | null} uuid
  * @property {{offset: number} | null} linkedit the `__LINKEDIT` `LC_SEGMENT_64` record
+ * @property {{offset: number, symoff: number, nsyms: number, stroff: number, strsize: number} | null} symtab
  */
 
 /**
@@ -1090,6 +1093,7 @@ export function readMachOLayout(data) {
     /** @type {MachOLayout['codeSignature']} */ let codeSignature = null;
     /** @type {MachOCommand | null} */ let uuid = null;
     /** @type {{offset: number} | null} */ let linkedit = null;
+    /** @type {MachOLayout['symtab']} */ let symtab = null;
     let off = 32; // mach_header_64
     for (let i = 0; i < ncmds; i++) {
         const cmd = u32(off);
@@ -1098,6 +1102,15 @@ export function readMachOLayout(data) {
         commands.push({ cmd, offset: off, size: cmdsize });
         if (cmd === LC_CODE_SIGNATURE) codeSignature = { offset: off, dataoff: u32(off + 8), datasize: u32(off + 12) };
         if (cmd === LC_UUID) uuid = { cmd, offset: off, size: cmdsize };
+        if (cmd === LC_SYMTAB) {
+            symtab = {
+                offset: off,
+                symoff: u32(off + 8),
+                nsyms: u32(off + 12),
+                stroff: u32(off + 16),
+                strsize: u32(off + 20),
+            };
+        }
         if (cmd === LC_SEGMENT_64) {
             // `segname` is 16 bytes at +8, NUL-padded.
             const name = data.subarray(off + 8, off + 24);
@@ -1108,7 +1121,139 @@ export function readMachOLayout(data) {
         }
         off += cmdsize;
     }
-    return { le, ncmds, sizeofcmds, commands, codeSignature, uuid, linkedit };
+    return { le, ncmds, sizeofcmds, commands, codeSignature, uuid, linkedit, symtab };
+}
+
+/**
+ * What LIVES at a file offset, read off the load commands rather than asserted.
+ *
+ * WHY THIS IS A FUNCTION AND NOT A SENTENCE IN A DIAGNOSTIC. The reproducibility
+ * check used to print one hardcoded cause for every red — a debug map's `N_OSO`
+ * stabs — and that cause is right for the thirteen Vala-linked images it was
+ * measured on and wrong for the three cargo cdylibs, which `nm -a` reads zero
+ * `N_OSO` stabs in. A diagnostic that names a region the artifact can be ASKED
+ * about cannot misattribute: the artifact answers.
+ *
+ * Ordered most specific first. The `LC_CODE_SIGNATURE` RECORD is a load command
+ * and is reported as one; its blob lives past `sizeofcmds` and is reported as the
+ * blob.
+ *
+ * @param {MachOLayout} layout
+ * @param {number} at file offset
+ * @returns {string}
+ */
+export function describeMachOOffset(layout, at) {
+    if (at < 32) return 'the mach_header';
+    if (layout.uuid !== null && at >= layout.uuid.offset + 8 && at < layout.uuid.offset + layout.uuid.size) {
+        return 'the LC_UUID payload';
+    }
+    const cmd = layout.commands.find((c) => at >= c.offset && at < c.offset + c.size);
+    if (cmd !== undefined) return `load command 0x${cmd.cmd.toString(16)} at +${at - cmd.offset}`;
+    const sig = layout.codeSignature;
+    if (sig !== null && at >= sig.dataoff && at < sig.dataoff + sig.datasize) return 'the LC_CODE_SIGNATURE blob';
+    const sym = layout.symtab;
+    // `nlist_64` is 16 bytes. A debug map's `N_OSO` stab is one of these entries and
+    // its `n_value` is the object file's mtime, so this is the region the `-g`
+    // incident in docs/prebuilds.md put a wall clock into.
+    if (sym !== null && at >= sym.symoff && at < sym.symoff + sym.nsyms * 16) {
+        return "the symbol table (an nlist_64 entry — where a debug map's N_OSO mtime sits)";
+    }
+    if (sym !== null && at >= sym.stroff && at < sym.stroff + sym.strsize) return 'the string table';
+    return 'section data or __LINKEDIT';
+}
+
+/**
+ * @typedef {object} MachOBuildDiff
+ * @property {'identical'|'uuid-only'|'signature-only'|'uuid-and-signature'|'differs'|'unreadable'} verdict
+ * @property {string[]} regions one line per region class the differing bytes fall in, in file order
+ * @property {string[]} reasons why no region-level answer could be given
+ */
+
+/**
+ * Where two builds of the SAME tree differ, classified by region.
+ *
+ * A sibling of {@link compareMachOAfterResign} and deliberately not a widening of
+ * it: that one asks "did a re-sign change anything else" and needs an
+ * `LC_CODE_SIGNATURE` on both sides to answer at all — the committed darwin-x64
+ * cargo cdylibs carry none, so it answers `differs` about them for a reason that
+ * is not about their bytes. This one asks "what IS different", and has to answer
+ * for a signed arm64 image and an unsigned x64 one alike.
+ *
+ * It counts nothing: the byte count is the caller's, so there stays exactly one
+ * definition of how many bytes differ.
+ *
+ * @param {Buffer} before
+ * @param {Buffer} after
+ * @returns {MachOBuildDiff}
+ */
+export function classifyMachOBuildDiff(before, after) {
+    if (before.equals(after)) return { verdict: 'identical', regions: [], reasons: [] };
+    let a;
+    let b;
+    try {
+        a = readMachOLayout(before);
+        b = readMachOLayout(after);
+    } catch (error) {
+        return {
+            verdict: 'unreadable',
+            regions: [],
+            reasons: [`not readable as a thin 64-bit Mach-O: ${error.message}`],
+        };
+    }
+    if (before.length !== after.length) {
+        return {
+            verdict: 'differs',
+            regions: [],
+            reasons: [
+                `the two images are ${before.length} and ${after.length} bytes — a length change moves every ` +
+                    'offset after it, so a per-region answer would be about two different layouts',
+            ],
+        };
+    }
+    const sequence = (/** @type {MachOLayout} */ l) => l.commands.map((c) => `${c.cmd}:${c.size}`).join(',');
+    if (sequence(a) !== sequence(b)) {
+        return {
+            verdict: 'differs',
+            regions: [],
+            reasons: ['the two builds do not carry the same load commands in the same order'],
+        };
+    }
+
+    const inUuid = (/** @type {number} */ off) =>
+        a.uuid !== null && off >= a.uuid.offset + 8 && off < a.uuid.offset + a.uuid.size;
+    // The record's `dataoff`/`datasize` and the blob they describe. Both are
+    // DERIVED from the rest of the image, so neither is a difference of its own —
+    // an image whose only real change is its UUID necessarily re-signs differently.
+    const inSignature = (/** @type {number} */ off) =>
+        a.codeSignature !== null &&
+        ((off >= a.codeSignature.offset + 8 && off < a.codeSignature.offset + 16) ||
+            (off >= a.codeSignature.dataoff && off < a.codeSignature.dataoff + a.codeSignature.datasize));
+
+    /** @type {Map<string, {first: number, bytes: number}>} */ const regions = new Map();
+    let sawUuid = false;
+    let sawSignature = false;
+    let sawOther = false;
+    for (let i = 0; i < before.length; i++) {
+        if (before[i] === after[i]) continue;
+        if (inUuid(i)) sawUuid = true;
+        else if (inSignature(i)) sawSignature = true;
+        else sawOther = true;
+        const where = describeMachOOffset(a, i);
+        const seen = regions.get(where);
+        if (seen === undefined) regions.set(where, { first: i, bytes: 1 });
+        else seen.bytes++;
+    }
+    const rendered = [...regions.entries()]
+        .sort((x, y) => x[1].first - y[1].first)
+        .map(([where, { first, bytes }]) => `${bytes} byte(s) in ${where}, first at 0x${first.toString(16)}`);
+    const verdict = sawOther
+        ? 'differs'
+        : sawUuid
+          ? sawSignature
+              ? 'uuid-and-signature'
+              : 'uuid-only'
+          : 'signature-only';
+    return { verdict, regions: rendered, reasons: [] };
 }
 
 /** Blank `[start, start + length)` of a copy, so a diff cannot see it. */
@@ -1199,15 +1344,9 @@ export function compareMachOAfterResign(before, after) {
             break;
         }
     }
-    const inCmd = a.commands.find((c) => at >= c.offset && at < c.offset + c.size);
     reasons.push(
         `first difference outside the signature at file offset ${at} (0x${at.toString(16)}): ` +
-            `0x${maskedA[at].toString(16)} → 0x${maskedB[at].toString(16)}` +
-            (at < 32
-                ? ' — in the mach_header'
-                : inCmd !== undefined
-                  ? ` — inside load command 0x${inCmd.cmd.toString(16)} at +${at - inCmd.offset}`
-                  : ' — in section data or __LINKEDIT'),
+            `0x${maskedA[at].toString(16)} → 0x${maskedB[at].toString(16)} — in ${describeMachOOffset(a, at)}`,
     );
     return { verdict: 'differs', reasons };
 }

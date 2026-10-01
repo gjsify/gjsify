@@ -259,9 +259,23 @@ export interface MachOLayout {
     codeSignature: { offset: number; dataoff: number; datasize: number } | null;
     uuid: MachOCommand | null;
     linkedit: { offset: number } | null;
+    symtab: { offset: number; symoff: number; nsyms: number; stroff: number; strsize: number } | null;
 }
 
 export declare function readMachOLayout(data: Buffer): MachOLayout;
+
+/** What lives at a file offset, named from the load commands rather than asserted. */
+export declare function describeMachOOffset(layout: MachOLayout, at: number): string;
+
+/** Where two builds of the same tree differ, classified by region. Counts nothing. */
+export declare function classifyMachOBuildDiff(
+    before: Buffer,
+    after: Buffer,
+): {
+    verdict: 'identical' | 'uuid-only' | 'signature-only' | 'uuid-and-signature' | 'differs' | 'unreadable';
+    regions: string[];
+    reasons: string[];
+};
 
 export declare function compareMachOAfterResign(
     before: Buffer,

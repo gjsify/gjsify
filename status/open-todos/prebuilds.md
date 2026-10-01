@@ -178,7 +178,53 @@ declares `buildtype=plain`. Re-measured the same way, two clean builds differ in
 `@gjsify/gamepad-native` already had it, through `minsize`, for a different
 reason. `nm -a` over the committed set closes the count: **13 of the 16
 committed darwin-arm64 dylibs carried `N_OSO` stabs (1–4 each) and the three
-cargo cdylibs carry none**, so no rustc channel existed to fix.
+cargo cdylibs carry none**, so no DEBUG-MAP channel exists in those three.
+
+**And that last sentence was read as "the three cargo cdylibs reproduce", which
+they do not.** `nm -a` reading zero `N_OSO` stabs establishes that no DEBUG-MAP
+channel exists in them; it establishes nothing about any other channel, and the
+gate below found one on its first run over a tree where all nine Vala bridges
+were byte-identical: `@gjsify/lightningcss-native`'s `libgjsify_lightningcss.dylib`
+differed in 16 bytes first at `0x670`, `@gjsify/oxfmt-native`'s in 15 first at
+`0x768`, and `rolldown-native` differed too. The script then printed the debug-map
+paragraph above about images this file had already counted as carrying no debug map.
+
+**The REGION is measured, and it is the `LC_UUID` payload.** Read off the committed
+artifacts with `readMachOLayout`, on a Linux host that can run none of them: the
+`LC_UUID` payload of `libgjsify_lightningcss.dylib` sits at exactly `0x670`, of
+`libgjsify_oxfmt.dylib` at exactly `0x768`, of `libgjsify_rolldown.dylib` at
+`0x6b8` — the two reported first-differing offsets, and a 16-byte payload against
+counts of 16 and 15 (one byte of a 16-byte value coinciding). It also agrees with
+this entry's own whole-tree reading: every differing darwin-x64 byte was the
+`LC_UUID` payload or an `N_OSO` `n_value`, and these three have no `N_OSO`.
+
+**What is NOT established is why the linker chose a different UUID for output that
+is otherwise byte-identical, and that needs a darwin runner.** Two candidates:
+
+- **a build INPUT still differed.** The check built the second copy in `builddir/`
+  while the leg had built the first in `build/`, so cargo's `--target-dir` — derived
+  from the build directory in every `meson.build` that drives one — was a different
+  absolute path in the two builds, and rustc records build paths where a
+  `buildtype=plain` Vala build does not. The check now rebuilds in `build/`, so this
+  candidate is eliminated from the comparison itself; a residue would be elsewhere
+  (`TMPDIR`, a registry source path).
+- **`strip = true`**, which all three `[profile.release]` tables carry. The linker
+  computes the UUID over the image it LINKED; `strip` then removes part of that
+  image. So the shipped bytes are a strict subset of what was hashed, and anything
+  varying only in the stripped part reaches the artifact through the UUID and
+  through nothing else — which is exactly the observed shape, 16 bytes and no
+  others. **The measurement that separates the two: build each bridge twice with
+  `strip = false` and diff.** The bytes that then differ outside the UUID name the
+  channel; none differing says the variation is upstream of the link.
+
+Until one of them is measured, `-Wl,-no_uuid` stays refused for the same reason it
+is refused above — it deletes the evidence rather than the cause. The three stay
+IN the gate: they are the only three artifacts in the tree whose reproducibility
+nothing else asserts, the red is the first thing that ever looked at them, and
+scoping the gate down to what already passes would freeze a defect the gate was
+added to find. What changed instead is that the gate no longer names a cause: it
+parses both builds' load commands and reports the region every differing byte is
+in (`classifyMachOBuildDiff`), so the next red is evidence rather than a guess.
 
 The ledger's earlier proposal — "the UUID needs `-Wl,-no_uuid` and the `N_OSO`
 timestamps need the object mtimes normalised" — is wrong on both halves, which is
@@ -188,7 +234,11 @@ the UUID is byte-identical across builds and `-no_uuid` would buy nothing but a
 missing `LC_UUID` load command. And there is no flag that normalises an object
 mtime — `ZERO_AR_DATE=1` is `ar`, ld64's `-oso_prefix` rewrites the stab's PATH,
 not its `n_value`, and touching `.o` files to a fixed date would leave the debug
-map pointing at a timestamp no file carries.
+map pointing at a timestamp no file carries. That "the UUID is a hash over the
+image" reading is MEASURED for the thirteen: remove the stab and the UUID settles.
+It is also what the three cargo cdylibs contradict — an output whose bytes are
+equal outside a UUID cannot have hashed to two UUIDs — which is the whole reason
+their cause is open above rather than deduced from this paragraph.
 
 **What remains is the half that cannot gate, and the reason is the runner, not
 the repo.** `scripts/check-prebuild-reproducible.mjs` runs in the existing
@@ -202,8 +252,10 @@ differs from the committed artifact whenever a formula version moved, and landin
 exactly those bytes is what `commit-prebuilds` is for. Closing this properly needs
 a pinned Homebrew closure (or recorded per-formula versions to normalise), which
 is a bigger decision than a byte comparison. Until then the ledger keeps its
-claim, narrowed to what is true: the darwin artifact is reproducible and gated as
-such; the committed-vs-fresh comparison is measured and printed, not enforced.
+claim, narrowed to what is true: the nine Vala-linked darwin artifacts are
+reproducible and gated as such, the three cargo cdylibs are gated and currently
+RED on their `LC_UUID` (above); the committed-vs-fresh comparison is measured and
+printed, not enforced.
 
 ### `@gjsify/lightningcss-native` references `gnu_get_libc_version`, which musl lacks
 
