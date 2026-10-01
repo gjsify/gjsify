@@ -631,11 +631,9 @@ jobs:
             "--media-payload=@gjsify/gtk-runtime-$TARGET=packages/node-gi/node-gi/prebuilds/$TARGET"
 
   win32:
-    # The name says what a GREEN here means, because three of its four measuring steps are
-    # probes: the closure staged, verified and LOADED. The conformance audit gated from
-    # 2026-09-19 until the MP3 widening (ADR 0056 § 7) and is a probe again until a
-    # release carries `gstmediafoundation.dll`. It does not say the SUITES passed, which is what the name
-    # claims and why the name still holds: both suite steps are still
+    # The name says what a GREEN here means, because two of its four measuring steps are
+    # probes: the closure staged and LOADED. It does not say the SUITES passed, which is
+    # what the name claims and why the name still holds: both suite steps are still
     # `continue-on-error`. This job going green while they are red is the designed
     # behaviour — see READING THE JOB COLOUR IS NOT READING THE RESULT in the header.
     # Rename it back to "GTK suites on the shipped closure" when the last
@@ -830,48 +828,49 @@ jobs:
         run: node scripts/report-probe-outcome.mjs
 
       # `--media-payload` as on the darwin leg above, where the reasoning is written out:
-      # the win32 payload is the one whose declared audio contract this closes, since it is
-      # the bundle that carries no MP3 decoder while both darwin ones do.
+      # the win32 payload is the one whose declared audio contract the tree answers for
+      # twice over, since it is the bundle that carries no MP3 decoder of its own and leans
+      # on `mediafoundation` while both darwin ones do.
       #
-      # A GATE since 2026-09-19, and WHAT IT NOW GUARANTEES: the audio contract this tree
-      # DECLARES for `@gjsify/gtk-runtime-win32-x64` is one the bundle a stranger downloads
-      # actually keeps. `--media-payload` opens the tarball this job staged from npm, so a
+      # A GATE, and WHAT IT GUARANTEES: the audio contract this tree DECLARES for
+      # `@gjsify/gtk-runtime-win32-x64` is one the bundle a stranger downloads actually
+      # keeps. `--media-payload` opens the tarball this job staged from npm, so a
       # declaration that outruns the payload — or a release that drops a plugin the
       # declaration still promises — fails the leg instead of printing a warning.
       #
-      # IT WAS A PROBE, and the window is worth keeping because it is the shape that will
-      # recur. This tree began claiming Ogg/Vorbis in c11ce0c3c (#1626) at 04:24Z on
-      # 2026-09-11 while the published payload had no `gstvorbis.dll`; gating that
-      # disagreement would have redded this job — which has NO `paths:` filter — on `main`
-      # and on every unrelated contributor's PR until the release caught up. A check
-      # knowingly red for weeks is one people learn to skip, and the next real win32 media
-      # finding then lands on a job nobody opens.
+      # IT WAS A PROBE TWICE, and both windows are kept because this is the shape that
+      # RECURS. A widening of this tree's declaration — #1626's Ogg/Vorbis at 04:24Z on
+      # 2026-09-11, then MP3 and AAC through `mediafoundation` (ADR 0056 § 7) — is red on
+      # the PUBLISHED payload from the moment it lands until a release carries the plugin,
+      # and gating that redds this job, which carries NO `paths:` filter, on `main` and on
+      # every unrelated contributor's PR. A check knowingly red for weeks is one people
+      # learn to skip, and the next real win32 media finding then lands on a job nobody
+      # opens.
       #
-      # WHAT CLOSED IT, measured rather than assumed: 0.49.0 published `gstvorbis.dll` at
-      # 08:08:06Z the same day (0.48.0's tarball has `gstogg.dll` and no vorbis; 0.49.0's
-      # and 0.51.1's have both — read cache-busted from the tarballs, not from `npm view`).
-      # The probe was red in exactly five runs, all of them between 04:24Z and 06:16Z that
-      # morning, and green in every one of the 48 measured runs since. It stayed advisory
-      # for all 48. That eight-day gap is why `scripts/check-probe-retirement.mjs` exists:
-      # the same widening will happen again the next time a payload claim outruns a
-      # release, and a person will not be watching.
+      # WHAT CLOSED EACH ONE, measured off the tarballs cache-busted rather than off the
+      # dates (`npm view` and a bare curl read a 300 s edge cache, `docs/publishing.md`):
+      # 0.49.0 published `gstvorbis.dll` at 08:08:06Z on 2026-09-11 — 0.48.0's has
+      # `gstogg.dll` and no vorbis, 0.49.0's and 0.51.1's have both — and the probe was
+      # red in exactly five runs, all of them between 04:24Z and 06:16Z that morning.
+      # `scripts/check-probe-retirement.mjs` closed the SECOND window by itself, off the
+      # `retire-when:` clause that stood above the step until this promotion: 0.53.0
+      # published `gstmediafoundation.dll` at 12:56:00Z on 2026-10-01, the required check
+      # read it met on ~9 open PRs at once, and nobody had to re-read a row to notice.
+      #
+      # THE PROMOTION WAS MEASURED, because a met condition is not evidence that the step
+      # passes, and the newest win32 leg says otherwise at first glance. Run 36849429314
+      # is red here on `mediafoundation` — its audit step ran at 11:48Z, ninety minutes
+      # BEFORE 0.53.0 reached the registry, so `stage-published-gtk-runtime.mjs` asked
+      # for 0.53.0, did not find it, and its "not fully on npm" fallback to `@latest`
+      # landed on 0.52.0. 22 plugin files in that payload, none of them mediafoundation;
+      # 0.52.0's tarball has those same 22 and no `gstmediafoundation.dll`, 0.53.0's has
+      # 23 and does. This step's own command against the extracted 0.53.0 tarball exits
+      # 0, all seven declared formats backed — so the release, not a fix, is what was
+      # missing, and the fallback is what the red run measured.
       #
       # So when this leg goes red during a future widening, the answer is not to restore
       # `continue-on-error` — it is to state the condition as a `retire-when:` clause the
       # way the two probes above do, so the flag removes itself when the release lands.
-      #
-      # AND THAT WIDENING IS HERE: this tree claims MP3 through `mediafoundation` (ADR 0056
-      # § 7) while every published win32 bundle predates `gstmediafoundation.dll`, so the
-      # audit is red on the published payload until a release carries it. The window closes
-      # on the tarball, not on a version number — the file is the claim.
-      #   retire-when: npm-tarball-has @gjsify/gtk-runtime-win32-x64 latest gtk/lib/gstreamer-1.0/gstmediafoundation.dll
-      - name: Conformance audit (os-axis + the staged bundle's media claim) — probe (gating blocked until a release ships mediafoundation)
-        id: conformance-win32
-        continue-on-error: true
+      # The window closes on the tarball, not on a version number: the FILE is the claim.
+      - name: Conformance audit (os-axis + the staged bundle's media claim)
         run: node scripts\audit-runtimes.mjs --check "--media-payload=@gjsify/gtk-runtime-%TARGET%=packages\node-gi\node-gi\prebuilds\%TARGET%"
-      - name: 'Probe outcome: conformance audit'
-        if: always()
-        env:
-          PROBE_LABEL: "Conformance audit (os-axis + the staged bundle's media claim) — probe (gating blocked until a release ships mediafoundation)"
-          PROBE_OUTCOME: ${{ steps.conformance-win32.outcome }}
-        run: node scripts/report-probe-outcome.mjs
