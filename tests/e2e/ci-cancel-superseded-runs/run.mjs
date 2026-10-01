@@ -29,7 +29,7 @@ const SCRIPT = join(MONOREPO_ROOT, 'scripts', 'select-superseded-runs.mjs');
 const CANCEL_SCRIPT = join(MONOREPO_ROOT, 'scripts', 'cancel-superseded-runs.mjs');
 const WORKFLOW = join(MONOREPO_ROOT, '.github', 'workflows', 'cancel-pr-runs.yml');
 
-const { cancellationWindow, supersededRunIds } = await import(`file://${SCRIPT}`);
+const { cancellationWindow, supersededRunIds, deadQueueRunIds } = await import(`file://${SCRIPT}`);
 const { cancelSupersededRuns } = await import(`file://${CANCEL_SCRIPT}`);
 
 const REPO = 'gjsify/gjsify';
@@ -253,7 +253,7 @@ describe('the workflow that runs it', () => {
     it('triggers on both events and invokes this selection for them', () => {
         // A selection no workflow calls passes every test above and drains nothing.
         const yaml = readFileSync(WORKFLOW, 'utf8');
-        assert.match(yaml, /types:\s*\[closed,\s*synchronize\]/);
+        assert.match(yaml, /types:\s*\[closed,\s*synchronize,\s*dequeued\]/);
         assert.match(yaml, /node scripts\/select-superseded-runs\.mjs/);
     });
 
@@ -273,6 +273,160 @@ describe('the workflow that runs it', () => {
         assert.ok(ref, 'the checkout must pin an explicit ref, not fall back to the merge ref');
         assert.match(ref[1], /pull_request\.base\.sha/);
         assert.doesNotMatch(ref[1], /head\.sha/);
+    });
+});
+
+// ── the third kind: merge_group runs whose queue entry is gone ────────────────
+//
+// MEASURED 2026-10-01: five `GJS` merge_group runs sat queued for queue branches that
+// `git ls-remote origin 'refs/heads/gh-readonly-queue/*'` no longer listed, and were
+// cancelled by hand. The one wrong answer that matters here is cancelling a LIVE entry.
+
+const QUEUE_LIVE = 'gh-readonly-queue/main/pr-1934-1f52f980161dd583ec9bda78e130a9d0c69523b0';
+const QUEUE_DEAD = 'gh-readonly-queue/main/pr-1920-0a4f28ee67ef5f68d074f895d48edd6135dc3374';
+
+const queueRun = ({ id, branch = QUEUE_DEAD, status = 'queued', repo = REPO, event = 'merge_group' }) => ({
+    id,
+    event,
+    head_branch: branch,
+    head_repository: repo === null ? null : { full_name: repo },
+    status,
+});
+
+const deadIds = (runs, liveRefs = [`refs/heads/${QUEUE_LIVE}`]) =>
+    deadQueueRunIds({ runs, liveRefs, repo: REPO, selfRunId: SELF_RUN_ID });
+
+describe('the merge_group runs whose queue entry is gone', () => {
+    it('selects a queued run whose queue branch no longer exists', () => {
+        assert.deepEqual(deadIds([queueRun({ id: 1 })]), [1]);
+    });
+
+    it('selects an in_progress run too, because nobody will read its verdict', () => {
+        assert.deepEqual(deadIds([queueRun({ id: 1, status: 'in_progress' })]), [1]);
+    });
+
+    it('never selects the run of a live queue entry', () => {
+        assert.deepEqual(deadIds([queueRun({ id: 1, branch: QUEUE_LIVE }), queueRun({ id: 2 })]), [2]);
+    });
+
+    it('accepts live refs with or without the refs/heads/ prefix', () => {
+        assert.deepEqual(deadIds([queueRun({ id: 1, branch: QUEUE_LIVE })], [QUEUE_LIVE]), []);
+    });
+
+    it('does not touch a completed run', () => {
+        assert.deepEqual(deadIds([queueRun({ id: 1, status: 'completed' })]), []);
+    });
+
+    it('does not cancel the job doing the sweeping', () => {
+        // A new group's own run starts this job, and its branch is live; the guard is
+        // for the case where the listing of branches was taken a moment too early.
+        assert.deepEqual(deadIds([queueRun({ id: SELF_RUN_ID }), queueRun({ id: 2 })]), [2]);
+    });
+
+    it('only looks at merge_group runs inside the queue namespace', () => {
+        const runs = [
+            queueRun({ id: 1, event: 'pull_request' }),
+            queueRun({ id: 2, branch: 'fix/some-branch' }),
+            queueRun({ id: 3, branch: 'main' }),
+        ];
+        assert.deepEqual(deadIds(runs), []);
+    });
+
+    it('leaves a run of another repository or one it cannot attribute', () => {
+        assert.deepEqual(deadIds([queueRun({ id: 1, repo: FORK }), queueRun({ id: 2, repo: null })]), []);
+    });
+
+    it('refuses to run without its own run id or repository', () => {
+        assert.throws(
+            () => deadQueueRunIds({ runs: [], liveRefs: [], repo: REPO, selfRunId: undefined }),
+            /own run id/,
+        );
+        assert.throws(() => deadQueueRunIds({ runs: [], liveRefs: [], repo: undefined, selfRunId: 1 }), /repository/);
+    });
+
+    it('takes the live refs from a file and the runs from stdin on the command line', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'dead-queue-'));
+        try {
+            const refs = join(dir, 'live-refs.txt');
+            writeFileSync(refs, `refs/heads/${QUEUE_LIVE}\n`);
+            const result = spawnSync(process.execPath, [SCRIPT, '--dead-queue', refs], {
+                cwd: MONOREPO_ROOT,
+                encoding: 'utf8',
+                env: { ...process.env, REPO, GITHUB_RUN_ID: String(SELF_RUN_ID) },
+                input: JSON.stringify({
+                    workflow_runs: [queueRun({ id: 1, branch: QUEUE_LIVE }), queueRun({ id: 2 })],
+                }),
+            });
+            assert.equal(result.status, 0, result.stderr);
+            assert.equal(result.stdout.trim(), '2');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('is annotated without a pull request when the event is a merge_group', () => {
+        const result = runCancelScript(
+            ['33857585236'],
+            { 33857585236: ['completed'] },
+            {
+                event: { action: 'checks_requested', merge_group: { head_ref: QUEUE_LIVE } },
+                env: { CANCEL_REASON: 'whose queue entry is gone' },
+            },
+        );
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout, /::notice::1 of 1 run\(s\) whose queue entry is gone stopped\./);
+        assert.doesNotMatch(result.stdout, /PR #/);
+    });
+});
+
+describe('the workflow that sweeps the dead queue', () => {
+    const yaml = readFileSync(WORKFLOW, 'utf8');
+    const sweep = yaml.slice(yaml.indexOf('sweep-dead-queue:'));
+
+    it('fires on dequeued and at the start of every merge_group run', () => {
+        assert.match(yaml, /^ {4}merge_group:/m);
+        assert.match(yaml, /types:\s*\[closed,\s*synchronize,\s*dequeued\]/);
+        assert.notEqual(yaml.indexOf('sweep-dead-queue:'), -1);
+        assert.match(sweep, /github\.event_name == 'merge_group' \|\| github\.event\.action == 'dequeued'/);
+    });
+
+    it('keeps the PR job off dequeued and off merge_group', () => {
+        // The PR job reads `pull_request.head`; on a merge_group event it would throw.
+        const pr = yaml.slice(yaml.indexOf('    cancel:'), yaml.indexOf('sweep-dead-queue:'));
+        assert.match(pr, /github\.event_name == 'pull_request' && github\.event\.action != 'dequeued'/);
+    });
+
+    it('checks out from a base SHA on both events and fetches both scripts', () => {
+        const ref = /^\s*ref:\s*(\S.*)$/m.exec(sweep);
+        assert.ok(ref, 'the sweep must pin an explicit ref');
+        assert.match(ref[1], /pull_request\.base\.sha/);
+        assert.match(ref[1], /merge_group\.base_sha/);
+        assert.doesNotMatch(ref[1], /head\.sha|head_sha/);
+        for (const script of ['select-superseded-runs.mjs', 'cancel-superseded-runs.mjs']) {
+            assert.ok(sweep.includes(`scripts/${script}`), `the sweep's checkout omits scripts/${script}`);
+        }
+    });
+
+    it('lists the runs BEFORE the queue branches', () => {
+        // The other order cancels a live entry whose group formed between the calls.
+        const runs = sweep.indexOf('event=merge_group');
+        const refs = sweep.indexOf('git/matching-refs/heads/gh-readonly-queue/');
+        assert.notEqual(runs, -1);
+        assert.notEqual(refs, -1);
+        assert.ok(runs < refs);
+    });
+
+    it('treats a failed branch listing as "nothing cancelled", never as "no live branches"', () => {
+        const guard = sweep.indexOf('if ! gh api --paginate');
+        assert.notEqual(guard, -1);
+        assert.match(sweep.slice(guard, guard + 400), /exit 0/);
+        assert.ok(guard < sweep.indexOf('--dead-queue "'), 'the guard must precede the selection');
+    });
+
+    it('no-ops when the base predates the sweep', () => {
+        const guard = sweep.indexOf("grep -q -- '--dead-queue'");
+        assert.notEqual(guard, -1);
+        assert.ok(guard < sweep.indexOf('node scripts/select-superseded-runs.mjs'));
     });
 });
 
@@ -512,11 +666,11 @@ describe('what the cancel did, not what it posted', () => {
  * @param {string[]} ids run ids on stdin
  * @param {Record<string, string[]>} statuses id → the status each successive GET answers
  */
-function runCancelScript(ids, statuses, { cancel = 202, forceCancel = 202, env = {} } = {}) {
+function runCancelScript(ids, statuses, { cancel = 202, forceCancel = 202, env = {}, event } = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-cancel-cli-'));
     try {
         const eventPath = join(dir, 'event.json');
-        writeFileSync(eventPath, JSON.stringify({ action: 'synchronize', pull_request: { number: 1568 } }));
+        writeFileSync(eventPath, JSON.stringify(event ?? { action: 'synchronize', pull_request: { number: 1568 } }));
         const stub = join(dir, 'stub.mjs');
         writeFileSync(
             stub,
