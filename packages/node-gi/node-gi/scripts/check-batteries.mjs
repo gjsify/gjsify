@@ -49,7 +49,12 @@ if (bundle && existsSync(join(bundle.dir, 'lib', 'libgda-6.0', 'providers'))) {
     const Gda = requireGi('Gda', '6.0');
     const dir = mkdtempSync(join(tmpdir(), 'node-gi-gda-'));
     try {
-        const cnc = Gda.Connection.new_from_string('SQLite', `DB_DIR=${dir};DB_NAME=probe`, null, Gda.ConnectionOptions.NONE);
+        const cnc = Gda.Connection.new_from_string(
+            'SQLite',
+            `DB_DIR=${dir};DB_NAME=probe`,
+            null,
+            Gda.ConnectionOptions.NONE,
+        );
         cnc.open();
         cnc.execute_non_select_command('CREATE TABLE t(id INTEGER, name TEXT)');
         cnc.execute_non_select_command("INSERT INTO t VALUES (1, 'ada')");

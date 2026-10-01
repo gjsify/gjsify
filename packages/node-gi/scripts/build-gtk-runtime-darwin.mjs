@@ -926,7 +926,7 @@ const gdaProviderSources = new Map(); // leaf -> keg realpath, for § 5's attrib
     if (!src || !existsSync(src)) {
         console.error(
             `build-gtk-runtime: libgda is in the closure but its SQLite provider is not at ${src ?? '(no libgda keg)'} — ` +
-                '`node:sqlite` would die with `No provider \'SQLite\' installed`. Repair: brew install libgda.',
+                "`node:sqlite` would die with `No provider 'SQLite' installed`. Repair: brew install libgda.",
         );
         process.exit(1);
     }
