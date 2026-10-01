@@ -31,12 +31,22 @@ export default async () => {
         // A Node child that starts a Node grandchild is the smallest real tree
         // with a grandchild of THIS process — the shape `foreach` must reach —
         // and it is spelled the same on every OS the suite runs on.
+        //
+        // NEITHER process expires on a timer. The reader is what decides how long
+        // this takes: there is no procfs on win32, so `osPpidMap` spawns
+        // `powershell.exe Get-CimInstance Win32_Process`, measured 7.6 s on an idle
+        // Windows runner and 32 s on a loaded one (#1952, #1948 — a red this
+        // fixture's own 30 s lifetime caused, `collectDescendants` reporting `[]`
+        // because the grandchild had already been reaped, not because it was
+        // invisible). So the child parks on an interval and the grandchild on the
+        // pipe its parent holds open for it: both end when the test kills the
+        // child, and neither can end before the reader has looked.
         await it('collectDescendants finds a grandchild', async () => {
             const node = nodeBinary();
-            const inner = `require('child_process').spawn(process.argv[1], ['-e', 'setTimeout(() => {}, 30000)'], { stdio: 'ignore' })`;
+            const inner = `require('child_process').spawn(process.argv[1], ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] })`;
             // `process.stdout.write`, not `console.log`: under `gjsify run` FORCE_COLOR
             // is set, and console.log wraps a NUMBER in ANSI colour codes.
-            const script = `const c = ${inner}; process.stdout.write(c.pid + '\\n'); setTimeout(() => {}, 30000);`;
+            const script = `const c = ${inner}; process.stdout.write(c.pid + '\\n'); setInterval(() => {}, 1 << 30);`;
             const child = spawn(node, ['-e', script, node], { stdio: ['ignore', 'pipe', 'ignore'] });
             let grandchild = 0;
             try {
