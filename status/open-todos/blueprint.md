@@ -83,14 +83,19 @@ nothing, so the projection names a new loss kind, `extern`, beside it. The 58 si
 counted are unblocked as a LANGUAGE question and each still needs its own conversion PR;
 `showcases/gtk/adw-blueprint-layout` is the one the ADR names first.
 
-**And the census counted the nesting, which was half of the construct.** What a real application
+**And the census counted the nesting, which was half of the construct — ADR 0062 is Accepted on
+the other half.** What a real application
 writes inside an extern object is not just properties: the 42 `.blp` of the pinned
 `refs/map-editor` carry `styles [ ]`, an `accessibility`-shaped body, an `[overlay]` bracket and a
 signal in there, and seven of their templates name an extern PARENT. An implementation that read
 properties in an extern body and refused a BLOCK would have been byte-equal on all four of rule
 files 32-35 and would have broken that consumer on upgrade. Rule files `57-extern-body-blocks` and
 `58-extern-composition` are the two that could see it, and the consumer itself is the measurement:
-all 42 byte-equal to `blueprint-compiler` 0.20.4, nothing in it changed to get there.
+all 42 byte-equal to `blueprint-compiler` 0.20.4, nothing in it changed to get there. **What is
+still open is not the language**: `adw-blueprint-layout` is unconverted, there is no `.blp` emitter
+to invert a projection, and `binding`/`breakpoint`/`signal` are what the 4 shipped files that do
+not round-trip lose — not the `template`/`object-id`/`slot` trio ADR 0062's blocker 3 named, all
+three of which have a field now.
 
 **Expressions landed, and they are the largest construct family in the language.** `bind` and
 `expr` now take the whole grammar — lookup chains, casts, `$closure(…)` calls, `typeof<Type>`,

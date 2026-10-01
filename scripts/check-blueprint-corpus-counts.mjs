@@ -202,8 +202,8 @@ const SNAPSHOTS = [
     },
     {
         file: 'docs/adr/0062-the-blueprint-conversion-frontier-is-composition.md',
-        claims: 'a9a9c5dcff806020',
-        why: "a dated re-derivation of 0058's census, with a § Method naming the revision, the compiler and the `@girs` pin it was taken under",
+        claims: 'ad7b01ab8a4dde2c',
+        why: "a dated re-derivation of 0058's census, with a § Method naming the revision, the compiler and the `@girs` pin it was taken under. The digest moved for Amendment 1, which is a SECOND dated reading in the same file — it re-measures the frontier against the pinned consumer and carries its own method paragraph, so the two counted lines it adds (`0 of 11` quoted back from the table above it, `42 of 46` measured on 2026-10-01) are dated like the rest and not live",
     },
     {
         file: 'docs/adr/0066-composition-gets-a-spelling-template-and-object-id.md',
