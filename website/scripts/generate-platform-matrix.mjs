@@ -1,19 +1,17 @@
-// Regenerate src/data/platform-matrix.ts from the audit that OWNS the matrix, so the
-// Platform Support page cannot claim a target the repository does not.
+// Regenerate src/data/platform-matrix.ts from the audit that OWNS the matrix, so the Platform
+// Support page cannot claim a target the repository does not.
 //
-// The page used to carry a hand-copied paste of
-// `audit-runtimes.mjs --platforms --markdown`, under a comment telling the next editor
-// to paste it again. It drifted twice with nothing to catch it, and what the drift cost
-// is the point: the stale copy showed `@gjsify/webgl` as `·` (unsupported) on win32-x64
-// while the tree had it declared, CI-targeted and artifact-committed — the single cell a
-// Windows reader opens that page to check — and it had lost the `@gjsify/webkit-native`
-// row entirely. A reader cannot tell a stale table from a current one, which is what
-// makes this shape worse than no table.
+// The page used to carry a hand-copied paste of `audit-runtimes.mjs --platforms --markdown`.
+// It drifted twice with nothing to catch it, and what the drift cost is the point: the stale copy
+// showed `@gjsify/webgl` as `·` (unsupported) on win32-x64 while the tree had it declared,
+// CI-targeted and artifact-committed — the single cell a Windows reader opens that page to check
+// — and it had lost the `@gjsify/webkit-native` row entirely. A reader cannot tell a stale table
+// from a current one, which is what makes this shape worse than no table.
 //
-// Same construction as `generate-coverage.mjs`: import the FUNCTION behind the report
-// rather than re-parse its rendered output, so the numbers are validated on the way in —
-// `platformRows()` runs the same credit pass `--check` gates on and throws rather than
-// hand back rows the matrix would render wrong.
+// Same construction as `generate-coverage.mjs`: import the FUNCTION behind the report rather than
+// re-parse its rendered output, so the numbers are validated on the way in — `platformRows()` runs
+// the same credit pass `--check` gates on and throws rather than hand back rows the matrix would
+// render wrong.
 
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -25,9 +23,9 @@ import { platformMatrixData, platformRows } from '../../scripts/manifest-conform
 const here = dirname(fileURLToPath(import.meta.url));
 const outPath = join(here, '..', 'src', 'data', 'platform-matrix.ts');
 
-// `matrixRows`, not `rows`: the per-target platform packages (ADR 0017) are audited but
-// not tabulated, and the artifact state of a split bridge lives on those children — which
-// is why the rows must come from here rather than be assembled locally.
+// `matrixRows`, not `rows`: the per-target platform packages (ADR 0017) are audited but not
+// tabulated, and the artifact state of a split bridge lives on those children — which is why the
+// rows must come from here rather than be assembled locally.
 const { matrixRows } = await platformRows(repoContext());
 const { platforms, legend, rows } = platformMatrixData(matrixRows);
 
@@ -37,12 +35,10 @@ const legendEntries = legend.map((entry) => ({
     meaning: entry.slice(1).trim(),
 }));
 
-// Emitted in the formatter's own shape — single quotes, trailing commas, 4-space
-// indent — rather than `JSON.stringify`'s. The data modules beside this one are
-// committed FORMATTED but generated UNFORMATTED, so every website build leaves
-// them dirty and a commit right after one fails `gjsify format --check`. Writing
-// the final shape directly is what makes "generate" and "generate then format"
-// the same file. Held honest by the `--check` run in this file's PR, not by hope.
+// Emitted in the formatter's own shape — single quotes, trailing commas, 4-space indent —
+// rather than `JSON.stringify`'s. The data modules beside this one are committed FORMATTED but
+// generated UNFORMATTED, so every website build leaves them dirty and a commit right after one
+// fails `gjsify format --check`. Held honest by the `--check` run in this file's PR, not by hope.
 const q = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const list = (items, indent) => {
     const pad = ' '.repeat(indent);

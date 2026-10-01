@@ -1,5 +1,3 @@
-// Based on https://github.com/philipphoffmann/gjsunit
-
 import '@girs/gjs';
 
 import type GLib from '@girs/glib-2.0';
@@ -13,10 +11,10 @@ import { canRealizeGl, canRealizeSurface, type DisplayEnv } from './capabilities
 import { createHeartbeat, type Heartbeat } from './heartbeat.js';
 
 /**
- * Typed view of the cross-runtime globals this runner reads. `@gjsify/unit` must
- * run on plain GJS (no Node polyfills loaded), Node.js and browsers, so every
- * `globalThis` access is potentially undefined; centralising the shapes keeps the
- * call sites on `runtimeGlobals().<field>?.…` instead of scattered `as any`.
+ * Typed view of the cross-runtime globals this runner reads. `@gjsify/unit` runs on plain GJS (no
+ * Node polyfills loaded), Node.js and browsers, so every `globalThis` access is potentially
+ * undefined; centralising the shapes keeps call sites on `runtimeGlobals().<field>?.…` instead of
+ * scattered `as any`.
  */
 interface _RuntimeGlobals {
     imports?: {
@@ -40,7 +38,7 @@ interface _RuntimeGlobals {
         /** Tests that ran and did not fail. */
         passed: number;
         failed: number;
-        /** Tests that ran — NOT assertions, which is what this used to carry (#1557). */
+        /** Tests that ran — NOT assertions, which is what this field used to carry (#1557). */
         total: number;
         /** Assertions executed, kept beside the total rather than instead of it. */
         assertions: number;
@@ -51,25 +49,24 @@ interface _RuntimeGlobals {
 const runtimeGlobals = (): _RuntimeGlobals => globalThis as unknown as _RuntimeGlobals;
 
 /**
- * Brand for `Error`s produced by our own matchers / `assert.*` helpers: a
- * deliberate assertion-failure signal, as opposed to an unexpected impl error.
- * `toThrow`/`toReject`/`toResolve` read it to recognise an inner matcher throw
- * they are expecting and must not re-surface.
+ * Brand for `Error`s produced by our own matchers / `assert.*` helpers: a deliberate
+ * assertion-failure signal, as opposed to an unexpected impl error. `toThrow`/`toReject`/
+ * `toResolve` read it to recognise an inner matcher throw they are expecting and must not
+ * re-surface.
  *
- * It does NOT mean "already added to the failure count": counting is owned
- * exclusively by the boundary that OBSERVES the outcome — `it()` and the
- * run/suite timeout handlers — never by the throw site. See `triggerResult`.
+ * It does NOT mean "already added to the failure count": counting is owned exclusively by the
+ * boundary that OBSERVES the outcome — `it()` and the run/suite timeout handlers — never by the
+ * throw site. See `triggerResult`.
  */
 interface _CountedError {
     __testFailureCounted?: boolean;
 }
 
-// Decide the run/exit strategy by the ACTUAL runtime, NOT by `imports.mainloop`
-// presence: GJS blocks on `imports.mainloop.run()` and quits from a callback,
-// Node/Bun/Deno exit via `process.exit()` once the run settles. `@gjsify/node-gi`
-// legitimately provides `imports.mainloop` on Node too, so keying on presence
-// sends node-gi consumers down the GJS path, where the quit is queued as a promise
-// continuation that never drains under the blocking loop — the process hangs
+// Decide the run/exit strategy by the ACTUAL runtime, NOT by `imports.mainloop` presence:
+// GJS blocks on `imports.mainloop.run()` and quits from a callback, Node/Bun/Deno exit via
+// `process.exit()` once the run settles. `@gjsify/node-gi` legitimately provides `imports.mainloop`
+// on Node too, so keying on presence sends node-gi consumers down the GJS path, where the quit is
+// queued as a promise continuation that never drains under the blocking loop — the process hangs
 // forever. Gate on `process.versions.gjs`, the same signal `getRuntime()` uses.
 const mainloop: GLib.MainLoop | undefined =
     typeof runtimeGlobals().process?.versions?.gjs === 'string' ? runtimeGlobals().imports?.mainloop : undefined;
@@ -77,46 +74,39 @@ const mainloop: GLib.MainLoop | undefined =
 /**
  * ASSERTIONS executed — `expect()`, `assert()` and friends each add one.
  *
- * Named for what it counts since #1557, because the old name (`countTestsOverall`,
- * printed as "N completed") read as tests to every consumer that ever quoted it,
- * including two commit messages now on `main`. It is also not comparable across
- * commits: a suite that asserts inside data-driven loops moves this number without
- * changing what it verifies — measured on `@gjsify/react-native`, where 25 tests
- * were ADDED, 58 `expect(` call sites were added, nothing was skipped or deleted,
- * and the number FELL by 114. The number worth comparing is {@link countTestsRun}.
+ * NOT comparable across commits: a suite that asserts inside data-driven loops moves this number
+ * without changing what it verifies — measured on `@gjsify/react-native`, where 25 tests and 58
+ * `expect(` call sites were ADDED, nothing skipped or deleted, and the number FELL by 114. The
+ * number worth comparing is {@link countTestsRun}. (#1557 renamed this off `countTestsOverall`,
+ * printed as "N completed", which every consumer read as tests.)
  */
 let countAssertions = 0;
 /**
- * TESTS that ran: one per `it()` that was not skipped, plus each `it.failing`
- * whose expectation was active.
- *
- * Stable under refactoring, which is the property `countAssertions` lacks and the
- * reason a falling count could not be read as a regression without diffing the
- * executed test NAMES by hand (#1557).
+ * TESTS that ran: one per `it()` that was not skipped, plus each `it.failing` whose expectation was
+ * active. Stable under refactoring — the property `countAssertions` lacks, and the reason a
+ * falling count could not be read as a regression without diffing executed test NAMES by hand.
  */
 let countTestsRun = 0;
 let countTestsFailed = 0;
 /**
- * Failures that belong to NO test: a stray assertion from a leaked timer, a suite
- * or run that timed out, a declared axis that exercised nothing, a spec that left
- * the process in a deleted working directory.
+ * Failures that belong to NO test: a stray assertion from a leaked timer, a suite or run that
+ * timed out, a declared axis that exercised nothing, a spec that left the process in a deleted
+ * working directory.
  *
- * Kept apart from {@link countTestsFailed} because the summary states a RATIO, and
- * these raise the numerator without raising the denominator — measured: two suites
- * timing out plus one stray assertion over two real tests printed `3 of 2 tests
- * failed`, and with no real tests at all, `2 of 0`. An impossible ratio is not a
- * rounding error in a line whose whole job is to be quoted; it is the same defect
- * as the one #1557 fixed one field over. Both gate the run.
+ * Kept apart from {@link countTestsFailed} because the summary states a RATIO, and these raise the
+ * numerator without raising the denominator — measured: two suites timing out plus one stray
+ * assertion over two real tests printed `3 of 2 tests failed`, and with no real tests at all,
+ * `2 of 0`. An impossible ratio is not a rounding error in a line whose whole job is to be quoted.
+ * Both gate the run.
  */
 let countFailuresOutsideTests = 0;
 let countTestsIgnored = 0;
 /**
  * Did a throw escape a suite BODY (rather than an `it()`)?
  *
- * Deliberately not part of `countTestsFailed`: the tally counts tests that RAN, and
- * a suite body that threw says nothing about the suites that never started. But the
- * process must still fail, and the summary must not read green — see the `.catch` in
- * `run` for the incident.
+ * Deliberately not part of `countTestsFailed`: the tally counts tests that RAN, and a suite body
+ * that threw says nothing about the suites that never started. But the process must still fail,
+ * and the summary must not read green — see the `.catch` in `run` for the incident.
  */
 let suiteBodyThrew = false;
 /** Tests marked `it.failing` that failed as expected (see `it.failing`). */
@@ -125,17 +115,13 @@ let countTestsXfail = 0;
 /**
  * What each `on()` gate actually DID, per axis it named.
  *
- * `on()` answers "is this host on that axis" and returns silently when it is not,
- * which is correct — `on('Deno', …)` is supposed to contribute nothing under Node.
- * The gap is that a gate which SHOULD have fired and did not is indistinguishable
- * from one that correctly stood down: a miss only does `++countTestsIgnored`, the
- * count is printed, and neither failure counter moves. So an axis that stopped
- * running leaves nothing behind — strictly worse than a deleted test
- * file, which at least shows up as a file that is gone.
+ * `on()` answers "is this host on that axis" and returns silently when it is not, which is correct.
+ * The gap is that a gate which SHOULD have fired and did not is indistinguishable from one that
+ * correctly stood down: a miss only does `++countTestsIgnored`, and neither failure counter moves —
+ * strictly worse than a deleted test file, which at least shows up as gone.
  *
- * `tests` is the delta the matched blocks actually executed, not the number of
- * `it()` calls they contain: a block that matched and then registered nothing is
- * the exact silent shape being measured, and it must not look like coverage.
+ * `tests` is the delta the matched blocks actually executed, not the number of `it()` calls they
+ * contain: a block that matched and then registered nothing must not look like coverage.
  */
 export interface AxisRecord {
     /** Gated blocks that matched this host and ran. */
@@ -158,24 +144,23 @@ const axisRecord = (axis: string): AxisRecord => {
 };
 
 /**
- * Non-zero only while an `it()` callback is on the stack. A matcher throwing at
- * depth 0 escaped its test (a late assertion from a settled test's timer, or an
- * `expect()` outside any `it`); such a throw must not corrupt a bystander test's
- * tally, so it is surfaced as its own entry. See `it()` and `noteStrayFailure`.
+ * Non-zero only while an `it()` callback is on the stack. A matcher throwing at depth 0 escaped
+ * its test (a late assertion from a settled test's timer, an `expect()` outside any `it`); such a
+ * throw must not corrupt a bystander test's tally, so it is surfaced as its own entry. See `it()`
+ * and `noteStrayFailure`.
  */
 let activeTestDepth = 0;
 const strayFailures: Array<{ suite: string; message: string }> = [];
 
 /**
- * Non-gating observations: things a reader must SEE, that the runner refuses to
- * turn into a verdict because it cannot know whether they are intended.
+ * Non-gating observations: things a reader must SEE, that the runner refuses to turn into a
+ * verdict because it cannot know whether they are intended.
  *
- * Distinct from the other counters: `countTestsFailed` gates the run,
- * `it.failing`'s xfail is a DECLARED expectation that self-retires, and
- * `countTestsIgnored` means "did not run". A warning ran, claims nothing and has
- * nothing to retire, so it stays out of the exit code. Anything an owner COULD
- * declare belongs in `it.failing` instead — a warning that could self-retire just
- * rots into background noise.
+ * Distinct from the other counters: `countTestsFailed` gates the run, `it.failing`'s xfail is a
+ * DECLARED expectation that self-retires, and `countTestsIgnored` means "did not run". A warning
+ * ran, claims nothing and has nothing to retire, so it stays out of the exit code. Anything an
+ * owner COULD declare belongs in `it.failing` instead — a warning that could self-retire just rots
+ * into background noise.
  */
 const warnings: Array<{ suite: string; message: string }> = [];
 
@@ -189,27 +174,25 @@ const errorMessage = (error: unknown): string => (error as { message?: string })
 /**
  * Whether the process CWD was still readable the last time a test ended.
  *
- * A spec that `chdir`s into a temp directory and then removes it leaves the whole
- * PROCESS in a deleted CWD, and every later `process.cwd()` — including one inside
- * a child this runner spawns — dies with `ENOENT … uv_cwd`. Specs share one
- * process, so the cost lands on whichever test runs next: on darwin-x64 that was
- * `@gjsify/cli`'s classifier suite failing ~30 % of runs in a spec that never
- * touches the CWD, while the spec that broke it passed.
+ * A spec that `chdir`s into a temp directory and then removes it leaves the whole PROCESS in a
+ * deleted CWD, and every later `process.cwd()` — including one inside a child this runner spawns
+ * — dies with `ENOENT … uv_cwd`. Specs share one process, so the cost lands on whichever test
+ * runs next: on darwin-x64 that was `@gjsify/cli`'s classifier suite failing ~30 % of runs in a
+ * spec that never touches the CWD, while the spec that broke it passed.
  *
- * Latched, so only the TRANSITION is reported. Without that every remaining test in
- * the run fails too, and the culprit is buried under its own fallout.
+ * Latched, so only the TRANSITION is reported. Without that every remaining test in the run fails
+ * too, and the culprit is buried under its own fallout.
  */
 let cwdReadable = true;
 
 /**
  * `false` once `process.cwd()` cannot resolve; `true` where there is nothing to ask.
  *
- * NODE-SIDE ONLY, and deliberately not papered over: `@gjsify/process` implements
- * `cwd()` as `GLib.get_current_dir() || '/'`, which returns a string rather than
- * throwing, so the GJS leg cannot answer this question and always reads readable.
- * That matches where the hazard is measured — the failures are `uv_cwd` from Node
- * and from Node children — and a probe that pretended otherwise would report a
- * clean CWD on the one host that cannot check.
+ * NODE-SIDE ONLY, and deliberately not papered over: `@gjsify/process` implements `cwd()` as
+ * `GLib.get_current_dir() || '/'`, which returns a string rather than throwing, so the GJS leg
+ * cannot answer this question and always reads readable. That matches where the hazard is
+ * measured — the failures are `uv_cwd` from Node and from Node children — and a probe that
+ * pretended otherwise would report a clean CWD on the one host that cannot check.
  */
 const probeCwd = (): boolean => {
     const cwd = runtimeGlobals().process?.cwd;
@@ -227,10 +210,8 @@ const probeCwd = (): boolean => {
 };
 
 /**
- * Charge a destroyed process CWD to the test that destroyed it.
- *
- * Called as each test ends. See `cwdReadable` for why attribution is the whole
- * value: the failure is otherwise reported against an innocent later test, in a
+ * Charge a destroyed process CWD to the test that destroyed it. Attribution is the whole value
+ * here — see `cwdReadable`; the failure is otherwise reported against an innocent later test, in a
  * different suite, only sometimes.
  */
 const noteIfCwdDestroyed = (expectation: string): void => {
@@ -262,25 +243,23 @@ const noteStrayFailure = (message: string): void => {
 };
 
 /**
- * Per-`it()` ledgers of assertion errors THROWN while that test was on the stack.
- * `it()` removes the one its `catch` observes; anything left never reached the
- * awaited chain at all.
+ * Per-`it()` ledgers of assertion errors THROWN while that test was on the stack. `it()` removes
+ * the one its `catch` observes; anything left never reached the awaited chain at all.
  *
- * That leftover is a failure class the runner was blind to: an `expect` inside a
- * host callback (`stat(p, (err, st) => { expect(…); resolve(); })`) unwinds into
- * libuv/GLib, not into the promise — so the promise never settles, and the error
- * goes wherever the HOST sends it. On Node that is `uncaughtException`, which
- * prints the minified bundle and KILLS THE PROCESS; on GJS a logged warning,
- * leaving a 5 s timeout naming neither the assertion nor the file. Measured on
- * Windows: one such `expect` in `@gjsify/fs`'s `callback.spec.ts` ended the run
- * inside the first of 19 spec modules with no summary line.
+ * That leftover is a failure class the runner was blind to: an `expect` inside a host callback
+ * (`stat(p, (err, st) => { expect(…); resolve(); })`) unwinds into libuv/GLib, not into the
+ * promise — so the promise never settles, and the error goes wherever the HOST sends it. On Node
+ * that is `uncaughtException`, which prints the minified bundle and KILLS THE PROCESS; on GJS a
+ * logged warning, leaving a 5 s timeout naming neither the assertion nor the file. Measured on
+ * Windows: one such `expect` in `@gjsify/fs`'s `callback.spec.ts` ended the run inside the first
+ * of 19 spec modules with no summary line.
  *
- * A STACK, not a single set: `it.failing` legitimately runs nested inside an
- * `it()` (see `it-failing.spec.ts`), and a throw belongs to the INNERMOST test.
+ * A STACK, not a single set: `it.failing` legitimately runs nested inside an `it()` (see
+ * `it-failing.spec.ts`), and a throw belongs to the INNERMOST test.
  *
- * Known limit, as for `activeTestDepth`: a late callback from an ALREADY SETTLED
- * test is charged to whichever test is running when it fires. Attribution across
- * that boundary is ambiguous — the fix is to not leak the callback.
+ * Known limit, as for `activeTestDepth`: a late callback from an ALREADY SETTLED test is charged
+ * to whichever test is running when it fires. Attribution across that boundary is ambiguous — the
+ * fix is to not leak the callback.
  */
 const assertionLedgers: Array<Set<Error>> = [];
 
@@ -294,13 +273,12 @@ const noteThrownAssertion = (error: unknown): void => {
  * Un-ledger an error a matcher DELIBERATELY absorbed.
  *
  * The throw `toThrow`/`toReject`/`toResolve` catch is often a nested `expect`
- * (`expect(() => expect(a).toBe(b)).toThrow()` is how their own specs are
- * written). That error is handled, not lost; leaving it in the ledger turns every
- * negative-matcher test into a phantom failure — 9 of them in this package's suite
- * the first time the ledger ran without this.
+ * (`expect(() => expect(a).toBe(b)).toThrow()` is how their own specs are written). That error is
+ * handled, not lost; leaving it in the ledger turns every negative-matcher test into a phantom
+ * failure — 9 of them in this package's suite the first time the ledger ran without this.
  *
- * Every site that swallows a caught error must call this: the ledger is only as
- * exact as its absorbers are honest.
+ * Every site that swallows a caught error must call this: the ledger is only as exact as its
+ * absorbers are honest.
  */
 const forgetThrownAssertion = (error: unknown): void => {
     if (!(error instanceof Error)) return;
@@ -311,9 +289,8 @@ let runStartTime = 0;
 let currentSuite = '';
 /**
  * Name of the `it()` on the stack, for attributing an out-of-band observation (see
- * `noteWarning`). Only meaningful while `activeTestDepth > 0`; a settled test
- * leaves the last name in place on purpose, because a late callback naming its
- * likely origin beats naming nothing.
+ * `noteWarning`). Only meaningful while `activeTestDepth > 0`; a settled test leaves the last name
+ * in place on purpose, because a late callback naming its likely origin beats naming nothing.
  */
 let currentTest = '';
 let testErrors: Array<{ suite: string; test: string; message: string }> = [];
@@ -336,16 +313,16 @@ const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
 let timeoutConfig: TimeoutConfig = { ...DEFAULT_TIMEOUT_CONFIG };
 
 /**
- * Where a supervisor learns which test is in flight. Inert until `run()` replaces it, and
- * inert after that too unless `GJSIFY_UNIT_HEARTBEAT` named a file — see `heartbeat.ts`.
+ * Where a supervisor learns which test is in flight. Inert until `run()` replaces it, and after
+ * that too unless `GJSIFY_UNIT_HEARTBEAT` named a file — see `heartbeat.ts`.
  */
 let heartbeat: Heartbeat = createHeartbeat(undefined, 0);
 
 /**
- * Opt-in per-test skip map (test name → reason), populated by `run()`'s `skip`
- * option. Lets a caller run a suite on a runtime that cannot pass a known subset
- * (e.g. a `@gjsify/node-gi` consumer hitting an unimplemented GI-marshalling
- * surface) without editing or weakening the shared spec files. Empty by default.
+ * Opt-in per-test skip map (test name → reason), populated by `run()`'s `skip` option. Lets a
+ * caller run a suite on a runtime that cannot pass a known subset (e.g. a `@gjsify/node-gi`
+ * consumer hitting an unimplemented GI-marshalling surface) without editing or weakening the
+ * shared spec files. Empty by default.
  */
 let skipReasons: Map<string, string> = new Map();
 
@@ -359,11 +336,10 @@ class TimeoutError extends Error {
 /**
  * Reject hooks for the `withTimeout` calls in flight (innermost last).
  *
- * An exception the HOST raises out of its own callback (Node's
- * `uncaughtException`) belongs to whichever test armed that callback; failing THAT
- * test instead of letting the host tear the process down turns a run-ending crash
- * into one reported failure with the other suites still to come. See
- * `installUncaughtHooks`.
+ * An exception the HOST raises out of its own callback (Node's `uncaughtException`) belongs to
+ * whichever test armed that callback; failing THAT test instead of letting the host tear the
+ * process down turns a run-ending crash into one reported failure with the other suites still to
+ * come. See `installUncaughtHooks`.
  */
 const abortHooks: Array<(error: unknown) => void> = [];
 
@@ -378,10 +354,9 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
     // cannot become an unhandled rejection.
     timeoutPromise.catch(() => {});
 
-    // Third racer: a host-level exception attributed to this call (see
-    // `abortHooks`). Armed before `fn()` can schedule anything, and removed by
-    // identity in `finally` — an index would be wrong the moment a nested
-    // `withTimeout` settles out of order.
+    // Third racer: a host-level exception attributed to this call (see `abortHooks`). Armed before
+    // `fn()` can schedule anything, and removed by identity in `finally` — an index would be wrong
+    // the moment a nested `withTimeout` settles out of order.
     let abort!: (error: unknown) => void;
     const abortPromise = new Promise<never>((_, reject) => {
         abort = reject;
@@ -390,11 +365,10 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
     abortHooks.push(abort);
 
     try {
-        // `fn()` belongs INSIDE the try. A synchronous throw — every failed
-        // `expect` in a non-async `it` is one — used to escape before the `finally`
-        // was installed, so `clearTimeout` never ran and the armed timer rejected
-        // `timeoutPromise` with nobody listening: `timeoutMs` later the run died on
-        // an unhandled rejection reporting a TimeoutError in place of the
+        // `fn()` belongs INSIDE the try. A synchronous throw — every failed `expect` in a
+        // non-async `it` is one — escaped before the `finally` was installed, so `clearTimeout`
+        // never ran and the armed timer rejected `timeoutPromise` with nobody listening: `timeoutMs`
+        // later the run died on an unhandled rejection reporting a TimeoutError in place of the
         // assertion, and every later suite never ran.
         const fnPromise = Promise.resolve(fn());
         fnPromise.catch(() => {}); // Prevent unhandled rejection if it fails after timeout
@@ -407,27 +381,24 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
 }
 
 /**
- * Route a host-level uncaught exception into the test that is in flight, instead
- * of letting the host end the process.
+ * Route a host-level uncaught exception into the test that is in flight, instead of letting the
+ * host end the process.
  *
- * The Node-family half of the callback-assertion fix; the ledger
- * (`assertionLedgers`) is the half that works everywhere. Neither subsumes the
- * other: without the hook the process dies before any ledger is drained, and
- * without the ledger a GJS run — where the host only logs the exception — still
- * reports a bare 5 s timeout instead of the assertion.
+ * The Node-family half of the callback-assertion fix; the ledger (`assertionLedgers`) is the half
+ * that works everywhere. Neither subsumes the other: without the hook the process dies before any
+ * ledger is drained, and without the ledger a GJS run — where the host only logs the exception —
+ * still reports a bare 5 s timeout instead of the assertion.
  *
  * BOTH events are needed, because the runtimes disagree:
  *
- * - a SYNCHRONOUS throw in a host callback arrives as `uncaughtException`
- *   everywhere;
- * - an ASYNC callback's throw rejects that function's promise, and Node (measured,
- *   v24/v26) re-raises that as `uncaughtException` under its default
- *   `--unhandled-rejections=throw` *only when no rejection listener exists*, while
- *   Bun (measured, v1.3.14) terminates the process instead — killing the run with
- *   no summary, the exact failure this hook exists to remove.
+ * - a SYNCHRONOUS throw in a host callback arrives as `uncaughtException` everywhere;
+ * - an ASYNC callback's throw rejects that function's promise, and Node (measured, v24/v26)
+ *   re-raises that as `uncaughtException` under its default `--unhandled-rejections=throw` *only
+ *   when no rejection listener exists*, while Bun (measured, v1.3.14) terminates the process
+ *   instead — killing the run with no summary.
  *
- * The runner's own late rejections cannot be mis-charged here: each carries a
- * `.catch(() => {})` (see `withTimeout`), which makes it HANDLED.
+ * The runner's own late rejections cannot be mis-charged here: each carries a `.catch(() => {})`
+ * (see `withTimeout`), which makes it HANDLED.
  */
 let uncaughtHooksInstalled = false;
 
@@ -449,17 +420,15 @@ const installUncaughtHooks = (): void => {
 
         // Anything else may be an error a SPEC provokes on purpose:
         // `@gjsify/diagnostics_channel` makes a subscriber throw, installs its own
-        // `uncaughtException` listener to swallow it, and asserts the remaining
-        // subscribers still ran — Node invokes every listener, so this hook fired
-        // too and failed a test that worked as intended. A spec's own listener is
-        // therefore the signal that the escape is deliberate; ignoring all
-        // non-assertion errors instead would SILENTLY swallow genuine impl errors,
+        // `uncaughtException` listener to swallow it, and asserts the remaining subscribers still ran
+        // — Node invokes every listener, so this hook fired too and failed a test that worked as
+        // intended. A spec's own listener is therefore the signal that the escape is deliberate;
+        // ignoring all non-assertion errors instead would SILENTLY swallow genuine impl errors,
         // since merely registering here already suppresses the default crash.
         //
-        // "A listener exists" is only a PROXY for "this one was expected" — a spec
-        // listening for ONE anticipated error is equally deaf to a real error
-        // escaping beside it. Hence a non-gating WARNING: the runner cannot decide
-        // it, the reader can.
+        // "A listener exists" is only a PROXY for "this one was expected" — a spec listening for
+        // ONE anticipated error is equally deaf to a real error escaping beside it. Hence a
+        // non-gating WARNING: the runner cannot decide it, the reader can.
         const otherListeners = (proc.listenerCount?.(event) ?? 1) - 1;
         if (!isAssertion && otherListeners > 0) {
             const text = (error as { message?: string })?.message ?? String(error);
@@ -524,10 +493,10 @@ export type Callback = () => void | Promise<void>;
 /**
  * What `on()` gates on: a runtime IDENTITY, or a host CAPABILITY.
  *
- * `'Display'` and `'Gl'` are capabilities and deliberately separate — a gate must
- * state the thing it actually requires. They were one name until the WebGL suites
- * (which need a realizable GL context) and any plain GTK-surface test shared
- * `'Display'`, which made each wrong on a different OS. See `hasDisplay`/`hasGl`.
+ * `'Display'` and `'Gl'` are capabilities and deliberately separate — a gate must state the thing
+ * it actually requires. Sharing one name made each wrong on a different OS: the WebGL suites (a
+ * realizable GL context) and any plain GTK-surface test both wanted `'Display'`.
+ * See `hasDisplay`/`hasGl`.
  */
 export type Runtime = 'Gjs' | 'Deno' | 'Bun' | 'Node.js' | 'Unknown' | 'Browser' | 'Display' | 'Gl';
 
@@ -541,12 +510,10 @@ export interface RunOptions {
     /** `expectation` → reason; skips that test and prints the reason. */
     skip?: Record<string, string>;
     /**
-     * Axes this entry claims to exercise — checked, not decorative.
-     *
-     * Each named axis that THIS host matches must have executed at least one test
-     * through an `on()` gate, or the run fails. An axis the host does not match is
-     * skipped, so one built entry can declare every axis it serves and each leg is
-     * held only to its own (see `failUnexercisedAxes`).
+     * Axes this entry claims to exercise — checked, not decorative. Each named axis that THIS
+     * host matches must have executed at least one test through an `on()` gate, or the run fails.
+     * An axis the host does not match is skipped, so one built entry can declare every axis it
+     * serves and each leg is held only to its own (see `failUnexercisedAxes`).
      */
     requireAxes?: readonly Runtime[];
 }
@@ -560,13 +527,12 @@ export const print =
     !_isGjsProcess && typeof runtimeGlobals().document !== 'undefined' ? console.log : globalThis.print || console.log;
 
 /**
- * Are two values deeply equal? Used ONLY to enrich a `toEqual` failure message
- * with the "you probably meant `toStrictEqual`" hint — never to decide a verdict.
+ * Are two values deeply equal? Used ONLY to enrich a `toEqual` failure message with the "you
+ * probably meant `toStrictEqual`" hint — never to decide a verdict.
  *
- * The try/catch is this function's API, not defensive padding: `deepStrictEqual`
- * signals inequality by throwing, so catching IS reading its answer. It is the
- * same oracle `toStrictEqual` uses, so the hint cannot recommend a matcher that
- * would then fail.
+ * The try/catch is this function's API, not defensive padding: `deepStrictEqual` signals
+ * inequality by throwing, so catching IS reading its answer. It is the same oracle `toStrictEqual`
+ * uses, so the hint cannot recommend a matcher that would then fail.
  */
 function isStructurallyEqual(actual: unknown, expected: unknown): boolean {
     try {
@@ -578,10 +544,9 @@ function isStructurallyEqual(actual: unknown, expected: unknown): boolean {
 }
 
 /**
- * Render any value for an assertion failure message WITHOUT throwing.
- * Template-literal / `+` interpolation throws a TypeError on `symbol` and `bigint`
- * operands, which would mask the real assertion result, so matchers route operands
- * through this rather than interpolating them.
+ * Render any value for an assertion failure message WITHOUT throwing. Template-literal / `+`
+ * interpolation throws a TypeError on `symbol` and `bigint` operands, which would mask the real
+ * assertion result, so matchers route operands through this rather than interpolating them.
  */
 export function formatValue(value: unknown): string {
     switch (typeof value) {
@@ -608,7 +573,8 @@ export function formatValue(value: unknown): string {
     }
 }
 
-/** Deep partial match: every key/index in `expected` must be present and match in `actual` (extra actual keys ignored). */
+/** Deep partial match: every key/index in `expected` must be present and match in `actual`;
+ * extra actual keys ignored. */
 function matchesObject(actual: unknown, expected: unknown): boolean {
     if (Object.is(actual, expected)) return true;
     if (typeof expected !== 'object' || expected === null) return actual === expected;
@@ -1061,25 +1027,23 @@ export const describe = async function (
     const prevSuite = currentSuite;
     currentSuite = moduleName;
     const t0 = now();
-    // This suite's own hooks, popped in `finally` below: a describe whose body
-    // throws must not leave its hooks running over its siblings.
+    // This suite's own hooks, popped in `finally` below: a describe whose body throws must not
+    // leave its hooks running over its siblings.
     //
-    // ONE CASE THIS CANNOT HOLD, measured: a describe that TIMES OUT keeps
-    // running — `withTimeout` cannot cancel a promise — so a hook it registers
-    // after the timeout lands in the frame that is current by then, which is the
-    // parent's. The run is already failing loudly with a named suite timeout when
-    // that happens, and routing a late registration back to its own describe needs
-    // async context this package cannot have (`AsyncLocalStorage` lives in
+    // ONE CASE THIS CANNOT HOLD, measured: a describe that TIMES OUT keeps running — `withTimeout`
+    // cannot cancel a promise — so a hook it registers after the timeout lands in the frame that
+    // is current by then, which is the parent's. The run is already failing loudly with a named
+    // suite timeout when that happens, and routing a late registration back to its own describe
+    // needs async context this package cannot have (`AsyncLocalStorage` lives in
     // `@gjsify/async_hooks`, a higher tier). Recorded in `status/open-todos/README.md`.
     hookFrames.push({ before: [], after: [] });
     try {
         await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
     } catch (e) {
         if (e instanceof TimeoutError) {
-            // Counted AND recorded. This used to raise the tally without entering the
-            // failure ledger, so the run reported "1 of N tests failed" over a ledger
-            // that named nothing — which is the whole of #1159. A recap alone would
-            // not have fixed it: there was nothing to recap.
+            // Counted AND recorded. Raising the tally without entering the failure ledger made the
+            // run report "1 of N tests failed" over a ledger that named nothing — the whole of
+            // #1159. A recap alone would not have fixed it: there was nothing to recap.
             ++countFailuresOutsideTests;
             testErrors.push({ suite: moduleName, test: '<suite timed out>', message: e.message });
             print(`  ${RED}⏱ Suite timed out: ${e.message}${RESET}`);
@@ -1103,9 +1067,9 @@ describe.skip = async function (moduleName: string, _callback?: Callback) {
 const envVar = (name: string): string | undefined => {
     const env = runtimeGlobals().process?.env;
     if (env) return env[name];
-    // GJS fallback for before the process polyfill exists. The optional-chained
-    // probe is non-throwing off GJS, and on GJS the GLib typelib is the runtime's
-    // own hard dependency — a try/catch would only hide which runtime we are on.
+    // GJS fallback for before the process polyfill exists. The optional-chained probe is
+    // non-throwing off GJS, and on GJS the GLib typelib is the runtime's own hard dependency — a
+    // try/catch would only hide which runtime we are on.
     const GLib = runtimeGlobals().imports?.gi?.GLib;
     return GLib ? (GLib.getenv(name) ?? undefined) : undefined;
 };
@@ -1133,14 +1097,12 @@ let glProbe: boolean | undefined;
 let glProbeFailure = '';
 
 /**
- * Load GTK/GDK the portable way: `gi://`, which GJS resolves natively and the
- * node target rewrites to a LAZY `@gjsify/node-gi` proxy (resolved on first
- * access, so a node bundle without node-gi throws HERE, inside the probe, and
- * answers no), and a browser build maps to an empty module (no `default`,
- * answers no). NOT `globalThis.imports.gi`: that object is the GJS host, and on
- * node it exists only when a build predicted the bundle needed it (see
- * docs/code-anti-patterns.md). Dynamic, so a run that never asks about GL never
- * loads GTK.
+ * Load GTK/GDK the portable way: `gi://`, which GJS resolves natively and the node target
+ * rewrites to a LAZY `@gjsify/node-gi` proxy (resolved on first access, so a node bundle without
+ * node-gi throws HERE, inside the probe, and answers no), and a browser build maps to an empty
+ * module (no `default`, answers no). NOT `globalThis.imports.gi`: that object is the GJS host, and
+ * on node it exists only when a build predicted the bundle needed it (see
+ * docs/code-anti-patterns.md). Dynamic, so a run that never asks about GL never loads GTK.
  */
 const loadGlProbeGi = async (): Promise<GlProbeGi> => {
     const [gtk, gdk] = await Promise.all([
@@ -1154,18 +1116,16 @@ const loadGlProbeGi = async (): Promise<GlProbeGi> => {
 /**
  * Realize a GL context through GDK, and report whether that worked.
  *
- * The question `on('Gl')` asks, asked directly: every WebGL spec behind it gets
- * its context from a `Gtk.GLArea`, i.e. from exactly this GDK call chain.
+ * The question `on('Gl')` asks, asked directly: every WebGL spec behind it gets its context from
+ * a `Gtk.GLArea`, i.e. from exactly this GDK call chain.
  *
- * A failure is the ANSWER, not an error to hide: `create_gl_context()` and
- * `realize()` report a host without GL by throwing a GError — measured on a
- * win32 VM with no OpenGL ICD, "No GL implementation is available" (#1097).
- * Only ever reached behind `canRealizeSurface`, so it never tries to open a
- * display on a host that has none. A "no" on a host that HAS a surface is
- * recorded as a warning with the driver's reason, because it turns every GL
- * suite on that leg into a skip, and a skip nobody sees is how the darwin GL
- * suites stayed dark. A leg that must not skip says so with
- * `GJSIFY_TEST_EXPECT_AXES=Gl` (see `failUnmetExpectedAxes`).
+ * A failure is the ANSWER, not an error to hide: `create_gl_context()` and `realize()` report a
+ * host without GL by throwing a GError — measured on a win32 VM with no OpenGL ICD, "No GL
+ * implementation is available" (#1097). Only ever reached behind `canRealizeSurface`, so it never
+ * tries to open a display on a host that has none. A "no" on a host that HAS a surface is
+ * recorded as a warning with the driver's reason, because it turns every GL suite on that leg into
+ * a skip, and a skip nobody sees is how the darwin GL suites stayed dark. A leg that must not skip
+ * says so with `GJSIFY_TEST_EXPECT_AXES=Gl` (see `failUnmetExpectedAxes`).
  */
 const realizeGlContext = async (): Promise<boolean> => {
     if (glProbe !== undefined) return glProbe;
@@ -1188,9 +1148,9 @@ const realizeGlContext = async (): Promise<boolean> => {
 const hasGl = (): Promise<boolean> => canRealizeGl(hostOs(), displayEnv(), realizeGlContext);
 
 const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
-    // Capabilities, not runtime identity — each answers its own question. They name
-    // themselves as the matched axis for the same reason the runtime arm does: the
-    // ledger must credit the axis that actually decided, never every axis listed.
+    // Capabilities, not runtime identity — each answers its own question. They name themselves as
+    // the matched axis for the same reason the runtime arm does: the ledger must credit the axis
+    // that actually decided, never every axis listed.
     if (onRuntime.includes('Display')) {
         return { matched: hasDisplay(), runtime: 'Display' as Runtime };
     }
@@ -1247,8 +1207,8 @@ export const on = async function (onRuntime: Runtime | Runtime[], version: strin
 
     print(`\nOn ${onRuntime.join(', ')}${version ? ' ' + version : ''}`);
 
-    // Measured across the gate, so a block that matched and then registered
-    // nothing scores zero rather than counting as coverage (see `AxisRecord`).
+    // Measured across the gate, so a block that matched and then registered nothing scores zero
+    // rather than counting as coverage (see `AxisRecord`).
     const testsBefore = countTestsRun;
     await callback();
 
@@ -1264,25 +1224,22 @@ export const on = async function (onRuntime: Runtime | Runtime[], version: strin
 /**
  * The hooks in scope, one frame per enclosing `describe` plus a module-level root.
  *
- * ONE SLOT PER MODULE IS WHAT THIS REPLACES, and it failed in two directions at
- * once (#1554). A second `beforeEach` REPLACED the first silently, so a block
- * that registered its own pair switched off whatever gate was already there —
- * measured in `@gjsify/react-native`'s `widgets.spec.ts`, where the diagnostics
- * gate ran for 12 of 49 cases and a test named "…with no diagnostic" was green
- * with two `GLib-GObject-CRITICAL`s printed inside it. And `describe` nulled
- * both slots on RETURN, so hooks registered around several sibling describes
- * stopped applying after the first one — measured in `host.spec.ts`, where a GTK
- * critical injected into describe #15 surfaced twelve tests later on an innocent
- * neighbour.
+ * ONE SLOT PER MODULE IS WHAT THIS REPLACES, and it failed in two directions at once (#1554). A
+ * second `beforeEach` REPLACED the first silently, so a block that registered its own pair switched
+ * off whatever gate was already there — measured in `@gjsify/react-native`'s `widgets.spec.ts`,
+ * where the diagnostics gate ran for 12 of 49 cases and a test named "…with no diagnostic" was
+ * green with two `GLib-GObject-CRITICAL`s printed inside it. And `describe` nulled both slots on
+ * RETURN, so hooks registered around several sibling describes stopped applying after the first
+ * one — measured in `host.spec.ts`, where a GTK critical injected into describe #15 surfaced
+ * twelve tests later on an innocent neighbour.
  *
- * Both are the same missing structure: hooks have a SCOPE, and one variable
- * cannot hold one. A frame is pushed per `describe` and popped when it returns,
- * so a nested block inherits its parents' hooks and cannot unhook them, and two
- * registrations in one scope both run rather than one winning silently.
+ * Both are the same missing structure: hooks have a SCOPE, and one variable cannot hold one. A
+ * frame is pushed per `describe` and popped when it returns, so a nested block inherits its
+ * parents' hooks and cannot unhook them, and two registrations in one scope both run.
  *
- * ORDER is the unwinding one: `beforeEach` outermost-first in registration order,
- * `afterEach` innermost-first in reverse, so a setup/teardown pair nests the way
- * the `try`/`finally` a reader pictures would.
+ * ORDER is the unwinding one: `beforeEach` outermost-first in registration order, `afterEach`
+ * innermost-first in reverse, so a setup/teardown pair nests the way the `try`/`finally` a reader
+ * pictures would.
  */
 interface HookFrame {
     before: Callback[];
@@ -1330,13 +1287,12 @@ export const it = async function (
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
     const t0 = now();
-    // Counted where the test COMMITS to running — after every skip path above, so
-    // a skipped test is not a test that ran, which is the distinction a total can
-    // never carry on its own (#1557).
+    // Counted where the test COMMITS to running — after every skip path above, so a skipped test
+    // is not a test that ran, which is the distinction a total can never carry on its own (#1557).
     ++countTestsRun;
-    // Attributes a matcher throw to THIS test rather than to a stray pseudo-test.
-    // Balanced in `finally`, so an assertion firing after this test resolved is
-    // correctly recognised as out-of-band (see triggerResult / noteStrayFailure).
+    // Attributes a matcher throw to THIS test rather than to a stray pseudo-test. Balanced in
+    // `finally`, so an assertion firing after this test resolved is correctly recognised as
+    // out-of-band (see triggerResult / noteStrayFailure).
     ++activeTestDepth;
     currentTest = expectation;
     // Thrown-but-not-yet-observed assertions; whatever survives to the drain below
@@ -1349,8 +1305,8 @@ export const it = async function (
     try {
         await runBeforeEachHooks();
 
-        // Written BEFORE the body, because a body that blocks the main loop never gives this
-        // file another turn to write anything — see `heartbeat.ts` for the incident.
+        // Written BEFORE the body, because a body that blocks the main loop never gives this file
+        // another turn to write anything — see `heartbeat.ts` for the incident.
         heartbeat.noteInFlight(currentSuite ? `${currentSuite} › ${expectation}` : expectation, timeoutMs);
         await withTimeout(callback, timeoutMs, expectation);
     } catch (e) {
@@ -1359,17 +1315,15 @@ export const it = async function (
         // Observed by this boundary → not lost. Anything still in the ledger is.
         if (e instanceof Error) ledger.delete(e);
     } finally {
-        // TEARDOWN RUNS WHATEVER HAPPENED, which is the whole point of an
-        // `afterEach` and was not true until #1554's second half. It used to sit
-        // in the `try` after the body, so a test that threw — or whose `beforeEach`
-        // rejected — skipped its own teardown silently. That is this file's own
-        // failure mode one level in: a diagnostics gate that asserts in `afterEach`
-        // stopped asserting for exactly the cases that had something to say, and
-        // an `it.failing` never tore down at all, since throwing IS its contract.
+        // TEARDOWN RUNS WHATEVER HAPPENED, which is the whole point of an `afterEach`. It sat in
+        // the `try` after the body, so a test that threw — or whose `beforeEach` rejected — skipped
+        // its own teardown silently. That is this file's own failure mode one level in: a
+        // diagnostics gate that asserts in `afterEach` stopped asserting for exactly the cases that
+        // had something to say, and an `it.failing` never tore down at all, since throwing IS its
+        // contract.
         //
-        // A teardown that throws is a FAILURE of this test and must not be
-        // swallowed either — but it must not overwrite a body failure, which is
-        // the one a reader is looking for.
+        // A teardown that throws is a FAILURE of this test and must not be swallowed either — but
+        // it must not overwrite a body failure, which is the one a reader is looking for.
         try {
             await runAfterEachHooks();
         } catch (e) {
@@ -1389,13 +1343,11 @@ export const it = async function (
 
     const duration = now() - t0;
 
-    // A ledger leftover only means "lost" when the test TIMED OUT — that is the
-    // signature of the class, since the throw unwound into the host instead of the
-    // promise and the test could not end any other way. A test that FINISHED proves
-    // its chain completed, so a leftover there was caught on purpose; that pattern
-    // is spec'd (`vitest-compat.spec.ts`: "a matcher throw caught inside the test
-    // does not count as a failure") and reporting it invented 2 phantom failures
-    // before this narrowing.
+    // A ledger leftover only means "lost" when the test TIMED OUT — that is the signature of the
+    // class, since the throw unwound into the host instead of the promise and the test could not
+    // end any other way. A test that FINISHED proves its chain completed, so a leftover there was
+    // caught on purpose; that pattern is spec'd (`vitest-compat.spec.ts`: "a matcher throw caught
+    // inside the test does not count as a failure") and reporting it invented 2 phantom failures.
     const lost = observed instanceof TimeoutError ? [...ledger] : [];
 
     if (!threw) {
@@ -1464,9 +1416,9 @@ export const getTestCounters = (): {
 /**
  * Snapshot of what each `on()` gate did, keyed by the axis it named.
  *
- * The read side of `RunOptions.requireAxes` — a copy, so a caller cannot mutate the
- * runner's tally. Same seam and same reason as `getTestCounters()`: assert against
- * the numbers the verdict is computed from, not against printed text.
+ * The read side of `RunOptions.requireAxes` — a copy, so a caller cannot mutate the runner's tally.
+ * Same seam and same reason as `getTestCounters()`: assert against the numbers the verdict is
+ * computed from, not against printed text.
  */
 export const getAxisLedger = (): Record<string, AxisRecord> => {
     const out: Record<string, AxisRecord> = {};
@@ -1475,51 +1427,46 @@ export const getAxisLedger = (): Record<string, AxisRecord> => {
 };
 
 /**
- * An EXPECTED failure — a test asserting the correct behaviour against a defect we
- * cannot fix from here (an upstream bug, a platform gap).
+ * An EXPECTED failure — a test asserting the correct behaviour against a defect we cannot fix from
+ * here (an upstream bug, a platform gap).
  *
- * Categorically NOT `it.skip`: a skip stops running the code, so it hides forever
- * and nothing tells you the day the bug is fixed, whereas `it.failing` RUNS the
- * test, tolerates the failure it was told to expect, and **fails the suite the
- * moment the test starts passing** — the marker has then outlived its cause. It is
- * self-retiring, and the assertion is never weakened, which is what makes the
- * pass-detection meaningful.
+ * Categorically NOT `it.skip`: a skip stops running the code, so it hides forever and nothing tells
+ * you the day the bug is fixed, whereas `it.failing` RUNS the test, tolerates the failure it was
+ * told to expect, and **fails the suite the moment the test starts passing** — the marker has then
+ * outlived its cause. It is self-retiring, and the assertion is never weakened, which is what makes
+ * the pass-detection meaningful.
  *
- * `reason` is mandatory and should name the upstream defect and where it is
- * tracked, so the next reader need not re-derive why this is here.
+ * `reason` is mandatory and should name the upstream defect and where it is tracked, so the next
+ * reader need not re-derive why this is here.
  */
 it.failing = async function (
     expectation: string,
     callback: () => void | Promise<void>,
     reason: string,
-    // `timeout` mirrors `it()`'s third argument: a probe whose expected failure IS a
-    // timeout should not wait the full default. `when` scopes the EXPECTATION
-    // without touching the test — see below.
+    // `timeout` mirrors `it()`'s third argument: a probe whose expected failure IS a timeout should
+    // not wait the full default. `when` scopes the EXPECTATION without touching the test.
     options?: { timeout?: number; when?: boolean } | number,
 ) {
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
-    // `when: false` → an ordinary `it()`: the test runs and must PASS, exactly as if
-    // the marker were absent. This is for assertions a PLATFORM cannot satisfy
-    // (`chmod` reading back 0o666 on NTFS, a stat-able character device, `S_IRUSR` —
-    // correct on POSIX, impossible on win32), where the alternatives were a
-    // permanently red CI or guarding the test away and losing it. Scoping the marker
-    // keeps both properties: the assertion is never weakened, and it still fails the
-    // run the day it starts passing on the platform where it was declared failing —
-    // which a plain platform `if` gives up, and that is the half that stops the note
-    // from rotting.
+    // `when: false` → an ordinary `it()`: the test runs and must PASS, exactly as if the marker
+    // were absent. This is for assertions a PLATFORM cannot satisfy (`chmod` reading back 0o666 on
+    // NTFS, a stat-able character device, `S_IRUSR` — correct on POSIX, impossible on win32), where
+    // the alternatives were a permanently red CI or guarding the test away and losing it. Scoping
+    // the marker keeps both properties: the assertion is never weakened, and it still fails the run
+    // the day it starts passing on the platform where it was declared failing — which a plain
+    // platform `if` gives up, and that is the half that stops the note from rotting.
     if (typeof options === 'object' && options?.when === false) {
         return it(expectation, callback, { timeout: timeoutMs });
     }
     const t0 = now();
-    // An active expectation still RUNS the test; only its verdict is inverted. The
-    // `when: false` branch above delegates to `it()` and is counted there.
+    // An active expectation still RUNS the test; only its verdict is inverted. The `when: false`
+    // branch above delegates to `it()` and is counted there.
     ++countTestsRun;
     ++activeTestDepth;
-    // Own ledger frame, so an assertion thrown inside THIS probe cannot leak into
-    // the enclosing it()'s ledger (`it.failing` runs nested inside an `it()` — see
-    // `it-failing.spec.ts`). Nothing reads it: a lost assertion makes the probe time
-    // out, which already satisfies the marker below.
+    // Own ledger frame, so an assertion thrown inside THIS probe cannot leak into the enclosing
+    // it()'s ledger (`it.failing` runs nested inside an `it()` — see `it-failing.spec.ts`). Nothing
+    // reads it: a lost assertion makes the probe time out, which already satisfies the marker below.
     assertionLedgers.push(new Set<Error>());
     let threw = false;
     try {
@@ -1530,9 +1477,9 @@ it.failing = async function (
         // pass-branch below is what keeps the marker honest.
         threw = true;
     } finally {
-        // In the `finally` for `it()`'s reason, and here it is not an edge case
-        // but the RULE: an active `it.failing` throws by contract, so teardown in
-        // the `try` meant every expected failure skipped it.
+        // In the `finally` for `it()`'s reason, and here it is not an edge case but the RULE: an
+        // active `it.failing` throws by contract, so teardown in the `try` meant every expected
+        // failure skipped it.
         try {
             await runAfterEachHooks();
         } catch (e) {
@@ -1665,14 +1612,13 @@ const browserSignalDone = () => {
 /**
  * Hold the run to the axes it declared it would exercise.
  *
- * The declaration is HOST-CONDITIONAL on purpose: `test.mts` is built once and run
- * on every leg, so a static "must run the Gjs axis" would be a lie under Node. An
- * axis the host does not match claims nothing and is skipped here; an axis the host
- * DOES match must have executed at least one test, or the leg ran green having
- * exercised none of what it was launched for.
+ * The declaration is HOST-CONDITIONAL on purpose: `test.mts` is built once and run on every leg,
+ * so a static "must run the Gjs axis" would be a lie under Node. An axis the host does not match
+ * claims nothing and is skipped here; an axis the host DOES match must have executed at least one
+ * test, or the leg ran green having exercised none of what it was launched for.
  *
- * Failing is the point. Reporting was already there — `countTestsIgnored` is printed
- * on every run — and it never once stopped a merge, because nothing read it.
+ * Failing is the point. Reporting was already there — `countTestsIgnored` is printed on every run
+ * — and it never once stopped a merge, because nothing read it.
  */
 const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> => {
     for (const axis of declared) {
@@ -1723,26 +1669,16 @@ const failUnmetExpectedAxes = async (): Promise<void> => {
 };
 
 /**
- * The process exit code, as a pure function of the two things that decide it.
- *
- * Extracted for the same reason `formatFailureRecap` is: the two exit sites read
- * module state and call `process.exit`, neither of which a spec can reach — and this
- * rule is exactly where the regression lived. `bodyThrew` with a zero tally used to
- * answer 0, so a run that dropped eight of nine suites reported success.
- */
-/**
  * The red summary's sentence: what failed, in terms that can be true together.
  *
- * TWO CLAUSES, because they are two different facts and one ratio cannot carry
- * both. `N of M tests failed` is only true of failures a TEST owns; a stray
- * assertion, a suite timeout and an unexercised axis raise the numerator without
- * raising the denominator, and the arithmetic then says something impossible —
- * measured before the split: `3 of 2 tests failed`, and with no real tests at
- * all, `2 of 0`. A line whose whole job is to be quoted cannot print that.
+ * TWO CLAUSES, because they are two different facts and one ratio cannot carry both. `N of M tests
+ * failed` is only true of failures a TEST owns; a stray assertion, a suite timeout and an
+ * unexercised axis raise the numerator without raising the denominator, and the arithmetic then
+ * says something impossible — measured before the split: `3 of 2 tests failed`, and with no real
+ * tests at all, `2 of 0`. A line whose whole job is to be quoted cannot print that.
  *
- * Exported and pure for `failure-recap.spec.ts`'s reason: the wording is free to
- * change, the accounting is not, and a spec asserting on printed colour would
- * pin the wrong half.
+ * Exported and pure for `failure-recap.spec.ts`'s reason: the wording is free to change, the
+ * accounting is not, and a spec asserting on printed colour would pin the wrong half.
  */
 export const formatFailureVerdict = (counts: { failed: number; outside: number; tests: number }): string => {
     const parts: string[] = [];
@@ -1758,14 +1694,22 @@ export const formatFailureVerdict = (counts: { failed: number; outside: number; 
     return parts.join(', and ');
 };
 
+/**
+ * The process exit code, as a pure function of the two things that decide it.
+ *
+ * Extracted for the same reason `formatFailureRecap` is: the two exit sites read module state and
+ * call `process.exit`, neither of which a spec can reach — and this rule is exactly where the
+ * regression lived. `bodyThrew` with a zero tally answered 0, so a run that dropped eight of nine
+ * suites reported success.
+ */
 export const exitCodeFor = (failed: number, bodyThrew: boolean): number => (failed > 0 || bodyThrew ? 1 : 0);
 
 const printResult = () => {
     const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
     const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
-    // Tag the summary with the runtime so a failure is self-identifying in a
-    // concatenated multi-package, multi-runtime CI log — a native-Node failure reads
-    // as `[Node.js …]`, not as a GJS/gjsify problem.
+    // Tag the summary with the runtime so a failure is self-identifying in a concatenated
+    // multi-package, multi-runtime CI log — a native-Node failure reads as `[Node.js …]`, not as a
+    // GJS/gjsify problem.
     const rtTag = runtime ? `[${runtime}] ` : '';
 
     if (countTestsIgnored) {
@@ -1773,9 +1717,9 @@ const printResult = () => {
     }
 
     if (axisLedger.size) {
-        // One line per axis any `on()` gate named, so "which axes did this leg
-        // actually exercise" is answerable from the log alone. A `0 tests` entry is
-        // the shape worth seeing: the gate fired and produced nothing.
+        // One line per axis any `on()` gate named, so "which axes did this leg actually exercise"
+        // is answerable from the log alone. A `0 tests` entry is the shape worth seeing: the gate
+        // fired and produced nothing.
         print(`\n${BLUE}⊞ axes exercised${RESET}`);
         for (const [axis, rec] of axisLedger) {
             print(
@@ -1793,8 +1737,8 @@ const printResult = () => {
     }
 
     if (warnings.length) {
-        // Non-gating by design (see `warnings`); its own glyph plus an explicit "not
-        // counted" so nobody reads it as part of the verdict.
+        // Non-gating by design (see `warnings`); its own glyph plus an explicit "not counted" so
+        // nobody reads it as part of the verdict.
         print(
             `\n${BLUE}⚠ ${warnings.length} warning${warnings.length > 1 ? 's' : ''} (not counted — nothing is claimed about these)${RESET}`,
         );
@@ -1804,9 +1748,9 @@ const printResult = () => {
     }
 
     if (strayFailures.length) {
-        // Late assertions that fired with no it() on the stack (a leaked timer or
-        // unawaited promise), on their own line so they read as a distinct problem
-        // rather than a corrupted bystander test.
+        // Late assertions that fired with no it() on the stack (a leaked timer or unawaited
+        // promise), on their own line so they read as a distinct problem rather than a corrupted
+        // bystander test.
         print(
             `\n${RED}⚠ ${strayFailures.length} assertion${strayFailures.length > 1 ? 's' : ''} fired outside any it() (leaked from a settled test)${RESET}`,
         );
@@ -1824,10 +1768,9 @@ const printResult = () => {
         });
         print(`\n${RED}❌ ${rtTag}${verdict}${countsSuffix()}${durationStr}${RESET}`);
     } else if (suiteBodyThrew) {
-        // Every test that ran passed, and the run is still not a pass: a suite body
-        // threw, so later suites never started. Printing the green line here — with
-        // the process about to exit 1 — is the mixed signal a reader resolves in
-        // favour of the colour.
+        // Every test that ran passed, and the run is still not a pass: a suite body threw, so
+        // later suites never started. Printing the green line here — with the process about to exit
+        // 1 — is the mixed signal a reader resolves in favour of the colour.
         print(
             `\n${RED}❌ ${rtTag}${countTestsRun} test${countTestsRun === 1 ? '' : 's'} passed, ` +
                 `then a suite body threw — the run is INCOMPLETE${countsSuffix()}${durationStr}${RESET}`,
@@ -1843,12 +1786,11 @@ const printResult = () => {
 /**
  * What the summary line carries besides the verdict: assertions, and skips.
  *
- * BOTH ARE THERE BECAUSE OF WHAT THE OLD LINE HID (#1557). It read `N completed`,
- * `N` was assertions, and every consumer quoted it as tests — so a number that
- * fell because a table got tidier read exactly like a gate that had started
- * skipping. Refuting that needed the skipped count and the executed test names,
- * and neither was in the line everyone quotes. A skip is arithmetically
- * indistinguishable from a deleted test in a total, so the total alone can never
+ * BOTH ARE THERE BECAUSE OF WHAT THE OLD LINE HID (#1557). It read `N completed`, `N` was
+ * assertions, and every consumer quoted it as tests — so a number that fell because a table got
+ * tidier read exactly like a gate that had started skipping. Refuting that needed the skipped count
+ * and the executed test names, and neither was in the line everyone quotes. A skip is
+ * arithmetically indistinguishable from a deleted test in a total, so the total alone can never
  * separate them; the count of skips can, and costs one clause.
  */
 const countsSuffix = (): string => {
@@ -1860,48 +1802,42 @@ const countsSuffix = (): string => {
 /**
  * Name every failure, right above the summary that counts them.
  *
- * WHY (#1159). The summary line was the only failure signal and it names nothing, and
- * NO marker distinguished a failing line from a passing one: a grep for `✖`, `✘`,
- * `❌`, `not ok` or `AssertionError` over a 9305-line CI log returned the summary and
- * nothing else. Locating one test name in a red macOS run took about fifteen minutes
- * of pure retrieval — and at the time `macos-suites.yml` / `windows-suites.yml` ran on
- * `main` and the nightly only, so the least readable legs were exactly the ones nobody
- * watched live, read by someone deciding whether their merge did it. Those two now run
- * on PRs as well (ADR 0018, § 5 re-measured), which raises the value of this rather
- * than lowering it: the logs are read by more people, earlier, and still advisory —
- * nothing forces the reading.
+ * WHY (#1159). The summary line was the only failure signal and it names nothing, and NO marker
+ * distinguished a failing line from a passing one: a grep for `✖`, `✘`, `❌`, `not ok` or
+ * `AssertionError` over a 9305-line CI log returned the summary and nothing else. Locating one test
+ * name in a red macOS run took about fifteen minutes of pure retrieval, and at the time
+ * `macos-suites.yml` / `windows-suites.yml` ran on `main` and the nightly only — so the least
+ * readable legs were exactly the ones nobody watched live, read by someone deciding whether their
+ * merge did it.
  *
- * `✖` is the marker because it appears nowhere else in this runner's output (`✗` is
- * expected failures, `❌` is the per-test line and the summary), so `grep '✖'` alone
- * answers "what failed" without any recap being read.
+ * `✖` is the marker because it appears nowhere else in this runner's output (`✗` is expected
+ * failures, `❌` is the per-test line and the summary), so `grep '✖'` alone answers "what failed".
  *
- * IT ALSO REPORTS ITS OWN BLIND SPOT. The tally and the ledger are two counters, and
- * they were out of step: both timeout paths raised the tally without recording
- * anything, which is why the incident that motivated #1159 had nothing to recap in
- * the first place. Rather than silently listing fewer failures than it counted, a
- * mismatch is stated — a gap that announces itself cannot be mistaken for a clean
+ * IT ALSO REPORTS ITS OWN BLIND SPOT. The tally and the ledger are two counters, and both timeout
+ * paths raised the tally without recording anything — which is why the incident that motivated
+ * #1159 had nothing to recap in the first place. Rather than silently listing fewer failures than
+ * it counted, a mismatch is stated — a gap that announces itself cannot be mistaken for a clean
  * list.
  */
 const printFailureRecap = (rtTag: string): void => {
     for (const line of formatFailureRecap(testErrors, countTestsFailed + countFailuresOutsideTests, rtTag)) print(line);
-    // On Actions, also put the names on the run's SUMMARY page. That is where the
-    // person who just merged is already looking, and until now the only annotation
-    // there was `Process completed with exit code 1`.
+    // On Actions, also put the names on the run's SUMMARY page — where the person who just merged is
+    // already looking, and where the only annotation otherwise is `Process completed with exit code
+    // 1`.
     if (envVar('GITHUB_ACTIONS')) for (const line of formatFailureAnnotations(testErrors, rtTag)) print(line);
 };
 
 /**
  * The failures as GitHub Actions `::error::` workflow commands.
  *
- * Separate from the human recap because the constraints differ: a command must start
- * at column 0, carry no SGR codes (they would be printed literally in the annotation),
- * and encode newlines as `%0A`. Emitting a coloured recap line here would put escape
- * sequences on the summary page.
+ * Separate from the human recap because the constraints differ: a command must start at column 0,
+ * carry no SGR codes (they would be printed literally in the annotation), and encode newlines as
+ * `%0A`. Emitting a coloured recap line here would put escape sequences on the summary page.
  *
- * Capped, because Actions renders at most ten annotations per step and this runner is
- * launched once per runtime per shard — a 200-failure leg would spend the whole budget
- * on one shard and push every other leg's first failure off the page. The count is
- * stated when it truncates, so the cap can never read as "that was all of them".
+ * Capped, because Actions renders at most ten annotations per step and this runner is launched once
+ * per runtime per shard — a 200-failure leg would spend the whole budget on one shard and push
+ * every other leg's first failure off the page. The count is stated when it truncates, so the cap
+ * can never read as "that was all of them".
  */
 export const formatFailureAnnotations = (
     entries: ReadonlyArray<{ suite: string; test: string; message: string }>,
@@ -1926,11 +1862,10 @@ export const formatFailureAnnotations = (
 /**
  * The recap's LINES, as a pure function of the ledger and the tally.
  *
- * Split out so a spec can drive the shipping formatter: `printFailureRecap` reads
- * module-level state and writes to stdout, neither of which a test can reach — and a
- * reporter nothing tests is how the gap in #1159 lasted this long. The colour codes
- * are applied here too, so assertions see the shipped strings rather than a parallel
- * spelling of them.
+ * Split out so a spec can drive the shipping formatter: `printFailureRecap` reads module-level
+ * state and writes to stdout, neither of which a test can reach — and a reporter nothing tests is
+ * how the gap in #1159 lasted this long. The colour codes are applied here too, so assertions see
+ * the shipped strings rather than a parallel spelling of them.
  */
 export const formatFailureRecap = (
     entries: ReadonlyArray<{ suite: string; test: string; message: string }>,
@@ -1939,8 +1874,8 @@ export const formatFailureRecap = (
 ): string[] => {
     const lines = [`\n${RED}✖ ${rtTag}failed test${entries.length === 1 ? '' : 's'}${RESET}`];
     for (const e of entries) {
-        // First line only: an assertion's message can be a multi-line diff, and this
-        // block exists to be SCANNED. The full text is already above, at the failure.
+        // First line only: an assertion's message can be a multi-line diff, and this block exists
+        // to be SCANNED. The full text is already above, at the failure.
         const reason = e.message.trim().split('\n')[0];
         lines.push(`  ${RED}✖ ${e.suite} › ${e.test}${RESET}${GRAY} — ${reason}${RESET}`);
     }
@@ -1958,13 +1893,12 @@ export const formatFailureRecap = (
 /**
  * This runner's name for the host, e.g. `'Gjs 1.88.1'`, `'Bun 1.3.14'`, `'Browser'`.
  *
- * The identity comes from `@gjsify/runtime`, which is the one place the four-way
- * probe order is written down and the one place it is table-checked. This runner
- * re-derived it and had no Bun branch at all, so `process.versions.node` — which
- * Bun fakes — made every `on('Node.js', …)` suite RUN on Bun while reporting
- * itself as Node. `'Gjs'` and `'Browser'` are this API's own vocabulary (`on()`
- * has always spelled it that way, and a browser is not one of the four runtimes),
- * hence the mapping rather than a direct re-export.
+ * The identity comes from `@gjsify/runtime`, the one place the four-way probe order is written
+ * down and table-checked. This runner re-derived it and had no Bun branch at all, so
+ * `process.versions.node` — which Bun fakes — made every `on('Node.js', …)` suite RUN on Bun while
+ * reporting itself as Node. `'Gjs'` and `'Browser'` are this API's own vocabulary (`on()` has
+ * always spelled it that way, and a browser is not one of the four runtimes), hence the mapping
+ * rather than a direct re-export.
  */
 const RUNTIME_LABEL: Record<string, string> = { GJS: 'Gjs', 'Node.js': 'Node.js', Bun: 'Bun', Deno: 'Deno' };
 
@@ -2028,9 +1962,9 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
                 await withTimeout(() => runTests(namespaces), timeoutConfig.runTimeout, 'entire test run');
             } catch (e) {
                 if (e instanceof TimeoutError) {
-                    // Recorded for the same reason as the suite timeout above: a
-                    // counted failure that is absent from the ledger cannot be named
-                    // in the recap, and the recap is the only place a CI reader looks.
+                    // Recorded for the same reason as the suite timeout above: a counted failure
+                    // that is absent from the ledger cannot be named in the recap, and the recap is
+                    // the only place a CI reader looks.
                     print(`\n${RED}⏱ ${e.message}${RESET}`);
                     ++countFailuresOutsideTests;
                     testErrors.push({ suite: '<test run>', test: '<run timed out>', message: e.message });
@@ -2042,37 +1976,32 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
         .then(() => failUnexercisedAxes(requireAxes))
         .then(() => failUnmetExpectedAxes())
         .catch((error: unknown) => {
-            // A throw that ESCAPED a suite body rather than an `it()` — an `expect()`
-            // called directly in a `describe` callback, a failing top-level import, a
-            // gate that threw. `describe` rethrows anything that is not a
-            // `TimeoutError`, deliberately, and until this `catch` existed that
-            // rejection simply broke the chain: the `.then` below was skipped, so
-            // `printResult()` never printed AND `process.exit(exitCode)` never ran —
-            // and Node, with nothing left pending, exited **0** with the log cut off
-            // mid-suite. Every remaining suite was silently dropped and CI read the
-            // run as a pass.
+            // A throw that ESCAPED a suite body rather than an `it()` — an `expect()` called directly
+            // in a `describe` callback, a failing top-level import, a gate that threw. `describe`
+            // rethrows anything that is not a `TimeoutError`, deliberately, and without this `catch`
+            // that rejection simply broke the chain: the `.then` below was skipped, so
+            // `printResult()` never printed AND `process.exit(exitCode)` never ran — and Node, with
+            // nothing left pending, exited **0** with the log cut off mid-suite. Every remaining
+            // suite was silently dropped and CI read the run as a pass.
             //
-            // MEASURED, and it is why this was found at all: gtk-host's
-            // `buildable.spec.ts` asserts directly in a `describe` body, that
-            // assertion holds on GJS and fails under node-gi (`vfunc_add_child` is
-            // `undefined` there), and the node leg reported SUCCESS having run one
-            // suite out of nine. Reproduced with no GTK involved: a two-describe
-            // fixture whose first body throws prints the first `it`, drops the second
-            // describe entirely, and exits 0.
+            // MEASURED, and it is why this was found at all: gtk-host's `buildable.spec.ts` asserts
+            // directly in a `describe` body, that assertion holds on GJS and fails under node-gi
+            // (`vfunc_add_child` is `undefined` there), and the node leg reported SUCCESS having run
+            // one suite out of nine. Reproduced with no GTK involved: a two-describe fixture whose
+            // first body throws prints the first `it`, drops the second describe entirely, and exits
+            // 0.
             //
-            // This branch deliberately touches NEITHER `countTestsFailed` NOR
-            // `testErrors`, and that is the second thing measured. An escaped
-            // ASSERTION is already owned by the assertion ledger, which drains it as
-            // a stray failure — counting it again here reported "2 of 2 tests failed"
-            // for one `expect()`. And the brand on a matcher error cannot be used to
-            // tell the two apart: it means "produced by our matchers", explicitly not
-            // "already counted". Pushing an entry without raising the tally is no
-            // better, because the recap's own consistency check reads that as a
-            // failure path hiding itself.
+            // This branch deliberately touches NEITHER `countTestsFailed` NOR `testErrors`, and that
+            // is the second thing measured. An escaped ASSERTION is already owned by the assertion
+            // ledger, which drains it as a stray failure — counting it again here reported "2 of 2
+            // tests failed" for one `expect()`. And the brand on a matcher error cannot tell the two
+            // apart: it means "produced by our matchers", explicitly not "already counted".
+            // Pushing an entry without raising the tally is no better, because the recap's own
+            // consistency check reads that as a failure path hiding itself.
             //
-            // So the ledger keeps the tally and this branch owns exactly one thing:
-            // the run must not be able to end at 0. The printed line sits directly
-            // above the recap, which is where a CI reader is already looking.
+            // So the ledger keeps the tally and this branch owns exactly one thing: the run must not
+            // be able to end at 0. The printed line sits directly above the recap, which is where a
+            // CI reader is already looking.
             suiteBodyThrew = true;
             const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
             print(

@@ -3,33 +3,24 @@
 // block's `.blp`; the element-access code the page writes by hand in the `webloader` /
 // `nativescriptloader` slot; and the Blueprint route, generated from the file name.
 //
-// ONE FILE PER VIEW, AS A PROJECT HOLDS THEM. The markup, the code that loads it and the
-// Blueprint route used to share one fence per tab, the second language carried in a comment of
-// the first: TypeScript inside an XML comment, the Blueprint route commented out in a script.
-// Unhighlighted, it read as dead code, and a reader copying the tab got a file no project has.
-// So each tab is a list of files now, each highlighted in its own language and copied on its
-// own, named the way a project names them:
+// ONE FILE PER VIEW, AS A PROJECT HOLDS THEM. Sharing one fence per tab put the second language in
+// a comment of the first — TypeScript inside an XML comment, the Blueprint route commented out in
+// a script — unhighlighted, so it read as dead code and a reader copying the tab got a file no
+// project has.
 //
-//   Web Components  index.html           the markup, then a module script running the slot code
-//                   main.js (Blueprint)  `mountSharedTree` of the `.blp`, then the same slot code
-//   NativeScript    views/<name>.xml     the template, which `Builder.load` finds under `~/views`
-//                   app.ts               the slot code as written: `Builder.load`, then ids
-//                   app.ts (Blueprint)   the slot code with `build(tree)` in place of the load
-//
-// `main.js` and not `main.ts`: the slot is a JavaScript fence, and `querySelector` hands back
-// an `Element` that TypeScript would refuse a `.label` on. `app.ts` and not `views/<name>.ts`:
+// `main.js` and not `main.ts`: the slot is a JavaScript fence, and `querySelector` hands back an
+// `Element` that TypeScript would refuse a `.label` on. `app.ts` and not `views/<name>.ts`:
 // NativeScript loads `views/<name>.ts` as the template's code-behind WHILE loading the template,
 // so a code-behind calling `Builder.load` on its own template would load itself.
 //
-// THE BLUEPRINT FILES ARE THE SLOT CODE, REWRITTEN, and the rewrite is strict: one line of the
-// slot says how the layout is reached — the bare `import '@gjsify/adwaita-web'` that defines
-// the elements the markup uses, the `Builder.load(…)` that inflates the template — and exactly
-// that line is replaced by the Blueprint route. A slot without it is refused, because the file
-// would then show a route beside code that never used it.
+// THE BLUEPRINT FILES ARE THE SLOT CODE, REWRITTEN, and the rewrite is strict: one line of the slot
+// says how the layout is reached — the bare `import '@gjsify/adwaita-web'` that defines the
+// elements the markup uses, the `Builder.load(…)` that inflates the template — and exactly that
+// line is replaced by the Blueprint route. A slot without it is refused.
 //
 // PLAIN JS, in its own file, for the reason `attr-sample.mjs` gives: `AdwWidget.astro` is not
-// linted, and `scripts/check-website-blueprint-markup.mjs` composes the same files from the
-// page's slots and holds the built site to them, so the two cannot compose differently.
+// linted, and `scripts/check-website-blueprint-markup.mjs` composes the same files from the page's
+// slots and holds the built site to them.
 
 /** The fence language of each slot's access code. */
 export const BLUEPRINT_PANE_SLOTS = {
@@ -42,11 +33,9 @@ const indent = (lines) => lines.map((line) => (line === '' ? '' : `  ${line}`));
 /** `AdwClamp` -> `Adw.Clamp`, the type a NativeScript author casts a built root to. */
 const typeNameOf = (tag) => tag.replace(/^(Adw|Gtk)/, '$1.');
 
-/**
- * Refuses an access fence written in the retired shape — a whole Blueprint program, importing
- * the `.blp` — because the Blueprint route is a generated file of its own and the page would
- * show it twice.
- */
+/** Refuses an access fence written in the retired shape — a whole Blueprint program, importing the
+ * `.blp` — because the Blueprint route is a generated file of its own and the page would show it
+ * twice. */
 function refuseBlueprintProgram(slot, access) {
     if (!access.includes('?shared-tree')) return;
     throw new Error(
@@ -72,7 +61,7 @@ function theLine(slot, lines, test, what) {
 /**
  * The Web Components files: `index.html` (the `markup`, then a module script with `access`) and
  * `main.js`, where `access`'s bare `import '@gjsify/adwaita-web'` becomes `mountSharedTree` of
- * `file`, the `.blp`'s name beside the page.
+ * `file`.
  */
 export function webComponentsFiles({ markup, access, file }) {
     refuseBlueprintProgram('webloader', access);
@@ -113,8 +102,8 @@ const BUILDER_IMPORT = /^import \{ Builder \} from '@nativescript\/core';$/;
 
 /**
  * The NativeScript files: the XML template `markup` as `views/<name>.xml`, `access` as `app.ts`,
- * and `app.ts` again with its `Builder.load(…)` replaced by `build` of `file`'s tree, bound to
- * the same name and cast as the load was (to the root's type where the load had no cast).
+ * and `app.ts` again with its `Builder.load(…)` replaced by `build` of `file`'s tree, bound to the
+ * same name and cast as the load was.
  */
 export function nativeScriptFiles({ markup, access, file, tree }) {
     refuseBlueprintProgram('nativescriptloader', access);
@@ -135,8 +124,8 @@ export function nativeScriptFiles({ markup, access, file, tree }) {
                 `views/${view}.xml from ${file}. Load it as name: '${view}'.`,
         );
     }
-    // The `Builder` import has no use left once the load is gone, so the Blueprint imports take
-    // its place.
+    // The `Builder` import has no use left once the load is gone, so the Blueprint imports take its
+    // place.
     const imports = theLine(
         'nativescriptloader',
         lines,

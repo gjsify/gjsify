@@ -1,10 +1,9 @@
-// Which showcases the website can mount in a browser, and the mount options
-// each one needs. Imported by Astro FRONTMATTER, so it must stay free of any
-// `@gjsify/example-*` import: that is what keeps the showcase bundles (three.js,
-// Excalibur) out of the SSR graph. The client-only mount table is
-// `showcase-mounts.ts`. Single source of truth for *which* showcases exist —
-// `ShowcaseEmbed.astro` and `ShowcaseSlideshow.astro` both read it rather than
-// each keeping a `switch` over the same names.
+// Which showcases the website can mount in a browser, and the mount options each one needs.
+// Imported by Astro FRONTMATTER, so it must stay free of any `@gjsify/example-*` import: that is
+// what keeps the showcase bundles (three.js, Excalibur) out of the SSR graph. The client-only
+// mount table is `showcase-mounts.ts`. Single source of truth for *which* showcases exist —
+// `ShowcaseEmbed.astro` and `ShowcaseSlideshow.astro` both read it rather than each keeping a
+// `switch` over the same names.
 
 /** Options understood by the showcases' `mount()` functions. Each reads only its own keys. */
 export interface ShowcaseMountOpts {
@@ -17,12 +16,11 @@ export interface ShowcaseMountOpts {
 }
 
 /**
- * Every browser-mountable showcase, in catalogue order. Adding one here is a
- * type error until its mounter joins `SHOWCASE_MOUNTS` (`showcase-mounts.ts`).
- * Names map to `@gjsify/example-dom-<name>` and `showcases/dom/<name>/`, except
- * `adwaita-storybook` (`@gjsify/example-gtk-adwaita-storybook`, `showcases/gtk/`).
- * Each must be a dependency of `@gjsify/website` and export `./browser` with a
- * named `mount()`.
+ * Every browser-mountable showcase, in catalogue order. Adding one here is a type error until
+ * its mounter joins `SHOWCASE_MOUNTS` (`showcase-mounts.ts`). Names map to
+ * `@gjsify/example-dom-<name>` and `showcases/dom/<name>/`, except `adwaita-storybook`
+ * (`@gjsify/example-gtk-adwaita-storybook`, `showcases/gtk/`). Each must be a dependency of
+ * `@gjsify/website` and export `./browser` with a named `mount()`.
  */
 export const SHOWCASE_NAMES = [
     'three-postprocessing-pixel',
@@ -42,15 +40,13 @@ export function isShowcaseName(value: string | undefined | null): value is Showc
 }
 
 /**
- * Per-showcase mount options that follow from how the showcase is packaged,
- * rather than from the page embedding it.
+ * Per-showcase mount options that follow from how the showcase is packaged, rather than from the
+ * page embedding it.
  *
- * `assetBase` is stored WITHOUT Astro's `base` prefix because this table is read
- * from frontmatter (`ShowcaseEmbed.astro`) and from a client script
- * (`ShowcaseSlideshow.astro`) alike; each host applies the base itself through
- * `showcaseMountOpts()`. Directories match the `dest`s in
- * `website/scripts/copy-showcase-assets.mjs`; a showcase absent here ships no
- * runtime assets.
+ * `assetBase` is stored WITHOUT Astro's `base` prefix because this table is read from frontmatter
+ * (`ShowcaseEmbed.astro`) and from a client script (`ShowcaseSlideshow.astro`) alike; each host
+ * applies the base itself through `showcaseMountOpts()`. Directories match the `dest`s in
+ * `website/scripts/copy-showcase-assets.mjs`.
  */
 export const SHOWCASE_DEFAULT_OPTS: Partial<Record<ShowcaseName, ShowcaseMountOpts>> = {
     'three-postprocessing-pixel': { assetBase: 'demos/pixel/' },
@@ -60,10 +56,7 @@ export const SHOWCASE_DEFAULT_OPTS: Partial<Record<ShowcaseName, ShowcaseMountOp
     'excalibur-jelly-jumper': { assetBase: 'demos/jelly-jumper/', startMuted: true },
 };
 
-/**
- * Resolve a showcase's defaults against Astro's configured `base` (e.g.
- * `/gjsify/` in production), then layer page-specific overrides on top.
- */
+/** Resolve a showcase's defaults against Astro's configured `base` (e.g. `/gjsify/`), then layer page-specific overrides on top. */
 export function showcaseMountOpts(name: ShowcaseName, base: string, overrides?: ShowcaseMountOpts): ShowcaseMountOpts {
     const defaults = SHOWCASE_DEFAULT_OPTS[name];
     return {

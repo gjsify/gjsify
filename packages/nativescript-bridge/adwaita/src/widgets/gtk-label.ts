@@ -1,84 +1,64 @@
 // GtkLabel — a run of text, for NativeScript.
 //
-// NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1). libadwaita ships no label
-// type; it styles GTK's through `_labels.scss` (`.title-1`, `.dimmed`, …), which is what
-// the style-class methods below carry. So this is `Gtk.Label`, and there is no `adw-`
-// spelling of it.
+// NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1). libadwaita ships no label type;
+// it styles GTK's through `_labels.scss` (`.title-1`, `.dimmed`, …), which is what the style-class
+// methods below carry. So this is `Gtk.Label`, and there is no `adw-` spelling of it.
 //
-// WHY IT EXISTS, when `@nativescript/core` already has a `Label`. The same measurement that
-// bought `Gtk.Box`: three documented gallery panes reached into `@nativescript/core` for a
-// `Label` because the port had none under the GIR name, and a pane that imports the
-// platform's primitives is a different PROGRAM from the `gjs` pane beside it (ADR 0034
-// § Amendment 14). It extends the real `Label`, and adds the three things the platform has
-// no word for — `label` with GTK's markup and mnemonic rules, `wrap` under GTK's name, and
-// `add_css_class`.
+// WHY IT EXISTS, when `@nativescript/core` already has a `Label`. The same measurement that bought
+// `Gtk.Box`: three documented gallery panes reached into `@nativescript/core` for a `Label` because
+// the port had none under the GIR name, and a pane that imports the platform's primitives is a
+// different PROGRAM from the `gjs` pane beside it (ADR 0034 § Amendment 14). It extends the real
+// `Label`, and adds the three things the platform has no word for — `label` with GTK's markup and
+// mnemonic rules, `wrap` under GTK's name, and `add_css_class`.
 //
 // WHAT IT DOES WITH MARKUP, STATED HERE AND NOT LEFT IMPLICIT. `use-markup` is honoured by
-// REDUCING the markup to its plain text, never by rendering it: NativeScript's `Label.text`
-// is literal and its `formattedText` takes objects rather than a markup string, so there is
-// no parser to hand Pango markup to. Unparseable markup keeps the raw string, which is the C
-// fallback. The reasoning, and the reason this is the honest answer rather than a
-// pass-through, is in `@gjsify/adwaita-core`'s `label.ts` — one file, because `Adw.Banner`
-// already made this decision and the two label renderers should have ONE answer to markup.
+// REDUCING the markup to its plain text, never by rendering it: NativeScript's `Label.text` is
+// literal and its `formattedText` takes objects rather than a markup string, so there is no parser
+// to hand Pango markup to. Unparseable markup keeps the raw string, which is the C fallback. The
+// reasoning is in `@gjsify/adwaita-core`'s `label.ts` — one file, because `Adw.Banner` already made
+// this decision and the two label renderers should have ONE answer to markup.
 //
-// `use-markup` DEFAULTS TO FALSE, as in GTK, and that is what keeps this port clear of the
-// failure the other direction has: a widget that parses markup by default blanks a label
-// containing a `<` in ordinary prose. Nothing here parses unless asked, and when asked it
-// strips.
+// `use-markup` DEFAULTS TO FALSE, as in GTK, and that is what keeps this port clear of the failure
+// the other direction has: a widget that parses markup by default blanks a label containing a `<` in
+// ordinary prose. Nothing here parses unless asked, and when asked it strips.
 //
-// `xalign` REACHES `textAlignment` AT ITS THREE EXACT POINTS AND NOWHERE ELSE. GTK's
-// `xalign` is a continuum in [0, 1] — `xalign * (width − text width)` — and NativeScript's
-// `textAlignment` has three positions. So `0`, `0.5` and `1` map to the start, the centre and
-// the end, mirrored in RTL as `gtk_label_get_layout_location` mirrors them, and every other
-// value is REFUSED rather than snapped to the nearest: a label written at `0.25` that renders
-// at `0` would report a snap as agreement. The reading is `@gjsify/adwaita-core`'s
-// (`normalizeLabelXalign`), the one `<gtk-label>` applies, so an out-of-range `3` clamps to
-// `1` on both before either renders it. Two edges stay: an UNWRITTEN label keeps the
-// platform's start-aligned text where GTK centres it (the pspec default is read back, not
-// painted, because repainting every label in the port is its own change), and a label of
-// several lines aligns each line where GTK aligns the block and leaves the lines to
-// `justify`.
+// `xalign` REACHES `textAlignment` AT ITS THREE EXACT POINTS AND NOWHERE ELSE. GTK's `xalign` is a
+// continuum in [0, 1] — `xalign * (width − text width)` — and NativeScript's `textAlignment` has
+// three positions. So `0`, `0.5` and `1` map to the start, the centre and the end, mirrored in RTL
+// as `gtk_label_get_layout_location` mirrors them, and every other value is REFUSED rather than
+// snapped to the nearest: a label written at `0.25` that renders at `0` would report a snap as
+// agreement. The reading is `@gjsify/adwaita-core`'s (`normalizeLabelXalign`), so an out-of-range
+// `3` clamps to `1` on both before either renders it. Two edges stay: an UNWRITTEN label keeps
+// the platform's start-aligned text where GTK centres it, and a label of several lines aligns each
+// line where GTK aligns the block and leaves the lines to `justify`.
 //
-// `ELLIPSIZE` AND `LINES` REACH REAL NATIVE MECHANISMS, MEASURED IN `@nativescript/core`'s
-// OWN SOURCE rather than assumed from its `.d.ts`: a `Label`'s `textOverflow` ('clip' |
-// 'ellipsis') and `maxLines` (a plain number) are not declared gaps here, contrary to the
-// three-position/continuum reasoning that keeps `yalign` off this widget below.
-// `ellipsize` sets `textOverflow` through `labelEllipsizeOverflowValue` — the SAME function
-// `<gtk-label>` on the web surface uses, since Android's own `adjustLineBreak()`
-// (`index.android.js`) only lets `textOverflow` act while `whiteSpace` is `'nowrap'`
-// (i.e. {@link wrap} is off), exactly CSS's `text-overflow` needing `white-space: nowrap`
-// — so `start`/`middle` collapse to the same end-ellipsis declared divergence the web
-// element pins.
+// `ELLIPSIZE` AND `LINES` REACH REAL NATIVE MECHANISMS, MEASURED IN `@nativescript/core`'s OWN
+// SOURCE rather than assumed from its `.d.ts`: `textOverflow` ('clip' | 'ellipsis') and `maxLines`
+// (a plain number) are not declared gaps here, contrary to the continuum reasoning that keeps
+// `yalign` off this widget. `ellipsize` sets `textOverflow` through `labelEllipsizeOverflowValue` —
+// the SAME function `<gtk-label>` on the web surface uses, since Android's own `adjustLineBreak()`
+// (`index.android.js`) only lets `textOverflow` act while `whiteSpace` is `'nowrap'` (i.e. {@link
+// wrap} is off), exactly CSS's `text-overflow` needing `white-space: nowrap` — so `start`/`middle`
+// collapse to the same end-ellipsis declared divergence the web element pins.
 //
-// `lines` SETS `maxLines`, GATED BY `labelEffectiveLines` TO "ELLIPSIZE IS ACTIVE" ALONE —
-// NOT "wrapping or ellipsized", the pspec's own words for it. MEASURED (a real
-// `Gtk.Label`, allocated, gjs 1.88.1 / gtk 4.22.5): `wrap` plays NO PART in whether GTK
-// itself honours `lines` — `wrap=TRUE, ellipsize=NONE, lines=2` laid out 15 UNCAPPED
-// lines (the pspec's own hint, ignored, since Pango only consults a layout's line-count
-// while ellipsizing), and `wrap=FALSE, ellipsize=END, lines=2` laid out exactly 2,
-// ellipsized. `@gjsify/adwaita-core`'s `label.ts` header carries the full measurement;
-// this port forwards the SAME corrected function, so `wrap` is not read by
-// {@link _applyLines} either. Android's own `maxLinesProperty.setNative` treats any
-// `value <= 0` as UNLIMITED (`Number.MAX_SAFE_INTEGER`) and any `value > 0` as a real cap
-// that ALSO force-sets a native end-ellipsize — a platform mechanism this port forwards
-// the corrected value INTO, not one it built or is claiming full parity for beyond that:
-// whether Android's OWN `setSingleLine`/`setMaxLines` precedence then renders the same
+// `lines` SETS `maxLines`, GATED BY `labelEffectiveLines` TO "ELLIPSIZE IS ACTIVE" ALONE — NOT
+// "wrapping or ellipsized", the pspec's own words for it. MEASURED (a real `Gtk.Label`, allocated,
+// gjs 1.88.1 / gtk 4.22.5): `wrap` plays NO PART in whether GTK honours `lines` — `wrap=TRUE,
+// ellipsize=NONE, lines=2` laid out 15 UNCAPPED lines (the pspec's own hint, ignored, since Pango
+// only consults a layout's line-count while ellipsizing), and `wrap=FALSE, ellipsize=END, lines=2`
+// laid out exactly 2, ellipsized. Android's own `maxLinesProperty.setNative` treats any `value <= 0`
+// as UNLIMITED (`Number.MAX_SAFE_INTEGER`) and any `value > 0` as a real cap that ALSO force-sets a
+// native end-ellipsize — a platform mechanism this port forwards the corrected value INTO, not one
+// it built: whether Android's OWN `setSingleLine`/`setMaxLines` precedence then renders the same
 // line count GTK does is unverified off a device.
 //
-// WHAT IT DOES NOT DO: `attributes`, `justify`, `natural-wrap-mode`, `wrap-mode`,
-// `width-chars`, `max-width-chars`, `tabs`, `yalign`, `selectable` and the mnemonic-widget
-// link are declared gaps in `check-nativescript-widget-coverage.mjs`. A NativeScript
-// `Label` exposes `text`, `textWrap`, `textOverflow`, `maxLines` and `textAlignment`, and
-// no text-layout engine behind the rest of them: no break-opportunity choice behind
-// `textWrap` (`wrap-mode`), no character-width request (`width-chars`/`max-width-chars` —
-// the same "everything here is a DIP" answer `gtk-box.ts` gives `spacing`). `yalign` is a
-// continuum on the view's OWN `verticalAlignment` (four positions), which `Gtk.Align`
-// already answers to on every widget (`gtk-align.ts`) — a second claim on it would report
-// a snap as agreement twice over, the collision `xalign` does NOT have: `textAlignment`
-// is a door `halign`/`Gtk.Align` never opened, so `xalign` above is the one claim on it.
+// WHAT IT DOES NOT DO: `attributes`, `justify`, `natural-wrap-mode`, `wrap-mode`, `width-chars`,
+// `max-width-chars`, `tabs`, `yalign`, `selectable` and the mnemonic-widget link are declared gaps
+// in `check-nativescript-widget-coverage.mjs` — that gate holds the list, so it is not restated
+// here. `yalign` is a continuum on the view's OWN `verticalAlignment` (four positions), which
+// `Gtk.Align` already answers to on every widget (`gtk-align.ts`): a second claim on it would
+// report a snap as agreement twice over, the collision `xalign` does NOT have.
 //
-// Reference: refs/gtk gtk/gtklabel.c (GtkLabel)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 
 import { Label } from '@nativescript/core';

@@ -20,23 +20,22 @@
 //   foreign     1, attributed foreign, parked   ~the 2 s deadline  warns
 //   draining    8, attributed foreign, live     fast               silent
 //
-// The "claims at teardown" column is a PRECONDITION the case establishes before
-// it returns, and for a row with more than one claim owner that means counting
-// OWNERS, not work done: `draining` waits on the addon's per-thread first-push
-// counter (stats()[4]), because the global delivery counter it used to read can
-// reach N from fewer than N workers — leaving a claim unattributed and failing
-// this gate's own `no warning` row against a runtime that is behaving correctly.
+// The "claims at teardown" column is a PRECONDITION the case establishes before it
+// returns, and for a row with more than one claim owner that means counting OWNERS, not
+// work done: `draining` waits on the addon's per-thread first-push counter (stats()[4]),
+// because the global delivery counter it used to read can reach N from fewer than N
+// workers — leaving a claim unattributed and failing this gate's own `no warning` row
+// against a runtime that is behaving correctly.
 //
-// `self` / `self-used` are the regression: a claim the JS thread will never hand
-// back cannot drain from inside a join the JS thread is blocked in, so before
-// per-claim owner attribution both burned the FULL 2 s deadline and then
-// force-freed — the pre-#809 use-after-free window, reopened deterministically
-// on a legal (if sloppy) N-API shape. Reverting the attribution turns both
-// SLOW-rows red here.
+// `self` / `self-used` are the regression: a claim the JS thread will never hand back
+// cannot drain from inside a join the JS thread is blocked in, so before per-claim owner
+// attribution both burned the FULL 2 s deadline and then force-freed — the pre-#809
+// use-after-free window, reopened deterministically on a legal (if sloppy) N-API shape.
+// Reverting the attribution turns both SLOW-rows red here.
 //
-// `foreign` is the other half of the contract: a claim a foreign thread really
-// does hold must STILL be waited for and must STILL warn. A "fix" that just
-// skipped the join would pass the fast rows and fail this one.
+// `foreign` is the other half of the contract: a claim a foreign thread really does hold
+// must STILL be waited for and must STILL warn. A "fix" that just skipped the join would
+// pass the fast rows and fail this one.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';

@@ -12,34 +12,19 @@ export default defineConfig({
     site: 'https://gjsify.github.io',
     base: '/gjsify',
     trailingSlash: 'always',
-    // Old URLs of pages that moved or were merged away. Destinations must spell
-    // out the `/gjsify` base, because Astro does not prefix redirect targets
-    // with `base`.
+    // Old URLs of pages that moved or were merged away. Destinations must spell out the `/gjsify`
+    // base, because Astro does not prefix redirect targets with `base`.
     //
-    // `/widgets/*` became `/adwaita/*`: the section only ever covered Adwaita,
-    // and naming it after the design system leaves room for a second one
-    // (Material, say) beside it rather than under it.
-    //
-    // That is the same sentence this change applies a SECOND time, because its
-    // premise stopped holding. The section had grown four `Gtk.*` gallery blocks,
-    // and `controls.mdx` carried no Adwaita widget at all, 0 `Adw.*` against 2
-    // `Gtk.*`. That is measurable per page:
+    // `/widgets/*` became `/adwaita/*`: the section only ever covered Adwaita, and naming it after
+    // the design system leaves room for a second one beside it rather than under it. When four
+    // `Gtk.*` gallery blocks arrived that premise stopped holding, so `Gtk` is a section BESIDE
+    // `Adwaita`, per ADR 0034 § 1 — a widget belongs to the library that owns its GType. That is
+    // measurable per page:
     //
     //     for f in website/src/content/docs/*/[a-z]*.mdx; do
     //       printf '%-34s Adw=%s Gtk=%s\n' "$f" \
     //         "$(grep -c '<AdwWidget title="Adw\.' $f)" "$(grep -c '<AdwWidget title="Gtk\.' $f)"
     //     done
-    //
-    // So `Gtk` is a section BESIDE `Adwaita` rather than under it, and the split
-    // follows ADR 0034 § 1, where a widget belongs to the library that owns its
-    // GType, read from the GIR and never chosen per surface.
-    //
-    // `controls.mdx` moved whole; the two `Gtk.*` blocks on `adwaita/buttons.mdx`
-    // moved to `gtk/buttons.mdx`. Only the first is a URL change, so only the
-    // first needs an entry below. There is no `/widgets/controls` entry, because
-    // that page was created AFTER the `/widgets/*` rename and the old URL never
-    // existed. `git log --diff-filter=A -- .../adwaita/controls.mdx` is #1244
-    // (2026-08-21); the rename is #1228 (2026-08-18).
     redirects: {
         // The framework pages moved out of `guides/` into their own section. They
         // shipped days earlier, so the old paths are already in the wild.
@@ -62,16 +47,16 @@ export default defineConfig({
     },
     vite: {
         // A one-Blueprint gallery block (`<AdwWidget blueprint="…">`) reads its `.blp` as a
-        // `?shared-tree` projection, which only this plugin answers. It is the plugin every
-        // `gjsify build` target registers, so the preview is built from the same projection
-        // the NativeScript and web loaders on the page import.
+        // `?shared-tree` projection, which only this plugin answers — the plugin every `gjsify
+        // build` target registers, so the preview is built from the same projection the
+        // NativeScript and web loaders on the page import.
         plugins: [blueprintPlugin()],
         resolve: {
             alias: {
-                // Both ship exports pointing at lib/esm, which this website never builds
-                // (it resolves workspace packages from src), so map them to src here.
-                // Not via a `browser` → ./src export condition: that spelling broke
-                // published `--app gjs` consumers and was removed for it.
+                // Both ship exports pointing at lib/esm, which this website never builds (it
+                // resolves workspace packages from src), so map them to src here. Not via a
+                // `browser` → ./src export condition: that spelling broke published `--app gjs`
+                // consumers and was removed for it.
                 '@gjsify/stories': fileURLToPath(
                     new URL('../packages/framework/stories/src/index.ts', import.meta.url),
                 ),
@@ -130,20 +115,13 @@ export default defineConfig({
             },
             favicon: '/favicon.svg',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' }],
-            // Labels stay short: a page's full story belongs in its title/description.
-            //
-            // Ordered for someone who wants to USE gjsify, not for someone who wants
-            // to understand how it is built. Everything above `Internals` answers
-            // "how do I…"; `Internals` is where the mechanism, the rationale and the
-            // bridge projects live, so the pages a newcomer reads first are not
-            // carrying them. `Adwaita` is named after the design system rather than
-            // "Widgets" so a second one can sit beside it later instead of under it.
-            // `Gtk` is that second one. ADR 0034 § 1 decides which of the two a
-            // widget goes in, by the library that owns its GType. Arm 11 of
-            // `scripts/check-website-adwaita-gallery.mjs` holds both halves of
-            // that, a block's namespace against its section directory and a page's
-            // slug against the GROUP it is listed in. The older sidebar arm reads
-            // the groups as one flat set and can see neither.
+            // Labels stay short: a page's full story belongs in its title/description. Ordered for
+            // someone who wants to USE gjsify, not to understand how it is built: everything above
+            // `Internals` answers "how do I…". ADR 0034 § 1 decides which of `Adwaita`/`Gtk` a
+            // widget goes in, and arm 11 of `scripts/check-website-adwaita-gallery.mjs` holds both
+            // halves of that — a block's namespace against its section directory, a page's slug
+            // against the GROUP it is listed in. The older sidebar arm reads the groups as one flat
+            // set and can see neither.
             sidebar: [
                 {
                     label: 'Start',

@@ -3,18 +3,15 @@
 // fact passed in.
 //
 // The rule lives in THREE places and this is the one meant to be canonical:
-// `@gjsify/node-gi` computes it to set `DYLD_FALLBACK_LIBRARY_PATH` before a
-// re-exec and cannot import a workspace package (it declares exactly one
-// dependency on purpose), while `@gjsify/cli` keeps a pinned TypeScript port
-// beside its own impure half. This copy has NO production caller yet — the lift
-// is `status/open-todos.md` § "`systemGiLibraryDirs()` lives in three places".
-//
-// Until that lands, the only thing holding this copy to the other two is the
-// agreement suite (`packages/infra/cli/src/utils/system-gi.spec.ts`), which now
-// compares all three. It did not always: while it reached only the other two, this
-// file's hand-rolled `dirname` had drifted from their `posix.dirname` on any typelib
-// dir with a trailing slash, and reversing the order it offers its two candidate
-// libdirs left every suite in the repo green.
+// `@gjsify/node-gi` computes it to set `DYLD_FALLBACK_LIBRARY_PATH` before a re-exec
+// and cannot import a workspace package (it declares exactly one dependency on
+// purpose), while `@gjsify/cli` keeps a pinned TypeScript port beside its own impure
+// half. This copy has NO production caller yet — the lift is `status/open-todos.md`
+// § "`systemGiLibraryDirs()` lives in three places". Until it lands, the agreement
+// suite (`packages/infra/cli/src/utils/system-gi.spec.ts`) is what holds the three to
+// each other: while it reached only the other two, this file's hand-rolled `dirname`
+// had drifted from their `posix.dirname` on any typelib dir with a trailing slash, and
+// reversing the order it offers its two candidate libdirs left every suite green.
 //
 // PURE by ADR 0014's membership rule: no imports, no defaults that reach a host.
 // The impure half — `statSync`, and spawning `pkg-config` to learn its `.pc`

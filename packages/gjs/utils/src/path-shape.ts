@@ -21,15 +21,13 @@
 // by running on that host, and CI is Linux-only (ADR 0018 § 5), which is precisely how
 // four copies of this bug lived undisturbed. Shape-decided, the win32 behaviour is
 // checkable from a Linux runner, and `path-shape.spec.ts` checks it there.
-//
 // Deliberately not `node:path`'s `win32`/`posix` halves, which own exactly this
-// algebra: this module is in the `/core` half (see `core.ts`), which must be
-// well-defined where `node:` specifiers do not resolve — the same constraint that makes
-// `host-os.ts` read a guarded `globalThis` instead of importing `node:process`. What is
-// re-implemented is kept to the primitive the call sites actually share (WHERE does it
-// separate), not the normalising `dirname`/`basename` semantics, so each caller keeps
-// its own established handling of the no-separator and root cases.
-
+// algebra: this module is in the `/core` half (see `core.ts`), which must be well-defined
+// where `node:` specifiers do not resolve — the same constraint that makes `host-os.ts`
+// read a guarded `globalThis` instead of importing `node:process`. What is re-implemented
+// is kept to the primitive the call sites actually share (WHERE does it separate), not the
+// normalising `dirname`/`basename` semantics, so each caller keeps its own established
+// handling of the no-separator and root cases.
 /**
  * A drive-letter absolute path (`C:\x`, `c:/x`) or a UNC path (`\\server\share\x`).
  *
