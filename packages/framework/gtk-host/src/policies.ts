@@ -1,25 +1,21 @@
 // Child placement — the part that is genuinely GTK, and the reason a shared host
 // pays for itself.
 //
-// GTK4 removed `GtkContainer`. There is no generic `add`, and `Gtk.Buildable`'s
-// `add_child` is introspected as a vfunc only (`typeof headerBar.add_child ===
-// 'undefined'`, gjs 1.88.1) — but `vfunc_add_child` is callable and dispatches
-// correctly, so it IS available as a fallback. It is not a SAFE one: a childless
-// widget accepts a child in silence. Every container
-// therefore states its own rules as DATA in its descriptor, and this file is the
-// only code that reads them. Four framework adapters share it; none of them may
-// contain an insertion rule of its own.
+// GTK4 removed `GtkContainer`. There is no generic `add`, and `Gtk.Buildable`'s `add_child`
+// is introspected as a vfunc only (`typeof headerBar.add_child === 'undefined'`, gjs
+// 1.88.1) — but `vfunc_add_child` IS callable and dispatches correctly, so it is available
+// as a fallback. It is not a SAFE one: a childless widget accepts a child in silence. Every
+// container therefore states its own rules as DATA in its descriptor, and this file is the
+// only code that reads them. Four framework adapters share it; none may contain an
+// insertion rule of its own.
 //
-// TWO AXES, not one, since the portal seam (ADR 0045). `ChildPolicy` says how a
-// PARENT adopts a child; `NodePlacement` says whether the node goes into its
-// parent at all. The second half lives under § Placement below and is the
-// only part of this file a parent's policy never reaches.
-//
-// The second axis has TWO non-parented arms (ADR 0054) because the installed
-// libraries have two ways of refusing a parent, and only one of them says so: a
-// parented `Adw.Dialog` is `g_error()` and a parented `Gtk.Window` is exit 0. The
-// same declaration answers both, and `classPlacementKind` is what catches a
-// descriptor that declares neither before the adder gets the chance.
+// TWO AXES, not one, since the portal seam (ADR 0045). `ChildPolicy` says how a PARENT
+// adopts a child; `NodePlacement` says whether the node goes into its parent at all. The
+// second axis has TWO non-parented arms (ADR 0054) because the installed libraries have two
+// ways of refusing a parent, and only one of them says so: a parented `Adw.Dialog` is
+// `g_error()` and a parented `Gtk.Window` is exit 0. The same declaration answers both, and
+// `classPlacementKind` is what catches a descriptor that declares neither before the adder
+// gets the chance.
 
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
@@ -43,10 +39,8 @@ export function addressOf(el: HostElement): Gtk.Widget {
  * GTK SPELLS ONE PLACEMENT TWICE and both spellings reach the same widget:
  * `adw_header_bar_buildable_add_child`'s `<child type="title">` branch calls
  * `adw_header_bar_set_title_widget`, i.e. writes the `title-widget` property. An authored
- * tree carries whichever spelling its SOURCE had — a Blueprint `[title]` bracket is the
- * first, a `title-widget:` property-valued child the second — and `SharedTreeNode.slot`
- * conflates the two by construction (the projection's own header records that, and that it
- * cannot be inverted). A descriptor declaring only the buildable type would therefore refuse
+ * tree carries whichever spelling its SOURCE had, and `SharedTreeNode.slot` conflates the
+ * two by construction. A descriptor declaring only the buildable type would therefore refuse
  * a placement GTK itself accepts.
  *
  * A CASE RULE OVER THE SETTER'S OWN NAME, never a table: an ADDER (`pack_start`,
@@ -60,10 +54,9 @@ export function slotPropertyOf(method: string): string | null {
 /**
  * Every name a policy answers to — what a refusal lists.
  *
- * Each declared key is followed by the property spelling it also answers to, so the order is
- * `['start', 'title', 'title-widget', 'end']` and not the keys first. That is deliberate: a
- * reader matching their own `slot="title-widget"` against the list finds it beside the key it
- * resolves to, rather than in a second group they have to pair up themselves.
+ * Each declared key is followed by the property spelling it also answers to, so a reader
+ * matching their own `slot="title-widget"` finds it beside the key it resolves to rather
+ * than in a second group they have to pair up themselves.
  */
 export function slotNames(policy: ChildPolicy): string[] {
     if (policy.kind === 'single') {
@@ -84,17 +77,15 @@ export function slotNames(policy: ChildPolicy): string[] {
  * The DECLARED slot key an authored name asks for, or the default when it asks for nothing.
  *
  * EVERY read of `child.slot` in this file goes through here, so the property spelling
- * {@link slotPropertyOf} admits is canonical everywhere at once: a placement resolved
- * through `title-widget` and a detach resolved through `title` would otherwise be two
- * different keys to `policy.slots[…]`, and the child would leak at unmount.
+ * {@link slotPropertyOf} admits is canonical everywhere at once: a placement resolved through
+ * `title-widget` and a detach resolved through `title` would otherwise be two different keys
+ * to `policy.slots[…]`, and the child would leak at unmount.
  *
- * THE DEFAULT IS CHECKED LIKE ANY OTHER NAME, and it is the one that has no author to
- * blame. `defaultSlot` and `slots` are two fields of a descriptor, and an application
- * registers descriptors of its own — nothing else in this package holds the two together.
- * An unchecked default reaches `policy.slots[slot]` as `undefined` and the caller calls it:
- * `TypeError: host[undefined] is not a function`, which is exactly the shape
- * {@link errors.unknownSlot} exists to replace. Returning only keys that are IN `slots` is
- * what makes the lookup at every call site total.
+ * THE DEFAULT IS CHECKED LIKE ANY OTHER NAME, and it is the one with no author to blame:
+ * `defaultSlot` and `slots` are two fields of a descriptor and nothing else in this package
+ * holds them together. An unchecked default reaches `policy.slots[slot]` as `undefined` and
+ * the caller calls it: `TypeError: host[undefined] is not a function`, exactly the shape
+ * {@link errors.unknownSlot} exists to replace.
  */
 export function slottedSlot(
     policy: Extract<ChildPolicy, { kind: 'slotted' }>,
@@ -115,13 +106,12 @@ export function slottedSlot(
 /**
  * A slot the parent cannot honour is refused BY NAME, whatever its policy kind.
  *
- * `slotted` already refused an unknown slot; every OTHER kind read `child.slot` as nothing
- * at all, so a name it has no destination for put the widget in the one place it does have
- * and said nothing. That is the defect measured on a real `.blp`: an authored placement
- * dropped, the widget on screen in the wrong container, exit 0. A `single` parent accepts
- * the property its own setter writes (`AdwApplicationWindow` + `set_content` accepts
- * `content`) and nothing else; `keyed` reads the slot as its page NAME, which is a
- * destination, so it is left alone.
+ * `slotted` already refused an unknown slot; every OTHER kind read `child.slot` as nothing at
+ * all, so a name it has no destination for put the widget in the one place it does have and
+ * said nothing — measured on a real `.blp`: an authored placement dropped, the widget on
+ * screen in the wrong container, exit 0. A `single` parent accepts the property its own
+ * setter writes (`AdwApplicationWindow` + `set_content` accepts `content`) and nothing else;
+ * `keyed` reads the slot as its page NAME, which is a destination, so it is left alone.
  */
 export function refuseUnknownSlot(parent: HostElement, child: HostElement): void {
     const authored = child.slot;
@@ -139,16 +129,15 @@ export function refuseUnknownSlot(parent: HostElement, child: HostElement): void
 /**
  * `Gtk.ListBox` and `Gtk.FlowBox` wrap arbitrary children; the wrap is the host's job.
  *
- * Unless the author already wrote the row themselves — `<GtkListBox><GtkListBoxRow>`
- * is the spelling anyone reaching for `activatable` or `selectable` uses, and
- * wrapping a row inside a second row nests two selectable widgets and detaches
- * activation from the one the author configured.
+ * Unless the author already wrote the row themselves — `<GtkListBox><GtkListBoxRow>` is the
+ * spelling anyone reaching for `activatable` or `selectable` uses, and wrapping a row inside
+ * a second row nests two selectable widgets and detaches activation from the one the author
+ * configured.
  *
- * A `slotted` policy reaches this too, per SLOT: an adder that hands the child to an
- * inner `Gtk.ListBox` needs exactly the same wrap, and `Adw.ExpanderRow`'s `add_row` is
- * one. The measurement behind that is on `ChildPolicy`'s `wrapSlots`; the short version
- * is that `gtk_list_box_remove` does not unwrap, so without this the child leaks behind
- * one `Gtk-WARNING` at unmount.
+ * A `slotted` policy reaches this too, per SLOT: an adder that hands the child to an inner
+ * `Gtk.ListBox` needs the same wrap, and `Adw.ExpanderRow`'s `add_row` is one.
+ * `gtk_list_box_remove` does not unwrap, so without this the child leaks behind one
+ * `Gtk-WARNING` at unmount.
  */
 export function makeWrapper(descriptor: WidgetDescriptor, child: Gtk.Widget, slot: string | null): Gtk.Widget | null {
     const policy = descriptor.children;
@@ -174,17 +163,13 @@ export function makeWrapper(descriptor: WidgetDescriptor, child: Gtk.Widget, slo
 /**
  * A container the host owns that no window shows — the DOM's detached `<div>`.
  *
- * `<KeepAlive>` and `<Suspense>` ask a renderer for off-screen storage:
- * `KeepAliveImpl.setup` opens with `createElement("div")` and `SuspenseImpl` does
- * the same for its `hiddenContainer`. The Vue adapter answered that with its own
- * `gi://Gtk` import and a literal `new Gtk.Box()` — the ONE runtime toolkit import
- * and the ONE concrete widget class in any adapter, i.e. exactly the widget
- * knowledge ADR 0027 § 7 forbids one. It lives here because this is already the
- * file that builds widgets the author did not write (see `makeWrapper`), and it is
- * the only one with a runtime `gi://Gtk` import.
+ * `<KeepAlive>` and `<Suspense>` ask a renderer for off-screen storage. It lives here because
+ * this is already the file that builds widgets the author did not write (see `makeWrapper`),
+ * and it is the only one with a runtime `gi://Gtk` import — which is what ADR 0027 § 7 forbids
+ * in an adapter.
  *
- * A `Gtk.Box` and not an `Adw.Bin`: the deactivated subtree may hold SEVERAL
- * children, and a one-child container would silently keep the last.
+ * A `Gtk.Box` and not an `Adw.Bin`: the deactivated subtree may hold SEVERAL children, and a
+ * one-child container would silently keep the last.
  */
 export const makeDetachedContainer = (): Gtk.Widget => new Gtk.Box();
 
@@ -203,13 +188,11 @@ export const makeDetachedContainer = (): Gtk.Widget => new Gtk.Box();
 /**
  * Compile-time exhaustiveness, which this package does NOT get for free.
  *
- * `tsconfig.json` sets `strict: false`, so a switch that stops covering its union
- * simply falls through and returns `undefined` — no error. Adding the `uncurated`
- * policy kind passed `tsc` cleanly while five switches silently ignored it, which
- * is exactly the class of green-and-wrong this package exists to prevent
- * elsewhere. Assignability to `never` is not a strictness option, so a `default`
- * arm calling this DOES fail the build (measured) and is the only mechanism that
- * makes the next union member impossible to forget.
+ * `tsconfig.json` sets `strict: false`, so a switch that stops covering its union simply
+ * falls through and returns `undefined` — no error. Adding the `uncurated` policy kind
+ * passed `tsc` cleanly while five switches silently ignored it. Assignability to `never` is
+ * not a strictness option, so a `default` arm calling this DOES fail the build (measured)
+ * and is the only mechanism that makes the next union member impossible to forget.
  */
 export function unhandledPolicy(policy: never): never {
     throw new Error(`unhandled child policy: ${JSON.stringify(policy)}`);
@@ -226,12 +209,10 @@ export function setterSlotOf(parent: HostElement, child: HostElement): string | 
 /**
  * The slots this policy fills with an ADDER, by slot name.
  *
- * `set_`-prefixed or not is the whole distinction, and TWO decisions turn on it,
- * which is why the predicate is here once rather than spelled out at each. A
+ * `set_`-prefixed or not is the whole distinction, and TWO decisions turn on it: a
  * setter-backed slot is emptied by writing `null` back through itself, so
- * `policyProblems()` lets such a policy name no `remove`; and it holds one child,
- * so `rotateTail` returns before touching it — a policy with no adder slot at all
- * has no order to pay for, which is what `reorderMode()` reports.
+ * `policyProblems()` lets such a policy name no `remove`; and it holds one child, so
+ * `rotateTail` returns before touching it.
  */
 export function adderSlots(policy: ChildPolicy): string[] {
     if (policy.kind !== 'slotted') return [];
@@ -250,16 +231,13 @@ export function setterSlots(policy: ChildPolicy): string[] {
 /**
  * Who GTK says is in a one-child slot. `undefined` means there is no getter to ask.
  *
- * The slot's own getter is the ONLY honest reader of this, and a child-list walk
- * is not a substitute: measured on gtk 4.22.4 / libadwaita 1.9.3, a FRESH widget
- * already has direct children the application never put there —
- * `Gtk.ScrolledWindow` two `GtkScrollbar`s, `Adw.ToolbarView` two
- * `GtkRevealer`s, `Adw.Window` an `AdwDialogHost` + an `AdwGizmo`,
- * `Adw.StatusPage` a `GtkScrolledWindow` — while every one of those widgets
- * answers `null` from its getter. The getter also survives GTK wrapping the
- * child: `Gtk.ScrolledWindow.set_child(label)` reports a `GtkViewport`, not the
- * label, so callers may compare occupants for IDENTITY but never assume the
- * occupant is the widget they handed over.
+ * The slot's own getter is the ONLY honest reader of this, and a child-list walk is not a
+ * substitute: measured on gtk 4.22.4 / libadwaita 1.9.3, a FRESH widget already has direct
+ * children the application never put there, while every one of those widgets answers `null`
+ * from its getter. The getter also survives GTK wrapping the child:
+ * `Gtk.ScrolledWindow.set_child(label)` reports a `GtkViewport`, not the label — so callers
+ * may compare occupants for IDENTITY but never assume the occupant is the widget they handed
+ * over.
  */
 export function slotOccupant(widget: Gtk.Widget, setter: string): Gtk.Widget | null | undefined {
     const host = widget as unknown as AnyWidget;
@@ -324,13 +302,11 @@ export const isPortal = (el: HostElement): boolean => portalOf(el.descriptor) !=
 /**
  * Does this node take NO position in its parent's child list?
  *
- * The question four sibling walks ask, and it is the placement AXIS rather than
- * the portal arm: a toplevel occupies a parent's child list exactly as little as a
- * portal does. Asking `isPortal` there was correct while `portal` was the only
- * non-parented kind and became a silent hole the moment it was not — counting a
- * toplevel as a sibling shifts every later child by one and hands
- * `insert_child_after` a widget that is not in the container (a critical at exit 0),
- * and rotating one calls the parent's adder on a node that must never enter it.
+ * The question four sibling walks ask, and it is the placement AXIS rather than the portal
+ * arm: a toplevel occupies a parent's child list exactly as little as a portal does. Counting
+ * a toplevel as a sibling shifts every later child by one and hands `insert_child_after` a
+ * widget that is not in the container (a critical at exit 0), and rotating one calls the
+ * parent's adder on a node that must never enter it.
  */
 export const isUnparented = (el: HostElement): boolean => outsideParentOf(el.descriptor) !== null;
 
@@ -365,30 +341,26 @@ const toplevelOf = (widget: Gtk.Widget): Gtk.Window | null => {
  *
  * Returns whether GTK has actually taken the node, which is what `attached` means.
  *
- * WHY THE WAIT IS THE FEATURE. Every framework builds bottom-up: React creates the
- * whole subtree, appends its children, and inserts the ROOT into the container
- * last, so at the moment a `<Modal>` is inserted its parent is usually not in a
- * window yet. MEASURED on libadwaita 1.9.3 / GTK 4.22.4, presenting against an
- * unrooted box: `adw_dialog_present` finds no `AdwDialogHost` among the parent's
- * ancestors and takes its documented other branch, `present_as_window` — the
- * dialog opens as a SEPARATE `GtkWindow`, `win.visibleDialog` stays false, exit 0,
- * no diagnostic. A modal that floats out of its own application is exactly the
- * green-and-wrong this host exists to refuse, and nothing in the shadow tree can
- * see it.
+ * WHY THE WAIT IS THE FEATURE. Every framework builds bottom-up: React creates the whole
+ * subtree, appends its children, and inserts the ROOT into the container last, so at the
+ * moment a `<Modal>` is inserted its parent is usually not in a window yet. MEASURED on
+ * libadwaita 1.9.3 / GTK 4.22.4, presenting against an unrooted box: `adw_dialog_present`
+ * finds no `AdwDialogHost` among the parent's ancestors and takes its documented other
+ * branch, `present_as_window` — the dialog opens as a SEPARATE `GtkWindow`,
+ * `win.visibleDialog` stays false, exit 0, no diagnostic. A modal that floats out of its own
+ * application is exactly the green-and-wrong this host exists to refuse.
  *
- * `notify::root` is the instrument. MEASURED: it fires on a GRANDCHILD box when
- * the toplevel takes the subtree (root -> AdwWindow), and again on unroot (root ->
- * null). The subscription STAYS for the life of the attachment rather than being
- * one-shot, because re-rooting is real: measured, unrooting the parent leaves an
- * already-presented dialog in the OLD window's host — `w1.visibleDialog` still
- * true after `w1.set_content(null)` — so a subtree moved to a second window would
- * silently keep showing its modal in the first.
+ * `notify::root` is the instrument. MEASURED: it fires on a GRANDCHILD box when the toplevel
+ * takes the subtree (root -> AdwWindow), and again on unroot (root -> null). The
+ * subscription STAYS for the life of the attachment rather than being one-shot, because
+ * re-rooting is real: measured, unrooting the parent leaves an already-presented dialog in
+ * the OLD window's host — `w1.visibleDialog` still true after `w1.set_content(null)` — so a
+ * subtree moved to a second window would silently keep showing its modal in the first.
  *
- * SYMMETRIC, and the second direction is not free. GTK does not take the dialog
- * down when the anchor loses its window, so losing a toplevel RETRACTS the node
- * rather than merely failing to present it (see `placeAgainst`). Without that, a
- * subtree that is detached and never re-rooted keeps its sheet on screen in the
- * window it left, and only a re-root — which such a subtree never gets — repairs it.
+ * SYMMETRIC, and the second direction is not free: GTK does not take the dialog down when
+ * the anchor loses its window, so losing a toplevel RETRACTS the node (see
+ * `placeAgainst`). Without that, a subtree that is detached and never re-rooted keeps its
+ * sheet on screen in the window it left.
  */
 export function presentPortal(
     parent: HostElement,
@@ -397,14 +369,11 @@ export function presentPortal(
 ): boolean {
     const anchor = parent.widget as unknown as Gtk.Widget | null;
     if (!anchor) return false;
-    // BOTH METHODS, BEFORE THE SUBSCRIPTION, and the order is the point rather
-    // than tidiness: the placement can be deferred, so a missing method would
-    // otherwise first be discovered inside a `notify::root` handler — where a
-    // throw is a GJS exception logged from a signal callback with nothing to
-    // attribute it to, long after the insert that caused it returned. Asked here,
-    // it is a named refusal at the insert. `descriptorProblems()` catches a
-    // built-in descriptor up front; an application-registered one is checked by
-    // nobody, which is the same gap `slotNeedsRemove` fills for a slot.
+    // BOTH METHODS, BEFORE THE SUBSCRIPTION, and the order is the point rather than tidiness:
+    // the placement can be deferred, so a missing method would otherwise first be discovered
+    // inside a `notify::root` handler — where a throw is a GJS exception logged from a signal
+    // callback with nothing to attribute it to, long after the insert that caused it returned.
+    // Asked here, it is a named refusal at the insert.
     placementMethod(child, portal, portal.present, 'present');
     placementMethod(child, portal, portal.close, 'close');
     watchPortalRoot(anchor, child, portal);
@@ -420,37 +389,28 @@ function placeAgainst(
     if (!node) return false;
     const target = toplevelOf(anchor);
     if (!target) {
-        // THE ANCHOR HAS NO WINDOW, so neither may the portal — and this is a
-        // RETRACT rather than a bare `return false` because the same line is
-        // reached from an UNROOT, not only from a deferred insert.
+        // THE ANCHOR HAS NO WINDOW, so neither may the portal — and this is a RETRACT rather
+        // than a bare `return false`, because the same line is reached from an UNROOT, not
+        // only from a deferred insert.
         //
-        // A portal is presented exactly when its anchor is in a toplevel. The wait
-        // above enforces one direction of that; without this the other direction
-        // was silently missing. MEASURED on libadwaita 1.9.3: after
-        // `w1.set_content(null)` the dialog is STILL in `w1`'s host —
-        // `w1.visibleDialog` is the dialog — so the sheet kept showing in a window
-        // its own subtree had left, and stayed up for as long as no second window
-        // happened to claim that subtree. Only a re-root repaired it, and a subtree
-        // that is merely detached never re-roots.
+        // A portal is presented exactly when its anchor is in a toplevel. The wait above
+        // enforces one direction of that; without this the other direction was silently
+        // missing. MEASURED on libadwaita 1.9.3: after `w1.set_content(null)` the dialog is
+        // STILL in `w1`'s host, so the sheet kept showing in a window its own subtree had
+        // left, and stayed up until a second window happened to claim that subtree.
         //
-        // It also keeps `attached` honest: this function returns false here, so the
-        // host recorded "GTK has NOT taken this node" while GTK still had it on
-        // screen — the exact conflation `attached` exists to prevent (ADR 0045 § 4).
-        //
-        // Unconditional, for the reason `retractPortal` is: `force_close` on a node
-        // that was never presented is silent (measured), so no "is it up?" probe is
-        // needed, and on a deferred insert this is a no-op.
+        // It also keeps `attached` honest: this function returns false here, so the host
+        // recorded "GTK has NOT taken this node" while GTK still had it on screen — the
+        // exact conflation `attached` exists to prevent (ADR 0045 § 4).
         placementMethod(child, portal, portal.close, 'close').call(node);
         return false;
     }
     if (node.get_parent()) {
         // Already up. Where it is up decides whether this is a no-op or a move:
         // MEASURED, `present()` on a dialog already presented for ANOTHER host is
-        // `Adwaita-CRITICAL **: Cannot present … as it's already presented for …`
-        // plus `Gtk-WARNING **: Can't set new parent …` — and the move does not
-        // happen, so the shadow tree would claim a placement GTK refused. Closing
-        // first is the sequence that works (measured: force_close, then present,
-        // lands it in the new window with no diagnostic).
+        // `Adwaita-CRITICAL **: Cannot present … as it's already presented for …` plus
+        // `Gtk-WARNING **: Can't set new parent …` — and the move does not happen, so the
+        // shadow tree would claim a placement GTK refused.
         if (toplevelOf(node) === target) return true;
         placementMethod(child, portal, portal.close, 'close').call(node);
     }
@@ -466,9 +426,8 @@ function watchPortalRoot(
     if (child.portalWatch?.widget === anchor) return;
     if (child.portalWatch) retractPortalWatch(child);
     const id = anchor.connect('notify::root', () => {
-        // `attached` is written HERE and not by the caller, because this is the
-        // moment GTK takes the node — the insert that started it all returned long
-        // ago. It is the same fact the synchronous path records, arriving late.
+        // `attached` is written HERE and not by the caller, because this is the moment GTK
+        // takes the node — the insert that started it all returned long ago.
         child.attached = placeAgainst(anchor, child, portal);
     });
     child.portalWatch = { widget: anchor, id };
@@ -484,14 +443,13 @@ function retractPortalWatch(child: HostElement): void {
 /**
  * Take a portal node back down, with no probe and no `attached` guard.
  *
- * UNCONDITIONALLY, twice over, and both halves are measured. The method the
- * descriptor names is the FORCED close (`force_close`, not `close`): an unmount is
- * not a user request, and `close()` on a dialog whose `can-close` is FALSE returns
- * FALSE, emits `close-attempt` and leaves it on screen. And `force_close()` on a
- * node that was never presented is silent, where `close()` is
- * `Adwaita-CRITICAL **: Trying to close … that's not presented` at exit 0 — so the
- * host needs no "is it up?" question, which is the one it could not answer without
- * knowing what a dialog is.
+ * UNCONDITIONALLY, twice over, and both halves are measured. The method the descriptor names
+ * is the FORCED close (`force_close`, not `close`): an unmount is not a user request, and
+ * `close()` on a dialog whose `can-close` is FALSE returns FALSE, emits `close-attempt` and
+ * leaves it on screen. And `force_close()` on a node that was never presented is silent,
+ * where `close()` is `Adwaita-CRITICAL **: Trying to close … that's not presented` at exit
+ * 0 — so the host needs no "is it up?" question, which is the one it could not answer
+ * without knowing what a dialog is.
  */
 export function retractPortal(child: HostElement, portal: Extract<NodePlacement, { kind: 'portal' }>): void {
     retractPortalWatch(child);
@@ -502,31 +460,30 @@ export function retractPortal(child: HostElement, portal: Extract<NodePlacement,
 /**
  * Show a toplevel node — and it needs nothing from its parent, which is the point.
  *
- * NO ANCHOR, NO WAIT, NO SUBSCRIPTION. A portal has two positions in the tree and
- * defers until the parent supplies the second one; a toplevel HAS no second
- * position, so the whole `notify::root` machinery next door has nothing to watch
- * for. Measured: `gtk_window_present` takes 0 arguments where
- * `adw_dialog_present` takes 1, and that arity is exactly the difference.
+ * NO ANCHOR, NO WAIT, NO SUBSCRIPTION. A portal has two positions in the tree and defers
+ * until the parent supplies the second one; a toplevel HAS no second position, so the whole
+ * `notify::root` machinery next door has nothing to watch for. Measured: `gtk_window_present`
+ * takes 0 arguments where `adw_dialog_present` takes 1, and that arity is exactly the
+ * difference.
  *
- * Returns whether GTK has taken the node — always true once there is a widget,
- * because a root is taken by nobody: measured, a presented window answers
- * `get_parent() === null` and `get_root() === itself`. That is not the portal's
- * "claimed but not yet taken" state, it is the finished one.
+ * Returns whether GTK has taken the node — always true once there is a widget, because a root
+ * is taken by nobody: measured, a presented window answers `get_parent() === null` and
+ * `get_root() === itself`. That is not the portal's "claimed but not yet taken" state, it is
+ * the finished one.
  *
- * AN AUTHORED `visible: false` IS HONOURED rather than overwritten. `present()`
- * sets the window visible (measured), so presenting unconditionally would make
- * `<gtk-window visible={false}>` a property this host silently reverses — the
- * exact shape it exists to refuse. The node is still `attached`: GTK holds it as
- * its own root whether or not it is on screen, and a later `setProp(el,
- * 'visible', true)` shows it through the ordinary property path.
+ * AN AUTHORED `visible: false` IS HONOURED rather than overwritten. `present()` sets the
+ * window visible (measured), so presenting unconditionally would make `<gtk-window
+ * visible={false}>` a property this host silently reverses. The node is still `attached`:
+ * GTK holds it as its own root whether or not it is on screen, and a later
+ * `setProp(el, 'visible', true)` shows it through the ordinary property path.
  */
 export function presentToplevel(child: HostElement, placement: Extract<NodePlacement, { kind: 'toplevel' }>): boolean {
     const node = child.widget as unknown as Gtk.Widget | null;
     if (!node) return false;
     const present = placementMethod(child, placement, placement.present, 'present');
-    // Asked here as well, for the reason the portal arm asks both up front: a
-    // descriptor an application registered is checked by nobody, and a missing
-    // `close` first discovered during an unmount is a TypeError with no tag on it.
+    // Asked here as well, for the reason the portal arm asks both up front: a descriptor
+    // an application registered is checked by nobody, and a missing `close` first discovered
+    // during an unmount is a TypeError with no tag on it.
     placementMethod(child, placement, placement.close, 'close');
     if (child.props.visible !== false) present.call(node);
     return true;
@@ -536,19 +493,15 @@ export function presentToplevel(child: HostElement, placement: Extract<NodePlace
  * Take a toplevel back down — the FORCED call, and it is TERMINAL.
  *
  * `destroy` and not `close`, measured on GTK 4.22.4: `gtk_window_close()` emits
- * `close-request`, and an application handler returning TRUE leaves the window
- * mapped and visible. That veto is how an application asks the USER to confirm,
- * and an unmount is not a user request — the same reasoning that makes the portal
- * arm name `force_close`.
+ * `close-request`, and an application handler returning TRUE leaves the window mapped and
+ * visible. That veto is how an application asks the USER to confirm, and an unmount is not a
+ * user request — the same reasoning that makes the portal arm name `force_close`.
  *
- * Unconditional for the same reason too: measured, `destroy()` on a window that
- * was never presented is silent, so no "is it up?" probe is needed. What differs
- * from the portal is that there IS no way back — measured, `present()` after a
- * destroy (or after a `close()`, whose default handler destroys) answers
- * `Gtk-WARNING **: A window is shown after it has been destroyed`.
- *
- * SO THIS IS `destroy`'s CALL AND NOT `remove`'s, which is the whole reason
- * `detachToplevel` exists next door. `remove` documents itself as reversible.
+ * Unconditional for the same reason too: measured, `destroy()` on a window that was never
+ * presented is silent, so no "is it up?" probe is needed. What differs from the portal is that
+ * there IS no way back — measured, `present()` after a destroy (or after a `close()`, whose
+ * default handler destroys) answers `Gtk-WARNING **: A window is shown after it has been
+ * destroyed`.
  */
 export function closeToplevel(child: HostElement, placement: Extract<NodePlacement, { kind: 'toplevel' }>): void {
     if (!child.widget) return;
@@ -558,31 +511,26 @@ export function closeToplevel(child: HostElement, placement: Extract<NodePlaceme
 /**
  * Take a toplevel OFF SCREEN, reversibly — `remove`'s call.
  *
- * `remove` is documented as a detach that a later `insert` undoes ("Frameworks
- * move nodes; `remove` must not destroy one"), and Solid takes it literally: its
- * `removeNode` calls `remove(node)` for a move and reaches `destroy` only through
- * the root disposer. Running the declared, TERMINAL close there made a move
- * `destroy()` the window and then present the corpse —
- * `Gtk-WARNING **: A window is shown after it has been destroyed`, at exit 0,
- * visible only because `installDiagnosticsGate()` was watching.
+ * `remove` is documented as a detach that a later `insert` undoes ("Frameworks move nodes;
+ * `remove` must not destroy one"), and Solid takes it literally: its `removeNode` calls
+ * `remove(node)` for a move. Running the declared, TERMINAL close there made a move
+ * `destroy()` the window and then present the corpse — `Gtk-WARNING **: A window is shown
+ * after it has been destroyed`, at exit 0.
  *
- * A PROPERTY WRITE AND NOT A DECLARED METHOD, and that is the honest shape rather
- * than a shortcut: a window's presence on screen IS its `visible` property — which
- * is why `presentToplevel` already reads it — so every toplevel detaches the same
- * way and a per-row name would be the same string once per declared row. The portal
- * arm needs no counterpart at all, because its declared close is ALREADY reversible.
+ * A PROPERTY WRITE AND NOT A DECLARED METHOD, and that is the honest shape rather than a
+ * shortcut: a window's presence on screen IS its `visible` property — which is why
+ * `presentToplevel` already reads it. The portal arm needs no counterpart, because its
+ * declared close is ALREADY reversible.
  *
- * MEASURED on GTK 4.22.4, one window, in order: `set_visible(false)` leaves it
- * `visible` false with one `unmap`, emits NO `close-request`, and keeps it in
+ * MEASURED on GTK 4.22.4, one window, in order: `set_visible(false)` leaves it `visible`
+ * false with one `unmap`, emits NO `close-request`, and keeps it in
  * `Gtk.Window.list_toplevels()` — so it is a detach and not a teardown; `present()`
- * afterwards maps it again with no diagnostic at all; a second `set_visible(false)`
- * is a no-op; and `destroy()` on the hidden window adds no `unmap` and DOES drop it
- * from the toplevel list. `set_visible` rather than the deprecated `hide()`, which
- * is the same call one rename older.
+ * afterwards maps it again with no diagnostic at all. `set_visible` rather than the
+ * deprecated `hide()`, which is the same call one rename older.
  *
- * Unbracketed, unlike `writeVisible`'s host writes: this is not bookkeeping around
- * a libadwaita defect that the consumer's model never mentions — the window really
- * did leave the screen, and a bound `notify::visible` is entitled to hear it.
+ * Unbracketed, unlike `writeVisible`'s host writes: this is not bookkeeping around a
+ * libadwaita defect the consumer's model never mentions — the window really did leave the
+ * screen, and a bound `notify::visible` is entitled to hear it.
  */
 export function detachToplevel(child: HostElement): void {
     const node = child.widget as unknown as Gtk.Widget | null;
@@ -610,13 +558,10 @@ export function placeOutsideParent(parent: HostElement, child: HostElement, plac
 /**
  * The REVERSIBLE take-down — what `remove` means, per arm.
  *
- * THE TWO ARMS DIFFER HERE AND NOWHERE ELSE, which is why one function could not
- * serve both: measured, `force_close()` followed by `present(parent)` re-hosts a
- * dialog against the SAME parent with no diagnostic, while `destroy()` followed by
- * `present()` is `Gtk-WARNING **: A window is shown after it has been destroyed`.
- * The portal arm therefore never showed this defect and the toplevel arm shipped
- * with it: a single `retractOutsideParent` treated a reversible verb and a terminal
- * one as the same thing.
+ * THE TWO ARMS DIFFER HERE AND NOWHERE ELSE, which is why one function cannot serve both:
+ * measured, `force_close()` followed by `present(parent)` re-hosts a dialog against the SAME
+ * parent with no diagnostic, while `destroy()` followed by `present()` is `Gtk-WARNING **: A
+ * window is shown after it has been destroyed`.
  */
 export function detachOutsideParent(child: HostElement, placement: OutsideParent): void {
     switch (placement.kind) {
@@ -632,11 +577,10 @@ export function detachOutsideParent(child: HostElement, placement: OutsideParent
 /**
  * The TERMINAL take-down — what `destroy` means, and what a DISCARD means.
  *
- * Its one caller is `releaseWidget` in `host.ts`, which is every place the host
- * drops `el.widget`: a toplevel is held by GTK's own list rather than by a parent
- * (measured, `list_toplevels()` holds a window from CONSTRUCTION and loses it only
- * on `destroy`), so a discard that merely detached would leak one window each time
- * — per construct-only write, and per half-built element a failed replay rolls back.
+ * Its one caller is `releaseWidget` in `host.ts`, which is every place the host drops
+ * `el.widget`: a toplevel is held by GTK's own list rather than by a parent, so a discard
+ * that merely detached would leak one window each time — per construct-only write, and per
+ * half-built element a failed replay rolls back.
  */
 export function closeOutsideParent(child: HostElement, placement: OutsideParent): void {
     switch (placement.kind) {
@@ -659,25 +603,23 @@ const PRESENT = 'present';
 /**
  * The placement the installed libraries give this class, or null for an ordinary child.
  *
- * STRUCTURAL, never a name. ADR 0027 rule 1 forbids widget knowledge in the host,
- * and a list of gtypes here would be exactly that — so the class is asked two
- * questions it answers itself. Both were measured over the WHOLE shipped table on
- * GTK 4.22.4 / libadwaita 1.9.3 rather than over a sample, which is what makes the
- * second one a partition and not an observation:
+ * STRUCTURAL, never a name. ADR 0027 rule 1 forbids widget knowledge in the host, and a
+ * list of gtypes here would be exactly that — so the class is asked two questions it answers
+ * itself. Both were measured over the WHOLE shipped table on GTK 4.22.4 / libadwaita 1.9.3,
+ * which is what makes the second one a partition and not an observation:
  *
- *  - `Gtk.Root` is GTK's OWN word for "this widget is a toplevel", and every class
- *    in the table implementing it — `GtkWindow` through `GtkPrintUnixDialog` — is
- *    one no parent may legally take.
- *  - A `present()` that TAKES AN ARGUMENT is a node presented AGAINST something.
- *    In the table that set is EXACTLY the `Adw.Dialog` descendants and nothing
- *    else — the ones whose `root` vfunc calls `g_error()`.
- *    `Gtk.Popover.present()` is the discriminator that makes the ARITY part of the
- *    question rather than the name: it exists, it takes 0 arguments, and a popover
- *    is parented with `set_parent()` like any other child.
+ *  - `Gtk.Root` is GTK's OWN word for "this widget is a toplevel", and every class in the
+ *    table implementing it — `GtkWindow` through `GtkPrintUnixDialog` — is one no parent may
+ *    legally take.
+ *  - A `present()` that TAKES AN ARGUMENT is a node presented AGAINST something. In the table
+ *    that set is EXACTLY the `Adw.Dialog` descendants and nothing else — the ones whose `root`
+ *    vfunc calls `g_error()`. `Gtk.Popover.present()` is the discriminator that makes the
+ *    ARITY part of the question rather than the name: it exists, it takes 0 arguments, and a
+ *    popover is parented with `set_parent()` like any other child.
  *
- * The order matters and is not alphabetical: every `Gtk.Root` in the table that has
- * a `present` at all has a 0-argument one, and `GtkDragIcon` has none — so the root
- * test has to come first and cannot be replaced by an arity test.
+ * The order matters and is not alphabetical: every `Gtk.Root` in the table that has a
+ * `present` at all has a 0-argument one, and `GtkDragIcon` has none — so the root test has
+ * to come first and cannot be replaced by an arity test.
  *
  * @param gtype the class's GType — `type_is_a` walks interfaces as well as parents
  * @param present the class's own `present`, or the value found on an instance
@@ -698,18 +640,16 @@ export function nodePlacementKind(node: Gtk.Widget): OutsideParent['kind'] | nul
 /**
  * Refuse a child the installed libraries will not adopt, BEFORE the adder runs.
  *
- * This is the catchable half of the abort class (ADR 0054). `descriptorProblems()`
- * says the same thing about the whole TABLE up front, which is what keeps the
- * shipped rows honest — but `registerWidget` takes descriptors from applications
- * and nothing checks those, and for one of the two families the consequence is not
- * a wrong window: `adw_dialog_root()` is `g_error()`, so the process is gone before
- * any handler runs. A refusal is only possible while there is still a process.
+ * This is the catchable half of the abort class (ADR 0054). `descriptorProblems()` says the
+ * same thing about the whole TABLE up front, but `registerWidget` takes descriptors from
+ * applications and nothing checks those — and for one of the two families the consequence is
+ * not a wrong window: `adw_dialog_root()` is `g_error()`, so the process is gone before any
+ * handler runs. A refusal is only possible while there is still a process.
  *
  * ONLY WHERE THE DESCRIPTOR IS SILENT, and that is the escape hatch rather than an
- * oversight. `placement` present — including an explicit `{ kind: 'parented' }` —
- * means the author has answered this question, and the host does not overrule an
- * answer with a heuristic. A consumer widget that trips the `present(parent)` half
- * of the oracle while really being a child says so in one line.
+ * oversight. `placement` present — including an explicit `{ kind: 'parented' }` — means the
+ * author has answered this question, and the host does not overrule an answer with a
+ * heuristic.
  */
 export function refuseUnparentable(parent: HostElement, child: HostElement): void {
     if (child.descriptor.placement !== undefined) return;
@@ -750,16 +690,14 @@ export function insertChild(place: Placement): void {
     } catch (e) {
         if (e instanceof GtkHostError) throw e;
         // GTK's own message is accurate and anonymous: "Object is of type Gtk.Box
-        // - cannot convert to AdwPreferencesGroup" names neither the parent that
-        // refused nor the place in the tree. A descriptor cannot declare which
-        // child TYPES a container accepts — only GTK knows — so the host adds the
-        // two names it does know.
+        // - cannot convert to AdwPreferencesGroup" names neither the parent that refused nor
+        // the place in the tree. A descriptor cannot declare which child TYPES a container
+        // accepts — only GTK knows — so the host adds the two names it does know.
         throw err.rejectedChild(place.parent.descriptor.gtype, place.child.descriptor.gtype, (e as Error).message);
     }
-    // AFTER the catch, not inside it. The sync is not part of the placement, and a
-    // throw from in there would be rewritten as a refusal that never happened, on a
-    // child GTK has already taken — after which `attach` never marks it attached and
-    // the node is unlinked from a tree it is physically in.
+    // AFTER the catch, not inside it. A throw from in there would be rewritten as a
+    // refusal that never happened, on a child GTK has already taken — after which `attach`
+    // never marks it attached and the node is unlinked from a tree it is physically in.
     syncPerLineCap(place.parent);
 }
 
@@ -799,18 +737,18 @@ function placeChild(place: Placement): void {
         // falls through — no insert API on this container
         case 'slotted':
         case 'keyed':
-            // Containers that can only APPEND. Add ourselves first, then rotate
-            // the tail back into place.
+            // Containers that can only APPEND. Add ourselves first, then rotate the tail
+            // back into place.
             //
-            // Append-first is not a detail: detaching the tail before an append
-            // that can throw destroys already-rendered siblings, and `insert`'s
-            // catch can only repair the shadow tree.
+            // Append-first is not a detail: detaching the tail before an append that can
+            // throw destroys already-rendered siblings, and `insert`'s catch can only repair
+            // the shadow tree.
             //
-            // `slotted` and `keyed` reach here for the same reason `ordered`
-            // without `after` does — measured, `Gtk.Stack.reorder_child_after`
-            // and `Adw.HeaderBar.reorder_child_after` are both `undefined`, so a
-            // keyed reversal was a complete no-op in GTK while the host's own
-            // navigators reported the new order.
+            // `slotted` and `keyed` reach here for the same reason `ordered` without
+            // `after` does — measured, `Gtk.Stack.reorder_child_after` and
+            // `Adw.HeaderBar.reorder_child_after` are both `undefined`, so a keyed reversal
+            // was a complete no-op in GTK while the host's own navigators reported the new
+            // order.
             appendChild(parent, child, host);
             rotateTail(parent, child, place.following, host);
             return;
@@ -831,8 +769,7 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             return;
         case 'slotted': {
             // `slottedSlot` returns a key of `policy.slots` or throws, INCLUDING for the
-            // default — so this lookup is total and the assertion states that, rather than
-            // silencing the check the way an unguarded `defaultSlot` once did.
+            // default — so this lookup is total and the assertion states that.
             const slot = slottedSlot(policy, child.slot, parent.descriptor.gtype);
             host[policy.slots[slot]!](address);
             return;
@@ -840,9 +777,9 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
         case 'keyed': {
             const name = (child.layout?.[policy.nameFrom] ?? child.slot) as string | undefined;
             const title = child.layout?.title as string | undefined;
-            // Always the full arity when the container wants it: a name with no
-            // title called a 3-argument method with two, and GJS's "At least 3
-            // arguments required" then read as a rejected child TYPE.
+            // Always the full arity when the container wants it: a name with no title called a
+            // 3-argument method with two, and GJS's "At least 3 arguments required" then read
+            // as a rejected child TYPE.
             if (policy.titled) host[policy.add](address, name ?? null, title ?? name ?? '');
             else host[policy.add](address);
             return;
@@ -858,10 +795,8 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             );
             return;
         }
-        // Every remaining kind cannot append at all — `none` by declaration,
-        // `single` and `indexed` because they address a slot or an index rather
-        // than an end. `uncurated` is handled above, by name, so this arm never
-        // silently swallows it.
+        // Every remaining kind cannot append at all — `none` by declaration, `single` and
+        // `indexed` because they address a slot or an index rather than an end.
         default:
             throw err.unclaimedChild(parent.descriptor.gtype, child.descriptor.gtype);
     }
@@ -897,38 +832,36 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
 
     switch (policy.kind) {
         case 'none':
-        // A child can never have been placed into either, so there is nothing to
-        // take out — and reaching here at all means an insert was refused, which
-        // already threw by name.
+        // A child can never have been placed into either, so there is nothing to take
+        // out — and reaching here at all means an insert was refused, which already threw by
+        // name.
         case 'uncurated':
             return;
         case 'single':
             clearIfCurrent(host, policy.set, address);
             return;
         case 'slotted': {
-            // A setter-backed slot (`set_content`, `set_title_widget`) holds ONE
-            // child and has the same hazard as `single`: the insert-then-unmount
-            // order Solid and React use would clear a slot that already holds the
-            // replacement.
+            // A setter-backed slot (`set_content`, `set_title_widget`) holds ONE child and has
+            // the same hazard as `single`: the insert-then-unmount order Solid and React use
+            // would clear a slot that already holds the replacement.
             const setter = setterSlotOf(parent, child);
             if (setter) {
                 clearIfCurrent(host, setter, address);
                 return;
             }
-            // Adder-backed, so only a remove method can take the child out.
-            // `policyProblems()` rejects a descriptor that reaches here without
-            // one; an application-registered descriptor is checked by nobody, so
-            // the refusal is named rather than left as a TypeError on undefined.
+            // Adder-backed, so only a remove method can take the child out. An
+            // application-registered descriptor is checked by nobody, so the refusal is named
+            // rather than left as a TypeError on undefined.
             const slot = slottedSlot(policy, child.slot, parent.descriptor.gtype);
             if (!policy.remove) throw err.slotNeedsRemove(parent.descriptor.gtype, slot, policy.slots[slot] ?? '?');
             host[policy.remove](address);
             return;
         }
         case 'keyed': {
-            // Why a widget can need to be hidden before it is removed, and why the
-            // visibility goes back on: the `hideBeforeRemove` docblock in `types.ts`.
-            // A child that is ALREADY hidden needs nothing — libadwaita ran its own
-            // cleanup when it was hidden, which is the very path this borrows.
+            // Why a widget can need to be hidden before it is removed, and why the visibility
+            // goes back on: the `hideBeforeRemove` docblock in `types.ts`. A child that is
+            // ALREADY hidden needs nothing — libadwaita ran its own cleanup when it was
+            // hidden, which is the very path this borrows.
             const restoreVisible = policy.hideBeforeRemove === true && address.get_visible();
             if (restoreVisible) writeVisible(address, false);
             host[policy.remove](address);
@@ -982,25 +915,25 @@ function clearIfCurrent(host: AnyWidget, setter: string, address: Gtk.Widget): v
 }
 
 export function removeChild(parent: HostElement, child: HostElement): void {
-    // BEFORE the two guards below, and both would be wrong for a node the parent
-    // never took. There is nothing of the parent's to call — and `attached` is
-    // false for a portal still waiting for a toplevel, which is exactly the state
-    // whose subscription has to be disconnected.
+    // BEFORE the two guards below, and both would be wrong for a node the parent never
+    // took. There is nothing of the parent's to call — and `attached` is false for a portal
+    // still waiting for a toplevel, which is exactly the state whose subscription has to be
+    // disconnected.
     //
-    // The REVERSIBLE half, because every caller of this function keeps the widget:
-    // `remove` by contract, and `replaceAt`, `materialize`'s rollback and
-    // `rebuild`'s child sweep because each re-attaches the same instance afterwards.
-    // DISCARDING one is a different verb in a different place — `releaseWidget` in
-    // `host.ts`, which owns all three sites that drop `el.widget`.
+    // The REVERSIBLE half, because every caller keeps the widget: `remove` by contract, and
+    // `replaceAt`, `materialize`'s rollback and `rebuild`'s child sweep because each
+    // re-attaches the same instance afterwards. DISCARDING one is a different verb in a
+    // different place — `releaseWidget` in `host.ts`, which owns every site that drops
+    // `el.widget`.
     const outside = outsideParentOf(child.descriptor);
     if (outside) return detachOutsideParent(child, outside);
     const host = parent.widget as unknown as AnyWidget;
     if (!host) return;
-    // Never ask GTK to remove what it never adopted. A node can be linked in the
-    // shadow tree and absent from the GTK one — a bottom-up build, or a placement
-    // that was refused — and removing it then emits `tried to remove non-child`
-    // (a critical, at exit 0) or, where the GI signature is narrow, aborts the
-    // whole teardown so handlers stay connected for the life of the process.
+    // Never ask GTK to remove what it never adopted. A node can be linked in the shadow tree
+    // and absent from the GTK one — a bottom-up build, or a placement that was refused — and
+    // removing it then emits `tried to remove non-child` (a critical, at exit 0) or, where
+    // the GI signature is narrow, aborts the whole teardown so handlers stay connected for
+    // the life of the process.
     if (!child.attached) return;
     detachChild(parent, child, host);
     syncPerLineCap(parent);
@@ -1010,26 +943,21 @@ export function removeChild(parent: HostElement, child: HostElement): void {
  * Keep an `indexed` parent's per-line cap equal to its child count.
  *
  * WHY a cap has to be maintained at all rather than pinned high once is on
- * `ChildPolicy`'s `perLineCap`: GTK measures the cap and not the children, and
- * the cost is quadratic in it.
+ * `ChildPolicy`'s `perLineCap`: GTK measures the cap and not the children, and the cost is
+ * quadratic in it.
  *
- * The walk is O(children) and runs after every insert, so a build of n children is
- * O(n²) in POINTER HOPS. That is the honest cost and it is nanoseconds: MEASURED,
- * 200 inserts into a flow box take 4.97 ms in total, and an insert does not measure
- * at all — it queues a resize. So the trade is not against a measure this saves; it
- * is that a counter kept on the element would be a second source for a number GTK
- * already holds, and this asks the container.
+ * The walk is O(children) and runs after every insert, so a build of n children is O(n²) in
+ * POINTER HOPS. That is the honest cost and it is nanoseconds: MEASURED, 200 inserts into a
+ * flow box take 4.97 ms in total, and an insert does not measure at all — it queues a
+ * resize. The trade is not against a measure this saves; it is that a counter kept on the
+ * element would be a second source for a number GTK already holds.
  *
- * An AUTHORED value is left alone, and one that is later REMOVED is not recovered:
- * the removal puts the class default back and nothing here runs until the next
- * insert or remove. Declared rather than silent — a container given a cap and then
- * relieved of it keeps GTK's 7 until its children change.
+ * An AUTHORED value is left alone, and one that is later REMOVED is not recovered: the
+ * removal puts the class default back and nothing here runs until the next insert or remove.
  *
- * The write is bracketed as the HOST's so a consumer that never wrote this property
- * is not told it changed (measured: four raw `notify::max-children-per-line` over
- * three inserts and a remove, none delivered to a bound handler). `null` as the
- * target rather than the widget only because there is no non-notify consequence to
- * preserve here, which is where this differs from `writeVisible`.
+ * The write is bracketed as the HOST's so a consumer that never wrote this property is not
+ * told it changed. `null` as the target rather than the widget only because there is no
+ * non-notify consequence to preserve here, which is where this differs from `writeVisible`.
  */
 function syncPerLineCap(parent: HostElement): void {
     const policy = parent.descriptor.children;
@@ -1039,16 +967,16 @@ function syncPerLineCap(parent: HostElement): void {
     if (!host) return;
     let children = 0;
     for (let c = host.get_first_child(); c !== null; c = c.get_next_sibling()) children += 1;
-    // BOTH ends are clamped, and the messages below are the ones THIS route produces
-    // — `set_property`, which is rejected at GValue validation before the C setter's
-    // own `assertion 'n_children > 0'` can run. MEASURED on GTK 4.22.4: `0` gives
+    // BOTH ends are clamped, and the messages below are the ones THIS route produces —
+    // `set_property`, which is rejected at GValue validation before the C setter's own
+    // `assertion 'n_children > 0'` can run. MEASURED on GTK 4.22.4: `0` gives
     // `GLib-GObject-CRITICAL: value "0" of type 'gint' is invalid or out of range for
     // property 'max-children-per-line' of type 'guint'`, and the value is kept.
     //
-    // The ceiling is the worse one, because it says NOTHING: 65536 stores 0 — the one
-    // value the line above refuses — 65537 stores 1 and 70000 stores 4464, all at
-    // exit 0. No container has 65536 children; a package whose reason for existing is
-    // refusing exit-0 mis-stores should still not be the one writing them.
+    // The ceiling is the worse one, because it says NOTHING: 65536 stores 0 — the one value
+    // the line above refuses — 65537 stores 1 and 70000 stores 4464, all at exit 0. No
+    // container has 65536 children; a package whose reason for existing is refusing exit-0
+    // mis-stores should still not be the one writing them.
     beginHostWrite(null);
     try {
         host.set_property(policy.perLineCap, Math.min(65535, Math.max(1, children)));
@@ -1067,14 +995,11 @@ export function reorderMode(policy: ChildPolicy): 'native' | 'remove-all' | 'n/a
         case 'indexed':
             return 'native';
         case 'slotted':
-            // Measured: `Adw.HeaderBar.reorder_child_after` is `undefined`, so a
-            // move within an ADDER slot costs a tail rotation. An ALL-SETTER
-            // policy pays nothing at all — every slot holds exactly one child,
-            // `rotateTail` returns before it touches anything, and re-inserting
-            // `Adw.NavigationSplitView`'s two children in the other order leaves
-            // GTK's own `get_sidebar()`/`get_content()` unchanged (measured).
-            // Same answer as `coords`, for the same reason: the slot is data on
-            // the child, so document order carries nothing to pay for.
+            // Measured: `Adw.HeaderBar.reorder_child_after` is `undefined`, so a move within
+            // an ADDER slot costs a tail rotation. An ALL-SETTER policy pays nothing at all —
+            // every slot holds exactly one child, `rotateTail` returns before it touches
+            // anything. Same answer as `coords`, for the same reason: the slot is data on the
+            // child, so document order carries nothing to pay for.
             return adderSlots(policy).length > 0 ? 'remove-all' : 'n/a';
         case 'keyed':
             // Measured: `Gtk.Stack.reorder_child_after` is `undefined` too, so a

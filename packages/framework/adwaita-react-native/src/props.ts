@@ -12,12 +12,9 @@
 // hands the prop straight to the host, so a second spelling here would be a translation
 // table nothing checks.
 //
-// A PROPERTY THIS PACKAGE DOES NOT CARRY IS ABSENT, NEVER PRESENT AND IGNORED. The
-// boxed-list rows have icon-name properties (`AdwButtonRow:start-icon-name`,
-// `AdwActionRow:icon-name`) that name an entry in a GTK ICON THEME, which React Native
-// has no counterpart for and this package ships no renderer for. A prop that reaches one
-// half and evaporates on the other is the divergence the whole package exists to close,
-// so those names are not declared at all and the omissions are listed in the README.
+// A PROPERTY THIS PACKAGE DOES NOT CARRY IS ABSENT, NEVER PRESENT AND IGNORED. A prop that
+// reaches one half and evaporates on the other is the divergence the whole package exists to
+// close, so those names are not declared at all and the omissions are listed in the README.
 
 import type {
     AdwAdjustmentInput,
@@ -38,13 +35,11 @@ import type { ReactNode, Ref } from 'react';
 /**
  * What a widget that HOLDS a child accepts.
  *
- * Not every widget does. `Adw.WindowTitle` is two labels and no child slot; `Adw.Avatar`,
+ * Not every widget does: `Adw.WindowTitle` is two labels and no child slot; `Adw.Avatar`,
  * `Adw.Banner`, `Adw.Spinner` and `Adw.ButtonContent` are leaves; `Adw.ButtonRow` has no
- * child API in libadwaita at all, and `Adw.SwitchRow` and `Adw.EntryRow` fill their one
- * slot themselves. Their prop types deliberately do NOT extend this, so a child written
- * into one is a TYPE error rather than a node `@gjsify/gtk-host` refuses at runtime on one
- * half while React Native renders it on the other. A `children` a widget would have to
- * drop is a hole in the surface, not a convenience.
+ * child API in libadwaita at all. Their prop types deliberately do NOT extend this, so a
+ * child written into one is a TYPE error rather than a node one half renders and the other
+ * refuses.
  */
 export interface AdwWidgetProps {
     children?: ReactNode;
@@ -69,18 +64,15 @@ export interface AdwClampProps extends AdwWidgetProps {
 /**
  * `Adw.HeaderBar` — the start / centre / end bar at the top of a window.
  *
- * THE THREE SLOTS ARE PROPS, NOT CHILDREN, and the names are the GTK host's own slot
- * names (`start`, `end`, `title` — `packages/framework/gtk-host/src/descriptors/adw.ts`),
- * which are `adw_header_bar_pack_start` / `_pack_end` / `:title-widget`. A bare child
- * would have to pick one of them, and `Adw.HeaderBar`'s buildable default picking `start`
- * is a GTK detail no React caller should have to know.
+ * THE THREE SLOTS ARE PROPS, NOT CHILDREN, and the names are the GTK host's own slot names
+ * (`start`, `end`, `title`), which are `adw_header_bar_pack_start` / `_pack_end` /
+ * `:title-widget`. A bare child would have to pick one of them, and the buildable default
+ * picking `start` is a GTK detail no React caller should have to know.
  *
- * PACK ORDER DOES NOT ARISE HERE, and that is the one place this surface is SIMPLER than
- * the imperative API rather than different from it. `adw_header_bar_pack_end` PREPENDS
- * (adw-header-bar.c:1106), so `packEnd(menu); packEnd(search)` draws `search | menu`;
- * `HeaderBarState` in `@gjsify/adwaita-core` stores the end slot in DRAW order for
- * exactly that reason. A prop is already draw order — `end={<><Search /><Menu /></>}` is
- * what it looks like — so there is no order to reverse and no rule to get backwards.
+ * PACK ORDER DOES NOT ARISE HERE, and that is the one place this surface is SIMPLER than the
+ * imperative API rather than different from it. `adw_header_bar_pack_end` PREPENDS, so
+ * `packEnd(menu); packEnd(search)` draws `search | menu`; a prop is already draw order —
+ * `end={<><Search /><Menu /></>}` is what it looks like — so there is no order to reverse.
  */
 export interface AdwHeaderBarProps {
     /**
@@ -95,9 +87,8 @@ export interface AdwHeaderBarProps {
      *
      * A DIVERGENCE FROM LIBADWAITA, and the same one both other renderers carry:
      * `Adw.HeaderBar` has NO `title` property at all. Its derived centre is a plain
-     * `gtk_label_new (NULL)` (`construct_title_label`, adw-header-bar.c:512) over a title
-     * RESOLVED from the navigation page, then the dialog, then the window, then the
-     * application name (`update_title`, :475) — and an app that wants a subtitle sets an
+     * `gtk_label_new (NULL)` over a title RESOLVED from the navigation page, then the dialog,
+     * then the window, then the application name — and an app that wants a subtitle sets an
      * `AdwWindowTitle` as its title widget. A declarative surface wants the attribute, so
      * authoring one installs an {@link AdwWindowTitleProps} centre; it is recorded as
      * `HeaderBarRenderState.derivedSubtitle` in `@gjsify/adwaita-core`.
@@ -117,10 +108,8 @@ export interface AdwStatusPageProps extends AdwWidgetProps {
      * `icon-name` — the symbolic icon above the title.
      *
      * CARRIED ON BOTH HALVES AND DRAWN ONLY ON GTK. An icon NAME needs an icon theme to
-     * resolve it, and React Native has none — the same wall `@gjsify/adwaita-nativescript`
-     * hit, which took an SVG string instead. The README names it; `status-page.native.spec.tsx`
-     * pins that the tree has no icon node, so the day one appears is a decision and not a
-     * drift.
+     * resolve it, and React Native has none. The README names it; `status-page.native.spec.tsx`
+     * pins that the tree has no icon node.
      */
     iconName?: string;
     /** `title` — the bold line. An empty title takes no space (`string_is_not_empty`). */
@@ -203,19 +192,18 @@ export interface AdwWrapBoxProps extends AdwWidgetProps {
  * `Adw.Avatar` — a round avatar showing initials derived from a name, or a
  * fallback icon.
  *
- * `size` IS REQUIRED, and that is the one place this file departs from "libadwaita's
- * defaults are the defaults". `AdwAvatar:size`'s GParamSpec default is the `-1`
- * sentinel meaning "take the size from the stylesheet", and a renderer with no
- * stylesheet cannot honour a stylesheet value. Measured against libadwaita 1.9.3, that
- * path is degenerate on GTK too: a default-constructed avatar measures 20 wide and 18
- * tall — not even square — and raises one `Pango-CRITICAL` from `update_font_size`,
- * because the font cap for a negative size is negative. Reproducing that is not a goal
- * and inventing a number behind the caller's back is how the two halves come to
+ * `size` IS REQUIRED, and that is the one place this file departs from "libadwaita's defaults
+ * are the defaults". `AdwAvatar:size`'s GParamSpec default is the `-1` sentinel meaning "take
+ * the size from the stylesheet", and a renderer with no stylesheet cannot honour a stylesheet
+ * value. Measured on libadwaita 1.9.3, that path is degenerate on GTK too: a
+ * default-constructed avatar measures 20 wide and 18 tall — not even square — and raises one
+ * `Pango-CRITICAL` from `update_font_size`, because the font cap for a negative size is
+ * negative. Inventing a number behind the caller's back is how the two halves come to
  * disagree, so the caller says.
  *
- * `custom-image` IS ABSENT. It is a `GdkPaintable` on GTK and an image source on React
- * Native — two types with no shared spelling, and this file may import neither. The
- * consequence is that `avatarMode` here only ever answers `'initials'` or `'icon'`.
+ * `custom-image` IS ABSENT: a `GdkPaintable` on GTK and an image source on React Native are
+ * two types with no shared spelling, and this file may import neither. `avatarMode` here
+ * therefore only ever answers `'initials'` or `'icon'`.
  */
 export interface AdwAvatarProps {
     /** `size` — the diameter. Required; see above. */
@@ -233,14 +221,12 @@ export interface AdwAvatarProps {
  * action button.
  *
  * ON `useMarkup`'s DEFAULT, which is measured and not the one written down.
- * `AdwBanner:use-markup`'s GParamSpec declares TRUE (adw-banner.c:422-425) and
- * `@gjsify/adwaita-core`'s `ADW_BANNER_DEFAULTS` records that — but a freshly
- * constructed `Adw.Banner` READS BACK FALSE, measured on libadwaita 1.9.3.
- * `adw_banner_get_use_markup` delegates to `gtk_label_get_use_markup (self->title)`,
- * `adw-banner.ui` never sets `use-markup` on that label, and a pspec default is only
- * applied to properties construction actually writes. So the declared default is never
- * reached. Both halves here answer FALSE for an omitted value, because that is what the
- * widget on the other side of the surface answers.
+ * `AdwBanner:use-markup`'s GParamSpec declares TRUE — the pspec default, which construction
+ * never writes, because `adw_banner_get_use_markup` delegates to
+ * `gtk_label_get_use_markup (self->title)` and `adw-banner.ui` does not set it there. So the
+ * declared default is never reached, and a freshly constructed `Adw.Banner` READS BACK FALSE
+ * (libadwaita 1.9.3). Both halves here answer FALSE for an omitted value, because that is
+ * what the widget on the other side of the surface answers.
  */
 export interface AdwBannerProps {
     /** `title` — the message. Pango markup when {@link useMarkup}. */
@@ -260,17 +246,16 @@ export interface AdwBannerProps {
 /**
  * `Adw.Spinner` — a busy indicator.
  *
- * THE PROPERTIES ARE `GtkWidget`'s, BECAUSE `Adw.Spinner` HAS NONE OF ITS OWN. Its
- * whole `GParamSpec` set is inherited: `adw_spinner_measure` reports `MIN_SIZE` as both
- * the minimum AND the natural size, so the widget never grows on its own and the only
- * way to make one bigger is to ask for a size. Measured on libadwaita 1.9.3: a fresh
- * spinner measures `[16, 16]` and one with `width-request` 200 measures `[200, 200]`.
- * A `size` prop would therefore be a renderer-ism of exactly the kind `maximumSize`
- * exists to avoid — the two other Adwaita renderers each invented one.
+ * THE PROPERTIES ARE `GtkWidget`'s, BECAUSE `Adw.Spinner` HAS NONE OF ITS OWN.
+ * `adw_spinner_measure` reports `MIN_SIZE` as both the minimum AND the natural size, so the
+ * widget never grows on its own and the only way to make one bigger is to ask for a size.
+ * Measured on libadwaita 1.9.3: a fresh spinner measures `[16, 16]` and one with
+ * `width-request` 200 measures `[200, 200]`. A `size` prop would be a renderer-ism of exactly
+ * the kind `maximumSize` exists to avoid — the two other Adwaita renderers each invented one.
  *
- * The BOX and the RING are different numbers, and only the box is a property: the ring
- * is `spinnerGeometry`'s, capped at 64 and centred on the box, so a 200-point request
- * occupies 200 points of layout around a 64-point ring.
+ * The BOX and the RING are different numbers, and only the box is a property: the ring is
+ * `spinnerGeometry`'s, capped at 64 and centred on the box, so a 200-point request occupies
+ * 200 points of layout around a 64-point ring.
  */
 export interface AdwSpinnerProps {
     /** `width-request` — the box width. Unset (or `-1`) is libadwaita's natural 16. */
@@ -294,16 +279,13 @@ export interface AdwButtonContentProps {
 /**
  * What a caller does to an {@link AdwToastOverlayProps} through its `ref`.
  *
- * A TOAST IS PUSHED, NEVER DECLARED, and that is libadwaita's shape rather than a
- * React convenience: `adw_toast_overlay_add_toast` is a call, the overlay owns the
- * queue, and nothing about "which toast is on screen" is a property a caller writes.
- * Modelling it as a `toasts={[…]}` array would put the ordering in the caller's hands
- * on one half and in libadwaita's on the other.
+ * A TOAST IS PUSHED, NEVER DECLARED, and that is libadwaita's shape rather than a React
+ * convenience: the overlay owns the queue, and nothing about "which toast is on screen" is a
+ * property a caller writes. Modelling it as a `toasts={[…]}` array would put the ordering in
+ * the caller's hands on one half and in libadwaita's on the other.
  *
- * `dismissAll` and not `dismiss`: `adw_toast_overlay_dismiss_all` is the only dismissal
- * the OVERLAY has. Dismissing just the current toast is `adw_toast_dismiss`, a method on
- * the toast, so an overlay-level `dismiss()` would be a name libadwaita does not have —
- * and `AdwToastQueue.clear()` is the same operation on the other half.
+ * `dismissAll` and not `dismiss`, because `adw_toast_dismiss` is a method on the TOAST — an
+ * overlay-level `dismiss()` would be a name libadwaita does not have.
  */
 export interface AdwToastOverlayHandle {
     /** `add_toast` — show it now if the slot is free, otherwise queue it FIFO. */
@@ -458,19 +440,15 @@ export interface AdwExpanderRowProps extends AdwRowProps, AdwWidgetProps {
 /**
  * `Adw.PreferencesPage` — a scrolling page of {@link AdwPreferencesGroupProps}.
  *
- * FOUR OF THE FIVE PROPERTIES ARE IDENTITY, NOT PAINT, and that is libadwaita's design
- * rather than a thin port: `adw_preferences_dialog_add` binds `title`, `name`, `icon-name`
- * and `use-underline` onto the view-stack page it wraps the page in, and
- * `create_search_row_subtitle` reads the title back when a second page is visible. The page
- * itself draws none of them — a view switcher and the search results do. Both sibling
- * renderers carry them for the same reason and paint them just as little.
+ * FOUR OF THE FIVE PROPERTIES ARE IDENTITY, NOT PAINT: `adw_preferences_dialog_add` binds
+ * `title`, `name`, `icon-name` and `use-underline` onto the view-stack page it wraps the page
+ * in. The page itself draws none of them — a view switcher and the search results do.
  *
- * `description` IS the exception: it is drawn at the top of the page, above the first
- * group, and both halves draw it.
+ * `description` IS the exception: it is drawn at the top of the page, above the first group,
+ * and both halves draw it.
  *
- * `banner` IS ABSENT. `AdwPreferencesPage:banner` takes an `Adw.Banner` INSTANCE — a
- * GObject, not a description of one — and this file may import neither `gi://Adw` nor a
- * React Native module. Same wall, and the same answer, as `AdwAvatarProps`' `custom-image`.
+ * `banner` IS ABSENT: it takes an `Adw.Banner` INSTANCE — a GObject, not a description of one —
+ * and this file may import neither `gi://Adw` nor a React Native module.
  */
 export interface AdwPreferencesPageProps extends AdwWidgetProps {
     /** `title` — shown by a view switcher and by search results, never by the page. */
@@ -485,8 +463,7 @@ export interface AdwPreferencesPageProps extends AdwWidgetProps {
      * ON THE RAW STRING, unlike {@link AdwPreferencesGroupProps}' two labels.
      * `adw_preferences_page_set_description` tests `description && *description` while
      * `update_title_visibility` reads the label's DISPLAYED text, so a pure-markup page
-     * description is visible on GTK where a pure-markup group title is not. Both halves
-     * therefore agree here, and the group's divergence must not be copied onto this one.
+     * description is visible on GTK where a pure-markup group title is not.
      */
     description?: string;
     /** `description-centered` — whether {@link description} is centred. Default false. */
@@ -498,23 +475,19 @@ export interface AdwPreferencesPageProps extends AdwWidgetProps {
 /**
  * `Adw.PreferencesGroup` — a titled card of rows.
  *
- * THE FIVE VISIBILITY ANSWERS COME FROM `derivePreferencesGroupHeader`, on the React Native
- * half, and from libadwaita on the GTK one. They are not `title !== ''`: `header-visible` is
- * a three-way OR, `single-line` is load-bearing for the stylesheet's `min-height: 34px`, and
- * `listbox-visible` reads the RAW child count — `update_listbox_visibility` counts
- * `gtk_widget_observe_children`, not the title-filtered model `get_rows` builds, so a row
- * with an empty title still keeps the card painted.
+ * THE VISIBILITY ANSWERS COME FROM `derivePreferencesGroupHeader` on the React Native half and
+ * from libadwaita on the GTK one. They are not `title !== ''`: `header-visible` is a three-way
+ * OR, and `listbox-visible` reads the RAW child count — `update_listbox_visibility` counts
+ * `gtk_widget_observe_children`, not the title-filtered model `get_rows` builds, so a row with
+ * an empty title still keeps the card painted.
  *
- * `header-suffix` IS ABSENT, and it is a placement question rather than a naming one.
- * `AdwPreferencesGroup:header-suffix` holds a WIDGET, so a React surface has to spell it as
- * a slot — and the group's curated descriptor in `@gjsify/gtk-host` is `ordered`
- * (`add`/`remove`, `remove-all` to reorder), which has no slots at all. Adding one means
- * changing a placement policy other conformance vectors already assert, with its own
- * measurement; it is not something a widget lands on the way past. The README names it.
+ * `header-suffix` IS ABSENT, and it is a placement question rather than a naming one. It holds a
+ * WIDGET, so a React surface has to spell it as a slot — and the group's curated descriptor in
+ * `@gjsify/gtk-host` is `ordered`, which has no slots at all. The README names it.
  *
- * `separate-rows` IS ABSENT for the opposite reason: it is pure card styling, and this
- * package's React Native half draws no theme (see `row-shell.native.tsx`), so the GTK half
- * would honour it and the phone half could only ignore it.
+ * `separate-rows` IS ABSENT for the opposite reason: it is pure card styling, and this package's
+ * React Native half draws no theme, so the GTK half would honour it and the phone half could
+ * only ignore it.
  */
 export interface AdwPreferencesGroupProps extends AdwWidgetProps {
     /** `title` — the card's heading. Hidden when empty, not merely blank. */
@@ -530,33 +503,24 @@ export interface AdwPreferencesGroupProps extends AdwWidgetProps {
  * their derived visibility, which is not `title !== ''`.
  *
  * `model` IS THE LIBADWAITA NAME AND NOT THE LIBADWAITA TYPE, which is the one liberty this
- * surface takes and the reason it can exist at all. `AdwComboRow:model` is a
- * `Gio.ListModel`; a props file that may import neither `gi://Gio` nor `react-native` cannot
- * name that type, and the gallery still refuses the widget — no longer for the value but for
- * the seam (`adwaita-gallery-trees.mjs`: "its model is a Gio.ListModel, and nothing turns
- * the portable list form into one at the ParamSpec seam"). What both halves CAN share is
- * `@gjsify/adwaita-core`'s `AdwListModelInput` — the portable list model (ADR 0046), the
- * item vocabulary `<adw-combo-row>` and `@gjsify/adwaita-nativescript` already accept —
- * so the property keeps libadwaita's name
- * and takes the shared description of a model. The GTK half turns it into the real
- * `Gtk.StringList` it has to be; the React Native half feeds it to `ComboState`.
+ * surface takes. `AdwComboRow:model` is a `Gio.ListModel`, and a props file that may import
+ * neither `gi://Gio` nor `react-native` cannot name that type. What both halves CAN share is
+ * `@gjsify/adwaita-core`'s `AdwListModelInput` — the portable list model (ADR 0046) — so the
+ * property keeps libadwaita's name and takes the shared description of a model. The GTK half
+ * turns it into the real `Gtk.StringList` it has to be.
  *
  * `onNotifySelected` REPORTS A USER PICK ON BOTH HALVES AND A PROGRAMMATIC ONE ON ONE, which
- * is a NAMED DIVERGENCE and not the agreement this paragraph used to claim. `ComboState` tags
- * its changes `interactive` and the React Native half deliberately does not gate on it, so a
- * `selected` the consumer authored comes back there. The GTK half cannot: gtk-host suppresses
- * a `notify::` raised inside its OWN property write (`inHostWrite()` in its `signals.ts`), and
- * writing the `selected` prop IS that write. MEASURED on libadwaita 1.9.3 — a re-render from
- * `selected={0}` to `selected={2}` moves the widget and calls NOTHING, while `row.selected = 1`
- * from outside React calls it. Benign for the ordinary controlled pattern, where the consumer
- * made the change and already knows; not benign as a claim, because "fires on every change"
- * sends a reader looking for a callback that never arrives. Same rule, same reason and the
- * same README entry as `onNotifyVisibleChild`. A consumer that wants user picks only compares
- * against the value it authored.
+ * is a NAMED DIVERGENCE. `ComboState` tags its changes `interactive` and the React Native half
+ * deliberately does not gate on it, so a `selected` the consumer authored comes back there.
+ * The GTK half cannot: gtk-host suppresses a `notify::` raised inside its OWN property write,
+ * and writing the `selected` prop IS that write. MEASURED on libadwaita 1.9.3 — a re-render
+ * from `selected={0}` to `selected={2}` moves the widget and calls NOTHING, while
+ * `row.selected = 1` from outside React calls it. A consumer that wants user picks only
+ * compares against the value it authored.
  *
  * `expression`, `factory`, `list-factory`, `header-factory`, `enable-search` and
- * `search-match-mode` are all absent, and all for the `model` reason one step further: each
- * is a `Gtk.*` instance. Neither sibling renderer has them either.
+ * `search-match-mode` are absent, each being a `Gtk.*` instance. Neither sibling renderer has
+ * them either.
  */
 export interface AdwComboRowProps extends AdwRowProps {
     /** `model` — the selectable items. See above on the type. */
@@ -568,11 +532,11 @@ export interface AdwComboRowProps extends AdwRowProps {
      *
      * REPLACES, not "appears twice": `adw-combo-row.ui` binds the inline value view's `visible`
      * to this property with `sync-create|invert-boolean`, so the value is drawn in the subtitle
-     * OR in the trailing slot and never in both. Both halves are held to that.
+     * OR in the trailing slot and never in both.
      *
-     * WHEN the subtitle picks the value up is a NAMED DIVERGENCE, in the README: this surface
-     * publishes it at once, libadwaita on the next selection change. Measured — the setter calls
-     * `selection_changed`, and the subtitle is written by `selection_item_changed`.
+     * WHEN the subtitle picks the value up is a NAMED DIVERGENCE: this surface publishes it at
+     * once, libadwaita on the next selection change — the setter calls `selection_changed`, and
+     * the subtitle is written by `selection_item_changed`.
      */
     useSubtitle?: boolean;
     /** `notify::selected` — the selected position moved. */
@@ -589,20 +553,13 @@ export interface AdwComboRowProps extends AdwRowProps {
  * of it, `@gjsify/adwaita-core`'s {@link AdwAdjustmentInput} (ADR 0047), which is the value
  * all four surfaces take under this one key.
  *
- * IT USED TO BE THREE SCALARS HERE, hoisted onto the ROW: `lower`, `upper` and
- * `stepIncrement` — the adjustment's own GObject property names, on an object that has
- * none of them. The right vocabulary in the wrong place, and a fourth shape beside the two
- * sibling renderers' `min`/`max`/`step`. All three converged on the one key the row has.
- *
  * `digits` IS A ROW PROPERTY AND NOT AN ADJUSTMENT ONE — `AdwSpinRow:digits`, the number of
  * decimal places DISPLAYED. It is carried because it is the only one of the row's own
- * properties both halves can honour: the core has no `digits`, so the React Native half
- * formats with it directly and the GTK half hands it to the real widget.
+ * properties both halves can honour: the core has no `digits`, so the React Native half formats
+ * with it directly and the GTK half hands it to the real widget.
  *
- * `climb-rate`, `snap-to-ticks`, `numeric`, `update-policy` and `wrap` are absent: each
- * needs an editable text entry or a key-repeat timer that the React Native half does not
- * have, so carrying them would mean a property GTK honours and the phone ignores. Neither
- * sibling renderer has them either.
+ * `climb-rate`, `snap-to-ticks`, `numeric`, `update-policy` and `wrap` are absent: each needs
+ * an editable text entry or a key-repeat timer the React Native half does not have.
  */
 export interface AdwSpinRowProps extends AdwRowProps {
     /** `value` — the current number, clamped into the {@link adjustment}'s range. Default 0. */
@@ -611,10 +568,8 @@ export interface AdwSpinRowProps extends AdwRowProps {
      * `adjustment` — the range this row steps through, as `@gjsify/adwaita-core`'s portable
      * {@link AdwAdjustmentInput} (ADR 0047).
      *
-     * It used to be three flat props here (`lower`, `upper`, `stepIncrement`), which were
-     * `Gtk.Adjustment`'s own field names hoisted onto the ROW — the right vocabulary in the
-     * wrong place, since `Adw.SpinRow` has no such properties. Unwritten fields take
-     * `ADW_ADJUSTMENT_DEFAULTS`, so `adjustment={{ upper: 20 }}` is 0…20 step 1.
+     * Unwritten fields take `ADW_ADJUSTMENT_DEFAULTS`, so `adjustment={{ upper: 20 }}` is 0…20
+     * step 1.
      */
     adjustment?: AdwAdjustmentInput;
     /** `digits` — decimal places DISPLAYED. Default 0. */
@@ -633,50 +588,37 @@ export interface AdwSpinRowProps extends AdwRowProps {
  * `Adw.PasswordEntryRow` — an entry row whose contents are masked, with a peek button.
  *
  * IT DECLARES NO PROPERTIES OF ITS OWN, and that is measured rather than assumed:
- * `AdwPasswordEntryRowProps` in `@gjsify/gtk-host`'s generated table is an EMPTY interface
- * over `AdwEntryRowProps`. Everything the subclass adds is behaviour — the mask, the peek
- * toggle installed through `add_suffix`, and the caps-lock indicator driven through the
- * private `adw_entry_row_set_show_indicator` hook. So this surface is `Adw.EntryRow`'s, and
- * `@gjsify/adwaita-core`'s `PasswordEntryRowState` composes an `EntryRowState` for the same
- * reason the C subclasses rather than copies.
+ * `AdwPasswordEntryRowProps` in `@gjsify/gtk-host`'s generated table is an EMPTY interface over
+ * `AdwEntryRowProps`. Everything the subclass adds is behaviour — the mask, the peek toggle, and
+ * the caps-lock indicator.
  *
- * WHICH IS WHY IT EXTENDS RATHER THAN RESTATES {@link AdwEntryRowProps}. The two carried the
- * same eight members written out twice, and a second copy of a prop surface is the shape that
- * drifts silently: a member added to the entry row would simply not reach this one, and
+ * WHICH IS WHY IT EXTENDS RATHER THAN RESTATES {@link AdwEntryRowProps}. A second copy of a prop
+ * surface drifts silently: a member added to the entry row would simply not reach this one, and
  * `parity.spec.ts` compares each widget against its OWN base, so nothing would notice.
  *
- * `revealed` IS THEREFORE NOT A PROP, although both sibling renderers publish one. It is not
- * a libadwaita property, the peek state is private to the widget, and a prop would be the
- * one place this file invents a name. The button owns it on both halves.
- *
- * `activates-default`, `enable-emoji-completion`, `input-hints`, `input-purpose` and
- * `attributes` are absent — the last two by type, the first by there being no default widget
- * on a phone. Neither sibling renderer has them.
+ * `revealed` IS THEREFORE NOT A PROP, although both sibling renderers publish one. It is not a
+ * libadwaita property, the peek state is private to the widget, and a prop would be the one
+ * place this file invents a name.
  */
 export interface AdwPasswordEntryRowProps extends AdwEntryRowProps {}
 
 // --- The navigation group ---
 //
-// `Adw.NavigationView`, the two split views, `Adw.ViewStack` and `Adw.ViewSwitcher`.
-// What separates them from everything above is that four of the five hold STATE a
-// caller does not own: which page is on top of a stack, which pane a collapsed split
-// view is showing, which page of a stack is selected. On GTK that state is
-// libadwaita's own C; on React Native it is `@gjsify/adwaita-core`'s port of the same
-// machine — `NavigationViewState`, `NavigationSplitViewState`, `OverlaySplitViewState`
-// and `ViewSwitcherState`, the classes `@gjsify/adwaita-web` and
-// `@gjsify/adwaita-nativescript` already run. Neither half re-derives the other's
-// answer, which is the rule `clamp.gtk.tsx` states for `clampAllocate`.
+// `Adw.NavigationView`, the two split views, `Adw.ViewStack` and `Adw.ViewSwitcher`. What
+// separates them is that they hold STATE a caller does not own: which page is on top of a
+// stack, which pane a collapsed split view is showing. On GTK that state is libadwaita's
+// own C; on React Native it is `@gjsify/adwaita-core`'s port of the same machine — the
+// classes `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` already run. Neither half
+// re-derives the other's answer.
 
 /**
  * `Adw.NavigationPage` — one page of an {@link AdwNavigationViewProps}.
  *
  * IT IS A WIDGET IN ITS OWN RIGHT ON GTK AND THAT IS WHY IT IS ONE HERE.
  * `adw_navigation_view_add` takes an `AdwNavigationPage`, not a `GtkWidget`, and so do
- * `adw_navigation_split_view_set_sidebar` / `_set_content` — a `Gtk.Box` handed to any
- * of them is a rejected child. `@gjsify/adwaita-web` exposes it as its own element
- * (`<adw-navigation-page>`) for the same reason; `@gjsify/adwaita-nativescript` does
- * not, because a NativeScript `View` cannot carry the tag and it keeps the tag of
- * record in the core instead.
+ * `adw_navigation_split_view_set_sidebar` / `_set_content` — a `Gtk.Box` handed to any of
+ * them is a rejected child. `@gjsify/adwaita-web` exposes it as its own element for the
+ * same reason.
  */
 export interface AdwNavigationPageProps extends AdwWidgetProps {
     /**
@@ -684,10 +626,9 @@ export interface AdwNavigationPageProps extends AdwWidgetProps {
      *
      * OPTIONAL IN THE TYPE AND EXPECTED IN PRACTICE, measured on libadwaita 1.9.3: a page
      * with no title prints `AdwNavigationPage 0x… is missing a title. To hide a header bar
-     * title, consider using AdwHeaderBar:show-title instead.` — a real GTK diagnostic that
-     * the React Native half has no counterpart for, and one the GTK suite's
-     * `installDiagnosticsGate` fails on. It is not `g_return_if_fail`, so the widget still
-     * works; it is the difference between an omitted title and a deliberate one.
+     * title, consider using AdwHeaderBar:show-title instead.` — a real GTK diagnostic the
+     * React Native half has no counterpart for, and one the GTK suite's `installDiagnosticsGate`
+     * fails on. It is not `g_return_if_fail`, so the widget still works.
      */
     title?: string;
     /**
@@ -717,11 +658,9 @@ export interface AdwNavigationPageProps extends AdwWidgetProps {
  * `custom-image` hits on {@link AdwAvatarProps}. The tag overloads are strings on both
  * halves, and a tag is what makes a page addressable at all, so those are the surface.
  *
- * `visiblePageTag`, `canGoBack` and `backButtonTooltip` are METHODS rather than
- * properties because they are reads of live widget state: `Adw.NavigationView` answers
- * them from its own stack, the React Native half from `NavigationViewState`, and a
- * value snapshotted into an object at `useImperativeHandle` time would be stale by the
- * first push.
+ * `visiblePageTag`, `canGoBack` and `backButtonTooltip` are METHODS rather than properties
+ * because they are reads of LIVE widget state: a value snapshotted into an object at
+ * `useImperativeHandle` time would be stale by the first push.
  */
 export interface AdwNavigationViewHandle {
     /**
@@ -763,11 +702,10 @@ export interface AdwNavigationViewProps extends AdwWidgetProps {
     /**
      * `animate-transitions` — whether a push or a pop slides. Default true.
      *
-     * CARRIED ON BOTH HALVES AND ANIMATED ONLY ON GTK, which is the same shape
-     * `@gjsify/adwaita-nativescript` records ("kept for API parity"): this package has
-     * no animation layer, so the swap is instant on React Native either way. The value
-     * still reaches `NavigationViewState`, whose `finishTransition()` seam is what a
-     * renderer with no animation settles immediately.
+     * CARRIED ON BOTH HALVES AND ANIMATED ONLY ON GTK: this package has no animation
+     * layer, so the swap is instant on React Native either way. The value still reaches
+     * `NavigationViewState`, whose `finishTransition()` seam is what a renderer with no
+     * animation settles immediately.
      */
     animateTransitions?: boolean;
     /**
@@ -784,12 +722,11 @@ export interface AdwNavigationViewProps extends AdwWidgetProps {
 /**
  * The four sizing properties both split views share, under libadwaita's own names.
  *
- * They come as a QUARTET and not a single width because that is what the widgets are:
- * a FRACTION of the view, clamped between a minimum and a maximum, with the two bounds
- * written in a scale-aware unit. `@gjsify/adwaita-core` resolves them —
- * `resolveSidebarBounds` then `resolveNavigationSidebarWidth` /
- * `resolveOverlaySidebarWidth`, which answer the SAME input differently and both
- * halves of this package run.
+ * They come as a QUARTET and not a single width because that is what the widgets are: a
+ * FRACTION of the view, clamped between a minimum and a maximum, with the two bounds written
+ * in a scale-aware unit. `@gjsify/adwaita-core` resolves them — `resolveSidebarBounds` then
+ * `resolveNavigationSidebarWidth` / `resolveOverlaySidebarWidth`, which answer the SAME
+ * input differently and both halves of this package run.
  */
 export interface AdwSidebarWidthProps {
     /** `min-sidebar-width`, in {@link sidebarWidthUnit}. Default 180. */
@@ -811,13 +748,10 @@ export interface AdwSidebarWidthProps {
  * by a `slot` prop on the CHILD, which a `ReactNode` handed in as a prop has nothing
  * to carry.
  *
- * BOTH PANES ARE WRAPPED IN AN `Adw.NavigationPage` ON GTK, and that is not a
- * convenience: `adw_navigation_split_view_set_sidebar` takes an `AdwNavigationPage`,
- * so an unwrapped `Gtk.Box` is a rejected child. Hence the four `sidebar*` /
- * `content*` page properties below — the tag pair is what
- * `@gjsify/adwaita-nativescript` calls `sidebarTag`/`contentTag` for exactly this
- * reason ("a `View` is not an `Adw.NavigationPage`"), and `@gjsify/adwaita-web` reads
- * the same `tag` off its slotted pane.
+ * BOTH PANES ARE WRAPPED IN AN `Adw.NavigationPage` ON GTK, and that is not a convenience:
+ * `adw_navigation_split_view_set_sidebar` takes an `AdwNavigationPage`, so an unwrapped
+ * `Gtk.Box` is a rejected child. Hence the four `sidebar*` / `content*` page properties
+ * below.
  */
 export interface AdwNavigationSplitViewProps extends AdwWidgetProps, AdwSidebarWidthProps {
     /** `sidebar` — the sidebar pane's content. */
@@ -835,10 +769,10 @@ export interface AdwNavigationSplitViewProps extends AdwWidgetProps, AdwSidebarW
     /**
      * `show-content` — which pane a COLLAPSED view shows. Default false (the sidebar).
      *
-     * It is not the whole answer, which is the widget's entire point: a LONE child
-     * stays visible whatever this says, and with `sidebar-position: end` the CONTENT is
-     * the root page. That ordering table is `resolveNavigationStack` in the core, and
-     * both halves read `visiblePane` out of it rather than this flag.
+     * It is not the whole answer, which is the widget's entire point: a LONE child stays visible
+     * whatever this says, and with `sidebar-position: end` the CONTENT is the root page. That
+     * ordering table is `resolveNavigationStack` in the core, and both halves read
+     * `visiblePane` out of it rather than this flag.
      */
     showContent?: boolean;
     /** `sidebar-position` — which side the sidebar is packed on. Default `start`. */
@@ -881,13 +815,9 @@ export interface AdwOverlaySplitViewProps extends AdwWidgetProps, AdwSidebarWidt
 /**
  * One page of an {@link AdwViewStackProps}.
  *
- * IT IS A PROP OBJECT AND NOT A WIDGET, because `Adw.ViewStackPage` is not one: it is
- * a GObject the stack hands back from `adw_view_stack_get_page (child)`, so it can be
- * neither a JSX child nor a `slot`. Both other renderers reach the same shape from the
- * other direction — `@gjsify/adwaita-web` consumes its `<adw-view-stack-page>`
- * children into descriptors at connect, `@gjsify/adwaita-nativescript` takes
- * `add(content, name, title, icon)` — and `@gjsify/adwaita-core`'s
- * `AdwViewStackPageSpec` is the record both already build.
+ * IT IS A PROP OBJECT AND NOT A WIDGET, because `Adw.ViewStackPage` is not one: it is a
+ * GObject the stack hands back from `adw_view_stack_get_page (child)`, so it can be neither
+ * a JSX child nor a `slot`.
  */
 export interface AdwViewStackPageProps {
     /** `name` — the page's identity, and what `visible-child-name` selects. */
@@ -913,9 +843,8 @@ export interface AdwViewStackPageProps {
  *
  * `visibleChildName` is AUTHORED, not owned: an absent one leaves the stack on its own
  * auto-pick (`adw_view_stack_add` selects the first VISIBLE page and notifies), and an
- * unknown name is REFUSED rather than clamped — `adw_view_stack_set_visible_child_name`
- * warns and leaves the selection alone. Both rules are `ViewStackState`'s, which is
- * what `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` run too.
+ * unknown name is REFUSED rather than clamped — `adw_view_stack_set_visible_child_name` warns
+ * and leaves the selection alone. Both rules are `ViewStackState`'s.
  */
 export interface AdwViewStackProps {
     /** The pages, in `add` order. */
@@ -925,14 +854,12 @@ export interface AdwViewStackProps {
     /**
      * `notify::visible-child` — the name the stack settled on.
      *
-     * WHAT REACHES IT IS NOT THE SAME SET ON THE TWO HALVES, measured. A press on the
-     * switcher reaches both. A change the CALLER made through {@link visibleChildName}
-     * reaches the React Native half only, because gtk-host drops the notify raised
-     * inside its own property write — the rule {@link AdwExpanderRowProps.onNotifyExpanded}
-     * records. And the mount AUTO-PICK reaches neither: libadwaita notifies it from
-     * inside `adw_view_stack_add_titled`, before React has committed the `ref` the name
-     * would be read off, and the core's own auto-pick lands before the subscription
-     * exists. The README carries the table.
+     * WHAT REACHES IT IS NOT THE SAME SET ON THE TWO HALVES, measured. A press on the switcher
+     * reaches both. A change the CALLER made through {@link visibleChildName} reaches the React
+     * Native half only, because gtk-host drops the notify raised inside its own property
+     * write. And the mount AUTO-PICK reaches neither: libadwaita notifies it from inside
+     * `adw_view_stack_add_titled`, before React has committed the `ref` the name would be read
+     * off. The README carries the table.
      */
     onNotifyVisibleChild?: (name: string) => void;
 }
@@ -940,14 +867,11 @@ export interface AdwViewStackProps {
 /**
  * `Adw.ViewSwitcher` — a row of buttons over an {@link AdwViewStackProps}.
  *
- * IT BUNDLES THE STACK LIBADWAITA KEEPS SEPARATE, and so do both other renderers.
- * `Adw.ViewSwitcher:stack` is a WIDGET-valued property — the switcher points at an
- * `Adw.ViewStack` somewhere else in the tree — and a React prop cannot hold a widget
- * that does not exist yet on the half where widgets exist at all. So the switcher owns
- * its pages here, exactly as `<adw-view-switcher>` and NativeScript's
- * `AdwViewSwitcherBase` do; on GTK it still builds a real `Adw.ViewStack` and hands it
- * to a real `Adw.ViewSwitcher` through that property, so nothing about the widget is
- * simulated.
+ * IT BUNDLES THE STACK LIBADWAITA KEEPS SEPARATE. `Adw.ViewSwitcher:stack` is a
+ * WIDGET-valued property, and a React prop cannot hold a widget that does not exist yet on the
+ * half where widgets exist at all. So the switcher owns its pages here; on GTK it still builds
+ * a real `Adw.ViewStack` and hands it to a real `Adw.ViewSwitcher` through that property, so
+ * nothing about the widget is simulated.
  */
 export interface AdwViewSwitcherProps extends AdwViewStackProps {
     /** `policy` — `narrow` stacks icon over label, `wide` puts them side by side. Default `narrow`. */

@@ -1,8 +1,7 @@
-// The element model UI-framework renderers bind to.
-//
-// Every framework renderer contract (Vue `RendererOptions`, React `HostConfig`,
-// Solid `solid-js/universal`, the Svelte custom-renderer PR) reduces to the same
-// small set of operations over a node tree. This file describes that tree.
+// The element model UI-framework renderers bind to: one small operation set over a
+// node tree, which every renderer contract (Vue `RendererOptions`, React
+// `HostConfig`, Solid `solid-js/universal`, the Svelte custom-renderer PR) reduces
+// to.
 //
 // The tree is a SHADOW tree, deliberately: `parent`/`first`/`next` are our own
 // links, never `Gtk.Widget.get_parent()`/`get_first_child()`. Text nodes and
@@ -29,11 +28,7 @@ export interface HostText extends HostNodeBase {
     data: string;
 }
 
-/**
- * A position marker. Vue's `createComment` and Svelte's comment markers land here.
- * An anchor NEVER enters the GTK tree; `insert` resolves forward past it to the
- * next node that actually owns a widget.
- */
+/** A position marker. Vue's `createComment` and Svelte's comment markers land here. */
 export interface HostAnchor extends HostNodeBase {
     readonly kind: 'anchor';
     data: string;
@@ -53,9 +48,9 @@ export interface HostElement extends HostNodeBase {
     /**
      * signal name -> the one native handler, and the prop that owns it.
      *
-     * One handler per signal name, ever. The owner is recorded because two props
-     * can resolve to the same signal (`onClicked` and `on:clicked`), and the
-     * second used to disconnect the first without saying so.
+     * One handler per signal name, ever. The owner is recorded because two props can
+     * resolve to the same signal (`onClicked` and `on:clicked`), and the second used
+     * to disconnect the first without saying so.
      */
     handlers: Map<string, { id: number; prop: string }>;
     /** Authored property values, kebab-normalised. Kept after materialisation so a
@@ -68,10 +63,10 @@ export interface HostElement extends HostNodeBase {
     /**
      * The authored ARIA object, or null — the accessibility GTK holds for this widget.
      *
-     * A field of its own and NOT a key in `props`, for the reason `layout` is one: `props`
-     * is replayed into `g_object_new` by `materialize`, and none of these names is a
-     * construct property. It is the LAST authored value, so a patch can compute which
-     * slots the new object no longer sets and reset exactly those.
+     * A field of its own and NOT a key in `props`, because `props` is replayed into
+     * `g_object_new` by `materialize` and none of these names is a construct property. It is
+     * the LAST authored value, so a patch can compute which slots the new object no longer
+     * sets and reset exactly those.
      */
     accessibility: Record<string, unknown> | null;
     /** True once text CHILDREN wrote the sink, so removing the last one clears it
@@ -80,11 +75,10 @@ export interface HostElement extends HostNodeBase {
     /**
      * True while this element is actually IN its parent's GTK tree.
      *
-     * Owning a widget is not the same thing: every framework builds bottom-up,
-     * so a subtree is materialised long before it is inserted. Deriving "is my
-     * sibling in the tree" from `widget !== null` made the remove-all policy
-     * detach non-children and re-add already-parented ones — two Adwaita
-     * criticals per replay, at exit 0.
+     * Owning a widget is not the same thing: every framework builds bottom-up, so a subtree
+     * is materialised long before it is inserted. Deriving "is my sibling in the tree" from
+     * `widget !== null` made the remove-all policy detach non-children and re-add
+     * already-parented ones — two Adwaita criticals per replay, at exit 0.
      */
     attached: boolean;
     /** True once `destroy` has torn this element down. It never comes back. */
@@ -92,19 +86,18 @@ export interface HostElement extends HostNodeBase {
     /**
      * Children this element already had before the host adopted it.
      *
-     * Only an ADOPTED root has any: a renderer mounts into a container the
-     * application built, and those children are in the GTK tree while being absent
-     * from the shadow tree. Placement offsets past them, or the first insertion
-     * computes "first" and the whole rendered tree lands ABOVE the app's own chrome.
+     * Only an ADOPTED root has any: a renderer mounts into a container the application built,
+     * and those children are in the GTK tree while being absent from the shadow tree.
+     * Placement offsets past them, or the first insertion computes "first" and the whole
+     * rendered tree lands ABOVE the app's own chrome.
      */
     foreign: readonly Gtk.Widget[];
     /**
      * A PORTAL node's subscription to its parent's `root`, or null.
      *
-     * Only a `portal` placement ever has one, and it is per-attachment state
-     * exactly like `wrapper` — a side table keyed on the element would be a second
-     * tree that can disagree with this one. See {@link NodePlacement}'s portal arm
-     * for what the subscription is for and what it was measured against.
+     * Only a `portal` placement ever has one, and it is per-attachment state exactly like
+     * `wrapper` — a side table keyed on the element would be a second tree that can disagree
+     * with this one. See {@link NodePlacement}'s portal arm for what the subscription is for.
      */
     portalWatch: { widget: Gtk.Widget; id: number } | null;
 }
@@ -118,36 +111,36 @@ export type HostNode = HostElement | HostText | HostAnchor;
 /**
  * The axis ABOVE `ChildPolicy`, and the two are orthogonal on purpose.
  *
- * `ChildPolicy` answers "how does this parent adopt a child". It presumes the
- * answer to a question nobody had to ask until now: *does this node go into its
- * parent at all?* For every widget in the table it does. For an `Adw.Dialog` it
- * does not, and the difference is not a degradation the parent can absorb —
- * MEASURED on libadwaita 1.9.3 / GTK 4.22.4 / gjs 1.88.1, `box.append(dialog)`
- * with the box ROOTED IN A WINDOW reaches
+ * `ChildPolicy` answers "how does this parent adopt a child". It presumes the answer
+ * to a question nobody had to ask until now: *does this node go into its parent at
+ * all?* For every widget in the table it does. For an `Adw.Dialog` it does not, and
+ * the difference is not a degradation the parent can absorb — MEASURED on libadwaita
+ * 1.9.3 / GTK 4.22.4 / gjs 1.88.1, `box.append(dialog)` with the box ROOTED IN A WINDOW
+ * reaches
  *
  *     Adwaita-ERROR **: Trying to add AdwDialog 0x… to GtkBox 0x…. Use
  *     adw_dialog_present() to show dialogs.
  *
- * which is `g_error()`: SIGABRT, exit 134, a core dump. Not an exception a `try`
- * in the reconciler can catch and not a warning a diagnostics gate can count.
+ * which is `g_error()`: SIGABRT, exit 134, a core dump. Not an exception a `try` in
+ * the reconciler can catch and not a warning a diagnostics gate can count.
  * `adw_dialog_root()` raises it from the ROOT vfunc, which is why a DETACHED box
- * accepts the very same append in silence at exit 0 — re-testing this on a bare
- * box "disproves" it and puts the append back.
+ * accepts the very same append in silence at exit 0 — re-testing this on a bare box
+ * "disproves" it and puts the append back.
  *
- * THE ABORT IS THE LOUD HALF OF A CLASS, and its quiet half arrives through the
- * same door (ADR 0054). MEASURED on the same libraries, one process per case:
+ * THE ABORT IS THE LOUD HALF OF A CLASS, and its quiet half arrives through the same
+ * door (ADR 0054). MEASURED on the same libraries, one process per case:
  * `box.append(new Gtk.Window())` with the box rooted is **exit 0, silent**, and
  * afterwards `win.get_parent()` is the box while `win.get_root()` is the window
  * ITSELF — a `GtkRoot` with a parent, which is a contradiction GTK states nowhere.
- * Presenting that window then draws it as a toplevel AND leaves it in the box's
- * child list, so the container measures and allocates a window. One node kind
- * aborts, its neighbour says nothing; both are the same question answered wrong,
- * so both are answered here.
+ * Presenting that window then draws it as a toplevel AND leaves it in the box's child
+ * list, so the container measures and allocates a window. One node kind aborts, its
+ * neighbour says nothing; both are the same question answered wrong, so both are
+ * answered here.
  *
  * So the descriptor declares the axis, and `policies.ts` is the only reader.
- * `parented` is every other widget and is what an ABSENT `placement` means; the
- * union still cannot be forgotten because there is exactly one normaliser
- * (`placementOf`) and every switch over it ends in `unhandledPlacement`.
+ * `parented` is every other widget and is what an ABSENT `placement` means; the union
+ * still cannot be forgotten because there is exactly one normaliser (`placementOf`)
+ * and every switch over it ends in `unhandledPlacement`.
  */
 export type NodePlacement =
     /**
@@ -167,52 +160,49 @@ export type NodePlacement =
      * Three measurements shape the two method names, all on libadwaita 1.9.3:
      *
      *  - `present` TAKES THE PARENT WIDGET (`adw_dialog_present` arity 1, against
-     *    `gtk_window_present`'s 0). That is what makes this a portal rather than a
-     *    toplevel: the node has a place in the shadow tree and a different place in
-     *    the GTK tree, and the parent is what joins them.
-     *  - `close` IS THE UNCONDITIONAL ONE, `force_close` and not `close`. An
-     *    unmount is not a user request: with `can-close: false` (which is how
-     *    `onRequestClose` is honoured one layer up) `adw_dialog_close()` returns
-     *    FALSE, emits `close-attempt` and LEAVES THE DIALOG ON SCREEN — measured.
-     *    `force_close()` closes it and emits `closed`.
-     *  - AND `force_close` IS SAFE ON A NODE THAT WAS NEVER PRESENTED, where
-     *    `close` is not: measured, `close()` on an unpresented dialog answers
-     *    `Adwaita-CRITICAL **: Trying to close AdwDialog 0x… that's not presented`
-     *    at exit 0, and `force_close()` is silent. So the host needs no
-     *    "is it up?" probe before retracting one.
+     *    `gtk_window_present`'s 0). That is what makes this a portal rather than a toplevel:
+     *    the node has a place in the shadow tree and a different place in the GTK tree, and
+     *    the parent is what joins them.
+     *  - `close` IS THE UNCONDITIONAL ONE, `force_close` and not `close`. An unmount is not
+     *    a user request: with `can-close: false` (how `onRequestClose` is honoured one layer
+     *    up) `adw_dialog_close()` returns FALSE, emits `close-attempt` and LEAVES THE DIALOG
+     *    ON SCREEN — measured. `force_close()` closes it and emits `closed`.
+     *  - `force_close` IS SAFE ON A NODE THAT WAS NEVER PRESENTED, where `close` is not:
+     *    measured, `close()` on an unpresented dialog answers `Adwaita-CRITICAL **: Trying to
+     *    close AdwDialog 0x… that's not presented` at exit 0, and `force_close()` is silent.
+     *    So the host needs no "is it up?" probe before retracting one.
      */
     | { readonly kind: 'portal'; readonly present: string; readonly close: string }
     /**
      * The node IS a root: `present()` / `destroy()`, and no parent anywhere.
      *
-     * WHAT SEPARATES IT FROM A PORTAL IS THE ARITY, and that is a fact about the
-     * two libraries rather than a convention: measured, `adw_dialog_present` takes
-     * 1 argument and `gtk_window_present` takes 0. A portal has two positions in
-     * the tree and the parent is what joins them; a toplevel has ONE, its own, so
-     * there is nothing to present it against. `descriptorProblems()` holds both
-     * arities, so the two arms cannot be swapped by a copy/paste.
+     * WHAT SEPARATES IT FROM A PORTAL IS THE ARITY, and that is a fact about the two
+     * libraries rather than a convention: measured, `adw_dialog_present` takes 1 argument
+     * and `gtk_window_present` takes 0. A portal has two positions in the tree and the
+     * parent is what joins them; a toplevel has ONE, its own, so there is nothing to
+     * present it against. `descriptorProblems()` holds both arities, so the two arms
+     * cannot be swapped by a copy/paste.
      *
-     * MEMBERSHIP IS `Gtk.Root`, measured with `GObject.type_is_a` and not read
-     * from documentation — `GtkWindow` and `AdwApplicationWindow` down to
-     * `GtkPrintUnixDialog`. It is GTK's own word for "this widget is a toplevel",
-     * which is why the generic code asks it instead of forming a second opinion,
-     * and `placement.spec.ts` is where the membership is walked and counted.
+     * MEMBERSHIP IS `Gtk.Root`, measured with `GObject.type_is_a` and not read from
+     * documentation — `GtkWindow` and `AdwApplicationWindow` down to
+     * `GtkPrintUnixDialog`. It is GTK's own word for "this widget is a toplevel", which
+     * is why the generic code asks it instead of forming a second opinion, and
+     * `placement.spec.ts` walks and counts the membership.
      *
-     * `close: 'destroy'` IS THE FORCED ONE, the same choice the portal arm makes
-     * and for the same measured reason. On GTK 4.22.4: `gtk_window_close()` emits
-     * `close-request`, and a handler returning TRUE leaves the window mapped and
-     * visible — which is exactly how an application vetoes a user's close. An
-     * unmount is not a user request, so the conditional call is the wrong one;
-     * `gtk_window_destroy()` takes it down regardless. Both are silent on a window
-     * that was never presented (measured), so the host needs no "is it up?" probe.
+     * `close: 'destroy'` IS THE FORCED ONE, the same choice the portal arm makes and for
+     * the same measured reason. On GTK 4.22.4: `gtk_window_close()` emits `close-request`,
+     * and a handler returning TRUE leaves the window mapped and visible — exactly how an
+     * application vetoes a user's close. An unmount is not a user request, so the
+     * conditional call is the wrong one; `gtk_window_destroy()` takes it down regardless.
+     * Both are silent on a window that was never presented (measured), so the host needs
+     * no "is it up?" probe.
      *
-     * AND THE FORCED CALL IS TERMINAL HERE, which is where this arm stops being a
-     * copy of the portal one. MEASURED: `present()` after either `close()` or
-     * `destroy()` answers `Gtk-WARNING **: A window is shown after it has been
-     * destroyed. This will leave the window in an inconsistent state.` — GTK4's
-     * default `close-request` handler destroys the window, so `close()` is a
-     * conditional destroy rather than a hide. A retracted toplevel is therefore
-     * gone for good, and a re-mount is a fresh widget (which is what `rebuild`
+     * AND THE FORCED CALL IS TERMINAL HERE, which is where this arm stops being a copy of
+     * the portal one. MEASURED: `present()` after either `close()` or `destroy()` answers
+     * `Gtk-WARNING **: A window is shown after it has been destroyed. This will leave the
+     * window in an inconsistent state.` — GTK4's default `close-request` handler destroys
+     * the window, so `close()` is a conditional destroy rather than a hide. A retracted
+     * toplevel is gone for good, and a re-mount is a fresh widget (which is what `rebuild`
      * already does for a construct-only write).
      */
     | { readonly kind: 'toplevel'; readonly present: string; readonly close: string };

@@ -1,9 +1,6 @@
-// The host operations every framework adapter binds to.
-//
-// Fourteen ops and four navigators. That number is the union of four renderer
-// contracts, not a guess: Vue's `RendererOptions` (10 + 4 optional), Solid's
-// `solid-js/universal` (10, all required), React's `HostConfig` mutation mode,
-// and the Svelte custom-renderer PR's 19 attribute-shaped methods. Anything an
+// The host operations every framework adapter binds to: the union of four renderer
+// contracts — Vue's `RendererOptions`, Solid's `solid-js/universal`, React's `HostConfig`
+// mutation mode, the Svelte custom-renderer PR's attribute-shaped methods. Anything an
 // adapter needs beyond these is that framework's own tax and lives in its file.
 
 import GObject from 'gi://GObject?version=2.0';
@@ -98,17 +95,15 @@ export const isText = (node: HostNode): node is HostText => node.kind === 'text'
 /**
  * Drop the host's reference to a widget — and CLOSE it first if nobody else holds it.
  *
- * THE THREE PLACES THAT DISCARD `el.widget` ARE THE WHOLE POPULATION, and the rule
- * is the same in all three: a parented widget is held by its parent and dies with
- * it, while a non-parented one is held by GTK itself. Measured, a `Gtk.Window` is in
- * `Gtk.Window.list_toplevels()` from CONSTRUCTION — before any `present()` — and
- * leaves it only on `destroy()`; dropping the JS reference and collecting does not
- * remove it, because GTK holds its own. So a discard without a close is a window
- * nothing can ever reach again.
+ * The three places that discard `el.widget` are the whole population, and the rule is the
+ * same in all three: a parented widget is held by its parent and dies with it, while a
+ * non-parented one is held by GTK itself. Measured, a `Gtk.Window` is in
+ * `Gtk.Window.list_toplevels()` from CONSTRUCTION — before any `present()` — and leaves it
+ * only on `destroy()`; dropping the JS reference and collecting does not remove it, because
+ * GTK holds its own. So a discard without a close is a window nothing can ever reach again.
  *
- * `detachOutsideParent` is deliberately NOT what runs here: that verb is the
- * reversible one `remove` promises, and there is nothing left to reverse into once
- * the reference is gone.
+ * `detachOutsideParent` is deliberately NOT what runs here: that verb is the reversible one
+ * `remove` promises, and there is nothing left to reverse into once the reference is gone.
  */
 function releaseWidget(el: HostElement): void {
     const outside = el.widget ? outsideParentOf(el.descriptor) : null;
@@ -148,18 +143,18 @@ export function materialize(el: HostElement): GObject.Object {
     }
 
     // The replay below can be rejected — a bad signal name, a child this container
-    // refuses. `el.widget` is already published because `attach` needs it, so a
-    // throw has to UNDO the publication: line one of this function returns early
-    // on a set widget, which would otherwise freeze a half-built element for the
-    // life of the process and make every later repair a silent no-op.
+    // refuses. `el.widget` is already published because `attach` needs it, so a throw has
+    // to UNDO the publication: line one of this function returns early on a set widget,
+    // which would otherwise freeze a half-built element for the life of the process and
+    // make every later repair a silent no-op.
     try {
         replayInto(el);
     } catch (e) {
-        // `replayInto` binds the listeners BEFORE placing children, so by now the
-        // ledger holds ids on the widget we are about to discard. Handler ids are
-        // per-instance: leaving them would keep the callbacks alive on an orphan
-        // for the life of the process AND make the documented retry disconnect an
-        // id the new instance never issued.
+        // `replayInto` binds the listeners BEFORE placing children, so the ledger already
+        // holds ids on the widget we are about to discard. Handler ids are per-instance:
+        // leaving them would keep the callbacks alive on an orphan for the life of the
+        // process AND make the documented retry disconnect an id the new instance never
+        // issued.
         clearHandlers(el);
         for (const child of childSnapshot(el)) {
             if (child.kind === 'element' && child.attached) {
@@ -167,11 +162,10 @@ export function materialize(el: HostElement): GObject.Object {
                 child.attached = false;
             }
         }
-        // A DISCARD AND NOT A DETACH, which is why it is `releaseWidget` and not the
-        // bare assignment it used to be: the widget on the line above is the one this
-        // function just built, and for a `Gtk.Root` GTK is already holding it. A
-        // half-built `<gtk-dialog>` — one child its uncurated policy refuses is
-        // enough — left a window in `list_toplevels()` that nothing could reach.
+        // A DISCARD AND NOT A DETACH, which is why it is `releaseWidget`: the widget above
+        // is the one this function just built, and for a `Gtk.Root` GTK is already holding
+        // it. A half-built `<gtk-dialog>` — one child its uncurated policy refuses is
+        // enough — otherwise left a window in `list_toplevels()` nothing could reach.
         releaseWidget(el);
         throw e;
     }
@@ -213,14 +207,13 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     if (key === 'slot') return setSlot(el, next as string | null);
     if (key === 'accessibility') return setAccessibility(el, next);
     if (key === 'layout') {
-        // Position data is read at PLACEMENT time only, so a reactive binding that
-        // moves a grid cell or renames a stack page did nothing at all — silently,
-        // which is the one thing this host refuses to do. Re-place it, exactly as
-        // a slot change does.
+        // Position data is read at PLACEMENT time only, so a reactive binding that moves a
+        // grid cell or renames a stack page did nothing at all — silently, which is the
+        // one thing this host refuses to do. Re-place it, exactly as a slot change does.
         //
-        // The guard is `parent && widget`, NOT `attached`: guarding on `attached`
-        // made a refused layout write disable its own recovery, so the write that
-        // FIXED the value returned normally and changed nothing, for ever.
+        // The guard is `parent && widget`, NOT `attached`: guarding on `attached` made a
+        // refused layout write disable its own recovery, so the write that FIXED the value
+        // returned normally and changed nothing, for ever.
         const layout = next as Record<string, unknown> | null;
         const parent = el.parent;
         if (!parent || !el.widget) {
@@ -243,48 +236,42 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
 
     const name = toPropertyName(key);
 
-    // Validate BEFORE recording. `el.props` is authored intent and it is replayed
-    // verbatim by `materialize`, so a rejected value kept there poisons the next
-    // rebuild: a typo'd property threw once at the call site, then again from
-    // inside `materialize` — during a perfectly valid construct-only write, which
-    // left the widget detached and null. Nothing is written down until the
-    // installed GTK has agreed to it.
+    // Validate BEFORE recording. `el.props` is authored intent and it is replayed verbatim
+    // by `materialize`, so a rejected value kept there poisons the next rebuild: a typo'd
+    // property threw once at the call site, then again from inside `materialize` — during
+    // a perfectly valid construct-only write, which left the widget detached and null.
+    // Nothing is written down until the installed GTK has agreed to it.
     const specs = paramSpecs(requireClass(el.descriptor), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, name);
-    // A renderer removing a prop hands `undefined` OR `null`, and neither is
-    // storable: `set_property(name, undefined)` throws "Could not guess unspecified
-    // GValue type" (measured). What "removed" means is what CONSTRUCTION leaves
-    // behind — see `removedValue`, and the 104 places the ParamSpec disagrees with it.
+    // A renderer removing a prop hands `undefined` OR `null`, and neither is storable:
+    // `set_property(name, undefined)` throws "Could not guess unspecified GValue type"
+    // (measured). What "removed" means is what CONSTRUCTION leaves behind — see
+    // `removedValue` and the places the ParamSpec disagrees with it.
     //
-    // `null` counts, and that is the host's contract rather than a convenience for
-    // one framework. Every OTHER op here already read it that way: `setSlot(el,
-    // null)` is no slot, `layout: null` is no position, and `setEventHandler(el, p,
-    // null)` unbinds. The property path was the single exception, so each adapter
-    // that speaks DOM had to translate — Vue did (`patchProps` passes `null` for
-    // every key that disappeared), React translated only a key that VANISHED and
-    // not an authored `label={null}`, and Solid did not translate at all, which
-    // made `null` reach `set_property` verbatim: a throw for a `gint`, and a null
-    // recorded in `el.props` for the next rebuild to replay. Three adapters, one
-    // rule, two of them wrong.
+    // `null` counts, and that is the host's contract rather than a convenience for one
+    // framework. Every OTHER op here already read it that way: `setSlot(el, null)` is no
+    // slot, `layout: null` is no position, `setEventHandler(el, p, null)` unbinds. Only
+    // the property path made each DOM-speaking adapter translate — Vue did, React
+    // translated a key that VANISHED but not an authored `label={null}`, and Solid not at
+    // all, which made `null` reach `set_property` verbatim: a throw for a `gint`, and a
+    // null recorded in `el.props` for the next rebuild to replay.
     //
-    // Nothing is lost by folding them together: for every property whose GObject
-    // type CAN hold NULL (string, object, boxed) the construction default IS null,
-    // so `removedValue` answers null anyway; for the numeric, enum, flags and
-    // boolean types it cannot, and there `null` had no meaning to preserve.
+    // Nothing is lost by folding them together: for every property whose GObject type CAN
+    // hold NULL (string, object, boxed) the construction default IS null, so `removedValue`
+    // answers null anyway; for the numeric, enum, flags and boolean types it cannot, and
+    // there `null` had no meaning to preserve.
     const removed = next === undefined || next === null;
     const value = removed ? removedValue(el.descriptor, spec) : coerce(spec, next, el.descriptor.gtype);
-    // BEFORE the record, with `requireSpec` above, because this function's own contract
-    // is that nothing is written down until the installed GTK has agreed to it. The
-    // refusal used to live in `writeProperty`, which runs AFTER — so a refused write
-    // left `el.props` holding a value the widget never took, and `materialize` would
-    // replay it.
+    // BEFORE the record, with `requireSpec` above, because this function's own contract is
+    // that nothing is written down until the installed GTK has agreed to it. Asking in
+    // `writeProperty`, which runs AFTER, would leave `el.props` holding a value the widget
+    // never took, and `materialize` would replay it.
     //
-    // SCOPED TO THE BRANCH THAT ASSIGNS, which is narrower than "the accessor route".
-    // A construct-only property returns through `rebuild` below and is never assigned,
-    // and asking about it would have the guard resting on something it does not check:
-    // `accessor in widget` is satisfied for a construct-only property by the plain own
-    // DATA property GJS stamps at construction, not by an accessor. Excluding it here
-    // makes the test mean what its own docblock says.
+    // SCOPED TO THE BRANCH THAT ASSIGNS, which is narrower than "the accessor route". A
+    // construct-only property returns through `rebuild` below and is never assigned, and
+    // asking about it would rest the guard on something it does not check: `accessor in
+    // widget` is satisfied for a construct-only property by the plain own DATA property GJS
+    // stamps at construction, not by an accessor.
     const assigns = el.widget !== null && takesAccessorRoute(value) && !isConstructOnly(spec);
     if (assigns) requireAccessor(el, el.widget as GObject.Object, name);
 
@@ -317,23 +304,20 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
  *   widget.set_css_classes(['a','b'])        works
  *   new Gtk.Box({ cssClasses: ['a','b'] })   works
  *
- * `set_property` builds its GValue by GUESSING a GType from the JS value, and a JS
- * array names none — `GStrv` is boxed, and so is every other list-valued property
- * (`Gtk.Widget:css-classes`, `Gtk.CssProvider`, `Gtk.StringList`). The JS ACCESSOR
- * has the ParamSpec and does not have to guess.
+ * `set_property` builds its GValue by GUESSING a GType from the JS value, and a JS array
+ * names none — `GStrv` is boxed, and so is every other list-valued property
+ * (`Gtk.Widget:css-classes`, `Gtk.CssProvider`, `Gtk.StringList`). The JS ACCESSOR has the
+ * ParamSpec and does not have to guess.
  *
- * WHY NOTHING CAUGHT THIS UNTIL A NON-REACT ADAPTER EXISTED, which is the part worth
- * keeping: the first write of any property happens before the node is materialised,
- * so it is buffered into `el.props` and replayed by CONSTRUCTION — the one path that
- * works. Only a write to an ALREADY MOUNTED widget reaches `set_property`, and
- * changing a class list after mount is exactly what a reconciler does on a
- * `className` change and what a signal does under Solid. Every widget spec in this
- * repository rendered once and asserted, so the throw sat behind the first update
- * nobody performed.
+ * Why nothing caught this until a NON-REACT ADAPTER existed: the first write of any
+ * property happens before the node is materialised, so it is buffered into `el.props` and
+ * replayed by CONSTRUCTION — the one path that works. Only a write to an ALREADY MOUNTED
+ * widget reaches `set_property`, and changing a class list after mount is exactly what a
+ * reconciler does on a `className` change. Every widget spec here rendered once and
+ * asserted, so the throw sat behind the first update nobody performed.
  *
- * `null` TAKES THE SAME ROUTE, and for the same reason one word further: a JS `null`
- * names no GType either. MEASURED on gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3, on
- * both an object and a string property:
+ * `null` TAKES THE SAME ROUTE, one word further: a JS `null` names no GType either.
+ * MEASURED on gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3, on an object and a string prop:
  *
  *     b.set_property('menu-model', null)        CRITICAL: unable to set property
  *                                               'menu-model' of type 'GMenuModel'
@@ -343,17 +327,13 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
  *
  * Both are a GLib-GObject-CRITICAL at exit 0 WITH THE OLD VALUE STILL IN PLACE — the
  * silent mis-store this function exists to refuse, on the one path that reaches it. So
- * REMOVING a nullable property from a MOUNTED widget wrote nothing: `removedValue`
- * answered `null` correctly and the write threw it away. Found by the portable menu
- * model's suite, the first test in this package to remove an OBJECT-valued prop after
- * mount — every earlier one removed a scalar whose construction default is not null.
+ * REMOVING a nullable property from a MOUNTED widget wrote nothing. Found by the portable
+ * menu model's suite, the first test here to remove an OBJECT-valued prop after mount.
  *
- * WHAT THIS DOES NOT FIX, measured on the same versions over the 42 curated GTypes.
- * Those have 1543 writable, non-construct-only property/type pairs; `removedValue`
- * answers `null` for 293 of them, and those 293 are what newly takes this route. TEN
- * emit a CRITICAL — the eight below, plus the two further down that clear anyway — and
- * EIGHT still keep the old value, because `removedValue` hands over the NULL the
- * ParamSpec declares and GTK's own setter refuses it:
+ * WHAT THIS DOES NOT FIX, measured on the same versions over the curated GTypes: of the
+ * writable non-construct-only pairs whose `removedValue` answers `null`, EIGHT still keep
+ * the old value, because `removedValue` hands over the NULL the ParamSpec declares and
+ * GTK's own setter refuses it —
  *
  *     icon-name       GtkButton, GtkToggleButton
  *                     gtk_button_set_icon_name: assertion 'icon_name != NULL' failed
@@ -362,33 +342,23 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
  *     display         GtkWindow, GtkApplicationWindow, AdwWindow, AdwApplicationWindow
  *                     gtk_window_set_display: assertion 'GDK_IS_DISPLAY (display)' failed
  *
- * None of the eight is a REGRESSION — all behaved identically before this change — but
- * a package whose reason for existing is refusing an exit-0 mis-store must not record
- * that it fixed a case it did not. The fix for those belongs in `removedValue`, where
- * the disagreement is (the ParamSpec says NULL, the setter says no), not here.
- *
- * TWO MORE clear correctly and are NOISY doing it — `GtkEntry.extra-menu`
+ * None is a REGRESSION — all behaved identically before — but a package whose reason for
+ * existing is refusing an exit-0 mis-store must not record that it fixed a case it did not.
+ * That fix belongs in `removedValue`, where the disagreement is (the ParamSpec says NULL,
+ * the setter says no). TWO MORE clear correctly and are NOISY doing it — `GtkEntry.extra-menu`
  * (`g_object_ref: assertion 'G_IS_OBJECT (object)' failed`) and `GtkLabel.tabs`
- * (`pango_tab_array_copy: assertion 'src != NULL' failed`). A future test for those two
- * cannot live inside `gated(diagnostics, …)`, which fails on anything at or below
- * `LEVEL_WARNING`.
- *
- * `AdwWindow.content` and `AdwApplicationWindow.content` are NOT among them: they clear
- * silently. The first version of this passage said otherwise, and the reason is worth
- * keeping — the harness that measured it reused one `Gtk.Label` across two windows, so
- * the second `set_content` tripped `gtk_widget_get_parent (content) == NULL` and the
- * diagnostic belonged to the harness. Every line above is one process per case.
+ * (`pango_tab_array_copy: assertion 'src != NULL' failed`) — and a test for those cannot
+ * live inside `gated(diagnostics, …)`, which fails at or below `LEVEL_WARNING`.
  *
  * The accessor branch now also carries ARRAYS, which could not throw here before: the
- * missing-accessor refusal below sits after both. Nothing in the shipped table reaches
- * it — the sweep below found zero — but it is a behavioural change on a non-null path
- * and worth saying.
+ * missing-accessor refusal below sits after both. Nothing in the shipped table reaches it,
+ * but it is a behavioural change on a non-null path and worth saying.
  *
- * Restricted to arrays and `null` on purpose. `set_property` is the path that refuses
- * what GObject would silently mis-store (`coerce`'s enum branch exists because
- * `box.orientation = 'vertical'` keeps HORIZONTAL with no diagnostic at all), so it
- * stays the default for every scalar; the accessor is used only where GJS cannot
- * form the GValue, and by then `coerce` has already normalised the value.
+ * Restricted to arrays and `null` on purpose. `set_property` is the path that refuses what
+ * GObject would silently mis-store (`coerce`'s enum branch exists because
+ * `box.orientation = 'vertical'` keeps HORIZONTAL with no diagnostic at all), so it stays
+ * the default for every scalar; the accessor is used only where GJS cannot form the
+ * GValue, and by then `coerce` has already normalised the value.
  */
 function writeProperty(widget: GObject.Object, name: string, value: unknown): void {
     if (!takesAccessorRoute(value)) {
@@ -409,23 +379,21 @@ const takesAccessorRoute = (value: unknown) => value === null || Array.isArray(v
  * Refuse an accessor route GJS installed no accessor for.
  *
  * The derivation above is a GUESS about a name, and `constructedDefaults` guards the
- * identical one (`props.ts`: `if (!(accessor in probe)) continue`) while this path did
- * not: assigning to a name GJS installed nothing for creates a plain JS EXPANDO — no
- * GObject write, no error, and `notify::` never fires. That is the exit-0 shape this
- * module exists to refuse.
+ * identical one (`props.ts`: `if (!(accessor in probe)) continue`) while this path did not:
+ * assigning to a name GJS installed nothing for creates a plain JS EXPANDO — no GObject
+ * write, no error, and `notify::` never fires. That is the exit-0 shape this module exists
+ * to refuse.
  *
- * ASKED ONLY WHERE A VALUE IS ACTUALLY ASSIGNED — see the call in `setProp`. `accessor
- * in widget` is a weaker test than "GJS installed an accessor": a plain own data
- * property satisfies it too, which is what a construct-only property carries after
- * construction. Scoping the call is what keeps the premise as strong as the sentence.
+ * ASKED ONLY WHERE A VALUE IS ACTUALLY ASSIGNED — see the call in `setProp`. `accessor in
+ * widget` is a weaker test than "GJS installed an accessor": a plain own data property
+ * satisfies it too, which is what a construct-only property carries after construction.
  *
- * NOT REACHED BY THE SHIPPED TABLE — swept over every writable property of the 42
- * curated GTypes and of the whole installed surface, and the accessor resolved every
- * time. The one shape that can reach it is a DIGIT segment: this regex turns
- * `has-2-digits` into `has2Digits` and GJS installs `has_2_digits`. So where it fires,
- * GJS did install an accessor and the derivation is what is wrong — the message says
- * the accessor is missing, which is true of the NAME asked for and not of the property.
- * Fixing the derivation is `constructedDefaults`' problem too, and is not this change.
+ * NOT REACHED BY THE SHIPPED TABLE — swept over every writable property of the curated
+ * GTypes and of the whole installed surface, and the accessor resolved every time. The one
+ * shape that can reach it is a DIGIT segment: this regex turns `has-2-digits` into
+ * `has2Digits` and GJS installs `has_2_digits`. So where it fires, GJS did install an
+ * accessor and the derivation is what is wrong — the message says the accessor is missing,
+ * which is true of the NAME asked for and not of the property.
  */
 function requireAccessor(el: HostElement, widget: GObject.Object, name: string): void {
     const accessor = accessorName(name);
@@ -461,23 +429,22 @@ function assertSignalExists(el: HostElement, prop: string): void {
 /**
  * The ARIA object, diffed against the one it replaces.
  *
- * ONE GROUPED PROP RATHER THAN 53 FLAT `aria*` ONES, and the reasons are measured rather
- * than aesthetic. (1) TypeScript exempts every hyphen-containing JSX attribute from
- * excess-property checking — the measurement `emit-types.mts` already records for the
- * kebab property spellings — so a flat `aria-labell` would be accepted in silence, while a
- * key inside a fresh object literal IS checked. (2) The ARIA names are not the widget's
- * properties and collide with them: `label`, `orientation`, `checked`, `expanded` and
- * `selected` are all both, and `orientation` is settable on a `GtkLabel` that implements no
- * `GtkOrientable` at all — one object keeps the two vocabularies apart by construction
- * instead of by prefix. (3) The other surface over this same vocabulary already spells it
- * this way: a `.blp` author writes `accessibility { label: "…"; }` (ADR 0034). (4) `setProp`
- * already has this shape for `layout` — a structured, non-ParamSpec prop routed to its own
- * mechanism — so this adds one reserved key to the host, not 53.
+ * ONE GROUPED PROP RATHER THAN 53 FLAT `aria*` ONES, for measured reasons. (1)
+ * TypeScript exempts every hyphen-containing JSX attribute from excess-property checking —
+ * the measurement `emit-types.mts` already records for the kebab property spellings — so a
+ * flat `aria-labell` would be accepted in silence, while a key inside a fresh object literal
+ * IS checked. (2) The ARIA names collide with the widget's own properties: `label`,
+ * `orientation`, `checked`, `expanded` and `selected` are all both, and `orientation` is
+ * settable on a `GtkLabel` that implements no `GtkOrientable` at all — one object keeps the
+ * two vocabularies apart by construction instead of by prefix. (3) The other surface over
+ * this vocabulary already spells it this way: a `.blp` author writes `accessibility {
+ * label: "…"; }` (ADR 0034). (4) `setProp` already has this shape for `layout`, so this adds
+ * one reserved key to the host, not 53.
  *
  * REFUSED ON THE CLASS, not on the widget: every framework builds bottom-up, so props are
  * authored long before materialisation, and asking the instance would report
- * `<gtk-string-list accessibility={…}>` from inside a later `materialize` rather than at the
- * call that wrote it.
+ * `<gtk-string-list accessibility={…}>` from inside a later `materialize` rather than at
+ * the call that wrote it.
  *
  * The plan is built BEFORE anything is recorded, for the reason the property path states:
  * `el.accessibility` is replayed verbatim by `replayInto`, so a refused value kept there
@@ -517,10 +484,10 @@ export function setSlot(el: HostElement, slot: string | null): void {
 /**
  * Re-place a child after changing what decides its position.
  *
- * `commit` applies the change, `rollback` undoes it. Two things a naive version
- * gets wrong, both measured: a refused re-place must not keep the rejected value,
- * and it must not leave the node detached in a way that makes the NEXT write —
- * the one that fixes the value — skip itself for ever.
+ * `commit` applies the change, `rollback` undoes it. Two things a naive version gets wrong,
+ * both measured: a refused re-place must not keep the rejected value, and it must not leave
+ * the node detached in a way that makes the NEXT write — the one that fixes the value —
+ * skip itself for ever.
  */
 function replaceAt(el: HostElement, parent: HostElement, commit: () => void, rollback: () => void): void {
     removeChild(parent, el);
@@ -567,20 +534,18 @@ function rebuild(el: HostElement, key?: string, previous?: unknown): void {
         // One retraction per operation, and a discard's retraction is the close.
         if (parent && !outsideParentOf(el.descriptor)) removeChild(parent, el);
     }
-    // A DISCARD: `removeChild` above detaches reversibly, which is right for every
-    // caller that re-attaches the same widget afterwards, and this one does not —
-    // `materialize` below builds a fresh instance. `releaseWidget` is where that
-    // difference is decided, for all three discard sites at once.
+    // A DISCARD: `removeChild` above detaches reversibly, which is right for every caller
+    // that re-attaches the same widget afterwards, and this one does not — `materialize`
+    // below builds a fresh instance. `releaseWidget` is where that difference is decided.
     releaseWidget(el);
     el.attached = false;
-    // `materialize` replays the whole child list itself; a second pass here
-    // attached everything twice and made the remove-all policy re-append a tail
-    // that was already in place.
+    // `materialize` replays the whole child list itself; a second pass here attached
+    // everything twice and made the remove-all policy re-append a tail already in place.
     //
-    // If it throws, the element is already out of its parent and has no widget —
-    // and a corrective `setProp` would then hit the `!el.widget` buffer path and
-    // never come back. Put the old value back and re-place it, so the failure
-    // costs the caller an exception and nothing else.
+    // If it throws, the element is already out of its parent and has no widget — and a
+    // corrective `setProp` would then hit the `!el.widget` buffer path and never come
+    // back. Put the old value back and re-place it, so the failure costs the caller an
+    // exception and nothing else.
     try {
         materialize(el);
     } catch (e) {
@@ -611,18 +576,18 @@ export function setText(node: HostText | HostAnchor, data: string): void {
 
 /** Vue's bulk path and React's `shouldSetTextContent`: drop children, set the sink. */
 export function setElementText(el: HostElement, text: string): void {
-    // The sink check FIRST: `destroy` is eager and irreversible, so a widget with
-    // no text sink used to lose its whole subtree on the way to being told no.
+    // The sink check FIRST: `destroy` is eager and irreversible, so a widget with no text
+    // sink lost its whole subtree on the way to being told no.
     writeTextSink(el, text);
-    // Disarm before the removals: destroying the old text children triggers
-    // `flushText`, which would see an empty concatenation with the flag still set
-    // and clear the text we just wrote.
+    // Disarm before the removals: destroying the old text children triggers `flushText`,
+    // which would see an empty concatenation with the flag still set and clear the text
+    // we just wrote.
     el.textFromChildren = false;
     destroyChildren(el);
-    // Deliberately NOT re-armed: the flag means "text children own the sink", and
-    // there are none left. Arming it made the next rebuild's `flushText` compute
-    // an empty concatenation, skip its own guard and wipe the text — silently.
-    // `writeTextSink` recorded the value in `el.props`, which a rebuild replays.
+    // Deliberately NOT re-armed: the flag means "text children own the sink", and there
+    // are none left. Arming it made the next rebuild's `flushText` compute an empty
+    // concatenation, skip its own guard and wipe the text — silently. `writeTextSink`
+    // recorded the value in `el.props`, which a rebuild replays.
 }
 
 function flushText(el: HostElement): void {
@@ -634,25 +599,23 @@ function flushText(el: HostElement): void {
             sawText = true;
         }
     }
-    // Removing the LAST text child has to clear the sink. Without the flag, a
-    // widget whose text was deleted keeps rendering the old string — and only
-    // text children may clear it, never an authored `label` prop.
-    // Emptiness, not text-ness, is the discriminator. Vue's `processFragment`
-    // marks every `v-for` and multi-root template with `hostCreateText('')` — not
-    // a comment, so an adapter has no hook to route it — and dom-expressions'
-    // `cleanChildren` does `createTextNode("")`. Rejecting those made a `v-for`
-    // impossible to mount into ANY sink-less container. Real text still throws.
+    // Removing the LAST text child has to clear the sink. Without the flag, a widget whose
+    // text was deleted keeps rendering the old string — and only text children may clear
+    // it, never an authored `label` prop.
+    // Emptiness, not text-ness, is the discriminator. Vue's `processFragment` marks every
+    // `v-for` and multi-root template with `hostCreateText('')` — not a comment, so an
+    // adapter has no hook to route it — and dom-expressions' `cleanChildren` does
+    // `createTextNode("")`. Rejecting those made a `v-for` impossible to mount into ANY
+    // sink-less container. Real text still throws.
     if (text === '' && !el.textFromChildren) return;
-    // Clearing the sink must not take an element child with it. GTK's text sink
-    // IS the one-child slot: measured on gtk 4.22, `set_child(custom)` gives
-    // `custom.parent === GtkButton` and the very next `set_property('label','')`
-    // gives `custom.parent === NULL`. Solid and React reconcile
-    // INSERT-then-REMOVE (`solid-js/universal`'s `replaceNode`), so swapping a
-    // text child for an element child on a `GtkButton` — `single` AND a text
-    // sink, both — placed the element and then cleared it away: a blank button
-    // at exit 0, zero diagnostics, and `attached === true` for a widget GTK had
-    // unparented. `clearIfCurrent` is this guard's element-side twin; only the
-    // text side was missing.
+    // Clearing the sink must not take an element child with it. GTK's text sink IS the
+    // one-child slot: measured on gtk 4.22, `set_child(custom)` gives `custom.parent ===
+    // GtkButton` and the very next `set_property('label','')` gives `custom.parent ===
+    // NULL`. Solid and React reconcile INSERT-then-REMOVE (`solid-js/universal`'s
+    // `replaceNode`), so swapping a text child for an element child on a `GtkButton` —
+    // `single` AND a text sink, both — placed the element and then cleared it away: a
+    // blank button at exit 0, zero diagnostics, and `attached === true` for a widget GTK
+    // had unparented. `clearIfCurrent` is this guard's element-side twin.
     const sink = el.descriptor.textSink;
     if (text === '' && sink && holdsElementInSetterSlot(el)) {
         el.textFromChildren = false;
@@ -692,12 +655,11 @@ function writeTextSink(el: HostElement, text: string): void {
     const sink = el.descriptor.textSink;
     if (!sink) throw err.textNotAccepted(el.descriptor.gtype, text);
     materialize(el);
-    // The sink IS the one-child slot, so a text write evicts whatever holds it —
-    // and the element-side refusal was only wired into `attach`. Measured:
+    // The sink IS the one-child slot, so a text write evicts whatever holds it — and the
+    // element-side refusal was only wired into `attach`. Measured:
     // `btn.set_child(appChrome); insert(createText('mine'), adopt(btn))` left
-    // `appChrome.get_parent() === null`, `label === 'mine'`, no throw and no
-    // diagnostic. That is the very loss the refusal exists to prevent, arriving
-    // down the axis this guard's own comment describes.
+    // `appChrome.get_parent() === null`, `label === 'mine'`, no throw and no diagnostic.
+    // That is the very loss the refusal exists to prevent, arriving down the other axis.
     const policy = el.descriptor.children;
     const slotSetter = policy.kind === 'single' ? policy.set : null;
     if (
@@ -722,12 +684,11 @@ function writeTextSink(el: HostElement, text: string): void {
     // `materialize`, so a rejected value kept here re-throws from a later rebuild.
     el.props[sink] = text;
 
-    // A non-empty write into a one-child slot is the SAME collision the other
-    // way round: measured, `set_child(custom)` then `set_property('label','text')`
-    // also leaves `custom.parent === NULL`. GTK has just unparented that child,
-    // so the shadow tree stops claiming otherwise — `attached` means "GTK has
-    // taken this node", and a later `remove` would ask GTK to unparent a
-    // non-child (a critical, at exit 0).
+    // A non-empty write into a one-child slot is the SAME collision the other way round:
+    // measured, `set_child(custom)` then `set_property('label','text')` also leaves
+    // `custom.parent === NULL`. GTK has just unparented that child, so the shadow tree
+    // stops claiming otherwise — `attached` means "GTK has taken this node", and a later
+    // `remove` would ask GTK to unparent a non-child (a critical, at exit 0).
     for (const child of setterSlotChildren(el)) child.attached = false;
 }
 
@@ -763,14 +724,13 @@ const CHAIN_LIMIT = 100_000;
 /**
  * Walk a sibling chain, bounded.
  *
- * A malformed link is not a theoretical worry. `insert(node, parent, node)` is a
- * defined NO-OP in the DOM — "if referenceChild is node, then set referenceChild
- * to node's next sibling" — so Solid's adjacent-swap fast path emits exactly
- * that shape, unguarded. This host used to write `node.next = node` for it, and
- * the walks below then grew an unbounded array until the process was killed:
- * reversing a TWO-item list hung the app. A hang is the one failure mode worse
- * than GTK's silent exit 0, because it takes the CI job with it. Every walk over
- * `next` goes through here so the bound cannot be forgotten at a new call site.
+ * A malformed link is not a theoretical worry. `insert(node, parent, node)` is a defined
+ * NO-OP in the DOM — "if referenceChild is node, then set referenceChild to node's next
+ * sibling" — so Solid's adjacent-swap fast path emits exactly that shape, unguarded. Taking
+ * it literally makes `link` write `node.next = node`, and the walks then grow an unbounded
+ * array until the process is killed: reversing a TWO-item list hangs the app. A hang is the
+ * one failure mode worse than GTK's silent exit 0, because it takes the CI job with it.
+ * Every walk over `next` goes through here so the bound cannot be forgotten.
  */
 function* siblingsFrom(start: HostNode | null, parent: HostElement): Generator<HostNode> {
     let steps = 0;
@@ -888,18 +848,12 @@ function attach(parent: HostElement, child: HostElement): void {
 /**
  * Never place into a one-child slot the APPLICATION is using.
  *
- * Offsetting past what a container already held only works where placement
- * appends. A one-child setter REPLACES, and GTK does it silently: measured,
- * `win = new Gtk.ScrolledWindow(); win.set_child(chrome); mount(() => label,
- * win)` left `chrome.get_parent() === null` with no throw, no GTK warning and an
- * empty diagnostics gate — the application's widget simply gone. Refusing by
- * name is the only answer that neither drops a widget nor guesses which of the
- * two the application wanted.
- *
- * The occupant is compared against `foreign`, i.e. against what `adopt` saw. A
- * slot holding one of OUR OWN element children is the ordinary
- * insert-then-unmount order Solid and React use, and must stay allowed; a slot
- * the application has since cleared itself is free again.
+ * Offsetting past what a container already held only works where placement appends. A
+ * one-child setter REPLACES, and GTK does it silently: measured,
+ * `win = new Gtk.ScrolledWindow(); win.set_child(chrome); mount(() => label, win)` left
+ * `chrome.get_parent() === null` with no throw, no GTK warning and an empty diagnostics
+ * gate — the application's widget simply gone. Refusing by name is the only answer that
+ * neither drops a widget nor guesses which of the two the application wanted.
  */
 function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
     const setter = setterSlotOf(parent, child);
@@ -915,12 +869,11 @@ function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
 /**
  * Does one of OUR OWN attached element children hold this slot?
  *
- * Derived from the shadow tree rather than remembered, and that is the point:
- * `foreign` is a SNAPSHOT taken in `adopt`, so comparing the occupant against it
- * missed an application that REPLACED its own child afterwards —
- * `sw.set_child(A); adopt(sw); sw.set_child(B)` then evicted B silently, at
- * exit 0. What we placed is knowable at any time; what the application did to
- * its own slot since is not.
+ * Derived from the shadow tree rather than remembered, and that is the point: `foreign` is
+ * a SNAPSHOT taken in `adopt`, so comparing the occupant against it missed an application
+ * that REPLACED its own child afterwards — `sw.set_child(A); adopt(sw); sw.set_child(B)`
+ * then evicted B silently, at exit 0. What we placed is knowable at any time; what the
+ * application did to its own slot since is not.
  */
 function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
     for (const n of siblingsFrom(parent.first, parent)) {
@@ -939,14 +892,11 @@ function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
  * `indexed` parents — and a `slotted` slot that declares one — address a wrapper row;
  * create it once, before first placement.
  *
- * The try/catch is `insertChild`'s, repeated here rather than shared, because this
- * runs BEFORE it and the wrapper's `set_child` is the first call that can be refused.
- * Measured: `listbox.insert(<gtk-list-item>)` threw GTK's own
- * "Object is of type Gtk.ListItem - cannot convert to GtkWidget" — accurate, and
- * naming neither the parent nor the child — while the same insert into a `gtk-box`
- * came back as a named `rejected-child`. Until the placement carriers joined the
- * table every tag in it was a `Gtk.Widget`, so `makeWrapper` could not be handed
- * something a `GtkListBoxRow` refuses, and the gap did not exist to find.
+ * The try/catch is `insertChild`'s, repeated here rather than shared, because this runs
+ * BEFORE it and the wrapper's `set_child` is the first call that can be refused. Measured:
+ * `listbox.insert(<gtk-list-item>)` threw GTK's own "Object is of type Gtk.ListItem -
+ * cannot convert to GtkWidget" — accurate, and naming neither the parent nor the child —
+ * while the same insert into a `gtk-box` came back as a named `rejected-child`.
  */
 function ensureWrapper(parent: HostElement, child: HostElement): void {
     if (child.wrapper) return;
@@ -961,13 +911,12 @@ function ensureWrapper(parent: HostElement, child: HostElement): void {
 }
 
 export function insert(node: HostNode, parent: HostElement, anchor: HostNode | null = null): void {
-    // A raw widget is not a parent. Vue's `<Teleport :to="someGtkWidget">` passes
-    // the widget through VERBATIM (`resolveTarget`'s non-string branch is
-    // `return targetSelector`), and taken literally `link` then wrote
-    // `parent`/`prev`/`next`/`first`/`last` as expandos onto the application's
-    // GObject wrapper while `attach` bailed at `if (!parent.widget) return`:
-    // nothing rendered, nothing threw, no diagnostic. Refuse it by name — `adopt`
-    // is the one way a foreign widget becomes a parent.
+    // A raw widget is not a parent. Vue's `<Teleport :to="someGtkWidget">` passes the widget
+    // through VERBATIM, and taken literally `link` then wrote `parent`/`prev`/`next`/
+    // `first`/`last` as expandos onto the application's GObject wrapper while `attach`
+    // bailed at `if (!parent.widget) return`: nothing rendered, nothing threw, no
+    // diagnostic. Refuse it by name — `adopt` is the one way a foreign widget becomes a
+    // parent.
     assertHostParent(parent);
     // Where it was, so a refused move can be undone. "Leave nothing behind" has
     // to mean the OLD parent too: detaching first and failing second lost the
@@ -975,12 +924,11 @@ export function insert(node: HostNode, parent: HostElement, anchor: HostNode | n
     const wasIn = node.parent;
     const wasBefore = node.next;
 
-    // DOM parity, and not a nicety. `insertBefore(n, n)` is DEFINED as a no-op
-    // ("if referenceChild is node, then set referenceChild to node's next
-    // sibling"), which is why Solid's adjacent-swap fast path emits
-    // `insertNode(parent, b, b)` without a guard. Taken literally it made `link`
-    // write `node.next = node`; reversing a two-item list then hung the process.
-    // Three items take a different branch, which is why the suite was green.
+    // DOM parity, and not a nicety. `insertBefore(n, n)` is DEFINED as a no-op ("if
+    // referenceChild is node, then set referenceChild to node's next sibling"), which is
+    // why Solid's adjacent-swap fast path emits `insertNode(parent, b, b)` without a guard.
+    // Taken literally it made `link` write `node.next = node`; reversing a two-item list
+    // then hung the process.
     const before = anchor === node ? wasBefore : anchor;
 
     if (node.parent) remove(node);
@@ -1005,14 +953,12 @@ function assertHostParent(parent: HostElement): void {
 /**
  * TWO facts, not one: it says it is an element, and it carries a descriptor.
  *
- * `kind` alone is a plain string a GObject wrapper could carry; the descriptor is
- * what every host op actually dereferences. Checking both keeps the refusal from
- * being either paranoid or fooled.
+ * `kind` alone is a plain string a GObject wrapper could carry; the descriptor is what
+ * every host op actually dereferences. Checking both keeps the refusal from being either
+ * paranoid or fooled.
  *
- * Exported because the Vue adapter had these same two lines VERBATIM, and its own
- * comment said so — it needs the question before `adopt`, to tell a host parent
- * from the raw widget `<Teleport :to="el">` hands through. A predicate stated in
- * two places is a predicate that can disagree with itself about what a node is.
+ * Exported because the Vue adapter needs the question before `adopt`, to tell a host
+ * parent from the raw widget `<Teleport :to="el">` hands through.
  */
 export function isHostElement(value: unknown): value is HostElement {
     const candidate = value as { kind?: unknown; descriptor?: unknown } | null;
@@ -1022,19 +968,12 @@ export function isHostElement(value: unknown): value is HostElement {
 /**
  * Name a foreign value the way its owner would recognise it.
  *
- * ONE function, because there were two and each was wrong for the other's input.
- * The host's read `constructor.$gtype`, so it could not name a DOM element — the
- * single most likely thing to arrive from a Solid app that imported `<Dynamic>`
- * from `solid-js/web`. The Solid adapter's read `tagName`, so it answered
- * `a Object` for the GObject wrapper `<Teleport :to="el">` hands over. Both are
- * asking "what did I get instead of a node", so both answers belong to one place.
- *
- * ORDER IS LOAD-BEARING, and it is measured rather than reasoned: under gjs
- * 1.88.1 `({}).constructor.$gtype` EXISTS and `GObject.type_name` calls it
- * `JSObject`. So a `$gtype`-first version names every object literal — and every
- * DOM-ish stub, which is an object literal — `JSObject`, and the host's own
- * documented `a plain object` fallback was unreachable for exactly the shape it
- * names. `tagName` first, and `JSObject` treated as the absence of a GType.
+ * ORDER IS LOAD-BEARING, and it is measured rather than reasoned: under gjs 1.88.1
+ * `({}).constructor.$gtype` EXISTS and `GObject.type_name` calls it `JSObject`. A
+ * `$gtype`-first version would therefore name every object literal — and every DOM-ish
+ * stub, which is an object literal — `JSObject`, and the `a plain object` fallback would be
+ * unreachable for exactly the shape it names. `tagName` first, `JSObject` treated as the
+ * absence of a GType.
  */
 export function describeValue(value: unknown): string {
     if (value === null || value === undefined) return String(value);
@@ -1052,9 +991,9 @@ export function describeValue(value: unknown): string {
 /**
  * Put a node back where a failed move took it from.
  *
- * Best effort by construction: the old placement worked a moment ago, so this
- * normally succeeds. If it does not, the ORIGINAL rejection is what the caller
- * needs to see — a restore failure reported instead would name the wrong cause.
+ * Best effort by construction: the old placement worked a moment ago. If it does not, the
+ * ORIGINAL rejection is what the caller needs to see — a restore failure reported instead
+ * would name the wrong cause.
  */
 function restore(node: HostNode, parent: HostElement, before: HostNode | null): void {
     try {
@@ -1069,17 +1008,14 @@ function restore(node: HostNode, parent: HostElement, before: HostNode | null): 
 /**
  * Give back the text a child displaced.
  *
- * GTK's text sink IS the one-child slot, and putting a child in CLEARS the sink.
- * Measured on gtk 4.22.4: `createElement('GtkButton', {label: 'Save'})` followed by
- * `set_child(icon)` leaves `label` null, and taking the icon out again does not
- * bring it back — so `<Button label="Save"><Show when={x}><Icon/></Show></Button>`
- * toggling OFF renders a blank button while this host still holds
- * `props.label === 'Save'`. Exit 0, no diagnostic.
+ * GTK's text sink IS the one-child slot, and putting a child in CLEARS the sink. Measured
+ * on gtk 4.22.4: `createElement('GtkButton', {label: 'Save'})` followed by `set_child(icon)`
+ * leaves `label` null, and taking the icon out again does not bring it back — so
+ * `<Button label="Save"><Show when={x}><Icon/></Show></Button>` toggling OFF renders a blank
+ * button while this host still holds `props.label === 'Save'`. Exit 0, no diagnostic.
  *
- * This is the mirror of the guard `writeTextSink` already carries in the other
- * direction, where clearing the sink must not take an element child with it. Only
- * the pair is complete: one direction alone means the loss just moves to the other
- * axis, which is how this one survived the round that fixed its sibling.
+ * This is the mirror of the guard `writeTextSink` carries in the other direction: only the
+ * pair is complete, since one direction alone means the loss moves to the other axis.
  */
 function restoreTextSink(el: HostElement): void {
     const sink = el.descriptor.textSink;
@@ -1116,19 +1052,16 @@ function restoreTextSink(el: HostElement): void {
 export function remove(node: HostNode): void {
     const parent = node.parent;
     if (!parent && node.kind === 'element') {
-        // A NON-PARENTED NODE COMES DOWN EVEN WITH NO PARENT TO REMOVE IT FROM, and
-        // that is the whole asymmetry the placement axis introduces: `removeChild`
-        // below is the only detach path, and it is reached through a parent — which
-        // a toplevel may never have had. No `node.widget` guard: both arms' detaches
-        // are no-ops without one, and a node whose widget a DISCARD already released
-        // still has to stop claiming it is attached.
+        // A NON-PARENTED NODE COMES DOWN EVEN WITH NO PARENT TO REMOVE IT FROM, and that is the
+        // whole asymmetry the placement axis introduces: `removeChild` below is the only
+        // detach path, and it is reached through a parent — which a toplevel may never have
+        // had. No `node.widget` guard: both arms' detaches are no-ops without one, and a node
+        // whose widget a DISCARD already released still has to stop claiming it is attached.
         //
-        // ONE PLACE, and it has to be: `destroy` used to call `widget.destroy()`
-        // itself for exactly this case, so a toplevel WITH a parent was retracted
-        // twice. Harmless on gjs, where the JS wrapper keeps the object alive; on
-        // node-gi the second call is `TypeError: invalid GObject handle`, because
-        // `gtk_window_destroy()` drops GTK's own reference and the handle goes with
-        // it. The node leg is what said so.
+        // ONE PLACE, and it has to be: a second retraction is harmless on gjs, where the JS
+        // wrapper keeps the object alive, but on node-gi it is `TypeError: invalid GObject
+        // handle`, because `gtk_window_destroy()` drops GTK's own reference and the handle
+        // goes with it.
         const outside = outsideParentOf(node.descriptor);
         if (outside) {
             detachOutsideParent(node, outside);
@@ -1154,16 +1087,11 @@ export function remove(node: HostNode): void {
 /**
  * Destroy every child of `parent`, bounded.
  *
- * Exported because both adapters wrote their OWN `childSnapshot` to do exactly this
- * — byte-identical to each other, and both walking `next` raw. That is the one walk
- * the bound above exists to make unforgettable, and it is the walk where the
- * malformed link actually appears: `insert(node, parent, node)` is a defined DOM
- * no-op, so Solid's adjacent-swap fast path emits it against a CONTAINER's child
- * list. Unbounded, that is a hang rather than GTK's usual exit 0.
- *
- * This replaces a `clearContainer` that had no callers anywhere and DETACHED rather
- * than destroyed — the wrong half for every caller that wanted it, and a name React's
- * own HostConfig already uses for the destroying kind.
+ * Every walk over `next` goes through `childSnapshot` so the bound cannot be forgotten at a
+ * new call site, and this is the walk where the malformed link actually appears: `insert(
+ * node, parent, node)` is a defined DOM no-op, so Solid's adjacent-swap fast path emits it
+ * against a CONTAINER's child list. Unbounded, that is a hang rather than GTK's usual
+ * exit 0.
  */
 export function destroyChildren(parent: HostElement): void {
     for (const child of childSnapshot(parent)) destroy(child);
@@ -1172,15 +1100,15 @@ export function destroyChildren(parent: HostElement): void {
 /**
  * Disconnect a node's handlers WITHOUT touching the tree.
  *
- * The narrow half of `destroy`, and it exists because a framework can tell us "this
- * node is gone" while still holding its sibling links: Solid disposes a per-node
- * scope BEFORE its reconciler runs, and `reconcileArrays` opens with
- * `getNextSibling(last)`. Unlinking there made every trailing insertion append at
- * the end of the parent instead of before the marker.
+ * The narrow half of `destroy`, and it exists because a framework can tell us "this node is
+ * gone" while still holding its sibling links: Solid disposes a per-node scope BEFORE its
+ * reconciler runs, and `reconcileArrays` opens with `getNextSibling(last)`. Unlinking there
+ * made every trailing insertion append at the end of the parent instead of before the
+ * marker.
  *
- * The leak this closes is about handlers, not links — GJS blocks JS callbacks
- * during GC, so an undisconnected handler outlives its widget. The framework's own
- * `removeNode` still does the unlinking, in its own order.
+ * The leak this closes is about handlers, not links — GJS blocks JS callbacks during GC, so
+ * an undisconnected handler outlives its widget. The framework's own `removeNode` still
+ * does the unlinking, in its own order.
  */
 export function disconnectHandlers(el: HostElement): void {
     clearHandlers(el);
@@ -1205,29 +1133,26 @@ export function destroy(node: HostNode): void {
     }
     // BEFORE `remove`, which unlinks the node and takes the answer with it.
     const outside = node.kind === 'element' ? outsideParentOf(node.descriptor) : null;
-    // AND THE CLOSE GOES BEFORE IT TOO, for a non-parented node. `remove` runs the
-    // arm's DETACH, and a teardown's one retraction is the CLOSE — so letting the
-    // detach happen first called `force_close` twice on the portal arm, where both
-    // verbs name the same method. Ordered rather than skipped: `releaseWidget` nulls
-    // the widget, so the detach inside `remove` finds nothing to retract and still
-    // drops the portal's `notify::root` subscription, which has to happen either way.
+    // AND THE CLOSE GOES BEFORE IT TOO, for a non-parented node. `remove` runs the arm's
+    // DETACH, and a teardown's one retraction is the CLOSE — so letting the detach happen
+    // first called `force_close` twice on the portal arm, where both verbs name the same
+    // method. Ordered rather than skipped: `releaseWidget` nulls the widget, so the detach
+    // inside `remove` finds nothing to retract and still drops the portal's `notify::root`
+    // subscription, which has to happen either way.
     //
-    // Only for a non-parented node. An ordinary child is unparented BY `removeChild`
-    // through an address read off `el.widget`, so releasing it first would leave the
-    // widget in its GTK parent for ever.
+    // Only for a non-parented node. An ordinary child is unparented BY `removeChild` through
+    // an address read off `el.widget`, so releasing it first would leave the widget in its
+    // GTK parent for ever.
     if (outside) releaseWidget(node as HostElement);
     remove(node);
     if (node.kind === 'element') {
         const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;
         if (
-            // NOT for a node with a PLACEMENT: `releaseWidget` below runs that arm's
-            // terminal close, and `remove` above ran only the reversible detach —
-            // the half `destroy` deliberately left to here, because that call is
-            // documented as a move. This branch predates there being a name for any
-            // of it: the only widgets in GTK4 with a `destroy` method are
-            // `Gtk.Window`s, i.e. exactly the declared toplevels. What is left for
-            // it is a window a consumer deliberately declared `parented`, which is
-            // asking for a child and gets the child teardown.
+            // NOT for a node with a PLACEMENT: `releaseWidget` below runs that arm's terminal
+            // close, and `remove` above ran only the reversible detach — the half `destroy`
+            // deliberately left to here, because that call is documented as a move. What is
+            // left is a window a consumer deliberately declared `parented`, which is asking
+            // for a child and gets the child teardown.
             !outside &&
             widget &&
             typeof widget.destroy === 'function' &&
@@ -1251,10 +1176,9 @@ export function destroy(node: HostNode): void {
 /**
  * Put a host tree inside an existing GTK container the application owns.
  *
- * The container is resolved through the SAME table as every other parent —
- * `nearestRegistered` walks the real type hierarchy, so an application's own
- * `GObject.registerClass` subclass inherits its ancestor's policy. Guessing a
- * method name here would be the generic `add` that GTK4 deliberately removed.
+ * The container is resolved through the SAME table as every other parent, so an
+ * application's own `GObject.registerClass` subclass inherits its ancestor's policy.
+ * Guessing a method name here would be the generic `add` that GTK4 deliberately removed.
  */
 export function mountRoot(el: HostElement, container: GObject.Object): void {
     materialize(el);
@@ -1267,16 +1191,13 @@ export function mountRoot(el: HostElement, container: GObject.Object): void {
 /**
  * The materialised widget of a host node — for a `ref`, or for a test.
  *
- * ONE implementation. The Solid and React adapters each carried this function,
- * identical apart from two comment lines, and Vue carried none — so a Vue app had
- * no supported way to reach a widget at all and its only route was
- * `materialize()`, which is exactly the call the `destroyed` guard below exists to
- * intercept.
+ * ONE implementation, because a caller reaching `materialize()` directly is exactly what the
+ * `destroyed` guard below exists to intercept.
  *
- * The flag is exact and the obvious heuristic is not: `materialize` would happily
- * build a fresh, propertyless, unparented widget for a destroyed node — `destroy`
- * clears `props` and `layout` precisely so one cannot look re-materialisable — and
- * "no widget, not attached, no props" also describes a brand-new element.
+ * The flag is exact and the obvious heuristic is not: `materialize` would happily build a
+ * fresh, propertyless, unparented widget for a destroyed node — `destroy` clears `props`
+ * and `layout` precisely so one cannot look re-materialisable — and "no widget, not
+ * attached, no props" also describes a brand-new element.
  */
 export function widgetOf(node: HostNode): Gtk.Widget {
     if (node.kind !== 'element') throw err.notAnElement(node.kind);
@@ -1287,19 +1208,16 @@ export function widgetOf(node: HostNode): Gtk.Widget {
 /**
  * An off-screen container the host owns — the analogue of the DOM's detached `<div>`.
  *
- * `<KeepAlive>` and `<Suspense>` ask a renderer for one: `KeepAliveImpl.setup`
- * opens with `createElement("div")` and `SuspenseImpl` does the same for its
- * `hiddenContainer`. Forwarded as a TAG, "div" reached `lookupWidget` and threw
- * `unknown-tag` inside `callWithErrorHandling`, whose production arm is
- * `console.error` with no rethrow: `mount()` returned normally, the container held
- * zero children, GTK said nothing, exit 0.
+ * `<KeepAlive>` and `<Suspense>` ask a renderer for one: `KeepAliveImpl.setup` opens with
+ * `createElement("div")` and `SuspenseImpl` does the same for its `hiddenContainer`.
+ * Forwarded as a TAG, "div" reached `lookupWidget` and threw `unknown-tag` inside
+ * `callWithErrorHandling`, whose production arm is `console.error` with no rethrow:
+ * `mount()` returned normally, the container held zero children, GTK said nothing, exit 0.
  *
- * The Vue adapter answered that with `adopt(new Gtk.Box())` — the one runtime
- * `gi://` import and the one concrete widget class in any adapter, i.e. the widget
- * knowledge ADR 0027 § 7 forbids. Which widget backs it is the table's business
- * (`makeDetachedContainer`), and this op is what leaves the adapter with nothing to
- * know: the deactivated subtree is really unparented from the visible tree and
- * really held alive, so reactivating it moves the SAME widgets back.
+ * Which widget backs it is the table's business (`makeDetachedContainer`), and this op is
+ * what leaves the adapter with nothing to know — the widget knowledge ADR 0027 § 7 forbids.
+ * The deactivated subtree is really unparented from the visible tree and really held
+ * alive, so reactivating it moves the SAME widgets back.
  */
 export const createDetachedContainer = (): HostElement => adopt(makeDetachedContainer());
 
@@ -1345,16 +1263,16 @@ export function adopt(container: GObject.Object): HostElement {
 }
 
 /**
- * What the application already had in this container — asked the way the
- * container answers honestly.
+ * What the application already had in this container — asked the way the container
+ * answers honestly.
  *
- * A one-child slot has to be asked through its GETTER, never through the child
- * list: measured on gtk 4.22 / libadwaita 1.8, a FRESH `Gtk.ScrolledWindow` has
- * two `GtkScrollbar` direct children, `Adw.ToolbarView` two `GtkRevealer`s,
- * `Adw.Window` an `AdwDialogHost` + an `AdwGizmo` and `Adw.StatusPage` a
- * `GtkScrolledWindow`, while all four getters answer `null`. A child-list
- * snapshot therefore reports application chrome that does not exist — and for a
- * slot that REPLACES there is no offset to compute from it anyway.
+ * A one-child slot has to be asked through its GETTER, never through the child list:
+ * measured on gtk 4.22 / libadwaita 1.8, a FRESH `Gtk.ScrolledWindow` has two
+ * `GtkScrollbar` direct children, `Adw.ToolbarView` two `GtkRevealer`s, `Adw.Window` an
+ * `AdwDialogHost` + an `AdwGizmo` and `Adw.StatusPage` a `GtkScrolledWindow`, while all
+ * four getters answer `null`. A child-list snapshot therefore reports application chrome
+ * that does not exist — and for a slot that REPLACES there is no offset to compute from it
+ * anyway.
  */
 function adoptedChildren(container: GObject.Object, descriptor: WidgetDescriptor): Gtk.Widget[] {
     const slots = setterSlots(descriptor.children);
@@ -1372,16 +1290,14 @@ function adoptedChildren(container: GObject.Object, descriptor: WidgetDescriptor
 /**
  * Who the APPLICATION has in a one-child slot. GTK's own child does not count.
  *
- * A widget with a text sink builds its own child FOR that sink: measured on gtk
- * 4.22.4, `new Gtk.Button({ label: 'Save' })` answers `get_child()` with an
- * internal `GtkLabel`, and `set_child(x)` sets `label` to null. Reading that
- * label as application content made every labelled `GtkButton`,
- * `GtkToggleButton` and `GtkCheckButton` impossible to adopt — and the refusal
- * then prescribed `set_child(null)`, which DELETES the label. Both halves were
- * regressions of the refusal itself.
+ * A widget with a text sink builds its own child FOR that sink: measured on gtk 4.22.4,
+ * `new Gtk.Button({ label: 'Save' })` answers `get_child()` with an internal `GtkLabel`,
+ * and `set_child(x)` sets `label` to null. Reading that label as application content made
+ * every labelled `GtkButton`, `GtkToggleButton` and `GtkCheckButton` impossible to adopt —
+ * and the refusal then prescribed `set_child(null)`, which DELETES the label.
  *
- * So the sink is the discriminator, the same fact the text-side guard already
- * rests on: a non-empty sink means the occupant is GTK's, not the app's.
+ * So the sink is the discriminator, the same fact the text-side guard already rests on: a
+ * non-empty sink means the occupant is GTK's, not the app's.
  */
 function appOccupant(container: Gtk.Widget, descriptor: WidgetDescriptor, setter: string): Gtk.Widget | null {
     const occupant = slotOccupant(container, setter);
