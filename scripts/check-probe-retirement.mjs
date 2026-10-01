@@ -66,6 +66,15 @@
 //     reason a clause that never resolves is worse than one that fails. What stays unknown
 //     is weather: a timeout, a 5xx, an unauthenticated `gh`.
 //
+// THE PUBLISH WINDOW. `npm-tarball-has` and `npm-version-min` carry the publish time
+// (`time[version]` in the packument), and such a probe is ripe only once a run whose job
+// STARTED after it has recorded an outcome. Measured 2026-10-01: the win32 job
+// 110335949275 started 11:41:58Z and staged the older `latest`;
+// `@gjsify/gtk-runtime-win32-x64@0.53.0` was published 12:56:00Z. The clause was met from
+// then on and every PR and the merge queue went red, though nothing had measured 0.53.0.
+// Until a later run exists the probe prints "met — awaiting a run after <time>" as a
+// `::notice` and does not fail; any run after it — green OR red — makes it ripe as before.
+//
 // Exit 0 when nothing is ripe, 1 on a ripe probe or a malformed clause, 2 on a usage error.
 
 import { execFileSync } from 'node:child_process';
@@ -257,6 +266,16 @@ function createIo(root, { online }) {
         return version;
     };
 
+    // WHEN a version went up, from the packument's own `time` map. A packument without one
+    // is a sparse answer, i.e. weather — the clause itself is fine.
+    const publishTime = (pkg, version) => {
+        const when = packument(pkg).time?.[version];
+        if (typeof when !== 'string' || Number.isNaN(Date.parse(when))) {
+            throw new Unknown(`${pkg}@${version}: the packument carries no publish time`);
+        }
+        return when;
+    };
+
     return {
         stats,
         online,
@@ -275,7 +294,16 @@ function createIo(root, { online }) {
 
         versionAtLeast(pkg, tag, minimum) {
             const version = publishedVersion(pkg, tag);
-            return atLeast(version, minimum);
+            if (!atLeast(version, minimum)) return { met: false };
+            // The clause came true with the FIRST release that satisfies it, not with the
+            // current tag — anchoring on the tag would restart the window at every later
+            // publish. Release versions only, as `atLeast` itself reads them.
+            const times = Object.keys(packument(pkg).versions ?? {})
+                .filter((v) => !v.includes('-') && atLeast(v, minimum))
+                .map((v) => packument(pkg).time?.[v])
+                .filter((t) => typeof t === 'string' && !Number.isNaN(Date.parse(t)))
+                .sort((a, b) => Date.parse(a) - Date.parse(b));
+            return { met: true, publishedAt: times[0] ?? publishTime(pkg, version) };
         },
 
         tarballHas(pkg, tag, entry) {
@@ -295,12 +323,15 @@ function createIo(root, { online }) {
             })();
             // npm tarballs root everything at `package/`; the clause names the path a
             // consumer sees, so it is matched as a suffix rather than anchored.
-            return listing.split('\n').some((line) =>
+            const met = listing.split('\n').some((line) =>
                 line
                     .trim()
                     .replace(/^package\//, '')
                     .endsWith(entry),
             );
+            // The dist-tag's version, which is at or after the first one carrying the entry:
+            // a LATER anchor only ever waits longer, never reads an outcome that predates it.
+            return met ? { met, publishedAt: publishTime(pkg, version) } : { met };
         },
 
         issueClosed(number) {
@@ -317,8 +348,15 @@ function createIo(root, { online }) {
             return out.trim() === 'CLOSED';
         },
 
-        probeGreen(probe, runs) {
-            if (!Number.isInteger(runs) || runs < 1) throw new ClauseError('probe-green needs a positive count');
+        /**
+         * Read the recorded outcomes of a probe's step off `main`'s push runs.
+         *
+         * `want` runs are measured, out of the newest `limit` listed. With `since` (epoch ms)
+         * only legs whose JOB started at or after it count: the job stages its bundle when
+         * it starts, so an outcome from a job that started before a publish says nothing
+         * about what that publish shipped.
+         */
+        scanOutcomes(probe, { want, limit, since }) {
             if (probe.id === undefined)
                 throw new ClauseError('the step has no `id`, so its outcome is not addressable');
 
@@ -386,9 +424,9 @@ function createIo(root, { online }) {
                     '--event',
                     'push',
                     '--limit',
-                    String(runs * 6),
+                    String(limit),
                     '--json',
-                    'databaseId,conclusion,createdAt',
+                    'databaseId,conclusion,createdAt,updatedAt',
                 ]),
             ).filter((run) => run.conclusion && run.conclusion !== 'cancelled');
             if (list.length === 0) throw new Unknown(`${workflow}: no completed \`main\` runs to read`);
@@ -398,7 +436,9 @@ function createIo(root, { online }) {
             let measured = 0;
             const reds = [];
             for (const run of list) {
-                if (measured >= runs) break;
+                if (measured >= want) break;
+                // A run last touched before `since` cannot hold a job that started after it.
+                if (since !== undefined && Date.parse(run.updatedAt) < since) continue;
                 const jobs = JSON.parse(
                     gh(['api', `/repos/{owner}/{repo}/actions/runs/${run.databaseId}/jobs?per_page=100`]),
                 ).jobs.filter(
@@ -409,6 +449,7 @@ function createIo(root, { online }) {
                 let legs = 0;
                 let red = false;
                 for (const job of jobs) {
+                    if (since !== undefined && !(Date.parse(job.started_at) >= since)) continue;
                     const step = job.steps?.find((candidate) => candidate.name === probe.label);
                     // Absent, skipped or cancelled: this leg measured NOTHING. Counting a
                     // skip as a pass is how "0 green" would have read as "2 green".
@@ -438,13 +479,33 @@ function createIo(root, { online }) {
                 if (red) reds.push(run.createdAt?.slice(0, 10) ?? String(run.databaseId));
             }
 
+            return { workflow, readerName, listed: list.length, measured, reds };
+        },
+
+        /** Runs whose job STARTED at or after `since` (ISO) and that recorded an outcome. */
+        outcomesSince(probe, since) {
+            const { measured, reds } = this.scanOutcomes(probe, {
+                want: Number.POSITIVE_INFINITY,
+                limit: 30,
+                since: Date.parse(since),
+            });
+            return { measured, reds: reds.length };
+        },
+
+        probeGreen(probe, runs) {
+            if (!Number.isInteger(runs) || runs < 1) throw new ClauseError('probe-green needs a positive count');
+            const { workflow, readerName, listed, measured, reds } = this.scanOutcomes(probe, {
+                want: runs,
+                limit: runs * 6,
+            });
+
             // NOTHING AT ALL is a broken join, not weather: a renamed step, a deleted
             // reader, a probe that never ran. None of those heals by waiting, so it
             // refuses rather than sitting UNKNOWN for as long as nobody looks. FEWER than
             // asked for IS transient — a young window fills up — so that stays unknown.
             if (measured === 0) {
                 throw new ClauseError(
-                    `no run in the last ${list.length} on \`main\` recorded an outcome for the step ` +
+                    `no run in the last ${listed} on \`main\` recorded an outcome for the step ` +
                         `"${probe.label}" beside its reader "${readerName}". Renamed, removed, or never run — ` +
                         'whichever it is, nothing is being measured.',
                 );
@@ -565,6 +626,7 @@ function main() {
 
     const errors = [];
     const ripe = [];
+    const awaiting = [];
     const rows = [];
     const optedOut = [];
 
@@ -592,10 +654,12 @@ function main() {
             if (clause.spec.online) io.stats.onlineClauses += 1;
             if (clause.spec.online && !online) return { clause, state: 'unknown', why: 'needs --online' };
             try {
-                const met = clause.spec.run(clause.args, io, probe);
+                const result = clause.spec.run(clause.args, io, probe);
+                // Publish-based verbs answer `{ met, publishedAt }`; the rest, a boolean.
+                const { met, publishedAt } = typeof result === 'object' ? result : { met: result };
                 io.stats.evaluated += 1;
                 if (clause.spec.online) io.stats.onlineEvaluated += 1;
-                return { clause, state: met ? 'met' : 'unmet' };
+                return { clause, state: met ? 'met' : 'unmet', publishedAt };
             } catch (error) {
                 // A malformed clause is a REFUSAL, not an unknown: it never resolves on its
                 // own, so leaving it unknown means the probe can never be ripe and nobody is
@@ -611,7 +675,35 @@ function main() {
         });
 
         rows.push({ probe, verdicts });
-        if (verdicts.every((v) => v.state === 'met')) ripe.push({ probe, verdicts });
+        if (!verdicts.every((v) => v.state === 'met')) continue;
+
+        // A publish makes a clause TRUE the moment it lands; a probe outcome recorded before
+        // that moment is about the previous artifact. Measured 2026-10-01: the win32 job
+        // started 11:41:58Z and staged the older `latest`, `gtk-runtime-win32-x64@0.53.0`
+        // went up at 12:56:00Z — and the clause alone redded every PR and the merge queue
+        // until a run could start after it. So a publish-anchored probe is ripe only once a
+        // run that STARTED after the publish has recorded an outcome (green or red: either
+        // is the measurement the verdict asks for); until then it is awaiting, not failing.
+        const publishedAt = verdicts
+            .map((v) => v.publishedAt)
+            .filter(Boolean)
+            .sort((a, b) => Date.parse(a) - Date.parse(b))
+            .at(-1);
+        if (publishedAt === undefined) {
+            ripe.push({ probe, verdicts });
+            continue;
+        }
+        try {
+            if (io.outcomesSince(probe, publishedAt).measured > 0) ripe.push({ probe, verdicts });
+            else awaiting.push({ probe, publishedAt });
+        } catch (error) {
+            if (error instanceof ClauseError) {
+                errors.push(`${probe.rel}:${probe.line}: ${error.message}`);
+            } else if (error instanceof Unknown) {
+                io.stats.unknown += 1;
+                console.log(`  note: ${probe.label}: could not read outcomes since ${publishedAt}: ${error.message}`);
+            } else throw error;
+        }
     }
 
     // The ledger, every run — the sibling checks print theirs for the same reason: a
@@ -633,6 +725,13 @@ function main() {
             const mark = { met: '●', unmet: '○', unknown: '?', error: '!' }[v.state];
             console.log(`    ${mark} ${v.clause.source}${v.why ? `  — ${v.why}` : ''}`);
         }
+    }
+
+    for (const { probe, publishedAt } of awaiting) {
+        console.log(
+            `::notice title=Probe retirement awaiting a run::${probe.label} — met, awaiting a run after ${publishedAt} ` +
+                '(every recorded outcome predates the publish that met it)',
+        );
     }
 
     if (errors.length > 0) {

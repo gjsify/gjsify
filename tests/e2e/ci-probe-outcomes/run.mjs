@@ -596,3 +596,114 @@ jobs:
         assert.match(out, /probe\(s\) with a stated condition/);
     });
 });
+
+// The publish window. A clause made true by a RELEASE is only evidence about a probe once a
+// run that started AFTER that release has recorded an outcome: measured 2026-10-01, the
+// win32 job started 11:41:58Z and staged the older `latest`, `gtk-runtime-win32-x64@0.53.0`
+// went up at 12:56:00Z, and the pre-publish red alone failed every PR and the merge queue.
+//
+// `curl` and `gh` are FAKED on PATH, so the registry and the Actions API answer from fixtures
+// and the suite still needs no network.
+
+const PUBLISHED_AT = '2026-10-01T12:56:00.000Z';
+const LABELLED = `name: probe
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # RETIREMENT CONDITION: when the release ships.
+      #   retire-when: npm-version-min @gjsify/fake latest 0.53.0
+      - name: 'The probe (gating blocked on the release)'
+        id: the-probe
+        continue-on-error: true
+        run: node run-the-suite.mjs
+      - name: 'Probe outcome'
+        if: always()
+        env:
+          PROBE_LABEL: 'The probe (gating blocked on the release)'
+          PROBE_OUTCOME: \${{ steps.the-probe.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`.replace(/\\\$/g, '$');
+
+/** Run the check `--online` against fixtures: one run whose job started at `jobStartedAt`. */
+function onlineWindow({ jobStartedAt, red }) {
+    const root = withTree(LABELLED);
+    const bin = mkdtempSync(join(tmpdir(), 'probe-fakes-'));
+    const fixture = (name, value) => {
+        writeFileSync(join(bin, name), JSON.stringify(value));
+    };
+    fixture('packument.json', {
+        'dist-tags': { latest: '0.53.0' },
+        versions: { '0.52.0': {}, '0.53.0': {} },
+        time: { '0.52.0': '2026-09-20T08:00:00.000Z', '0.53.0': PUBLISHED_AT },
+    });
+    fixture('runs.json', [
+        { databaseId: 1, conclusion: 'success', createdAt: '2026-10-01T11:41:00Z', updatedAt: '2026-10-01T13:30:00Z' },
+    ]);
+    const label = 'The probe (gating blocked on the release)';
+    fixture('jobs.json', {
+        jobs: [
+            {
+                id: 7,
+                started_at: jobStartedAt,
+                steps: [
+                    { name: label, conclusion: 'success' },
+                    { name: 'Probe outcome', conclusion: 'success' },
+                ],
+            },
+        ],
+    });
+    fixture(
+        'annotations.json',
+        red
+            ? [[{ annotation_level: 'warning', title: 'Probe failed (not gating)', message: `${label} exited non-zero; x` }]]
+            : [[]],
+    );
+    const shim = (name, body) => {
+        writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+    };
+    shim('curl', `cat "${bin}/packument.json"; printf '\\n200'`);
+    shim(
+        'gh',
+        `case "$2" in
+  list) cat "${bin}/runs.json" ;;
+  */jobs*) cat "${bin}/jobs.json" ;;
+  */annotations*) cat "${bin}/annotations.json" ;;
+  *) echo "unexpected gh $*" >&2; exit 1 ;;
+esac`,
+    );
+    try {
+        const out = execFileSync(process.execPath, [RETIRE, '--root', root, '--online'], {
+            encoding: 'utf-8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        return { code: 0, out };
+    } catch (error) {
+        return { code: error.status ?? 1, out: `${error.stdout ?? ''}${error.stderr ?? ''}` };
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(bin, { recursive: true, force: true });
+    }
+}
+
+describe('a clause met by a publish waits for a run that started after it', () => {
+    it('does NOT fail on a red outcome from a job that started before the publish', () => {
+        const { code, out } = onlineWindow({ jobStartedAt: '2026-10-01T11:41:58Z', red: true });
+        assert.equal(code, 0, out);
+        assert.match(out, /::notice title=Probe retirement awaiting a run::.*met, awaiting a run after 2026-10-01T12:56:00/);
+        assert.doesNotMatch(out, /retirement condition is now MET/);
+    });
+
+    it('FAILS on a red outcome from a job that started after the publish, as before', () => {
+        const { code, out } = onlineWindow({ jobStartedAt: '2026-10-01T13:00:00Z', red: true });
+        assert.equal(code, 1);
+        assert.match(out, /retirement condition is now MET/);
+    });
+
+    it('FAILS on a green outcome from a job that started after the publish, as before', () => {
+        const { code, out } = onlineWindow({ jobStartedAt: '2026-10-01T13:00:00Z', red: false });
+        assert.equal(code, 1);
+        assert.match(out, /retirement condition is now MET/);
+    });
+});
