@@ -105,12 +105,21 @@ class GjsifyTimeout {
         });
     }
 
-    ref(): this {
-        this._refed = true;
-        return this;
-    }
+    /**
+     * Records the request that this timer not hold the loop open.
+     *
+     * Honoured on GJS by NOT being honoured: `Gtk.Application` / `GLib.MainLoop`
+     * own the loop, and the only GSource operation that releases liveness
+     * (`g_source_unref`) also destroys the source — which is the crash this
+     * module exists to prevent. So the flag is recorded, `hasRef()` reports it
+     * truthfully, and the timer keeps firing.
+     */
     unref(): this {
         this._refed = false;
+        return this;
+    }
+    ref(): this {
+        this._refed = true;
         return this;
     }
     hasRef(): boolean {
@@ -131,10 +140,16 @@ class GjsifyTimeout {
         this._id = null;
     }
 
+    /** Cancels this timer; returns `this`, matching `@types/node`. */
+    close(): this {
+        this._cancel();
+        return this;
+    }
+
     [Symbol.toPrimitive](): number | null {
         return this._id;
     }
-    [Symbol.dispose]?(): void {
+    [Symbol.dispose](): void {
         this._cancel();
     }
 }
@@ -142,6 +157,21 @@ class GjsifyTimeout {
 function removeById(timeout: unknown): void {
     if (timeout instanceof GjsifyTimeout) {
         timeout._cancel();
+    } else if (typeof timeout === 'object' && timeout !== null && '_cancel' in timeout) {
+        // A `Timeout` from `@gjsify/timers` (which wraps OUR globals, so its `_id`
+        // is a GjsifyTimeout and its own `close()` cancels through it) or another
+        // copy of this module in the bundle. Duck-type rather than `instanceof`,
+        // which fails across a duplicated module — the situation that made
+        // consumers cast the handle in the first place.
+        (timeout as { _cancel(): void })._cancel();
+    } else if (
+        typeof timeout === 'object' &&
+        timeout !== null &&
+        typeof (timeout as { close?: unknown }).close === 'function'
+    ) {
+        // Any other Node-shaped handle (`@gjsify/timers`' own Timeout, a
+        // `worker_threads` timer). `close()` is how Node cancels one.
+        (timeout as { close(): void }).close();
     } else if (typeof timeout === 'number') {
         // Legacy: GJS's native setTimeout returned a source whose numeric ID was
         // recoverable via `+timer`. Accept bare numbers for callers still holding

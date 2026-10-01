@@ -144,6 +144,68 @@ export default async () => {
         });
     });
 
+    // The replacement we install on GJS must be indistinguishable from Node's
+    // own Timeout for every member a third-party library touches — that is the
+    // whole point of replacing it. These run on BOTH runtimes: on Node they
+    // assert against the native handle, on GJS against `GjsifyTimeout`, so a
+    // divergence in either direction fails here.
+    await describe('global timer handle is Node-compatible', async () => {
+        await it('returns a handle with ref/unref/hasRef/refresh', async () => {
+            const t = setTimeout(() => {}, 10_000);
+            expect(typeof t.ref).toBe('function');
+            expect(typeof t.unref).toBe('function');
+            expect(typeof t.hasRef).toBe('function');
+            expect(typeof t.refresh).toBe('function');
+            expect(t.hasRef()).toBe(true);
+            t.unref();
+            expect(t.hasRef()).toBe(false);
+            t.ref();
+            expect(t.hasRef()).toBe(true);
+            clearTimeout(t);
+        });
+
+        await it('unref() is chainable, matching Node', async () => {
+            const t = setInterval(() => {}, 10_000);
+            expect(t.unref()).toBe(t);
+            expect(t.ref()).toBe(t);
+            clearInterval(t);
+        });
+
+        await it('coerces to a number via Symbol.toPrimitive', async () => {
+            const t = setTimeout(() => {}, 10_000);
+            expect(typeof +t).toBe('number');
+            clearTimeout(t);
+        });
+
+        await it('clearTimeout accepts the handle object', async () => {
+            let called = false;
+            const t = setTimeout(() => {
+                called = true;
+            }, 5);
+            clearTimeout(t);
+            await new Promise<void>((resolve) => setTimeout(resolve, 40));
+            expect(called).toBe(false);
+        });
+
+        // Gated on GJS on purpose. On Node an unreferenced timer whose process
+        // is held open by ANOTHER timer still fires, so this assertion would
+        // pass on both runtimes and claim nothing; the divergence it pins
+        // (`unref()` cannot release the GLib main loop, so a GJS timer fires
+        // regardless) is only observable on GJS.
+        await on('Gjs', async () => {
+            await it('an unreferenced timer still fires: the app owns the loop', async () => {
+                let fired = false;
+                const t = setTimeout(() => {
+                    fired = true;
+                }, 5);
+                t.unref();
+                expect(t.hasRef()).toBe(false);
+                await new Promise<void>((resolve) => setTimeout(resolve, 40));
+                expect(fired).toBe(true);
+            });
+        });
+    });
+
     await describe('clearInterval (global)', async () => {
         await it('should be a function', async () => {
             expect(typeof clearInterval).toBe('function');
