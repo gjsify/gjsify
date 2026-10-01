@@ -158,7 +158,65 @@ function processTemplate(name, versionMap) {
     }
     writeFileSync(join(destDir, 'package.json'), JSON.stringify(templatePkg, null, 4) + '\n');
 
+    writeOxlintrc(destDir, templatePkg, name);
+
     console.log(`process-template: wrote dist-templates/${name}/`);
+}
+
+/**
+ * The Blueprint lint config a scaffolded GTK project gets, and ONLY that.
+ *
+ * It is written HERE rather than tracked at `templates/<name>/.oxlintrc.json`, and
+ * the reason is measured rather than stylistic. oxlint discovers a config by walking
+ * UP from every file it is handed, so a tracked one under `templates/` is built by
+ * the two gates that walk the tree without `--config` — `check-lint-visibility.mjs`
+ * and `check-source-visibility.mjs`, both `oxlint --debug=files [--no-ignore]`. The
+ * `tree-checks` job runs them on an INSTALLED but UNBUILT checkout (it must, so it
+ * runs when `build` does not), where the plugin's entry — `lib/index.js`, a build
+ * output — does not exist, and oxlint fails the whole run with `Failed to load JS
+ * plugin` before reading a file. The same file also makes oxlint apply the
+ * TEMPLATE's two rules instead of this repository's own to the scaffold sources on
+ * every invocation without `--config`, which is the opposite of what the root
+ * `.oxlintrc.json` decided on purpose when it dropped the templates directory from
+ * its `ignorePatterns`. `dist-templates/` is gitignored and untracked, so neither gate
+ * sees it.
+ *
+ * WHICH templates get one is derived, not curated: the ones that declare
+ * `@gjsify/vite-plugin-blueprint`, i.e. the ones whose interface is compiled from
+ * Blueprint — precisely the templates `prefer-blueprint-template` and
+ * `no-literal-widget-label` are about. The `cli` and `web-server-*` templates have
+ * no GTK widget to police.
+ *
+ * The rule IDs are spelled as `gjsify/<rule>` and the plugin by PACKAGE NAME, which
+ * is what a consumer resolves. In this repository the root config uses the source
+ * path instead, because `gjsify lint` must work without a build.
+ */
+function writeOxlintrc(destDir, templatePkg, templateName) {
+    const deps = { ...templatePkg.dependencies, ...templatePkg.devDependencies };
+    if (!deps['@gjsify/vite-plugin-blueprint']) return;
+
+    // The config names a package the scaffold has to have INSTALLED: oxlint treats an
+    // unloadable plugin as a config parse error, not a skipped rule, so a
+    // `.oxlintrc.json` without the devDependency fails `gjsify lint` at the config
+    // step. Asserted BEFORE the write, so a failing build leaves no half-written
+    // config behind.
+    if (!deps['@gjsify/oxlint-plugin-gjsify']) {
+        throw new Error(
+            `process-template: template "${templateName}" declares @gjsify/vite-plugin-blueprint, so its ` +
+                'generated .oxlintrc.json wires @gjsify/oxlint-plugin-gjsify — add it to devDependencies.',
+        );
+    }
+
+    const config = {
+        $schema: './node_modules/oxlint/configuration_schema.json',
+        categories: { correctness: 'error' },
+        jsPlugins: ['@gjsify/oxlint-plugin-gjsify'],
+        rules: {
+            'gjsify/prefer-blueprint-template': 'error',
+            'gjsify/no-literal-widget-label': 'error',
+        },
+    };
+    writeFileSync(join(destDir, '.oxlintrc.json'), JSON.stringify(config, null, 4) + '\n');
 }
 
 if (!existsSync(templatesSrcRoot)) {

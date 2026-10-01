@@ -18,6 +18,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/oxlint-plugin-gjsify": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
