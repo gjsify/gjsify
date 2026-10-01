@@ -253,9 +253,9 @@ export async function gateHistoryReport(options) {
 
     // ── 1. Workflows with no run here ────────────────────────────────────────
     const missingWorkflows = [];
-    const missingWorkflowFilters = active.map((w, i) => runsHere.has(w.path) ? null : { w, i });
+    const missingWorkflowFilters = active.map((w, i) => (runsHere.has(w.path) ? null : { w, i }));
     const missingHistories = await Promise.all(
-        missingWorkflowFilters.map((item) => item ? historyOf(basename(item.w.path)) : null)
+        missingWorkflowFilters.map((item) => (item ? historyOf(basename(item.w.path)) : null)),
     );
     for (let i = 0; i < missingWorkflowFilters.length; i++) {
         const item = missingWorkflowFilters[i];
@@ -285,7 +285,7 @@ export async function gateHistoryReport(options) {
         return jobs.some((job) => job.conclusion === 'skipped');
     });
     const allHistories = await Promise.all(
-        sortedRuns.map(([path], i) => (historyNeeded[i] ? historyOf(basename(path)) : null))
+        sortedRuns.map(([path], i) => (historyNeeded[i] ? historyOf(basename(path)) : null)),
     );
     for (let i = 0; i < sortedRuns.length; i++) {
         const [path, run] = sortedRuns[i];
