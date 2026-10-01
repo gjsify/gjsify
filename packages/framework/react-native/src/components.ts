@@ -316,12 +316,11 @@ function useFiles(files: readonly ResolvedFile[]): {
 /**
  * L2's `gestures` → a `Gtk.GestureClick` on the widget, for as long as it is mounted.
  *
- * `TouchableWithoutFeedback` is the only primitive that needs it, and the reason it is
- * an effect rather than a prop is that a controller is not a property: it is
- * `widget.add_controller(new Gtk.GestureClick())`, which needs the widget to exist.
- * `press.ts` owns both halves of that and REMOVES the controller in the disposer —
- * GJS blocks JS callbacks during GC, so a controller left on a widget is a handler
- * connected for the life of the process.
+ * `TouchableWithoutFeedback` is the only primitive that needs it, and the reason it is an effect
+ * rather than a prop is that a controller is not a property: it is `widget.add_controller(new
+ * Gtk.GestureClick())`, which needs the widget to exist. `press.ts` owns both halves of that and
+ * REMOVES the controller in the disposer — GJS blocks JS callbacks during GC, so a controller left
+ * on a widget is a handler connected for the life of the process.
  */
 function useGestures(gestures: readonly ResolvedGesture[], props: AnyProps, widgetRef: { current: unknown }): void {
     const latest = useRef(props);
@@ -346,16 +345,14 @@ function useGestures(gestures: readonly ResolvedGesture[], props: AnyProps, widg
 /**
  * L2's `announcements` → a screen-reader announcement whenever the content changes.
  *
- * AN EFFECT AND NOT AN `on:<signal>` PROP, and the difference is the whole feature:
- * the host suppresses a `notify::` raised inside its OWN property write, and a
- * `<Text>`'s content IS a host write — so an announcement routed through the host's
- * handler map fires on a change made from outside React and NEVER on the one the
- * application made. `announce.ts` carries the measurement.
+ * AN EFFECT AND NOT AN `on:<signal>` PROP, and the difference is the whole feature: the host
+ * suppresses a `notify::` raised inside its OWN property write, and a `<Text>`'s content IS a host
+ * write — so an announcement routed through the host's handler map fires on a change made from
+ * outside React and NEVER on the one the application made. `announce.ts` carries the measurement.
  *
- * An effect also gets the first render right by construction: it runs after the commit
- * that wrote the initial text, so a mount announces nothing. React Native's live region
- * speaks an update, and a screen reader that read every label on first paint would be
- * unusable.
+ * An effect also gets the first render right by construction: it runs after the commit that wrote
+ * the initial text, so a mount announces nothing. React Native's live region speaks an update, and
+ * a screen reader that read every label on first paint would be unusable.
  */
 function useLiveRegions(announcements: readonly ResolvedAnnouncement[], widgetRef: { current: unknown }): void {
     // The SIGNATURE, exactly as `useSignals` and `useGestures` do it: `announcements`
@@ -383,14 +380,13 @@ function useLiveRegions(announcements: readonly ResolvedAnnouncement[], widgetRe
 /**
  * L2's `accessibility` → `Gtk.Accessible.update_property()`/`update_state()`.
  *
- * AN EFFECT, so the write lands on a widget that exists, and so the CLEANUP can
- * reset what it set: a prop going from a value to absent has to clear the
- * attribute, and re-running the effect on a changed set is what does it.
+ * AN EFFECT, so the write lands on a widget that exists, and so the CLEANUP can reset what it set:
+ * a prop going from a value to absent has to clear the attribute, and re-running the effect on a
+ * changed set is what does it.
  *
- * The SIGNATURE, exactly as `useSignals`, `useGestures` and `useLiveRegions` do it:
- * `plan.accessibility` is freshly allocated by every `resolvePrimitive` call, so
- * depending on the array itself would reset and rewrite every attribute on every
- * commit — which is an AT-SPI notification storm rather than a no-op.
+ * The SIGNATURE, as the three hooks above: `plan.accessibility` is freshly allocated by every
+ * `resolvePrimitive` call, so depending on the array itself would reset and rewrite every attribute
+ * on every commit — an AT-SPI notification storm rather than a no-op.
  */
 function useAccessibility(entries: readonly ResolvedAccessible[], widgetRef: { current: unknown }): void {
     const signature = entries.length === 0 ? '' : JSON.stringify(entries);
@@ -407,11 +403,10 @@ function useAccessibility(entries: readonly ResolvedAccessible[], widgetRef: { c
 /**
  * A plan plus its children → the React elements.
  *
- * THREE arrangements, and the plan says which one without this function ever
- * branching on a primitive name: no content node (children go straight in), a
- * content node (children go into it), and a content node with an `absoluteSlot`
- * (ordinary children go into it, absolutely positioned ones go into the OUTER node,
- * where `Gtk.Overlay`'s `add_overlay` slot takes them).
+ * THREE arrangements, and the plan says which one without this function ever branching on a
+ * primitive name: no content node (children go straight in), a content node (children go into it),
+ * and a content node with an `absoluteSlot` (ordinary children go into it, absolutely positioned
+ * ones go into the OUTER node, where `Gtk.Overlay`'s `add_overlay` slot takes them).
  */
 function render(rendered: Rendered): ReactElement {
     const { plan, children, inherited, extra, contentExtra, backdropExtra, published, tokens } = rendered;
