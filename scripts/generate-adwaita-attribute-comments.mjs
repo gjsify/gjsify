@@ -304,6 +304,19 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // `gtk_widget_set_size_request()` does, and the same two words name the CSS box.
     'adw-window width': { kind: 'renamed', girProperty: 'default-width' },
     'adw-window height': { kind: 'renamed', girProperty: 'default-height' },
+
+    // The application's menu model, which on GTK lives on `Gtk.Application` — the
+    // GObject that OWNS the window and installs the model at construction, so a
+    // document has no property for it to mirror. It is the portable menu value ADR 0042
+    // gave `<gtk-menu-button menu-model>`, on the same parser, deliberately and visibly.
+    'adw-application-window menu-model': { kind: 'port-only' },
+
+    // The SAME two as `<adw-window>` above, inherited rather than re-declared: the
+    // application window extends it and keeps the attributes it observes, so its list
+    // is `[...AdwWindow.observedAttributes, …]` and this pair is in it. The ledger is
+    // keyed on the TAG, so an entry for the base does not cover the subclass.
+    'adw-application-window width': { kind: 'renamed', girProperty: 'default-width' },
+    'adw-application-window height': { kind: 'renamed', girProperty: 'default-height' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */

@@ -152,6 +152,103 @@ an empty window at exit 0 with nothing in the log. And such a tree is a GTK wind
 rather than a phone screen, which is why it was never the NativeScript tab.
 </MoreInfo>
 
+## Application Window
+
+The [window](#window) with one thing added: the **menubar** its application
+installed. Turn **show menubar** off and the bar goes away; turn it on and the window
+draws it, which is all `Gtk.ApplicationWindow:show-menubar` decides.
+
+<MoreInfo title="A browser has no application">
+On GTK the model belongs to a `Gtk.Application`, which installs it into every
+application window it opens — a document has no application, so
+`<adw-application-window>` takes the **menu model** itself, in the same portable form
+`<gtk-menu-button>` takes, and reads it with the same parser. A menubar is a row of
+menu **links**: each one becomes a button that opens its menu, and a link's own items
+are what that menu holds.
+</MoreInfo>
+
+<AdwWidget title="Adw.ApplicationWindow" padding="flush" stage="height: 300px; width: 100%; display: flex; align-items: center; justify-content: center;">
+  <Fragment slot="preview">
+    ```html
+    <!-- show-menubar: If this property is true, the window will display a menubar unless it is shown by the desktop shell. -->
+    <adw-application-window width="440" height="240" show-menubar menu-model='[{"label":"File","submenu":[{"label":"New Window","action":"app.new-window"},{"label":"Quit","action":"app.quit"}]},{"label":"Help","submenu":[{"label":"Keyboard Shortcuts","action":"app.shortcuts"},{"label":"About","action":"app.about"}]}]'>
+      <adw-toolbar-view>
+        <adw-header-bar slot="top">
+          <adw-window-title slot="title" title="Text Editor" subtitle="notes.md"></adw-window-title>
+        </adw-header-bar>
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page
+          slot="content"
+          title="Your Library"
+          description="Content sits between the toolbars and scrolls independently of them."
+        ></adw-status-page>
+      </adw-toolbar-view>
+    </adw-application-window>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    Adw.init();
+
+    // The menubar model: a row of LINKS, which is what `Gtk.Application:menubar` is.
+    const menu = new Gio.Menu();
+    const file = new Gio.Menu();
+    file.append('New Window', 'app.new-window');
+    file.append('Quit', 'app.quit');
+    menu.append_section(null, file);
+
+    // Gtk.MenuBar is gone from GTK 4; the row is a Gtk.PopoverMenuBar. An app never
+    // adds it — `Gtk.Application` installs the model at construction — and this boolean
+    // is what decides whether the window DRAWS it.
+    const menubar = new Gtk.PopoverMenuBar({ menu_model: menu });
+
+    // The window has ONE child, its content. The menubar is the toolbar view's second
+    // top bar, which is where an application window's own menubar sits.
+    const toolbarView = new Adw.ToolbarView();
+    toolbarView.add_top_bar(new Adw.HeaderBar());
+    toolbarView.add_top_bar(menubar);
+    toolbarView.content = new Adw.StatusPage({ title: 'Your Library' });
+
+    const window = new Adw.ApplicationWindow({ content: toolbarView, show_menubar: true });
+    window.set_default_size(440, 240);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.ApplicationWindow {
+      // The menubar is the APPLICATION's, so a `.blp` cannot spell it: a section of a
+      // Gio.Menu is a `menu` object and the window takes a PopoverMenuBar, and both are
+      // installed by the code that owns the window. The flag is all markup carries.
+      show-menubar: true;
+      default-width: 440;
+      default-height: 240;
+
+      content: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          title-widget: Adw.WindowTitle {
+            title: _("Text Editor");
+            subtitle: _("notes.md");
+          };
+        }
+
+        content: Adw.StatusPage {
+          title: _("Your Library");
+          description: _("Content sits between the toolbars and scrolls independently of them.");
+        };
+      };
+    }
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Bin
 
 The smallest container libadwaita ships: a widget that holds **one child** and

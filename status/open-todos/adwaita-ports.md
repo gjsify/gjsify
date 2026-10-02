@@ -464,6 +464,15 @@ exactly why they must not be written as decisions.
   neither the dialog nor the `AdwShortcutsSection` / `AdwShortcutsItem` GObjects to build
   it from. Its whole shortcut surface is `<adw-shortcut-label>`, one keycap.
 - **`<adw-window>` and `<adw-application-window>` on NativeScript.** Both browser elements,
+  both gallery blocks and both stories exist, and both are ledgered as not rendered on
+  NativeScript (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) with their
+  XML templates refused. This one is a `decision` rather than a `gap` in
+  `scripts/check-storybook-widget-coverage.mjs` — NativeScript's `Page` IS the window (the
+  storybook Page already carries the `adw-window` style class,
+  `showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml`) — and the
+  application window adds only `Gtk.ApplicationWindow:show-menubar`, a menu bar no phone
+  has. What the browser port therefore has that the page does not is the FRAME; the port's
+  own answer is `AdwToolbarView` inside a `Page`.
 - **`<gtk-about-dialog>`, `<gtk-emoji-chooser>`, `<gtk-page-setup-unix-dialog>` and
   `<gtk-print-unix-dialog>` on NativeScript.** Four browser elements and their gallery blocks
   exist; the NativeScript port has none of the four, so their stories are ledgered as not

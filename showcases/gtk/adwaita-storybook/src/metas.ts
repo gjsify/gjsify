@@ -63,6 +63,7 @@ export * from './layout/frame.meta.js';
 export * from './layout/grid.meta.js';
 export * from './layout/toolbar-view.meta.js';
 export * from './layout/viewport.meta.js';
+export * from './layout/application-window.meta.js';
 export * from './layout/window.meta.js';
 export * from './layout/wrap-box.meta.js';
 export * from './media/image.meta.js';

@@ -56,6 +56,7 @@
 export { AdwAboutDialog as AboutDialog } from '../elements/adw-about-dialog.js';
 export { AdwActionRow as ActionRow } from '../elements/adw-action-row.js';
 export { AdwAlertDialog as AlertDialog } from '../elements/adw-alert-dialog.js';
+export { AdwApplicationWindow as ApplicationWindow } from '../elements/adw-application-window.js';
 export { AdwAvatar as Avatar } from '../elements/adw-avatar.js';
 export { AdwBanner as Banner } from '../elements/adw-banner.js';
 export { AdwBin as Bin } from '../elements/adw-bin.js';

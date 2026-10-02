@@ -29,6 +29,7 @@ import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwWindowTest } from './adw-window.spec.js';
 import { AdwShortcutsTest } from './adw-shortcuts.spec.js';
+import { AdwApplicationWindowTest } from './adw-application-window.spec.js';
 import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
 import { GtkDragIconTest } from './gtk-drag-icon.spec.js';
@@ -243,6 +244,7 @@ run({
     AdwDialogTest,
     AdwWindowTest,
     AdwShortcutsTest,
+    AdwApplicationWindowTest,
     GtkDropDownTest,
     AdwRowStateTest,
     AdwTabViewTest,

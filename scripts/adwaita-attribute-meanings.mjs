@@ -27,6 +27,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'body': null,
         'heading': null,
     },
+    'adw-application-window': {
+        'show-menubar': 'If this property is true, the window will display a menubar unless it is shown by the desktop shell.',
+    },
     'adw-clamp-scrollable': {
         'maximum-size': 'The maximum size allocated to the child.',
         'tightening-threshold': 'The size above which the child is clamped.',
@@ -318,7 +321,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'vscrollbar-policy': 'When the vertical scrollbar is displayed.',
     },
     'gtk-search-bar': {
-        'search-mode-enabled': 'Whether the search mode is on and the search bar shown.',
+        'search-mode-enabled': null,
         'show-close-button': null,
     },
     'gtk-search-entry': {
@@ -396,6 +399,9 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-alert-dialog open': 'declarative-state',
     'adw-alert-response appearance': 'not-a-widget',
     'adw-alert-response id': 'not-a-widget',
+    'adw-application-window height': 'renamed',
+    'adw-application-window menu-model': 'port-only',
+    'adw-application-window width': 'renamed',
     'adw-breakpoint-bin breakpoints': 'port-only',
     'adw-dialog open': 'declarative-state',
     'adw-preferences-dialog open': 'declarative-state',
@@ -436,12 +442,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 232,
+    set: 236,
     glossed: 87,
-    nameSuffices: 109,
-    divergent: 35,
+    nameSuffices: 110,
+    divergent: 38,
     authored: 1,
-    commentLines: 121,
+    commentLines: 122,
 };
 
 /**

@@ -169,6 +169,7 @@ const COLLECTION_CENSUS = {
     'browser/adw-sidebar': ['SidebarState.setSections'],
     'browser/adw-split-button': ['SplitButtonState.setMenuModel', 'attr:menu-model'],
     'browser/adw-toggle-group': ['ToggleGroupState.setLabels'],
+    'browser/adw-application-window': ['attr:menu-model'],
     'browser/gtk-menu-button': ['attr:menu-model'],
     // The three popovers whose content is a MENU. `GtkPopoverMenu` parses the attribute
     // through the same core parser the menu button uses (ADR 0042) and has no state class

@@ -569,6 +569,11 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'application-window': {
+        only: 'web',
+        decision:
+            "The page-is-the-window fact `window` above records, on the same storybook Page, plus the ONE property an application window adds: `Gtk.ApplicationWindow:show-menubar`, a menu bar a touch target has no place for. The port's answer is AdwToolbarView inside that Page, and it is a template on its own block.",
+    },
 };
 
 /**

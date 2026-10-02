@@ -140,10 +140,16 @@ export class AdwWindow extends HTMLElement {
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-window-content';
 
-        // Children are the content — the Adw.Window buildable default. The content area
-        // becomes the host's own child, so a child appended later lands in it too
-        // (`bindSlottedChildren` is LIVE, see `src/slotted-children.ts`).
-        bindSlottedChildren(this, [{ into: this._contentEl }]).install(this._contentEl);
+        // Children are the content — the Adw.Window buildable default, and `content` is
+        // ALSO its name, because a `.blp` writes `content:` on the window and an authored
+        // tree needs the name to route it: `refuseUnknownSlots` in
+        // `src/shared-tree-builder.ts` throws on a slot a defined element does not
+        // declare, and `showcases/gtk/effect-adw-services/src/window.blp` is rooted at
+        // one. The content area becomes the host's own child, so a child appended later
+        // lands in it too (`bindSlottedChildren` is LIVE, see `src/slotted-children.ts`).
+        bindSlottedChildren(this, [{ name: 'content', into: this._contentEl }, { into: this._contentEl }]).install(
+            this._contentEl,
+        );
 
         // Track open dialogs presented inside this window: an AdwDialog raises
         // `notify::open`, which bubbles to here.

@@ -135,6 +135,10 @@ const KNOWN_GAPS = {
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
     'adw-window': ['adaptive-preview'],
+    // The same debug mode `<adw-window>` records above, for the same reason: it
+    // resizes the window to a set of device sizes from GTK Inspector or Ctrl+Shift+M,
+    // and a browser has neither. This element is `<adw-window>` plus `show-menubar`.
+    'adw-application-window': ['adaptive-preview'],
     // ── Visible for the first time on 2026-09-01, when nine elements took the GIR
     // name of the widget they always were (ADR 0034 clause 1, § Amendment 5). The
     // GAPS are not new: `<adw-entry>` observed five attributes against `GtkEntry`'s

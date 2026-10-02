@@ -718,6 +718,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     // --- no toplevel to hang a frame on ---
     'Adw.Window':
         'NativeScript has no toplevel: its Page IS the window — the storybook Page already carries the `adw-window` style class (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml), which the theme styles (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24) — so there is nothing for a window frame to be the frame OF. AdwToolbarView is the container this window would hold, and it is a template on its own block.',
+    'Adw.ApplicationWindow':
+        'the application window is the window plus Gtk.ApplicationWindow:show-menubar, and the port has neither half: its Page IS the window, and a touch target has no menu bar. AdwToolbarView is the container the window would hold, and it is a template on its own block (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

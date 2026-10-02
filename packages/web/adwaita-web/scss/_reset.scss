@@ -29,7 +29,7 @@
 // never listed, so it silently ran without the isolation floor. Nothing noticed,
 // because the only spec touching this file instantiates `adw-switch-row`.
 $adw-components:
-  adw-about-dialog, adw-action-row, adw-alert-dialog, adw-alert-response, adw-avatar,
+  adw-about-dialog, adw-action-row, adw-alert-dialog, adw-alert-response, adw-application-window, adw-avatar,
   adw-banner, adw-bin, adw-bottom-sheet, adw-bottom-sheet-bottom-bar, adw-bottom-sheet-content,
   adw-bottom-sheet-sheet, adw-breakpoint-bin, adw-button-content, adw-button-row, adw-card, adw-carousel,
   adw-carousel-indicator-dots, adw-carousel-indicator-lines, adw-clamp, adw-clamp-scrollable, adw-combo-row,

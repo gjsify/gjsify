@@ -1404,6 +1404,8 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'a GtkPopover is shown by popping it up from an anchor WIDGET, so a tree has nothing to attach the popover to — `parentElement` is the default anchor and a top-level tree element has none.',
     'Adw.Dialog':
         'a dialog is opened with present() — the same shape Adw.AboutDialog above is refused for, and for the same reason: what a static tree can spell is the child, and the child is invisible without the portal.',
+    'Adw.ApplicationWindow':
+        "the menubar is not this widget's to spell: the model is installed by the GtkApplication that owns the window, at construction, and `show-menubar` only decides whether the window DRAYS the bar it was given. A static tree is a tree of widgets with properties, and there is no property here to hold a menu, so the one row that block shows would be a window with no menu bar and a comment claiming it had one.",
     'Adw.ShortcutsDialog':
         "a dialog is opened with present(), AND its content is AdwShortcutsSection objects — GObjects, not widgets, with no tag in a table of concrete widgets — so the row a static tree could spell would be a dialog with no portal and no sections. Its own descriptor says the same: `children: { kind: 'uncurated' }` (packages/framework/gtk-host/src/descriptors/adw.ts:69-74).",
     'Adw.ViewSwitcherBar': 'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
