@@ -310,6 +310,44 @@ export type {
     AdwTreeExpanderRow,
 } from './tree-expander.js';
 
+// --- The selection rules of the two child-holding containers (Gtk.ListBox / Gtk.FlowBox) ---
+export {
+    listBoxSelect,
+    listBoxSelectAll,
+    listBoxSelectRow,
+    listBoxUnselectAll,
+    listBoxUnselectRow,
+    normalizeBoxSelectionMode,
+} from './box-selection.js';
+export type { AdwBoxSelectResult, AdwBoxSelection, AdwBoxSelectionMode, AdwBoxSelectStep } from './box-selection.js';
+
+// --- Gtk.Calendar's date arithmetic (the 6x7 grid, ISO weeks, the clamped steps) ---
+export {
+    CALENDAR_MARK_MAX,
+    CALENDAR_MARK_MIN,
+    CALENDAR_YEAR_MAX,
+    CALENDAR_YEAR_MIN,
+    calendarClearMarks,
+    calendarDayIsMarked,
+    calendarDays,
+    calendarDaysInMonth,
+    calendarIsLeapYear,
+    calendarMarkDay,
+    calendarNavigationButtons,
+    calendarSelectDay,
+    calendarStep,
+    calendarWeekNumber,
+    calendarWeekStart,
+} from './calendar.js';
+export type {
+    AdwCalendarCell,
+    AdwCalendarCellMonth,
+    AdwCalendarDate,
+    AdwCalendarNavigation,
+    AdwCalendarSelectResult,
+    AdwCalendarStep,
+} from './calendar.js';
+
 // --- The portable adjustment (Gtk.Adjustment's six numbers + its two signals — ADR 0047) ---
 export {
     ADW_ADJUSTMENT_DEFAULTS,

@@ -485,6 +485,59 @@ const GtkMediaControls = () => (
     </gtk-box>
 );
 
+const GtkListBox = () => (
+    <gtk-list-box
+        selectionMode="single"
+        showSeparators
+        widthRequest={240}
+    >
+        <gtk-list-box-row>
+            <gtk-label label="Documents" />
+        </gtk-list-box-row>
+        <gtk-list-box-row>
+            <gtk-label label="Downloads" />
+        </gtk-list-box-row>
+        <gtk-list-box-row>
+            <gtk-label label="Pictures" />
+        </gtk-list-box-row>
+    </gtk-list-box>
+);
+
+const GtkFlowBox = () => (
+    <gtk-flow-box
+        selectionMode="multiple"
+        minChildrenPerLine={2}
+        maxChildrenPerLine={4}
+        rowSpacing={6}
+        columnSpacing={6}
+        widthRequest={320}
+    >
+        <gtk-flow-box-child>
+            <gtk-label label="Red" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Orange" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Yellow" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Green" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Blue" />
+        </gtk-flow-box-child>
+    </gtk-flow-box>
+);
+
+const GtkCalendar = () => (
+    <gtk-calendar
+        date="2026-10-02"
+        showWeekNumbers
+        halign="center"
+    />
+);
+
 const GtkFrame = () => (
     <gtk-frame
         label="Details"
@@ -989,6 +1042,9 @@ const Gallery = () => (
         <GtkInscription />
         <GtkVideo />
         <GtkMediaControls />
+        <GtkListBox />
+        <GtkFlowBox />
+        <GtkCalendar />
         <GtkFrame />
         <GtkAspectFrame />
         <GtkSeparator />
@@ -1259,6 +1315,41 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-video', gtype: 'GtkVideo', props: {"loop":true,"widthRequest":320,"heightRequest":180} },
                 { tag: 'gtk-media-controls', gtype: 'GtkMediaControls', props: {"cssClasses":["osd","bottom"]} }
             ] }
+    },
+    { widget: 'Gtk.ListBox', root:
+        { tag: 'gtk-list-box', gtype: 'GtkListBox', props: {"selectionMode":"single","showSeparators":true,"widthRequest":240}, children: [
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Documents"} }
+                    ] },
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Downloads"} }
+                    ] },
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Pictures"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.FlowBox', root:
+        { tag: 'gtk-flow-box', gtype: 'GtkFlowBox', props: {"selectionMode":"multiple","minChildrenPerLine":2,"maxChildrenPerLine":4,"rowSpacing":6,"columnSpacing":6,"widthRequest":320}, children: [
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Red"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Orange"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Yellow"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Green"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Blue"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Calendar', root:
+        { tag: 'gtk-calendar', gtype: 'GtkCalendar', props: {"date":"2026-10-02","showWeekNumbers":true,"halign":"center"} }
     },
     { widget: 'Gtk.Frame', root:
         { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [

@@ -29,12 +29,10 @@ distance without the line, a 12px gap that draws nothing.
 <AdwWidget title="Gtk.Separator">
   <Fragment slot="preview">
     ```html
-    <!-- spacing: The amount of space between children. -->
     <gtk-box orientation="vertical" spacing="12" style="align-items:center;">
       <gtk-label label="Above"></gtk-label>
       <gtk-separator style="width:160px;"></gtk-separator>
       <gtk-label label="Below"></gtk-label>
-      <!-- spacing: The amount of space between children. -->
       <gtk-box spacing="12" style="height:24px;align-items:stretch;">
         <gtk-label label="Left"></gtk-label>
         <gtk-separator orientation="vertical"></gtk-separator>
@@ -176,13 +174,11 @@ moves the child only where the frame is narrower than the child needs.
     <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center;">
       <!-- ratio: The aspect ratio to be used by the `GtkAspectFrame`. -->
       <!-- obey-child: Whether the `GtkAspectFrame` should use the aspect ratio of its child. -->
-      <!-- yalign: The vertical alignment of the child. -->
       <gtk-aspect-frame ratio="2" obey-child="false" xalign="0.5" yalign="0" style="width:200px;height:140px;">
         <gtk-label label="2 : 1, along the top." style="padding:12px;"></gtk-label>
       </gtk-aspect-frame>
       <!-- ratio: The aspect ratio to be used by the `GtkAspectFrame`. -->
       <!-- obey-child: Whether the `GtkAspectFrame` should use the aspect ratio of its child. -->
-      <!-- yalign: The vertical alignment of the child. -->
       <gtk-aspect-frame ratio="2" obey-child="false" xalign="0.5" yalign="1" style="width:200px;height:140px;">
         <gtk-label label="2 : 1, along the bottom." style="padding:12px;"></gtk-label>
       </gtk-aspect-frame>

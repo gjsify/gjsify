@@ -115,7 +115,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'title': null,
     },
     'adw-view-switcher': {
-        'policy': 'The policy to determine which mode to use.',
+        'policy': null,
     },
     'adw-window-title': {
         'title': null,
@@ -144,14 +144,18 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'obey-child': 'Whether the `GtkAspectFrame` should use the aspect ratio of its child.',
         'ratio': 'The aspect ratio to be used by the `GtkAspectFrame`.',
         'xalign': null,
-        'yalign': 'The vertical alignment of the child.',
+        'yalign': null,
     },
     'gtk-box': {
         'orientation': null,
-        'spacing': 'The amount of space between children.',
+        'spacing': null,
     },
     'gtk-button': {
         'label': null,
+    },
+    'gtk-calendar': {
+        'date': null,
+        'show-week-numbers': null,
     },
     'gtk-check-button': {
         'label': null,
@@ -180,6 +184,13 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'gtk-expander': {
         'label': null,
+    },
+    'gtk-flow-box': {
+        'column-spacing': null,
+        'max-children-per-line': 'The maximum amount of children to request space for consecutively in the given orientation.',
+        'min-children-per-line': 'The minimum number of children to allocate consecutively in the given orientation.',
+        'row-spacing': null,
+        'selection-mode': null,
     },
     'gtk-font-dialog-button': {
         'dialog': 'The `GtkFontDialog` that contains parameters for the font chooser dialog.',
@@ -228,6 +239,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'label': null,
         'uri': 'The URI bound to this button.',
         'visited': 'The \'visited\' state of this button.',
+    },
+    'gtk-list-box': {
+        'selection-mode': null,
+        'show-separators': null,
     },
     'gtk-list-view': {
         'model': null,
@@ -418,12 +433,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 220,
-    glossed: 88,
-    nameSuffices: 98,
+    set: 229,
+    glossed: 87,
+    nameSuffices: 108,
     divergent: 33,
     authored: 1,
-    commentLines: 129,
+    commentLines: 120,
 };
 
 /**

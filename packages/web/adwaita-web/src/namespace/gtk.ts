@@ -27,6 +27,7 @@ export { GtkApplicationWindow as ApplicationWindow } from '../elements/gtk-appli
 export { GtkAspectFrame as AspectFrame } from '../elements/gtk-aspect-frame.js';
 export { GtkBox as Box } from '../elements/gtk-box.js';
 export { GtkButton as Button } from '../elements/gtk-button.js';
+export { GtkCalendar as Calendar } from '../elements/gtk-calendar.js';
 export { GtkCenterBox as CenterBox } from '../elements/gtk-center-box.js';
 export { GtkCheckButton as CheckButton } from '../elements/checks.js';
 export { GtkColorDialogButton as ColorDialogButton } from '../elements/gtk-color-dialog-button.js';
@@ -39,6 +40,8 @@ export { GtkEmojiChooser as EmojiChooser } from '../elements/gtk-emoji-chooser.j
 export { GtkEntry as Entry } from '../elements/gtk-entry.js';
 export { GtkExpander as Expander } from '../elements/gtk-expander.js';
 export { GtkFixed as Fixed } from '../elements/gtk-fixed.js';
+export { GtkFlowBox as FlowBox } from '../elements/gtk-flow-box.js';
+export { GtkFlowBoxChild as FlowBoxChild } from '../elements/gtk-flow-box-child.js';
 export { GtkFontDialogButton as FontDialogButton } from '../elements/gtk-font-dialog-button.js';
 export { GtkFrame as Frame } from '../elements/gtk-frame.js';
 export { GtkGLArea as GLArea } from '../elements/gtk-gl-area.js';
@@ -51,6 +54,8 @@ export { GtkLinkButton as LinkButton } from '../elements/gtk-link-button.js';
 export { GtkLabel as Label } from '../elements/gtk-label.js';
 export { GtkInscription as Inscription } from '../elements/gtk-inscription.js';
 export { GtkLevelBar as LevelBar } from '../elements/gtk-level-bar.js';
+export { GtkListBox as ListBox } from '../elements/gtk-list-box.js';
+export { GtkListBoxRow as ListBoxRow } from '../elements/gtk-list-box-row.js';
 export { GtkListView as ListView } from '../elements/gtk-list-view.js';
 export { GtkMediaControls as MediaControls } from '../elements/gtk-media-controls.js';
 export { GtkMenuButton as MenuButton } from '../elements/gtk-menu-button.js';

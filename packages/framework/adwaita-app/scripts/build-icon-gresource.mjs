@@ -82,6 +82,7 @@ const SUBSET = [
     ['actions', 'go-home'],
     ['actions', 'go-next'],
     ['actions', 'go-previous'],
+    ['actions', 'go-up'],
     ['actions', 'list-add'],
     ['actions', 'list-remove'],
     ['actions', 'mail-reply-sender'],

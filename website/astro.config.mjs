@@ -146,6 +146,7 @@ export default defineConfig({
                                 { slug: 'gtk/indicators' },
                                 { slug: 'gtk/text' },
                                 { slug: 'gtk/layout' },
+                                { slug: 'gtk/lists' },
                                 { slug: 'gtk/windows' },
                                 { slug: 'gtk/models' },
                                 { slug: 'gtk/stacks' },

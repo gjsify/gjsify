@@ -631,6 +631,24 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   does not expose. The titlebar handle is the odd one out and is here because it is on the
   same page: a `Page` cannot be dragged by a view inside it, so the gesture has no host
   there at all.
+- **`<gtk-list-box>`, `<gtk-flow-box>` and `<gtk-calendar>` on NativeScript.** The three
+  browser elements and their gallery blocks exist, and the SELECTION half is portable and
+  renderer-neutral already — `listBoxSelect` and its three siblings in `@gjsify/adwaita-core`
+  are `gtk_list_box_update_selection_full` line for line (ADR 0089), which is also
+  `gtk_flow_box_update_selection`, and their vector tables run from the core suite AND from
+  both browser specs. What the NativeScript port has is `GtkBox` (a `StackLayout`) and
+  `AdwWrapBox` (a `FlexboxLayout`), so both containers' CHILDREN have somewhere to go and
+  neither SELECTION does: `AdwSwitchRow` is a title and a boolean, with no child for a box to
+  select among, and a wrap holds no state per cell. The calendar is further out —
+  `@nativescript/core` ships no `DatePicker`, so there is nothing to take a day, a month grid,
+  a marked day or the four navigation arrows from. Their stories are therefore ledgered as not
+  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and their
+  XML templates refused. The open question for the first two is whether the Adwaita
+  EXPRESSION — four `Gtk.SelectionMode` values and a selected cell on a touch target — is the
+  one this port wants at all, which is the same product question `<gtk-check-button>` above
+  records; for the calendar it is whether a platform date picker counts as an Adwaita calendar,
+  which `<adw-combo-row>` and `GtkDropDown` already decided for a LIST of values and not for a
+  date.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

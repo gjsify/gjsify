@@ -75,6 +75,9 @@ import { GtkWindowTest } from './gtk-window.spec.js';
 import { GtkApplicationWindowTest } from './gtk-application-window.spec.js';
 import { GtkActionBarTest } from './gtk-action-bar.spec.js';
 import { GtkSeparatorTest } from './gtk-separator.spec.js';
+import { GtkCalendarTest } from './gtk-calendar.spec.js';
+import { GtkFlowBoxTest } from './gtk-flow-box.spec.js';
+import { GtkListBoxTest } from './gtk-list-box.spec.js';
 import { GtkTreeExpanderTest } from './gtk-tree-expander.spec.js';
 import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
 import { GtkExpanderTest } from './gtk-expander.spec.js';
@@ -175,6 +178,9 @@ run({
     GtkApplicationWindowTest,
     GtkActionBarTest,
     GtkSeparatorTest,
+    GtkCalendarTest,
+    GtkFlowBoxTest,
+    GtkListBoxTest,
     GtkTreeExpanderTest,
     GtkDrawingAreaTest,
     GtkDragIconTest,

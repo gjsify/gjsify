@@ -49,7 +49,6 @@ Ctrl+Page Up/Down is the horizontal one.
     <!-- hscrollbar-policy: When the horizontal scrollbar is displayed. -->
     <!-- overlay-scrolling: Whether overlay scrolling is enabled or not. -->
     <gtk-scrolled-window vscrollbar-policy="automatic" hscrollbar-policy="automatic" overlay-scrolling="true" style="width:100%;max-width:320px;height:160px;">
-      <!-- spacing: The amount of space between children. -->
       <gtk-box orientation="vertical" spacing="6">
         <gtk-label label="Row 1"></gtk-label>
         <gtk-label label="Row 2"></gtk-label>
@@ -134,7 +133,6 @@ thumb fills the trough and cannot move.
 <AdwWidget title="Gtk.Scrollbar">
   <Fragment slot="preview">
     ```html
-    <!-- spacing: The amount of space between children. -->
     <gtk-box orientation="horizontal" spacing="24" style="justify-content:center;align-items:center;">
       <!-- adjustment: The `GtkAdjustment` controlled by this scrollbar. -->
       <gtk-scrollbar orientation="vertical" adjustment='{"value":80,"lower":0,"upper":400,"stepIncrement":10,"pageIncrement":80,"pageSize":120}' style="height:200px;"></gtk-scrollbar>
@@ -222,7 +220,6 @@ the window scrolls sideways instead of being squeezed into it.
     ```html
     <!-- scroll-to-focus: Whether to scroll when the focus changes. -->
     <gtk-viewport scroll-to-focus="true" style="width:100%;max-width:320px;height:160px;">
-      <!-- spacing: The amount of space between children. -->
       <gtk-box orientation="vertical" spacing="6">
         <gtk-label label="Row 1"></gtk-label>
         <gtk-label label="Row 2"></gtk-label>

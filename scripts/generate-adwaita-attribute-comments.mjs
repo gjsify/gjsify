@@ -288,6 +288,14 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // page has. Only the DOUBLE CLICK one is in a fence: it is the gesture the block shows,
     // and an entry for a fence that sets nothing would be one the ratchet would call stale.
     'gtk-window-handle double-click-action': { kind: 'port-only' },
+    // NOTHING FOR `GtkCalendar:show-heading` / `:show-day-names`, `GtkListBoxRow:activatable`
+    // / `:selectable` or either `activate-on-single-click`, though all SIX are read as
+    // `="false"` because their GIR default is TRUE. They need no `inverted` entry — that kind
+    // exists for an attribute whose NAME MOVES (`gtk-entry placeholder` is
+    // `placeholder-text`), and these six keep their own names, so the join finds the real
+    // property and generates its own sentence. The inversion is real and lives where a
+    // reader of the element will find it: the six elements' headers, which each say why a
+    // bare attribute means the opposite of what it reads like.
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */

@@ -345,6 +345,50 @@
             />
             <gtk-media-controls :css-classes="['osd', 'bottom']" />
         </gtk-box>
+        <gtk-list-box
+            selection-mode="single"
+            :show-separators="true"
+            :width-request="240"
+        >
+            <gtk-list-box-row>
+                <gtk-label label="Documents" />
+            </gtk-list-box-row>
+            <gtk-list-box-row>
+                <gtk-label label="Downloads" />
+            </gtk-list-box-row>
+            <gtk-list-box-row>
+                <gtk-label label="Pictures" />
+            </gtk-list-box-row>
+        </gtk-list-box>
+        <gtk-flow-box
+            selection-mode="multiple"
+            :min-children-per-line="2"
+            :max-children-per-line="4"
+            :row-spacing="6"
+            :column-spacing="6"
+            :width-request="320"
+        >
+            <gtk-flow-box-child>
+                <gtk-label label="Red" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Orange" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Yellow" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Green" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Blue" />
+            </gtk-flow-box-child>
+        </gtk-flow-box>
+        <gtk-calendar
+            date="2026-10-02"
+            :show-week-numbers="true"
+            halign="center"
+        />
         <gtk-frame
             label="Details"
             :label-xalign="0"

@@ -174,6 +174,12 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Frame widget, so the story is rendered by the other two targets only.',
     'grid@nativescript':
         'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Grid widget, so the story is rendered by the other two targets only.',
+    'calendar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": @nativescript/core ships no DatePicker and the port installs none, so the story is rendered by the other two targets only.',
+    'flow-box@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": the port has AdwWrapBox and GtkBox but no cell that can hold a selection, so the story is rendered by the other two targets only.',
+    'list-box@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": the port has GtkBox but no row that can be selected inside it, so the story is rendered by the other two targets only.',
     'separator@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
     'notebook@nativescript':

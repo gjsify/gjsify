@@ -378,11 +378,33 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
     },
+    calendar: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'column-view': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'flow-box': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'flow-box-child': {
+        only: 'web',
+        decision:
+            '`AdwWrapBox.addChild` takes a plain view and `AdwWrapBox.orientation` picks the wrap axis, so the NativeScript port HAS a wrapping container and nothing a cell could be selected BY. The browser element exists because a `GtkFlowBox` wraps every child in one upstream (gtkflowbox.c:571-572) and an authored tree has to name it — the same target role `action-bar` and `label` get below, and for the same reason. It has no story of ITS own either: Presentation/Flow Box builds the box around eight of them, since a cell carries one property and no state of its own (gtkflowbox.c:542-543).',
+    },
+    'list-box-row': {
+        only: 'web',
+        decision:
+            'The NativeScript port has `GtkBox`, whose `addChild` appends eagerly, and no row that can be selected inside it: `AdwSwitchRow` extends `AdwActionRow` and installs a title and a boolean. The browser element exists because a `GtkListBox` wraps every child in one upstream (gtklistbox.c:3954) and an authored tree has to name it — the same target role `action-bar` and `label` get below, and for the same reason. It has no story of ITS own either: Presentation/List Box builds the box around three of them, since a row alone is a label with an `activatable` flag and no list to belong to.',
+    },
     'grid-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'list-box': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

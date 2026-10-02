@@ -1,0 +1,75 @@
+// _flow_box.scss — <gtk-flow-box> and its cells, the elements GTK names `flowbox` and
+// `flowboxchild`.
+//
+// Upstream writes `flowbox > flowboxchild, gridview > child` as ONE rule (_views.scss:52-91):
+// the same 3px padding, the same `$button_radius` corner, the same focus ring and the same four
+// state colours — and `<gtk-grid-view>` already wears the grid half in `_grid_view.scss`, which
+// `@include`s `adw-list-selectable` from `_list_view.scss` for exactly that reason. The cell
+// here therefore includes the same mixin rather than restating four colours, because a drifted
+// copy is four wrong ones and the hover-over-selected pair is the pair nobody checks by eye.
+//
+// `flex-flow: row wrap` IS the allocation. GTK hands each child a slot on a running line in
+// the given orientation and starts a new one when the next would not fit
+// (gtkflowbox.c:1640-1900), and a wrapping flex line with a per-child size share is that rule
+// expressed in the browser's own layout language: `max-width: 100% / max-children-per-line`
+// caps how many can share a line, and `min-width: 100% / min-children-per-line` is
+// `min-children-per-line`, whose own documented job is that "a reasonably small height will be
+// requested for the overall minimum width of the box" (gtkflowbox.c:3747-3755).
+//
+// `homogeneous` is `flex: 1 1 0` — GTK's "all children should be allocated the same size"
+// (:3736-3739), which in a wrapping line is exactly equal growth from a zero basis.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_views.scss:1-16 (.view), :52-91
+//   (flowbox > flowboxchild), :88-91 (flowbox, gridview disabled)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+@use 'list_view';
+
+gtk-flow-box {
+  display: block;
+  box-sizing: border-box;
+  color: var(--view-fg-color);
+  background-color: var(--view-bg-color);
+
+  // The line container. `--adw-flow-box-*` are written by `gtk-flow-box.ts` from the
+  // properties, so the stylesheet stays declarative and a `homogeneous` write is one class.
+  display: flex;
+  flex-flow: row wrap;
+  gap: var(--adw-flow-box-row-spacing, 0px) var(--adw-flow-box-column-spacing, 0px);
+
+  &.vertical {
+    flex-flow: column wrap;
+  }
+
+  &.view:disabled {
+    color: var(--view-fg-color);
+  }
+}
+
+gtk-flow-box-child {
+  @include list_view.adw-list-selectable;
+
+  display: block;
+  box-sizing: border-box;
+  // `flowbox > flowboxchild { padding: 3px; border-radius: $button_radius }`
+  // (_views.scss:52-56).
+  padding: 3px;
+  border-radius: var(--button-radius);
+  // The line share. A browser lays the children out, so this is where GTK's
+  // `min`/`max-children-per-line` and `homogeneous` are honoured.
+  max-width: calc(100% / var(--adw-flow-box-max-children-per-line, 7));
+  min-width: calc(100% / var(--adw-flow-box-min-children-per-line, 1));
+  cursor: pointer;
+}
+
+gtk-flow-box.vertical > gtk-flow-box-child {
+  max-height: calc(100% / var(--adw-flow-box-max-children-per-line, 7));
+  max-width: none;
+  min-height: calc(100% / var(--adw-flow-box-min-children-per-line, 1));
+  min-width: 0;
+}
+
+gtk-flow-box.homogeneous > gtk-flow-box-child {
+  flex: 1 1 0;
+}

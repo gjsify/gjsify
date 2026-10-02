@@ -597,6 +597,66 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    // ------------------------------------------------------------------ gtk lists
+    //
+    // The two CHILD-HOLDING containers and the month grid. Unlike the four model-driven views
+    // below these are plain TREE widgets: no `Gio.ListModel`, no factory, nothing the ParamSpec
+    // seam has no branch for — `GtkListBox` and `GtkFlowBox` are declared with an INDEXED
+    // child policy that wraps every child in a row/child of its own
+    // (`packages/framework/gtk-host/src/descriptors/gtk.ts:220-247`), so the rows a caller
+    // writes are the rows GTK wraps.
+    {
+        widget: 'Gtk.ListBox',
+        page: 'lists',
+        // No `activatable` on any row, because a row is activatable and selectable by default
+        // (gtklistbox.c:3961-3962); `showSeparators` is the class GTK adds for the hairline
+        // (:4127-4134).
+        root: {
+            tag: 'gtk-list-box',
+            props: { selectionMode: 'single', showSeparators: true, widthRequest: 240 },
+            children: [
+                { tag: 'gtk-list-box-row', children: [{ tag: 'gtk-label', props: { label: 'Documents' } }] },
+                { tag: 'gtk-list-box-row', children: [{ tag: 'gtk-label', props: { label: 'Downloads' } }] },
+                { tag: 'gtk-list-box-row', children: [{ tag: 'gtk-label', props: { label: 'Pictures' } }] },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.FlowBox',
+        page: 'lists',
+        // `maxChildrenPerLine` is load-bearing twice over: it is the layout cap AND the
+        // `perLineCap` the descriptor holds a line to (descriptors/gtk.ts:236-243). The
+        // omission of `orientation` is deliberate — `GtkFlowBox` defaults HORIZONTAL
+        // (gtkflowbox.c:3981), which is the opposite of every `GtkListBase`.
+        root: {
+            tag: 'gtk-flow-box',
+            props: {
+                selectionMode: 'multiple',
+                minChildrenPerLine: 2,
+                maxChildrenPerLine: 4,
+                rowSpacing: 6,
+                columnSpacing: 6,
+                widthRequest: 320,
+            },
+            children: [
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Red' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Orange' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Yellow' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Green' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Blue' } }] },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.Calendar',
+        page: 'lists',
+        // `date` as the ISO form `GDateTime` serialises to, and `showWeekNumbers` — FALSE by
+        // default (gtkcalendar.c:458-460) and the one flag that adds a grid COLUMN.
+        root: {
+            tag: 'gtk-calendar',
+            props: { date: '2026-10-02', showWeekNumbers: true, halign: 'center' },
+        },
+    },
     // ------------------------------------------------------------------ gtk layout
     {
         widget: 'Gtk.Frame',

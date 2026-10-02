@@ -207,6 +207,12 @@ const PORTABLE_OF = [
         why: "The three numbers a `Gtk.TreeListRow` gives `gtk_tree_expander_update_for_list_row` — `depth`, `expandable`, `expanded` — and nothing else. ADR 0089 declined to port the row (and with it `GtkTreeListModel`), so the reduction is the same one `AdwListModel` is of `Gio.ListModel`: the object stays GTK's, the numbers cross.",
     },
     {
+        match: /^AdwCalendarCell$/,
+        namespace: 'Gtk',
+        type: 'Calendar',
+        why: "One of the 42 cells `calendar_compute_days` fills for a `Gtk.Calendar` (gtkcalendar.c): the date the cell shows, resolved across the month boundary, and which month it belongs to. GTK keeps those as two parallel C arrays on the widget and has no cell type to borrow, so the value is this repo's and the WIDGET it describes is GTK's.",
+    },
+    {
         match: /^AdwTreeExpanderOptions$|^AdwTreeExpanderAction$/,
         namespace: 'Gtk',
         type: 'TreeExpander',

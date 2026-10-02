@@ -286,6 +286,20 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         ctor: () => Gtk.ListBoxRow,
         children: { kind: 'single', set: 'set_child' },
     },
+    {
+        // The SAME shape as the row above, and curated for the same reason: `GtkFlowBox`
+        // names it as its `wrap` (the descriptor above), so a template that writes the
+        // wrapper needs the wrapper's own child policy to place anything inside it. Without
+        // this entry a `<gtk-flow-box-child>` raises `uncurated-placement` for a `<gtk-label>`
+        // that `GtkFlowBoxChild` accepts in C — `gtk_flow_box_child_set_child` is the setter
+        // this names — which is the false refusal arm 5b of
+        // `check-generated-website-data.mjs` exists to catch. `GtkListBoxRow` and
+        // `GtkFlowBoxChild` are the same Bin wrapper written twice upstream (gtklistbox.c:
+        // 3954, gtkflowbox.c:571), and curating one and not the other is how a pair drifts.
+        gtype: 'GtkFlowBoxChild',
+        ctor: () => Gtk.FlowBoxChild,
+        children: { kind: 'single', set: 'set_child' },
+    },
     // The three GTK list-item carriers, and they are the first curated entries that
     // are NOT `Gtk.Widget` subclasses — measured: `GObject.type_is_a(Gtk.ListItem,
     // Gtk.Widget)` is FALSE for all three.

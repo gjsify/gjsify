@@ -17,6 +17,7 @@ import {
     goHomeSymbolic,
     goNextSymbolic,
     goPreviousSymbolic,
+    goUpSymbolic,
     listAddSymbolic,
     listRemoveSymbolic,
     mailReplySenderSymbolic,
@@ -132,6 +133,11 @@ const ICONS = {
     'sidebar-show': sidebarShowSymbolic,
     'go-previous': goPreviousSymbolic,
     'go-next': goNextSymbolic,
+    // `Gtk.Calendar`'s year arrows are `pan-start-symbolic`/`pan-end-symbolic`
+    // (gtkcalendar.c:604-616) and its month arrows the same pair again; this port spells all
+    // four with the `go-*` family, which needs the UP glyph the other two callers never
+    // asked for.
+    'go-up': goUpSymbolic,
     'view-refresh': viewRefreshSymbolic,
     'open-menu': openMenuSymbolic,
     'go-home': goHomeSymbolic,

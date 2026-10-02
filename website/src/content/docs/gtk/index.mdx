@@ -163,6 +163,14 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </gtk-box>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Lists" href="/gjsify/gtk/lists/" description="The containers that hold children you append — the list box, the flow box that reflows it, and the month grid.">
+    <Fragment slot="preview">
+      <gtk-list-box selection-mode="single" show-separators style="width:100%;max-width:200px;">
+        <gtk-list-box-row><gtk-label label="Documents"></gtk-label></gtk-list-box-row>
+        <gtk-list-box-row><gtk-label label="Downloads"></gtk-label></gtk-list-box-row>
+      </gtk-list-box>
+    </Fragment>
+  </AdwGalleryCard>
   <AdwGalleryCard title="Models" href="/gjsify/gtk/models/" description="The views that draw a list model through a factory — list, grid and column — and the tree expander in front of a tree row.">
     <Fragment slot="preview">
       <gtk-list-view model='["Documents","Downloads","Music"]' show-separators style="width:100%;max-width:200px;"></gtk-list-view>

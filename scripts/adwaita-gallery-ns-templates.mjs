@@ -558,6 +558,19 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.ColumnView':
         'The NativeScript port has no column view: AdwDataGrid.columns is the nearest thing and takes rows of ' +
         'pre-formatted values, not a factory per column (status/open-todos/adwaita-ports.md).',
+    'Gtk.ListBox':
+        'The NativeScript port has no list box: GtkBox.addChild appends every child eagerly and none of ' +
+        'them can be a selectable row — AdwSwitchRow extends AdwActionRow and installs a title and a ' +
+        'boolean, with nothing for a box to select among (status/open-todos/adwaita-ports.md).',
+    'Gtk.FlowBox':
+        'The NativeScript port has no flow box: the nearest wrapping container is AdwWrapBox, whose ' +
+        'orientation picks the wrap axis and whose addChild takes a plain view with no selection state — ' +
+        'the four Gtk.SelectionMode values have nowhere to live (status/open-todos/adwaita-ports.md).',
+    'Gtk.Calendar':
+        'The NativeScript port has no calendar: AdwDataGrid.rows is the nearest thing to a month grid and ' +
+        'takes pre-formatted rows rather than a date, and @nativescript/core ships no DatePicker to take a ' +
+        'day, a six-by-seven grid, a marked day or the four navigation arrows from ' +
+        '(status/open-todos/adwaita-ports.md).',
     'Gtk.TreeExpander':
         'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
         'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',

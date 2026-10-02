@@ -258,6 +258,41 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-media-controls', gtype: 'GtkMediaControls', props: {"cssClasses":["osd","bottom"]} }
             ] }
     },
+    { widget: 'Gtk.ListBox', root:
+        { tag: 'gtk-list-box', gtype: 'GtkListBox', props: {"selectionMode":"single","showSeparators":true,"widthRequest":240}, children: [
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Documents"} }
+                    ] },
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Downloads"} }
+                    ] },
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Pictures"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.FlowBox', root:
+        { tag: 'gtk-flow-box', gtype: 'GtkFlowBox', props: {"selectionMode":"multiple","minChildrenPerLine":2,"maxChildrenPerLine":4,"rowSpacing":6,"columnSpacing":6,"widthRequest":320}, children: [
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Red"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Orange"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Yellow"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Green"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Blue"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Calendar', root:
+        { tag: 'gtk-calendar', gtype: 'GtkCalendar', props: {"date":"2026-10-02","showWeekNumbers":true,"halign":"center"} }
+    },
     { widget: 'Gtk.Frame', root:
         { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A framed region: the label sits in the top edge of the border."} }

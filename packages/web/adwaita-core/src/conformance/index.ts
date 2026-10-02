@@ -318,6 +318,28 @@ export type { ColumnViewSortVector, GridViewColumnVector, ListViewClick, ListVie
 export { TREE_EXPANDER_LAYOUT_VECTORS, TREE_EXPANDER_SHORTCUT_VECTORS } from './tree-expander.js';
 export type { TreeExpanderLayoutVector, TreeExpanderShortcutVector } from './tree-expander.js';
 
+// --- Gtk.ListBox / Gtk.FlowBox selection, the child-holding path (ADR 0089) ---
+export { BOX_ALL_VECTORS, BOX_ROW_VECTORS, BOX_SELECT_VECTORS } from './box-selection.js';
+export type { BoxAllVector, BoxRowVector, BoxSelectVector } from './box-selection.js';
+
+// --- Gtk.Calendar's grid, ISO weeks, clamped navigation and marks (ADR 0089) ---
+export {
+    CALENDAR_DAYS_VECTORS,
+    CALENDAR_MARK_VECTORS,
+    CALENDAR_NAVIGATION_VECTORS,
+    CALENDAR_SELECT_VECTORS,
+    CALENDAR_STEP_VECTORS,
+    CALENDAR_WEEK_VECTORS,
+} from './calendar.js';
+export type {
+    CalendarDaysVector,
+    CalendarMarkVector,
+    CalendarNavigationVector,
+    CalendarSelectVector,
+    CalendarStepVector,
+    CalendarWeekVector,
+} from './calendar.js';
+
 // --- The portable menu model (ADR 0042) vectors ---
 export {
     MENU_DETAILED_ACTION_VECTORS,

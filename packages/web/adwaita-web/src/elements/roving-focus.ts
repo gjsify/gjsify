@@ -58,6 +58,17 @@
 /** Which axis the items are laid out along — it decides which arrow keys move. */
 export type AdwRovingOrientation = 'horizontal' | 'vertical';
 
+/**
+ * Where one key lands, given where the cursor is.
+ *
+ * The DEFAULT is the neighbouring index, which is what a single run of items means. A widget
+ * whose two axes do NOT both mean "one along" supplies its own: `Gtk.FlowBox` binds
+ * `GTK_MOVEMENT_VISUAL_POSITIONS` sideways and `GTK_MOVEMENT_DISPLAY_LINES` vertically
+ * (gtkflowbox.c:3944-3951), and against a grid those differ — from the last cell of a full
+ * line, "left" is the first cell of the next one by INDEX and one row UP by POSITION.
+ */
+export type AdwRovingStep = (items: readonly HTMLElement[], from: number, direction: -1 | 1) => number | null;
+
 export interface AdwRovingFocusInit {
     /**
      * The element the listener sits on — the custom element itself, so items rebuilt at
@@ -66,9 +77,9 @@ export interface AdwRovingFocusInit {
     host: HTMLElement;
     /**
      * Which axis the arrows move along. A FUNCTION where the widget is a `GtkOrientable`
-     * and can be turned after the listener is installed — `<gtk-list-view>` is, and a
-     * value read once at install time pointed its arrow keys at the axis it had at
-     * connect for the rest of its life.
+     * and can be turned after the listener is installed — `<gtk-list-view>` and
+     * `<gtk-flow-box>` are, and a value read once at install time pointed its arrow keys at
+     * the axis it had at connect for the rest of its life.
      */
     orientation: AdwRovingOrientation | (() => AdwRovingOrientation);
     /**
@@ -82,6 +93,18 @@ export interface AdwRovingFocusInit {
      * focus travels with the key either way ({@link attachRovingFocus}).
      */
     select: (item: HTMLElement) => void;
+    /** Where a previous/next key lands. Defaults to the neighbouring index. */
+    step?: AdwRovingStep;
+    /**
+     * A SECOND pair of arrows, for the one widget GTK gives both. It contributes those two
+     * keys ONLY — never `Home` and `End`, which name the two ENDS of the box and stay one
+     * answer however many axes ask.
+     */
+    crossAxis?: {
+        orientation: AdwRovingOrientation | (() => AdwRovingOrientation);
+        /** Required here, unlike on the primary axis: a second axis is a grid, not a run. */
+        step: AdwRovingStep;
+    };
 }
 
 /** The arrow pair that moves along each axis. */
@@ -90,15 +113,24 @@ const AXIS_KEYS: Record<AdwRovingOrientation, { previous: string; next: string }
     vertical: { previous: 'ArrowUp', next: 'ArrowDown' },
 };
 
+/** The default step: one along, and null at either end so nothing wraps. */
+const adjacentStep: AdwRovingStep = (items, from, direction) => {
+    const to = from + direction;
+    return to < 0 || to >= items.length ? null : to;
+};
+
 /**
  * Make a roving tabindex navigable: arrows step, Home/End jump, and focus travels with
  * the selection so the next keypress has somewhere to start from.
  */
 export function attachRovingFocus(init: AdwRovingFocusInit): void {
+    const keysOf = (axis: AdwRovingOrientation | (() => AdwRovingOrientation)) =>
+        AXIS_KEYS[typeof axis === 'function' ? axis() : axis];
+
     init.host.addEventListener('keydown', (event) => {
         // Read per press, not per install: see {@link AdwRovingFocusInit.orientation}.
-        const { previous, next } =
-            AXIS_KEYS[typeof init.orientation === 'function' ? init.orientation() : init.orientation];
+        const { previous, next } = keysOf(init.orientation);
+        const cross = init.crossAxis === undefined ? null : keysOf(init.crossAxis.orientation);
 
         // A modifier makes it someone else's shortcut: Ctrl+Home is "top of the document",
         // and `Adw.TabView`'s table is full of Ctrl/Alt combinations.
@@ -111,29 +143,21 @@ export function attachRovingFocus(init: AdwRovingFocusInit): void {
         const from = items.findIndex((item) => item === event.target || item.contains(event.target as Node));
         if (from < 0) return;
 
-        let to: number;
-        switch (event.key) {
-            case previous:
-                to = from - 1;
-                break;
-            case next:
-                to = from + 1;
-                break;
-            case 'Home':
-                to = 0;
-                break;
-            case 'End':
-                to = items.length - 1;
-                break;
-            default:
-                return;
-        }
+        const step = init.step ?? adjacentStep;
+        let to: number | null;
+        if (event.key === previous) to = step(items, from, -1);
+        else if (event.key === next) to = step(items, from, 1);
+        else if (cross !== null && event.key === cross.previous) to = init.crossAxis!.step(items, from, -1);
+        else if (cross !== null && event.key === cross.next) to = init.crossAxis!.step(items, from, 1);
+        else if (event.key === 'Home') to = 0;
+        else if (event.key === 'End') to = items.length - 1;
+        else return;
 
         // Claimed even when nothing moves: an ArrowDown at the last row that fell through
         // to the browser would scroll the page out from under a user who is inside the
         // widget.
         event.preventDefault();
-        const target = items[to];
+        const target = to === null ? undefined : items[to];
         if (target === undefined || target === items[from]) return;
 
         // Selection is attempted, and focus moves REGARDLESS of whether it took. Gating
@@ -157,6 +181,6 @@ export function attachRovingFocus(init: AdwRovingFocusInit): void {
         // opposite reason — C only ever writes the strip's own adjustment
         // (`scroll_to_tab_full`), so a window scroll there is a divergence, and one
         // ArrowRight was measured taking the window from y=1800 to y=8367.
-        init.items()[to]?.focus();
+        target.focus();
     });
 }
