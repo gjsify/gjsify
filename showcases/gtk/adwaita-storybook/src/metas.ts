@@ -27,6 +27,7 @@ export * from './controls/spin-button.meta.js';
 export * from './controls/switch.meta.js';
 export * from './drawing/drawing-area.meta.js';
 export * from './drawing/gl-area.meta.js';
+export * from './drawing/graphics-offload.meta.js';
 export * from './feedback/about-dialog.meta.js';
 export * from './feedback/alert-dialog.meta.js';
 export * from './feedback/emoji-chooser.meta.js';

@@ -251,6 +251,14 @@
             :width-request="32"
             :height-request="32"
         />
+        <gtk-graphics-offload
+            enabled="enabled"
+            :black-background="true"
+            :width-request="280"
+            :height-request="96"
+        >
+            <gtk-label label="The child of an offloaded layer" />
+        </gtk-graphics-offload>
         <gtk-gl-area
             :auto-render="true"
             :has-depth-buffer="false"

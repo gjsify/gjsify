@@ -366,18 +366,24 @@ exactly why they must not be written as decisions.
   buildable. Its story is therefore ledgered as not rendered there
   (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
   template refused.
-- **`<gtk-drawing-area>` and `<gtk-gl-area>` on NativeScript.** The browser element, its block and its story all
-  exist, and the NativeScript port has no counterpart at all: `GtkBox` is the container one
-  would sit in and nothing in the port paints — a drawing area would be an empty box with a
-  size request. The GL area is the harder half of the same question: a GPU surface is what
-  `@nativescript/core` has NO view for, and the whole contract is a signal pair
+- **`<gtk-drawing-area>`, `<gtk-gl-area>` and `<gtk-graphics-offload>` on NativeScript.**
+  Three browser elements with their blocks and stories, and a NativeScript port with no
+  counterpart for any of them: `GtkBox` is the container one would sit in and nothing in
+  the port paints — a drawing area would be an empty box with a size request. The GL area
+  is the harder half of the same question: a GPU surface is what `@nativescript/core` has
+  NO view for, and the whole contract is a signal pair
   (`::resize` before the first `::render`, `needs_render` cleared after the emit,
   `refs/gtk/gtk/gtkglarea.c:797-811`) a `View` cannot express. So the open questions are
   whether a phone target wants a widget whose entire content is a callback the framework
   cannot serialise, and whether the answer is a `<canvas>` reached through the web view this
-  port already loads elsewhere. Both stories are therefore ledgered as not rendered there
-  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and their XML
-  templates refused.
+  port already loads elsewhere. The offload wrapper is the third question of the three and
+  the easiest to state: a video or a `WebView` sits in a `GridLayout` cell and the platform
+  composites it like every other view, so `Gtk.GraphicsOffload` would be a container with
+  nothing to pass on — and GTK's own list of what PROHIBITS offload
+  (`refs/gtk/gtk/gtkgraphicsoffload.c:64-75`: a clip, an alpha channel, a filter, a
+  transform beyond translation and scale) is a list the port cannot even check for. All
+  three stories are therefore ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
+  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused.
 - **`<gtk-level-bar>` and `<gtk-spinner>` on NativeScript.** Both browser elements and
   their gallery blocks exist; the NativeScript port has neither, and both refusals are
   about a widget the port already has a NEAR NEIGHBOUR for. `ActivityIndicator` is the

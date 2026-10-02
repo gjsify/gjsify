@@ -113,7 +113,9 @@ const NOT_ON_THIS_TARGET = {
     'drawing-area@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-drawing-area> on NativeScript": the port has no drawing surface at all — no canvas child and no GL view — so the story is rendered by the other two targets only.',
     'gl-area@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-drawing-area> and <gtk-gl-area> on NativeScript": the port has no GL view at all, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-drawing-area>, <gtk-gl-area> and <gtk-graphics-offload> on NativeScript": the port has no GL view at all, so the story is rendered by the other two targets only.',
+    'graphics-offload@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-drawing-area>, <gtk-gl-area> and <gtk-graphics-offload> on NativeScript": the compositor passthrough is a platform surface the port cannot ask for, so the story is rendered by the other two targets only.',
     'gtk-header-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no titlebar widget, so the story is rendered by the other two targets only.',
     'gtk-spinner@nativescript':

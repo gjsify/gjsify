@@ -198,6 +198,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.Spinner', root:
         { tag: 'gtk-spinner', gtype: 'GtkSpinner', props: {"spinning":true,"widthRequest":32,"heightRequest":32} }
     },
+    { widget: 'Gtk.GraphicsOffload', root:
+        { tag: 'gtk-graphics-offload', gtype: 'GtkGraphicsOffload', props: {"enabled":"enabled","blackBackground":true,"widthRequest":280,"heightRequest":96}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The child of an offloaded layer"} }
+            ] }
+    },
     { widget: 'Gtk.GLArea', root:
         { tag: 'gtk-gl-area', gtype: 'GtkGLArea', props: {"autoRender":true,"hasDepthBuffer":false,"widthRequest":240,"heightRequest":160} }
     },

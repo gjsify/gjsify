@@ -274,6 +274,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'graphics-offload': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     grid: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',

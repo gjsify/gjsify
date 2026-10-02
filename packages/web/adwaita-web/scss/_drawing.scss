@@ -67,3 +67,19 @@ gtk-gl-area {
     padding: 12px;
   }
 }
+// <gtk-graphics-offload> — `GTK_TYPE_BIN_LAYOUT` (gtkgraphicsoffload.c:290) gives the
+// child the whole allocation, and the black rectangle `black_background` paints over that
+// allocation BEFORE the child (:222-229) is a BACKGROUND rather than a layer: what the
+// letterbox bars need is the wrapper black exactly where the child does not cover it.
+gtk-graphics-offload {
+  display: block;
+  position: relative;
+  // No `overflow: hidden` here: GTK's subsurface is rectangular and a rounded corner or a
+  // clip is one of the things that PROHIBITS offload (:66-68), so clipping this box would
+  // be the very condition the widget exists to avoid. It does not clip.
+  .adw-graphics-offload-child {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}

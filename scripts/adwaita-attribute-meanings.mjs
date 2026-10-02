@@ -165,6 +165,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'label': null,
         'label-xalign': null,
     },
+    'gtk-graphics-offload': {
+        'black-background': 'Whether to draw a black background.',
+        'enabled': null,
+    },
     'gtk-grid': {
         'column-spacing': 'The amount of space between two consecutive columns.',
         'row-spacing': 'The amount of space between two consecutive rows.',
@@ -344,12 +348,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 180,
-    glossed: 72,
-    nameSuffices: 78,
+    set: 182,
+    glossed: 73,
+    nameSuffices: 79,
     divergent: 29,
     authored: 1,
-    commentLines: 100,
+    commentLines: 101,
 };
 
 /**

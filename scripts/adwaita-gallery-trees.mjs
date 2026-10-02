@@ -416,6 +416,19 @@ export const ADWAITA_GALLERY_TREES = [
     },
     // ----------------------------------------------------------------- gtk drawing
     {
+        widget: 'Gtk.GraphicsOffload',
+        page: 'drawing',
+        // `enabled` and `black-background`, the two properties the wrapper has of its own
+        // (`child` is a slot, so it is the box's content here). `enabled` FIRST: it is the
+        // one that syncs the subsurface before anything is drawn
+        // (gtkgraphicsoffload.c:366-380, :423-437).
+        root: {
+            tag: 'gtk-graphics-offload',
+            props: { enabled: 'enabled', blackBackground: true, widthRequest: 280, heightRequest: 96 },
+            children: [{ tag: 'gtk-label', props: { label: 'The child of an offloaded layer' } }],
+        },
+    },
+    {
         widget: 'Gtk.GLArea',
         page: 'drawing',
         // A GL area has NO measure function (no `widget_class->measure` in gtkglarea.c), so

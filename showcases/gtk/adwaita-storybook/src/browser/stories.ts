@@ -39,6 +39,7 @@ import { SpinRowWebStories } from './rows/spin-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
 import { DrawingAreaWebStories } from './drawing/drawing-area.web.js';
 import { GLAreaWebStories } from './drawing/gl-area.web.js';
+import { GraphicsOffloadWebStories } from './drawing/graphics-offload.web.js';
 import { CheckButtonWebStories } from './controls/check-button.web.js';
 import { DropDownWebStories } from './controls/drop-down.web.js';
 import { EntryWebStories } from './controls/entry.web.js';
@@ -147,6 +148,7 @@ export const stories: WebStoryModule[] = [
     GtkSpinnerWebStories,
     DrawingAreaWebStories,
     GLAreaWebStories,
+    GraphicsOffloadWebStories,
     ButtonContentWebStories,
     ButtonStylesWebStories,
     MenuButtonWebStories,

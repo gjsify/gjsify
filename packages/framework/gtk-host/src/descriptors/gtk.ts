@@ -159,6 +159,16 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'single', set: 'set_child' },
     },
     {
+        gtype: 'GtkGraphicsOffload',
+        ctor: () => Gtk.GraphicsOffload,
+        // A BIN with one `set_child`, the same shape as `GtkFrame` above and for the same
+        // reason: `GTK_TYPE_BIN_LAYOUT` (gtkgraphicsoffload.c:290) and a `child` property
+        // whose setter unparents the old widget and parents the new one (:317-336). It is
+        // `single` rather than `uncurated` because the ONE thing an application does with
+        // this wrapper is give it something to offload.
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
         gtype: 'GtkOverlay',
         ctor: () => Gtk.Overlay,
         // TWO slots that are not interchangeable, which is why this is `slotted`

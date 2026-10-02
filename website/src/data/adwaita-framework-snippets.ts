@@ -166,6 +166,11 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- GtkSpinner.vue — mount(GtkSpinner, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-spinner\n        :spinning=\"true\"\n        :width-request=\"32\"\n        :height-request=\"32\"\n    />\n</template>",
         react: "// createRoot(container).render(<GtkSpinner />) — from '@gjsify/gtk-host/react'\nconst GtkSpinner = () => (\n    <gtk-spinner\n        spinning\n        widthRequest={32}\n        heightRequest={32}\n    />\n);",
     },
+    'Gtk.GraphicsOffload': {
+        solid: "// mount(() => <GtkGraphicsOffload />, container) — from '@gjsify/gtk-host/solid'\nconst GtkGraphicsOffload = () => (\n    <gtk-graphics-offload\n        enabled=\"enabled\"\n        blackBackground\n        widthRequest={280}\n        heightRequest={96}\n    >\n        <gtk-label label=\"The child of an offloaded layer\" />\n    </gtk-graphics-offload>\n);",
+        vue: "<!-- GtkGraphicsOffload.vue — mount(GtkGraphicsOffload, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-graphics-offload\n        enabled=\"enabled\"\n        :black-background=\"true\"\n        :width-request=\"280\"\n        :height-request=\"96\"\n    >\n        <gtk-label label=\"The child of an offloaded layer\" />\n    </gtk-graphics-offload>\n</template>",
+        react: "// createRoot(container).render(<GtkGraphicsOffload />) — from '@gjsify/gtk-host/react'\nconst GtkGraphicsOffload = () => (\n    <gtk-graphics-offload\n        enabled=\"enabled\"\n        blackBackground\n        widthRequest={280}\n        heightRequest={96}\n    >\n        <gtk-label label=\"The child of an offloaded layer\" />\n    </gtk-graphics-offload>\n);",
+    },
     'Gtk.GLArea': {
         solid: "// mount(() => <GtkGLArea />, container) — from '@gjsify/gtk-host/solid'\nconst GtkGLArea = () => (\n    <gtk-gl-area\n        autoRender\n        hasDepthBuffer={false}\n        widthRequest={240}\n        heightRequest={160}\n    />\n);",
         vue: "<!-- GtkGLArea.vue — mount(GtkGLArea, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-gl-area\n        :auto-render=\"true\"\n        :has-depth-buffer=\"false\"\n        :width-request=\"240\"\n        :height-request=\"160\"\n    />\n</template>",

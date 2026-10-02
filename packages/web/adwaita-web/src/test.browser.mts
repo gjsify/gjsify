@@ -31,6 +31,7 @@ import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
 import { GtkDrawingAreaTest } from './gtk-drawing-area.spec.js';
 import { GtkGLAreaTest } from './gtk-gl-area.spec.js';
+import { GtkGraphicsOffloadTest } from './gtk-graphics-offload.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
@@ -153,6 +154,7 @@ run({
     GtkTreeExpanderTest,
     GtkDrawingAreaTest,
     GtkGLAreaTest,
+    GtkGraphicsOffloadTest,
     GtkToggleButtonTest,
     GtkExpanderTest,
     GtkOverlayTest,
