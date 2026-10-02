@@ -538,18 +538,32 @@ The root fix is upstream and it is OURS: `MetaInfo` should declare `readonly str
 type, so every existing caller keeps compiling. That lands in ts-for-gir, ships in the next
 `@girs` release, and the pinned bump here is where this sidecar can tighten by one word.
 
-### The four scaffolds still transcribe their ids by hand, because they pin a plugin that cannot type them
+### Five `.blp` consumers still transcribe their ids by hand, in two differently blocked groups
 
-Every in-repo `.blp` consumer is on the ADR 0088 exports except `templates/{adw-canvas2d,adw-game,
-adw-webgl,gtk-minimal}`, and that is not an oversight. `process-template` rewrites each template's
+The showcases are migrated. What is left is the four
+`templates/{adw-canvas2d,adw-game,adw-webgl,gtk-minimal}` and `@gjsify/storybook` — and the second
+group is not an oversight the first one shares, so this is not one sweep with one unblock.
+
+The four SCAFFOLDS are waiting for a release. `process-template` rewrites each template's
 `workspace:^` to `^<the version in this tree>`, and until a release carries ADR 0088 that is a
 PUBLISHED `@gjsify/vite-plugin-blueprint` whose `*.blp` module exports `default` only. A scaffold
-migrated now generates a project whose `import Template, { GTypeName, InternalChildren, type Children }`
-fails with TS2614 on first `check`, and whose `.d.blp.ts` sidecar is ignored by the plugin that built
-it. The migration is mechanical and measured on the showcases; what it waits for is the release.
+migrated now generates a project whose
+`import Template, { GTypeName, InternalChildren, type Children }` fails with TS2614 on first
+`check`, and whose `.d.blp.ts` sidecar is ignored by the plugin that built it. The migration is
+mechanical and measured on the showcases; what it waits for is the release.
+
+`@gjsify/storybook` cannot SHIP the sidecar, which is a different wall: `files` is `["lib"]` and
+`build:types` emits declarations into `lib/types`, so `extends Children` puts
+`from './window.blp'` into a PUBLISHED declaration. Measured on the current tree: its
+`lib/types/window.d.ts` names no `.blp` at all, because `Template` is read inside a `static {}`
+block that a declaration drops — the interface merge would be the first reference, and nothing in
+`lib` would answer it. It needs a packaging decision first: ship `src` beside `lib`, or have
+`build:types` copy the sidecar into `lib/types` where the declaration that imports it resolves it.
 
 When the release that carries the exports is out: run `gjsify blueprint types templates/<name>`, add
-`allowArbitraryExtensions` to the template's `tsconfig.json`, delete the `declare private _x` lines in
-favour of `extends Children`, and decide deliberately that the `.d.blp.ts` travels through
-`process-template` into `dist-templates/` — a scaffold's first commit then contains a generated file.
-Run the `create-app` e2e after, since it is the only thing that builds a scaffold the way a user does.
+`allowArbitraryExtensions` to the template's `tsconfig.json`, delete the `declare private _x` lines
+in favour of `extends Children`, and decide deliberately that the `.d.blp.ts` travels through
+`process-template` into `dist-templates/` — a scaffold's first commit then contains a generated
+file. Run the `create-app` e2e after, since it is the only thing that builds a scaffold the way a
+user does. For `@gjsify/storybook`: settle the packaging first, then the migration is the same three
+steps, and `gjsify run test:gjs` is the verification because it boots the templated window.
