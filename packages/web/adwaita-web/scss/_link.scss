@@ -1,0 +1,82 @@
+// _link.scss — `link` and `button.link`, libadwaita's link treatment.
+//
+// UNSCOPED, because upstream's rule is on the node and the class together
+// (`_links.scss:1-2`) and both spellings have a reader: a `Gtk.Label` that is a link is
+// the `link` node, and a `Gtk.LinkButton` is `button.link`. `<gtk-link-button>` renders an
+// inner `<button class="adw-button link">`, so the class is what the selector needs.
+//
+// THE TWO COLOURS ARE THE PALETTE'S, not new tokens: `$link_color: var(--accent-color)`
+// and `$link_visited_color: color-mix(in srgb, var(--accent-color) 80%, var(--view-fg-color))`
+// (`_colors.scss:265-266`) are Sass variables over tokens this package already has, so a
+// consumer overriding `--accent-color` recolours its links with everything else.
+//
+// THE `:visited` CLAUSE IS PORTED AS A CLASS. Upstream styles GTK's `:visited` state
+// (`:7-9`), which is a state FLAG on the widget (`GTK_STATE_FLAG_VISITED`,
+// gtklinkbutton.c:743) rather than anything a selector can name from outside.
+// `gtk_link_button_set_visited()` flips exactly that flag and no CSS class, so
+// `<gtk-link-button>` writes `.visited` on the inner button and the rule below reads it.
+// `:disabled` needs no such translation: a disabled `<button>` is already the UA's.
+//
+// `font-weight: inherit` and the transparent background in EVERY state (`:38-44`) are
+// upstream's point: a link is a link, not a button that happens to be blue, so the
+// hover/active/checked rules must not paint over it.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_links.scss:1-49
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:265-266
+// Reference: refs/gtk/gtk/gtklinkbutton.c:380 (the `.link` style class), :646-672 (the
+//   URI tooltip), :742-749 (the VISITED state flag)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web — `:visited` becomes `.visited`, because
+//   a state flag has no CSS spelling a selector can match on.
+
+$link-color: var(--accent-color);
+$link-visited-color: color-mix(in srgb, var(--accent-color) 80%, var(--view-fg-color));
+$osd-link-color: color-mix(in srgb, var(--accent-bg-color) 50%, white);
+
+.link,
+.adw-button.link {
+  color: $link-color;
+  text-decoration: underline;
+  font-weight: inherit;
+
+  &:hover {
+    color: hsl(from $link-color h calc(s * 1.1) calc(l * 1.1));
+  }
+
+  &:active {
+    color: $link-color;
+  }
+
+  &:disabled {
+    color: color-mix(in srgb, currentColor var(--disabled-opacity), transparent);
+  }
+
+  &.visited {
+    color: $link-visited-color;
+  }
+
+  // `.osd &` — a link over content, where the accent is too dark to read.
+  .osd & {
+    color: $osd-link-color;
+
+    &:visited,
+    &.visited {
+      color: color-mix(in srgb, $osd-link-color 60%, currentColor);
+    }
+
+    &:active {
+      color: $osd-link-color;
+    }
+  }
+
+  // Every state transparent: upstream gives `button.link` no background at rest, on
+  // hover, on active or when checked (_links.scss:38-44), so a toggle-button-styled link
+  // cannot paint one.
+  &,
+  &:hover,
+  &:active,
+  &:checked,
+  &.checked {
+    background-color: transparent;
+  }
+}

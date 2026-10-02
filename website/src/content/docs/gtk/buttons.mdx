@@ -7,7 +7,9 @@ import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
 The buttons on this page belong to GTK. `Gtk.Button` is the plain button every
-other one is built on, `Gtk.ToggleButton` is the one that stays pressed, and
+other one is built on; the rest are the ones that add a state or a target to it —
+`Gtk.ToggleButton` stays pressed, `Gtk.LinkButton` follows a URI, `Gtk.ScaleButton`
+opens a scale, and the two dialog buttons open a colour or a font chooser.
 `Gtk.MenuButton` is the one whose press opens a menu. Libadwaita ships none of
 them. The buttons it does ship are on
 [Adwaita Buttons](/gjsify/adwaita/buttons/).
@@ -15,8 +17,9 @@ them. The buttons it does ship are on
 <MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour the toolkits drive natively can
 be simplified here. The menu button diverges: NativeScript has no popover, so its
-menu opens as the platform action sheet. The toggle button has no NativeScript
-widget yet, so its XML template tab says so.
+menu opens as the platform action sheet. Four of the buttons below have no
+NativeScript widget yet — the toggle button, the link button and the two dialog
+buttons — so their XML template tabs say so.
 </MoreInfo>
 
 ## Button Styles
@@ -61,18 +64,23 @@ everywhere in the toolkit.
 A button that stays pressed. It is a `Gtk.Button` with one more property,
 **active**, so the label, the icon and every style class of the plain button work
 on it unchanged. Listen for `toggled` (or `notify::active`) to follow the state.
-To pick exactly one of several, use the
-[toggle group](/gjsify/adwaita/buttons/#toggle-group) instead.
+
+**group** makes two or more of them mutually exclusive: setting one active releases
+the others, and the member you linked cannot be clicked back off, so a group always
+keeps exactly one press. Link the later button to the earlier one — `loop.group =
+mute` puts `loop` into `mute`'s group, which is the half that stops being
+clickable-off. To pick exactly one of several *style classes* instead, use the
+[toggle group](/gjsify/adwaita/buttons/#toggle-group).
 
 <AdwWidget title="Gtk.ToggleButton">
   <Fragment slot="preview">
     ```html
     <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-      <!-- label: Text of the label inside the button, if the button contains a label widget. -->
       <!-- active: If the toggle button should be pressed in. -->
       <gtk-toggle-button label="Mute" active></gtk-toggle-button>
-      <!-- label: Text of the label inside the button, if the button contains a label widget. -->
-      <gtk-toggle-button label="Loop"></gtk-toggle-button>
+      <gtk-toggle-button id="loop-group-target" label="Loop"></gtk-toggle-button>
+      <!-- group: The toggle button whose group this widget belongs to. -->
+      <gtk-toggle-button label="Follow" group="loop-group-target"></gtk-toggle-button>
     </div>
     ```
   </Fragment>
@@ -82,6 +90,12 @@ To pick exactly one of several, use the
 
     const mute = new Gtk.ToggleButton({ label: 'Mute', active: true });
     mute.connect('toggled', () => console.log(`Mute is ${mute.active ? 'on' : 'off'}`));
+
+    // A group is mutually exclusive, and the member that GAINED the link (here `follow`)
+    // cannot be clicked off — so the group always keeps exactly one button pressed.
+    const loop = new Gtk.ToggleButton({ label: 'Loop' });
+    const follow = new Gtk.ToggleButton({ label: 'Follow' });
+    follow.group = loop;
     ```
   </Fragment>
   <Fragment slot="blueprint">
@@ -97,8 +111,13 @@ To pick exactly one of several, use the
         active: true;
       }
 
-      Gtk.ToggleButton {
+      Gtk.ToggleButton loop_button {
         label: _("Loop");
+      }
+
+      Gtk.ToggleButton {
+        label: _("Follow");
+        // `group` takes another Gtk.ToggleButton, so it is set from code.
       }
     }
     ```
@@ -109,9 +128,338 @@ To pick exactly one of several, use the
 
     const mute = new Gtk.ToggleButton({ label: 'Mute', active: true });
     mute.connect('toggled', () => console.log(`Mute is ${mute.active ? 'on' : 'off'}`));
+
+    // A group is mutually exclusive, and the member that GAINED the link (here `follow`)
+    // cannot be clicked off — so the group always keeps exactly one button pressed.
+    const loop = new Gtk.ToggleButton({ label: 'Loop' });
+    const follow = new Gtk.ToggleButton({ label: 'Follow' });
+    follow.group = loop;
     ```
   </Fragment>
 </AdwWidget>
+
+## Link Button
+
+A button that follows a URI — a **uri**, and a **visited** state saying it has
+been followed. Clicking launches the URI and marks the link visited; pointing the
+button somewhere new un-visits it, because the new target has not been seen. Listen
+for `activate-link` to handle the click yourself: cancel the event and neither the
+launch nor the visit happens.
+
+The context menu of the native widget (copy the URL, on <kbd>Shift</kbd>+<kbd>F10</kbd>)
+is the platform's own here — a browser already owns that menu on a button.
+
+<AdwWidget title="Gtk.LinkButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- uri: The URI bound to this button. -->
+      <gtk-link-button label="GNOME" uri="https://gnome.org"></gtk-link-button>
+      <!-- uri: The URI bound to this button. -->
+      <!-- visited: The 'visited' state of this button. -->
+      <gtk-link-button label="GTK" uri="https://docs.gtk.org/gtk4/" visited></gtk-link-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const link = new Gtk.LinkButton({ uri: 'https://gnome.org', label: 'GNOME' });
+
+    // Returning TRUE from `activate-link` stops the default handler, so neither the
+    // launcher nor the visited state runs.
+    link.connect('activate-link', () => {
+        console.log('Would open', link.uri);
+        return true;
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+      halign: center;
+
+      Gtk.LinkButton {
+        label: _("GNOME");
+        uri: "https://gnome.org";
+      }
+
+      Gtk.LinkButton {
+        label: _("GTK");
+        uri: "https://docs.gtk.org/gtk4/";
+        visited: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const link = new Gtk.LinkButton({ uri: 'https://gnome.org', label: 'GNOME' });
+
+    // Returning TRUE from `activate-link` stops the default handler, so neither the
+    // launcher nor the visited state runs.
+    link.connect('activate-link', () => {
+        console.log('Would open', link.uri);
+        return true;
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Why the NativeScript tab says so">
+`@gjsify/adwaita-nativescript` has no `Gtk.LinkButton`: `GtkButton` takes a label
+and an icon, and nothing that follows a URI. The block's XML template tab says that
+instead of showing one.
+</MoreInfo>
+
+## Scale Button
+
+A button whose press opens a scale — the volume control of a media player, the
+brightness slider of a toolbar. It is a toggle button with an icon plus a popover
+holding a **minus** stepper, the scale and a **plus** one.
+
+The icon follows the value, and how depends on how many names the **icons** list
+holds: none draws `image-missing`; one name is used throughout; two split the range
+in half; three or more put the first at the bottom and the second at the top, and
+spread what is left evenly over the values between. The steppers move by the range's page increment and
+go insensitive at their end of it. Listen for `value-changed` to follow the value.
+
+**has-frame** draws the icon button with a frame (it has none by default, so it is
+flat), and the **orientation** axis is vertical unless you say otherwise — which is
+why a scale button grows upwards.
+
+<AdwWidget title="Gtk.ScaleButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <gtk-scale-button icons='["audio-volume-muted-symbolic","audio-volume-low-symbolic","audio-volume-high-symbolic"]' value="70"></gtk-scale-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const volume = new Gtk.ScaleButton({
+        icons: ['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic'],
+        value: 70,
+    });
+    volume.connect('value-changed', () => console.log(`Volume is ${volume.value}`));
+
+    // A wider range with its own step, as the portable adjustment spells it.
+    volume.adjustment = new Gtk.Adjustment({
+        lower: 0,
+        upper: 200,
+        stepIncrement: 5,
+        pageIncrement: 20,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+      halign: center;
+
+      Gtk.ScaleButton scale_button {
+        value: 70;
+        // `icons` is a G_TYPE_STRV, and a Blueprint list is not a spelling this
+        // compiler holds for it, so the icon names are set from code.
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const volume = new Gtk.ScaleButton({
+        icons: ['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic'],
+        value: 70,
+    });
+    volume.connect('value-changed', () => console.log(`Volume is ${volume.value}`));
+
+    // A wider range with its own step, as the portable adjustment spells it.
+    volume.adjustment = new Gtk.Adjustment({
+        lower: 0,
+        upper: 200,
+        stepIncrement: 5,
+        pageIncrement: 20,
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="What the preview shows instead of the dock">
+The dock is a popover the element builds itself, so a static tree has no slot for
+it — press the icon in the preview to open it. The NativeScript port has no
+`Gtk.ScaleButton` either: `GtkButton` has no popover child to put the slider in.
+</MoreInfo>
+
+## Color Dialog Button
+
+A button that shows a colour and opens a chooser for it — the swatch in a
+preferences dialog. **rgba** is the colour, in any spelling the browser knows, and
+the swatch announces its channel percentages ("Red 75%, Green 25%, Blue 25%"), with
+the alpha clause appearing only while the colour is translucent.
+
+The button is **insensitive until a dialog is set**, which is GTK's own rule, so
+markup needs the `dialog` attribute and code needs the `dialog` property. The
+chooser itself is the platform's colour picker here, which has no alpha channel: a
+colour chosen in it keeps the alpha the button already had.
+
+<AdwWidget title="Gtk.ColorDialogButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- dialog: The `GtkColorDialog` that contains parameters for the color chooser dialog. -->
+      <gtk-color-dialog-button dialog></gtk-color-dialog-button>
+      <!-- dialog: The `GtkColorDialog` that contains parameters for the color chooser dialog. -->
+      <gtk-color-dialog-button dialog rgba="#3584e4"></gtk-color-dialog-button>
+      <!-- dialog: The `GtkColorDialog` that contains parameters for the color chooser dialog. -->
+      <gtk-color-dialog-button dialog rgba="rgba(53, 132, 228, 0.5)"></gtk-color-dialog-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gdk from 'gi://Gdk?version=4.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const button = new Gtk.ColorDialogButton({ dialog: new Gtk.ColorDialog() });
+    const rgba = Gdk.RGBA.parse('#3584e4');
+    if (rgba !== null) button.rgba = rgba;
+
+    button.connect('notify::rgba', () => {
+        const chosen = button.rgba;
+        console.log(`${chosen.red}, ${chosen.green}, ${chosen.blue}`);
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+      halign: center;
+
+      Gtk.ColorDialogButton {
+        // `dialog` is a GtkColorDialog, so it is set from code.
+        halign: center;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gdk from 'gi://Gdk?version=4.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const button = new Gtk.ColorDialogButton({ dialog: new Gtk.ColorDialog() });
+    const rgba = Gdk.RGBA.parse('#3584e4');
+    if (rgba !== null) button.rgba = rgba;
+
+    button.connect('notify::rgba', () => {
+        const chosen = button.rgba;
+        console.log(`${chosen.red}, ${chosen.green}, ${chosen.blue}`);
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Why the NativeScript tab says so">
+`@gjsify/adwaita-nativescript` has no `Gtk.ColorDialogButton`, and
+`@nativescript/core` exports no colour-picker view for it to host.
+</MoreInfo>
+
+## Font Dialog Button
+
+A button that shows a font and opens a chooser for it. The **font-desc** is a
+Pango font description — `"Sans Bold 12"`, the spelling `Pango` itself reads and
+writes — and the label is its family, with its size beside it.
+
+The **level** decides how much of the font the chooser offers, and what the label
+shows: at `family` the label is the family name alone and no size is drawn; at
+`face` the style words join it; from `font` up the size appears beside it. **use-font**
+draws the family label in the selected font, and **use-size** decides whether the size
+is drawn in it too. **font-features** and **language** ride along with them.
+
+As with the colour button, the button is insensitive until a **dialog** is set.
+
+<AdwWidget title="Gtk.FontDialogButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- dialog: The `GtkFontDialog` that contains parameters for the font chooser dialog. -->
+      <gtk-font-dialog-button dialog font-desc="Sans Bold 12"></gtk-font-dialog-button>
+      <!-- dialog: The `GtkFontDialog` that contains parameters for the font chooser dialog. -->
+      <!-- use-font: Whether the buttons label will be drawn in the selected font. -->
+      <gtk-font-dialog-button dialog font-desc="Sans Bold 24" use-font use-size></gtk-font-dialog-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Pango from 'gi://Pango?version=1.0';
+
+    const font = new Gtk.FontDialogButton({ dialog: new Gtk.FontDialog() });
+    font.fontDesc = Pango.FontDescription.from_string('Sans Bold 12');
+    font.level = Gtk.FontLevel.FONT;
+
+    // The family label is drawn in the chosen font, at the chosen size.
+    font.useFont = true;
+    font.useSize = true;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+      halign: center;
+
+      Gtk.FontDialogButton {
+        // `dialog` is a GtkFontDialog and `font-desc` a PangoFontDescription, so both
+        // are set from code; the flags are attributes.
+        use-font: true;
+        use-size: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Pango from 'gi://Pango?version=1.0';
+
+    const font = new Gtk.FontDialogButton({ dialog: new Gtk.FontDialog() });
+    font.fontDesc = Pango.FontDescription.from_string('Sans Bold 12');
+    font.level = Gtk.FontLevel.FONT;
+
+    // The family label is drawn in the chosen font, at the chosen size.
+    font.useFont = true;
+    font.useSize = true;
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Where the chooser lists its families">
+The native font chooser walks Pango's font map. A page has no font map, so this one
+lists the families the DOCUMENT declares and the (weight, slant) faces
+`document.fonts` can render for each — which is the browser's answer to the same
+question Pango's walk answers.
+</MoreInfo>
 
 ## Menu Button
 

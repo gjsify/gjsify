@@ -75,7 +75,11 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'spacing': 'The amount of space between children.',
     },
     'gtk-check-button': {
-        'label': 'Text of the label inside the check button, if it contains a label widget.',
+        'label': null,
+    },
+    'gtk-color-dialog-button': {
+        'dialog': 'The `GtkColorDialog` that contains parameters for the color chooser dialog.',
+        'rgba': null,
     },
     'gtk-column-view': {
         'columns': 'The list of columns.',
@@ -87,6 +91,12 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'gtk-expander': {
         'label': null,
+    },
+    'gtk-font-dialog-button': {
+        'dialog': 'The `GtkFontDialog` that contains parameters for the font chooser dialog.',
+        'font-desc': null,
+        'use-font': 'Whether the buttons label will be drawn in the selected font.',
+        'use-size': null,
     },
     'gtk-grid-view': {
         'max-columns': 'Maximum number of columns per row.',
@@ -100,6 +110,11 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'max-value': 'Determines the maximum value of the interval that can be displayed by the bar.',
         'mode': 'Determines the way `GtkLevelBar` interprets the value properties to draw the level fill area.',
         'value': 'Determines the currently filled value of the level bar.',
+    },
+    'gtk-link-button': {
+        'label': null,
+        'uri': 'The URI bound to this button.',
+        'visited': 'The \'visited\' state of this button.',
     },
     'gtk-list-view': {
         'model': null,
@@ -127,6 +142,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'inverted': 'If TRUE, the direction in which the slider moves is inverted.',
         'value-pos': null,
     },
+    'gtk-scale-button': {
+        'icons': null,
+        'value': null,
+    },
     'gtk-search-entry': {
         'search-delay': 'The delay in milliseconds from last keypress to the search changed signal.',
     },
@@ -150,7 +169,8 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'gtk-toggle-button': {
         'active': 'If the toggle button should be pressed in.',
-        'label': 'Text of the label inside the button, if the button contains a label widget.',
+        'group': 'The toggle button whose group this widget belongs to.',
+        'label': null,
     },
 };
 
@@ -189,12 +209,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 93,
-    glossed: 33,
-    nameSuffices: 40,
+    set: 105,
+    glossed: 37,
+    nameSuffices: 48,
     divergent: 19,
     authored: 1,
-    commentLines: 55,
+    commentLines: 60,
 };
 
 /**

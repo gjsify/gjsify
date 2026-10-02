@@ -84,6 +84,10 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Gtk.ProgressBar': "The NativeScript port has no progress widget: the nearest thing it builds is AdwSpinRow, which is a titled row with a stepper and not a bar, and the theme's CSS subset has no trough to nest anything in (status/open-todos/adwaita-ports.md).",
     'Gtk.LevelBar': "The NativeScript port has no segmented-bar view: AdwSpinner is the only indicator it has and it takes no value, and GtkBox offers no run of equal children to divide into segments (status/open-todos/adwaita-ports.md).",
     'Gtk.Spinner': "The NativeScript port ships AdwSpinner for the libadwaita spinner and has no view for the GTK one; AdwSpinner is the whole picture there, and the reduced-motion icon swap GTK does has no counterpart (status/open-todos/adwaita-ports.md).",
+    'Gtk.LinkButton': "The port has no link button: GtkButton takes a label and an iconName and nothing that follows a uri, so neither the destination nor the visited state it draws has anywhere to live (status/open-todos/adwaita-ports.md).",
+    'Gtk.ScaleButton': "The port has no scale button: GtkButton.child takes one view, and the value a scale button draws on its icon has no slider behind it (status/open-todos/adwaita-ports.md).",
+    'Gtk.ColorDialogButton': "The port has no colour dialog button: GtkButton.child takes one view and @nativescript/core exports no colour-picker view, so the swatch it would host has nothing to collect the next colour from (status/open-todos/adwaita-ports.md).",
+    'Gtk.FontDialogButton': "The port has no font dialog button: GtkButton.child takes a view but there is no font-picker view in @nativescript/core, so the two GtkLabel children the font_desc names cannot be filled from a chooser (status/open-todos/adwaita-ports.md).",
     'Adw.Toast': "AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.",
     'Adw.AlertDialog': "AdwAlertDialog extends Observable, not View: it has no place in a view tree.",
 };

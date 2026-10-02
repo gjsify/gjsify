@@ -145,6 +145,29 @@
             />
             <gtk-toggle-button label="Loop" />
         </gtk-box>
+        <gtk-box
+            orientation="vertical"
+            :spacing="6"
+            halign="center"
+        >
+            <gtk-link-button
+                uri="https://gnome.org"
+                label="GNOME"
+            />
+            <gtk-link-button
+                uri="https://docs.gtk.org/gtk4/"
+                :visited="true"
+            />
+        </gtk-box>
+        <gtk-scale-button
+            :icons="['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic']"
+            :value="70"
+        />
+        <gtk-color-dialog-button :dialog="{  }" />
+        <gtk-font-dialog-button
+            :dialog="{  }"
+            font-desc="Sans Bold 12"
+        />
         <gtk-menu-button
             icon-name="open-menu-symbolic"
             :css-classes="['flat']"

@@ -41,6 +41,14 @@
 @use 'action_bar';
 @use 'window_title';
 @use 'button';
+// The four button-derived nodes below, in the order of `src/elements/`: each one
+// renders a `.adw-button` of its own, so each rule comes AFTER `button` rather than
+// before it — `button.link`'s transparent background is the whole point of a link and
+// `.adw-button`'s resting fill must not win it on source order.
+@use 'link';
+@use 'scale_button';
+@use 'color_button';
+@use 'font_button';
 @use 'button_content';
 // The ONE popover surface. Emitted BEFORE the widgets that host one, so a
 // consumer's (or a widget's) own higher-specificity rule still wins over it.

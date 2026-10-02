@@ -1,0 +1,63 @@
+// _font_button.scss — `<gtk-font-dialog-button>`: the `button.font` node and the two
+// labels it holds.
+//
+// libadwaita has no rule for it either: `_linked.scss:7` is the only place upstream names
+// `fontbutton`, and it is there because the node is a button that participates in a linked
+// group. So this partial is the node's layout and nothing else — and the node's layout IS
+// the C's, which builds a horizontal box of the family label (hexpand, so it takes the
+// room) and the size box, the latter a vertical separator followed by the size label
+// (gtkfontdialogbutton.c:121-140).
+//
+// The element hides the size box itself when the level is below FONT, because
+// `update_font_info` ends with `gtk_widget_set_visible (self->font_size_box, self->level >=
+// GTK_FONT_LEVEL_FONT)` (:685) — a family chooser shows one word where a font chooser shows
+// two, and the separator with it.
+//
+// Reference: refs/gtk/gtk/gtkfontdialogbutton.c:52-60 (the node), :118-152 (init, the box,
+//   the labels), :649-687 (update_font_info, and the size box's visibility)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_linked.scss:7 (`fontbutton > button`)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web — the labels are `<span>`s inside an
+//   ordinary `<button>`, and `use-font` sets their inline `font` (apply_use_font).
+
+gtk-font-dialog-button {
+  display: inline-flex;
+  position: relative;
+}
+
+.font-button-label {
+  flex: 1;
+  text-align: start;
+}
+
+// The size box: a separator and the size, in a row of their own — which is why the element
+// wraps them in a span rather than appending both to the button.
+.font-button-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: 6px;
+  color: color-mix(in srgb, currentColor var(--dim-opacity), transparent);
+}
+
+.font-button-size-label {
+  min-width: 2ch;
+  font-variant-numeric: tabular-nums;
+}
+
+// The chooser: one row of families. A popover rather than a `<select>` on the button
+// itself, because `gtk_font_dialog_button_new()` is given a dialog and shows nothing until
+// it is pressed.
+.font-button-popover {
+  .font-button-chooser {
+    min-width: 180px;
+    max-width: 320px;
+    padding: 4px;
+    border: none;
+    border-radius: 6px;
+    background-color: var(--popover-bg-color);
+    color: var(--popover-fg-color);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+  }
+}

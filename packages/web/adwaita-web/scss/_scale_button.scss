@@ -1,0 +1,167 @@
+// _scale_button.scss — `<gtk-scale-button>`: the icon button, its `.scale-popup` dock and
+// the range inside it.
+//
+// The node is `scalebutton.scale` holding `button.toggle`
+// (gtkscalebutton.c:87-97), and the DOCK is a `GtkPopover` with the `scale-popup` style
+// class holding a box of [minus, scale, plus] with 4px margins and 4px spacing
+// (gtkscalebutton.ui) — all three of those numbers restated here, because the box is the
+// dock's whole layout and GTK sizes the scale to `SCALE_SIZE` (100px) along its axis.
+//
+// The RANGE ITSELF is libadwaita's `scale` node (_scale.scss:19-251): the 12px padding,
+// the 99px trough, the accent-coloured `highlight`, the 20px round slider with a `-8px`
+// negative margin and a two-part shadow. An `<input type="range">` is the element the
+// NativeScript port already substitutes for `GtkScale`, and the trough/highlight/slider
+// are drawn with `appearance: none` and the same numbers. The vertical case is the
+// `writing-mode` + `direction` pair that makes a range grow UPWARD, which is
+// `gtk_range_set_inverted (scale, TRUE)` for the vertical orientation (:883) — and
+// `scale-button-box` reverses its column for the same reason `apply_orientation`
+// reorders the children (:869-889).
+//
+// Reference: refs/gtk/gtk/gtkscalebutton.c:87-97 (the node), :869-889 (the orientation),
+//   :1099-1100 (the steppers' sensitivity)
+// Reference: refs/gtk/gtk/gtkscalebutton.ui (the dock, its box, its margins)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss:1-60 (trough, highlight, slider)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web — the scale is `<input type="range">`
+//   rather than a `scale` node, and the slider is drawn with `appearance: none`.
+
+/** `SCALE_SIZE` (gtkscalebutton.c:88) — the scale's size request along its own axis. */
+$scale-size: 100px;
+
+// libadwaita's own values (`_colors.scss:280-288`), which are Sass variables over tokens
+// this package already has rather than new ones: a trough is 15% of the current text
+// colour and a slider is 80% white over the view background.
+$trough-color: color-mix(in srgb, currentColor 15%, transparent);
+$trough-hover-color: color-mix(in srgb, currentColor 20%, transparent);
+$slider-color: color-mix(in srgb, white 80%, var(--view-bg-color));
+$slider-border-color: rgb(0 0 6 / 10%);
+
+gtk-scale-button {
+  display: inline-flex;
+  position: relative;
+}
+
+.scale-button-icon {
+  min-width: 34px;
+}
+
+// The dock's own box: 4px of margin on all four sides, 4px between the three children.
+.scale-button-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 4px;
+
+  // `apply_orientation` moves plus ABOVE minus when the scale is vertical
+  // (gtkscalebutton.c:876-878). Reversing the column is the same arrangement without
+  // moving nodes, which would take focus off a stepper mid-click.
+  .vertical & {
+    flex-direction: column-reverse;
+  }
+}
+
+.scale-button-step {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px;
+}
+
+.scale-button-range {
+  appearance: none;
+  background: none;
+  margin: 0;
+  padding: 12px;
+  min-width: 10px;
+  min-height: 10px;
+  flex: 1;
+  cursor: pointer;
+
+  // libadwaita sizes the SLIDER at 20px and pulls it 8px back out of the trough
+  // (_scale.scss:49-58) — the negative margin is upstream's, not decoration.
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 99px;
+    background-color: $trough-color;
+    transition: background-color 0.2s ease;
+  }
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin: -8px;
+    border: none;
+    border-radius: 100%;
+    background-color: $slider-color;
+    box-shadow: 0 0 0 1px $slider-border-color, 0 2px 4px rgb(0 0 6 / 20%);
+  }
+
+  &::-moz-range-track {
+    height: 4px;
+    border-radius: 99px;
+    background-color: $trough-color;
+    transition: background-color 0.2s ease;
+  }
+
+  &::-moz-range-progress {
+    height: 4px;
+    border-radius: 99px;
+    background-color: var(--accent-bg-color);
+  }
+
+  &::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 100%;
+    background-color: $slider-color;
+    box-shadow: 0 0 0 1px $slider-border-color, 0 2px 4px rgb(0 0 6 / 20%);
+  }
+
+  &:hover::-webkit-slider-runnable-track,
+  &:active::-webkit-slider-runnable-track {
+    background-color: $trough-hover-color;
+  }
+
+  &:hover::-moz-range-track,
+  &:active::-moz-range-track {
+    background-color: $trough-hover-color;
+  }
+
+  &:disabled {
+    filter: opacity(var(--disabled-opacity));
+  }
+
+  // A VERTICAL scale: `writing-mode` gives the axis and `direction: rtl` makes the value
+  // grow upward, which is `gtk_range_set_inverted (scale, TRUE)` for the vertical
+  // orientation (gtkscalebutton.c:883) and the only reason a media volume button fills
+  // from the bottom.
+  .vertical & {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 24px;
+    height: $scale-size;
+    flex: none;
+
+    &::-webkit-slider-runnable-track {
+      width: 4px;
+      height: $scale-size;
+    }
+
+    &::-webkit-slider-thumb {
+      margin: -8px;
+    }
+
+    &::-moz-range-track {
+      width: 4px;
+      height: $scale-size;
+    }
+  }
+
+  .horizontal & {
+    height: 24px;
+    width: $scale-size;
+    flex: none;
+  }
+}

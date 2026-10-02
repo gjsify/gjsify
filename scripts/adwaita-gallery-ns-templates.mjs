@@ -558,6 +558,16 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no segmented-bar view: AdwSpinner is the only indicator it has and it takes no value, and GtkBox offers no run of equal children to divide into segments (status/open-todos/adwaita-ports.md).',
     'Gtk.Spinner':
         'The NativeScript port ships AdwSpinner for the libadwaita spinner and has no view for the GTK one; AdwSpinner is the whole picture there, and the reduced-motion icon swap GTK does has no counterpart (status/open-todos/adwaita-ports.md).',
+    // Four more the port has no view for, each with the NEIGHBOUR class the reason names —
+    // `GtkButton` and `GtkBox` ship, so the sentences stay checkable against real members.
+    'Gtk.LinkButton':
+        'The port has no link button: GtkButton takes a label and an iconName and nothing that follows a uri, so neither the destination nor the visited state it draws has anywhere to live (status/open-todos/adwaita-ports.md).',
+    'Gtk.ScaleButton':
+        'The port has no scale button: GtkButton.child takes one view, and the value a scale button draws on its icon has no slider behind it (status/open-todos/adwaita-ports.md).',
+    'Gtk.ColorDialogButton':
+        'The port has no colour dialog button: GtkButton.child takes one view and @nativescript/core exports no colour-picker view, so the swatch it would host has nothing to collect the next colour from (status/open-todos/adwaita-ports.md).',
+    'Gtk.FontDialogButton':
+        'The port has no font dialog button: GtkButton.child takes a view but there is no font-picker view in @nativescript/core, so the two GtkLabel children the font_desc names cannot be filled from a chooser (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

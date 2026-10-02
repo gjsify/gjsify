@@ -194,6 +194,26 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
     },
+    // The four Gtk buttons of page gtk/buttons that libadwaita ships NO type behind, so
+    // this is one bullet in the open-todos section above covering all four; the reasons
+    // below say what each NativeScript substitute would have to BE, which is the whole of
+    // what is still open.
+    'color-dialog-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'font-dialog-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'link-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'scale-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     dialog: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',

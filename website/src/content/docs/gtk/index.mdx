@@ -72,12 +72,17 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button, the style classes that shape it, the toggle button and the menu button that opens a popover.">
+  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button and the style classes that shape it, then the ones that add a state or a target: the toggle button, the link button, the scale button, the colour and font dialog buttons, and the menu button that opens a popover.">
     <Fragment slot="preview">
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
         <gtk-button label="Suggested" suggested></gtk-button>
         <gtk-button label="Delete" destructive></gtk-button>
         <gtk-button icon="list-add" circular></gtk-button>
+        <gtk-toggle-button label="Mute" active></gtk-toggle-button>
+        <gtk-link-button label="GNOME" uri="https://gnome.org"></gtk-link-button>
+        <gtk-scale-button icons='["audio-volume-muted-symbolic","audio-volume-low-symbolic","audio-volume-high-symbolic"]' value="70"></gtk-scale-button>
+        <gtk-color-dialog-button dialog rgba="#3584e4"></gtk-color-dialog-button>
+        <gtk-font-dialog-button dialog font-desc="Sans Bold 12"></gtk-font-dialog-button>
         <gtk-menu-button icon-name="open-menu" menu-title="Document" menu-model='[{"label":"Save as…"},{"label":"Export"}]'></gtk-menu-button>
       </div>
     </Fragment>

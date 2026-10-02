@@ -138,6 +138,21 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-toggle-button', gtype: 'GtkToggleButton', props: {"label":"Loop"} }
             ] }
     },
+    { widget: 'Gtk.LinkButton', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":6,"halign":"center"}, children: [
+                { tag: 'gtk-link-button', gtype: 'GtkLinkButton', props: {"uri":"https://gnome.org","label":"GNOME"} },
+                { tag: 'gtk-link-button', gtype: 'GtkLinkButton', props: {"uri":"https://docs.gtk.org/gtk4/","visited":true} }
+            ] }
+    },
+    { widget: 'Gtk.ScaleButton', root:
+        { tag: 'gtk-scale-button', gtype: 'GtkScaleButton', props: {"icons":["audio-volume-muted-symbolic","audio-volume-low-symbolic","audio-volume-high-symbolic"],"value":70} }
+    },
+    { widget: 'Gtk.ColorDialogButton', root:
+        { tag: 'gtk-color-dialog-button', gtype: 'GtkColorDialogButton', props: {"dialog":{}} }
+    },
+    { widget: 'Gtk.FontDialogButton', root:
+        { tag: 'gtk-font-dialog-button', gtype: 'GtkFontDialogButton', props: {"dialog":{},"fontDesc":"Sans Bold 12"} }
+    },
     { widget: 'Gtk.MenuButton', root:
         { tag: 'gtk-menu-button', gtype: 'GtkMenuButton', props: {"iconName":"open-menu-symbolic","cssClasses":["flat"],"menuModel":[{"label":"Preferences","action":"app.preferences"},{"label":"Keyboard Shortcuts","action":"win.show-help-overlay"},{"label":"About","action":"app.about"}]} }
     },

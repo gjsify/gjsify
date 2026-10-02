@@ -231,6 +231,48 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     {
+        widget: 'Gtk.LinkButton',
+        page: 'buttons',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 6, halign: 'center' },
+            children: [
+                { tag: 'gtk-link-button', props: { uri: 'https://gnome.org', label: 'GNOME' } },
+                { tag: 'gtk-link-button', props: { uri: 'https://docs.gtk.org/gtk4/', visited: true } },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.ScaleButton',
+        page: 'buttons',
+        // The icon list is GtkScaleButton:icons, a boxed G_TYPE_STRV — a list of strings,
+        // which ADR 0046's portable form is, and `value` rides the adjustment beside it.
+        // The DOCK is a popover the element builds itself; a tree has no slot for it, which
+        // is why the block's `gjs` tab shows the press rather than the tree.
+        root: {
+            tag: 'gtk-scale-button',
+            props: {
+                icons: ['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic'],
+                value: 70,
+            },
+        },
+    },
+    {
+        widget: 'Gtk.ColorDialogButton',
+        page: 'buttons',
+        // `rgba` is a GdkRGBA boxed property and `dialog` a GtkColorDialog GObject, so
+        // neither is a scalar an attribute can carry in this vocabulary; the element reads
+        // both as JSON/text it parses itself, which is the same door `adjustment` uses.
+        root: { tag: 'gtk-color-dialog-button', props: { dialog: {} } },
+    },
+    {
+        widget: 'Gtk.FontDialogButton',
+        page: 'buttons',
+        // `font-desc` is a PangoFontDescription and `language` a PangoLanguage: two more
+        // boxed properties, and the strings here are the Pango spellings of each.
+        root: { tag: 'gtk-font-dialog-button', props: { dialog: {}, fontDesc: 'Sans Bold 12' } },
+    },
+    {
         widget: 'Gtk.MenuButton',
         page: 'buttons',
         root: {

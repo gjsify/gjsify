@@ -89,6 +89,15 @@ export const GtkToggleButtonTest = async () => {
             expect(el.button.classList.contains('checked')).toBe(true);
             host.remove();
         });
+
+        await it('an ungrouped button still toggles off when clicked', () => {
+            const { el, host } = mount({ label: 'Mute' });
+            el.button.click();
+            expect(el.active).toBe(true);
+            el.button.click();
+            expect(el.active).toBe(false);
+            host.remove();
+        });
     });
 
     await describe('<gtk-toggle-button> look', async () => {
@@ -99,6 +108,79 @@ export const GtkToggleButtonTest = async () => {
             const checked = getComputedStyle(el.button).backgroundColor;
             expect(checked === released).toBe(false);
             host.remove();
+        });
+    });
+
+    await describe('<gtk-toggle-button> group', async () => {
+        await it('joining a group links the two ways, and leaves the attribute naming it', () => {
+            const a = mount({ id: 'group-a', label: 'A' });
+            const b = mount({ id: 'group-b', label: 'B' });
+            b.el.group = a.el;
+            expect(b.el.getAttribute('group')).toBe('group-a');
+            // `gtk_toggle_button_set_group` inserts SELF before the target, so B is the one
+            // that gains `group_next` — which is also the one a click can no longer release.
+            b.el.button.click();
+            expect(b.el.active).toBe(true);
+            b.el.button.click();
+            expect(b.el.active).toBe(true);
+            a.host.remove();
+            b.host.remove();
+        });
+
+        await it('activating a member releases the others, whichever order they were linked in', () => {
+            const a = mount({ id: 'chain-a', label: 'A' });
+            const b = mount({ id: 'chain-b', label: 'B' });
+            const c = mount({ id: 'chain-c', label: 'C' });
+            b.el.group = a.el;
+            c.el.group = a.el;
+            const toggled = record(c.el, 'toggled');
+            c.el.active = true;
+            expect(a.el.active).toBe(false);
+            expect(b.el.active).toBe(false);
+            expect(c.el.active).toBe(true);
+            a.el.active = true;
+            expect(c.el.active).toBe(false);
+            expect(b.el.active).toBe(false);
+            expect(a.el.active).toBe(true);
+            expect(toggled.length).toBe(2);
+            a.host.remove();
+            b.host.remove();
+            c.host.remove();
+        });
+
+        await it('the attribute door names the partner by id, and an unknown name changes nothing', () => {
+            const a = mount({ id: 'attr-a', label: 'A' });
+            const b = mount({ id: 'attr-b', label: 'B' });
+            b.el.setAttribute('group', 'attr-a');
+            a.el.active = true;
+            b.el.active = true;
+            expect(a.el.active).toBe(false);
+            expect(b.el.active).toBe(true);
+            b.el.setAttribute('group', 'nowhere');
+            expect(b.el.getAttribute('group')).toBe('nowhere');
+            a.el.active = true;
+            expect(b.el.active).toBe(true);
+            a.host.remove();
+            b.host.remove();
+        });
+
+        await it('leaving the group releases the links, and the same group twice notifies once', () => {
+            const a = mount({ id: 'once-a', label: 'A' });
+            const b = mount({ id: 'once-b', label: 'B' });
+            const notified = record(b.el, 'notify::group');
+            b.el.group = a.el;
+            b.el.group = a.el;
+            expect(notified.length).toBe(1);
+            b.el.group = null;
+            expect(notified.length).toBe(2);
+            expect(b.el.hasAttribute('group')).toBe(false);
+            // Unlinked, B is clickable off again — the guard is the link, not the element.
+            b.el.button.click();
+            expect(b.el.active).toBe(true);
+            b.el.button.click();
+            expect(b.el.active).toBe(false);
+            a.host.remove();
+            b.host.remove();
         });
     });
 };

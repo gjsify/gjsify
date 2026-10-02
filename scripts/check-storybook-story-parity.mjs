@@ -112,6 +112,14 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Revealer widget yet, so the story is rendered by the other two targets only.',
     'toggle-button@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
+    'link-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.LinkButton widget yet, so the story is rendered by the other two targets only.',
+    'scale-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.ScaleButton widget yet, so the story is rendered by the other two targets only.',
+    'color-dialog-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.ColorDialogButton widget yet, so the story is rendered by the other two targets only.',
+    'font-dialog-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.FontDialogButton widget yet, so the story is rendered by the other two targets only.',
 };
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */

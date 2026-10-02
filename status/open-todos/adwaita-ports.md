@@ -421,6 +421,19 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   deciding whether a template string or a per-item view builder is the NativeScript
   spelling is the question nobody has answered. The column view needs that answer twice
   over, once per column.
+- **`<gtk-link-button>`, `<gtk-scale-button>`, `<gtk-color-dialog-button>` and
+  `<gtk-font-dialog-button>` on NativeScript.** All four browser elements and their gallery
+  blocks exist; the NativeScript port has none of the four, so the four stories are
+  ledgered as not rendered there and their XML templates refused. Each is a different
+  reason rather than four versions of one. A link button is `GtkButton` plus a URI and a
+  visited state, and `Button` has no `visited` either — but NativeScript could launch the
+  URI through `Utils.openUrl`, which no browser port needs to do by hand. A scale button
+  is `GtkButton` plus a popover holding a `Slider`: the parts are all in `@nativescript/core`
+  (`Button`, `Slider`), and what is missing is the composition and the icon that follows
+  the value. A colour dialog button and a font dialog button both need a CHOOSER the
+  platform does not export: the browser substitutes `<input type="color">` and a family
+  list, and there is no `@nativescript/core` view for either, so the open question there is
+  whether a colour or font picker belongs on a touch target at all.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

@@ -53,6 +53,10 @@ import { PanedWebStories } from './layout/paned.web.js';
 import { RevealerWebStories } from './layout/revealer.web.js';
 import { SeparatorWebStories } from './layout/separator.web.js';
 import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
+import { ColorDialogButtonWebStories } from './buttons/color-dialog-button.web.js';
+import { FontDialogButtonWebStories } from './buttons/font-dialog-button.web.js';
+import { LinkButtonWebStories } from './buttons/link-button.web.js';
+import { ScaleButtonWebStories } from './buttons/scale-button.web.js';
 import { ButtonContentWebStories } from './buttons/button-content.web.js';
 import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
 import { MenuButtonWebStories } from './buttons/menu-button.web.js';
@@ -114,6 +118,10 @@ export const stories: WebStoryModule[] = [
     MenuButtonWebStories,
     SplitButtonWebStories,
     ToggleButtonWebStories,
+    ColorDialogButtonWebStories,
+    FontDialogButtonWebStories,
+    LinkButtonWebStories,
+    ScaleButtonWebStories,
     ToggleGroupWebStories,
     ClampWebStories,
     HeaderBarWebStories,

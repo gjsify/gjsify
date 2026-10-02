@@ -62,6 +62,10 @@ import { GtkScaleTest } from './gtk-scale.spec.js';
 import { GtkSpinButtonTest } from './gtk-spin-button.spec.js';
 import { GtkPasswordEntryTest } from './gtk-password-entry.spec.js';
 import { GtkSearchEntryTest } from './gtk-search-entry.spec.js';
+import { GtkLinkButtonTest } from './gtk-link-button.spec.js';
+import { GtkScaleButtonTest } from './gtk-scale-button.spec.js';
+import { GtkColorDialogButtonTest } from './gtk-color-dialog-button.spec.js';
+import { GtkFontDialogButtonTest } from './gtk-font-dialog-button.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
@@ -122,6 +126,10 @@ run({
     GtkSpinButtonTest,
     GtkPasswordEntryTest,
     GtkSearchEntryTest,
+    GtkLinkButtonTest,
+    GtkScaleButtonTest,
+    GtkColorDialogButtonTest,
+    GtkFontDialogButtonTest,
     GtkBoxTest,
     GtkLabelTest,
     AdwAvatarTest,

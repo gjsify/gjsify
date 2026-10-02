@@ -1,0 +1,67 @@
+// _color_button.scss — `<gtk-color-dialog-button>`: the `button.color` node and the
+// swatch it holds.
+//
+// THE SWATCH IS NOT LIBADWAITA'S, and saying so is the point of this partial. GTK paints
+// the `GtkColorSwatch` from GTK's OWN theme — libadwaita's `_color-chooser.scss` styles the
+// `colorchooser` popover, and `grep` finds no rule for the swatch or for `colorbutton` at
+// all. So what upstream does have is this:
+//
+//   · the node `colorbutton > button.color` and the `.color` style class
+//     (gtkcolordialogbutton.c:63-70, :163) — which is what puts the button in the
+//     `.linked` group and makes it square;
+//
+// and what this partial adds is the geometry `gtk_color_dialog_button_init` asks for: a
+// swatch as wide as the word "Black" rendered at the base size and as tall as its line
+// (:139-148). 24x18 is that box at the base font size, so the button around it is the
+// usual 34px-tall button.
+//
+// THE TRANSLUCENT CLAUSE IS GTK's own drawing, keyed off the element's `data-translucent`:
+// `GtkColorSwatch` draws a checkerboard under a colour with alpha, and `rgba_to_gdk_rgba`
+// is how it decides. A browser has no such thing, and a translucent colour on a plain
+// background is unreadable without one.
+//
+// Reference: refs/gtk/gtk/gtkcolordialogbutton.c:63-70 (the node), :139-163 (the swatch,
+//   the `.color` class), :329-347 (the accessible name's rounding)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_linked.scss:6 (`colorbutton > button`)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web — the swatch is a `<span>` painted with
+//   `background-color`, and its checkerboard is this package's drawing of GtkColorSwatch.
+
+gtk-color-dialog-button {
+  display: inline-flex;
+}
+
+.color-button-swatch {
+  display: block;
+  width: 24px;
+  height: 18px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--shade-color);
+  // The checkerboard, only while the colour is translucent — the element writes
+  // `data-translucent` from `rgba[3] < 1`, which is GtkColorSwatch's own test.
+  &[data-translucent='true'] {
+    background-image:
+      linear-gradient(45deg, rgb(0 0 6 / 12%) 25%, transparent 25%),
+      linear-gradient(-45deg, rgb(0 0 6 / 12%) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgb(0 0 6 / 12%) 75%),
+      linear-gradient(-45deg, transparent 75%, rgb(0 0 6 / 12%) 75%);
+    background-position:
+      0 0,
+      0 4px,
+      4px -4px,
+      -4px 0;
+    background-size: 8px 8px;
+  }
+}
+
+// The chooser itself: visually nothing, and reachable only from the button's click, which
+// is why it is `aria-hidden` and out of the tab order rather than merely transparent.
+.color-button-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
