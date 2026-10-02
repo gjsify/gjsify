@@ -41,7 +41,7 @@ export class WindowHandleStory extends StoryWidget {
         // READ, and cannot be honoured: the action a double click performs is the
         // `gtk-titlebar-double-click` SETTING, resolved by the compositor first
         // (`gdk_toplevel_titlebar_gesture`) and by `Gtk.Settings` where there is no answer
-        // (gtkwindowhandle.c:305-333). A widget has no handle on either, so this story cannot
+        // (gtkwindowhandle.c:282-333). A widget has no handle on either, so this story cannot
         // set it per instance; the web renderer takes the same value as an attribute, which is
         // the only door a document has.
         void this.args.action as string;

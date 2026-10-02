@@ -77,10 +77,13 @@ export const GtkWindowHandleTest = async () => {
             host.remove();
         });
 
-        await it('reads each gesture off its own setting, and refuses a value GTK does not know', async () => {
+        await it('reads each gesture off its OWN setting default, and refuses a value GTK does not know', async () => {
             const { el, host } = mount();
+            // The three pspecs are not the same (gtksettings.c:868-896): a middle click does
+            // NOTHING by default, which is the whole point of there being three settings.
             expect(el.actionFor('double-click')).toBe('toggle-maximize');
-            expect(el.actionFor('middle-click')).toBe('menu');
+            expect(el.actionFor('middle-click')).toBe('none');
+            expect(el.actionFor('right-click')).toBe('menu');
             el.setAttribute('double-click-action', 'minimize');
             expect(el.actionFor('double-click')).toBe('minimize');
             const seen = record(el, 'window.minimize');
@@ -93,16 +96,28 @@ export const GtkWindowHandleTest = async () => {
             const none = record(el, 'window.minimize');
             click(el, { button: 0, detail: 2 });
             expect(none.get('window.minimize')?.length).toBe(0);
+            // A maximization VARIANT maximizes: `perform_titlebar_action_fallback` matches
+            // `toggle-maximize` by prefix, "treat all maximization variants the same"
+            // (gtkwindowhandle.c:311-315).
+            el.setAttribute('double-click-action', 'toggle-maximize-fullscreen');
+            expect(el.actionFor('double-click')).toBe('toggle-maximize');
             host.remove();
         });
 
         await it('reports `none` on titlebar-action all the same, which is the gesture itself', async () => {
             const { el, host } = mount();
-            el.setAttribute('right-click-action', 'none');
             const seen = record(el, 'titlebar-action', 'window.menu');
-            click(el, { button: 2 });
+            // A middle click, which is `none` by default (gtksettings.c:881-883) — the gesture
+            // still happened, so it is still reported, and nothing else fires.
+            click(el, { button: 1 });
             expect(seen.get('titlebar-action')?.length).toBe(1);
             expect(seen.get('window.menu')?.length).toBe(0);
+            expect((seen.get('titlebar-action')?.[0] as { gesture: string }).gesture).toBe('middle-click');
+            el.setAttribute('right-click-action', 'none');
+            const right = record(el, 'titlebar-action', 'window.menu');
+            click(el, { button: 2 });
+            expect(right.get('titlebar-action')?.length).toBe(1);
+            expect(right.get('window.menu')?.length).toBe(0);
             host.remove();
         });
     });

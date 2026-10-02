@@ -3,31 +3,32 @@
 // titlebar is expected to turn into.
 //
 // WHAT IS LEFT OF IT IN GTK 4.24. The widget has ONE property (`child`), a `GtkBinLayout`, a
-// `windowhandle` CSS node and the generic a11y role (gtkwindowhandle.c:527-554); everything
+// `windowhandle` CSS node and the generic a11y role (gtkwindowhandle.c:529-556); everything
 // else it once was is gone. The titlebar behaviour is three cases in
-// `perform_titlebar_action` (gtkwindowhandle.c:335-372):
+// `perform_titlebar_action` (gtkwindowhandle.c:335-367):
 //
 //   · a PRIMARY double-click, a MIDDLE click or a SECONDARY click asks the COMPOSITOR first
 //     (`gdk_toplevel_titlebar_gesture`), and where there is no answer the settings
 //     `gtk-titlebar-double-click`, `-middle-click` and `-right-click` decide — their
 //     documented values are `toggle-maximize`, `lower`, `minimize`, `menu` and `none`
-//     (`perform_titlebar_action_fallback`, gtkwindowhandle.c:305-333);
+//     (`perform_titlebar_action_fallback`, gtkwindowhandle.c:282-333);
 //   · a drag past the threshold begins a window MOVE (`gdk_toplevel_begin_move`,
-//     gtkwindowhandle.c:429-455);
+//     gtkwindowhandle.c:423-467);
 //   · `menu` opens the window menu, falling back to GTK's OWN Restore / Minimize / Maximize /
-//     Close popover (`do_popup_fallback`, gtkwindowhandle.c:161-264).
+//     Close popover (`do_popup_fallback`, gtkwindowhandle.c:160-262).
 //
 // WHAT A PAGE CANNOT DO, AND WHAT IT DOES INSTEAD. `gdk_toplevel_begin_move` and
 // `gdk_toplevel_show_window_menu` are OPERATIONS ON THE COMPOSITOR'S SURFACE: a document is
 // not allowed to move or unmaximize the window it is rendered in, and no web API asks it to.
-// So the port emits the SAME action names GTK's fallback activates — `window.toggle-maximized`,
-// `window.minimize`, `window.lower`, `window.menu` are the strings `gtk_widget_activate_action`
-// is handed (gtkwindowhandle.c:319-329) — as a `titlebar-action` CustomEvent (bubbles, detail
-// `{ action, gesture, windowAction, x, y }`), and a second event NAMED for the action, which is
-// what the C's `gdk_surface_...` call amounts to from a consumer's side. The settings that
-// choose the action are attributes of the same three names minus the `gtk-` prefix, so a
-// consumer writes `double-click-action="toggle-maximize"` and gets GTK's precedence without a
-// settings object it cannot have.
+// So the port emits the SAME action names GTK's fallback activates — `window.toggle-maximized`
+// and `window.minimize` are the strings `gtk_widget_activate_action` is handed
+// (gtkwindowhandle.c:313-321), and `window.lower` / `window.menu` are the compositor calls it
+// makes instead (gtkwindowhandle.c:84-91, 264-280) — as a `titlebar-action` CustomEvent
+// (bubbles, detail `{ action, gesture, windowAction, x, y }`), and a second event NAMED for the
+// action, which is what the C's `gdk_surface_...` call amounts to from a consumer's side. The
+// settings that choose the action are attributes of the same three names minus the `gtk-`
+// prefix, so a consumer writes `double-click-action="toggle-maximize"` and gets GTK's
+// precedence without a settings object it cannot have.
 //
 // `child` is a SLOT, as everywhere in this package: an attribute cannot carry a widget, and a
 // handle needs no routing of its own because it contributes no box — `display: contents` IS
@@ -35,8 +36,9 @@
 // header bar goes without moving the layout around it.
 //
 // A11y: `role="generic"`, which GTK 4.12 gave the widget in place of the `group` it used to
-// report (gtkwindowhandle.c:61-64). The gestures are POINTER ones on the child's own box, so
-// everything inside the titlebar — its buttons, its title — stays operable by keyboard.
+// report (gtkwindowhandle.c:55-59, 555). The gestures are POINTER ones on the child's own
+// box, so everything inside the titlebar — its buttons, its title — stays operable by
+// keyboard.
 //
 // Reference: refs/gtk/gtk/gtkwindowhandle.c (class_init, click_gesture_pressed_cb,
 //   perform_titlebar_action, perform_titlebar_action_fallback, drag_gesture_update_cb,
@@ -54,16 +56,28 @@ export type GtkTitlebarAction = 'toggle-maximize' | 'lower' | 'minimize' | 'menu
  * Each gesture, the ATTRIBUTE its setting is authored under, and the value read when the
  * attribute is absent.
  *
- * `gtk-titlebar-double-click` is `toggle-maximize` and the other two are `menu` — the values
- * the C reads and the ones `perform_titlebar_action_fallback` names (gtkwindowhandle.c:305-317).
+ * The three defaults are the pspecs' own and they are NOT all the same
+ * (gtksettings.c:868-896): `gtk-titlebar-double-click` is `toggle-maximize`,
+ * `gtk-titlebar-middle-click` is `none` — a middle click on a titlebar does nothing unless
+ * something asked for it — and `gtk-titlebar-right-click` is `menu`. Reading all three as
+ * `menu` would open a window menu on a middle click nobody asked for.
  */
 const GESTURES = {
     'double-click': { attribute: 'double-click-action', fallback: 'toggle-maximize' },
-    'middle-click': { attribute: 'middle-click-action', fallback: 'menu' },
+    'middle-click': { attribute: 'middle-click-action', fallback: 'none' },
     'right-click': { attribute: 'right-click-action', fallback: 'menu' },
 } as const satisfies Record<GtkTitlebarGesture, { attribute: string; fallback: GtkTitlebarAction }>;
 
-/** The GObject action names `gtk_widget_activate_action` is handed (gtkwindowhandle.c:319-329). */
+/**
+ * The GObject action names `gtk_widget_activate_action` is handed (gtkwindowhandle.c:313-321).
+ *
+ * TWO of the four are real `GtkWindow` actions — `window.toggle-maximized` and
+ * `window.minimize` are installed in `gtk_window_class_init` (gtkwindow.c:1319-1328), which is
+ * what makes them the right names to raise. The other two are compositor OPERATIONS in GTK:
+ * `lower` calls `gdk_toplevel_lower` and `menu` calls `gdk_toplevel_show_window_menu`
+ * (gtkwindowhandle.c:84-91, 264-280), and `window.lower` / `window.menu` are the names a
+ * window host binds those two to.
+ */
 const WINDOW_ACTIONS: Readonly<Record<Exclude<GtkTitlebarAction, 'none'>, string>> = {
     'toggle-maximize': 'window.toggle-maximized',
     lower: 'window.lower',
@@ -93,8 +107,8 @@ function gestureOf(button: number, presses: number): GtkTitlebarGesture | null {
  *
  * `drag_gesture_update_cb` asks `gtk_drag_check_threshold_double (self, 0, 0, dx, dy)`,
  * which is the theme's drag threshold or `gdk_drag_get_threshold ()` where the toolkit has
- * none (gtkwindowhandle.c:433-437). A titlebar has to tell a tap from a drag on a
- * touchscreen as much as on a mouse, so it is one device pixel.
+ * none (gtkwindowhandle.c:429). A titlebar has to tell a tap from a drag on a touchscreen as
+ * much as on a mouse, so it is one device pixel.
  */
 const DRAG_THRESHOLD = 1;
 
@@ -118,10 +132,16 @@ export class GtkWindowHandle extends HTMLElement {
     actionFor(gesture: GtkTitlebarGesture): GtkTitlebarAction {
         const { attribute, fallback } = GESTURES[gesture];
         const written = this.getAttribute(attribute);
-        // An absent attribute is the setting's own value; an unrecognised one is `none`,
-        // which is the branch the C uses when a compositor claims the gesture and the
-        // setting says nothing useful — a typo must not minimize a window.
+        // An absent attribute is the setting's own value, and each of the three is its own
+        // (gtksettings.c:868-896) — a middle click does nothing by default.
         if (written === null) return fallback;
+        // `perform_titlebar_action_fallback` matches `toggle-maximize` by PREFIX, "treat all
+        // maximization variants the same" (gtkwindowhandle.c:311-315), so a variant a window
+        // manager invents maximizes rather than being refused.
+        if (written.startsWith('toggle-maximize')) return 'toggle-maximize';
+        // Anything else it does not know takes the C's own refusal branch: `g_warning
+        // ("Unsupported titlebar action %s")` and `retval = FALSE` (gtkwindowhandle.c:324-328),
+        // which is what `none` means here — a typo must not minimize a window.
         return ACTIONS.has(written) ? (written as GtkTitlebarAction) : 'none';
     }
 
@@ -160,8 +180,8 @@ export class GtkWindowHandle extends HTMLElement {
         // The click gesture CLAIMED the sequence, which is what `gtk_event_controller_reset`
         // on both gestures does upstream for every click it acts on — including the second
         // press of a double click, whose drag was denied at press time
-        // (gtkwindowhandle.c:400-406). A press count the browser knows and a pointerdown does
-        // not is why the reset happens HERE.
+        // (gtkwindowhandle.c:408-409, 464-465). A press count the browser knows and a
+        // pointerdown does not is why the reset happens HERE.
         this._drag = null;
         const gesture = gestureOf(event.button, event.detail);
         if (gesture === null) return;
@@ -172,7 +192,7 @@ export class GtkWindowHandle extends HTMLElement {
 
     private _onPointerDown = (event: PointerEvent): void => {
         // A second press of a multi-click sequence DENIES the drag, which is what
-        // `click_gesture_pressed_cb` does with `n_press > 1` (gtkwindowhandle.c:381-385):
+        // `click_gesture_pressed_cb` does with `n_press > 1` (gtkwindowhandle.c:382-383):
         // a double-click is a click, and a drag that began on its second press is not one.
         if (event.detail > 1) return;
         this._drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
