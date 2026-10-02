@@ -87,9 +87,9 @@ const isBareKey = (id) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(id);
  *
  * Measured, not read off the option's name: under `consistent` ONE quoted key pulls every other
  * key in the same object literal or interface member list along, and `preserve` leaves the
- * emitter's own `as-needed` spelling alone. So the two rules differ only for a `.blp` that
- * declares BOTH a dashed id and a plain one — `Built { "a-b": …; box: … }` under `consistent`,
- * `Built { "a-b": …; box: … }` under `as-needed` becomes `Built { "a-b": …; "box": … }`.
+ * emitter's own `as-needed` spelling alone. So `consistent` and `as-needed` differ only for a
+ * `.blp` that declares BOTH a dashed id and a plain one: the emitter's `Built { "a-b": …; box: … }`
+ * becomes `Built { "a-b": …; "box": … }` under `consistent`.
  */
 const keysAllQuoted = (ids, format) => format.quoteProps === 'consistent' && ids.some((id) => !isBareKey(id));
 
