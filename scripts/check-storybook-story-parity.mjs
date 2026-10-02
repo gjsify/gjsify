@@ -73,7 +73,12 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
  * only one renderer ships has no meta and never reaches this check at all (that is
  * `check-storybook-widget-coverage.mjs`'s `ONE_RENDERER_ONLY`).
  */
-const NOT_ON_THIS_TARGET = {};
+const NOT_ON_THIS_TARGET = {
+    'separator@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
+    'toggle-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
+};
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */
 const MIN_REASON = 40;

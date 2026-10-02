@@ -219,6 +219,18 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     {
+        widget: 'Gtk.ToggleButton',
+        page: 'buttons',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'horizontal', spacing: 12, halign: 'center' },
+            children: [
+                { tag: 'gtk-toggle-button', props: { label: 'Mute', active: true } },
+                { tag: 'gtk-toggle-button', props: { label: 'Loop' } },
+            ],
+        },
+    },
+    {
         widget: 'Gtk.MenuButton',
         page: 'buttons',
         root: {
@@ -251,6 +263,21 @@ export const ADWAITA_GALLERY_TREES = [
         root: {
             tag: 'gtk-drop-down',
             props: { model: ['Automatic', 'Always', 'Never', 'When busy'], selected: 0, halign: 'center' },
+        },
+    },
+    // ------------------------------------------------------------------ gtk layout
+    {
+        widget: 'Gtk.Separator',
+        page: 'layout',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                { tag: 'gtk-label', props: { label: 'Above' } },
+                { tag: 'gtk-separator' },
+                { tag: 'gtk-label', props: { label: 'Below' } },
+                { tag: 'gtk-separator', props: { orientation: 'vertical', cssClasses: ['spacer'] } },
+            ],
         },
     },
     // ------------------------------------------------------------------ layout

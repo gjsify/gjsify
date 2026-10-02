@@ -134,6 +134,17 @@
                 { label: 'Print', action: 'app.print' },
             ]"
         />
+        <gtk-box
+            orientation="horizontal"
+            :spacing="12"
+            halign="center"
+        >
+            <gtk-toggle-button
+                label="Mute"
+                :active="true"
+            />
+            <gtk-toggle-button label="Loop" />
+        </gtk-box>
         <gtk-menu-button
             icon-name="open-menu-symbolic"
             :css-classes="['flat']"
@@ -152,6 +163,18 @@
             :selected="0"
             halign="center"
         />
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-label label="Above" />
+            <gtk-separator />
+            <gtk-label label="Below" />
+            <gtk-separator
+                orientation="vertical"
+                :css-classes="['spacer']"
+            />
+        </gtk-box>
         <adw-clamp
             :maximum-size="400"
             :tightening-threshold="300"

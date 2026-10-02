@@ -140,6 +140,7 @@ export default defineConfig({
                                 { slug: 'gtk', label: 'Gallery' },
                                 { slug: 'gtk/controls' },
                                 { slug: 'gtk/buttons' },
+                                { slug: 'gtk/layout' },
                             ],
                         },
                         {

@@ -132,6 +132,12 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Adw.SplitButton', root:
         { tag: 'adw-split-button', gtype: 'AdwSplitButton', props: {"label":"Save","menuModel":[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]} }
     },
+    { widget: 'Gtk.ToggleButton', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"horizontal","spacing":12,"halign":"center"}, children: [
+                { tag: 'gtk-toggle-button', gtype: 'GtkToggleButton', props: {"label":"Mute","active":true} },
+                { tag: 'gtk-toggle-button', gtype: 'GtkToggleButton', props: {"label":"Loop"} }
+            ] }
+    },
     { widget: 'Gtk.MenuButton', root:
         { tag: 'gtk-menu-button', gtype: 'GtkMenuButton', props: {"iconName":"open-menu-symbolic","cssClasses":["flat"],"menuModel":[{"label":"Preferences","action":"app.preferences"},{"label":"Keyboard Shortcuts","action":"win.show-help-overlay"},{"label":"About","action":"app.about"}]} }
     },
@@ -140,6 +146,14 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.DropDown', root:
         { tag: 'gtk-drop-down', gtype: 'GtkDropDown', props: {"model":["Automatic","Always","Never","When busy"],"selected":0,"halign":"center"} }
+    },
+    { widget: 'Gtk.Separator', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Above"} },
+                { tag: 'gtk-separator', gtype: 'GtkSeparator' },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Below"} },
+                { tag: 'gtk-separator', gtype: 'GtkSeparator', props: {"orientation":"vertical","cssClasses":["spacer"]} }
+            ] }
     },
     { widget: 'Adw.Clamp', root:
         { tag: 'adw-clamp', gtype: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [

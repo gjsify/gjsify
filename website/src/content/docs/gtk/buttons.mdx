@@ -6,15 +6,17 @@ description: "GTK's button and menu button, the style classes that shape them an
 import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
-Both buttons on this page belong to GTK. `Gtk.Button` is the plain button every
-other one is built on, and `Gtk.MenuButton` is the one whose press opens a menu.
-Libadwaita ships neither. The buttons it does ship are on
+The buttons on this page belong to GTK. `Gtk.Button` is the plain button every
+other one is built on, `Gtk.ToggleButton` is the one that stays pressed, and
+`Gtk.MenuButton` is the one whose press opens a menu. Libadwaita ships none of
+them. The buttons it does ship are on
 [Adwaita Buttons](/gjsify/adwaita/buttons/).
 
 <MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour the toolkits drive natively can
-be simplified here. Only the menu button diverges. NativeScript has no popover,
-so its menu opens as the platform action sheet.
+be simplified here. The menu button diverges: NativeScript has no popover, so its
+menu opens as the platform action sheet. The toggle button has no NativeScript
+widget yet, so its XML template tab says so.
 </MoreInfo>
 
 ## Button Styles
@@ -50,6 +52,63 @@ everywhere in the toolkit.
     const box = Builder.load({ path: '~/views', name: 'button' }) as Adw.WrapBox;
     const deleteButton = box.getViewById<Gtk.Button>('delete_button')!;
     deleteButton.connect('clicked', () => console.log('Delete pressed'));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Toggle Button
+
+A button that stays pressed. It is a `Gtk.Button` with one more property,
+**active**, so the label, the icon and every style class of the plain button work
+on it unchanged. Listen for `toggled` (or `notify::active`) to follow the state.
+To pick exactly one of several, use the
+[toggle group](/gjsify/adwaita/buttons/#toggle-group) instead.
+
+<AdwWidget title="Gtk.ToggleButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- label: Text of the label inside the button, if the button contains a label widget. -->
+      <!-- active: If the toggle button should be pressed in. -->
+      <gtk-toggle-button label="Mute" active></gtk-toggle-button>
+      <!-- label: Text of the label inside the button, if the button contains a label widget. -->
+      <gtk-toggle-button label="Loop"></gtk-toggle-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const mute = new Gtk.ToggleButton({ label: 'Mute', active: true });
+    mute.connect('toggled', () => console.log(`Mute is ${mute.active ? 'on' : 'off'}`));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+      halign: center;
+
+      Gtk.ToggleButton {
+        label: _("Mute");
+        active: true;
+      }
+
+      Gtk.ToggleButton {
+        label: _("Loop");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const mute = new Gtk.ToggleButton({ label: 'Mute', active: true });
+    mute.connect('toggled', () => console.log(`Mute is ${mute.active ? 'on' : 'off'}`));
     ```
   </Fragment>
 </AdwWidget>
@@ -118,6 +177,7 @@ each tab sets the menu from code.
 
 - [Controls](../controls/): the entry and the drop down, the other two GTK
   widgets the Adwaita stylesheet paints.
+- [Layout](../layout/): the separator, the first of the GTK layout widgets.
 - [Adwaita Buttons](/gjsify/adwaita/buttons/): button content, the split button
   and the toggle group.
 - [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in

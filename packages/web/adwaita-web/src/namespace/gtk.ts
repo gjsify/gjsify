@@ -32,5 +32,7 @@ export { GtkLabel as Label } from '../elements/gtk-label.js';
 export { GtkMenuButton as MenuButton } from '../elements/gtk-menu-button.js';
 export { GtkPopover as Popover } from '../elements/gtk-popover.js';
 export { GtkProgressBar as ProgressBar } from '../elements/gtk-progress-bar.js';
+export { GtkSeparator as Separator } from '../elements/gtk-separator.js';
 export { GtkStringList as StringList } from '@gjsify/adwaita-core';
 export { GtkSwitch as Switch } from '../elements/gtk-switch.js';
+export { GtkToggleButton as ToggleButton } from '../elements/gtk-toggle-button.js';

@@ -515,6 +515,11 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Adw.ViewSwitcher': 'AdwViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
     'Adw.InlineViewSwitcher':
         'AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
+    // --- no such widget in the port ---
+    'Gtk.Separator':
+        'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
+    'Gtk.ToggleButton':
+        'The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

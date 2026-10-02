@@ -68,7 +68,7 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button, the style classes that shape it, and the menu button that opens a popover.">
+  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button, the style classes that shape it, the toggle button and the menu button that opens a popover.">
     <Fragment slot="preview">
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
         <gtk-button label="Suggested" suggested></gtk-button>
@@ -76,6 +76,15 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
         <gtk-button icon="list-add" circular></gtk-button>
         <gtk-menu-button icon-name="open-menu" menu-title="Document" menu-model='[{"label":"Save as…"},{"label":"Export"}]'></gtk-menu-button>
       </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Layout" href="/gjsify/gtk/layout/" description="The separator that draws a rule between two groups, or a gap when it is a spacer.">
+    <Fragment slot="preview">
+      <gtk-box orientation="vertical" spacing="8" style="align-items:center;width:100%;max-width:200px;">
+        <gtk-label label="Above"></gtk-label>
+        <gtk-separator style="width:100%;"></gtk-separator>
+        <gtk-label label="Below"></gtk-label>
+      </gtk-box>
     </Fragment>
   </AdwGalleryCard>
 </div>

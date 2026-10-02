@@ -1,0 +1,111 @@
+---
+title: Layout
+description: "GTK's layout widgets, starting with the separator. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+The widgets that arrange other widgets belong to GTK, and libadwaita only styles
+them. This page grows with the ones the gallery covers; today it holds the
+**separator**.
+
+<MoreInfo title="What the NativeScript port has">
+The previews run the browser port. `@gjsify/adwaita-nativescript` has no
+`Gtk.Separator` yet, so the XML template tab of a block here says so instead of
+showing one.
+</MoreInfo>
+
+## Separator
+
+A one-pixel rule between two groups of widgets. Its **orientation** is the one a
+box has: a horizontal separator runs across, a vertical one runs down, so put it
+in a box that runs the other way. Add the `.spacer` style class when you want the
+distance without the line, a 12px gap that draws nothing.
+
+<AdwWidget title="Gtk.Separator">
+  <Fragment slot="preview">
+    ```html
+    <!-- orientation: The orientation of the orientable. -->
+    <!-- spacing: The amount of space between children. -->
+    <gtk-box orientation="vertical" spacing="12" style="align-items:center;">
+      <!-- label: The contents of the label. -->
+      <gtk-label label="Above"></gtk-label>
+      <gtk-separator style="width:160px;"></gtk-separator>
+      <!-- label: The contents of the label. -->
+      <gtk-label label="Below"></gtk-label>
+      <!-- spacing: The amount of space between children. -->
+      <gtk-box spacing="12" style="height:24px;align-items:stretch;">
+        <!-- label: The contents of the label. -->
+        <gtk-label label="Left"></gtk-label>
+        <!-- orientation: The orientation of the orientable. -->
+        <gtk-separator orientation="vertical"></gtk-separator>
+        <!-- label: The contents of the label. -->
+        <gtk-label label="Right"></gtk-label>
+      </gtk-box>
+    </gtk-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    column.append(new Gtk.Label({ label: 'Above' }));
+    column.append(new Gtk.Separator());
+    column.append(new Gtk.Label({ label: 'Below' }));
+
+    // `.spacer` keeps the distance and draws nothing.
+    const gap = new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL });
+    gap.add_css_class('spacer');
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.Label {
+        label: _("Above");
+      }
+
+      Gtk.Separator {}
+
+      Gtk.Label {
+        label: _("Below");
+      }
+
+      Gtk.Separator {
+        orientation: vertical;
+
+        styles ["spacer"]
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    column.append(new Gtk.Label({ label: 'Above' }));
+    column.append(new Gtk.Separator());
+    column.append(new Gtk.Label({ label: 'Below' }));
+
+    // `.spacer` keeps the distance and draws nothing.
+    const gap = new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL });
+    gap.add_css_class('spacer');
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Buttons](../buttons/): the button, the toggle button and the menu button.
+- [Adwaita Layout](/gjsify/adwaita/layout/): header bars, clamps and toolbar
+  views, the layout widgets libadwaita adds.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

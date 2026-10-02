@@ -70,8 +70,22 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
     },
+    'gtk-box': {
+        'orientation': 'The orientation of the orientable.',
+        'spacing': 'The amount of space between children.',
+    },
     'gtk-drop-down': {
         'selected': 'The position of the selected item.',
+    },
+    'gtk-label': {
+        'label': 'The contents of the label.',
+    },
+    'gtk-separator': {
+        'orientation': 'The orientation of the orientable.',
+    },
+    'gtk-toggle-button': {
+        'active': 'If the toggle button should be pressed in.',
+        'label': 'Text of the label inside the button, if the button contains a label widget.',
     },
 };
 
@@ -101,12 +115,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 43,
-    glossed: 8,
+    set: 49,
+    glossed: 14,
     nameSuffices: 24,
     divergent: 10,
     authored: 1,
-    commentLines: 17,
+    commentLines: 28,
 };
 
 /**

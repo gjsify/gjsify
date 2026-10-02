@@ -65,6 +65,8 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.ViewSwitcherBar': "AdwViewStack takes its titled pages as AdwViewStackPage records, which are not views and not in the widgets barrel these templates are written against.",
     'Adw.ViewSwitcher': "AdwViewSwitcher.views is an array of page descriptors; an XML attribute is a string.",
     'Adw.InlineViewSwitcher': "AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.",
+    'Gtk.Separator': "The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).",
+    'Gtk.ToggleButton': "The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).",
     'Adw.Toast': "AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.",
     'Adw.AlertDialog': "AdwAlertDialog extends Observable, not View: it has no place in a view tree.",
 };

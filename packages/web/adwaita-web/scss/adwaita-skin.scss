@@ -54,6 +54,7 @@
 // own copy of it until it was lifted out of `adw-switch-row {}`.
 @use 'switch';
 @use 'entry';
+@use 'separator';
 // The two form-control primitives, in ONE partial because upstream merges them
 // (there is no `_radio.scss` in libadwaita) — see _checks.scss.
 @use 'checks';

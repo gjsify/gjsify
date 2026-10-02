@@ -218,6 +218,10 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
     },
+    separator: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'sidebar-item': {
         only: 'web',
         decision:
@@ -248,6 +252,10 @@ const ONE_RENDERER_ONLY = {
         decision:
             '`AdwTabPage` is declared against GObject, not GtkWidget (adw-tab-view.h) — it is DATA, held on NativeScript by `TabViewState` and projected through tab-view-state.ts. The browser element is that descriptor in markup, and doubles as the page panel the tab reveals.',
     },
+    'toggle-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'view-stack-page': {
         only: 'web',
         decision:
@@ -273,6 +281,8 @@ const MIN_REASON = 40;
 
 /** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
 const GAP_ISSUE = /^#\d+$/;
+/** What the messages call the place a `gap` anchors into. */
+const OPEN_TODOS = 'status/open-todos/';
 const GAP_TODO = /^open-todos: (\S.*)$/;
 
 /**

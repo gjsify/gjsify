@@ -34,6 +34,8 @@ import { SpinRowWebStories } from './rows/spin-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
 import { DropDownWebStories } from './controls/drop-down.web.js';
 import { EntryWebStories } from './controls/entry.web.js';
+import { SeparatorWebStories } from './layout/separator.web.js';
+import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
 import { ButtonContentWebStories } from './buttons/button-content.web.js';
 import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
 import { MenuButtonWebStories } from './buttons/menu-button.web.js';
@@ -81,9 +83,11 @@ export const stories: WebStoryModule[] = [
     ButtonStylesWebStories,
     MenuButtonWebStories,
     SplitButtonWebStories,
+    ToggleButtonWebStories,
     ToggleGroupWebStories,
     ClampWebStories,
     HeaderBarWebStories,
+    SeparatorWebStories,
     ToolbarViewWebStories,
     WrapBoxWebStories,
     CarouselWebStories,
