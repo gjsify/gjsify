@@ -1,0 +1,126 @@
+// _column_view.scss — <gtk-column-view>: a header of column buttons over the same rows a
+// list view draws, with one cell per column.
+//
+// Every number here is upstream's: the header button's `3px 6px` padding and its
+// `border-left: 1px solid transparent` (which `.column-separators` then COLOURS rather
+// than adds, so turning separators on cannot shift the layout), the cells' `8px 6px`, and
+// the header text at 40% of `currentColor` rising to 70% on hover
+// (_column-view.scss:12-48).
+//
+// `.separators` is deliberately the SAME class a list view uses: `show-row-separators` is
+// passed straight through to the inner list view upstream, whose node then carries
+// `.separators` — so the rule reads `columnview.separators > row`, one hop shorter than
+// the C's node tree and with the same meaning.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_column-view.scss:1-112
+// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss (.caption-heading)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+@use 'list_view';
+
+gtk-column-view {
+  display: block;
+  box-sizing: border-box;
+  color: var(--view-fg-color);
+  background-color: var(--view-bg-color);
+
+  .adw-column-view-header {
+    display: grid;
+  }
+
+  .adw-column-view-header-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    // `> header > button { padding: 3px 6px; border-radius: 0; background: transparent }`.
+    padding: 3px 6px;
+    border: 0;
+    border-left: 1px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--font-size-small);
+    font-weight: 700;
+    text-align: start;
+    color: color-mix(in srgb, currentColor 40%, transparent);
+    cursor: pointer;
+
+    &:first-child {
+      border-left-width: 0;
+    }
+
+    &:hover {
+      color: color-mix(in srgb, currentColor 70%, transparent);
+    }
+
+    &:active {
+      color: currentColor;
+    }
+
+    // A column with no sorter is not a button in any useful sense: upstream simply never
+    // activates it, and the cursor is what says so here.
+    &:disabled {
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
+  }
+
+  .adw-column-view-header-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // `sort-indicator { min-height: 16px; min-width: 16px }`, drawn as pan-up when
+  // ascending — here one `go-down` icon turned over, the substitution the element header
+  // records.
+  .adw-column-view-sort-indicator {
+    flex: none;
+    margin-inline-start: auto;
+
+    &.ascending {
+      transform: rotate(180deg);
+    }
+  }
+
+  .adw-list-view-rows {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .adw-column-view-row {
+    @include list_view.adw-list-selectable;
+
+    // `> listview > row { padding: 0 }` — the padding moved to the cells.
+    display: grid;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  .adw-column-view-cell {
+    padding: 8px 6px;
+    box-sizing: border-box;
+    border-left: 1px solid transparent;
+
+    &:first-child {
+      border-left-width: 0;
+    }
+  }
+
+  &.column-separators {
+    .adw-column-view-cell,
+    .adw-column-view-header-cell {
+      border-left-color: var(--border-color);
+    }
+  }
+
+  &.separators .adw-column-view-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+  }
+}

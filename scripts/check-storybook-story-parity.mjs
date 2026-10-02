@@ -82,6 +82,14 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no segmented-bar view and ActivityIndicator has no value, so the story is rendered by the other two targets only.',
     'progress-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-progress-bar> on NativeScript": @nativescript/core ships a determinate Progress, but no Adwaita expression for it, so the story is rendered by the other two targets only.',
+    'column-view@nativescript':
+        'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.ColumnView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
+    'grid-view@nativescript':
+        'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.GridView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
+    'list-view@nativescript':
+        'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.ListView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
+    'tree-expander@nativescript':
+        'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.TreeExpander widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
     'separator@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
     'switch@nativescript':

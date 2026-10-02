@@ -77,8 +77,18 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-check-button': {
         'label': 'Text of the label inside the check button, if it contains a label widget.',
     },
+    'gtk-column-view': {
+        'columns': 'The list of columns.',
+        'model': null,
+        'show-row-separators': null,
+    },
     'gtk-drop-down': {
         'selected': 'The position of the selected item.',
+    },
+    'gtk-grid-view': {
+        'max-columns': 'Maximum number of columns per row.',
+        'min-columns': 'Minimum number of columns per row.',
+        'model': null,
     },
     'gtk-label': {
         'label': 'The contents of the label.',
@@ -87,6 +97,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'max-value': 'Determines the maximum value of the interval that can be displayed by the bar.',
         'mode': 'Determines the way `GtkLevelBar` interprets the value properties to draw the level fill area.',
         'value': 'Determines the currently filled value of the level bar.',
+    },
+    'gtk-list-view': {
+        'model': null,
+        'show-separators': null,
     },
     'gtk-progress-bar': {
         'fraction': 'The fraction of total work that has been completed.',
@@ -127,7 +141,11 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
+    'gtk-list-view selection-mode': 'port-only',
     'gtk-progress-bar pulsing': 'declarative-state',
+    'gtk-tree-expander depth': 'port-only',
+    'gtk-tree-expander expandable': 'port-only',
+    'gtk-tree-expander expanded': 'port-only',
 };
 
 /** Attributes whose gloss is AUTHORED on the page, because the GIR's is not true of the markup. */
@@ -137,12 +155,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 61,
-    glossed: 22,
-    nameSuffices: 25,
-    divergent: 13,
+    set: 73,
+    glossed: 25,
+    nameSuffices: 30,
+    divergent: 17,
     authored: 1,
-    commentLines: 41,
+    commentLines: 49,
 };
 
 /**

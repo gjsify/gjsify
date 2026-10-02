@@ -81,6 +81,13 @@ const CONTRACT_SPECS = [`${ADWAITA_WEB_SRC}/keyboard-operable.spec.ts`, 'tests/b
  */
 const ROVING_LEDGER = {
     'packages/web/adwaita-web/src/elements/gtk-drop-down.ts': 'own keydown listener',
+    // `tab-behavior: item`/`cell` is `GtkListTabBehavior` — the list is ONE tab stop and
+    // the arrows move inside it, which is the roving tabindex in GTK's own vocabulary. The
+    // arrows come from `attachRovingFocus`; the per-row listener this reader sees is the
+    // Enter/Space half the shared helper deliberately leaves to the widget, and it
+    // discharges the obligation on its own. `<gtk-grid-view>` and `<gtk-column-view>`
+    // inherit both and hand out no tabindex of their own, so neither is in scope.
+    'packages/web/adwaita-web/src/elements/gtk-list-view.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-inline-view-switcher.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-sidebar.ts': 'via ./roving-focus.js',
     // `<gtk-menu-button>` and `<adw-split-button>` were both here, each `via

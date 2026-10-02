@@ -222,6 +222,18 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
     },
+    'column-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'grid-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'list-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     separator: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -257,6 +269,10 @@ const ONE_RENDERER_ONLY = {
             '`AdwTabPage` is declared against GObject, not GtkWidget (adw-tab-view.h) — it is DATA, held on NativeScript by `TabViewState` and projected through tab-view-state.ts. The browser element is that descriptor in markup, and doubles as the page panel the tab reveals.',
     },
     'toggle-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'tree-expander': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

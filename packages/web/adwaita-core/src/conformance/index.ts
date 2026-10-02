@@ -310,6 +310,14 @@ export type {
     TabPagesItemsChangedVector,
 } from './list.js';
 
+// --- The view half of that model: selection, columns, sorting (ADR 0089) ---
+export { COLUMN_VIEW_SORT_VECTORS, GRID_VIEW_COLUMN_VECTORS, LIST_VIEW_SELECT_VECTORS } from './list-view.js';
+export type { ColumnViewSortVector, GridViewColumnVector, ListViewClick, ListViewSelectVector } from './list-view.js';
+
+// --- Gtk.TreeExpander's node arithmetic and shortcut table (ADR 0089) ---
+export { TREE_EXPANDER_LAYOUT_VECTORS, TREE_EXPANDER_SHORTCUT_VECTORS } from './tree-expander.js';
+export type { TreeExpanderLayoutVector, TreeExpanderShortcutVector } from './tree-expander.js';
+
 // --- The portable menu model (ADR 0042) vectors ---
 export {
     MENU_DETAILED_ACTION_VECTORS,

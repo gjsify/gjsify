@@ -48,7 +48,11 @@ import { AdwChecksTest } from './checks.spec.js';
 import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
 import { GtkLevelBarTest } from './gtk-level-bar.spec.js';
 import { GtkSpinnerTest } from './gtk-spinner.spec.js';
+import { GtkColumnViewTest } from './gtk-column-view.spec.js';
+import { GtkGridViewTest } from './gtk-grid-view.spec.js';
+import { GtkListViewTest } from './gtk-list-view.spec.js';
 import { GtkSeparatorTest } from './gtk-separator.spec.js';
+import { GtkTreeExpanderTest } from './gtk-tree-expander.spec.js';
 import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
@@ -96,7 +100,11 @@ run({
     GtkProgressBarTest,
     GtkLevelBarTest,
     GtkSpinnerTest,
+    GtkColumnViewTest,
+    GtkGridViewTest,
+    GtkListViewTest,
     GtkSeparatorTest,
+    GtkTreeExpanderTest,
     GtkToggleButtonTest,
     GtkBoxTest,
     GtkLabelTest,

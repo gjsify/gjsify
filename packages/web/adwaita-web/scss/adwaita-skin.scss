@@ -62,6 +62,12 @@
 // <gtk-level-bar>, next to the progress bar it is easy to confuse with. It has no
 // dependency on anything above it, so the order here is readability, not precedence.
 @use 'level_bar';
+// The three views, in dependency order: `list_view` declares the selectable-row mixin
+// and the rubber band that the other two include.
+@use 'list_view';
+@use 'grid_view';
+@use 'column_view';
+@use 'tree_expander';
 @use 'preferences';
 @use 'card';
 @use 'data_grid';

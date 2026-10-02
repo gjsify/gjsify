@@ -33,10 +33,11 @@ $adw-components:
   adw-avatar, adw-banner, adw-bottom-sheet, adw-bottom-sheet-bottom-bar,
   adw-bottom-sheet-content, adw-bottom-sheet-sheet, gtk-box, gtk-button, adw-button-content, adw-button-row,
   adw-card, adw-carousel, adw-carousel-indicator-dots,
-  adw-carousel-indicator-lines, gtk-check-button, adw-clamp, adw-combo-row,
+  adw-carousel-indicator-lines, gtk-check-button, adw-clamp, gtk-column-view, adw-combo-row,
   adw-data-grid,
-  adw-dialog, gtk-drop-down, gtk-entry, adw-entry-row, adw-expander-row,
-  adw-header-bar, gtk-image, adw-inline-view-switcher, gtk-label, gtk-level-bar, gtk-menu-button,
+  adw-dialog, gtk-drop-down, gtk-entry, adw-entry-row, adw-expander-row, gtk-grid-view,
+  adw-header-bar, gtk-image, adw-inline-view-switcher, gtk-label, gtk-level-bar, gtk-list-view,
+  gtk-menu-button,
   adw-navigation-page,
   adw-navigation-split-view, adw-navigation-view, adw-overlay-split-view,
   adw-password-entry-row, gtk-popover, adw-preferences-dialog,
@@ -45,7 +46,7 @@ $adw-components:
   adw-sidebar-section, adw-source-view, adw-spinner, gtk-spinner, adw-spin-row,
   adw-split-button, adw-status-page, gtk-switch, adw-switch-row,
   adw-tab-page, adw-tab-view, adw-toast-overlay, adw-toggle, gtk-toggle-button, adw-toggle-group,
-  adw-toolbar-view, adw-view-stack, adw-view-stack-page, adw-view-switcher,
+  adw-toolbar-view, gtk-tree-expander, adw-view-stack, adw-view-stack-page, adw-view-switcher,
   adw-view-switcher-bar, adw-view-switcher-page, adw-window, adw-window-title,
   adw-wrap-box;
 

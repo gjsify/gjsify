@@ -688,6 +688,27 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.ToggleGroup': 'uncurated-placement — and its toggles are AdwToggle GObjects, which have no tag either.',
     'Adw.ViewSwitcher':
         'uncurated-placement — and its `stack` is a widget REFERENCE, where the three dialects diverge.',
+    // ------------------------------------------------------------------ the model views
+    //
+    // ADR 0046 § "Deliberately left open", restated by its Amendment: the three views keep
+    // their `Gtk.SelectionModel`-typed `model` UN-WIDENED, because a portable SELECTION
+    // model is the layering that ADR declined twice. The seam's branch is keyed on the
+    // ParamSpec and asks whether the property can hold the list it built; for these three
+    // it cannot, and it refuses by name (`list-model-mismatch`) rather than writing a NULL
+    // the diagnostics gate would not see. The browser elements take the portable list
+    // directly, which is why their blocks have a preview and a replica and no dialect tab.
+    'Gtk.ListView':
+        'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and its rows come ' +
+        'from a Gtk.SignalListItemFactory — a pair of callbacks no dialect spells.',
+    'Gtk.GridView':
+        'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and its cells come ' +
+        'from a Gtk.SignalListItemFactory — a pair of callbacks no dialect spells.',
+    'Gtk.ColumnView':
+        'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and each column is a ' +
+        'Gtk.ColumnViewColumn GObject carrying a factory of its own.',
+    'Gtk.TreeExpander':
+        'it watches a Gtk.TreeListRow, which only a Gtk.TreeListModel produces from a create-model CALLBACK: ' +
+        'a function, and the ParamSpec seam has no branch for either type.',
     // The rest are not placement refusals: the widget cannot be written as a static
     // tree at all, in any dialect.
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',

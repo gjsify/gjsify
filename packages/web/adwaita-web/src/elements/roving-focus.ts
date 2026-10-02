@@ -64,7 +64,13 @@ export interface AdwRovingFocusInit {
      * any time are still covered.
      */
     host: HTMLElement;
-    orientation: AdwRovingOrientation;
+    /**
+     * Which axis the arrows move along. A FUNCTION where the widget is a `GtkOrientable`
+     * and can be turned after the listener is installed — `<gtk-list-view>` is, and a
+     * value read once at install time pointed its arrow keys at the axis it had at
+     * connect for the rest of its life.
+     */
+    orientation: AdwRovingOrientation | (() => AdwRovingOrientation);
     /**
      * The items a key may land on, in visual order. The widget filters: a `hidden` or
      * `disabled` item is not navigable, and leaving one in would strand the user on a
@@ -89,9 +95,11 @@ const AXIS_KEYS: Record<AdwRovingOrientation, { previous: string; next: string }
  * the selection so the next keypress has somewhere to start from.
  */
 export function attachRovingFocus(init: AdwRovingFocusInit): void {
-    const { previous, next } = AXIS_KEYS[init.orientation];
-
     init.host.addEventListener('keydown', (event) => {
+        // Read per press, not per install: see {@link AdwRovingFocusInit.orientation}.
+        const { previous, next } =
+            AXIS_KEYS[typeof init.orientation === 'function' ? init.orientation() : init.orientation];
+
         // A modifier makes it someone else's shortcut: Ctrl+Home is "top of the document",
         // and `Adw.TabView`'s table is full of Ctrl/Alt combinations.
         if (event.altKey || event.ctrlKey || event.metaKey) return;

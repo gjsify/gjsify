@@ -393,6 +393,17 @@ exactly why they must not be written as decisions.
   `GtkButton` plus a checked state that `@nativescript/core`'s `Button` has no
   `:checked` CSS state for, so the Adwaita expression is the open question, not the
   state.
+- **The four model-driven views on NativeScript.** `<gtk-list-view>`,
+  `<gtk-grid-view>`, `<gtk-column-view>` and `<gtk-tree-expander>` exist on the browser
+  with their gallery blocks; the NativeScript port has none of the four, so their stories
+  are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
+  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused. What is
+  open is not the model — `ListViewState` and the vector tables beside it are portable and
+  renderer-neutral (ADR 0089) — but the FACTORY: a `@nativescript/core` `ListView` takes an
+  `itemTemplate`, which is markup rather than the function the portable factory is, and
+  deciding whether a template string or a per-item view builder is the NativeScript
+  spelling is the question nobody has answered. The column view needs that answer twice
+  over, once per column.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

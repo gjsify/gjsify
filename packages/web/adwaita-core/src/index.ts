@@ -268,6 +268,48 @@ export type {
     AdwListModelInput,
 } from './list.js';
 
+// --- The view half of that model: factory, selection rules, columns (ADR 0089) ---
+export {
+    ADW_COLUMN_VIEW_NO_FIXED_WIDTH,
+    ADW_GRID_VIEW_MAX_COLUMNS,
+    ADW_GRID_VIEW_MIN_COLUMNS,
+    columnViewSort,
+    columnViewTracks,
+    gridViewColumns,
+    listItemField,
+    listViewSelect,
+    listViewSelectAll,
+    ListViewState,
+    normalizeColumnViewColumns,
+    normalizeListSelectionMode,
+    parseColumnViewColumns,
+} from './list-view.js';
+export type {
+    AdwColumnViewColumn,
+    AdwColumnViewSort,
+    AdwListItemContext,
+    AdwListItemFactory,
+    AdwListItemField,
+    AdwListSelectStep,
+    AdwListSelection,
+    AdwListSelectionMode,
+    AdwListSelectResult,
+    ListViewItemsListener,
+    ListViewSelectionChange,
+    ListViewSelectionListener,
+} from './list-view.js';
+
+// --- Gtk.TreeExpander's node arithmetic and shortcuts (ADR 0089) ---
+export { treeExpanderAction, treeExpanderExpanded, treeExpanderLayout } from './tree-expander.js';
+export type {
+    AdwTreeExpanderAction,
+    AdwTreeExpanderIcon,
+    AdwTreeExpanderKeyState,
+    AdwTreeExpanderLayout,
+    AdwTreeExpanderOptions,
+    AdwTreeExpanderRow,
+} from './tree-expander.js';
+
 // --- The portable adjustment (Gtk.Adjustment's six numbers + its two signals — ADR 0047) ---
 export {
     ADW_ADJUSTMENT_DEFAULTS,

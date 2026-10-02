@@ -161,6 +161,8 @@ const COLLECTION_CENSUS = {
     'NativeScript/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
     'NativeScript/gtk-drop-down': ['ComboState.setModel'],
     'browser/adw-combo-row': ['ComboState.setModel', 'attr:model'],
+    'browser/gtk-column-view': ['attr:columns'],
+    'browser/gtk-list-view': ['ListViewState.setModel', 'attr:model'],
     'browser/adw-data-grid': ['attr:columns', 'attr:rows'],
     'browser/adw-inline-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-navigation-view': ['NavigationViewState.replaceWithTags'],

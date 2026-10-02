@@ -183,6 +183,22 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'gtk-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
     'gtk-entry disabled': { kind: 'inverted', girProperty: 'sensitive' },
 
+    // The selection a GTK view spells by WRAPPING its model — `Gtk.SingleSelection`,
+    // `Gtk.MultiSelection`, `Gtk.NoSelection` — so `GtkListView:model` is a
+    // `Gtk.SelectionModel` and there is no property for the choice. ADR 0046 declined a
+    // portable selection model twice, and ADR 0089 keeps the declination: what crosses is
+    // the choice, as a nick on the widget.
+    'gtk-list-view selection-mode': { kind: 'port-only' },
+
+    // The three facts `gtk_tree_expander_update_for_list_row` reads off the
+    // `Gtk.TreeListRow` it watches. They are that object's, not the expander's — the
+    // expander's own property is `list-row`, which holds the object — and a row is
+    // produced only by a `Gtk.TreeListModel`'s create-model callback, which no markup
+    // spells. ADR 0089 ports the three numbers rather than the object.
+    'gtk-tree-expander depth': { kind: 'port-only' },
+    'gtk-tree-expander expandable': { kind: 'port-only' },
+    'gtk-tree-expander expanded': { kind: 'port-only' },
+
     // Port-added and CSS-backed: `resolveSpinnerSize` turns the attribute into a
     // pixel box, and `AdwSpinner` has no size property — a GTK spinner takes its
     // size from its allocation.

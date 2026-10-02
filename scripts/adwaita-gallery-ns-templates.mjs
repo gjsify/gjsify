@@ -516,6 +516,18 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Adw.InlineViewSwitcher':
         'AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
     // --- no such widget in the port ---
+    'Gtk.ListView':
+        'The NativeScript port has no list view: GtkBox.addChild appends every child eagerly, and the ' +
+        'per-item factory that would replace it has no counterpart there yet (status/open-todos/adwaita-ports.md).',
+    'Gtk.GridView':
+        'The NativeScript port has no grid view: GtkBox.addChild appends every child eagerly and lays them out ' +
+        'in one direction, with no column count to reflow (status/open-todos/adwaita-ports.md).',
+    'Gtk.ColumnView':
+        'The NativeScript port has no column view: AdwDataGrid.columns is the nearest thing and takes rows of ' +
+        'pre-formatted values, not a factory per column (status/open-todos/adwaita-ports.md).',
+    'Gtk.TreeExpander':
+        'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
+        'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',
     'Gtk.Separator':
         'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
     'Gtk.ToggleButton':
