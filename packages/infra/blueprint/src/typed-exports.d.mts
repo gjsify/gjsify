@@ -5,6 +5,7 @@
 // the workspace and does not build it.
 
 import type { BlueprintFile } from './ast.mjs';
+import type { EmitFormat } from './oxfmt-config.mjs';
 
 /**
  * One id a `.blp` declares, with both spellings of its name and the type it is.
@@ -63,11 +64,21 @@ export declare function deriveExports(file: BlueprintFile): BlueprintExports;
  * the only thing that needs one, and this package has no build step and is also bundled into the
  * GJS CLI, so neither `@gjsify/utils/core` nor `node:path` is available to work it out here. The
  * caller holds the path and answers for the host it runs on — see the implementation.
+ *
+ * `format` is the PROJECT's resolved `.oxfmtrc` (`emitFormatFor`), and it is REQUIRED. This text
+ * is committed into the consumer's tree, where the consumer's `gjsify format --check` holds it, so
+ * an indent this emitter guessed instead of asked for is a red gate on a file nobody hand-wrote.
+ * Two `tabWidth: 2` consumers are what the omitted argument cost.
  */
-export declare function emitTypedSidecar(file: BlueprintFile, sourceName: string): string;
+export declare function emitTypedSidecar(file: BlueprintFile, sourceName: string, format: EmitFormat): string;
 
-/** The module a bundler gets: the XML `default`, plus the named exports the sidecar declares. */
-export declare function emitTypedModule(file: BlueprintFile, xml: string): string;
+/**
+ * The module a bundler gets: the XML `default`, plus the named exports the sidecar declares.
+ *
+ * `format` is required for the same reason as the sidecar's and is the SAME value: the two halves
+ * of a `.blp`'s types are written together, and two formats would let them read unlike each other.
+ */
+export declare function emitTypedModule(file: BlueprintFile, xml: string, format: EmitFormat): string;
 
 /** `header-bar.blp` → `header-bar.d.blp.ts`. */
 export declare function sidecarPathFor(blueprintPath: string): string;

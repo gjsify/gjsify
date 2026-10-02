@@ -13,8 +13,14 @@ The three packages that carry their own rules:
 `blueprint/` + `vite-plugin-blueprint/`: the parser/emitter (ADR 0053, no build step) and the
 plugin every `--app` target loads a `.blp` through. A `.blp`'s exports are DERIVED from its AST,
 never transcribed, and their types travel in a COMMITTED `x.d.blp.ts` sidecar beside the file —
-written by the plugin or `gjsify blueprint types`, held by `scripts/check-blueprint-sidecars.mjs`.
-What each export is, and why: [ADR 0088](../../docs/adr/0088-a-blp-exports-its-ids-as-typed-names.md).
+written by the plugin or `gjsify blueprint types`, held by `scripts/check-blueprint-sidecars.mjs`
+(bytes vs the emitter) and `scripts/check-blueprint-sidecar-format.mjs` (emitter vs the real
+formatter, under fifteen configs). A sidecar is written in the CONSUMER's format: the emitters take
+the project's options as a REQUIRED argument, `emitFormatForTree` resolves them the way
+`gjsify format` does, and the filesystem half is `@gjsify/blueprint/oxfmt` — never the barrel,
+because `adwaita-web` parses a `.blp` in the browser. Biome repos exclude `**/*.d.blp.ts` from
+`files.includes`. What each export is, and why:
+[ADR 0088](../../docs/adr/0088-a-blp-exports-its-ids-as-typed-names.md).
 
 `manifest-conformance/` is the ONE registry of "does this declaration match reality" rules —
 plain committed `lib/*.mjs`, no build. Adding a `gjsify.*` manifest key without a rule fails

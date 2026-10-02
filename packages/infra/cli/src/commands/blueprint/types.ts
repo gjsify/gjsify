@@ -14,8 +14,9 @@
 // The two share the derivation; what is duplicated is the byte comparison.
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { emitTypedSidecar, parseBlueprint, sidecarPathFor } from '@gjsify/blueprint';
+import { emitFormatForTree } from '@gjsify/blueprint/oxfmt';
 import type { Command } from '../../types/index.js';
 
 interface BlueprintTypesOptions {
@@ -51,6 +52,29 @@ function blueprintsUnder(path: string, found: string[]): string[] {
     }
     return found;
 }
+
+/**
+ * The emitter options for the tree a `.blp` lives in, memoized per directory.
+ *
+ * ONE directory of the walk is a sidecar's, not the CWD's, and that is the difference between
+ * right and right-by-luck in a monorepo: a package with its own `.oxfmtrc` gets that package's
+ * width, and running the command from the repo root still writes that package's indent. The walk
+ * itself is `emitFormatForTree`'s — the same one the drift gate and the bundler plugin use, so
+ * three callers cannot answer "which config does the formatter read" three ways (ADR 0088 §
+ * Consequences: the emitter once read `printWidth` and hardcoded a 4-space indent beside it, which
+ * is a `tabWidth: 2` consumer's red `oxfmt --check`).
+ *
+ * Memoized because the walk touches the filesystem once per `.blp` and a tree of a thousand
+ * `.blp` files would do that a thousand times; one read per distinct directory, not per file.
+ */
+const formatCache = new Map<string, ReturnType<typeof emitFormatForTree>>();
+const formatFor = (dir: string): ReturnType<typeof emitFormatForTree> => {
+    const cached = formatCache.get(dir);
+    if (cached !== undefined) return cached;
+    const format = emitFormatForTree(dir);
+    formatCache.set(dir, format);
+    return format;
+};
 
 export const blueprintTypesCommand: Command<unknown, BlueprintTypesOptions> = {
     command: 'types [paths..]',
@@ -98,7 +122,7 @@ export const blueprintTypesCommand: Command<unknown, BlueprintTypesOptions> = {
             // init, and the path here is the user's, on their machine. `@gjsify/blueprint` cannot
             // take the name itself — see `typed-exports.mjs` § `emitTypedSidecar`.
             const ast = parseBlueprint(readFileSync(file, 'utf8'), file);
-            const expected = emitTypedSidecar(ast, basename(file));
+            const expected = emitTypedSidecar(ast, basename(file), formatFor(dirname(file)));
             let current: string | undefined;
             try {
                 current = readFileSync(sidecar, 'utf8');

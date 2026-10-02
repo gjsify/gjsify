@@ -629,6 +629,23 @@ jobs:
       - name: Check the Blueprint type sidecars are current
         run: su testuser -c 'node scripts/check-blueprint-sidecars.mjs'
 
+      # The other half of ADR 0088's formatter contract, and a DIFFERENT claim from the gate
+      # above. That one holds the committed bytes to what the emitter writes — the emitter's own
+      # opinion, so on its own it is a writer grading its own homework: had the emitter modelled
+      # the wrong indent, all 38 sidecars would read as "current" while `format --check` stayed
+      # red, which is exactly what happened with the hardcoded four spaces (a `tabWidth: 2`
+      # consumer's sidecar the formatter reflowed on sight). This runs the REAL oxfmt engine over
+      # the emitter's output under this repository's config and under fourteen others that are not
+      # it — kurier and Learn6502's `tabWidth: 2`, `useTabs`, both quotes, `semi: false`, every
+      # `quoteProps` and `trailingComma` — and requires the bytes to be equal, so "modelled" and
+      # "measured" cannot drift apart.
+      #
+      # Node-only and NOT `as testuser`: it reads no `git ls-files`, it imports `oxfmt` (the
+      # workspace is installed in this job), and its `tabWidth: 2` fixtures are generated in
+      # memory precisely so no committed file is ever written at another project's indentation.
+      - name: Check the sidecars are what the configured formatter would write
+        run: node scripts/check-blueprint-sidecar-format.mjs
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'

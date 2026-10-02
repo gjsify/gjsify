@@ -12,8 +12,9 @@
 // that holds on one hand-written file and throws on a real one is the failure that matters, and
 // `scripts/check-blueprint-sidecars.mjs` would only find it after the sidecars were committed.
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
     BlueprintEmitError,
@@ -22,11 +23,24 @@ import {
     emitTypedSidecar,
     parseBlueprint,
 } from '@gjsify/blueprint';
+import { emitFormatFor, emitFormatForTree } from '@gjsify/blueprint/oxfmt';
 import { CORPUS_REAL_FILES } from '@gjsify/blueprint/corpus';
 import { describe, expect, it } from '@gjsify/unit';
 
 const blueprintDir = dirname(createRequire(import.meta.url).resolve('@gjsify/blueprint/package.json'));
 const repoRoot = join(blueprintDir, '..', '..', '..');
+
+/**
+ * This repository's OWN emitter options, read the way `gjsify format` reads them.
+ *
+ * Not the constants: an assertion that spells `    _id: Gtk.Widget;` with four literal spaces is
+ * an assertion about THIS repository's `.oxfmtrc.json`, and it stays green the day that file says
+ * `tabWidth: 2` while the emitter has done something else — which is exactly the drift ADR 0088
+ * records, where the emitter's hardcoded 4-space indent agreed with `oxfmt --check` here and with
+ * nothing else. Building the expectation from the resolved format makes the assertion about the
+ * MAPPING; `scripts/check-blueprint-sidecar-format.mjs` is what holds the mapping to the engine.
+ */
+const repoFormat = emitFormatForTree(repoRoot);
 
 const exportsOf = (source: string) => deriveExports(parseBlueprint(source, 'spec.blp'));
 
@@ -151,13 +165,17 @@ export default async () => {
             // `registerClass` iterates zero times, so the absence is what says the template
             // declares no internal child. `toolbar-view.blp` is this file.
             const file = parseBlueprint('using Gtk 4.0;\ntemplate $Plain: Gtk.Box {\n  Gtk.Label { }\n}\n', 's.blp');
-            const sidecar = emitTypedSidecar(file, 's.blp');
-            expect(sidecar.includes("export declare const GTypeName: 'Plain';")).toBe(true);
+            const sidecar = emitTypedSidecar(file, 's.blp', repoFormat);
+            expect(
+                sidecar.includes(
+                    `export declare const GTypeName: ${repoFormat.quote}Plain${repoFormat.quote}${repoFormat.semi}`,
+                ),
+            ).toBe(true);
             expect(sidecar.includes('InternalChildren')).toBe(false);
             expect(sidecar.includes('Children')).toBe(false);
             // And no `gi://` import either: nothing in the emitted text names a widget type.
             expect(sidecar.includes('gi://')).toBe(false);
-            expect(emitTypedModule(file, '<interface/>').includes('InternalChildren')).toBe(false);
+            expect(emitTypedModule(file, '<interface/>', repoFormat).includes('InternalChildren')).toBe(false);
         });
 
         await it('exports no class for a template that names an existing type', async () => {
@@ -169,20 +187,28 @@ export default async () => {
 
         await it('gives a template module no gi:// import and a builder module Gtk', async () => {
             const template = parseBlueprint('using Gtk 4.0;\ntemplate $Probe: Gtk.Box { }\n', 'spec.blp');
-            const templateModule = emitTypedModule(template, '<interface/>');
+            const templateModule = emitTypedModule(template, '<interface/>', repoFormat);
             expect(templateModule.includes('gi://')).toBe(false);
-            expect(templateModule.includes("export const GTypeName = 'Probe';")).toBe(true);
+            expect(
+                templateModule.includes(
+                    `export const GTypeName = ${repoFormat.quote}Probe${repoFormat.quote}${repoFormat.semi}`,
+                ),
+            ).toBe(true);
 
             // The builder exit needs Gtk for the Builder itself, and Adw ONLY to init it.
             const builder = parseBlueprint('using Gtk 4.0;\nusing Adw 1;\nAdw.Bin bin { }\n', 'spec.blp');
-            const builderModule = emitTypedModule(builder, '<interface/>');
+            const builderModule = emitTypedModule(builder, '<interface/>', repoFormat);
             expect(builderModule.includes("import Gtk from 'gi://Gtk?version=4.0';")).toBe(true);
             expect(builderModule.includes("import Adw from 'gi://Adw?version=1';")).toBe(true);
             expect(builderModule.includes('Adw.init();')).toBe(true);
 
             // No Adwaita in the file, no init and no import: a `.blp` that never names Adw must
             // not pull the typelib in to call something it does not need.
-            const gtkOnly = emitTypedModule(parseBlueprint('using Gtk 4.0;\nGtk.Box bin { }\n', 'spec.blp'), '<i/>');
+            const gtkOnly = emitTypedModule(
+                parseBlueprint('using Gtk 4.0;\nGtk.Box bin { }\n', 'spec.blp'),
+                '<i/>',
+                repoFormat,
+            );
             expect(gtkOnly.includes('Adw')).toBe(false);
         });
 
@@ -190,8 +216,12 @@ export default async () => {
             // `get_object` takes the id AS WRITTEN, so the key stays the id and the caller
             // reaches it with `built['download-button']`. Renaming it to a bare identifier would
             // put a second spelling of the id in the output for nothing to hold.
-            const sidecar = emitTypedSidecar(parseBlueprint('using Gtk 4.0;\nGtk.Box a-b { }\n', 'spec.blp'), 'a.blp');
-            expect(sidecar.includes('"a-b": Gtk.Box;')).toBe(true);
+            const sidecar = emitTypedSidecar(
+                parseBlueprint('using Gtk 4.0;\nGtk.Box a-b { }\n', 'spec.blp'),
+                'a.blp',
+                repoFormat,
+            );
+            expect(sidecar.includes(`${repoFormat.quote}a-b${repoFormat.quote}: Gtk.Box${repoFormat.semi}`)).toBe(true);
         });
 
         await it('names the .blp in the header from the caller, and never a path', async () => {
@@ -202,7 +232,7 @@ export default async () => {
             // C:\app\header-bar.blp` — a committed sidecar whose provenance is a machine's
             // directory layout, and different on every developer. The caller passes the name.
             const file = parseBlueprint('using Gtk 4.0;\nGtk.Box bin { }\n', 'C:\\app\\header-bar.blp');
-            const sidecar = emitTypedSidecar(file, 'header-bar.blp');
+            const sidecar = emitTypedSidecar(file, 'header-bar.blp', repoFormat);
             expect(sidecar.startsWith('// GENERATED from header-bar.blp — do not edit.')).toBe(true);
             expect(sidecar.includes('C:')).toBe(false);
         });
@@ -226,30 +256,160 @@ export default async () => {
                 'pixelAlignRow',
                 'glAreaContainer',
             ];
-            // The whole declaration: one line while it is packed, down to the lone `];` once it is
-            // not — which is the only way to read the reflowed form back out of the text.
+            // The whole declaration: one line while it is packed, down to the lone `]` once it is
+            // not — which is the only way to read the reflowed form back out of the text. Every
+            // quote, terminator, indent and line break in the two expectations below comes from
+            // `repoFormat`, so this reads the project's `.oxfmtrc` rather than assuming four
+            // spaces and a `;` happen to be what it says.
+            const quote = repoFormat.quote;
+            const close = `]${repoFormat.semi}`;
             const declaration = (source: string) => {
-                const lines = emitTypedSidecar(parseBlueprint(source, 'wide.blp'), 'wide.blp').split('\n');
+                const lines = emitTypedSidecar(parseBlueprint(source, 'wide.blp'), 'wide.blp', repoFormat).split(
+                    repoFormat.eol,
+                );
                 const first = lines.findIndex((line) => line.startsWith('export declare const InternalChildren:'));
-                const close = lines.findIndex((line, index) => index > first && line === '];');
-                return lines.slice(first, close === -1 ? first + 1 : close + 1).join('\n');
+                const last = lines.findIndex((line, index) => index > first && line === close);
+                return lines.slice(first, last === -1 ? first + 1 : last + 1).join(repoFormat.eol);
             };
 
             expect(declaration(template(few))).toBe(
-                `export declare const InternalChildren: ['oneId', 'twoId', 'threeId'];`,
+                `export declare const InternalChildren: [${few.map((id) => `${quote}${id}${quote}`).join(', ')}]${
+                    repoFormat.semi
+                }`,
             );
             expect(declaration(template(many))).toBe(
-                ['export declare const InternalChildren: [', ...many.map((id) => `    '${id}',`), '];'].join('\n'),
+                [
+                    'export declare const InternalChildren: [',
+                    ...many.map((id) => `${repoFormat.indent}${quote}${id}${quote},`),
+                    close,
+                ].join(repoFormat.eol),
             );
             // And the property that makes it a gate rather than a sample: whatever a `.blp`
-            // declares, no emitted sidecar carries a line the formatter would break.
+            // declares, no emitted sidecar carries a line the formatter would break. The bound is
+            // the resolved `printWidth`, not the 120 this repository happens to set.
             for (const { source } of CORPUS_REAL_FILES) {
                 const file = join(repoRoot, source);
-                const text = emitTypedSidecar(parseBlueprint(readFileSync(file, 'utf8'), file), 'corpus.blp');
-                for (const line of text.split('\n')) {
-                    expect(line.length).toBeLessThanOrEqual(120);
+                const text = emitTypedSidecar(
+                    parseBlueprint(readFileSync(file, 'utf8'), file),
+                    'corpus.blp',
+                    repoFormat,
+                );
+                for (const line of text.split(repoFormat.eol)) {
+                    expect(line.length).toBeLessThanOrEqual(repoFormat.printWidth);
                 }
             }
+        });
+        await it('writes a sidecar in the PROJECT indent, not a hardcoded one', async () => {
+            // THE BUG, in one test. The emitter read `.oxfmtrc.json#printWidth` into a constant
+            // and hardcoded a FOUR-SPACE indent beside it. Both are this repository's values, so
+            // every committed sidecar and every `oxfmt --check` run here agreed and the emitter
+            // looked right; a `tabWidth: 2` consumer (kurier, Learn6502) got a sidecar the
+            // formatter reflowed on sight, and the red was on a file nobody hand-wrote. The
+            // emitter had no way to find out, because the only formatter it had ever met was the
+            // one its constants were copied from.
+            //
+            // So both arms, and the second is the one that matters: the format is a REQUIRED
+            // argument, and a caller that forgets is TOLD rather than handed a default — a
+            // default would restore exactly that shape one layer down.
+            const file = parseBlueprint(
+                'using Gtk 4.0;\ntemplate $Two: Gtk.Box {\n  Gtk.Label firstId { }\n}\n',
+                's.blp',
+            );
+
+            const narrow = emitFormatFor({ tabWidth: 2 });
+            const member = `_firstId: Gtk.Label`;
+            expect(emitTypedSidecar(file, 's.blp', narrow)).toContain(`\n  ${member}${narrow.semi}\n`);
+
+            const tabbed = emitFormatFor({ useTabs: true });
+            expect(emitTypedSidecar(file, 's.blp', tabbed)).toContain(`\n\t${member}${tabbed.semi}\n`);
+
+            // And the repo's own value, so this test also fails if the emitter ever stops
+            // believing the argument it is handed.
+            expect(emitTypedSidecar(file, 's.blp', repoFormat)).toContain(
+                `\n${repoFormat.indent}${member}${repoFormat.semi}\n`,
+            );
+
+            // And the reflowed tuple indents with the project too — that was the second hardcoded
+            // four, one line below.
+            const wide = `using Gtk 4.0;\ntemplate $Wide: Gtk.Box {\n${['oneId', 'twoId', 'threeId', 'fourId', 'fiveId', 'sixId', 'sevenId', 'eightId', 'nineId', 'tenId', 'elevenId', 'twelveId'].map((id) => `  Gtk.Label ${id} { }`).join('\n')}\n}\n`;
+            const reflowed = emitTypedSidecar(parseBlueprint(wide, 'w.blp'), 'w.blp', narrow);
+            expect(reflowed).toContain(`\n  ${narrow.quote}oneId${narrow.quote},`);
+
+            // The refusal: a missing argument is an error naming what to pass, never a guess.
+            let refusal = '';
+            try {
+                emitTypedSidecar(file, 's.blp', undefined as never);
+            } catch (error) {
+                refusal = (error as Error).message;
+            }
+            expect(refusal.includes('emitFormatFor')).toBe(true);
+        });
+
+        await it('answers the formatter config the way gjsify format resolves it', async () => {
+            // The WALK, not the mapping: the emitter is only right if it reads the SAME file the
+            // formatter reads. `gjsify format` walks `.oxfmtrc` then `.oxfmtrc.json`, up to 12
+            // levels; a sidecar written against any other file is one that formatter reflows, so
+            // this is a parameter of the emitter's correctness rather than a convenience.
+            //
+            // MEASURED in a temp tree rather than asserted from the implementation: the directory
+            // the walk starts in is walked UP, which is what makes a package with its own
+            // `.oxfmtrc.json` inside a monorepo get its own indent.
+            const temp = mkdtempSync(join(tmpdir(), 'gjsify-oxfmt-'));
+            try {
+                const nested = join(temp, 'packages', 'demo');
+                mkdirSync(nested, { recursive: true });
+                writeFileSync(
+                    join(nested, '.oxfmtrc.json'),
+                    '{\n  // a comment, and a trailing comma, as a real config carries\n  "tabWidth": 2,\n  "singleQuote": true,\n}\n',
+                );
+                const walked = emitFormatForTree(nested);
+                expect(walked.indent).toBe('  ');
+                // The file is JSONC and says so: `//` inside a value is a comment, `"https://…"`
+                // inside a string is not, and the trailing comma is dropped. MEASURED, because
+                // this repository's own `.oxfmtrc.json` is a commented file that `JSON.parse`
+                // refuses — a parser that only read strict JSON would fail on the config it was
+                // written for.
+                expect(walked.quote).toBe("'");
+
+                // NEAREST wins, which is the property that makes a monorepo correct: the tree
+                // root says 4, the package says 2, and a `.blp` in the package gets the package's
+                // indent. The wrong direction here — a nearest that loses to a root — is a
+                // sidecar the consumer's own `gjsify format --check` reflows.
+                const deeper = join(nested, 'src');
+                mkdirSync(deeper, { recursive: true });
+                expect(emitFormatForTree(deeper).indent).toBe('  ');
+                writeFileSync(join(deeper, '.oxfmtrc'), '{ "tabWidth": 8 }');
+                expect(emitFormatForTree(deeper).indent).toBe('        ');
+                // No config anywhere above is oxfmt's OWN default, not this repository's.
+                const bare = mkdtempSync(join(tmpdir(), 'gjsify-oxfmt-bare-'));
+                try {
+                    expect(emitFormatForTree(bare).indent).toBe('  ');
+                } finally {
+                    rmSync(bare, { recursive: true, force: true });
+                }
+            } finally {
+                rmSync(temp, { recursive: true, force: true });
+            }
+        });
+
+        await it('quotes a dashed id in the project quote, with the other keys beside it', async () => {
+            // Two properties, both measured against the engine by
+            // `scripts/check-blueprint-sidecar-format.mjs` under every option:
+            //
+            // `quoteProps: 'consistent'` is the option that surprises. It is NOT "quote every
+            // key" and NOT "quote none": ONE quoted key pulls every other key in the same object
+            // along, so a `.blp` declaring both a dashed id and a plain one emits
+            // `Built { 'a-b': …; 'plain': … }` under `consistent` and `Built { 'a-b': …; plain: … }`
+            // under `as-needed`. Getting that backwards is a red `oxfmt --check`.
+            const dashed = parseBlueprint('using Gtk 4.0;\nGtk.Box a-b { }\nGtk.Button plain { }\n', 'spec.blp');
+
+            const asNeeded = emitFormatFor({ quoteProps: 'as-needed', singleQuote: true });
+            expect(emitTypedSidecar(dashed, 's.blp', asNeeded)).toContain(`'a-b': Gtk.Box${asNeeded.semi}\n  plain: `);
+
+            const consistent = emitFormatFor({ quoteProps: 'consistent', singleQuote: true });
+            expect(emitTypedSidecar(dashed, 's.blp', consistent)).toContain(
+                `'a-b': Gtk.Box${consistent.semi}\n  'plain': `,
+            );
         });
     });
 };

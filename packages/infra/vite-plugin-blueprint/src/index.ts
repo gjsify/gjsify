@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, dirname } from 'node:path';
 import {
     accessibilityElement,
     accessibilityValue,
@@ -14,6 +14,7 @@ import {
     resolveIdent,
     sidecarPathFor,
 } from '@gjsify/blueprint';
+import { emitFormatForTree } from '@gjsify/blueprint/oxfmt';
 import minifyXML from 'minify-xml';
 import { type Plugin } from 'vite';
 
@@ -145,6 +146,30 @@ async function writeSidecar(file: string, text: string, verbose: boolean): Promi
     }
 }
 
+/**
+ * The emitter options for the tree a `.blp` lives in, memoized per directory.
+ *
+ * The walk touches the filesystem, and watch mode re-enters `load` for every changed file in a
+ * tree that may hold hundreds of `.blp` — so one read per distinct directory, not per file. The
+ * walk itself is `emitFormatForTree`'s, shared with the drift gate and `gjsify blueprint types`,
+ * because three answers to "which `.oxfmtrc` does the formatter read" is how the 4-space indent
+ * reached a `tabWidth: 2` consumer in the first place.
+ *
+ * Cached for the life of the PROCESS, which is the declared limit: an `.oxfmtrc` edited while a
+ * dev server is already running is picked up on the next start, not on the next rebuild. That is
+ * the same refresh the formatter itself gets, so a sidecar written after such an edit is the one
+ * the running formatter is no longer using — and `check-blueprint-sidecars.mjs` re-derives from
+ * disk either way, so the committed bytes stay honest.
+ */
+const formatCache = new Map<string, ReturnType<typeof emitFormatForTree>>();
+const formatFor = (dir: string): ReturnType<typeof emitFormatForTree> => {
+    const cached = formatCache.get(dir);
+    if (cached !== undefined) return cached;
+    const format = emitFormatForTree(dir);
+    formatCache.set(dir, format);
+    return format;
+};
+
 export default function blueprintPlugin(options: BlueprintPluginOptions = {}): Plugin {
     const { minify = false, verbose = false, sidecars = true } = options;
 
@@ -218,14 +243,23 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
             // implements and the two have to be written together — `typed-exports.mjs` § the
             // MODULE a bundler gets says why they share a file.
             //
+            // The format is the PROJECT's `.oxfmtrc`, resolved once per directory beside the
+            // `.blp`, and it is what makes this sidecar survive the consumer's own
+            // `gjsify format --check`: the emitter once hardcoded a 4-space indent, which is this
+            // repository's value and nobody else's (ADR 0088 § Consequences). Same walk as the
+            // drift gate and `gjsify blueprint types`, so the three cannot answer differently.
+            const format = formatFor(dirname(asked.file));
+            //
             // The sidecar is written AFTER the module is emitted, so a `.blp` the derivation
             // refuses leaves no sidecar behind claiming exports the module does not have.
-            const moduleText = emitTypedModule(ast, xmlContent);
+            const moduleText = emitTypedModule(ast, xmlContent, format);
             // `basename` from `node:path`, and this plugin is the one caller for which the HOST is
             // the authority: a vite/rolldown plugin only ever runs in the Node process driving the
             // build, on the machine whose paths `asked.file` is a path on. `@gjsify/blueprint`
             // cannot do this itself — see `typed-exports.mjs` § `emitTypedSidecar`.
-            if (sidecars) await writeSidecar(asked.file, emitTypedSidecar(ast, basename(asked.file)), verbose);
+            if (sidecars) {
+                await writeSidecar(asked.file, emitTypedSidecar(ast, basename(asked.file), format), verbose);
+            }
             return moduleText;
         },
     };

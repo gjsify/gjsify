@@ -28,6 +28,14 @@
 // per fixture to be read by nothing. A sidecar is opt-in per file — `gjsify blueprint types
 // <path>` — and this gate holds the ones that exist.
 //
+// IT EMITS UNDER THIS REPOSITORY'S `.oxfmtrc`, and that is the fourth thing it compares. The
+// emitter used to read `printWidth` into a constant and hardcode a four-space indent beside it —
+// both correct HERE, which is why the committed sidecars and `gjsify format --check` never
+// disagreed, and wrong in a `tabWidth: 2` project, where the emitter had no way to learn it
+// (ADR 0088 § Consequences). The gate now resolves the same `.oxfmtrc` the formatter resolves, so
+// a project whose formatter settings change reds this gate for the same reason it reds
+// `format --check`: the committed bytes are no longer what the emitter writes.
+//
 // Usage: node scripts/check-blueprint-sidecars.mjs [--root <dir>] [--write]
 // Exits 0 when they agree, 1 when they drift, 2 on a usage or read error.
 
@@ -36,6 +44,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import { emitTypedSidecar, parseBlueprint } from '@gjsify/blueprint';
+import { emitFormatForTree } from '@gjsify/blueprint/oxfmt';
 
 /** `x.d.blp.ts` → `x.blp`. The inverse of `sidecarPathFor`, which this script never needs. */
 const blueprintFor = (sidecar) => `${sidecar.slice(0, -'.d.blp.ts'.length)}.blp`;
@@ -48,6 +57,8 @@ function main(argv) {
         console.error('check-blueprint-sidecars: --root needs a directory');
         return 2;
     }
+
+    const format = emitFormatForTree(root);
 
     // `git ls-files` and not a walk: the subject is what is COMMITTED. An untracked sidecar is
     // a working-tree state, and on CI — the only place this verdict gates anything — the tree
@@ -73,7 +84,7 @@ function main(argv) {
         // tree's own paths are `\`-separated and a `'/'` slice would write the whole relative
         // path into the header it is comparing. `node:path` owns the separator here because this
         // script runs on the host it reads — see `typed-exports.mjs` § `emitTypedSidecar`.
-        const expected = emitTypedSidecar(parseBlueprint(source, blueprint), basename(blueprint));
+        const expected = emitTypedSidecar(parseBlueprint(source, blueprint), basename(blueprint), format);
         if (readFileSync(join(root, sidecar), 'utf8') === expected) continue;
         if (write) {
             writeFileSync(join(root, sidecar), expected, 'utf8');
