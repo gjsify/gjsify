@@ -425,14 +425,17 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
         await it('an uncurated container refuses a child by name', async () => {
             // The only safety property the UNCURATED majority of the table has, and it
             // had ZERO tests: `grep uncurated-placement` found two throw sites and the
-            // constructor. `GtkExpander` is generated-only and really does hold one
-            // child, so this is the shape a user hits first — and every plausible
-            // guess (`add`, `append`, `set_child`) exists somewhere in GTK, where
-            // calling the wrong one is a warning at exit 0.
+            // constructor. `GtkLinkButton` is generated-only and really does hold one
+            // child — `GtkButton`'s own `child` property, installed with `set_child`
+            // beside `GtkFrame`'s one below — so this is the shape a user hits first,
+            // and every plausible guess (`add`, `append`, `set_child`) exists somewhere
+            // in GTK, where calling the wrong one is a warning at exit 0.
             const container = new Gtk.Box();
-            const said = await refusalOf(() => mount(container, h('GtkExpander', null, h('GtkLabel', { label: 'x' }))));
+            const said = await refusalOf(() =>
+                mount(container, h('GtkLinkButton', null, h('GtkLabel', { label: 'x' }))),
+            );
             expect(said).toContain('GENERATED table');
-            expect(said).toContain('GtkExpander');
+            expect(said).toContain('GtkLinkButton');
             // Not vacuous: the CURATED twin of the same shape takes the same child.
             const curated = new Gtk.Box();
             const handle = await mount(curated, h('GtkFrame', null, h('GtkLabel', { label: 'x' })));
