@@ -21,7 +21,16 @@ export declare const GTypeName: 'FireworksWindow';
  * which is the property that matters. `status/open-todos/blueprint.md` carries the
  * upstream half.
  */
-export declare const InternalChildren: ['sidebarToggleButton', 'pauseButton', 'splitView', 'particleCountRow', 'autoIntervalRow', 'maxBurstRadiusRow', 'autoFireworksRow', 'canvasContainer'];
+export declare const InternalChildren: [
+    'sidebarToggleButton',
+    'pauseButton',
+    'splitView',
+    'particleCountRow',
+    'autoIntervalRow',
+    'maxBurstRadiusRow',
+    'autoFireworksRow',
+    'canvasContainer',
+];
 
 /** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */
 export interface Children {

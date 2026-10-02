@@ -21,7 +21,16 @@ export declare const GTypeName: 'LDrawWindow';
  * which is the property that matters. `status/open-todos/blueprint.md` carries the
  * upstream half.
  */
-export declare const InternalChildren: ['modelRow', 'flatColorsRow', 'mergeModelRow', 'smoothNormalsRow', 'buildingStepRow', 'displayLinesRow', 'conditionalLinesRow', 'glAreaContainer'];
+export declare const InternalChildren: [
+    'modelRow',
+    'flatColorsRow',
+    'mergeModelRow',
+    'smoothNormalsRow',
+    'buildingStepRow',
+    'displayLinesRow',
+    'conditionalLinesRow',
+    'glAreaContainer',
+];
 
 /** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */
 export interface Children {

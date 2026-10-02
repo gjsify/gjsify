@@ -21,7 +21,19 @@ export declare const GTypeName: 'TeapotWindow';
  * which is the property that matters. `status/open-todos/blueprint.md` carries the
  * upstream half.
  */
-export declare const InternalChildren: ['sidebarToggleButton', 'pauseButton', 'splitView', 'tessRow', 'lidRow', 'bodyRow', 'bottomRow', 'fitLidRow', 'nonblinnRow', 'shadingRow', 'glAreaContainer'];
+export declare const InternalChildren: [
+    'sidebarToggleButton',
+    'pauseButton',
+    'splitView',
+    'tessRow',
+    'lidRow',
+    'bodyRow',
+    'bottomRow',
+    'fitLidRow',
+    'nonblinnRow',
+    'shadingRow',
+    'glAreaContainer',
+];
 
 /** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */
 export interface Children {
