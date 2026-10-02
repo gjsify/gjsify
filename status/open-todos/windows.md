@@ -71,7 +71,7 @@ order:
    branch head.
 2. A `windows-11-arm` leg in `node-gi.yml` and `napi.yml` that builds the prefix from the fork
    (`pipx install git+https://github.com/gjsify/gvsbuild@<sha>`, `actions/cache` with an arm64
-   key, path `C:\gtk-build\gtk\arm64\release`) — and `win32-arm64` in node-gi's
+   key, path `C:\gtk-build\gtk\ARM64\release`) — and `win32-arm64` in node-gi's
    `gjsify.platforms` in that same PR.
 3. `@gjsify/gtk-runtime-win32-arm64`, a new package. Touch points:
    `packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` (hard-fails unless

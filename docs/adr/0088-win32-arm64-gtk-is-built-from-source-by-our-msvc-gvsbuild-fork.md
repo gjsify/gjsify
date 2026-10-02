@@ -35,7 +35,7 @@ while the x64 addon and runtime are MSVC-ABI — a second toolchain for one arch
    It is a source-level addition to gvsbuild, not a patch set on top of a prebuilt ZIP.
 3. **There is no prebuilt arm64 ZIP, so the prefix is built in the job.** arm64 legs run on
    GitHub `windows-11-arm`, install the fork with
-   `pipx install git+https://github.com/gjsify/gvsbuild@<sha>`, build `C:\gtk-build\gtk\arm64\release`
+   `pipx install git+https://github.com/gjsify/gvsbuild@<sha>`, build `C:\gtk-build\gtk\ARM64\release`
    and cache it with `actions/cache` under an arm64 key. x64 is unchanged: the wingtk ZIP and
    the `GVSBUILD_VERSION` pin. This mirrors the x64 job (`node-gi.yml`
    `windows-gtk-windowing-runtime`, `release.yml` `publish-gtk-runtime-win32-x64`) with the
@@ -80,8 +80,8 @@ while the x64 addon and runtime are MSVC-ABI — a second toolchain for one arch
 
 - **MSYS2 `CLANGARM64`.** Rejected: a MinGW GTK against an MSVC-ABI runtime mixes CRTs where
   GLib allocates what the consumer frees, or forces the addon and the GL shim onto MinGW too.
-- **Wait for upstream.** Rejected: nobody is asking for arm64 there (the `arm64` issues are
-  dependabot noise), so the wait has no end date.
+- **Wait for upstream.** Rejected: upstream has no open issue or PR for an arm64 target
+  (searched 2026-10-02; the `arm64` hits are dependabot bumps), so the wait has no end date.
 - **Pin the fork's feature branch.** Rejected by clause 4.
 
 ## Implementation
