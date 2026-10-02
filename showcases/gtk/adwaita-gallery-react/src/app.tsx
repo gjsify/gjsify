@@ -352,6 +352,22 @@ const GtkSpinner = () => (
     />
 );
 
+const GtkDrawingArea = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={16}
+    >
+        <gtk-drawing-area
+            contentWidth={160}
+            contentHeight={120}
+        />
+        <gtk-drawing-area
+            contentWidth={160}
+            contentHeight={60}
+        />
+    </gtk-box>
+);
+
 const GtkFrame = () => (
     <gtk-frame
         label="Details"
@@ -830,6 +846,7 @@ const Gallery = () => (
         <GtkProgressBar />
         <GtkLevelBar />
         <GtkSpinner />
+        <GtkDrawingArea />
         <GtkFrame />
         <GtkAspectFrame />
         <GtkSeparator />
@@ -1038,6 +1055,12 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.Spinner', root:
         { tag: 'gtk-spinner', gtype: 'GtkSpinner', props: {"spinning":true,"widthRequest":32,"heightRequest":32} }
+    },
+    { widget: 'Gtk.DrawingArea', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":16}, children: [
+                { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":120} },
+                { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":60} }
+            ] }
     },
     { widget: 'Gtk.Frame', root:
         { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [

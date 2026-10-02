@@ -1,0 +1,148 @@
+---
+title: Drawing
+description: "GTK's three ways of drawing something no other widget can: a canvas you paint yourself, a GL surface, and a child handed straight to the compositor. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Three GTK widgets draw for themselves. The **drawing area** is the plain one: a blank
+box, a size and a callback, and everything on screen is what the callback painted. The
+**GL area** is the same idea with a GPU behind it. **Graphics offload** draws nothing at
+all — it hands its one child to the compositor untouched, which is cheaper than
+compositing a texture per frame.
+
+What none of them have is styling. Their CSS nodes carry no rule in libadwaita's
+stylesheet, so what you see here is geometry, not a theme.
+
+<MoreInfo title="What the NativeScript port has">
+None of the four. `@nativescript/core` has no canvas view, no WebGL view and no
+compositor passthrough, and a drag icon is something the platform draws for you rather
+than a widget you build. Each block's XML template tab says so instead of showing one.
+</MoreInfo>
+
+## Drawing Area
+
+A blank widget you paint on. It has **no visual properties at all** — what you see is
+whatever `set_draw_func` drew, and the draw function is called with the widget's
+**allocation**, so it has to be ready for a size it did not choose.
+
+**content-width** and **content-height** are the minimum *and* the natural size in one:
+a parent may hand the area more room than it asked for, but never less. At 0 — the
+default — the area has no intrinsic size at all and fills whatever box it is put in,
+which is why an area with both at 0 and no size request disappears.
+
+The draw function is called again whenever the area is drawn: when it first comes on
+screen, when its size changes, when something covers it, and when you ask for it with
+`queue_draw()`. That is the whole contract — repaint from the function, never
+incrementally.
+
+<AdwWidget title="Gtk.DrawingArea">
+  <Fragment slot="preview">
+    ```html
+    <!-- A drawing area with NO draw function paints nothing, and that is what the
+         live preview shows: the widget, at the size it asked for. The dashed borders
+         are the page's, not the widget's — libadwaita has no rule for this node. The
+         `web` tab installs a draw function, which is the only way to fill one. -->
+    <div style="display:flex;flex-direction:column;gap:16px;align-items:center;">
+      <div style="outline:1px dashed var(--window-fg-color);outline-offset:2px;">
+        <!-- content-height: The content height. -->
+        <!-- content-width: The content width. -->
+        <gtk-drawing-area content-width="160" content-height="120"></gtk-drawing-area>
+      </div>
+      <div style="outline:1px dashed var(--window-fg-color);outline-offset:2px;">
+        <!-- content-height: The content height. -->
+        <!-- content-width: The content width. -->
+        <gtk-drawing-area content-width="160" content-height="60"></gtk-drawing-area>
+      </div>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <gtk-drawing-area id="area" content-width="160" content-height="120"></gtk-drawing-area>
+
+    <script type="module">
+        // The whole API: a size and a callback. The callback is handed the ALLOCATION,
+        // so it has to be ready for a box it did not choose.
+        const area = document.getElementById('area');
+        area.setDrawFunc((area, cr, width, height) => {
+            // `currentColor` is the widget's own colour here, which is what
+            // `gtk_widget_get_color()` answers in GTK (gtkdrawingarea.c:98-101).
+            cr.fillStyle = 'currentColor';
+            cr.beginPath();
+            cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
+            cr.fill();
+        });
+
+        // Repaint by asking, exactly as `queue_draw()` does in GTK: the draw function
+        // is called again, with the current allocation.
+        area.queueDraw();
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // GTK's own documented drawing area: a circle in the widget's own colour
+    // (gtkdrawingarea.c:88-104).
+    const area = new Gtk.DrawingArea({ content_width: 160, content_height: 120 });
+    area.set_draw_func((area, cr, width, height) => {
+        const color = area.get_color();
+        cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
+        cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
+        cr.fill();
+    });
+
+    // A size change is not a redraw: the draw function runs with the NEW allocation on
+    // the next frame, so ask for one when the picture itself changes.
+    area.queue_draw();
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 16;
+
+      Gtk.DrawingArea {
+        content-width: 160;
+        content-height: 120;
+
+        // A draw function is a CALLBACK, and a .blp cannot hold one. What a .blp can do
+        // is declare the widget and its size; the callback is attached in code.
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // GTK's own documented drawing area: a circle in the widget's own colour
+    // (gtkdrawingarea.c:88-104).
+    const area = new Gtk.DrawingArea({ content_width: 160, content_height: 120 });
+    area.set_draw_func((area, cr, width, height) => {
+        const color = area.get_color();
+        cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
+        cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
+        cr.fill();
+    });
+
+    // A size change is not a redraw: the draw function runs with the NEW allocation on
+    // the next frame, so ask for one when the picture itself changes.
+    area.queue_draw();
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Why a drawing area needs neither properties nor styling">
+Because it is a blank widget with a blank node. `GtkDrawingArea` sets no CSS name of its
+own, so its node is the generic `widget` node, and libadwaita's stylesheet has no rule
+for it — there is nothing to theme, which is also why a draw function that paints a
+background has to read the widget's own colour (`gtk_widget_get_color`) instead of
+assuming one.
+</MoreInfo>

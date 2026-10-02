@@ -414,6 +414,24 @@ export const ADWAITA_GALLERY_TREES = [
         // its size from its allocation (gtkspinner.c:97, :110-123).
         root: { tag: 'gtk-spinner', props: { spinning: true, widthRequest: 32, heightRequest: 32 } },
     },
+    // ----------------------------------------------------------------- gtk drawing
+    {
+        widget: 'Gtk.DrawingArea',
+        page: 'drawing',
+        // The two content properties and nothing else: a draw function is a CALLBACK, and a
+        // tree can only carry a widget's PROPERTIES. This is also what the live preview
+        // shows, which is honest — with no function installed the area paints nothing
+        // (gtkdrawingarea.c:251-252) — and it is why the `web` tab of that block, not the
+        // tree, is where `set_draw_func` is taught.
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 16 },
+            children: [
+                { tag: 'gtk-drawing-area', props: { contentWidth: 160, contentHeight: 120 } },
+                { tag: 'gtk-drawing-area', props: { contentWidth: 160, contentHeight: 60 } },
+            ],
+        },
+    },
     // ------------------------------------------------------------------ gtk layout
     {
         widget: 'Gtk.Frame',

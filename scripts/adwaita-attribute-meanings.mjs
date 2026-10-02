@@ -139,6 +139,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'model': null,
         'show-row-separators': null,
     },
+    'gtk-drawing-area': {
+        'content-height': null,
+        'content-width': null,
+    },
     'gtk-drop-down': {
         'selected': null,
     },
@@ -340,9 +344,9 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 178,
+    set: 180,
     glossed: 72,
-    nameSuffices: 76,
+    nameSuffices: 78,
     divergent: 29,
     authored: 1,
     commentLines: 100,

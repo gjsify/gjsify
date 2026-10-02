@@ -251,6 +251,19 @@
             :width-request="32"
             :height-request="32"
         />
+        <gtk-box
+            orientation="vertical"
+            :spacing="16"
+        >
+            <gtk-drawing-area
+                :content-width="160"
+                :content-height="120"
+            />
+            <gtk-drawing-area
+                :content-width="160"
+                :content-height="60"
+            />
+        </gtk-box>
         <gtk-frame
             label="Details"
             :label-xalign="0"

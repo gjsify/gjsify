@@ -40,6 +40,10 @@ export const STORYBOOK_CATEGORY_ORDER: readonly string[] = [
     // field. It sits with the plain controls because it introduces nothing structural — no
     // page of its own is needed for any of the four to make sense.
     'Text',
+    // Beside Layout: the other category whose widgets exist to hold output that no other
+    // widget can produce. A canvas with a draw callback, a GL surface, a compositor
+    // passthrough.
+    'Drawing',
     'Layout',
     'Windows',
     'View Switching',

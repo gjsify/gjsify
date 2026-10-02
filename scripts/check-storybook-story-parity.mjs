@@ -110,6 +110,8 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no print backend, no printer list and no capabilities to gate a dialog on, so the story is rendered by the other two targets only.',
     'check-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-check-button> on NativeScript": @nativescript/core ships no checkbox view, so the port has none and the story is rendered by the other two targets only.',
+    'drawing-area@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-drawing-area> on NativeScript": the port has no drawing surface at all — no canvas child and no GL view — so the story is rendered by the other two targets only.',
     'gtk-header-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no titlebar widget, so the story is rendered by the other two targets only.',
     'gtk-spinner@nativescript':

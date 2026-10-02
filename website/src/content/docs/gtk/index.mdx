@@ -100,6 +100,16 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Drawing" href="/gjsify/gtk/drawing/" description="The blank canvas you paint yourself, the GL surface behind it, the child handed straight to the compositor, and the icon that follows the pointer during a drag.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;">
+        <gtk-drawing-area content-width="160" content-height="80" style="outline:1px dashed var(--window-fg-color);outline-offset:2px;"></gtk-drawing-area>
+        <gtk-graphics-offload enabled="disabled" style="width:160px;height:32px;outline:1px dashed var(--window-fg-color);outline-offset:2px;">
+          <gtk-label label="Offloaded child"></gtk-label>
+        </gtk-graphics-offload>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
 </div>
   <AdwGalleryCard title="Indicators" href="/gjsify/gtk/indicators/" description="The progress bar for work with a measurable amount left, the level bar for a quantity in a range, and GTK's own busy spinner.">
     <Fragment slot="preview">

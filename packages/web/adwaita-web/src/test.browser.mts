@@ -29,6 +29,7 @@ import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
+import { GtkDrawingAreaTest } from './gtk-drawing-area.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
@@ -149,6 +150,7 @@ run({
     GtkActionBarTest,
     GtkSeparatorTest,
     GtkTreeExpanderTest,
+    GtkDrawingAreaTest,
     GtkToggleButtonTest,
     GtkExpanderTest,
     GtkOverlayTest,

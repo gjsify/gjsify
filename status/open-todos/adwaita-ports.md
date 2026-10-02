@@ -366,6 +366,14 @@ exactly why they must not be written as decisions.
   buildable. Its story is therefore ledgered as not rendered there
   (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
   template refused.
+- **`<gtk-drawing-area>` on NativeScript.** The browser element, its block and its story all
+  exist, and the NativeScript port has no counterpart at all: `GtkBox` is the container one
+  would sit in and nothing in the port paints — a drawing area would be an empty box with a
+  size request. The question is not whether it is buildable but whether a phone target wants
+  a widget whose entire content is a callback the framework cannot serialise, and whether the
+  answer is a `<canvas>` reached through the web view this port already loads elsewhere. Its
+  story is therefore ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
+  `scripts/check-storybook-story-parity.mjs`) and its XML template refused.
 - **`<gtk-level-bar>` and `<gtk-spinner>` on NativeScript.** Both browser elements and
   their gallery blocks exist; the NativeScript port has neither, and both refusals are
   about a widget the port already has a NEAR NEIGHBOUR for. `ActivityIndicator` is the

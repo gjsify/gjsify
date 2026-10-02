@@ -448,6 +448,8 @@ function filesSectionsInMenu(root) {
  * that only where the widget cannot be expressed as markup at all.
  */
 const MARKUP_OVERRIDE_LEDGER = {
+    'Gtk.DrawingArea':
+        '`set_draw_func` is a CALLBACK, and a markup fence cannot install one — the live preview mounts the element exactly as the fence shows it, which is a blank area of the requested size, because with no function installed the widget paints nothing (gtkdrawingarea.c:251-252). So the preview depicts what is declarable and the `web` tab carries the markup that actually paints, script and all.',
     'Adw.Toast':
         "`<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole API — so the markup that PAINTS a toast in a static preview is the overlay's own internal DOM (`.adw-toast.visible` and friends), which is the one thing a reader must not copy. The preview depicts the result; the tab teaches the call.",
 };
