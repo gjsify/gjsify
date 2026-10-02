@@ -16,7 +16,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { emitTypedSidecar, parseBlueprint, sidecarPathFor } from '@gjsify/blueprint';
-import type { Command } from '../types/index.js';
+import type { Command } from '../../types/index.js';
 
 interface BlueprintTypesOptions {
     paths?: string[];
@@ -136,19 +136,4 @@ export const blueprintTypesCommand: Command<unknown, BlueprintTypesOptions> = {
                 `${blueprints.length - written} already current.`,
         );
     },
-};
-
-export const blueprintCommand: Command = {
-    command: 'blueprint <subcommand>',
-    description: 'Blueprint (.blp) tooling: generate the TypeScript type sidecars a .blp exports (ADR 0088).',
-    builder: (yargs) =>
-        yargs
-            .command(
-                blueprintTypesCommand.command as string,
-                blueprintTypesCommand.description,
-                blueprintTypesCommand.builder!,
-                blueprintTypesCommand.handler!,
-            )
-            .demandCommand(1)
-            .strict(),
 };

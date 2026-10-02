@@ -1259,6 +1259,32 @@ gjsify gsettings data/schemas --targetdir dist/schemas
 
 Needs `glib-compile-schemas` (`glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian and Ubuntu).
 
+### `gjsify blueprint`
+
+Blueprint (`.blp`) tooling. Today it has one subcommand.
+
+| Subcommand | What it does |
+|---|---|
+| [`blueprint types`](#gjsify-blueprint-types) | Write the `<name>.d.blp.ts` type sidecar for each `.blp`. |
+
+#### `gjsify blueprint types`
+
+Generate the `<name>.d.blp.ts` sidecar beside each `.blp`, so `import { build }` and
+`import { GTypeName }` from a `.blp` type-check before anything is built (ADR 0088).
+`@gjsify/vite-plugin-blueprint` writes the same sidecar during a build; this command is for
+a type-check without one, such as a fresh clone or `gjsify check` in CI.
+
+```bash
+gjsify blueprint types
+gjsify blueprint types src/ --check
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[paths..]` | the current directory | Files or directories to scan for `.blp`. `node_modules`, `dist`, `lib` and dot-directories are skipped. |
+| `--check` | `false` | Write nothing; exit non-zero when a sidecar is missing or stale. |
+| `--verbose` | `false` | Print every file considered, not only the ones that changed. |
+
 ### `gjsify gettext`
 
 Compile gettext `.po` files. It wraps `msgfmt` with the output shapes GNOME apps need: a per-language `.mo` locale tree, and template substitution for a `.desktop` entry or an AppStream component.
