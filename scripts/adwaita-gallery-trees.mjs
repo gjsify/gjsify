@@ -265,6 +265,50 @@ export const ADWAITA_GALLERY_TREES = [
             props: { model: ['Automatic', 'Always', 'Never', 'When busy'], selected: 0, halign: 'center' },
         },
     },
+    {
+        widget: 'Gtk.CheckButton',
+        page: 'controls',
+        // `label` and `inconsistent`, in the GIR's own spelling: this tree is the
+        // gtk-host vocabulary, not the browser element's, where the two states are
+        // `checked` and `indeterminate`.
+        root: { tag: 'gtk-check-button', props: { label: 'Enable networking', active: true } },
+    },
+    {
+        widget: 'Gtk.Switch',
+        page: 'controls',
+        // `active` BEFORE `state`, which is the order the delayed change needs: setting
+        // `active` runs the default `::state-set` handler, which sets `state`
+        // (gtkswitch.c:800, :558), so a `state` written afterwards is the application's.
+        root: { tag: 'gtk-switch', props: { active: true, state: true, halign: 'center' } },
+    },
+    // ------------------------------------------------------------- gtk indicators
+    {
+        widget: 'Gtk.ProgressBar',
+        page: 'indicators',
+        // `showText` and no `text`: `get_current_text` falls back to `%.0f %%` of the
+        // fraction (gtkprogressbar.c:628-634), so the label needs no authored string.
+        root: {
+            tag: 'gtk-progress-bar',
+            props: { fraction: 0.4, showText: true, widthRequest: 320, halign: 'center' },
+        },
+    },
+    {
+        widget: 'Gtk.LevelBar',
+        page: 'indicators',
+        // `maxValue` before `value`, because a new maximum drags the value down with it
+        // (gtklevelbar.c:1229-1230) — the order that makes the pair mean what it reads.
+        root: {
+            tag: 'gtk-level-bar',
+            props: { maxValue: 5, mode: 'discrete', value: 3, widthRequest: 240, halign: 'center' },
+        },
+    },
+    {
+        widget: 'Gtk.Spinner',
+        page: 'indicators',
+        // `spinning` and a size REQUEST, because `GtkSpinner` has one property and takes
+        // its size from its allocation (gtkspinner.c:97, :110-123).
+        root: { tag: 'gtk-spinner', props: { spinning: true, widthRequest: 32, heightRequest: 32 } },
+    },
     // ------------------------------------------------------------------ gtk layout
     {
         widget: 'Gtk.Separator',

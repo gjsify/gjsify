@@ -32,8 +32,13 @@ import { PasswordEntryRowWebStories } from './rows/password-entry-row.web.js';
 import { PreferencesGroupWebStories } from './rows/preferences-group.web.js';
 import { SpinRowWebStories } from './rows/spin-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
+import { CheckButtonWebStories } from './controls/check-button.web.js';
 import { DropDownWebStories } from './controls/drop-down.web.js';
 import { EntryWebStories } from './controls/entry.web.js';
+import { GtkSpinnerWebStories } from './controls/gtk-spinner.web.js';
+import { LevelBarWebStories } from './controls/level-bar.web.js';
+import { ProgressBarWebStories } from './controls/progress-bar.web.js';
+import { SwitchWebStories } from './controls/switch.web.js';
 import { SeparatorWebStories } from './layout/separator.web.js';
 import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
 import { ButtonContentWebStories } from './buttons/button-content.web.js';
@@ -79,6 +84,11 @@ export const stories: WebStoryModule[] = [
     SwitchRowWebStories,
     EntryWebStories,
     DropDownWebStories,
+    CheckButtonWebStories,
+    SwitchWebStories,
+    ProgressBarWebStories,
+    LevelBarWebStories,
+    GtkSpinnerWebStories,
     ButtonContentWebStories,
     ButtonStylesWebStories,
     MenuButtonWebStories,

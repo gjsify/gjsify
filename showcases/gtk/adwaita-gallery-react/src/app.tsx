@@ -222,6 +222,48 @@ const GtkDropDown = () => (
     />
 );
 
+const GtkCheckButton = () => (
+    <gtk-check-button
+        label="Enable networking"
+        active
+    />
+);
+
+const GtkSwitch = () => (
+    <gtk-switch
+        active
+        state
+        halign="center"
+    />
+);
+
+const GtkProgressBar = () => (
+    <gtk-progress-bar
+        fraction={0.4}
+        showText
+        widthRequest={320}
+        halign="center"
+    />
+);
+
+const GtkLevelBar = () => (
+    <gtk-level-bar
+        maxValue={5}
+        mode="discrete"
+        value={3}
+        widthRequest={240}
+        halign="center"
+    />
+);
+
+const GtkSpinner = () => (
+    <gtk-spinner
+        spinning
+        widthRequest={32}
+        heightRequest={32}
+    />
+);
+
 const GtkSeparator = () => (
     <gtk-box
         orientation="vertical"
@@ -537,6 +579,11 @@ const Gallery = () => (
         <GtkMenuButton />
         <GtkEntry />
         <GtkDropDown />
+        <GtkCheckButton />
+        <GtkSwitch />
+        <GtkProgressBar />
+        <GtkLevelBar />
+        <GtkSpinner />
         <GtkSeparator />
         <AdwClamp />
         <AdwHeaderBar />
@@ -682,6 +729,21 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.DropDown', root:
         { tag: 'gtk-drop-down', gtype: 'GtkDropDown', props: {"model":["Automatic","Always","Never","When busy"],"selected":0,"halign":"center"} }
+    },
+    { widget: 'Gtk.CheckButton', root:
+        { tag: 'gtk-check-button', gtype: 'GtkCheckButton', props: {"label":"Enable networking","active":true} }
+    },
+    { widget: 'Gtk.Switch', root:
+        { tag: 'gtk-switch', gtype: 'GtkSwitch', props: {"active":true,"state":true,"halign":"center"} }
+    },
+    { widget: 'Gtk.ProgressBar', root:
+        { tag: 'gtk-progress-bar', gtype: 'GtkProgressBar', props: {"fraction":0.4,"showText":true,"widthRequest":320,"halign":"center"} }
+    },
+    { widget: 'Gtk.LevelBar', root:
+        { tag: 'gtk-level-bar', gtype: 'GtkLevelBar', props: {"maxValue":5,"mode":"discrete","value":3,"widthRequest":240,"halign":"center"} }
+    },
+    { widget: 'Gtk.Spinner', root:
+        { tag: 'gtk-spinner', gtype: 'GtkSpinner', props: {"spinning":true,"widthRequest":32,"heightRequest":32} }
     },
     { widget: 'Gtk.Separator', root:
         { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [

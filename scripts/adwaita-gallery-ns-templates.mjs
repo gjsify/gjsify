@@ -520,6 +520,16 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
     'Gtk.ToggleButton':
         'The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).',
+    'Gtk.CheckButton':
+        'The NativeScript port has no checkbox view: GtkBox is the container one would sit in and @nativescript/core ships nothing under its ui/ to put in it. The boolean idiom the port does have is AdwSwitchRow (status/open-todos/adwaita-ports.md).',
+    'Gtk.Switch':
+        'The NativeScript port composes the platform Switch inside AdwSwitchRow and has no standalone one; a NativeScript Switch is one boolean, while the GTK widget also carries the backend half behind a state-set signal (status/open-todos/adwaita-ports.md).',
+    'Gtk.ProgressBar':
+        "The NativeScript port has no progress widget: the nearest thing it builds is AdwSpinRow, which is a titled row with a stepper and not a bar, and the theme's CSS subset has no trough to nest anything in (status/open-todos/adwaita-ports.md).",
+    'Gtk.LevelBar':
+        'The NativeScript port has no segmented-bar view: AdwSpinner is the only indicator it has and it takes no value, and GtkBox offers no run of equal children to divide into segments (status/open-todos/adwaita-ports.md).',
+    'Gtk.Spinner':
+        'The NativeScript port ships AdwSpinner for the libadwaita spinner and has no view for the GTK one; AdwSpinner is the whole picture there, and the reduced-motion icon swap GTK does has no counterpart (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

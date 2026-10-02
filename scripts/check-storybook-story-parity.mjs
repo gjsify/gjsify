@@ -74,8 +74,18 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
  * `check-storybook-widget-coverage.mjs`'s `ONE_RENDERER_ONLY`).
  */
 const NOT_ON_THIS_TARGET = {
+    'check-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-check-button> on NativeScript": @nativescript/core ships no checkbox view, so the port has none and the story is rendered by the other two targets only.',
+    'gtk-spinner@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no view for GTK\'s own spinner — AdwSpinner is the one it ships — so the story is rendered by the other two targets only.',
+    'level-bar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no segmented-bar view and ActivityIndicator has no value, so the story is rendered by the other two targets only.',
+    'progress-bar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-progress-bar> on NativeScript": @nativescript/core ships a determinate Progress, but no Adwaita expression for it, so the story is rendered by the other two targets only.',
     'separator@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
+    'switch@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-switch> on NativeScript": the port composes the platform Switch for AdwSwitchRow and has no standalone one with the two-property active/state pair, so the story is rendered by the other two targets only.',
     'toggle-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
 };

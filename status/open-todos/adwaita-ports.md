@@ -341,13 +341,18 @@ Most are decisions with a reason next to them. These are the ones nobody has set
 from outside the port — each is a product question, not scheduled work, which is
 exactly why they must not be written as decisions.
 
-- **`<gtk-check-button>` and `<adw-radio>` on NativeScript.** The headless half already
-  exists: `@gjsify/adwaita-core` carries `RadioGroupState` and `RADIO_GROUP_VECTORS`,
-  driven today by core's own spec (`checks.spec.ts`) and the browser suite, by no
-  NativeScript spec. What does not exist is the decision. `@nativescript/core` ships no
-  checkbox view (nothing under its `ui/`), and libadwaita's own phone idiom for a
-  boolean is `AdwSwitchRow`, which this port already has — so the question is whether
-  a checkbox belongs on a touch target at all, not how to build one.
+- **`<gtk-check-button>`, `<adw-radio>` and now `<gtk-switch>` on NativeScript.** The
+  headless half already exists for the first two: `@gjsify/adwaita-core` carries
+  `RadioGroupState` and `RADIO_GROUP_VECTORS`, driven today by core's own spec
+  (`checks.spec.ts`) and the browser suite, by no NativeScript spec. What does not
+  exist is the decision. `@nativescript/core` ships no checkbox view (nothing under
+  its `ui/`), and libadwaita's own phone idiom for a boolean is `AdwSwitchRow`, which
+  this port already has — so the question is whether a checkbox belongs on a touch
+  target at all, not how to build one. The switch is the mirror image of that: its
+  widget DOES exist (`@nativescript/core`'s `Switch`, installed by `AdwSwitchRow`), so
+  what is missing is the second boolean — `GtkSwitch:state`, the half that makes a slow
+  backend look pending (`refs/gtk/gtk/gtkswitch.c:39-43, :637-654`) has nowhere to go in
+  a one-boolean `Switch`. Same question, other side of it.
 - **`<gtk-progress-bar>` on NativeScript.** libadwaita styles the GtkProgressBar node in
   `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
   NativeScript port has no progress widget. The PLATFORM half is not what is missing:
@@ -358,7 +363,21 @@ exactly why they must not be written as decisions.
   equivalent in the NativeScript CSS subset this theme is confined to, and `.osd`, the
   text label and the fraction have no counterpart at all. So the question is what a
   determinate Adwaita progress bar should even look like there, not whether one is
-  buildable.
+  buildable. Its story is therefore ledgered as not rendered there
+  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
+  template refused.
+- **`<gtk-level-bar>` and `<gtk-spinner>` on NativeScript.** Both browser elements and
+  their gallery blocks exist; the NativeScript port has neither, and both refusals are
+  about a widget the port already has a NEAR NEIGHBOUR for. `ActivityIndicator` is the
+  indeterminate spinner and takes no value, so the level bar has no determinate view to
+  borrow and `pulse-step`-style control has no counterpart either; `AdwSpinner` is the
+  libadwaita replacement for `GtkSpinner` and the port ships that one, so the GTK picture
+  — the faint ring with a quarter arc — has nothing standing behind it. What neither
+  answer settles is the Adwaita EXPRESSION: a segmented, offset-coloured bar
+  (`levelbar > trough > block.filled.low`, `refs/libadwaita/src/stylesheet/widgets/
+  _level-bar.scss:71-93`) and the reduced-motion hourglass swap
+  (`refs/gtk/gtk/gtkspinner.c:145-161`) are both libadwaita-over-GTK decisions a
+  platform spinner makes for itself.
 - **`adw-dialog` on NativeScript.** `AdwDialog` is a real upstream widget
   (`adw-dialog.h`) and the port has the three SPECIALISED dialogs — alert, about,
   preferences — but no generic one. Every NativeScript dialog here is deliberately the

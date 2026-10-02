@@ -59,10 +59,15 @@
 // (there is no `_radio.scss` in libadwaita) — see _checks.scss.
 @use 'checks';
 @use 'progress_bar';
+// <gtk-level-bar>, next to the progress bar it is easy to confuse with. It has no
+// dependency on anything above it, so the order here is readability, not precedence.
+@use 'level_bar';
 @use 'preferences';
 @use 'card';
 @use 'data_grid';
 @use 'clamp';
+// <adw-spinner> AND <gtk-spinner>, in ONE partial because upstream's
+// `_spinner.scss` styles `spinner` and `image.spinner` in the same file.
 @use 'spinner';
 // <adw-shortcut-label>'s keycaps. After `labels`, because a separator inside it
 // is an ordinary `.dimmed`.

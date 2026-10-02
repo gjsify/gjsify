@@ -163,6 +163,33 @@
             :selected="0"
             halign="center"
         />
+        <gtk-check-button
+            label="Enable networking"
+            :active="true"
+        />
+        <gtk-switch
+            :active="true"
+            :state="true"
+            halign="center"
+        />
+        <gtk-progress-bar
+            :fraction="0.4"
+            :show-text="true"
+            :width-request="320"
+            halign="center"
+        />
+        <gtk-level-bar
+            :max-value="5"
+            mode="discrete"
+            :value="3"
+            :width-request="240"
+            halign="center"
+        />
+        <gtk-spinner
+            :spinning="true"
+            :width-request="32"
+            :height-request="32"
+        />
         <gtk-box
             orientation="vertical"
             :spacing="12"

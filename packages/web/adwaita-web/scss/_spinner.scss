@@ -1,7 +1,10 @@
-// _spinner.scss — adw-spinner styling.
+// _spinner.scss — the two spinners: <adw-spinner> and <gtk-spinner>. ONE partial
+// because upstream merges them too (refs/libadwaita/src/stylesheet/widgets/
+// _spinner.scss styles `spinner` and `image.spinner` in the same file), and because
+// they are two answers to one question rather than two widgets.
 //
-// Almost nothing is left here on purpose. The ring is an SVG the element draws
-// per frame from `@gjsify/adwaita-core`'s `spinnerArc`, because the arc BREATHES
+// Almost nothing is left for <adw-spinner> on purpose. The ring is an SVG the element
+// draws per frame from `@gjsify/adwaita-core`'s `spinnerArc`, because the arc BREATHES
 // (2.7 to 102.8 degrees) and CSS cannot express that: the `border-top-color`
 // chase this file used to carry was a fixed 90-degree quarter-circle at 0.8s
 // against libadwaita's 1.2s, with a hardcoded grey track and square-cut ends.
@@ -11,7 +14,7 @@
 // (adw-spinner.c:95-99 hands the widget's real size to the paintable, which caps
 // only the radius).
 //
-// There is deliberately NO `prefers-reduced-motion` rule. The C opts out of the
+// There is deliberately NO `prefers-reduced-motion` rule for it. The C opts out of the
 // animation setting explicitly (`adw_animation_set_follow_enable_animations_setting
 // (…, FALSE)`, adw-spinner-paintable.c:537) — a frozen busy indicator reads as a
 // hang. This file used to stop the animation there.
@@ -42,5 +45,83 @@ adw-spinner {
     // The ring never grows past its own diameter, so an over-large box centres
     // it rather than stretching it.
     flex: none;
+  }
+}
+
+// <gtk-spinner> is the GTK picture, and it is CSS's job in a way the Adw one is not:
+// `process-working-symbolic.svg` is a STATIC quarter arc on a faint ring, and all
+// `GtkSvg` does is turn it (gtkspinner.c:158-171). So the geometry is fixed here and
+// only the rotation is animated — which is why this widget needs no per-frame ticker
+// and no `spinnerArc`.
+gtk-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  // GTK measures the `icon-size` CSS property and reports it as BOTH minimum and
+  // natural (gtkspinner.c:110-123); 16px is that icon's own intrinsic size.
+  width: 16px;
+  height: 16px;
+  color: inherit;
+
+  // `spinner:disabled { opacity: var(--disabled-opacity) }`
+  // (refs/libadwaita/src/stylesheet/widgets/_spinner.scss:1-3).
+  &[disabled] {
+    opacity: var(--disabled-opacity);
+  }
+
+  .adw-spinner-ring {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  // Both strokes are `url(#gpa:foreground)` in the icon, i.e. the widget's text colour;
+  // `stroke-width: 2` and round caps are the icon's own, on a 16-unit viewBox.
+  .adw-spinner-track,
+  .adw-spinner-arc {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  // The icon's track path carries `stroke-opacity: 0.2`.
+  .adw-spinner-track {
+    stroke-opacity: 0.2;
+  }
+
+  // GTK puts the `:checked` pseudoclass on the node while `spinning` is set
+  // (gtkspinner.c:59-63), which is the only thing that distinguishes the turning arc
+  // from the standing one; the element writes `.checked` for exactly that.
+  //
+  // THE PERIOD IS THIS PORT'S. `GtkSvg` cycles the `.gpa`'s frames on the frame clock
+  // and the frame count lives in the icon, not in `gtkspinner.c`, so one turn per second
+  // is the honest place to land rather than a number quoted from nowhere.
+  &.checked .adw-spinner-arc {
+    animation: gtk-spinner-rotate 1s linear infinite;
+    transform-origin: center;
+  }
+
+  // Under reduced motion GTK loads `sand-watch.svg` — a STATIC hourglass — instead of
+  // the turning arc (gtkspinner.c:145-161). A browser has no icon loader, so the
+  // equivalent is holding the arc still. Note this is the OPPOSITE of <adw-spinner>
+  // above, and deliberately so.
+  @media (prefers-reduced-motion: reduce) {
+    &.checked .adw-spinner-arc {
+      animation: none;
+    }
+  }
+}
+
+@keyframes gtk-spinner-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }

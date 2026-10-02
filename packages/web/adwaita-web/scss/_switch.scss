@@ -65,12 +65,20 @@
   }
 }
 
-.adw-switch input:checked + .adw-switch-slider {
-  background-color: var(--accent-bg-color);
+// The KNOB follows `active` — GTK moves the handle from the user's own position
+// (gtkswitch.c:795-798), which is `Gtk.Switch:active`.
+.adw-switch input:checked + .adw-switch-slider::before {
+  transform: translateX(20px);
+}
 
-  &::before {
-    transform: translateX(20px);
-  }
+// The TROUGH follows `state`. GTK raises and clears the `:checked` state flag from
+// `gtk_switch_set_state` (gtkswitch.c:853-856) — NOT from `active` — and libadwaita
+// paints `switch:checked` from it (refs/libadwaita/src/stylesheet/widgets/_switch.scss:
+// 41-55). That separation is the whole point of the two booleans: a switch whose
+// backend has not caught up yet shows the user where they put it (knob) over where the
+// thing actually is (trough).
+.adw-switch.checked .adw-switch-slider {
+  background-color: var(--accent-bg-color);
 }
 
 .adw-switch input:focus-visible + .adw-switch-slider {

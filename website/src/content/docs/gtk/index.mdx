@@ -60,11 +60,15 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
 ## Browse the widgets
 
 <div class="adw-gallery-grid">
-  <AdwGalleryCard title="Controls" href="/gjsify/gtk/controls/" description="The standalone entry and drop down, whose row twins are in the Adwaita boxed lists.">
+  <AdwGalleryCard title="Controls" href="/gjsify/gtk/controls/" description="The standalone entry and drop down, the checkbox with its half-made state and the light switch, whose row twins are in the Adwaita boxed lists.">
     <Fragment slot="preview">
       <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
         <gtk-entry placeholder="Search files…" style="width:100%;"></gtk-entry>
         <gtk-drop-down model='["Automatic","Always","Never"]' selected="0"></gtk-drop-down>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <gtk-check-button label="Enable networking" checked></gtk-check-button>
+          <gtk-switch active state></gtk-switch>
+        </div>
       </div>
     </Fragment>
   </AdwGalleryCard>
@@ -75,6 +79,15 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
         <gtk-button label="Delete" destructive></gtk-button>
         <gtk-button icon="list-add" circular></gtk-button>
         <gtk-menu-button icon-name="open-menu" menu-title="Document" menu-model='[{"label":"Save as…"},{"label":"Export"}]'></gtk-menu-button>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Indicators" href="/gjsify/gtk/indicators/" description="The progress bar for work with a measurable amount left, the level bar for a quantity in a range, and GTK's own busy spinner.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:200px;">
+        <gtk-progress-bar fraction="0.4" style="width:100%;"></gtk-progress-bar>
+        <gtk-level-bar mode="discrete" max-value="5" value="3" style="width:100%;"></gtk-level-bar>
+        <gtk-spinner spinning style="width:24px;height:24px;"></gtk-spinner>
       </div>
     </Fragment>
   </AdwGalleryCard>

@@ -46,6 +46,8 @@ import { AdwIconRegistryTest } from './icon-registry.spec.js';
 import { GtkSwitchTest } from './gtk-switch.spec.js';
 import { AdwChecksTest } from './checks.spec.js';
 import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
+import { GtkLevelBarTest } from './gtk-level-bar.spec.js';
+import { GtkSpinnerTest } from './gtk-spinner.spec.js';
 import { GtkSeparatorTest } from './gtk-separator.spec.js';
 import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
@@ -92,6 +94,8 @@ run({
     GtkSwitchTest,
     AdwChecksTest,
     GtkProgressBarTest,
+    GtkLevelBarTest,
+    GtkSpinnerTest,
     GtkSeparatorTest,
     GtkToggleButtonTest,
     GtkBoxTest,

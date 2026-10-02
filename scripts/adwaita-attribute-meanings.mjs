@@ -74,14 +74,33 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'orientation': 'The orientation of the orientable.',
         'spacing': 'The amount of space between children.',
     },
+    'gtk-check-button': {
+        'label': 'Text of the label inside the check button, if it contains a label widget.',
+    },
     'gtk-drop-down': {
         'selected': 'The position of the selected item.',
     },
     'gtk-label': {
         'label': 'The contents of the label.',
     },
+    'gtk-level-bar': {
+        'max-value': 'Determines the maximum value of the interval that can be displayed by the bar.',
+        'mode': 'Determines the way `GtkLevelBar` interprets the value properties to draw the level fill area.',
+        'value': 'Determines the currently filled value of the level bar.',
+    },
+    'gtk-progress-bar': {
+        'fraction': 'The fraction of total work that has been completed.',
+        'show-text': 'Sets whether the progress bar will show a text in addition to the bar itself.',
+    },
     'gtk-separator': {
         'orientation': 'The orientation of the orientable.',
+    },
+    'gtk-spinner': {
+        'spinning': null,
+    },
+    'gtk-switch': {
+        'active': 'Whether the `GtkSwitch` widget is in its on or off state.',
+        'state': 'The backend state that is controlled by the switch.',
     },
     'gtk-toggle-button': {
         'active': 'If the toggle button should be pressed in.',
@@ -103,9 +122,12 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-preferences-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
+    'gtk-check-button checked': 'renamed',
+    'gtk-check-button indeterminate': 'renamed',
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
+    'gtk-progress-bar pulsing': 'declarative-state',
 };
 
 /** Attributes whose gloss is AUTHORED on the page, because the GIR's is not true of the markup. */
@@ -115,12 +137,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 49,
-    glossed: 14,
-    nameSuffices: 24,
-    divergent: 10,
+    set: 61,
+    glossed: 22,
+    nameSuffices: 25,
+    divergent: 13,
     authored: 1,
-    commentLines: 28,
+    commentLines: 41,
 };
 
 /**

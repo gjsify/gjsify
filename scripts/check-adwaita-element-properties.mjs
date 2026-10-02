@@ -154,6 +154,13 @@ const KNOWN_GAPS = {
     // NativeScript box declares.
     'gtk-box': ['baseline-child', 'baseline-position'],
     'gtk-button': ['can-shrink', 'has-frame', 'use-underline'],
+    // `active` and `inconsistent` are the two GIR names this element DELIBERATELY does
+    // not use: it wraps a real `<input>`, so the state is `checked` and `indeterminate`
+    // — the two spellings libadwaita's own cascade selects on (`_checks.scss`). GTK
+    // raises the same state flags for them (gtkcheckbutton.c:647-691), so the divergence
+    // is in the ATTRIBUTE NAME only. `use-underline` is a mnemonic hook on a `GtkLabel`
+    // child (gtkcheckbutton.c:693-702); the label here is a plain `<span>` with no
+    // keyval, so there is nothing for it to underline.
     'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
     'gtk-entry': [
@@ -198,8 +205,12 @@ const KNOWN_GAPS = {
     'gtk-label': ['natural-wrap-mode', 'single-line-mode'],
     'gtk-menu-button': ['active', 'always-show-arrow', 'can-shrink', 'has-frame', 'label', 'primary', 'use-underline'],
     'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
+    // `pulse-step` is the distance one `gtk_progress_bar_pulse()` call advances the
+    // bouncing block (gtkprogressbar.c:830-847, :655-692): a property of a per-call
+    // animation this element does not run — the indeterminate block is a CSS keyframe on
+    // a fixed period, so there is no step to configure. `ellipsize` is Pango's
+    // truncation mode on the text node, the same family `gtk-label` already carries.
     'gtk-progress-bar': ['ellipsize', 'pulse-step'],
-    'gtk-switch': ['state'],
 };
 
 /** @returns {string[]} one line per problem; empty means aligned. */

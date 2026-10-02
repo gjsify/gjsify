@@ -230,6 +230,15 @@ const TITLED_AFTER = {
         title: 'Gtk.Button',
         reason: 'the story renders the plain button beside .pill/.circular/.suggested-action/.destructive-action/.flat, and its `component` is `Gtk.Button.$gtype`. Same reason check-storybook-widget-coverage.mjs ledgers `button` against it.',
     },
+    // `Gtk.Spinner` and `Adw.Spinner` are two widgets whose BARE name is the same, and
+    // the derivation here is by bare name — so this is the shape it cannot cover. The
+    // meta file is `gtk-spinner.meta.ts` (the storybook keys every meta on its file
+    // name, so a second `spinner.meta.ts` would silently displace one of the two), and
+    // this row is what lets it carry a block titled after the GTK one.
+    'gtk-spinner': {
+        title: 'Gtk.Spinner',
+        reason: 'Gtk.Spinner shares its bare name with Adw.Spinner, which holds `Presentation/Spinner`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/indicators/. Not a style-class story — the two spinners are different widgets (a quarter arc on a faint ring vs. a breathing arc), which is why the file is named apart.',
+    },
 };
 
 /**

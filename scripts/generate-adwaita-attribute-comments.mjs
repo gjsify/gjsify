@@ -187,6 +187,20 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // pixel box, and `AdwSpinner` has no size property — a GTK spinner takes its
     // size from its allocation.
     'adw-spinner size': { kind: 'port-only' },
+
+    // `<gtk-check-button>` names its two states the way HTML and the stylesheet do.
+    // GTK's are `active` and `inconsistent` (gtkcheckbutton.c:647-691) and GTK raises
+    // the same state flags for them, so this is the ATTRIBUTE NAME that moved — the two
+    // the element observes are the ones libadwaita's `_checks.scss` selects on.
+    'gtk-check-button checked': { kind: 'renamed', girProperty: 'active' },
+    'gtk-check-button indeterminate': { kind: 'renamed', girProperty: 'inconsistent' },
+
+    // `pulsing` is GTK's ACTIVITY MODE, which is a method (`gtk_progress_bar_pulse()`,
+    // gtkprogressbar.c:830-847) and a class on the progress NODE — there is no property
+    // for it, because a bar is pulsed or it is not. The element exposes the state as an
+    // attribute so a page can declare it, which is what the fence below does; a `.blp`
+    // cannot call a method and says so instead.
+    'gtk-progress-bar pulsing': { kind: 'declarative-state' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */

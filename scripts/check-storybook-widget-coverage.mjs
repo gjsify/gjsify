@@ -203,6 +203,10 @@ const ONE_RENDERER_ONLY = {
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
     },
+    'level-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     popover: {
         only: 'web',
         decision:
@@ -245,7 +249,7 @@ const ONE_RENDERER_ONLY = {
     switch: {
         only: 'web',
         decision:
-            'Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly; the browser has no such control, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one. Its own header records there is no behaviour to port either — "the state is one boolean with no derivation" (gtk-switch.ts:7-8).',
+            "Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly — one boolean with no second phase, so the `active`/`state` pair a delayed change needs (gtkswitch.c:39-43, :637-654) has nowhere to live there. The browser has no such control at all, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one, and it carries both properties: the knob on `active`, libadwaita's `switch:checked` trough on `state`.",
     },
     'tab-page': {
         only: 'web',

@@ -96,6 +96,31 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- GtkDropDown.vue — mount(GtkDropDown, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-drop-down\n        :model=\"['Automatic', 'Always', 'Never', 'When busy']\"\n        :selected=\"0\"\n        halign=\"center\"\n    />\n</template>",
         react: "// createRoot(container).render(<GtkDropDown />) — from '@gjsify/gtk-host/react'\nconst GtkDropDown = () => (\n    <gtk-drop-down\n        model={['Automatic', 'Always', 'Never', 'When busy']}\n        selected={0}\n        halign=\"center\"\n    />\n);",
     },
+    'Gtk.CheckButton': {
+        solid: "// mount(() => <GtkCheckButton />, container) — from '@gjsify/gtk-host/solid'\nconst GtkCheckButton = () => (\n    <gtk-check-button\n        label=\"Enable networking\"\n        active\n    />\n);",
+        vue: "<!-- GtkCheckButton.vue — mount(GtkCheckButton, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-check-button\n        label=\"Enable networking\"\n        :active=\"true\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkCheckButton />) — from '@gjsify/gtk-host/react'\nconst GtkCheckButton = () => (\n    <gtk-check-button\n        label=\"Enable networking\"\n        active\n    />\n);",
+    },
+    'Gtk.Switch': {
+        solid: "// mount(() => <GtkSwitch />, container) — from '@gjsify/gtk-host/solid'\nconst GtkSwitch = () => (\n    <gtk-switch\n        active\n        state\n        halign=\"center\"\n    />\n);",
+        vue: "<!-- GtkSwitch.vue — mount(GtkSwitch, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-switch\n        :active=\"true\"\n        :state=\"true\"\n        halign=\"center\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkSwitch />) — from '@gjsify/gtk-host/react'\nconst GtkSwitch = () => (\n    <gtk-switch\n        active\n        state\n        halign=\"center\"\n    />\n);",
+    },
+    'Gtk.ProgressBar': {
+        solid: "// mount(() => <GtkProgressBar />, container) — from '@gjsify/gtk-host/solid'\nconst GtkProgressBar = () => (\n    <gtk-progress-bar\n        fraction={0.4}\n        showText\n        widthRequest={320}\n        halign=\"center\"\n    />\n);",
+        vue: "<!-- GtkProgressBar.vue — mount(GtkProgressBar, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-progress-bar\n        :fraction=\"0.4\"\n        :show-text=\"true\"\n        :width-request=\"320\"\n        halign=\"center\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkProgressBar />) — from '@gjsify/gtk-host/react'\nconst GtkProgressBar = () => (\n    <gtk-progress-bar\n        fraction={0.4}\n        showText\n        widthRequest={320}\n        halign=\"center\"\n    />\n);",
+    },
+    'Gtk.LevelBar': {
+        solid: "// mount(() => <GtkLevelBar />, container) — from '@gjsify/gtk-host/solid'\nconst GtkLevelBar = () => (\n    <gtk-level-bar\n        maxValue={5}\n        mode=\"discrete\"\n        value={3}\n        widthRequest={240}\n        halign=\"center\"\n    />\n);",
+        vue: "<!-- GtkLevelBar.vue — mount(GtkLevelBar, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-level-bar\n        :max-value=\"5\"\n        mode=\"discrete\"\n        :value=\"3\"\n        :width-request=\"240\"\n        halign=\"center\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkLevelBar />) — from '@gjsify/gtk-host/react'\nconst GtkLevelBar = () => (\n    <gtk-level-bar\n        maxValue={5}\n        mode=\"discrete\"\n        value={3}\n        widthRequest={240}\n        halign=\"center\"\n    />\n);",
+    },
+    'Gtk.Spinner': {
+        solid: "// mount(() => <GtkSpinner />, container) — from '@gjsify/gtk-host/solid'\nconst GtkSpinner = () => (\n    <gtk-spinner\n        spinning\n        widthRequest={32}\n        heightRequest={32}\n    />\n);",
+        vue: "<!-- GtkSpinner.vue — mount(GtkSpinner, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-spinner\n        :spinning=\"true\"\n        :width-request=\"32\"\n        :height-request=\"32\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkSpinner />) — from '@gjsify/gtk-host/react'\nconst GtkSpinner = () => (\n    <gtk-spinner\n        spinning\n        widthRequest={32}\n        heightRequest={32}\n    />\n);",
+    },
     'Gtk.Separator': {
         solid: "// mount(() => <GtkSeparator />, container) — from '@gjsify/gtk-host/solid'\nconst GtkSeparator = () => (\n    <gtk-box\n        orientation=\"vertical\"\n        spacing={12}\n    >\n        <gtk-label label=\"Above\" />\n        <gtk-separator />\n        <gtk-label label=\"Below\" />\n        <gtk-separator\n            orientation=\"vertical\"\n            cssClasses={['spacer']}\n        />\n    </gtk-box>\n);",
         vue: "<!-- GtkSeparator.vue — mount(GtkSeparator, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-box\n        orientation=\"vertical\"\n        :spacing=\"12\"\n    >\n        <gtk-label label=\"Above\" />\n        <gtk-separator />\n        <gtk-label label=\"Below\" />\n        <gtk-separator\n            orientation=\"vertical\"\n            :css-classes=\"['spacer']\"\n        />\n    </gtk-box>\n</template>",

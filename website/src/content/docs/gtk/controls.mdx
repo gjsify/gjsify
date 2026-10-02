@@ -12,12 +12,19 @@ Libadwaita ships neither. Each has a boxed-list twin — `Adw.EntryRow` and
 `Adw.ComboRow` — under [Boxed Lists](/gjsify/adwaita/boxed-lists/), and which one
 you want is a question about the surrounding layout.
 
+The two **booleans** sit here too: the checkbox with its third, half-made state, and
+the light switch whose knob and trough are deliberately two different things. A
+boolean in a row is a row widget instead — `Adw.SwitchRow`, `Adw.ActionRow`.
+
 <MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour the toolkits drive natively can
-be simplified here. Two divergences are worth knowing: `<gtk-entry>` has no
+be simplified here. Four divergences are worth knowing: `<gtk-entry>` has no
 `editable`, so a field you may read but not change is spelled `disabled`, which
-also greys it; and the NativeScript drop down opens the platform action sheet,
-which has no search field.
+also greys it; the NativeScript drop down opens the platform action sheet,
+which has no search field; `<gtk-check-button>` spells GTK's `active` and
+`inconsistent` as `checked` and `indeterminate`, the two words the stylesheet
+selects on; and the checkbox clears its half-made state on a click, which is the
+HTML rule rather than GTK's.
 </MoreInfo>
 
 ## Entry
@@ -143,10 +150,164 @@ the popover follows, and the rows that did not change keep their place.
   </Fragment>
 </AdwWidget>
 
+## Check Button
+
+A label beside an indicator you can tick. On top of on and off it has a third state,
+**indeterminate**, for a selection that is only partly made — some of a range is
+affected — and it outranks on, exactly as it does for assistive technology. The
+grouped, single-choice form of a check button is a radio button; the browser port
+spells that [Adw.Radio](/gjsify/adwaita/boxed-lists/#radio).
+
+<AdwWidget title="Gtk.CheckButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <!-- label: Text of the label inside the check button, if it contains a label widget. -->
+      <gtk-check-button label="Enable networking" checked></gtk-check-button>
+      <!-- label: Text of the label inside the check button, if it contains a label widget. -->
+      <gtk-check-button label="Include hidden files"></gtk-check-button>
+      <!-- label: Text of the label inside the check button, if it contains a label widget. -->
+      <gtk-check-button label="Some of the selection" indeterminate></gtk-check-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const networking = new Gtk.CheckButton({ label: 'Enable networking', active: true });
+    const hidden = new Gtk.CheckButton({ label: 'Include hidden files' });
+
+    // "Some of the range is affected" — the third state, drawn as a dash and announced
+    // as `mixed`. GTK does NOT clear it when the user ticks the button; the property's
+    // own documentation says that is the application's job.
+    const partial = new Gtk.CheckButton({ label: 'Some of the selection', inconsistent: true });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 8;
+
+      Gtk.CheckButton {
+        label: _("Enable networking");
+        active: true;
+      }
+
+      Gtk.CheckButton {
+        label: _("Include hidden files");
+      }
+
+      Gtk.CheckButton {
+        label: _("Some of the selection");
+        inconsistent: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const networking = new Gtk.CheckButton({ label: 'Enable networking', active: true });
+    const hidden = new Gtk.CheckButton({ label: 'Include hidden files' });
+
+    // "Some of the range is affected" — the third state, drawn as a dash and announced
+    // as `mixed`. GTK does NOT clear it when the user ticks the button; the property's
+    // own documentation says that is the application's job.
+    const partial = new Gtk.CheckButton({ label: 'Some of the selection', inconsistent: true });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="checked and indeterminate">
+GTK names the two states `active` and `inconsistent`; the browser element names them
+`checked` and `indeterminate`, because it wraps a real `<input type="checkbox">` and
+those are the words an author already writes and the ones libadwaita's stylesheet
+selects on. Nothing else about the widget differs between the two renderings — except
+that a click clears `indeterminate` here, which is the HTML rule rather than GTK's.
+</MoreInfo>
+
+## Switch
+
+A light switch, for a boolean that is on its own rather than in a row. Its two
+properties are not the same thing, and that is the whole of `Gtk.Switch`: **active**
+is where the user put it, **state** is what the thing being switched currently is.
+Keep them equal and the switch is an ordinary toggle; let them differ and it is the
+honest picture of a change that has not landed yet — the knob where you left it, the
+trough still the old colour. Setting **active** on its own sets `state` too, because
+GTK's default `::state-set` handler does exactly that; write `state` yourself, after
+`active`, when you are driving the other half.
+
+For a boolean with a title beside it, use
+[Switch Row](/gjsify/adwaita/boxed-lists/#switch-row).
+
+<AdwWidget title="Gtk.Switch">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:24px;align-items:center;justify-content:center;">
+      <!-- active: Whether the `GtkSwitch` widget is in its on or off state. -->
+      <!-- state: The backend state that is controlled by the switch. -->
+      <gtk-switch active state></gtk-switch>
+      <!-- active: Whether the `GtkSwitch` widget is in its on or off state. -->
+      <gtk-switch active></gtk-switch>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const notifications = new Gtk.Switch({ active: true });
+
+    // A change that takes a while: move the knob now, and the trough when it lands.
+    // `set_state` is what repaints the trough alone; `set_active` would take `state`
+    // with it, because its default `::state-set` handler runs.
+    const syncing = new Gtk.Switch({ active: true, state: false });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 24;
+      halign: center;
+
+      Gtk.Switch {
+        active: true;
+        state: true;
+      }
+
+      Gtk.Switch {
+        active: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const notifications = new Gtk.Switch({ active: true });
+
+    // A change that takes a while: move the knob now, and the trough when it lands.
+    // `set_state` is what repaints the trough alone; `set_active` would take `state`
+    // with it, because its default `::state-set` handler runs.
+    const syncing = new Gtk.Switch({ active: true, state: false });
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Related
 
 - [Buttons](../buttons/): the plain button, its style classes and the menu
   button.
+- [Indicators](../indicators/): the progress bar, the level bar and the GTK
+  spinner — how far along something is.
 - [Boxed Lists](/gjsify/adwaita/boxed-lists/): the row twins of both controls,
   entry row, password entry row, combo row and spin row.
 - [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
