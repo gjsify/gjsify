@@ -104,6 +104,48 @@ export default async () => {
             expect((thrown as BlueprintEmitError).message.includes('collides with the Gtk.Builder')).toBe(true);
         });
 
+        await it('refuses two ids that would become one name in the emitted text', async () => {
+            // NOTHING UPSTREAM CATCHES THIS. Measured: the parser accepts a repeated id and the
+            // XML emitter writes both `id="same"` through — GtkBuilder's answer is last-one-wins
+            // at run time, not a refusal. The emitted TEXT has no such tolerance, so without this
+            // the first reader is `tsc` on a GENERATED file, pointing at a line in a sidecar
+            // nobody wrote. Three shapes, because the two exits name things differently.
+            const refusalFor = (body: string): BlueprintEmitError => {
+                let thrown: unknown;
+                try {
+                    derive(body);
+                } catch (error) {
+                    thrown = error;
+                }
+                expect(thrown instanceof BlueprintEmitError).toBe(true);
+                return thrown as BlueprintEmitError;
+            };
+
+            // A template's children collide on the MEMBER: two `_same` in one `Children` is
+            // TS2300 "Duplicate identifier".
+            expect(
+                refusalFor('template $C: Gtk.Box {\n  Gtk.Label same { }\n  Gtk.Button same { }\n}').message.includes(
+                    'two internal children are both named "same"',
+                ),
+            ).toBe(true);
+
+            // And the case the member transform CREATES out of two ids that are distinct in the
+            // source: `a-b` and `a_b` are different `get_object` names and one `_a_b` member.
+            // The refusal names both spellings, because the `.blp` has no second `a_b` to find.
+            const transformed = refusalFor('template $C: Gtk.Box {\n  Gtk.Label a-b { }\n  Gtk.Button a_b { }\n}');
+            expect(transformed.message.includes('"a-b"') && transformed.message.includes('"a_b"')).toBe(true);
+            expect(transformed.message.includes('_a_b')).toBe(true);
+
+            // A builder file collides on the ID: `build()` keys its result by the id verbatim, so
+            // the object literal would silently drop all but the last.
+            expect(
+                refusalFor('Gtk.Box same { }\nGtk.Button same { }').message.includes('two objects are both named'),
+            ).toBe(true);
+
+            // The line is the SECOND occurrence — where the reader has to change something.
+            expect(refusalFor('Gtk.Box same { }\nGtk.Button same { }').line).toBe(4);
+        });
+
         await it('gives a childless template neither InternalChildren nor Children', async () => {
             // `extends {}` constrains nothing and `InternalChildren: []` is a list
             // `registerClass` iterates zero times, so the absence is what says the template

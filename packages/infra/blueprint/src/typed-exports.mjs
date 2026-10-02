@@ -115,6 +115,34 @@ function collectMenu(menu, out) {
 }
 
 /**
+ * Refuse two ids that would become ONE NAME in the emitted text, naming both and the line.
+ *
+ * NOTHING UPSTREAM CATCHES THIS. Measured: the parser accepts `Gtk.Label same { }` beside
+ * `Gtk.Button same { }` and the XML emitter writes both `id="same"` through — GtkBuilder's own
+ * answer is last-one-wins, which is a run-time fact and not a refusal. The emitted TEXT has no
+ * such tolerance: two `_a_b` members in one interface is TS2300 "Duplicate identifier", two
+ * `same` keys in `Built` is the same error, and the object literal `build()` returns silently
+ * drops all but the last. So without this the first reader is `tsc` on a GENERATED file, at a
+ * line number that means nothing to whoever wrote the `.blp`.
+ *
+ * The key differs per exit because the two texts NAME things differently: a template's children
+ * collide on the MEMBER, so the distinct ids `a-b` and `a_b` both install `_a_b`, while a
+ * builder file's objects collide on the id itself, which `build()` uses as the key verbatim.
+ */
+function refuseCollisions(identifiers, keyOf, collision, file) {
+    const seen = new Map();
+    for (const one of identifiers) {
+        const key = keyOf(one);
+        const first = seen.get(key);
+        if (first === undefined) {
+            seen.set(key, one);
+            continue;
+        }
+        throw new BlueprintEmitError(collision(first, one, key), { file, line: one.line });
+    }
+}
+
+/**
  * What one `.blp` exports, as facts rather than as text.
  *
  * `template` is present only for the `$Name` sigil form. `template ListItem { }` names an
@@ -152,6 +180,25 @@ export function deriveExports(file) {
             { file: file.file, line: object.line },
         );
     }
+
+    if (template !== undefined) {
+        refuseCollisions(
+            template.children,
+            (one) => one.member,
+            (first, second, member) =>
+                first.id === second.id
+                    ? `two internal children are both named "${second.id}"; rename one`
+                    : `the internal children "${first.id}" and "${second.id}" both install "${member}" ` +
+                      '(a dash becomes an underscore); rename one',
+            file.file,
+        );
+    }
+    refuseCollisions(
+        objects,
+        (one) => one.id,
+        (_first, second) => `two objects are both named "${second.id}", and build() can return the id once; rename one`,
+        file.file,
+    );
 
     return { namespaces, template, objects };
 }

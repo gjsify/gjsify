@@ -144,6 +144,16 @@ objects keyed by id. Nothing in this ADR implements it, and no `--app browser` c
   are exported as `Gio.Menu`. A `$Name` extern type names no GIR type by construction — ADR 0053's
   `TypeRef.extern` says why — so its id is typed `GObject.Object` and narrowing it stays the
   caller's.
+- **A `.blp` whose ids cannot be NAMES is refused, and that is a construct the GNOME compiler
+  accepts.** Three of them: an id of `builder`, which the key `build()` returns beside the ids
+  would collide with; two objects with one id, which `build()` could only return once; and two
+  internal children whose MEMBERS coincide — the distinct ids `a-b` and `a_b` both install
+  `_a_b`, since § 3's transform replaces dashes. Measured: the parser takes all three and the XML
+  emitter writes them through, because GtkBuilder's own answer is last-one-wins at run time. The
+  emitted text has no such tolerance (TS2300 twice over, and an object literal that silently
+  drops all but the last), so the refusal is here, at the `.blp`'s own line, rather than as a
+  `tsc` error inside a generated file. ADR 0053 clause 3 is the shape: an error naming the file
+  and the line, never a silent pass-through.
 - No `.blp` is ADDED to the tree by this change, and that is deliberate: a new `.blp` obliges a
   reference-compiler golden, a `CORPUS_REAL_FILES` row, ADR 0053's census table and every stated
   corpus count. The builder exit therefore has no in-repo runtime consumer yet — its generated
