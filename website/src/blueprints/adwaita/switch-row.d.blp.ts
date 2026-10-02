@@ -1,4 +1,4 @@
-// GENERATED from switch-row.blp — do not edit. ADR 0087 says what these exports mean.
+// GENERATED from switch-row.blp — do not edit. ADR 0088 says what these exports mean.
 // Regenerate with `gjsify blueprint types`; `scripts/check-blueprint-sidecars.mjs` holds it.
 
 import type Adw from 'gi://Adw?version=1';
