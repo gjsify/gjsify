@@ -82,21 +82,16 @@ from the Blueprint file instead of the markup.
 
 The first tab is one program for four runtimes. Built with `gjsify build --app gjs` it
 runs on GJS, and built with `--app node` the same source runs on Node.js, Deno and Bun
-through `node-gi`. It calls `Adw.init()` so that the builder knows `Adw.Clamp` in a
-bare script too; inside an `Adw.Application` the call is harmless.
+through `node-gi`. `build()` calls `Adw.init()` itself, so the builder knows `Adw.Clamp`
+in a bare script too; inside an `Adw.Application` the call is harmless.
 </MoreInfo>
 
 <AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './clamp.blp';
+    import { build } from './clamp.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const clamp = builder.get_object('clamp') as Adw.Clamp;
-    const label = builder.get_object('label') as Gtk.Label;
+    const { clamp, label } = build();
     label.label = 'Reached by its Blueprint id.';
     clamp.maximumSize = 560;
     ```
@@ -136,22 +131,17 @@ the trailing one.
 <AdwWidget title="Adw.HeaderBar" blueprint="adwaita/header-bar.blp" stage="flex-direction: column; align-items: stretch;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
     import Gio from 'gi://Gio?version=2.0';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './header-bar.blp';
+    import { build } from './header-bar.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const title = builder.get_object('window_title') as Adw.WindowTitle;
-    const menuButton = builder.get_object('menu_button') as Gtk.MenuButton;
-    title.subtitle = 'draft.md';
+    const { window_title, menu_button } = build();
+    window_title.subtitle = 'draft.md';
 
     const menu = new Gio.Menu();
     menu.append('New Window', 'app.new-window');
     menu.append('Preferences', 'app.preferences');
     menu.append('About', 'app.about');
-    menuButton.menuModel = menu;
+    menu_button.menuModel = menu;
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -201,15 +191,10 @@ the view moves.
 <AdwWidget title="Adw.ToolbarView" blueprint="adwaita/toolbar-view.blp" padding="flush" stage="height: 300px; width: 100%; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './toolbar-view.blp';
+    import { build } from './toolbar-view.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const add = builder.get_object('add_button') as Gtk.Button;
-    const selection = builder.get_object('selection') as Gtk.Label;
-    add.connect('clicked', () => {
+    const { add_button, selection } = build();
+    add_button.connect('clicked', () => {
         selection.label = 'Selection: 1 item';
     });
     ```
@@ -250,18 +235,15 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
 <AdwWidget title="Adw.WrapBox" blueprint="adwaita/wrap-box.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
     import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './wrap-box.blp';
+    import { build } from './wrap-box.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const wrap = builder.get_object('wrap_box') as Adw.WrapBox;
+    const { wrap_box } = build();
 
     const chip = new Gtk.Button({ label: 'Blueprint' });
     chip.add_css_class('pill');
-    wrap.append(chip);
-    wrap.childSpacing = 12;
+    wrap_box.append(chip);
+    wrap_box.childSpacing = 12;
     ```
   </Fragment>
   <Fragment slot="webloader">

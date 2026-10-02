@@ -29,18 +29,12 @@ the content page and a back button returns to the list.
 <AdwWidget title="Adw.NavigationSplitView" blueprint="adwaita/navigation-split-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './navigation-split-view.blp';
+    import { build } from './navigation-split-view.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const splitView = builder.get_object('split_view') as Adw.NavigationSplitView;
-    const sidebar = builder.get_object('sidebar') as Adw.Sidebar;
-    const status = builder.get_object('status') as Adw.StatusPage;
+    const { split_view, sidebar, status } = build();
     sidebar.connect('activated', () => {
         status.title = sidebar.selectedItem?.title ?? '';
-        splitView.showContent = true;
+        split_view.showContent = true;
     });
     ```
   </Fragment>
@@ -83,17 +77,12 @@ push the main content aside on a narrow window.
 <AdwWidget title="Adw.OverlaySplitView" blueprint="adwaita/overlay-split-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './overlay-split-view.blp';
+    import { build } from './overlay-split-view.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const splitView = builder.get_object('split_view') as Adw.OverlaySplitView;
-    const sidebar = builder.get_object('sidebar') as Adw.Sidebar;
+    const { split_view, sidebar } = build();
     // Collapsed, the sidebar covers the content, so choosing a section closes it.
     sidebar.connect('activated', () => {
-        if (splitView.collapsed) splitView.showSidebar = false;
+        if (split_view.collapsed) split_view.showSidebar = false;
     });
     ```
   </Fragment>
@@ -137,15 +126,10 @@ shows the root page.
 <AdwWidget title="Adw.NavigationView" blueprint="adwaita/navigation-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './navigation-view.blp';
+    import { build } from './navigation-view.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const view = builder.get_object('navigation_view') as Adw.NavigationView;
-    const open = builder.get_object('open_button') as Gtk.Button;
-    open.connect('clicked', () => view.push_by_tag('detail'));
+    const { navigation_view, open_button } = build();
+    open_button.connect('clicked', () => navigation_view.push_by_tag('detail'));
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -184,13 +168,9 @@ a sidebar is a flat selectable list and already knows how to be one.
 <AdwWidget title="Adw.Sidebar" blueprint="adwaita/sidebar.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './sidebar.blp';
+    import { build } from './sidebar.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const sidebar = builder.get_object('sidebar') as Adw.Sidebar;
+    const { sidebar } = build();
     sidebar.connect('activated', () => console.log(`Open mailbox ${sidebar.selected}`));
     ```
   </Fragment>
@@ -230,14 +210,9 @@ builds the file alone, so there the button shows the content pane and does nothi
 <AdwWidget title="Adw.BottomSheet" blueprint="adwaita/bottom-sheet.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden; position: relative;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './bottom-sheet.blp';
+    import { build } from './bottom-sheet.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const sheet = builder.get_object('sheet') as Adw.BottomSheet;
-    const toggle = builder.get_object('toggle') as Gtk.Button;
+    const { sheet, toggle } = build();
     toggle.connect('clicked', () => {
         sheet.open = !sheet.open;
     });

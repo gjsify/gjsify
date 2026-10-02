@@ -28,14 +28,10 @@ everywhere in the toolkit.
 <AdwWidget title="Gtk.Button" blueprint="gtk/button.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './button.blp';
+    import { build } from './button.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const deleteButton = builder.get_object('delete_button') as Gtk.Button;
-    deleteButton.connect('clicked', () => console.log('Delete pressed'));
+    const { delete_button } = build();
+    delete_button.connect('clicked', () => console.log('Delete pressed'));
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -75,18 +71,16 @@ each tab sets the menu from code.
   <Fragment slot="gjs">
     ```ts
     import Gio from 'gi://Gio?version=2.0';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './menu-button.blp';
+    import { build } from './menu-button.blp';
 
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const menuButton = builder.get_object('menu_button') as Gtk.MenuButton;
-    menuButton.primary = true; // opens on F10, the way an app menu should
+    const { menu_button } = build();
+    menu_button.primary = true; // opens on F10, the way an app menu should
 
     const menu = new Gio.Menu();
     menu.append('Save as…', 'app.save-as');
     menu.append('Export', 'app.export');
     menu.append('Print', 'app.print');
-    menuButton.menuModel = menu;
+    menu_button.menuModel = menu;
     ```
   </Fragment>
   <Fragment slot="webloader">

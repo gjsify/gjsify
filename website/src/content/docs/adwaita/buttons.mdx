@@ -25,15 +25,10 @@ Set `can-shrink` if the label may ellipsize when horizontal space runs short.
 <AdwWidget title="Adw.ButtonContent" blueprint="adwaita/button-content.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './button-content.blp';
+    import { build } from './button-content.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const button = builder.get_object('download_button') as Gtk.Button;
-    const content = builder.get_object('content') as Adw.ButtonContent;
-    button.connect('clicked', () => {
+    const { download_button, content } = build();
+    download_button.connect('clicked', () => {
         content.label = 'Downloading…';
     });
     ```
@@ -75,21 +70,17 @@ opens a menu with the alternatives.
 <AdwWidget title="Adw.SplitButton" blueprint="adwaita/split-button.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
     import Gio from 'gi://Gio?version=2.0';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './split-button.blp';
+    import { build } from './split-button.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const button = builder.get_object('split_button') as Adw.SplitButton;
-    // button.add_css_class('flat'); // the header-bar / toolbar variant
+    const { split_button } = build();
+    // split_button.add_css_class('flat'); // the header-bar / toolbar variant
 
     const menu = new Gio.Menu();
     menu.append('Save as…', 'app.save-as');
     menu.append('Export', 'app.export');
     menu.append('Print', 'app.print');
-    button.menuModel = menu;
+    split_button.menuModel = menu;
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -152,14 +143,10 @@ and the only setter is class-level.
 <AdwWidget title="Adw.ToggleGroup" blueprint="adwaita/toggle-group.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './toggle-group.blp';
+    import { build } from './toggle-group.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const group = builder.get_object('toggle_group') as Adw.ToggleGroup;
-    group.activeName = 'grid';
+    const { toggle_group } = build();
+    toggle_group.activeName = 'grid';
     ```
   </Fragment>
   <Fragment slot="webloader">

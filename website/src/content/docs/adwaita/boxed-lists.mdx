@@ -26,14 +26,10 @@ page.
 <AdwWidget title="Adw.PreferencesGroup" blueprint="adwaita/preferences-group.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './preferences-group.blp';
+    import { build } from './preferences-group.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const signOut = builder.get_object('sign_out') as Gtk.Button;
-    signOut.connect('clicked', () => console.log('Sign out'));
+    const { sign_out } = build();
+    sign_out.connect('clicked', () => console.log('Sign out'));
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -66,13 +62,9 @@ row responds to a click, which is how you open a detail page.
 <AdwWidget title="Adw.ActionRow" blueprint="adwaita/action-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './action-row.blp';
+    import { build } from './action-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.ActionRow;
+    const { row } = build();
     row.connect('activated', () => console.log('Open Wi-Fi settings'));
     ```
   </Fragment>
@@ -104,13 +96,9 @@ the row you will use most in a preferences page.
 <AdwWidget title="Adw.SwitchRow" blueprint="adwaita/switch-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './switch-row.blp';
+    import { build } from './switch-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.SwitchRow;
+    const { row } = build();
     row.connect('notify::active', () => console.log('Automatic updates:', row.active));
     ```
   </Fragment>
@@ -144,13 +132,9 @@ user types.
 <AdwWidget title="Adw.EntryRow" blueprint="adwaita/entry-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './entry-row.blp';
+    import { build } from './entry-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.EntryRow;
+    const { row } = build();
     row.connect('notify::text', () => console.log('Display name:', row.text));
     ```
   </Fragment>
@@ -182,13 +166,9 @@ to reveal it. Use it anywhere a password or key is edited inline.
 <AdwWidget title="Adw.PasswordEntryRow" blueprint="adwaita/password-entry-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './password-entry-row.blp';
+    import { build } from './password-entry-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.PasswordEntryRow;
+    const { row } = build();
     row.connect('notify::text', () => console.log('Password length:', row.text.length));
     ```
   </Fragment>
@@ -220,13 +200,9 @@ selection is an index into the model you gave it, not the string itself.
 <AdwWidget title="Adw.ComboRow" blueprint="adwaita/combo-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './combo-row.blp';
+    import { build } from './combo-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.ComboRow;
+    const { row } = build();
     row.connect('notify::selected', () => console.log(`Accent ${row.selected}`));
     ```
   </Fragment>
@@ -308,13 +284,9 @@ size or a count.
 <AdwWidget title="Adw.SpinRow" blueprint="adwaita/spin-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './spin-row.blp';
+    import { build } from './spin-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.SpinRow;
+    const { row } = build();
     row.connect('notify::value', () => console.log(`Font size ${row.value}`));
     ```
   </Fragment>
@@ -347,15 +319,10 @@ whole section.
 <AdwWidget title="Adw.ExpanderRow" blueprint="adwaita/expander-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './expander-row.blp';
+    import { build } from './expander-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.ExpanderRow;
-    const host = builder.get_object('host_row') as Adw.EntryRow;
-    row.connect('notify::expanded', () => host.grab_focus());
+    const { row, host_row } = build();
+    row.connect('notify::expanded', () => host_row.grab_focus());
     ```
   </Fragment>
   <Fragment slot="webloader">
@@ -389,13 +356,9 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
 <AdwWidget title="Adw.ButtonRow" blueprint="adwaita/button-row.blp">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './button-row.blp';
+    import { build } from './button-row.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const row = builder.get_object('row') as Adw.ButtonRow;
+    const { row } = build();
     row.connect('activated', () => console.log('Add an account'));
     ```
   </Fragment>

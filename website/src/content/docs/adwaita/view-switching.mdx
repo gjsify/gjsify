@@ -180,13 +180,9 @@ over a one-page stack simply does not appear.
 <AdwWidget title="Adw.ViewSwitcherBar" blueprint="adwaita/view-switcher-bar.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './view-switcher-bar.blp';
+    import { build } from './view-switcher-bar.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const stack = builder.get_object('stack') as Adw.ViewStack;
+    const { stack } = build();
     stack.visibleChildName = 'starred';
     ```
   </Fragment>
@@ -475,14 +471,10 @@ own tracker, does.
 <AdwWidget title="Adw.Carousel" blueprint="adwaita/carousel.blp" padding="flush" stage="height: 260px; width: 100%; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
     ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-    import ui from './carousel.blp';
+    import { build } from './carousel.blp';
 
-    Adw.init();
-    const builder = Gtk.Builder.new_from_string(ui, -1);
-    const carousel = builder.get_object('intro_carousel') as Adw.Carousel;
-    carousel.connect('page-changed', () => console.log(`Page ${carousel.position}`));
+    const { intro_carousel } = build();
+    intro_carousel.connect('page-changed', () => console.log(`Page ${intro_carousel.position}`));
     ```
   </Fragment>
   <Fragment slot="webloader">
