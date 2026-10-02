@@ -2496,8 +2496,9 @@ jobs:
           node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --libs
 
       # `node-gyp rebuild --arch=arm64` is what the install script runs once the env says
-      # arm64 and the arm64 MSVC toolset is on PATH (vcvarsarm64). The VS version is the
-      # one the proven recipe passed; the runner image only ships VS 2026.
+      # arm64 and the arm64 MSVC toolset is on PATH (vcvarsarm64). No msvs_version: the runner
+      # image ships only VS 2026, and pinning 2022 made node-gyp refuse the very VS whose
+      # vcvars environment it was running in (run 37047489401); unset, it uses that one.
       - name: Build native addon (node-gyp / MSVC arm64)
         shell: pwsh
         working-directory: packages/node-gi/node-gi
@@ -2511,7 +2512,6 @@ jobs:
             if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
           }
           $env:npm_config_arch = 'arm64'
-          $env:npm_config_msvs_version = '2022'
           npm install --no-audit --no-fund --foreground-scripts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-Item build/Release/node_gi.node | Select-Object Length

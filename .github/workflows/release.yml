@@ -1195,7 +1195,6 @@ jobs:
             if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
           }
           $env:npm_config_arch = 'arm64'
-          $env:npm_config_msvs_version = '2022'
           npm install --no-audit --no-fund --foreground-scripts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/stage-prebuild.mjs

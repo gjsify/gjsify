@@ -16,9 +16,9 @@ runs:
   steps:
     # The project list is the one the fork's own `Build GTK4 Binaries (ARM64)` job
     # proves green; it is in the cache key because changing it changes the prefix.
-    - name: Cache the arm64 GTK4 prefix
+    - name: Restore the arm64 GTK4 prefix
       id: cache-gtk
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
         key: gvsbuild-fork-e6d37672568aab4919c71452f509291464980108-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
@@ -61,3 +61,12 @@ runs:
           if (-not (Test-Path "$p\$f")) { Write-Host "MISSING $p\$f"; exit 1 }
         }
         Write-Host "arm64 prefix present (cache hit: ${{ steps.cache-gtk.outputs.cache-hit }})"
+
+    # Saved HERE, not by actions/cache's post step: that one only runs when the whole job
+    # succeeds, so a failure in any later step threw away a 1.5 h build (run 37047489401).
+    - name: Save the arm64 GTK4 prefix
+      if: steps.cache-gtk.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: C:\gtk-build\gtk\ARM64\release
+        key: gvsbuild-fork-e6d37672568aab4919c71452f509291464980108-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
