@@ -86,6 +86,7 @@ export { AdwPreferencesGroup as PreferencesGroup } from '../elements/adw-prefere
 export { AdwPreferencesPage as PreferencesPage } from '../elements/adw-preferences-dialog.js';
 export { AdwPreferencesRow as PreferencesRow } from '../elements/adw-preferences-row.js';
 export { AdwShortcutLabel as ShortcutLabel } from '../elements/adw-shortcut-label.js';
+export { AdwShortcutsDialog as ShortcutsDialog } from '../elements/adw-shortcuts-dialog.js';
 export { AdwSidebar as Sidebar } from '../elements/adw-sidebar.js';
 export { AdwSpinRow as SpinRow } from '../elements/adw-spin-row.js';
 export { AdwSpinner as Spinner } from '../elements/adw-spinner.js';

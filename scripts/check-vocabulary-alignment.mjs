@@ -353,6 +353,20 @@ const WEB_ELEMENT_ALIGNMENT = {
     // A libadwaita GObject that is not a GtkWidget, so it has no tag here.
     'adw-sidebar-item': { webOnly: 'AdwSidebarItem descends from GObject.Object, not GtkWidget' },
     'adw-sidebar-section': { webOnly: 'AdwSidebarSection descends from GObject.Object, not GtkWidget' },
+    // The two halves of a shortcuts dialog, and the same shape as the two above: both are
+    // `G_DEFINE_FINAL_TYPE…G_TYPE_OBJECT` (adw-shortcuts-item.c:39,
+    // adw-shortcuts-section.c:44 — the section implementing GtkBuildable and
+    // Gio.ListModel), and a GObject has no row in a table of concrete widgets. A tag
+    // anyway, because `AdwShortcutsDialog`'s only method is `add(section)` and its
+    // GtkBuildable form is "add it as a child", which is the only route a document has.
+    'adw-shortcuts-item': {
+        webOnly:
+            'AdwShortcutsItem descends from GObject.Object, not GtkWidget (adw-shortcuts-item.c:39); it is one row of a section, drawn by AdwShortcutsDialog',
+    },
+    'adw-shortcuts-section': {
+        webOnly:
+            'AdwShortcutsSection descends from GObject.Object, not GtkWidget (adw-shortcuts-section.c:44); it is a group of shortcut rows added with AdwShortcutsDialog.add()',
+    },
     'adw-tab-page': { webOnly: 'AdwTabPage descends from GObject.Object, not GtkWidget' },
     // `adw-toggle` USED to be here, with the same reason. It left when the generated
     // table stopped meaning "concrete GtkWidget descendant" (ADR 0028 § Amendment,

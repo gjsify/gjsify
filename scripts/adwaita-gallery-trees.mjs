@@ -1135,6 +1135,8 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'a GtkPopover is shown by popping it up from an anchor WIDGET, so a tree has nothing to attach the popover to — `parentElement` is the default anchor and a top-level tree element has none.',
     'Adw.Dialog':
         'a dialog is opened with present() — the same shape Adw.AboutDialog above is refused for, and for the same reason: what a static tree can spell is the child, and the child is invisible without the portal.',
+    'Adw.ShortcutsDialog':
+        "a dialog is opened with present(), AND its content is AdwShortcutsSection objects — GObjects, not widgets, with no tag in a table of concrete widgets — so the row a static tree could spell would be a dialog with no portal and no sections. Its own descriptor says the same: `children: { kind: 'uncurated' }` (packages/framework/gtk-host/src/descriptors/adw.ts:69-74).",
     'Adw.ViewSwitcherBar': 'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
     'Adw.InlineViewSwitcher':
         'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',

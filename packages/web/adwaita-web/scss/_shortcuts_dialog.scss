@@ -1,0 +1,100 @@
+// _shortcuts_dialog.scss — the shortcuts dialog: sections of shortcut rows, and the
+// rows themselves.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_shortcuts-dialog.scss (16-27 the
+//   `.shortcut-row` padding and the `.title-box` subtitle; 1-14 the spacing between the
+//   groups inside the dialog's page)
+// Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1+
+// Modifications: Implemented for @gjsify/adwaita-web Web Components.
+
+// The class list libadwaita gives the dialog itself is `dialog.shortcuts`, and the
+// stylesheet reaches through it into a preferences page. Here the sections are the
+// dialog's children in the base's own content area, so the element is the same hook
+// in one selector — and the CONTENT AREA is the box the stylesheet spaces out
+// (`border-spacing: 18px` there, which is a `GtkBox` doing what a gap does).
+adw-shortcuts-dialog .adw-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+adw-shortcuts-dialog adw-shortcuts-section {
+  flex: 0 0 auto;
+}
+
+adw-shortcuts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adw-shortcuts-section-title {
+  font-weight: 700;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.adw-shortcuts-section-body {
+  display: flex;
+  flex-direction: column;
+  // The boxed-list surface the sections read as — a card with a hairline, exactly the
+  // one `adw-preferences-group` draws and the one `_shortcuts-dialog.scss` inherits.
+  border: 1px solid var(--card-shade-color);
+  border-radius: var(--card-radius);
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  overflow: hidden;
+}
+
+adw-shortcuts-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-m);
+  // `.shortcut-row { padding: 9px 12px; min-height: 36px }` (_shortcuts-dialog.scss:16-19)
+  padding: 9px 12px;
+  min-height: 36px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &:not(:first-child) {
+    border-top: 1px solid var(--card-shade-color);
+  }
+
+  + adw-shortcuts-item {
+    border-top: 1px solid var(--card-shade-color);
+  }
+}
+
+// `.title-box { border-spacing: 3px }` with the subtitle under the title: the source
+// is a vertical box, so the title and the subtitle stack and the subtitle is dimmed
+// and caption-sized (`@extend .caption; @extend .dimmed`).
+.adw-shortcuts-item-title,
+.adw-shortcuts-item-subtitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adw-shortcuts-item-subtitle {
+  font-size: var(--font-size-small);
+  opacity: var(--dim-opacity);
+  margin-top: 3px;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.adw-shortcuts-item-label {
+  flex: 0 0 auto;
+
+  &[hidden] {
+    display: none;
+  }
+}

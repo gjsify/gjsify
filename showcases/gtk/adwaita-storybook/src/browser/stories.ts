@@ -108,6 +108,7 @@ import { GtkAboutDialogWebStories } from './feedback/gtk-about-dialog.web.js';
 import { PageSetupUnixDialogWebStories } from './feedback/page-setup-unix-dialog.web.js';
 import { PrintUnixDialogWebStories } from './feedback/print-unix-dialog.web.js';
 import { PreferencesDialogWebStories } from './feedback/preferences-dialog.web.js';
+import { ShortcutsDialogWebStories } from './feedback/shortcuts-dialog.web.js';
 import { ToastWebStories } from './feedback/toast.web.js';
 import { ActionBarWebStories } from './windows/action-bar.web.js';
 import { ApplicationWindowWebStories } from './windows/application-window.web.js';
@@ -208,6 +209,7 @@ export const stories: WebStoryModule[] = [
     PageSetupUnixDialogWebStories,
     PreferencesDialogWebStories,
     PrintUnixDialogWebStories,
+    ShortcutsDialogWebStories,
     ToastWebStories,
     GtkHeaderBarWebStories,
     WindowControlsWebStories,

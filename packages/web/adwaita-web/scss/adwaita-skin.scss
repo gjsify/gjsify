@@ -170,6 +170,9 @@
 @use 'alert_dialog';
 @use 'preferences_dialog';
 @use 'dialog';
+// After 'dialog': the shortcuts dialog IS an <adw-dialog> and adds sections and rows
+// inside its content area, so its own rules have to come after the chrome they sit in.
+@use 'shortcuts_dialog';
 // Last among the widgets: an authored `halign` / `valign` is placement the author asked
 // for, and an element rule that sets a margin must not win it back on source order.
 @use 'widget';

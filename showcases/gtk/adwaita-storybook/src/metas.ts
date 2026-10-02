@@ -37,6 +37,7 @@ export * from './feedback/gtk-about-dialog.meta.js';
 export * from './feedback/page-setup-unix-dialog.meta.js';
 export * from './feedback/preferences-dialog.meta.js';
 export * from './feedback/print-unix-dialog.meta.js';
+export * from './feedback/shortcuts-dialog.meta.js';
 export * from './feedback/toast.meta.js';
 export * from './layout/bin.meta.js';
 export * from './layout/breakpoint-bin.meta.js';

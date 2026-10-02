@@ -462,6 +462,21 @@ const ONE_RENDERER_ONLY = {
         decision:
             'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on, and `<gtk-window>` for the same reason plus the frame PROPERTIES: `deletable`, `resizable`, `maximized`, `decorated` and `hide-on-close` decide which frame buttons a page draws and there is nothing on a `Page` for them to decide.',
     },
+    'shortcuts-dialog': {
+        only: 'web',
+        decision:
+            "The generic-dialog half is the `dialog` entry's, and the shortcuts half is a platform fact rather than an unwritten port: a touch target has no keyboard, so there is no accelerator to list. `AdwShortcutsDialog` is libadwaita 1.8 and its sections are AdwShortcutsSection GObjects added with `add()`, which no markup spells — the port's whole shortcut surface is `AdwShortcutLabel`, one keycap.",
+    },
+    'shortcuts-section': {
+        only: 'web',
+        decision:
+            'A libadwaita GObject that is not a GtkWidget (adw-shortcuts-section.c:44), so it has no row in a table of concrete widgets and the port has no view to build: `AdwShortcutLabel` is one keycap and this is a group of rows. Its tag is the markup form of `AdwShortcutsDialog.add()` — the same objection `<adw-sidebar-section>` answers for above.',
+    },
+    'shortcuts-item': {
+        only: 'web',
+        decision:
+            "A libadwaita GObject that is not a GtkWidget (adw-shortcuts-item.c:39) — one row of a section, not a widget. The port's nearest thing is `AdwShortcutLabel`, and that is the accelerator ALONE: the title, the subtitle and the text-direction rule have no counterpart on a keycap.",
+    },
 };
 
 /**

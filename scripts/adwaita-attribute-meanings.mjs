@@ -70,6 +70,18 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'title': null,
         'use-markup': 'Whether to use Pango markup for the title label.',
     },
+    'adw-shortcuts-dialog': {
+        'title': null,
+    },
+    'adw-shortcuts-item': {
+        'accelerator': null,
+        'action-name': 'Fully qualified action name to get the accelerator from.',
+        'direction': null,
+        'title': null,
+    },
+    'adw-shortcuts-section': {
+        'title': 'The title of the section, can be `NULL`.',
+    },
     'adw-spin-row': {
         'adjustment': 'The adjustment that holds the value of the spin row.',
         'title': null,
@@ -320,6 +332,7 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-breakpoint-bin breakpoints': 'port-only',
     'adw-dialog open': 'declarative-state',
     'adw-preferences-dialog open': 'declarative-state',
+    'adw-shortcuts-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
     'gtk-about-dialog open': 'declarative-state',
@@ -352,12 +365,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 184,
-    glossed: 73,
-    nameSuffices: 80,
-    divergent: 30,
+    set: 191,
+    glossed: 75,
+    nameSuffices: 84,
+    divergent: 31,
     authored: 1,
-    commentLines: 102,
+    commentLines: 104,
 };
 
 /**

@@ -654,6 +654,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'which GtkBox.addChild cannot take and no XML attribute carries (status/open-todos/adwaita-ports.md).',
     'Adw.Dialog':
         'The NativeScript port has no generic dialog: the three it ships are AdwAlertDialog, AdwAboutDialog and AdwPreferencesDialog, and each substitutes the platform\'s own sheet rather than an in-app card ("There is NO custom in-app modal here", adw-alert-dialog.ts). A content-agnostic dialog has no platform sheet to be, and AdwBottomSheet is the only in-app surface the port has (status/open-todos/adwaita-ports.md).',
+    'Adw.ShortcutsDialog':
+        'The port has no shortcuts dialog and nothing to build one from: AdwShortcutLabel is its whole shortcut surface, and that is ONE keycap rather than a list of rows, so there is no section and no item class to add. The generic-dialog refusal beside it applies for the same reason — a phone has no keyboard to list (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would

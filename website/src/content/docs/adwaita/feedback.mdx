@@ -1,6 +1,6 @@
 ---
 title: Feedback
-description: "Adwaita feedback widgets: toast, the generic dialog and the alert, about and preferences dialogs. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita feedback widgets: toast, the generic dialog and the alert, about, preferences and shortcuts dialogs. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -11,7 +11,8 @@ content and gets out of the way on its own, so use it when nothing needs to happ
 next. A **dialog** puts a modal surface in front of the window and waits for an
 answer, so use it when something does. The generic **dialog** takes whatever content
 you hand it; the **alert**, **about** and **preferences** dialogs below are the three
-shapes an app asks for often enough that libadwaita writes them for you.
+shapes an app asks for often enough that libadwaita writes them for you, plus
+the **shortcuts** dialog that lists your keyboard shortcuts.
 
 <MoreInfo title="How the previews differ from the widget">
 The previews hold each dialog **open** and each toast **visible**, which is not
@@ -529,6 +530,105 @@ port renders them stacked instead.
     page.add(group);
     dialog.add(page);
     dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Shortcuts Dialog
+
+The window behind your _Keyboard Shortcuts_ command: **sections** of **shortcut
+rows**, each row a title, an optional subtitle and an **accelerator** drawn as
+keycaps. New in libadwaita 1.8.
+
+<MoreInfo title="An accelerator, or an action">
+An item can carry the accelerator itself, or name the **action** it stands for and
+let the application supply the key. On GTK that lookup is
+`Gtk.Application.set_accels_for_action`, and the accelerator wins whenever the
+action has none — which is what the class documents. A browser has no application
+to ask, so `<adw-shortcut-label>` draws the accelerator that is there and a row
+that names only an action simply shows no keycaps.
+</MoreInfo>
+
+<MoreInfo title="One direction at a time">
+A row may name the **direction** it belongs to, so one dialog can list the LTR and
+the RTL accelerator for the same action and each shows in its own. An untitled
+section is the documented way to subdivide a section into groups, and libadwaita
+draws no heading for one.
+</MoreInfo>
+
+<AdwWidget title="Adw.ShortcutsDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <adw-shortcuts-dialog open title="Keyboard Shortcuts">
+      <!-- title: The title of the section, can be `NULL`. -->
+      <adw-shortcuts-section title="General">
+        <adw-shortcuts-item title="Open Menu" accelerator="F10"></adw-shortcuts-item>
+        <!-- action-name: Fully qualified action name to get the accelerator from. -->
+        <adw-shortcuts-item title="Preferences" action-name="app.preferences"></adw-shortcuts-item>
+        <adw-shortcuts-item title="Quit" accelerator="&lt;Control&gt;q"></adw-shortcuts-item>
+      </adw-shortcuts-section>
+      <adw-shortcuts-section>
+        <adw-shortcuts-item title="Move Tab Left" accelerator="&lt;Shift&gt;&lt;Control&gt;Page_Up" direction="ltr"></adw-shortcuts-item>
+        <adw-shortcuts-item title="Move Tab Left" accelerator="&lt;Shift&gt;&lt;Control&gt;Page_Up" direction="rtl"></adw-shortcuts-item>
+      </adw-shortcuts-section>
+    </adw-shortcuts-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    Adw.init();
+
+    // SECTIONS ARE GObjects, not widgets, so they are added rather than packed. An
+    // untitled section is the documented way to subdivide one into groups.
+    const general = new Adw.ShortcutsSection({ title: 'General' });
+    general.add(new Adw.ShortcutsItem({ title: 'Open Menu', accelerator: 'F10' }));
+    // Or name the action and let the application supply the key.
+    general.add(new Adw.ShortcutsItem({ title: 'Preferences', action_name: 'app.preferences' }));
+    general.add(new Adw.ShortcutsItem({ title: 'Quit', accelerator: '<Control>q' }));
+
+    const navigation = new Adw.ShortcutsSection();
+    navigation.add(
+        new Adw.ShortcutsItem({
+            title: 'Move Tab Left',
+            accelerator: '<Shift><Control>Page_Up',
+            direction: Gtk.TextDirection.LTR,
+        }),
+    );
+
+    const dialog = new Adw.ShortcutsDialog({ title: 'Keyboard Shortcuts' });
+    dialog.add(general);
+    dialog.add(navigation);
+
+    dialog.present(window);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    // A section and an item are GOBJECTS, so a `.blp` names them as objects and the
+    // dialog takes each as a child — the GtkBuildable route the class documents.
+    Adw.ShortcutsDialog shortcuts_dialog {
+      title: _("Keyboard Shortcuts");
+
+      Adw.ShortcutsSection {
+        title: _("General");
+
+        Adw.ShortcutsItem {
+          title: _("Open Menu");
+          accelerator: "F10";
+        }
+
+        Adw.ShortcutsItem {
+          title: _("Preferences");
+          action-name: "app.preferences";
+        }
+      }
+    }
     ```
   </Fragment>
 </AdwWidget>

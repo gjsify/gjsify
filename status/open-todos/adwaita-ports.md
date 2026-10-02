@@ -412,7 +412,12 @@ exactly why they must not be written as decisions.
   ("There is NO custom in-app modal here", `adw-alert-dialog.ts`), and a
   content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
   card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
-  open decision.
+  open decision. `<adw-shortcuts-dialog>` is ledgered beside it: the generic-dialog half
+  is the same, and the shortcuts half is a platform fact rather than an unwritten port —
+  a touch target has no keyboard, so there is no accelerator to list — but the port has
+  neither the dialog nor the `AdwShortcutsSection` / `AdwShortcutsItem` GObjects to build
+  it from. Its whole shortcut surface is `<adw-shortcut-label>`, one keycap.
+- **`<adw-window>` and `<adw-application-window>` on NativeScript.** Both browser elements,
 - **`<gtk-about-dialog>`, `<gtk-emoji-chooser>`, `<gtk-page-setup-unix-dialog>` and
   `<gtk-print-unix-dialog>` on NativeScript.** Four browser elements and their gallery blocks
   exist; the NativeScript port has none of the four, so their stories are ledgered as not

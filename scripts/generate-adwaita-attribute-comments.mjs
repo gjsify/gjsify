@@ -164,6 +164,10 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'adw-about-dialog open': { kind: 'declarative-state' },
     'adw-alert-dialog open': { kind: 'declarative-state' },
     'adw-dialog open': { kind: 'declarative-state' },
+    // The INHERITED one: `AdwShortcutsDialog` is a final `Adw.Dialog`, so `open` is its
+    // parent's declarative state reached through the subclass — the same entry for the
+    // same reason as the three above it.
+    'adw-shortcuts-dialog open': { kind: 'declarative-state' },
     'adw-preferences-dialog open': { kind: 'declarative-state' },
 
     // `<adw-alert-response>` is not a widget at all: it is the markup form of
