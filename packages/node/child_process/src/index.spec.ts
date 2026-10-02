@@ -494,9 +494,14 @@ export default async () => {
             child.on('exit', () => events.push('exit'));
             child.on('close', () => events.push('close'));
             await new Promise<void>((resolve) => child.on('close', () => resolve()));
+            expect(events[events.length - 1]).toBe('close');
+            // Real Node on win32 (CI, cmd.exe) emits `close` with only `EARLY`:
+            // the grandchild's inherited handle does not keep the parent's pipe
+            // open there, so `LATE` is never part of this stream. The survivor
+            // contract below is POSIX; `close` last holds everywhere.
+            if (process.platform === 'win32') return;
             expect(out).toBe('EARLYLATE');
             expect(events.indexOf('exit')).toBeLessThan(events.indexOf('data:LATE'));
-            expect(events[events.length - 1]).toBe('close');
         });
 
         await it('should emit non-zero exit code for failing command', async () => {
