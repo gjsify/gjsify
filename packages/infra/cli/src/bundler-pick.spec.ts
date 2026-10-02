@@ -12,7 +12,7 @@
 // These tests prevent the adapter from silently dropping hooks /
 // mis-translating filters when real-world plugin shapes change.
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -504,7 +504,7 @@ export default async () => {
         // (there, `~/.cache/gjsify/bootstrap/`). Emitting `lib/esm` was necessary
         // and NOT sufficient — measured, the bundle-only anchor still failed with
         // `not found in any node_modules directory` while the file was right there.
-        const root = mkdtempSync(join(tmpdir(), 'gjsify-native-library-anchor-'));
+        const root = realpathSync(mkdtempSync(join(tmpdir(), 'gjsify-native-library-anchor-')));
         const wsRoot = join(root, 'workspace');
         const utilsDir = join(wsRoot, 'node_modules', '@gjsify', 'utils');
         const built = join(utilsDir, 'lib', 'esm', 'native-library.js');
@@ -531,25 +531,46 @@ export default async () => {
         writeFileSync(bundle, '// bundle outside every node_modules chain\n');
 
         await it('finds it through the cwd anchor when the bundle reaches no chain', () => {
-            expect(resolveNativeLibraryModule({ cwd: wsRoot, bundleUrl: pathToFileURL(bundle).href })).toBe(built);
+            // `realpath` on BOTH sides: the comparison IS the claim, and `tmpdir()`
+            // is a symlink on macOS (`/var` -> `/private/var`), so the resolver
+            // hands back a canonicalized path and the fixture path is not.
+            const reached = resolveNativeLibraryModule({ cwd: wsRoot, bundleUrl: pathToFileURL(bundle).href });
+            expect(realpathSync(reached)).toBe(realpathSync(built));
         });
 
-        // The regression this pins, stated as the measurement that produced it: the
-        // pre-fix call was a bare `createRequire(import.meta.url).resolve(...)`, and
-        // on this fixture that THROWS while the file exists. Without this line the
-        // test above would still pass if a future resolver found the file for a
-        // reason the release job does not share.
-        await it('the bundle-only anchor it replaced cannot see this tree', () => {
-            expect(() => createRequire(pathToFileURL(bundle).href).resolve('@gjsify/utils/native-library')).toThrow();
+        // The regression this pins, as the measurement that produced it: the pre-fix
+        // call was a bare `createRequire(import.meta.url).resolve(...)`, and on this
+        // fixture it cannot reach the fixture's copy. Asserted as "not THIS file"
+        // rather than "throws", because whether it throws is the HOST's business and
+        // it differs -- measured, Node throws `MODULE_NOT_FOUND` while Bun answers
+        // from its global install cache with a DIFFERENT `@gjsify/utils`. Both are
+        // the defect (the anchor lands on a tree that is not this one), and WHICH
+        // file came back is the invariant that actually matters.
+        await it('the bundle-only anchor it replaced cannot reach this tree', () => {
+            let reached: string | null = null;
+            try {
+                reached = createRequire(pathToFileURL(bundle).href).resolve('@gjsify/utils/native-library');
+            } catch {
+                reached = null; // Node: no chain, no file
+            }
+            expect(reached === null ? null : realpathSync(reached)).not.toBe(realpathSync(built));
         });
 
-        // Still THROWS rather than answering null: `diagnoseNativeEngine()` names
-        // this miss, and a `null` here would turn a named cause into a bare
-        // "no usable bundler engine".
-        await it('throws when no anchor reaches the module', () => {
+        // Never answers with THIS fixture's tree, and never `null`: `diagnoseNativeEngine()`
+        // names a miss, and a `null` would reduce a named cause to a bare "no usable
+        // bundler engine". Throwing is Node's answer; a host whose `require.resolve`
+        // answers from elsewhere (Bun) may hand back a path and the load then fails
+        // where the caller can say so.
+        await it('does not reach the fixture tree when no anchor leads there', () => {
             const empty = join(root, 'empty');
             mkdirSync(empty, { recursive: true });
-            expect(() => resolveNativeLibraryModule({ cwd: empty, bundleUrl: pathToFileURL(bundle).href })).toThrow();
+            let reached: string;
+            try {
+                reached = resolveNativeLibraryModule({ cwd: empty, bundleUrl: pathToFileURL(bundle).href });
+            } catch {
+                return; // threw: the contract on Node
+            }
+            expect(realpathSync(reached)).not.toBe(realpathSync(built));
         });
 
         rmSync(root, { recursive: true, force: true });
