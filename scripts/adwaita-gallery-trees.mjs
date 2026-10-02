@@ -265,6 +265,61 @@ export const ADWAITA_GALLERY_TREES = [
             props: { model: ['Automatic', 'Always', 'Never', 'When busy'], selected: 0, halign: 'center' },
         },
     },
+    // ------------------------------------------------------------------ gtk controls
+    {
+        widget: 'Gtk.Scale',
+        page: 'controls',
+        // The range is the PORTABLE ADJUSTMENT (ADR 0047), so `value` lives INSIDE it —
+        // the same shape `Adw.SpinRow` above has, and the reason `coerce` builds the real
+        // `Gtk.Adjustment` at the same seam. `digits: 0` is what the block's preview shows:
+        // a volume slider with one decimal reads `0.5`, one with none reads `0`.
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                {
+                    tag: 'gtk-scale',
+                    props: {
+                        adjustment: { lower: 0, upper: 100, value: 40, stepIncrement: 1, pageIncrement: 10 },
+                        digits: 0,
+                        drawValue: true,
+                        valuePos: 'top',
+                        widthRequest: 320,
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.SpinButton',
+        page: 'controls',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                {
+                    tag: 'gtk-spin-button',
+                    props: {
+                        adjustment: { lower: 0, upper: 10, value: 5, stepIncrement: 1, pageIncrement: 2 },
+                        digits: 0,
+                        numeric: true,
+                        snapToTicks: true,
+                        halign: 'center',
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.PasswordEntry',
+        page: 'controls',
+        root: { tag: 'gtk-password-entry', props: { showPeekIcon: true, placeholderText: 'Password' } },
+    },
+    {
+        widget: 'Gtk.SearchEntry',
+        page: 'controls',
+        root: { tag: 'gtk-search-entry', props: { placeholderText: 'Search…', searchDelay: 150 } },
+    },
     {
         widget: 'Gtk.CheckButton',
         page: 'controls',
@@ -674,6 +729,13 @@ export const ADWAITA_GALLERY_TREES = [
  * does.
  */
 export const ADWAITA_GALLERY_REFUSALS = {
+    // NOT HERE, and deliberately: `Gtk.Range` is ABSTRACT — `gtk_range_get_type()` registers
+    // it with `G_TYPE_FLAG_ABSTRACT`, so `g_object_new` on it is a hard failure, and there is
+    // no gallery block and no tree for it. Its whole surface is `Gtk.Scale`'s, which is where
+    // the adjustment and the value are shown; neither ledger takes an entry for it, because
+    // both of those are keyed on a gallery block and it has none. It is said out loud in the
+    // `Gtk.Scale` section of website/src/content/docs/gtk/controls.mdx instead, and in the
+    // header of packages/web/adwaita-web/src/elements/gtk-scale.ts.
     // Measured by `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`: the host
     // raises `uncurated-placement` BY NAME when the child is materialised — for
     // every entry in this group, and the probe fails if any starts being accepted.

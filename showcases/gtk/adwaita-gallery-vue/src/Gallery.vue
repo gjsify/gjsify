@@ -163,6 +163,38 @@
             :selected="0"
             halign="center"
         />
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-scale
+                :adjustment="{ lower: 0, upper: 100, value: 40, stepIncrement: 1, pageIncrement: 10 }"
+                :digits="0"
+                :draw-value="true"
+                value-pos="top"
+                :width-request="320"
+            />
+        </gtk-box>
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-spin-button
+                :adjustment="{ lower: 0, upper: 10, value: 5, stepIncrement: 1, pageIncrement: 2 }"
+                :digits="0"
+                :numeric="true"
+                :snap-to-ticks="true"
+                halign="center"
+            />
+        </gtk-box>
+        <gtk-password-entry
+            :show-peek-icon="true"
+            placeholder-text="Password"
+        />
+        <gtk-search-entry
+            placeholder-text="Search…"
+            :search-delay="150"
+        />
         <gtk-check-button
             label="Enable networking"
             :active="true"

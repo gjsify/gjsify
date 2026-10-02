@@ -104,7 +104,6 @@ the popover follows, and the rows that did not change keep their place.
   <Fragment slot="preview">
     ```html
     <!-- `model` is a JSON array of strings, or of { label, value } objects. -->
-    <!-- selected: The position of the selected item. -->
     <gtk-drop-down model='["Automatic","Always","Never","When busy"]' selected="0"></gtk-drop-down>
     ```
   </Fragment>
@@ -298,6 +297,393 @@ For a boolean with a title beside it, use
     // `set_state` is what repaints the trough alone; `set_active` would take `state`
     // with it, because its default `::state-set` handler runs.
     const syncing = new Gtk.Switch({ active: true, state: false });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Scale
+
+A slider. `Gtk.Scale` extends `Gtk.Range`, and **`Gtk.Range` is abstract** — GTK refuses to
+instantiate it, so it has no page of its own; every property it declares is the one below,
+which is why this block reads `adjustment` rather than a `range`.
+
+The **adjustment** is the range: a JSON object with `lower`, `upper`, `stepIncrement`,
+`pageIncrement`, `pageSize` and `value`. The last one is the value, so it belongs inside
+the object rather than beside it. Dragging, the arrow keys and Page Up/Down all move by
+`stepIncrement` and `pageIncrement` respectively, and Ctrl with an arrow pages.
+
+**digits** is how many decimal places the value text carries, **draw-value** shows it at
+all, and **value-pos** puts it `top` (the default), `bottom`, `left` or `right`. **inverted**
+runs the scale the other way; for a horizontal scale it already is inverted in a
+right-to-left document, which is what `Gtk.Range`'s flippable flag is for.
+
+<MoreInfo title="Marks and fine-tune">
+`Gtk.Scale` also has marks — tick lines with labels — and a Shift-held drag that enters
+fine-tune mode. Both have no browser counterpart here: `add_mark()` is deprecated since GTK
+4.10, and fine-tune is a style class `Gtk.Range` adds for the length of that one gesture.
+</MoreInfo>
+
+<AdwWidget title="Gtk.Scale">
+  <Fragment slot="preview">
+    ```html
+    <!-- spacing: The amount of space between children. -->
+    <gtk-box orientation="vertical" spacing="16" style="width:320px;">
+      <!-- adjustment: The adjustment that is controlled by the range. -->
+      <!-- digits: The number of decimal places that are displayed in the value. -->
+      <!-- draw-value: Whether the current value is displayed as a string next to the slider. -->
+      <gtk-scale
+        adjustment='{"lower":0,"upper":100,"value":40,"stepIncrement":1,"pageIncrement":10}'
+        digits="0"
+        draw-value
+        value-pos="top">
+      </gtk-scale>
+
+      <!-- The same slider without the value text and filling from the right. -->
+      <!-- adjustment: The adjustment that is controlled by the range. -->
+      <!-- digits: The number of decimal places that are displayed in the value. -->
+      <!-- inverted: If TRUE, the direction in which the slider moves is inverted. -->
+      <gtk-scale
+        adjustment='{"lower":0,"upper":100,"value":25,"stepIncrement":1,"pageIncrement":10}'
+        digits="0"
+        inverted>
+      </gtk-scale>
+    </gtk-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const adjustment = new Gtk.Adjustment({
+        lower: 0,
+        upper: 100,
+        value: 40,
+        stepIncrement: 1,
+        pageIncrement: 10,
+    });
+
+    const scale = new Gtk.Scale({
+        adjustment,
+        digits: 0,
+        drawValue: true,
+        valuePos: Gtk.PositionType.TOP,
+    });
+
+    // A vertical scale is the same widget with another orientation.
+    const mirrored = new Gtk.Scale({ adjustment, inverted: true });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 16;
+
+      Gtk.Scale {
+        digits: 0;
+        draw-value: true;
+        value-pos: top;
+
+        adjustment: Gtk.Adjustment {
+          lower: 0;
+          upper: 100;
+          value: 40;
+          step-increment: 1;
+          page-increment: 10;
+        };
+      }
+
+      Gtk.Scale {
+        digits: 0;
+        inverted: true;
+
+        adjustment: Gtk.Adjustment {
+          lower: 0;
+          upper: 100;
+          value: 25;
+          step-increment: 1;
+          page-increment: 10;
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const adjustment = new Gtk.Adjustment({
+        lower: 0,
+        upper: 100,
+        value: 40,
+        stepIncrement: 1,
+        pageIncrement: 10,
+    });
+
+    const scale = new Gtk.Scale({
+        adjustment,
+        digits: 0,
+        drawValue: true,
+        valuePos: Gtk.PositionType.TOP,
+    });
+
+    // A vertical scale is the same widget with another orientation.
+    const mirrored = new Gtk.Scale({ adjustment, inverted: true });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Spin Button
+
+A number field with an arrow either side of it. Its **adjustment** is the same JSON object
+the scale takes, so a range authored here is the one the scale above would use unchanged.
+
+**numeric** refuses anything that is not a number as it is typed; **digits** is how many
+decimal places the field shows and commits; **snap-to-ticks** moves a typed value onto the
+step grid rather than leaving it between two steps; and **wrap** makes an arrow at a bound
+jump to the other end instead of going insensitive. **update-policy** decides what a
+rejected entry does: `always` clamps it into the range, `if-valid` leaves the committed
+value alone and re-formats the field.
+
+<MoreInfo title="Where the arrows sit">
+The horizontal widget reads `text ▼ ▲` and the vertical one `▲ text ▼` — that is the order
+`Gtk.SpinButton` builds its children in, and it is why the rounded corner is on the up
+arrow in both. `orientation` moves the up arrow the same way C does.
+</MoreInfo>
+
+<AdwWidget title="Gtk.SpinButton">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- adjustment: The adjustment that holds the value of the spin button. -->
+      <!-- digits: The number of decimal places to display. -->
+      <!-- numeric: Whether non-numeric characters should be ignored. -->
+      <!-- snap-to-ticks: Whether erroneous values are automatically changed to the spin buttons nearest step increment. -->
+      <gtk-spin-button
+        adjustment='{"lower":0,"upper":10,"value":5,"stepIncrement":1,"pageIncrement":2}'
+        digits="0"
+        numeric
+        snap-to-ticks>
+      </gtk-spin-button>
+
+      <!-- A wrapping field over a fractional range, shown at two places. -->
+      <!-- adjustment: The adjustment that holds the value of the spin button. -->
+      <!-- digits: The number of decimal places to display. -->
+      <!-- wrap: Whether a spin button should wrap upon reaching its limits. -->
+      <gtk-spin-button
+        orientation="vertical"
+        adjustment='{"lower":0,"upper":1,"value":0.5,"stepIncrement":0.25}'
+        digits="2"
+        wrap>
+      </gtk-spin-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const count = new Gtk.SpinButton({
+        adjustment: new Gtk.Adjustment({ lower: 0, upper: 10, value: 5, stepIncrement: 1 }),
+        digits: 0,
+        numeric: true,
+        snap_to_ticks: true,
+    });
+
+    const gain = new Gtk.SpinButton({
+        adjustment: new Gtk.Adjustment({ lower: 0, upper: 1, value: 0.5, stepIncrement: 0.25 }),
+        digits: 2,
+        wrap: true,
+        orientation: Gtk.Orientation.VERTICAL,
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.SpinButton {
+      digits: 0;
+      numeric: true;
+      snap-to-ticks: true;
+
+      adjustment: Gtk.Adjustment {
+        lower: 0;
+        upper: 10;
+        value: 5;
+        step-increment: 1;
+      };
+    }
+
+    Gtk.SpinButton {
+      orientation: vertical;
+      digits: 2;
+      wrap: true;
+
+      adjustment: Gtk.Adjustment {
+        lower: 0;
+        upper: 1;
+        value: 0.5;
+        step-increment: 0.25;
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const count = new Gtk.SpinButton({
+        adjustment: new Gtk.Adjustment({ lower: 0, upper: 10, value: 5, stepIncrement: 1 }),
+        digits: 0,
+        numeric: true,
+        snap_to_ticks: true,
+    });
+
+    const gain = new Gtk.SpinButton({
+        adjustment: new Gtk.Adjustment({ lower: 0, upper: 1, value: 0.5, stepIncrement: 0.25 }),
+        digits: 2,
+        wrap: true,
+        orientation: Gtk.Orientation.VERTICAL,
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Password Entry
+
+A field for a secret: masked, no copy to the clipboard, and a warning while Caps Lock is
+engaged. **show-peek-icon** adds the button that reveals the contents for one look — off by
+default, and the only way to see them at all.
+
+It is not a `Gtk.Entry` (it is a sibling that implements `GtkEditable` itself), but it takes
+the same properties. For the row presentation, with the label as the row title, use
+[Password Entry Row](/gjsify/adwaita/boxed-lists/#password-entry-row).
+
+<AdwWidget title="Gtk.PasswordEntry">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- show-peek-icon: Whether to show an icon for revealing the content. -->
+      <gtk-password-entry placeholder="Password" show-peek-icon style="min-width:220px;"></gtk-password-entry>
+
+      <gtk-password-entry style="min-width:220px;"></gtk-password-entry>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const password = new Gtk.PasswordEntry({
+        placeholderText: 'Password',
+        showPeekIcon: true,
+        widthRequest: 220,
+    });
+
+    // The Caps Lock warning needs no property: GDK reads the state off the keyboard.
+    const withoutPeek = new Gtk.PasswordEntry({ showPeekIcon: false });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.PasswordEntry {
+      placeholder-text: _("Password");
+      show-peek-icon: true;
+      width-request: 220;
+    }
+
+    Gtk.PasswordEntry {
+      width-request: 220;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const password = new Gtk.PasswordEntry({
+        placeholderText: 'Password',
+        showPeekIcon: true,
+        widthRequest: 220,
+    });
+
+    // The Caps Lock warning needs no property: GDK reads the state off the keyboard.
+    const withoutPeek = new Gtk.PasswordEntry({ showPeekIcon: false });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Search Entry
+
+A field for typing a query. A magnifying glass leads while it is empty and a clear button
+follows once it is not; clicking the clear button empties the field, exactly as C's
+`edit-clear-symbolic` press does.
+
+The point of the widget is **search-delay**: `search-changed` waits 150 ms — the default —
+after the last keypress, so a filter is not driven by every character. Emptying the field is
+the one exception: that fires the signal at once and cancels whatever was pending.
+
+The keys are the signals: <kbd>Enter</kbd> is `activate`, <kbd>Escape</kbd> is
+`stop-search`, <kbd>Ctrl</kbd>+<kbd>g</kbd> is `next-match` and
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>g</kbd> is `previous-match`.
+
+<AdwWidget title="Gtk.SearchEntry">
+  <Fragment slot="preview">
+    ```html
+    <!-- search-delay: The delay in milliseconds from last keypress to the search changed signal. -->
+    <gtk-search-entry search-delay="150" placeholder="Search…" style="min-width:260px;"></gtk-search-entry>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The app's own filtering; the widget does not do this for you.
+    const applyFilter = (query: string) => void query;
+
+    const search = new Gtk.SearchEntry({
+        placeholderText: 'Search…',
+        searchDelay: 150,
+        widthRequest: 260,
+    });
+
+    // Fires once the user STOPS typing, not on every keystroke.
+    search.connect('search-changed', () => applyFilter(search.text));
+    search.connect('stop-search', () => search.set_visible(false));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.SearchEntry {
+      placeholder-text: _("Search…");
+      search-delay: 150;
+      width-request: 260;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The app's own filtering; the widget does not do this for you.
+    const applyFilter = (query: string) => void query;
+
+    const search = new Gtk.SearchEntry({
+        placeholderText: 'Search…',
+        searchDelay: 150,
+        widthRequest: 260,
+    });
+
+    // Fires once the user STOPS typing, not on every keystroke.
+    search.connect('search-changed', () => applyFilter(search.text));
+    search.connect('stop-search', () => search.set_visible(false));
     ```
   </Fragment>
 </AdwWidget>

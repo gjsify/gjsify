@@ -516,6 +516,14 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Adw.InlineViewSwitcher':
         'AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
     // --- no such widget in the port ---
+    'Gtk.Scale':
+        'The NativeScript port has no standalone scale yet: AdwSliderRow is the boxed-list row, and it renders the @nativescript/core Slider inside that row rather than the widget Gtk.Scale is (status/open-todos/adwaita-ports.md).',
+    'Gtk.SpinButton':
+        'The NativeScript port has no standalone spin button yet: AdwSpinRow is the boxed-list row, and it composes Label and StackLayout itself instead (status/open-todos/adwaita-ports.md).',
+    'Gtk.PasswordEntry':
+        'The NativeScript port has no password entry yet: GtkEntry is the plain field and AdwPasswordEntryRow is its boxed-list row, and neither is the widget Gtk.PasswordEntry is (status/open-todos/adwaita-ports.md).',
+    'Gtk.SearchEntry':
+        'The NativeScript port has no search entry yet: GtkEntry has no leading search icon, no clear button and no search-changed signal to hang them on (status/open-todos/adwaita-ports.md).',
     'Gtk.ListView':
         'The NativeScript port has no list view: GtkBox.addChild appends every child eagerly, and the ' +
         'per-item factory that would replace it has no counterpart there yet (status/open-todos/adwaita-ports.md).',

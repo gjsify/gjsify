@@ -147,6 +147,22 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.DropDown', root:
         { tag: 'gtk-drop-down', gtype: 'GtkDropDown', props: {"model":["Automatic","Always","Never","When busy"],"selected":0,"halign":"center"} }
     },
+    { widget: 'Gtk.Scale', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-scale', gtype: 'GtkScale', props: {"adjustment":{"lower":0,"upper":100,"value":40,"stepIncrement":1,"pageIncrement":10},"digits":0,"drawValue":true,"valuePos":"top","widthRequest":320} }
+            ] }
+    },
+    { widget: 'Gtk.SpinButton', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-spin-button', gtype: 'GtkSpinButton', props: {"adjustment":{"lower":0,"upper":10,"value":5,"stepIncrement":1,"pageIncrement":2},"digits":0,"numeric":true,"snapToTicks":true,"halign":"center"} }
+            ] }
+    },
+    { widget: 'Gtk.PasswordEntry', root:
+        { tag: 'gtk-password-entry', gtype: 'GtkPasswordEntry', props: {"showPeekIcon":true,"placeholderText":"Password"} }
+    },
+    { widget: 'Gtk.SearchEntry', root:
+        { tag: 'gtk-search-entry', gtype: 'GtkSearchEntry', props: {"placeholderText":"Search…","searchDelay":150} }
+    },
     { widget: 'Gtk.CheckButton', root:
         { tag: 'gtk-check-button', gtype: 'GtkCheckButton', props: {"label":"Enable networking","active":true} }
     },

@@ -29,7 +29,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
-        'selected': 'The position of the selected item.',
+        'selected': null,
         'title': null,
     },
     'adw-inline-view-switcher': {
@@ -71,7 +71,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'policy': 'The policy to determine which mode to use.',
     },
     'gtk-box': {
-        'orientation': 'The orientation of the orientable.',
+        'orientation': null,
         'spacing': 'The amount of space between children.',
     },
     'gtk-check-button': {
@@ -83,7 +83,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'show-row-separators': null,
     },
     'gtk-drop-down': {
-        'selected': 'The position of the selected item.',
+        'selected': null,
     },
     'gtk-expander': {
         'label': null,
@@ -94,7 +94,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'model': null,
     },
     'gtk-label': {
-        'label': 'The contents of the label.',
+        'label': null,
     },
     'gtk-level-bar': {
         'max-value': 'Determines the maximum value of the interval that can be displayed by the bar.',
@@ -106,7 +106,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'show-separators': null,
     },
     'gtk-paned': {
-        'orientation': 'The orientation of the orientable.',
+        'orientation': null,
+    },
+    'gtk-password-entry': {
+        'show-peek-icon': 'Whether to show an icon for revealing the content.',
     },
     'gtk-progress-bar': {
         'fraction': 'The fraction of total work that has been completed.',
@@ -117,8 +120,26 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'transition-duration': 'The animation duration, in milliseconds.',
         'transition-type': 'The type of animation used to transition.',
     },
+    'gtk-scale': {
+        'adjustment': 'The adjustment that is controlled by the range.',
+        'digits': 'The number of decimal places that are displayed in the value.',
+        'draw-value': 'Whether the current value is displayed as a string next to the slider.',
+        'inverted': 'If TRUE, the direction in which the slider moves is inverted.',
+        'value-pos': null,
+    },
+    'gtk-search-entry': {
+        'search-delay': 'The delay in milliseconds from last keypress to the search changed signal.',
+    },
     'gtk-separator': {
-        'orientation': 'The orientation of the orientable.',
+        'orientation': null,
+    },
+    'gtk-spin-button': {
+        'adjustment': 'The adjustment that holds the value of the spin button.',
+        'digits': 'The number of decimal places to display.',
+        'numeric': 'Whether non-numeric characters should be ignored.',
+        'orientation': null,
+        'snap-to-ticks': 'Whether erroneous values are automatically changed to the spin buttons nearest step increment.',
+        'wrap': 'Whether a spin button should wrap upon reaching its limits.',
     },
     'gtk-spinner': {
         'spinning': null,
@@ -153,7 +174,9 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
     'gtk-list-view selection-mode': 'port-only',
+    'gtk-password-entry placeholder': 'renamed',
     'gtk-progress-bar pulsing': 'declarative-state',
+    'gtk-search-entry placeholder': 'renamed',
     'gtk-tree-expander depth': 'port-only',
     'gtk-tree-expander expandable': 'port-only',
     'gtk-tree-expander expanded': 'port-only',
@@ -166,12 +189,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 78,
-    glossed: 28,
-    nameSuffices: 32,
-    divergent: 17,
+    set: 93,
+    glossed: 33,
+    nameSuffices: 40,
+    divergent: 19,
     authored: 1,
-    commentLines: 58,
+    commentLines: 55,
 };
 
 /**

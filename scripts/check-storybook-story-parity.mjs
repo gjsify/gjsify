@@ -80,8 +80,16 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no view for GTK\'s own spinner — AdwSpinner is the one it ships — so the story is rendered by the other two targets only.',
     'level-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no segmented-bar view and ActivityIndicator has no value, so the story is rendered by the other two targets only.',
+    'password-entry@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.PasswordEntry widget yet, so the story is rendered by the other two targets only.',
     'progress-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-progress-bar> on NativeScript": @nativescript/core ships a determinate Progress, but no Adwaita expression for it, so the story is rendered by the other two targets only.',
+    'scale@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.Scale widget yet, so the story is rendered by the other two targets only.',
+    'search-entry@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.SearchEntry widget yet, so the story is rendered by the other two targets only.',
+    'spin-button@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.SpinButton widget yet, so the story is rendered by the other two targets only.',
     'column-view@nativescript':
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.ColumnView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
     'grid-view@nativescript':

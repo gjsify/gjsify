@@ -183,6 +183,15 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'gtk-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
     'gtk-entry disabled': { kind: 'inverted', girProperty: 'sensitive' },
 
+    // The same rename, inherited rather than re-declared: `<gtk-password-entry>` and
+    // `<gtk-search-entry>` extend `<gtk-entry>` for the `<input>` it owns, so they carry the
+    // attributes it observes. `Gtk.PasswordEntry` and `Gtk.SearchEntry` each declare
+    // `placeholder-text` themselves, and the element's attribute is the parent's spelling of
+    // it — the same attribute-level divergence the three above record, on the two widgets
+    // whose C property is spelled `placeholder-text` and nothing else.
+    'gtk-password-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
+    'gtk-search-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
+
     // The selection a GTK view spells by WRAPPING its model — `Gtk.SingleSelection`,
     // `Gtk.MultiSelection`, `Gtk.NoSelection` — so `GtkListView:model` is a
     // `Gtk.SelectionModel` and there is no property for the choice. ADR 0046 declined a
@@ -308,7 +317,13 @@ const FUNCTION_WORDS = stemmed(
  * corpus is stale and fails, so the list cannot quietly grow into a place where a
  * comment is suppressed by hand.
  */
-const PRESENTATION_WORDS = stemmed('display current information below url');
+// `display` USED to be first in that string. It stopped being one the day a fourth
+// property doc in this corpus reached for the word — the frequency floor below then covers
+// it, and this list's own stale check fired ("the residue of no attribute in this corpus",
+// which is what it is for: a suppression nobody re-measured). Removing it here rather than
+// making the floor invisible is the direction the check asks for, and it re-fires if the
+// corpus ever shrinks back under the floor.
+const PRESENTATION_WORDS = stemmed('current information below url');
 
 /**
  * How many of the corpus's docs a word must appear in before it stops distinguishing

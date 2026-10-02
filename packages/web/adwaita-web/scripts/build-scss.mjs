@@ -11,6 +11,7 @@ import {
     documentEditSymbolic,
     documentOpenSymbolic,
     documentSaveSymbolic,
+    editClearSymbolic,
     editCopySymbolic,
     goDownSymbolic,
     goHomeSymbolic,
@@ -29,6 +30,8 @@ import {
     viewListSymbolic,
     viewMoreSymbolic,
     viewPagedSymbolic,
+    valueDecreaseSymbolic,
+    valueIncreaseSymbolic,
     viewRefreshSymbolic,
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
@@ -119,6 +122,14 @@ const ICONS = {
     'user-trash': userTrashSymbolic,
     'view-reveal': viewRevealSymbolic,
     'view-conceal': viewConcealSymbolic,
+    // Gtk.SpinButton's two arrows, named as `gtk_spin_button_init` names them
+    // (gtkspinbutton.c:1103, :1122). Adw.SpinRow draws its own glyphs, so these two exist
+    // for the standalone spin button and nothing else.
+    'value-increase': valueIncreaseSymbolic,
+    'value-decrease': valueDecreaseSymbolic,
+    // Gtk.SearchEntry's trailing clear button, named as `gtk_search_entry_init` names it
+    // (gtksearchentry.c:867).
+    'edit-clear': editClearSymbolic,
     'document-edit': documentEditSymbolic,
     'document-open': documentOpenSymbolic,
     'document-save': documentSaveSymbolic,

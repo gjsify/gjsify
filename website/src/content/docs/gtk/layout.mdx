@@ -26,21 +26,15 @@ distance without the line, a 12px gap that draws nothing.
 <AdwWidget title="Gtk.Separator">
   <Fragment slot="preview">
     ```html
-    <!-- orientation: The orientation of the orientable. -->
     <!-- spacing: The amount of space between children. -->
     <gtk-box orientation="vertical" spacing="12" style="align-items:center;">
-      <!-- label: The contents of the label. -->
       <gtk-label label="Above"></gtk-label>
       <gtk-separator style="width:160px;"></gtk-separator>
-      <!-- label: The contents of the label. -->
       <gtk-label label="Below"></gtk-label>
       <!-- spacing: The amount of space between children. -->
       <gtk-box spacing="12" style="height:24px;align-items:stretch;">
-        <!-- label: The contents of the label. -->
         <gtk-label label="Left"></gtk-label>
-        <!-- orientation: The orientation of the orientable. -->
         <gtk-separator orientation="vertical"></gtk-separator>
-        <!-- label: The contents of the label. -->
         <gtk-label label="Right"></gtk-label>
       </gtk-box>
     </gtk-box>
@@ -116,9 +110,7 @@ theme can round the corners of a badge that hangs off one.
   <Fragment slot="preview">
     ```html
     <gtk-overlay style="width:260px;height:160px;">
-      <!-- label: The contents of the label. -->
       <gtk-label label="Main child" style="align-self:center;justify-self:center;"></gtk-label>
-      <!-- label: The contents of the label. -->
       <gtk-label slot="overlay" label="2" style="align-self:end;justify-self:end;"></gtk-label>
     </gtk-overlay>
     ```
@@ -188,7 +180,6 @@ milliseconds, and `0` skips the animation.
     <!-- transition-type: The type of animation used to transition. -->
     <!-- transition-duration: The animation duration, in milliseconds. -->
     <gtk-revealer transition-type="slide-down" transition-duration="250" reveal-child>
-      <!-- label: The contents of the label. -->
       <gtk-label label="The revealed child" style="padding:12px;"></gtk-label>
     </gtk-revealer>
     ```
@@ -253,11 +244,8 @@ libadwaita draws for it.
 <AdwWidget title="Gtk.Paned">
   <Fragment slot="preview">
     ```html
-    <!-- orientation: The orientation of the orientable. -->
     <gtk-paned orientation="horizontal" style="width:400px;height:140px;">
-      <!-- label: The contents of the label. -->
       <gtk-label label="First child" style="width:100px;"></gtk-label>
-      <!-- label: The contents of the label. -->
       <gtk-label slot="end" label="Second child" style="width:300px;"></gtk-label>
     </gtk-paned>
     ```
@@ -321,7 +309,6 @@ of its own, and `use-underline` turns a leading `_` into a mnemonic that
   <Fragment slot="preview">
     ```html
     <gtk-expander label="_More options" style="width:320px;">
-      <!-- label: The contents of the label. -->
       <gtk-label label="Notifications" style="padding:12px;"></gtk-label>
     </gtk-expander>
     ```

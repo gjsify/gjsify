@@ -219,6 +219,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'password-entry': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     popover: {
         only: 'web',
         decision:
@@ -254,6 +258,14 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    scale: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'search-entry': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'sidebar-item': {
         only: 'web',
         decision:
@@ -278,6 +290,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             "Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly — one boolean with no second phase, so the `active`/`state` pair a delayed change needs (gtkswitch.c:39-43, :637-654) has nowhere to live there. The browser has no such control at all, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one, and it carries both properties: the knob on `active`, libadwaita's `switch:checked` trough on `state`.",
+    },
+    'spin-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'tab-page': {
         only: 'web',

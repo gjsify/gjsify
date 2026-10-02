@@ -393,12 +393,23 @@ exactly why they must not be written as decisions.
   separator is a 1px view with the `.spacer` variant and the toggle button is
   `GtkButton` plus a checked state that `@nativescript/core`'s `Button` has no
   `:checked` CSS state for, so the Adwaita expression is the open question, not the
-  state. The other four are CONTAINERS: `GtkBox` places each child into a slot it already
+state. The other four are CONTAINERS: `GtkBox` places each child into a slot it already
   names, so an overlay, a paned and a revealer are each a question about stacking, splitting
   and animation that no NativeScript layout answers in the Adwaita idiom — and the
   expander's disclosure is the one shape the port is missing where libadwaita's own is
   `AdwExpanderRow`, which it already has. So the open question is the EXPRESSION of each,
   not whether a view can be built.
+- **`<gtk-scale>`, `<gtk-spin-button>`, `<gtk-password-entry>` and
+  `<gtk-search-entry>` on NativeScript.** Four browser elements and four gallery blocks;
+  the NativeScript port has none of the widgets, so all four stories are ledgered as not
+  rendered there and their XML templates refused. The HEADLESS half is already shared:
+  `SpinState` in `@gjsify/adwaita-core` is the `Gtk.Adjustment` all of them take, so what
+  is missing is the VIEW each is built from, and each one names a neighbour that is not
+  the same thing — `AdwSliderRow` is a boxed-list row around the `@nativescript/core`
+  `Slider`, `AdwSpinRow` composes `Label` and `StackLayout` itself, `AdwPasswordEntryRow`
+  is the row `GtkEntry` is not, and `GtkEntry` carries no icon, no clear button and no
+  delayed signal for a search field to hang. Whether a standalone scale or a standalone
+  search field belongs on a touch target at all is the product question, not a port.
 - **The four model-driven views on NativeScript.** `<gtk-list-view>`,
   `<gtk-grid-view>`, `<gtk-column-view>` and `<gtk-tree-expander>` exist on the browser
   with their gallery blocks; the NativeScript port has none of the four, so their stories

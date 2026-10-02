@@ -204,6 +204,18 @@ const KNOWN_GAPS = {
     // header.
     'gtk-label': ['natural-wrap-mode', 'single-line-mode'],
     'gtk-menu-button': ['active', 'always-show-arrow', 'can-shrink', 'has-frame', 'label', 'primary', 'use-underline'],
+    'gtk-password-entry': [
+        // `placeholder-text` is carried under its OWN spelling — `placeholder`, the one
+        // `<gtk-entry>` already observes and the one this element inherits from it. Same
+        // attribute-level rename the `gtk-entry` bullet above records; renaming the published
+        // attribute is a change of that package's surface, not this widget's.
+        'placeholder-text',
+        // "Whether to activate the default widget when Enter is pressed." A default widget
+        // is a GTK toplevel concept: it is the widget a toplevel activates, resolved through
+        // the window. A document has no such thing, so there is nothing to activate — the
+        // `activate` SIGNAL the property gates is dispatched here instead.
+        'activates-default',
+    ],
     'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
     // `pulse-step` is the distance one `gtk_progress_bar_pulse()` call advances the
     // bouncing block (gtkprogressbar.c:830-847, :655-692): a property of a per-call
@@ -211,7 +223,28 @@ const KNOWN_GAPS = {
     // a fixed period, so there is no step to configure. `ellipsize` is Pango's
     // truncation mode on the text node, the same family `gtk-label` already carries.
     'gtk-progress-bar': ['ellipsize', 'pulse-step'],
-};
+    'gtk-search-entry': [
+        // Carried under its OWN spelling — `placeholder`, the attribute `<gtk-entry>` already
+        // observes and the one this element inherits from it. Same attribute-level rename the
+        // `gtk-entry` bullet above records.
+        'placeholder-text',
+        // "Whether to activate the default widget when Enter is pressed." A default widget is
+        // a GTK toplevel concept, resolved through the window; a document has no such thing, so
+        // there is nothing to activate. The `activate` SIGNAL the property gates is dispatched
+        // either way.
+        'activates-default',
+        // The two INPUT-METHOD hints, which GTK hands to GDK's input method and which a text
+        // field has no way to pass on. `<gtk-entry>` carries both for the same reasons.
+        'input-hints',
+        'input-purpose',
+    ],
+    'gtk-spin-button': [
+        // Same default-widget concept `gtk-search-entry` records above. `climb-rate` and
+        // `update-policy` ARE observed: the held-arrow ramp (`TIMEOUT_INITIAL` 500ms,
+        // `TIMEOUT_REPEAT` 50ms, `MAX_TIMER_CALLS` 5) and both update policies are ported.
+        'activates-default',
+    ],
+    };
 
 /** @returns {string[]} one line per problem; empty means aligned. */
 export function propertyProblems({ byTag, tagToGtype, bodies, knownGaps }) {

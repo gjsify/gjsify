@@ -58,6 +58,10 @@ import { GtkExpanderTest } from './gtk-expander.spec.js';
 import { GtkOverlayTest } from './gtk-overlay.spec.js';
 import { GtkPanedTest } from './gtk-paned.spec.js';
 import { GtkRevealerTest } from './gtk-revealer.spec.js';
+import { GtkScaleTest } from './gtk-scale.spec.js';
+import { GtkSpinButtonTest } from './gtk-spin-button.spec.js';
+import { GtkPasswordEntryTest } from './gtk-password-entry.spec.js';
+import { GtkSearchEntryTest } from './gtk-search-entry.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
@@ -114,6 +118,10 @@ run({
     GtkOverlayTest,
     GtkPanedTest,
     GtkRevealerTest,
+    GtkScaleTest,
+    GtkSpinButtonTest,
+    GtkPasswordEntryTest,
+    GtkSearchEntryTest,
     GtkBoxTest,
     GtkLabelTest,
     AdwAvatarTest,
