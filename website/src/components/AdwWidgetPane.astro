@@ -1,0 +1,32 @@
+---
+// One pane's body, whichever kind it is.
+import { Code } from '@astrojs/starlight/components';
+
+import type { WidgetPane } from './widget-panes';
+
+interface Props {
+    pane: WidgetPane;
+}
+
+const { pane } = Astro.props;
+---
+
+{pane.kind === 'slot' && <Fragment set:html={pane.html} />}
+{pane.kind === 'code' && <Code code={pane.source} lang={pane.lang} />}
+{/* The files of ONE program: the More menu's section picks between them, so every file is here
+    and the script shows the picked one. `data-file-role` is what the pick and the page-wide
+    preference are keyed by — the name changes from block to block, the role does not, and
+    `scripts/check-website-blueprint-markup.mjs` reads the files back off the built page by it. */}
+{
+    pane.kind === 'files' &&
+        pane.files.map((file, index) => (
+            <div
+                class="adw-widget-file not-content"
+                data-file-role={file.role}
+                data-active={index === 0 ? '' : undefined}
+            >
+                <div class="adw-widget-pane-caption">{file.label}</div>
+                <Code code={file.source} lang={file.lang} />
+            </div>
+        ))
+}

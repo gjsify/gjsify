@@ -1,269 +1,493 @@
 ---
-// AdwWidgetWindow — ONE window of an {@link AdwWidget} block: an Adwaita header
-// bar with this window's title, and under it the panes this kind of
-// implementation has to show.
+// AdwWidgetWindow — the two windows of an {@link AdwWidget} block. The first runs the widget
+// (header bar: title and the reference link, nothing else). The second, directly below it,
+// shows the source: its header bar holds a segmented control, `Blueprint | TypeScript | More ▾`,
+// and the copy button.
 //
-// TWO OR MORE PANES are an Adw.TabBar. ONE pane is drawn directly under the
-// header bar, with no bar at all: a tab bar over a single tab is chrome that
-// offers no choice. The branch below reads the pane COUNT and nothing else, never a
-// window's id or title: a window shrinking to one pane, or growing to two, has to
-// come out right without anyone editing this file. {@link AdwWidget} decides which
-// windows exist and what they claim; this file knows how a window is drawn.
+// `More` is the third segment and opens a popover menu of every other rendering (`bindings`).
+// A pick shows that rendering in place and the segment takes its name. A binding whose program
+// is several FILES contributes a menu SECTION — a dim heading, then one row per file — so the
+// file is picked from there rather than from a row of its own under the header bar. The popover
+// is the Popover API's, so it sits in the top layer and the window's `overflow: hidden` cannot
+// clip it.
 //
-// THE LIVE PREVIEW IS THE ONLY PANE OF ITS WINDOW, and that is asserted below rather
-// than assumed. It used to sit inside the tab view as the first of three tabs —
-// Preview | HTML | Attributes — which offers the reader a choice between the running
-// widget and its sources, as if the widget were one of them. The markup that paints
-// it is a source and is a tab of the frameworks window now; the widget itself gets a
-// window and nothing else in it. `check-website-adwaita-gallery.mjs` arm 9 holds all
-// three halves of that: this file mounts the preview exactly once, mounts it OUTSIDE
-// the tab view, and `AdwWidget`'s live window is FIRST, so the reader meets the widget
-// before any source.
+// Without script the segmented control is inert and every pane and every file is shown under its
+// caption (`@media (scripting: none)` below); the script in AdwWidget does the rest.
 //
-// PANE ORDER IS NOT DECIDED HERE ANY MORE. It is the order of the `panes` array, which
-// is also the order `data-impls` names them in, because {@link impls} is derived from
-// the same array. The two used to be separate — a fixed sequence of expressions here,
-// a hand-assembled string there — and a stored preference is resolved by POSITION
-// against that string, so the two disagreeing sent a reader who picked one pane to a
-// different one, on every other block, with nothing downstream able to tell.
-//
-// It is a component rather than a loop body in `AdwWidget.astro` because a window is
-// a thing with a name, not four lines of markup repeated. This note used to give a
-// compiler reason instead — that the Astro compiler cannot parse a JSX expression
-// nested inside a `.map()` CALLBACK, `windows.map((win) => (<div>{win.live &&
-// (<div/>)}</div>))` failing with `Expected "}" but found ")"`. RE-MEASURED the way
-// that note itself demands, by building the site, on astro 6.4.5 with
-// @astrojs/compiler 4.0.0: that exact shape builds, a `.map()` inside a `.map()`
-// builds, and a conditional carrying a self-closing element inside a row builds.
-// Whatever the original failure was, it is not this rule — and a rule with a wrong
-// reason is thrown out together with its reason the first time someone checks it.
+// `check-website-adwaita-gallery.mjs` arm 9 holds that the preview is mounted once, in the
+// window above the source.
 
-import { Code } from '@astrojs/starlight/components';
-
-import AdwWidgetFiles from './AdwWidgetFiles.astro';
-import AdwWidgetRefusal from './AdwWidgetRefusal.astro';
-import type { TabbedPane, WidgetPane } from './widget-panes';
+import AdwWidgetPane from './AdwWidgetPane.astro';
+import type { LivePane, WidgetPane } from './widget-panes';
 
 interface Props {
-    /** Window title. The live-preview window takes the WIDGET's; the rest name their kind. */
+    /** The widget, e.g. "Adw.SwitchRow". */
     title: string;
-    /** Canonical upstream docs for the widget, on the window that is about the widget. */
+    /** Canonical upstream docs for the widget. */
     refHref?: string | null;
-    /** The widget, for the reference link's labels and the refusal prose. */
-    widget: string;
-    /**
-     * This window's panes, in render order — see {@link WidgetPane} for the five kinds.
-     *
-     * ONE ordered list and not a prop per kind, so the order a reader sees and the
-     * order `data-impls` records cannot be two facts.
-     */
-    panes: WidgetPane[];
-    /** Padding around the preview widget — see AdwWidget. */
+    /** What the preview mounts, or none when the block has no markup. */
+    live?: LivePane;
+    /** The source segments, in order. */
+    tabs: WidgetPane[];
+    /** The panes behind the `More` segment. */
+    bindings: WidgetPane[];
     padding?: 'comfortable' | 'flush';
-    /** Horizontal scrolling for a wide preview — see AdwWidget. */
     scroll?: boolean;
-    /** Inline CSS for the preview stage: preview-only scaffolding — see AdwWidget. */
+    /** Inline CSS for the preview stage — see AdwWidget. */
     stage?: string;
 }
 
-const { title, refHref = null, widget, panes, padding = 'comfortable', scroll = false, stage } = Astro.props;
+const { title, refHref = null, live, tabs, bindings, padding = 'comfortable', scroll = false, stage } = Astro.props;
 
+const panes = [...tabs, ...bindings];
+const slug = title.replaceAll(/[^A-Za-z0-9]+/g, '-');
+const paneId = (pane: WidgetPane) => `pane-${slug}-${pane.id}`;
+const menuId = `menu-${slug}`;
 /**
- * This window's pane ids, in order, for the cross-widget preference sync.
+ * The More menu, the way GtkPopoverMenu builds one: a section is a dim heading over its rows,
+ * and a hairline separates one section from the one above it. A binding whose program is several
+ * FILES is a section of its own, one row per file; the renderings that are a single file share
+ * one unheaded section. A rendering this block does not HAVE is not a row — the recorded reason
+ * for it lives in the data beside the snippet, not in the reader's menu.
  *
- * Derived here rather than passed, because the list is POSITIONAL and the position it
- * means is the one in the template below.
+ * A row carries its two halves as SEPARATE attributes: `data-pane` is the binding, `data-file-role`
+ * the file within it, and `data-pick` is both joined into the one string the reader's pick is
+ * remembered as. The script reads the halves off the row and never splits the string, so the
+ * separator exists here and nowhere else.
+ *
+ * `short` is what the segment reads while the row is shown — for a file, the binding and the file.
  */
-const impls = panes.map((pane) => pane.id).join(',');
-
-/**
- * Whether this window holds any code at all, which is whether its header bar gets a
- * COPY BUTTON.
- *
- * The button forwards to the active pane's hidden Expressive Code copy button (see the
- * handler in `AdwWidget`). A window whose only pane is prose has none: the handler
- * finds nothing, returns, and does not even mark the press. Measured on the built site
- * before this guard: 19 of 160 windows — every frameworks window carrying a recorded
- * reason — rendered a button labelled "Copy this window's code" that could never copy
- * anything. Nothing else noticed; the site builds and every gate stays green.
- *
- * Slot, code and files panes hold Expressive Code blocks and nothing else does, so this
- * counts the panes that hold code rather than asking a window what kind it is.
- * The header bar's trailing span keeps the button's width either way, so the title
- * stays centred against the windows above and below it.
- */
-const copyable = panes.some((pane) => pane.kind === 'slot' || pane.kind === 'code' || pane.kind === 'files');
-
-// NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
-// exit 0. `AdwWidget` is what prevents it — it skips a window that filled none of its
-// panes — and nothing downstream restated the guard: measured by deleting that one
-// line, /adwaita/buttons/ built green with five extra empty windows on it. Arm 7 of
-// `check-website-adwaita-gallery.mjs` cannot see this one: it refuses a window that
-// can render NO pane on any block, while these are windows whose panes are simply
-// unfilled on this block, which is the ordinary case.
-if (panes.length === 0) {
-    throw new Error(
-        `AdwWidgetWindow(${title}): a window with no pane at all. AdwWidget renders a window only where ` +
-            'this block filled one of its panes, so this means that skip stopped happening.',
-    );
-}
-
-/** The lone pane of a single-pane window, or null on a tabbed one. */
-const single = panes.length === 1 ? panes[0] : null;
-
-/**
- * The panes a TAB BAR draws, which is every pane but the live preview.
- *
- * Asserted rather than assumed, and the assertion is the whole reason this loop is
- * not a `filter`: the alternative to throwing is the running widget quietly becoming
- * one tab among its own sources again, which builds, renders, and passes every other
- * check. It is also what lets the template read a `label` off every pane it draws —
- * see {@link TabbedPane}, the type a live pane is deliberately outside of.
- */
-const tabbed: TabbedPane[] = [];
-for (const pane of panes) {
-    if (pane.kind !== 'live') {
-        tabbed.push(pane);
-        continue;
+type MenuEntry =
+    | { kind: 'separator' }
+    | { kind: 'heading'; text: string }
+    | { kind: 'row'; pick: string; pane: string; role?: string; label: string; short: string };
+function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
+    const entries: MenuEntry[] = [];
+    /** One section: a heading (or none) and the rows under it. */
+    const section = (heading: string | null, rows: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[]) => {
+        if (entries.length > 0) entries.push({ kind: 'separator' });
+        if (heading !== null) entries.push({ kind: 'heading', text: heading });
+        for (const row of rows) {
+            entries.push({ ...row, pick: row.role === undefined ? row.pane : `${row.pane}::${row.role}` });
+        }
+    };
+    // The single-file renderings share ONE unheaded section, the way GtkPopoverMenu keeps
+    // consecutive plain items in one: a hairline around each would read Solid, Vue and React as
+    // files of the binding above them.
+    const plain: Omit<Extract<MenuEntry, { kind: 'row' }>, 'pick'>[] = [];
+    for (const pane of items) {
+        if (pane.kind === 'files') {
+            section(
+                pane.label,
+                pane.files.map((file) => ({
+                    pane: pane.id,
+                    role: file.role,
+                    label: file.label,
+                    short: `${pane.label} · ${file.label}`,
+                })),
+            );
+        } else {
+            plain.push({ pane: pane.id, label: pane.label, short: pane.label });
+        }
     }
-    if (single !== null) continue;
-    throw new Error(
-        `AdwWidgetWindow(${title}): the live preview reached a window with ${panes.length} panes ` +
-            `(${impls}). The window that RUNS the widget shows the widget and nothing else, so this ` +
-            'means AdwWidget started giving that window tabs.',
-    );
+    if (plain.length > 0) section(null, plain);
+    return entries;
 }
+
+const entries = menuEntries(bindings);
 ---
 
-<div class="command-tabs adw-widget-window not-content" data-impl-tabs data-impls={impls}>
+{
+    live && (
+        <div class="command-tabs adw-widget-window adw-widget-preview-window not-content">
+            <div class="command-tabs-headerbar">
+                <span class="command-tabs-headerbar-start">
+                    {refHref && (
+                        <a
+                            class="command-tabs-ref"
+                            href={refHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Reference for ${title}`}
+                            aria-label={`Open the reference for ${title} in a new tab`}
+                        >
+                            <span class="command-tabs-ref-icon" aria-hidden="true" />
+                        </a>
+                    )}
+                </span>
+                <span class="command-tabs-headerbar-title">{title}</span>
+                <span class="command-tabs-headerbar-end" />
+            </div>
+            <div class:list={['adw-widget-preview', 'not-content', `is-${padding}`, { 'is-scroll': scroll }]}>
+                {/* `not-content`: Starlight's sibling margin rule would otherwise land on the
+                    widgets, which are laid out by their own stylesheet alone. */}
+                {/* The preview is CLONED into the stage at runtime (see AdwWidget's script):
+                    a <template> is inert, so cloning AFTER the elements are defined avoids the
+                    upgrade-order race of nested composites. The markup is the `preview` fence
+                    read back out of Expressive Code, so `slot="…"` never meets the MDX compiler. */}
+                {/* NOT self-closing: `<template … set:html={…} />` swallows its siblings. */}
+                <template class="adw-widget-preview-tpl" data-shared-tree={live.tree} set:html={live.markup ?? ''}></template>
+                <div class="adw-widget-preview-stage" style={stage} />
+            </div>
+        </div>
+    )
+}
+
+<div class="command-tabs adw-widget-window adw-widget-code-window not-content" data-impl-tabs>
     <div class="command-tabs-headerbar">
-        <span class="command-tabs-headerbar-start">
-            {
-                refHref && (
-                    <a
-                        class="command-tabs-ref"
-                        href={refHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`Reference for ${widget}`}
-                        aria-label={`Open the reference for ${widget} in a new tab`}
+        <span class="command-tabs-headerbar-start" />
+        <div class="command-tabs-headerbar-title">
+            <div class="adw-widget-seg" role="tablist" aria-label={`${title} source`}>
+                {tabs.map((pane, index) => (
+                    <button
+                        type="button"
+                        role="tab"
+                        id={`tab-${slug}-${pane.id}`}
+                        aria-controls={paneId(pane)}
+                        aria-selected={index === 0 ? 'true' : 'false'}
+                        tabindex={index === 0 ? 0 : -1}
+                        data-impl={pane.id}
                     >
-                        <span class="command-tabs-ref-icon" aria-hidden="true" />
-                    </a>
-                )
-            }
-        </span>
-        <span class="command-tabs-headerbar-title">{title}</span>
+                        {pane.label}
+                    </button>
+                ))}
+                {bindings.length > 0 && (
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={tabs.length === 0 ? 'true' : 'false'}
+                        tabindex={tabs.length === 0 ? 0 : -1}
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        popovertarget={menuId}
+                        data-more
+                    >
+                        <span class="adw-widget-seg-label" data-more-label>More</span>
+                    </button>
+                )}
+            </div>
+        </div>
         <span class="command-tabs-headerbar-end">
-            {/* Not "copy active tab" in the code, only in the label: the handler in
-                AdwWidget forwards to the ACTIVE pane's own code block and to nothing
-                else, and where there is no code block at all there is no button, see
-                {@link copyable}. */}
-            {copyable && (
-                <button class="command-tabs-copy" aria-label="Copy this window's code" type="button">
-                    <span class="command-tabs-copy-icon" aria-hidden="true" />
-                </button>
-            )}
+            <button class="command-tabs-copy" aria-label="Copy this window's code" type="button">
+                <span class="command-tabs-copy-icon" aria-hidden="true" />
+            </button>
         </span>
     </div>
 
-    {
-        tabbed.length > 1 && (
-            <adw-tab-view no-close expand-tabs data-impl-view>
-                {tabbed.map((pane) => (
-                    <adw-tab-page title={pane.label}>
-                        {pane.kind === 'slot' && <Fragment set:html={pane.html} />}
-                        {pane.kind === 'code' && <Code code={pane.source} lang={pane.lang} />}
-                        {pane.kind === 'files' && <AdwWidgetFiles pane={pane} />}
-                        {pane.kind === 'refusal' && (
-                            <AdwWidgetRefusal
-                                widget={widget}
-                                missing={pane.missing}
-                                reason={pane.reason}
-                                note={pane.note}
-                            />
-                        )}
-                    </adw-tab-page>
-                ))}
-            </adw-tab-view>
-        )
-    }
+    <div class="adw-widget-panes">
+        {
+            panes.map((pane, index) => (
+                <div
+                    class="adw-widget-pane"
+                    role="tabpanel"
+                    id={paneId(pane)}
+                    aria-label={`${pane.label} — ${title}`}
+                    data-pane={pane.id}
+                    data-active={index === 0 ? '' : undefined}
+                >
+                    <div class="adw-widget-pane-caption">{pane.label}</div>
+                    <AdwWidgetPane pane={pane} />
+                </div>
+            ))
+        }
+    </div>
 
-    {/* The bare pane, with no tab bar over it. Every kind can reach it: the live preview
-        (the first window, always), a lone slot tab, a lone data or files pane, and a
-        recorded reason — the last being the ordinary case for the blocks whose frameworks
-        window carries a reason instead of a snippet. */}
     {
-        single?.kind === 'live' && (
-            <div class:list={['adw-widget-preview', 'not-content', `is-${padding}`, { 'is-scroll': scroll }]}>
-                {/* `not-content` for the same reason CommandTabs.astro states it, and
-                    it was missing HERE while the tabs beside it already carried it.
-                    Starlight gives every content element that FOLLOWS a sibling a
-                    `margin-top: 1rem`, exempting only `:where(.not-content *)`. Inside
-                    a preview that lands on the widgets: measured on the deployed page,
-                    the second button of a wrap box and every one after it took
-                    `margin-top: 16px` while the first took none — and in a flex line
-                    the first then STRETCHED by exactly that much, 50px against its
-                    siblings' 34px. The same rule pushed a header bar's trailing button
-                    below its own title and set the two panes of a split view onto
-                    baselines 16px apart, which clipped the sidebar's last row. A
-                    preview is a rendering of a widget, not prose: it has to be laid out
-                    by the widget's own stylesheet alone.
-
-                    It also carries what `check-website-preview-not-content.mjs` used to
-                    read off the gallery pages themselves. Their preview markup is a
-                    fenced block now and that scanner masks fences as code, so the
-                    marker stopped being restated on 40 blocks and became structural:
-                    one component mounts every preview, into this element. */}
-                {/* The preview is CLONED into the stage at runtime (see AdwWidget's
-                    script) rather than server-rendered directly: adwaita-web custom
-                    elements upgrade as the page is parsed, and a nested composite (a
-                    split view holding toolbar views) can lose its slotted children to
-                    an upgrade-order race. A <template> is inert, so cloning AFTER the
-                    elements are defined uses the reliable build-then-attach path.
-
-                    The markup is the block's own `preview` fence, read back out of
-                    Expressive Code, so `slot="…"` needs no rewriting here: it never
-                    passes through the MDX compiler, which reads `slot` as its own
-                    slot-assignment directive and strips it. That is what retired
-                    `data-adw-slot` HERE; AdwGalleryCard still needs it, because the
-                    index page's cards mount MDX markup rather than a fence. */}
-                {/* NOT self-closing. `<template … set:html={…} />` compiles to a
-                    template element that swallows its following siblings and an
-                    unbalanced expression: measured on astro 6.4.5, the generated
-                    module ended `</div>`}</div>`;` and esbuild refused it with
-                    `Expected ")" but found "}"` pointing at a line that does not
-                    exist in this file. */}
-                <template class="adw-widget-preview-tpl" data-shared-tree={single.tree} set:html={single.markup ?? ''}></template>
-                <div class="adw-widget-preview-stage" style={stage} />
-            </div>
-        )
-    }
-    {single?.kind === 'slot' && <div class="adw-widget-window-pane" set:html={single.html} />}
-    {
-        single?.kind === 'code' && (
-            <div class="adw-widget-window-pane">
-                <Code code={single.source} lang={single.lang} />
-            </div>
-        )
-    }
-    {
-        single?.kind === 'files' && (
-            <div class="adw-widget-window-pane">
-                <AdwWidgetFiles pane={single} />
-            </div>
-        )
-    }
-    {
-        single?.kind === 'refusal' && (
-            <div class="adw-widget-window-pane">
-                <AdwWidgetRefusal
-                    widget={widget}
-                    missing={single.missing}
-                    reason={single.reason}
-                    note={single.note}
-                />
+        bindings.length > 0 && (
+            <div class="adw-widget-menu" id={menuId} popover role="menu" aria-label={`More renderings of ${title}`}>
+                <div class="adw-widget-menu-rows">
+                    {entries.map((entry) =>
+                        entry.kind === 'separator' ? (
+                            <div class="adw-popover-separator" role="separator" />
+                        ) : entry.kind === 'heading' ? (
+                            <div class="adw-popover-title adw-popover-section-title" role="presentation">
+                                {entry.text}
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked="false"
+                                class="adw-popover-item"
+                                data-pick={entry.pick}
+                                data-pane={entry.pane}
+                                data-file-role={entry.role}
+                                data-short={entry.short}
+                                title={entry.label}
+                            >
+                                <span class="adw-popover-item-check" aria-hidden="true" />
+                                <span class="adw-popover-item-label">{entry.label}</span>
+                            </button>
+                        ),
+                    )}
+                </div>
             </div>
         )
     }
 </div>
+
+<style is:global>
+    .adw-widget-window .command-tabs-headerbar {
+        gap: 6px;
+    }
+
+    .adw-widget-window .command-tabs-headerbar-start {
+        width: auto;
+        min-width: 38px;
+    }
+
+    .adw-widget-window .command-tabs-headerbar-title {
+        min-width: 0;
+    }
+
+    /* The skin resolves the active chip at :root, so it misses the site's theme toggle. */
+    .adw-widget-window {
+        --active-toggle-fg-color: var(--adw-window-fg);
+    }
+
+    :root[data-theme='dark'] .adw-widget-window {
+        --active-toggle-bg-color: rgb(255 255 255 / 20%);
+    }
+
+    /* Keeps the title centred against the reference link on the left. */
+    .adw-widget-preview-window .command-tabs-headerbar-end {
+        width: 38px;
+    }
+
+    /* The code window's start slot is empty: on a narrow window it gives its room to the
+       segments, so "More" keeps its name instead of ellipsizing to "M…". */
+    @media (max-width: 480px) {
+        .adw-widget-window.adw-widget-code-window .command-tabs-headerbar-start {
+            display: none;
+        }
+    }
+
+    /* Two windows of one block read as a pair, not as two blocks. */
+    .adw-widget-code-window,
+    .adw-widget-preview-window + .adw-widget-code-window {
+        margin-top: 0.75rem;
+    }
+
+    /* ── Segmented control: the look of <adw-toggle-group> (_toggle_group.scss), on its tokens ── */
+    .adw-widget-code-window .command-tabs-headerbar-title {
+        display: flex;
+        justify-content: center;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .adw-widget-seg {
+        --group-padding: 3px;
+
+        display: inline-flex;
+        box-sizing: border-box;
+        max-width: 100%;
+        min-width: 0;
+        padding: var(--group-padding);
+        gap: var(--group-padding);
+        border-radius: var(--button-radius);
+        background-color: var(--button-bg-color);
+    }
+
+    .adw-widget-seg > [role='tab'] {
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-width: 34px;
+        min-height: 28px;
+        margin: 0;
+        padding: 4px 11px;
+        border: none;
+        border-radius: calc(var(--button-radius) - var(--group-padding));
+        background-color: transparent;
+        color: inherit;
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+            color 0.2s ease,
+            background-color 0.2s ease,
+            box-shadow 0.2s ease;
+    }
+
+    .adw-widget-seg > [role='tab']:hover {
+        background-color: var(--button-hover-color);
+    }
+
+    .adw-widget-seg > [role='tab']:active {
+        background-color: var(--button-active-color);
+    }
+
+    .adw-widget-seg > [role='tab']:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: 1px;
+    }
+
+    .adw-widget-seg > [role='tab'][aria-selected='true'] {
+        background-color: var(--active-toggle-bg-color);
+        color: var(--active-toggle-fg-color);
+        box-shadow:
+            0 1px 3px 1px rgba(0, 0, 6, 0.07),
+            0 2px 6px 2px rgba(0, 0, 6, 0.03);
+    }
+
+    /* No fixed cap: the label takes the room the header bar leaves the segments — their row is
+       `flex: 1` — and the group's own `max-width: 100%` is what bounds it on a narrow window,
+       after which this ellipsizes. */
+    .adw-widget-seg-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .adw-widget-seg > [data-more]::after {
+        content: '';
+        flex: none;
+        width: 0.4em;
+        height: 0.4em;
+        border: solid currentColor;
+        border-width: 0 1.5px 1.5px 0;
+        transform: translateY(-0.1em) rotate(45deg);
+    }
+
+    /* ── Panes ── */
+    .adw-widget-panes {
+        background-color: var(--view-bg-color);
+        color: var(--view-fg-color);
+        overflow: hidden;
+    }
+
+    .adw-widget-pane:not([data-active]) {
+        display: none;
+    }
+
+    /* The files of one program. The pane holds them all and shows the one the More menu's
+       section picked; the caption is what names it without script. */
+    .adw-widget-file:not([data-active]) {
+        display: none;
+    }
+
+    .adw-widget-pane-caption {
+        display: none;
+    }
+
+    /* ── The More menu: a menu popover (_popover.scss), in the top layer so nothing clips it ── */
+    .adw-widget-menu {
+        --popover-radius: 15px;
+
+        position: fixed;
+        inset: auto;
+        left: var(--x, 0);
+        top: var(--y, 0);
+        margin: 0;
+        /* Wide enough for a file name in one line — `views/button-content.xml` is the longest
+           the composers produce — and no wider than the space is for. `place()` measures the
+           same width; a row too long even here ellipsizes, with its whole name in its title. */
+        width: min(276px, calc(100vw - 16px));
+        box-sizing: border-box;
+        padding: 6px;
+        overflow: visible;
+        border: none;
+        border-radius: var(--popover-radius);
+        background-color: var(--popover-bg-color);
+        color: var(--popover-fg-color);
+        box-shadow:
+            0 0 0 1px rgba(0, 0, 0, 0.05),
+            0 1px 5px 1px rgba(0, 0, 0, 0.09),
+            0 2px 14px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .adw-widget-menu:popover-open {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* A menu can be TALLER than the space under the segment — several sections, each a heading
+       plus a row per file — so it scrolls inside itself and stops at the viewport edge rather
+       than being clipped. `padding-block` is where the arrow is drawn, so the rows scroll
+       BETWEEN the surface's edges and it stays visible. */
+    .adw-widget-menu-rows {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        max-height: calc(100vh - 32px);
+    }
+
+    .adw-widget-menu[data-side='top'] {
+        top: auto;
+        bottom: var(--y, 0);
+    }
+
+    .adw-widget-menu::before {
+        content: '';
+        position: absolute;
+        left: calc(var(--arrow-x, 50%) - 6px);
+        top: -5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 3px 0 0 0;
+        background-color: inherit;
+        box-shadow: -1px -1px 2px rgba(0, 0, 0, 0.08);
+        transform: rotate(45deg);
+    }
+
+    .adw-widget-menu[data-side='top']::before {
+        top: auto;
+        bottom: -5px;
+        border-radius: 0 0 3px 0;
+        box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Rows are the skin's own `.adw-popover-item`. A file name longer than the surface
+       ellipsizes rather than wrapping — one row per file, whatever the name — and the whole of
+       it is in the row's own title. */
+    .adw-widget-menu .adw-popover-item {
+        position: relative;
+        z-index: 1;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .adw-widget-menu .adw-popover-item-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .adw-widget-menu .adw-popover-title {
+        position: relative;
+        z-index: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* No script: the segments do nothing, so show every pane — and every file of it — under
+       its name instead. */
+    @media (scripting: none) {
+        .adw-widget-seg,
+        .adw-widget-code-window .command-tabs-copy {
+            display: none;
+        }
+
+        .adw-widget-pane:not([data-active]),
+        .adw-widget-file:not([data-active]) {
+            display: block;
+        }
+
+        .adw-widget-pane-caption {
+            display: block;
+            padding: 8px 16px;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            background-color: var(--headerbar-bg-color);
+        }
+    }
+</style>

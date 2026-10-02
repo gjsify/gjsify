@@ -6,12 +6,13 @@
 //
 // The markup is in no source file. `AdwWidget.astro` renders it on every build from the block's
 // `?shared-tree` projection with `@gjsify/adwaita-core/markup`, and `blueprint-panes.mjs`
-// composes each port tab's FILES from it and the page's slot code: Web Components as
+// composes each port binding's FILES from it and the page's slot code: Web Components as
 // `index.html` (the `<adw-*>` markup, then a module script with the page's `webloader` code)
 // and `main.js` (that code building the `.blp`); NativeScript as `views/<name>.xml` (the
 // template), `app.ts` (the page's `nativescriptloader` code) and `app.ts` again building the
-// `.blp`. The only place the result exists is `website/dist`, so that is what this reads, after
-// `docs:build`, in the job that builds the site.
+// `.blp`. The More menu lists them as a section of one row per file. The only place the result
+// exists is `website/dist`, so that is what this reads, after `docs:build`, in the job that
+// builds the site.
 //
 // WHAT IT CHECKS
 //
@@ -20,10 +21,10 @@
 //      `blueprint-panes.mjs` composes from the page's own slot code and the markup
 //      `sharedTreeHtml` / `sharedTreeNativeScriptXml` render from the `.blp` — parsed and
 //      projected HERE, with `@gjsify/blueprint`, not read back off the page: the same roles in
-//      the same order, each file's code byte for byte, the file row naming each file by its
-//      label, and the first file the one shown. A block whose markup went missing or stale, a
-//      file dropped, renamed or reordered, or a composition the component stopped applying,
-//      fails by block, tab and file.
+//      the same order, each file's code byte for byte, the More menu's SECTION naming the binding
+//      and listing one row per file by its label, and the first file the one shown. A block whose
+//      markup went missing or stale, a file dropped, renamed or reordered, or a composition the
+//      component stopped applying, fails by block, binding and file.
 //   2. Every `.blp` under `website/src/blueprints/` is in `GALLERY_BLUEPRINTS` of both round-trip
 //      specs — `adwaita-web/src/blueprint-markup.spec.ts` (the markup parsed by the browser) and
 //      `adwaita-nativescript/src/blueprint-markup.spec.ts` (the XML through NativeScript's XML
@@ -98,15 +99,39 @@ const decodeAttribute = (value) =>
     value.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
 
 /**
- * A pane's files as the built page holds them: the file row's toggles (`name` = role, `label`)
- * and the panels (`data-file-role`, whether it is the one shown, and its code), each in order.
+ * The More menu's rows for the FILES of a binding, in the order the menu lists them.
+ *
+ * A binding whose program is several files is a SECTION of the menu — a dim heading, then one
+ * row per file — and each of those rows carries `data-pane` (the binding) and `data-file-role`
+ * (the file within it). A single-file binding is one row with no `data-file-role`, so it is no
+ * row here.
+ *
+ * The menu is the window's LAST child, so its body is the window's own tail; the page chrome
+ * after the last window carries no `data-file-role` and contributes nothing.
  */
-const filesOf = (page) => {
-    const toggles = [...page.matchAll(/<adw-toggle(?=[\s>])([^>]*)>/g)].map((match) => ({
-        role: decodeAttribute(/\bname="([^"]*)"/.exec(match[1])?.[1] ?? ''),
-        label: decodeAttribute(/\blabel="([^"]*)"/.exec(match[1])?.[1] ?? ''),
-    }));
-    const starts = [...page.matchAll(/<div class="adw-widget-file"([^>]*)>/g)];
+const MENU_ROW = /<button\b([^>]*)>([\s\S]*?)<\/button>/g;
+
+const menuRowsOf = (window) => {
+    const at = window.indexOf('<div class="adw-widget-menu"');
+    // A window with no menu has no file rows, and `slice(-1)` would read the page around it.
+    if (at === -1) return [];
+    const rows = [];
+    for (const [, attributes, text] of window.slice(at).matchAll(MENU_ROW)) {
+        const role = decodeAttribute(/\bdata-file-role="([^"]*)"/.exec(attributes)?.[1] ?? '');
+        if (role === '') continue;
+        rows.push({
+            pane: decodeAttribute(/\bdata-pane="([^"]*)"/.exec(attributes)?.[1] ?? ''),
+            role,
+            // The check span is decoration; the row's own text is the file's name.
+            label: decodeAttribute(text.replace(/<[^>]*>/g, '')).trim(),
+        });
+    }
+    return rows;
+};
+
+/** The files of one pane as the built page holds them: the menu's rows and the panels. */
+const filesOf = (page, pane, rows) => {
+    const starts = [...page.matchAll(/<div class="adw-widget-file[^"]*"([^>]*)>/g)];
     const panels = starts.map((start, index) => {
         const body = page.slice(start.index, starts[index + 1]?.index ?? page.length);
         const code = /data-code="([^"]*)"/.exec(body);
@@ -116,19 +141,24 @@ const filesOf = (page) => {
             code: code === null ? null : decodeDataCode(code[1]),
         };
     });
-    return { toggles, panels };
+    return { rows: rows.filter((row) => row.pane === pane), panels };
 };
 
-/** Each built window that holds a loader pane: its pane ids and each pane's files, in order. */
+/**
+ * Each built source window that holds a loader binding: the pane ids and each pane's files, in
+ * order. The panes are the window's tab panels (`data-pane`), the More menu's among them.
+ */
 const loaderWindows = (html) => {
     const windows = [];
-    const starts = [...html.matchAll(/data-impls="([^"]*)"/g)];
+    const starts = [...html.matchAll(/<div class="command-tabs adw-widget-window adw-widget-code-window/g)];
     for (const [index, start] of starts.entries()) {
-        const ids = start[1].split(',');
-        if (!PANES.some((pane) => ids.includes(pane.id))) continue;
         const end = starts[index + 1]?.index ?? html.length;
-        const pages = html.slice(start.index, end).split('<adw-tab-page').slice(1);
-        windows.push({ ids, files: pages.map(filesOf) });
+        const window = html.slice(start.index, end);
+        const panes = window.split('<div class="adw-widget-pane"').slice(1);
+        const ids = panes.map((pane) => /\bdata-pane="([^"]*)"/.exec(pane)?.[1] ?? '');
+        if (!PANES.some((pane) => ids.includes(pane.id))) continue;
+        const rows = menuRowsOf(window);
+        windows.push({ ids, files: panes.map((pane, at) => filesOf(pane, ids[at], rows)) });
     }
     return windows;
 };
@@ -137,14 +167,14 @@ const loaderWindows = (html) => {
 const fileDifferences = (shown, expected) => {
     const problems = [];
     const want = expected.map((file) => file.role).join(', ');
-    const rowRoles = shown.toggles.map((toggle) => toggle.role).join(', ');
+    const rowRoles = shown.rows.map((row) => row.role).join(', ');
     const panelRoles = shown.panels.map((panel) => panel.role).join(', ');
-    if (rowRoles !== want) problems.push(`the file row names ${rowRoles || 'nothing'}, expected ${want}`);
+    if (rowRoles !== want) problems.push(`the menu section lists ${rowRoles || 'nothing'}, expected ${want}`);
     if (panelRoles !== want) problems.push(`the files are ${panelRoles || 'none'}, expected ${want}`);
     for (const [at, file] of expected.entries()) {
-        const toggle = shown.toggles[at];
-        if (toggle !== undefined && toggle.label !== file.label) {
-            problems.push(`file ${at + 1} is labelled "${toggle.label}", expected "${file.label}"`);
+        const row = shown.rows[at];
+        if (row !== undefined && row.label !== file.label) {
+            problems.push(`file ${at + 1} is labelled "${row.label}", expected "${file.label}"`);
         }
         const panel = shown.panels.find((candidate) => candidate.role === file.role);
         if (panel === undefined) continue;
@@ -220,7 +250,7 @@ for (const mdx of walk(DOCS, '.mdx')) {
                 continue;
             }
             if (shown === undefined) {
-                failures.push(`${block.title}: the built Code window has no "${pane.id}" pane`);
+                failures.push(`${block.title}: the built window has no "${pane.id}" pane`);
                 continue;
             }
             let expected;
@@ -260,6 +290,7 @@ if (failures.length > 0) {
     process.exit(1);
 }
 console.log(
-    `check-website-blueprint-markup: ${blocks} one-Blueprint block(s) show their generated markup and ` +
-        `composed files on both port tabs; ${blps.length} .blp file(s) are loaded by both round-trip specs.`,
+    `check-website-blueprint-markup: ${blocks} one-Blueprint block(s) list their generated markup and ` +
+        `composed files in the More menu of both port bindings; ${blps.length} .blp file(s) are loaded by both ` +
+        'round-trip specs.',
 );
