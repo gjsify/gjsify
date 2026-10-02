@@ -6,9 +6,8 @@
 
 import { EventEmitter } from '@gjsify/events';
 import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/core';
-import { nativeIsTty, nativeSetRawMode, nativeTerminalSize } from '@gjsify/terminal-native';
+import { nativeIsTty, nativeSetRawMode, nativeTerminalSize, noteRawMode } from '@gjsify/terminal-native';
 import { StringDecoder } from '@gjsify/string_decoder';
-import { claimRawMode, releaseRawMode } from './raw-mode.js';
 import { getGjsGlobal, getGioNamespace } from './internal/gjs.js';
 
 const _encoder = new TextEncoder();
@@ -140,50 +139,48 @@ export class ProcessReadStream extends EventEmitter {
     }
 
     setRawMode(mode: boolean): this {
-        // `null` (no native module, or one whose calls throw) and `false` (the
-        // call ran and refused) both fall through to the stty fallback — the
-        // native call did not put the terminal in raw mode either way.
-        if (nativeSetRawMode(this.fd, mode)) {
+        // The transition and the debt it creates are ONE call now
+        // (`noteRawMode`), because one call taking two paths and only ONE of
+        // them remembering to be undone is what stranded the terminal on
+        // every host with the prebuild installed — the normal case. The undo
+        // goes through the same accessor, so it cannot throw where the setter
+        // succeeded. Its verdict is the return, so the fallback below can take
+        // it without asking the terminal twice: `null` (no native module, or
+        // one whose calls throw) and `false` (the call ran and refused) both
+        // mean the terminal did NOT change either way, and both fall through
+        // to stty — a refusal here is often a piped stdin, not a TTY at all.
+        if (noteRawMode(this.fd, mode, (enable) => nativeSetRawMode(this.fd, enable) === true)) {
             this.isRaw = mode;
-            // This is the branch that used to claim nothing. The same call took
-            // two paths and only ONE of them remembered to be undone, so the
-            // terminal was restored on a host without the prebuild and stranded
-            // on every host with it — the normal case. The undo goes through the
-            // accessor too, so it cannot throw where the setter succeeded.
-            this._noteRawMode(mode, () => nativeSetRawMode(this.fd, false));
             return this;
         }
         // Fallback: spawn `stty raw -echo` / `stty sane` with stdin inherited so it
         // sees the real terminal and the setting persists in the kernel tty driver.
         // Only works when fd 0 is actually a TTY.
-        this._setRawModeViaStty(mode);
+        //
+        // `noteRawMode` is the same rule the native branch obeys, and it needs a
+        // verdict from here too — `Gio.Subprocess.get_successful()` is it, so a
+        // fallback that changed nothing claims nothing. The hook this path used to
+        // register reached for `globalThis.process` through an optional chain inside
+        // an empty `catch`, so on any host where that global was absent the cleanup
+        // silently did not exist — the same terminal, restored by luck.
+        noteRawMode(this.fd, mode, (enable) => {
+            return this._setRawModeViaStty(enable);
+        });
         this.isRaw = mode;
         return this;
     }
 
-    /**
-     * Record what this stream owes the terminal, or clear the debt.
-     *
-     * `releaseRawMode` matters as much as the claim: the owner turning raw mode
-     * off in the normal `close()` path has PAID, and an exit hook that ran the
-     * stale undo afterwards could fight a later owner that wanted raw mode.
-     */
-    private _noteRawMode(mode: boolean, restore: () => void): void {
-        if (mode) {
-            claimRawMode(this.fd, restore);
-        } else {
-            releaseRawMode(this.fd);
-        }
-    }
-
-    private _setRawModeViaStty(mode: boolean): void {
+    /** Whether the spawn left the terminal in the state asked for, which is what
+     * makes a claim on it honest: `stty` exits non-zero without touching a
+     * descriptor that is not a TTY, and that must claim nothing. */
+    private _setRawModeViaStty(mode: boolean): boolean {
         try {
             const _gi: Record<string, unknown> | undefined = (
                 globalThis as { imports?: { gi?: Record<string, unknown> } }
             ).imports?.gi;
             // oxlint-disable-next-line typescript/no-explicit-any -- GI introspection boundary: Gio/GLib namespaces and stream/result instances are runtime-injected via globalThis.imports.gi and would require @girs/* imports to type statically (coupling this file's TS compile to GJS); matches the gioAsync per-line-disable convention noted in AGENTS.md
             const Gio: any = _gi?.Gio ?? _gi?.['Gio'];
-            if (!Gio) return;
+            if (!Gio) return false;
             // G_SUBPROCESS_FLAGS_STDIN_INHERIT = 1 << 1 = 2
             // Makes stty inherit our fd 0 (the real TTY) so tcsetattr targets the same tty.
             const STDIN_INHERIT = Gio.SubprocessFlags?.STDIN_INHERIT ?? 2;
@@ -199,14 +196,10 @@ export class ProcessReadStream extends EventEmitter {
             const launcher = new Gio.SubprocessLauncher({ flags: STDIN_INHERIT });
             const proc = launcher.spawnv(argv);
             proc.wait(null);
-
-            // The undo for this path, recorded next to the change that needed it.
-            // It used to reach for `globalThis.process` through an optional chain and
-            // sit behind an empty catch, so on any host where that global was absent
-            // the cleanup silently did not exist — the same terminal, restored by luck.
-            this._noteRawMode(mode, () => this._setRawModeViaStty(false));
+            return proc.get_successful();
         } catch {
             /* stty not available or not a TTY */
+            return false;
         }
     }
 

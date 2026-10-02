@@ -8,6 +8,11 @@
 
 import { loadOptionalNativeModule } from '@gjsify/utils/core';
 
+// The raw-mode claim ledger, shared with @gjsify/process and @gjsify/tty: the
+// debt a raw-mode transition creates is owed to the terminal, and this is the
+// one package both of them already depend on. See ./raw-mode.ts.
+export * from './raw-mode.js';
+
 export interface NativeTerminal {
     /** Check whether fd is an interactive terminal (Posix.isatty). */
     is_tty(fd: number): boolean;

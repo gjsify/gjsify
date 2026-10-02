@@ -306,20 +306,20 @@ whose `loop.run()` blocks after the tests quit (the reason for the guard). Closi
 way to tell GJS's evaluation spin apart from a running `GLib.MainLoop`.
 
 
-### `@gjsify/tty` still forgets a raw-mode claim, and nothing reaches it
+### A raw-mode claim taken by `@gjsify/tty` has no payer without the process polyfill
 
-`@gjsify/process`'s `ProcessReadStream.setRawMode` records what it owes the terminal and
-`Process`'s `exit` pays it — the native branch used to return without claiming anything,
-while the `stty` fallback claimed through an optional-chained `globalThis.process` behind an
-empty `catch`, so on any host with the prebuild installed the debt was never paid. Measured on
-a pty: a child that sets raw mode and exits left `ECHO=OFF ICANON=OFF ISIG=OFF`, i.e. the shell
-unusable. Fixed by the claim living in `@gjsify/process/src/raw-mode.ts`.
+`@gjsify/tty`'s `ReadStream.setRawMode`/`WriteStream.setRawMode` now record what they owe the
+terminal — the ledger lives in `@gjsify/terminal-native`, the one package `@gjsify/process` and
+`@gjsify/tty` already share, so a consumer that reaches for `tty` instead of `process.stdin` gets its
+terminal back (#1908, #1940). What is still missing is the other half: the payer. `Process`'s `exit`
+event runs `restoreClaimedRawModes()`, so a bundle that reaches `node:tty` WITHOUT the process
+polyfill records the claim and has nobody to pay it, which is the same stranded shell #1908 measured.
+SIGKILL admits no handler either, and GJS tearing down its main loop emits no `exit` — neither is
+fixable from here, so this entry is only about the first: either the payer moves to the package that
+owns the exit, or `node:tty` cannot be reached without it.
 
-`@gjsify/tty`'s own `ReadStream.setRawMode` has the identical hole and is still unfixed. It is
-left alone on purpose, not overlooked: the package is `gjsify.runtimes.node: none`, nothing in
-this repo constructs it (`process.stdin` is the raw-mode owner everywhere it matters), and the
-one home both could share — `@gjsify/utils` or `@gjsify/terminal-native` — would mean a new
-cross-package dependency for a path no consumer reaches. What it needs when someone does reach
-it: the same claim, and the same `process` `exit` hook, which for a `gjsify.runtimes.node: none`
-package means reaching the process object the fragile way the old stty branch did — so the real
-fix is probably for `tty` to delegate rather than to duplicate.
+Two further gaps are host properties rather than work, and are pinned as such rather than tracked
+here: the two wiring tests in `packages/node/tty/src/index.spec.ts` need a real terminal and stand
+down with that reason where fd 0 is a pipe (`run(…, { skip })` in its `test.mts`), and `noteRawMode`'s
+own rule — a claim exists exactly where the transition happened — is pinned without a terminal in
+`packages/node/process/src/raw-mode.spec.ts`.

@@ -1,9 +1,10 @@
 // Ported from refs/node-test/parallel/test-tty-{isatty,get-color-depth,has-colors,window-size,wrap,stream-constructors}.js
 // Original: MIT license, Node.js contributors
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import tty, { isatty, ReadStream, WriteStream } from 'node:tty';
 import process from 'node:process';
+import { isRawModeClaimed, restoreClaimedRawModes } from '@gjsify/terminal-native';
 
 export default async () => {
     await describe('tty exports', async () => {
@@ -297,6 +298,67 @@ export default async () => {
             if ((process.stdin as { isTTY?: boolean }).isTTY !== undefined) {
                 expect(typeof (process.stdin as { isTTY?: boolean }).isTTY).toBe('boolean');
             }
+        });
+    });
+
+    // #1908 gave @gjsify/process a raw-mode claim and left THIS one documented as
+    // deliberately unfixed: a program that reaches for `tty.ReadStream#setRawMode`
+    // instead of `process.stdin` stranded the terminal just the same. The claim
+    // now lives in @gjsify/terminal-native — the one package both already depend
+    // on — and `Process`'s `exit` pays it, whoever took it on.
+    await describe('tty raw mode is a debt this process owes the terminal', async () => {
+        // What is left to prove HERE is the WIRING: that these two streams are the
+        // call sites. `noteRawMode`'s own rule — a claim exists exactly where the
+        // transition happened — is pinned without a terminal in @gjsify/process's
+        // raw-mode spec, so a real terminal is all that is missing to observe the
+        // debt reach the exit hook that pays it. Skipped where there is none (see
+        // the `skip` map in test.mts) — `set_raw_mode` returns false for a pipe,
+        // so asserting a claim there would be asserting the bug.
+        await on('Gjs', async () => {
+            await it('setRawMode(true) records the debt Process exit pays', async () => {
+                const read = new ReadStream(0);
+                read.setRawMode(true);
+                expect(isRawModeClaimed(0)).toBe(true);
+                expect(restoreClaimedRawModes()).toBe(1);
+                expect(isRawModeClaimed(0)).toBe(false);
+
+                // Node's own tty.WriteStream has no setRawMode, and neither does
+                // @types/node's — @gjsify/tty's does, and it is the same hole.
+                const write = new WriteStream(0) as WriteStream & { setRawMode(mode: boolean): unknown };
+                write.setRawMode(true);
+                expect(isRawModeClaimed(0)).toBe(true);
+                expect(restoreClaimedRawModes()).toBe(1);
+                expect(isRawModeClaimed(0)).toBe(false);
+            });
+
+            await it('setRawMode(false) pays the debt instead of leaving a stale undo', async () => {
+                const read = new ReadStream(0);
+                read.setRawMode(true);
+                expect(isRawModeClaimed(0)).toBe(true);
+                read.setRawMode(false);
+                // Paid in the normal close path: the exit hook has nothing left to
+                // undo, and cannot un-restore a terminal a later owner wants raw.
+                expect(isRawModeClaimed(0)).toBe(false);
+                expect(restoreClaimedRawModes()).toBe(0);
+            });
+
+            // Node leaves isRaw alone when the transition fails; a descriptor that
+            // is no terminal (999 is none) must not report raw mode it never entered.
+            await it('setRawMode leaves isRaw false when the transition did not happen', async () => {
+                let changes = 0;
+                const read = new ReadStream(999);
+                read.on('modeChange', () => changes++);
+                read.setRawMode(true);
+                expect(read.isRaw).toBe(false);
+                const write = new WriteStream(999) as WriteStream & {
+                    setRawMode(mode: boolean): unknown;
+                    isRaw: boolean;
+                };
+                write.on('modeChange', () => changes++);
+                write.setRawMode(true);
+                expect(write.isRaw).toBe(false);
+                expect(changes).toBe(0);
+            });
         });
     });
 };

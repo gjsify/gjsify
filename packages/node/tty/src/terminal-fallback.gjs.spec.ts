@@ -71,7 +71,15 @@ export default async () => {
                 // absence escapes as an exception into a caller restoring a mode.
                 const stream = new ReadStream(0);
                 expect(() => stream.setRawMode(true)).not.toThrow();
-                expect(stream.isRaw).toBe(true);
+                // `isRaw` reports the mode the descriptor is IN, not the one it
+                // was asked for: `set_raw_mode` refuses anything that is not a
+                // terminal, so a pipe keeps the initial value and a real
+                // terminal flips it — which way this lands is the host's, not
+                // this file's (see the header). Shape is what is pinned here;
+                // whether the transition HAPPENED is this package's own
+                // `setRawMode` suite's question, and that suite stands down
+                // where there is no terminal to ask.
+                expect(typeof stream.isRaw).toBe('boolean');
             });
         });
     });

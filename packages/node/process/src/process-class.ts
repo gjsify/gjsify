@@ -4,6 +4,7 @@
 // Reference: Node.js lib/internal/process/* (init, signal, per_thread, ...).
 
 import { EventEmitter } from '@gjsify/events';
+import { restoreClaimedRawModes } from '@gjsify/terminal-native';
 import { detectArch, detectPlatform, detectPpid, detectVersionInfo, getPid } from './internal/detect.js';
 import { chdir, getArgv, getCwd, getEnvProxy, getExecPath } from './internal/env.js';
 import { exitProcess } from './internal/exit.js';
@@ -11,7 +12,6 @@ import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
 import { cpuUsage, killPid, memoryUsage, readUmask, type CpuUsage, type MemoryUsage } from './internal/system.js';
 import { armSignal, disarmSignal, isDeliverableSignal } from './internal/signals.js';
 import { ProcessReadStream, ProcessWriteStream } from './streams.js';
-import { restoreClaimedRawModes } from './raw-mode.js';
 
 type ProcessPlatform = NodeJS.Platform;
 type ProcessArch = NodeJS.Architecture;
