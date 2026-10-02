@@ -3,46 +3,6 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### The `gjsify/*` lint rules cannot reach a scaffolded project, because the plugin is private
-
-`gjsify/prefer-blueprint-template` and `gjsify/no-literal-widget-label` are what keeps a
-scaffolded app's interface in Blueprint and translatable — and they are the rules a NEW project
-needs most, since the whole hazard is the first window anyone writes. They reach this repository
-through `jsPlugins` in the root `.oxlintrc.json`, which points at
-`./packages/infra/oxlint-plugin-gjsify/src/index.ts` — a SOURCE PATH inside this checkout.
-`@gjsify/oxlint-plugin-gjsify` is `private: true` and its own description says "NOT published to
-npm"; `npm view` answers 404. So there is no spelling of a config that turns either rule on in a
-scaffolded project, and both wrong spellings are HARD failures rather than a silent skip.
-Measured on a fresh `gtk-minimal` scaffold, 2026-10-01, all three through oxlint's Node launcher:
-
-    rule on, no `jsPlugins`        -> `Plugin 'gjsify' not found`,                            exit 1
-    `jsPlugins: ["@gjsify/…"]`     -> `Cannot find module '@gjsify/oxlint-plugin-gjsify'`,     exit 1
-    `jsPlugins: ["../../packages/…"]` -> `Cannot find module '…/src/index.ts'`,                exit 1
-
-The third is the one that looks right and is not: a path that resolves inside the monorepo
-resolves nowhere in `/tmp`, and oxlint treats a missing plugin as a config parse error, so the
-project's `gjsify lint` fails before reading a file. The two rules are also absent from
-`packages/infra/cli/src/templates/oxlintrc.json.tmpl`, what `gjsify format --init` writes, which
-means a scaffolded project has no config of its own until the user runs `--init` — and that one
-carries no `gjsify/*` rule either.
-
-What is NOT the blocker: publishing the plugin is a release-train question, and the plugin is
-plain TypeScript loaded by oxlint's own `import()` with `oxlint` as its only peer — it has no
-native binding, so un-`private`-ing it is small. Two things decide it rather than block it.
-`verify-published-closure.mjs` refuses a release-pinned edge from a published package to a private
-target, so a published `@gjsify/cli` that TEMPLATES the plugin name would red the closure gate
-until the plugin is on npm — the plugin has to go first, and first means
-`status/pending-npm-bootstrap.json`, a manual maintainer step. And the rules need scope, not a
-blanket switch: the root config's own `overrides` show that `no-literal-widget-label` reports on
-every widget a renderer or a storybook fixture builds, so a template shipping it as `error` with
-no exemptions would fail a project that adds one.
-
-The measurement that would close it, and it is cheap: publish the plugin, add it to
-`oxlintrc.json.tmpl` with `jsPlugins`, scaffold `gtk-minimal` into `/tmp`, and require both a
-`prefer-blueprint-template` finding for an imperative window AND a clean run once that window is
-converted — the second half is what distinguishes a rule that works from a rule that fails closed.
-
-
 ### `statusCheckRollup.state` answers twice, and nothing here knows which answer merges
 
 Measured 2026-09-19 on acca841ff1…0830 and c0629ff751…b5b1, deterministically and in the same
