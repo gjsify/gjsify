@@ -287,3 +287,12 @@
 [submodule "refs/blueprint-compiler"]
 	path = refs/blueprint-compiler
 	url = https://gitlab.gnome.org/GNOME/blueprint-compiler.git
+[submodule "refs/fluent-gtk-theme"]
+	path = refs/fluent-gtk-theme
+	url = https://github.com/vinceliuice/Fluent-gtk-theme.git
+[submodule "refs/microsoft-ui-xaml"]
+	path = refs/microsoft-ui-xaml
+	url = https://github.com/microsoft/microsoft-ui-xaml.git
+[submodule "refs/whitesur-gtk-theme"]
+	path = refs/whitesur-gtk-theme
+	url = https://github.com/vinceliuice/WhiteSur-gtk-theme.git

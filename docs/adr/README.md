@@ -109,6 +109,7 @@ the TODO records the *what's left*.
 | [0086](0086-a-format-derives-its-runtime-from-the-packages-that-exist.md) | A format's runtime capability is DERIVED from the runtime packages that exist, and a project may override it per (OS, format) — amends ADR 0024 § 4 | Proposed |
 | [0087](0087-an-optional-gi-namespace-is-declared-on-the-import.md) | An optional GI namespace is declared on the import: `gi://Ns?version=X&optional` | Accepted |
 | [0088](0088-a-blp-exports-its-ids-as-typed-names.md) | A `.blp` exports its ids as TYPED names, and the types travel in a committed sidecar | Accepted |
+| [0089](0089-platform-design-languages-on-top-of-adwaita.md) | Platform design languages sit on top of Adwaita, in three layers: tokens, platform integration, and widgets with no Adwaita equivalent | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
