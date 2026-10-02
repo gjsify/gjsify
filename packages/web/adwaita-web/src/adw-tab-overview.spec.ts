@@ -28,6 +28,9 @@ function mount(options: { pages?: number; pinned?: boolean; attrs?: string } = {
     }).join('');
     const host = document.createElement('div');
     host.innerHTML = `<adw-tab-overview ${options.attrs ?? ''}><adw-tab-view>${rows}</adw-tab-view></adw-tab-overview>`;
+    // A box, because `.focus()` on a zero-height element is a no-op in Firefox and the
+    // keyboard rules below are exactly what is under test.
+    (host.querySelector('adw-tab-overview') as HTMLElement).style.cssText = 'width: 400px; height: 300px;';
     document.body.appendChild(host);
     return {
         overview: host.querySelector('adw-tab-overview') as AdwTabOverview,
@@ -69,6 +72,11 @@ export const AdwTabOverviewTest = async () => {
             view.setPagePinned('late', true);
             expect(thumbs(overview, true)).toHaveLength(1);
             expect(thumbs(overview)).toHaveLength(2);
+            // `close_page_cb` DENIES a pinned page, which is why its thumbnail carries the
+            // unpin mark instead of a close button. Nothing leaves until it is unpinned.
+            view.closePage('late');
+            expect(view.nPages).toBe(3);
+            view.setPagePinned('late', false);
             view.closePage('late');
             expect(thumbs(overview, true)).toHaveLength(0);
             expect(thumbs(overview)).toHaveLength(2);
@@ -91,8 +99,11 @@ export const AdwTabOverviewTest = async () => {
             expect(closeBtn.hidden).toBe(false);
             closeBtn.click();
             expect(view.nPages).toBe(2);
-            // The page that was selected is untouched: the button swallowed the click.
-            expect(view.selectedId).toBe('tab-1');
+            // The button swallowed the click: the overview did NOT close, which is the
+            // difference from activating the thumbnail itself. The selection moving to
+            // `tab-2` is `Adw.TabView`'s own close-successor rule, not the button.
+            expect(overview.open).toBe(true);
+            expect(view.selectedId).toBe('tab-2');
             host.remove();
         });
 
@@ -230,13 +241,18 @@ export const AdwTabOverviewTest = async () => {
             (overview.querySelector('.search-button') as HTMLButtonElement).click();
             const entry = searchEntry(overview);
 
+            const labels = () =>
+                thumbs(overview)
+                    .map((thumb) => thumb.querySelector('.tab-label')?.textContent ?? '')
+                    .join(',');
+
             entry.value = 'scratch';
             entry.dispatchEvent(new Event('input'));
-            expect(thumbs(overview).map((thumb) => thumb.querySelector('.tab-label')?.textContent)).toEqual(['Page 1']);
+            expect(labels()).toBe('Page 1');
 
             entry.value = 'example.org';
             entry.dispatchEvent(new Event('input'));
-            expect(thumbs(overview).map((thumb) => thumb.querySelector('.tab-label')?.textContent)).toEqual(['Page 2']);
+            expect(labels()).toBe('Page 2');
 
             entry.value = 'page';
             entry.dispatchEvent(new Event('input'));
@@ -293,8 +309,10 @@ export const AdwTabOverviewTest = async () => {
             const { overview, view, host } = mount({ pages: 1, attrs: 'enable-new-tab' });
             overview.setOpen(true);
             overview.addEventListener('create-tab', (event) => {
-                const page = view.appendPage({ id: 'fresh', title: 'Fresh' });
-                (event as CustomEvent).detail.page = page;
+                // `appendPage` returns the POSITION the page landed at, not the page — the
+                // state the handler must hand back is read off the view.
+                const position = view.appendPage({ id: 'fresh', title: 'Fresh' });
+                (event as CustomEvent).detail.page = view.pages[position];
             });
             (overview.querySelector('.new-tab-button') as HTMLButtonElement).click();
             expect(view.selectedId).toBe('fresh');
@@ -309,7 +327,6 @@ export const AdwTabOverviewTest = async () => {
             overview.setAttribute('open', '');
             expect(overview.open).toBe(true);
             expect((overview.querySelector('.adw-tab-overview-toolbar') as HTMLElement).hidden).toBe(false);
-            overview.setAttribute('open', '');
             overview.setOpen(false);
             expect(seen).toStrictEqual([true, false]);
             host.remove();

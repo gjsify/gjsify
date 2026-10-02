@@ -633,7 +633,10 @@ export class TabViewState<T = unknown> {
             }
             return this.setSelectedPage(page.id, interactive);
         }
-        const id = page;
+        // The `typeof` check is spelled out rather than left to the guard above: under a
+        // consumer's non-strict settings the guard's fall-through still admits
+        // `AdwTabPageState<T>`, so the id would not narrow to `string` on its own.
+        const id = typeof page === 'string' ? page : null;
         if (id === null) {
             if (this.nPages > 0) {
                 this._diagnostics.push(

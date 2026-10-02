@@ -425,6 +425,11 @@ export class AdwTabOverview extends HTMLElement {
             case 'enable-new-tab':
                 this._applyNewTabButton();
                 return;
+            case 'inverted':
+                // The overview's `inverted` reaches each thumbnail through
+                // `adw_tab_thumbnail_set_inverted`, so the grid re-renders here.
+                this._syncGrids();
+                return;
             case 'enable-search':
             case 'show-start-title-buttons':
             case 'show-end-title-buttons':
@@ -594,6 +599,11 @@ export class AdwTabOverview extends HTMLElement {
     /** `adw_tab_overview_set_open`, the setter the actions and the grid both call. */
     setOpen(open: boolean): void {
         if (this.open === open) return;
+        // The ATTRIBUTE is the state, and `_applyOpen` reads it — so the write comes
+        // first, and `_reflecting` keeps the resulting reaction from applying it twice.
+        this._reflecting = true;
+        this.toggleAttribute('open', open);
+        this._reflecting = false;
         this._applyOpen();
         if (open) this._syncAll();
     }

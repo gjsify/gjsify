@@ -40,11 +40,15 @@ function mount(
                 `${page.hidden ? ' hidden' : ''}></adw-view-stack-page>`,
         )
         .join('');
+    // A plain row, NOT an <adw-navigation-split-view>: libadwaita refuses anything but an
+    // `Adw.NavigationPage` in either pane (`g_return_if_fail (ADW_IS_NAVIGATION_PAGE …)`,
+    // adw-navigation-split-view.c), so the split view would drop both of these rather
+    // than showing them side by side.
     host.innerHTML =
-        `<adw-navigation-split-view>` +
+        `<div class="stage" style="display:flex">` +
         `<adw-view-switcher-sidebar ${attrs}></adw-view-switcher-sidebar>` +
         `<adw-view-stack>${inner}</adw-view-stack>` +
-        `</adw-navigation-split-view>`;
+        `</div>`;
     document.body.appendChild(host);
     return {
         sidebar: host.querySelector('adw-view-switcher-sidebar') as AdwViewSwitcherSidebar,
@@ -102,7 +106,28 @@ export const AdwViewSwitcherSidebarTest = async () => {
             ]);
             expect(rows(sidebar)).toHaveLength(3);
             expect(headings(sidebar)).toStrictEqual(['Archive']);
-            // The separator header C's empty-title rule draws, not a second heading.
+            // ONE header, and it is the titled one: the leading untitled section draws
+            // NOTHING, because `create_header` binds that stack's `visible` to
+            // `string_is_not_empty (title)` (adw-sidebar.c:1461-1467) — the header C builds
+            // there is invisible, so there is no separator to count either.
+            expect(sidebar.querySelectorAll('adw-sidebar .adw-sidebar-section-header')).toHaveLength(1);
+            host.remove();
+        });
+
+        await it('draws a separator, not a second heading, for an untitled section after the first', async () => {
+            // The untitled section opens on `archive` and holds `spam` with it, so the
+            // separator C binds (`get_header_stack_page` → "separator", :1425-1434) is the
+            // only header between the two.
+            const { sidebar, host } = mount([
+                { name: 'inbox', title: 'Inbox' },
+                { name: 'archive', title: 'Archive', startsSection: 'true' },
+                { name: 'spam', title: 'Spam' },
+            ]);
+            expect(rows(sidebar)).toHaveLength(3);
+            // The leading section is untitled too — `section-title` is the only thing that
+            // titles a section, and `inbox` declares none — so `Archive`'s section is the
+            // separator's and there is no heading at all.
+            expect(headings(sidebar)).toStrictEqual([]);
             expect(sidebar.querySelectorAll('adw-sidebar .adw-sidebar-section-header.separator')).toHaveLength(1);
             host.remove();
         });
@@ -145,9 +170,19 @@ export const AdwViewSwitcherSidebarTest = async () => {
                     visible: stack.visibleChildName,
                 });
             });
+            rows(sidebar)[0].click();
+            const afterFirst = seen.length;
             rows(sidebar)[2].click();
-            expect(stack.visibleChildName).toBe('sent');
-            expect(seen).toStrictEqual([{ index: 2, visible: 'sent' }]);
+            // ONE event per click, and `seen` is BOTH of them: the first row was the
+            // visible page already, and C activates a selected row like any other.
+            expect({ afterFirst, name: stack.visibleChildName, seen }).toStrictEqual({
+                afterFirst: 1,
+                name: 'sent',
+                seen: [
+                    { index: 0, visible: 'inbox' },
+                    { index: 2, visible: 'sent' },
+                ],
+            });
             host.remove();
         });
     });
@@ -208,7 +243,10 @@ export const AdwViewSwitcherSidebarTest = async () => {
             status.setAttribute('icon', 'system-search');
             status.setAttribute('title', 'Nothing Found');
             sidebar.placeholder = status;
-            sidebar.filter = (item) => (item.title ?? '') === 'Drafts';
+            // EVERY row, which is the condition `update_placeholder` binds the placeholder
+            // to — a filter that leaves one row standing leaves the placeholder hidden, so
+            // `() => false` is the only predicate this test's name describes.
+            sidebar.filter = () => false;
             expect(placeholder.hidden).toBe(false);
             expect(placeholder.contains(status)).toBe(true);
 

@@ -161,6 +161,13 @@ export class AdwViewStack extends HTMLElement {
         if (initialName !== null) this._state.setVisibleName(initialName, false);
         this._applyVisibility();
         this._reflectName();
+        // Adopting the declared pages IS an items-changed, and a bound switcher needs to
+        // hear it: it connects while this element is still un-upgraded (custom elements
+        // upgrade in document order, and a `<adw-view-switcher-sidebar>` beside a stack
+        // connects FIRST), so it read an empty page list. The `notify::visible-child`
+        // the auto-pick emits covers the first page alone — a stack of two left every
+        // bound switcher showing one row.
+        this._emitItemsChanged();
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {

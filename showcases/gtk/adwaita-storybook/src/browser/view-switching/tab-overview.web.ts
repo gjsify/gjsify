@@ -47,12 +47,14 @@ export class TabOverviewWebStory extends StoryElement {
         overview.addEventListener('create-tab', (event) => {
             // A declared `<adw-tab-page>` is adopted on connect only, so the new page
             // goes in through the view's API — the rule the tab-button story follows.
-            const page = view.appendPage({
+            // `appendPage` returns the POSITION, so the page itself is read back off the
+            // view: `create-tab`'s handler must hand over the page, not a number.
+            const position = view.appendPage({
                 id: `new-${view.nPages}`,
                 title: 'New Page',
                 content: this._buildPageBody('New Page', 'Just created.'),
             });
-            (event as CustomEvent).detail.page = page;
+            (event as CustomEvent).detail.page = view.pages[position];
         });
 
         this._overview = overview;

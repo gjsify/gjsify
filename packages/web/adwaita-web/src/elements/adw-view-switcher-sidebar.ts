@@ -187,17 +187,22 @@ export class AdwViewSwitcherSidebar extends HTMLElement {
 
         // `placeholder`, `prefix` and `suffix` are widget PROPERTIES, so a `.blp`'s
         // `placeholder: …` authors `slot="placeholder"` — the rule `adw-tab-page` states.
+        // `install` is what routes the author's children out BEFORE the host is emptied,
+        // and it takes the structure this element owns; a bare `replaceChildren` here
+        // would destroy every declared slotted child.
         bindSlottedChildren(this, [
             { name: 'placeholder', into: this._placeholderEl },
             { name: 'prefix', into: this._prefixEl },
             { name: 'suffix', into: this._suffixEl },
-        ]);
-
-        this.replaceChildren(this._prefixEl, box, this._suffixEl);
+        ]).install(this._prefixEl, box, this._suffixEl);
         this._applyMode();
 
         const declared = this.getAttribute('stack');
         this.setStack(declared === null ? this._findStack() : this._resolveStack(declared));
+        // A widget with NO stack is C's own starting state (`set_stack` refuses NULL, so
+        // `populate_sidebar` never ran) and it reads as the empty sidebar plus the
+        // placeholder — which only `_applyEmptyState` decides.
+        this._applyEmptyState();
     }
 
     disconnectedCallback() {
@@ -242,6 +247,11 @@ export class AdwViewSwitcherSidebar extends HTMLElement {
      * would otherwise see the page the user was leaving.
      */
     private _onSidebarActivated = (event: Event): void => {
+        // The `<adw-sidebar>` is an IMPLEMENTATION DETAIL of this composite — the widget C
+        // parents in `adw_view_switcher_sidebar_init` is private, and only `activated` is
+        // re-emitted from it. Its own event bubbles, so without this a listener on the
+        // host sees the inner one AND the re-emission, and `index` arrives twice.
+        event.stopPropagation();
         const index = (event as CustomEvent).detail.index as number;
         const stack = this._stack;
         if (stack === null) return;
@@ -307,9 +317,12 @@ export class AdwViewSwitcherSidebar extends HTMLElement {
      * which is the C condition in `AdwSidebar`'s own words.
      */
     private _applyEmptyState(): void {
-        const rows = this._sidebar.querySelectorAll('.adw-sidebar-item').length;
-        this._placeholderEl.hidden = rows > 0;
-        this.classList.toggle('empty', rows === 0);
+        // `<adw-sidebar>`'s OWN answer, which counts the FILTERED model — the condition
+        // `update_placeholder` binds the placeholder to. Counting the DOM rows here would
+        // find them all still standing, because a filter HIDES a row and never removes it.
+        const empty = this._sidebar.classList.contains('empty');
+        this._placeholderEl.hidden = !empty;
+        this.classList.toggle('empty', empty);
     }
 }
 
