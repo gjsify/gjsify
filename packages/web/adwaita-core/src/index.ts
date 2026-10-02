@@ -681,6 +681,7 @@ export {
     successorAfterClose,
     tabCloseVisible,
     tabIconState,
+    tabSearchMatches,
     tabTooltip,
     tabTooltipIsMarkup,
     tabViewItemsChanged,

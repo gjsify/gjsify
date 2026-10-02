@@ -99,6 +99,7 @@ import { StackSidebarWebStories } from './view-switching/stack-sidebar.web.js';
 import { StackSwitcherWebStories } from './view-switching/stack-switcher.web.js';
 import { StackWebStories } from './view-switching/stack.web.js';
 import { TabButtonWebStories } from './view-switching/tab-button.web.js';
+import { TabOverviewWebStories } from './view-switching/tab-overview.web.js';
 import { TabViewWebStories } from './view-switching/tab-view.web.js';
 import { ViewSwitcherWebStories } from './view-switching/view-switcher.web.js';
 import { ViewSwitcherBarWebStories } from './view-switching/view-switcher-bar.web.js';
@@ -207,6 +208,7 @@ export const stories: WebStoryModule[] = [
     StackSidebarWebStories,
     NotebookWebStories,
     TabButtonWebStories,
+    TabOverviewWebStories,
     TabViewWebStories,
     ViewSwitcherWebStories,
     ViewSwitcherBarWebStories,

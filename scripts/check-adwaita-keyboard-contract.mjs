@@ -90,6 +90,11 @@ const ROVING_LEDGER = {
     'packages/web/adwaita-web/src/elements/gtk-list-view.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-inline-view-switcher.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-sidebar.ts': 'via ./roving-focus.js',
+    // The two grids are ONE tab stop each and the arrows move inside them, which is
+    // `adw_tab_overview_focus` (adw-tab-overview.c:1343-1405) written out: ArrowDown
+    // out of the search entry lands on the first thumbnail, ArrowUp off the new-tab
+    // button on the last one. The spec is `src/adw-tab-overview.spec.ts`.
+    'packages/web/adwaita-web/src/elements/adw-tab-overview.ts': 'own keydown listener',
     // `<gtk-menu-button>` and `<adw-split-button>` were both here, each `via
     // <gtk-popover>`, and both LEFT scope when ADR 0042 moved their row building into
     // the popup they share. The roving tabindex moved with it, so the obligation moved

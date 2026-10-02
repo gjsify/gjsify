@@ -56,7 +56,16 @@ export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
 export type AdwTabViewPageSpec = AdwTabPageSpec<HTMLElement>;
 
 /** The live `<adw-tab-page>` properties, each mapped onto a state setter. */
-const PAGE_ATTRIBUTES = ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'];
+const PAGE_ATTRIBUTES = [
+    'title',
+    'tooltip',
+    'icon',
+    'indicator-icon',
+    'keyword',
+    'loading',
+    'needs-attention',
+    'pinned',
+];
 
 /** `SPACING`: the slack `scroll_to_tab_full` allows before it scrolls (adw-tab-box.c:24). */
 const TAB_SPACING = 5;
@@ -258,6 +267,9 @@ export class AdwTabView extends HTMLElement {
             case 'indicator-icon':
                 this._state.setPageIndicatorIcon(id, value);
                 return;
+            case 'keyword':
+                this._state.setPageKeyword(id, value);
+                return;
             case 'loading':
                 this._state.setPageLoading(id, value !== null);
                 return;
@@ -428,8 +440,23 @@ export class AdwTabView extends HTMLElement {
         return this._state.setPageTooltip(id, tooltip);
     }
 
+    /**
+     * Set a page's search keyword (`AdwTabPage:keyword`) — the string the tab overview's
+     * search matches on beside the title and the tooltip ("Use keywords to search in
+     * e.g. page URLs in a web browser", adw-tab-overview.c:1646-1648).
+     */
+    setPageKeyword(id: string, keyword: string | null): boolean {
+        return this._state.setPageKeyword(id, keyword);
+    }
+
+    /** Set a page's icon name (`adw_tab_page_set_icon`). */
     setPageIcon(id: string, icon: string | null): boolean {
         return this._state.setPageIcon(id, icon);
+    }
+
+    /** Set a page's indicator icon (`adw_tab_page_set_indicator_icon`). */
+    setPageIndicatorIcon(id: string, indicatorIcon: string | null): boolean {
+        return this._state.setPageIndicatorIcon(id, indicatorIcon);
     }
 
     setPageLoading(id: string, loading: boolean): boolean {

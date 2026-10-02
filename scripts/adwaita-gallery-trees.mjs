@@ -1228,6 +1228,8 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.ClampScrollable':
         'its child must be scrollable (a list view, a text view) and those are built from a model in code, so a static tree has no honest child to give it.',
     'Adw.TabButton': 'its `view` is a widget reference, and a ref is spelled differently in all three dialects.',
+    'Adw.TabOverview':
+        'its `view` is a widget reference and its `child` is the tab view itself, and both are spelled differently in all three dialects.',
     // The three GTK dialogs are refusals for Adw.AboutDialog's reason, one clause further:
     // each needs `present()` AND a backend the host has no more than GTK does — the
     // element renders the same thing the GTK one does, which is a dialog over whatever the

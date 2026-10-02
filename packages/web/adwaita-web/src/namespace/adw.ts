@@ -94,6 +94,7 @@ export { AdwSplitButton as SplitButton } from '../elements/adw-split-button.js';
 export { AdwStatusPage as StatusPage } from '../elements/adw-status-page.js';
 export { AdwSwitchRow as SwitchRow } from '../elements/adw-switch-row.js';
 export { AdwTabButton as TabButton } from '../elements/adw-tab-button.js';
+export { AdwTabOverview as TabOverview } from '../elements/adw-tab-overview.js';
 export { AdwTabView as TabView } from '../elements/adw-tab-view.js';
 export { AdwToastOverlay as ToastOverlay } from '../elements/adw-toast-overlay.js';
 export { AdwToggle as Toggle } from '../elements/adw-toggle-group.js';

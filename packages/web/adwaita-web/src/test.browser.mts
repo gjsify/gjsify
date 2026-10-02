@@ -93,6 +93,7 @@ import { AdwBinTest } from './adw-bin.spec.js';
 import { AdwClampScrollableTest } from './adw-clamp-scrollable.spec.js';
 import { AdwPreferencesRowTest } from './adw-preferences-row.spec.js';
 import { AdwTabButtonTest } from './adw-tab-button.spec.js';
+import { AdwTabOverviewTest } from './adw-tab-overview.spec.js';
 import { GtkEditableLabelTest } from './gtk-editable-label.spec.js';
 import { GtkSearchBarTest } from './gtk-search-bar.spec.js';
 import { GtkTextTest } from './gtk-text.spec.js';
@@ -187,6 +188,7 @@ run({
     AdwClampScrollableTest,
     AdwPreferencesRowTest,
     AdwTabButtonTest,
+    AdwTabOverviewTest,
     GtkEditableLabelTest,
     GtkTextTest,
     GtkTextViewTest,

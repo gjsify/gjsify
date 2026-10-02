@@ -653,6 +653,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no bare preferences row: AdwActionRow is the row it ships, and a title-only base has no template of its own (status/open-todos/adwaita-ports.md).',
     'Adw.TabButton':
         'The NativeScript port has no tab button: AdwTabView is the only tab widget it ships, and its page counter is not a separate view (status/open-todos/adwaita-ports.md).',
+    'Adw.TabOverview':
+        'The NativeScript port has no tab overview: AdwTabView is the only tab widget it ships, and there is no view to stack a thumbnail grid over it with (status/open-todos/adwaita-ports.md).',
     // --- the gtk/windows page: three bars and two windows, none of them a View ---
     'Gtk.ActionBar':
         'The port HAS GtkActionBar, and GtkActionBar.pack_start is what a template would route a child ' +

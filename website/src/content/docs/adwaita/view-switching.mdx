@@ -363,6 +363,98 @@ listen to `clicked` to do so.
   </Fragment>
 </AdwWidget>
 
+## Tab Overview
+
+The **overview** is every page at once: a grid of thumbnails over the tab view, with the
+page title under each one and its own close button on it. It is meant to be the direct
+child of the window, with the tab view as its **child** — opening it covers that view
+and closing it gives it back.
+
+The header bar counts the open pages (**3 Tabs**, **1 Tab** for a single page) and
+carries the search button; the search matches titles, tooltips and each page's
+**keyword**, so a browser can make its URLs findable. Turn **enable-search** off and
+the button goes, leaving a bar that shows nothing worth showing — which is also what
+happens when the secondary menu is unset and both sides' title buttons are off.
+
+<MoreInfo title="Pinned pages">
+A **pinned** page gets its own grid above the ordinary one, and its thumbnail carries an
+unpin mark instead of a close button — that is the arrangement the tab bar's narrow
+chips come from. **Inverted** puts each thumbnail's close button at the leading edge and
+its indicator at the trailing one, for a right-to-left layout.
+</MoreInfo>
+
+<MoreInfo title="What the thumbnails are not">
+GTK paints each page into a texture and shows that picture. A browser cannot paint a
+widget into a texture, so the portrait area shows the page's own title instead. Everything
+around it — the card, the close button, the unpin mark, the attention dot, the indicator —
+is the real thing. Thumbnails are not dragged to reorder here either: reordering goes
+through the tab view's own API, the way the tab bar does it.
+</MoreInfo>
+
+<AdwWidget title="Adw.TabOverview" padding="flush" stage="height: 300px; width: 100%;">
+  <Fragment slot="preview">
+    ```html
+    <adw-tab-overview open enable-new-tab>
+      <adw-tab-view>
+        <adw-tab-page title="One"></adw-tab-page>
+        <adw-tab-page title="Two"></adw-tab-page>
+        <adw-tab-page title="Three" pinned></adw-tab-page>
+      </adw-tab-view>
+    </adw-tab-overview>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // The view goes in twice, deliberately: once as the overview's `child` (the thing it
+    // covers) and once as its `view` (the thing whose pages it lists).
+    const overview = new Adw.TabOverview({ view, child: view, enableNewTab: true });
+
+    // `overview.open` / `overview.close` are the two actions an Adw.TabButton pairs with.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => overview.activate_overview_open());
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.TabOverview {
+      child: Adw.TabView tabs {};
+
+      view: tabs;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // The view goes in twice, deliberately: once as the overview's `child` (the thing it
+    // covers) and once as its `view` (the thing whose pages it lists).
+    const overview = new Adw.TabOverview({ view, child: view, enableNewTab: true });
+
+    // `overview.open` / `overview.close` are the two actions an Adw.TabButton pairs with.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => overview.activate_overview_open());
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Inline View Switcher
 
 When a full switcher is too wide for the space, use the inline one. It is built

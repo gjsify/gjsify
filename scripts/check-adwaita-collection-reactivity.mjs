@@ -180,6 +180,7 @@ const COLLECTION_CENSUS = {
     'browser/adw-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
     'browser/gtk-drop-down': ['ComboState.setModel', 'attr:model'],
+    'browser/adw-tab-overview': ['attr:secondary-menu'],
 };
 
 function fail(lines) {
