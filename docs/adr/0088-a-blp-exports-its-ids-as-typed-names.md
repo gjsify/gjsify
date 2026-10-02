@@ -144,10 +144,14 @@ dependency that job cannot load.
 **A repo that does not use oxfmt excludes the sidecar from its formatter, and this ADR does not
 model that formatter.** Two arrangements, both deliberate:
 
-- **Biome** (`PixelRPG`): Biome owns `files.includes`, and a `.d.blp.ts` is not TypeScript
-  *source* — nothing authors it, nothing imports it as a module — so it is excluded with a
-  negation: `"!**/*.d.blp.ts"`. The file is still typed by `tsc`, still held by
-  `check-blueprint-sidecars.mjs`; only the formatter stops holding it.
+- **Biome** (`PixelRPG/map-editor`): Biome owns `files.includes`, and its settings are not this
+  model's — MEASURED in that repo's own `biome.json`: `indentWidth: 2` and
+  `semicolons: "asNeeded"` where oxfmt's flag would say `semi`, so an oxfmt-modelled
+  sidecar is a Biome-unformatted one. A `.d.blp.ts` is not TypeScript *source* — nothing authors
+  it, nothing imports it as a module — so the repo excludes it: `"!**/*.d.blp.ts"`. Note that the
+  `"!**/*.blp"` that repo already carries does NOT cover it: a sidecar ends in `.ts`. The file is
+  still typed by `tsc`, still held by `check-blueprint-sidecars.mjs`; only the formatter stops
+  holding it.
 - **No `.oxfmtrc` anywhere**: `emitFormatForTree` answers oxfmt's OWN defaults. It does not answer
   the last repository's values — that constant is the bug this section exists to remove.
 
