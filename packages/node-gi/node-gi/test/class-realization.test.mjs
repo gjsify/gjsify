@@ -22,8 +22,9 @@
 // this file can realize them either.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import { requireGi } from '../gi.js';
 
@@ -76,7 +77,7 @@ test('a GType with no class still reads, and an enum carries one at all', () => 
 // module set can log a `GLib-GIO-WARNING` that has nothing to do with these reads.
 function probeStderr(body) {
     const src = [
-        `const { requireGi } = await import(${JSON.stringify(fileURLToPath(new URL('../gi.js', import.meta.url)))});`,
+        `const { requireGi } = await import(${JSON.stringify(new URL('../gi.js', import.meta.url).href)});`,
         "const GObject = requireGi('GObject', '2.0');",
         "const GLib = requireGi('GLib', '2.0');",
         "const Gio = requireGi('Gio', '2.0');",
@@ -179,8 +180,11 @@ test('an INSTANCE receiver names its runtime class, as in gjs', () => {
 test('a plain static ignores `this`, exactly as in gjs', () => {
     // Only class-struct methods take the receiver. Gio.File.new_for_path is an ordinary
     // constructor function; borrowing it onto a class must not retarget anything.
-    const file = Gio.File.new_for_path.call(Gio.SimpleAction, '/tmp/node-gi-class-realization');
-    assert.equal(file.get_path(), '/tmp/node-gi-class-realization');
+    // A native path, not a `/tmp` literal: GLib reads the argument with the host's
+    // separator convention, so a POSIX literal comes back `\tmp\…` on win32.
+    const path = join(tmpdir(), 'node-gi-class-realization');
+    const file = Gio.File.new_for_path.call(Gio.SimpleAction, path);
+    assert.equal(file.get_path(), path);
 });
 
 test('a receiver that is not a GObject class is ignored, never trusted', () => {

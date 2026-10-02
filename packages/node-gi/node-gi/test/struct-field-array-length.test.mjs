@@ -27,6 +27,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { requireGi } from '../gi.js';
 
@@ -105,7 +106,7 @@ test('the contents match, not merely the count', { skip: skipReason() }, () => {
 // signal to widen `ElementsAreReadable`, and the assertion below says so out loud.
 test('an INLINE-record element field is declined, not walked', { skip: pangoSkip() }, () => {
     const probe = `
-        import { requireGi } from ${JSON.stringify(join(import.meta.dirname, '..', 'gi.js'))};
+        import { requireGi } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', 'gi.js')).href)};
         const Pango = requireGi('Pango', '1.0');
         const gs = new Pango.GlyphString();
         gs.set_size(3);
