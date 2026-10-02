@@ -109,7 +109,7 @@ export default async () => {
             // `registerClass` iterates zero times, so the absence is what says the template
             // declares no internal child. `toolbar-view.blp` is this file.
             const file = parseBlueprint('using Gtk 4.0;\ntemplate $Plain: Gtk.Box {\n  Gtk.Label { }\n}\n', 's.blp');
-            const sidecar = emitTypedSidecar(file);
+            const sidecar = emitTypedSidecar(file, 's.blp');
             expect(sidecar.includes("export declare const GTypeName: 'Plain';")).toBe(true);
             expect(sidecar.includes('InternalChildren')).toBe(false);
             expect(sidecar.includes('Children')).toBe(false);
@@ -148,8 +148,66 @@ export default async () => {
             // `get_object` takes the id AS WRITTEN, so the key stays the id and the caller
             // reaches it with `built['download-button']`. Renaming it to a bare identifier would
             // put a second spelling of the id in the output for nothing to hold.
-            const sidecar = emitTypedSidecar(parseBlueprint('using Gtk 4.0;\nGtk.Box a-b { }\n', 'spec.blp'));
+            const sidecar = emitTypedSidecar(parseBlueprint('using Gtk 4.0;\nGtk.Box a-b { }\n', 'spec.blp'), 'a.blp');
             expect(sidecar.includes('"a-b": Gtk.Box;')).toBe(true);
+        });
+
+        await it('names the .blp in the header from the caller, and never a path', async () => {
+            // The header is the one place a name is needed, and the emitter cannot work one out:
+            // it has no build step (so no `@gjsify/utils/core`) and is bundled into the GJS CLI.
+            // MEASURED on the win32 shape this replaces: `path.lastIndexOf('/')` on
+            // `C:\app\header-bar.blp` answers -1, so the header read `// GENERATED from
+            // C:\app\header-bar.blp` — a committed sidecar whose provenance is a machine's
+            // directory layout, and different on every developer. The caller passes the name.
+            const file = parseBlueprint('using Gtk 4.0;\nGtk.Box bin { }\n', 'C:\\app\\header-bar.blp');
+            const sidecar = emitTypedSidecar(file, 'header-bar.blp');
+            expect(sidecar.startsWith('// GENERATED from header-bar.blp — do not edit.')).toBe(true);
+            expect(sidecar.includes('C:')).toBe(false);
+        });
+
+        await it('writes InternalChildren the way the repository formatter would', async () => {
+            // `gjsify format --check` runs over this tree, and a committed sidecar is in it, so a
+            // sidecar the formatter would reflow makes `Whole-tree checks` red on a file nobody
+            // edited. oxfmt's rule is the WIDTH (`.oxfmtrc.json` `printWidth`), so both arms are
+            // asserted: packed while the line fits, one id per line once it does not. Eight ids
+            // is what first broke it, in showcases/dom/three-postprocessing-pixel.
+            const template = (ids: string[]) =>
+                `using Gtk 4.0;\ntemplate $Wide: Gtk.Box {\n${ids.map((id) => `  Gtk.Label ${id} { }`).join('\n')}\n}\n`;
+            const few = ['oneId', 'twoId', 'threeId'];
+            const many = [
+                'sidebarToggleButton',
+                'pauseButton',
+                'splitView',
+                'pixelSizeRow',
+                'normalEdgeRow',
+                'depthEdgeRow',
+                'pixelAlignRow',
+                'glAreaContainer',
+            ];
+            // The whole declaration: one line while it is packed, down to the lone `];` once it is
+            // not — which is the only way to read the reflowed form back out of the text.
+            const declaration = (source: string) => {
+                const lines = emitTypedSidecar(parseBlueprint(source, 'wide.blp'), 'wide.blp').split('\n');
+                const first = lines.findIndex((line) => line.startsWith('export declare const InternalChildren:'));
+                const close = lines.findIndex((line, index) => index > first && line === '];');
+                return lines.slice(first, close === -1 ? first + 1 : close + 1).join('\n');
+            };
+
+            expect(declaration(template(few))).toBe(
+                `export declare const InternalChildren: ['oneId', 'twoId', 'threeId'];`,
+            );
+            expect(declaration(template(many))).toBe(
+                ['export declare const InternalChildren: [', ...many.map((id) => `    '${id}',`), '];'].join('\n'),
+            );
+            // And the property that makes it a gate rather than a sample: whatever a `.blp`
+            // declares, no emitted sidecar carries a line the formatter would break.
+            for (const { source } of CORPUS_REAL_FILES) {
+                const file = join(repoRoot, source);
+                const text = emitTypedSidecar(parseBlueprint(readFileSync(file, 'utf8'), file), 'corpus.blp');
+                for (const line of text.split('\n')) {
+                    expect(line.length).toBeLessThanOrEqual(120);
+                }
+            }
         });
     });
 };

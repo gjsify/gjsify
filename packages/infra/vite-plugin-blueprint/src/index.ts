@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 import {
     accessibilityElement,
     accessibilityValue,
@@ -220,7 +221,11 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
             // The sidecar is written AFTER the module is emitted, so a `.blp` the derivation
             // refuses leaves no sidecar behind claiming exports the module does not have.
             const moduleText = emitTypedModule(ast, xmlContent);
-            if (sidecars) await writeSidecar(asked.file, emitTypedSidecar(ast), verbose);
+            // `basename` from `node:path`, and this plugin is the one caller for which the HOST is
+            // the authority: a vite/rolldown plugin only ever runs in the Node process driving the
+            // build, on the machine whose paths `asked.file` is a path on. `@gjsify/blueprint`
+            // cannot do this itself — see `typed-exports.mjs` § `emitTypedSidecar`.
+            if (sidecars) await writeSidecar(asked.file, emitTypedSidecar(ast, basename(asked.file)), verbose);
             return moduleText;
         },
     };

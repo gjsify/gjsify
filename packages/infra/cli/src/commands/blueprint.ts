@@ -14,7 +14,7 @@
 // The two share the derivation; what is duplicated is the byte comparison.
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { emitTypedSidecar, parseBlueprint, sidecarPathFor } from '@gjsify/blueprint';
 import type { Command } from '../types/index.js';
 
@@ -93,7 +93,12 @@ export const blueprintTypesCommand: Command<unknown, BlueprintTypesOptions> = {
             // A parse or derive refusal is NOT caught. It names its file and its line (ADR 0053
             // clause 3), which is the whole contract, and swallowing it here would report "0
             // sidecars written" for a `.blp` that cannot compile.
-            const expected = emitTypedSidecar(parseBlueprint(readFileSync(file, 'utf8'), file));
+            // `basename` from `node:path`, which is the host's own answer under the GJS bundle as
+            // well as under node: `@gjsify/node-path` picks its win32 or posix flavour at module
+            // init, and the path here is the user's, on their machine. `@gjsify/blueprint` cannot
+            // take the name itself — see `typed-exports.mjs` § `emitTypedSidecar`.
+            const ast = parseBlueprint(readFileSync(file, 'utf8'), file);
+            const expected = emitTypedSidecar(ast, basename(file));
             let current: string | undefined;
             try {
                 current = readFileSync(sidecar, 'utf8');

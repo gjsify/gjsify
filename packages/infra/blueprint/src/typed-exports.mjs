@@ -26,8 +26,25 @@ const IMPLICIT_VERSIONS = Object.freeze({ Gio: '2.0', GObject: '2.0' });
 /** The key `build()`'s return value may not carry, because it already carries the builder. */
 const RESERVED_KEY = 'builder';
 
-/** The file's own name, for the generated header. No `node:path` — this module runs under GJS too. */
-const basename = (path) => path.slice(path.lastIndexOf('/') + 1);
+/**
+ * The repository's formatter width (`.oxfmtrc.json`, `printWidth`), so this emitter writes the
+ * bytes `gjsify format --check` accepts and the two gates over a sidecar — the formatter's, and
+ * `scripts/check-blueprint-sidecars.mjs`, which holds the committed bytes to this emitter — cannot
+ * contradict each other. MEASURED both ways before the rule, the two findings
+ * `scripts/generate-widget-methods.mjs` § PRINT_WIDTH records for the other generator in this
+ * tree: a packed `InternalChildren` was reflowed one id per line, and the reflowed one was
+ * collapsed back onto one line wherever it fitted. oxfmt's rule is the width, so the width is
+ * emitted — an eighth id is what first broke it (showcases/dom/three-postprocessing-pixel).
+ */
+const PRINT_WIDTH = 120;
+
+/** A list of ids as oxfmt lays it out: one line while the whole line fits, else one id per line. */
+function idTuple(ids, prefix) {
+    const oneLine = `${prefix}[${ids.map((id) => `'${id}'`).join(', ')}]`;
+    // The `+ 1` is the trailing comma the reflowed form carries and the packed one does not.
+    if (oneLine.length + 1 <= PRINT_WIDTH) return oneLine;
+    return `${prefix}[\n${ids.map((id) => `    '${id}',`).join('\n')}\n]`;
+}
 
 /**
  * The GJS member one internal child installs.
@@ -163,11 +180,22 @@ const quoteKey = (id) => (isBareKey(id) ? id : JSON.stringify(id));
  * The `x.d.blp.ts` text — what `allowArbitraryExtensions` reads instead of the ambient
  * `declare module '*.blp'` wildcard.
  *
+ * `sourceName` is the `.blp`'s OWN name (`header-bar.blp`), never a path, and the caller supplies
+ * it because this module cannot work it out. The header is the only thing here that needs a
+ * separator, and neither answer is available to a package with NO BUILD STEP that is also bundled
+ * into the GJS CLI: `@gjsify/utils/core`'s `lastPathSeparatorIndex` is a BUILT subpath the bare
+ * install this gate runs against does not have, and slicing on `'/'` alone is the defect #1143 was
+ * about — on win32 it wrote the whole `C:\…\header-bar.blp` into this header. `node:path` is what
+ * the callers use, and it is right in all three: the bundler plugin and the sidecar gate run in
+ * Node on the machine whose paths they hold, and `@gjsify/node-path` selects its win32 or posix
+ * flavour per host at module init, so the CLI's GJS bundle gets the host's own answer too (#1146
+ * is the flavour selection that made that so).
+ *
  * SPIKED BEFORE ADR 0087 WAS WRITTEN, on TypeScript 6.0.3: the sidecar wins over the wildcard,
  * a `.blp` with no sidecar still falls back to it, and without `allowArbitraryExtensions` the
  * sidecar is ignored — which is the negative control proving the first of the three.
  */
-export function emitTypedSidecar(file) {
+export function emitTypedSidecar(file, sourceName) {
     const { namespaces, template, objects } = deriveExports(file);
     const where = { file: file.file, line: 1 };
 
@@ -177,7 +205,7 @@ export function emitTypedSidecar(file) {
     const imports = [...used].sort();
 
     const lines = [
-        `// GENERATED from ${basename(file.file)} — do not edit. ADR 0087 says what these exports mean.`,
+        `// GENERATED from ${sourceName} — do not edit. ADR 0087 says what these exports mean.`,
         `// Regenerate with \`gjsify blueprint types\`; \`scripts/check-blueprint-sidecars.mjs\` holds it.`,
         '',
     ];
@@ -217,7 +245,10 @@ export function emitTypedSidecar(file) {
                 ' * which is the property that matters. `status/open-todos/blueprint.md` carries the',
                 ' * upstream half.',
                 ' */',
-                `export declare const InternalChildren: [${template.children.map((one) => `'${one.id}'`).join(', ')}];`,
+                `${idTuple(
+                    template.children.map((one) => one.id),
+                    'export declare const InternalChildren: ',
+                )};`,
                 '',
                 '/** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */',
                 'export interface Children {',
@@ -276,8 +307,13 @@ export function emitTypedModule(file, xml) {
         lines.push('', `export const GTypeName = '${template.GTypeName}';`);
         // Both halves agree on the absence — see the sidecar emitter for why there is one.
         if (template.children.length > 0) {
+            // The same width rule as the sidecar's declaration, so the two halves of a `.blp`'s
+            // types read alike — and so a caller that formats what this emits reflows neither.
             lines.push(
-                `export const InternalChildren = [${template.children.map((one) => `'${one.id}'`).join(', ')}];`,
+                `${idTuple(
+                    template.children.map((one) => one.id),
+                    'export const InternalChildren = ',
+                )};`,
             );
         }
     }

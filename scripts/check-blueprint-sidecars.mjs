@@ -33,7 +33,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { emitTypedSidecar, parseBlueprint } from '@gjsify/blueprint';
 
@@ -69,7 +69,11 @@ function main(argv) {
         // A refusal is NOT caught: a `.blp` that has a sidecar is a `.blp` someone imports by
         // name, so one that no longer parses is a build already broken and the parser's own
         // error names the file and the line better than a verdict line could.
-        const expected = emitTypedSidecar(parseBlueprint(source, blueprint));
+        // `basename` and not a slice on `'/'`: this gate runs on the Windows leg too, where the
+        // tree's own paths are `\`-separated and a `'/'` slice would write the whole relative
+        // path into the header it is comparing. `node:path` owns the separator here because this
+        // script runs on the host it reads — see `typed-exports.mjs` § `emitTypedSidecar`.
+        const expected = emitTypedSidecar(parseBlueprint(source, blueprint), basename(blueprint));
         if (readFileSync(join(root, sidecar), 'utf8') === expected) continue;
         if (write) {
             writeFileSync(join(root, sidecar), expected, 'utf8');

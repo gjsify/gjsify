@@ -56,8 +56,15 @@ export interface BlueprintExports {
  */
 export declare function deriveExports(file: BlueprintFile): BlueprintExports;
 
-/** The `x.d.blp.ts` text — what `allowArbitraryExtensions` reads (ADR 0087 § 4). */
-export declare function emitTypedSidecar(file: BlueprintFile): string;
+/**
+ * The `x.d.blp.ts` text — what `allowArbitraryExtensions` reads (ADR 0087 § 4).
+ *
+ * `sourceName` is the `.blp`'s OWN name (`header-bar.blp`), not a path: the generated header is
+ * the only thing that needs one, and this package has no build step and is also bundled into the
+ * GJS CLI, so neither `@gjsify/utils/core` nor `node:path` is available to work it out here. The
+ * caller holds the path and answers for the host it runs on — see the implementation.
+ */
+export declare function emitTypedSidecar(file: BlueprintFile, sourceName: string): string;
 
 /** The module a bundler gets: the XML `default`, plus the named exports the sidecar declares. */
 export declare function emitTypedModule(file: BlueprintFile, xml: string): string;
