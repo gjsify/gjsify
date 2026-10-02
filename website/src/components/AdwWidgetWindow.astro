@@ -27,7 +27,7 @@ interface Props {
     refHref?: string | null;
     /** What the preview mounts, or none when the block has no markup. */
     live?: LivePane;
-    /** The source segments, in order; also the order `data-impls` names them in. */
+    /** The source segments, in order. */
     tabs: WidgetPane[];
     /** The panes behind the `More` segment. */
     bindings: WidgetPane[];
@@ -39,7 +39,6 @@ interface Props {
 
 const { title, refHref = null, live, tabs, bindings, padding = 'comfortable', scroll = false, stage } = Astro.props;
 
-const impls = tabs.map((pane) => pane.id).join(',');
 const panes = [...tabs, ...bindings];
 const slug = title.replaceAll(/[^A-Za-z0-9]+/g, '-');
 const paneId = (pane: WidgetPane) => `pane-${slug}-${pane.id}`;
@@ -134,7 +133,7 @@ const entries = menuEntries(bindings);
     )
 }
 
-<div class="command-tabs adw-widget-window adw-widget-code-window not-content" data-impl-tabs data-impls={impls}>
+<div class="command-tabs adw-widget-window adw-widget-code-window not-content" data-impl-tabs>
     <div class="command-tabs-headerbar">
         <span class="command-tabs-headerbar-start" />
         <div class="command-tabs-headerbar-title">
@@ -184,7 +183,6 @@ const entries = menuEntries(bindings);
                     id={paneId(pane)}
                     aria-label={`${pane.label} — ${title}`}
                     data-pane={pane.id}
-                    data-kind={pane.kind}
                     data-active={index === 0 ? '' : undefined}
                 >
                     <div class="adw-widget-pane-caption">{pane.label}</div>
@@ -254,6 +252,14 @@ const entries = menuEntries(bindings);
     /* Keeps the title centred against the reference link on the left. */
     .adw-widget-preview-window .command-tabs-headerbar-end {
         width: 38px;
+    }
+
+    /* The code window's start slot is empty: on a narrow window it gives its room to the
+       segments, so "More" keeps its name instead of ellipsizing to "M…". */
+    @media (max-width: 480px) {
+        .adw-widget-window.adw-widget-code-window .command-tabs-headerbar-start {
+            display: none;
+        }
     }
 
     /* Two windows of one block read as a pair, not as two blocks. */
