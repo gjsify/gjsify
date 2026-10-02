@@ -228,19 +228,38 @@ export class GtkVideo extends HTMLElement {
      */
     private _wrap(): void {
         const media = this.querySelector<HTMLVideoElement>(':scope > video');
+        // EVERY other light child is the CONTROLS, and the template says where they go:
+        // `ui/gtkvideo.ui`'s `controls_revealer` holds a `GtkMediaControls` as its child, and
+        // `revealed` is what reveals it. `replaceChildren` therefore cannot simply discard
+        // them — a bar dropped on the floor is a bar outside the document, which loses its
+        // stylesheet, its popover's own `connectedCallback`, and the `closest('gtk-video')` a
+        // `<gtk-media-controls>` reads its stream from. So they are moved, not dropped.
+        const controls = [...this.children].filter((child) => child !== media);
         const surface = document.createElement('div');
         surface.className = 'adw-video-surface';
         this.replaceChildren(surface);
         if (media) surface.appendChild(media);
-        surface.append(this._overlayIcon, this._controlsRevealer);
+        surface.append(this._overlayIcon);
+        this._controlsRevealer.append(...controls);
+        surface.append(this._controlsRevealer);
     }
 
     private _adoptMedia(): void {
         // Narrowed at the selector: `querySelector` answers `Element`, and the whole point of the
-        // media is that it has `play`, `paused` and `error`.
-        const media = this.querySelector<HTMLVideoElement>(':scope > .adw-video-surface > video');
+        // media is that it has `play`, `paused` and `error`. `?? null` for the reason
+        // `<gtk-media-controls>`'s own `_adoptMedia` states: the no-stream arm of the four-way
+        // choice is compared against a field initialised to `null`, and an `undefined` there
+        // would read as a stream.
+        const media = this.querySelector<HTMLVideoElement>(':scope > .adw-video-surface > video') ?? null;
         if (media === this._media) {
             this._syncMedia();
+            // `gtk_video_set_media_stream` calls `gtk_video_update_all` (gtkvideo.c:761-763)
+            // on EVERY assignment, and a video with NO `<video>` child is the assignment of
+            // nothing — the same function, the same four arms, no stream. Returning early
+            // without this left the no-stream arm undrawn on the FIRST call, which is the only
+            // call a streamless `<gtk-video>` ever makes: the eject glyph is the state every
+            // GtkVideo starts in, and it has to be the state it STARTS in.
+            this._updateOverlayIcon();
             return;
         }
         if (this._media) this._detachMedia(this._media);
@@ -314,9 +333,10 @@ export class GtkVideo extends HTMLElement {
         // `overlay_clicked_cb` (ui/gtkvideo.ui) toggles: it plays when stopped and pauses
         // when playing, which is the overlay's whole contract — it is only VISIBLE when
         // stopped, so the pause branch is reachable only from the controls bar's own button.
-        if (!this._media) return;
-        if (this._media.paused) void this._media.play().catch(() => {});
-        else this._media.pause();
+        const media = this._media ?? null;
+        if (media === null) return;
+        if (media.paused) void media.play().catch(() => {});
+        else media.pause();
     }
 
     /**

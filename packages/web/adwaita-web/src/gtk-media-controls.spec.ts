@@ -59,12 +59,22 @@ export const GtkMediaControlsTest = async () => {
             expect(mediaTimeToString(9 * 3600 + 302, true)).toBe('-9:05:03');
         });
 
-        await it('BUMPS THE SECONDS BY ONE when showing what remains', () => {
-            // gtkmediacontrols.c:81-82 — `if (remaining) _time++;` so that
-            // `current + remaining = total` holds for a whole second of playback rather than
-            // being one short at every boundary. Five minutes of a 5:02 video reads "-5:03".
-            expect(mediaTimeToString(300, true)).toBe('-5:03');
+        await it('BUMPS THE TOTAL BY ONE when showing what remains', () => {
+            // gtkmediacontrols.c:81-82 — `if (remaining) _time++;`, and `_time` is the whole
+            // count, not the seconds field. So the increment is only VISIBLE in the seconds
+            // when the input's own seconds are zero, and it CARRIES at 59 the way any
+            // increment does: 300 s of remaining is "-5:01", and 359 s is a flat "6:00".
+            // Reading the C's line as "+1 to the seconds" gives "-5:03" for 300 s, which is
+            // one second more than the count GTK actually holds.
+            expect(mediaTimeToString(300, true)).toBe('-5:01');
+            // 359 s + 1 s is 360 s, so the minute field carries to 6 and the sign stays —
+            // `remaining` is still set, and the short remaining form is `-%d:%02d`.
+            expect(mediaTimeToString(359, true)).toBe('-6:00');
             expect(mediaTimeToString(0, true)).toBe('-0:01');
+            // An hour-carrying remainder carries too: 3599 s + 1 s is 3600, an hour, so the
+            // long format appears — the same hour branch the elapsed form takes, and the
+            // negative sign rides along with it because `remaining` is still set.
+            expect(mediaTimeToString(3599, true)).toBe('-1:00:00');
         });
 
         await it('force_hour is the only thing that puts hours on a short video', () => {
@@ -74,24 +84,57 @@ export const GtkMediaControlsTest = async () => {
             expect(mediaTimeToString(302, true, true)).toBe('-0:05:03');
         });
 
-        await it('truncates rather than rounds, and floors a negative to zero', () => {
+        await it('truncates rather than rounds', () => {
             // The C works in whole seconds throughout (`_time = (int) (usecs / G_USEC_PER_SEC)`,
-            // :79) and its callers guard the subtraction themselves
-            // (`duration > timestamp ? duration - timestamp : 0`, :364).
+            // :79), so 59.9 s is the 59th second and not the 60th.
             expect(mediaTimeToString(59.9)).toBe('0:59');
-            expect(mediaTimeToString(-5)).toBe('0:00');
+            expect(mediaTimeToString(0.999)).toBe('0:00');
+        });
+
+        await it('passes a negative through as the C does, because the C guards upstream', () => {
+            // `totem_time_to_string` does NOT floor, and `%` in C99 keeps the sign of the
+            // dividend: for -5 the second is -5, `0 - (-5)` leaves `_time` at 0, and both the
+            // minute and the hour come out zero — so the C formats `%d:%02d` of 0 and -5, which
+            // is the nonsense `0:-5`. There is no clamp here to borrow, and adding one would be
+            // a fix the C does not have. The guard is in the CALLER instead
+            // (`duration > timestamp ? duration - timestamp : 0`, :364), which is where this
+            // port has it too — so a negative never reaches the formatter from the widget.
+            expect(mediaTimeToString(-5)).toBe('0:-5');
         });
     });
 
     await describe('volumeIconFor', async () => {
-        await it("picks the four audio-volume names GTK's volume button derives", () => {
-            // `volume_adjustment` is `upper` 1 (ui/gtkmediacontrols.ui) and GtkVolumeButton
-            // derives its icon from the level; a zero level is muted whatever else the range
-            // says.
-            expect(volumeIconFor(0)).toBe('audio-volume-muted');
-            expect(volumeIconFor(0.2)).toBe('audio-volume-low');
-            expect(volumeIconFor(0.5)).toBe('audio-volume-medium');
-            expect(volumeIconFor(1)).toBe('audio-volume-high');
+        await it('takes the four NAMES from GtkVolumeButton, in ITS order', () => {
+            // `GtkVolumeButton:use-symbolic` defaults TRUE and is a CONSTRUCT property, so
+            // `gtk_volume_button_set_property` installs `icons_symbolic` before anything
+            // reads it (gtkvolumebutton.c:142-148, :186-188). The names in play therefore
+            // CARRY the suffix — the template's own list at gtk/ui/gtkvolumebutton.ui:12-15
+            // is what a non-symbolic button would use, and it is not what GTK ends up with.
+            expect(volumeIconFor(0)).toBe('audio-volume-muted-symbolic');
+            expect(volumeIconFor(0.2)).toBe('audio-volume-low-symbolic');
+            expect(volumeIconFor(0.5)).toBe('audio-volume-medium-symbolic');
+            expect(volumeIconFor(1)).toBe('audio-volume-high-symbolic');
+        });
+
+        await it('splits at a HALF, because the icon list has four entries and two ends', () => {
+            // gtkscalebutton.c:1098-1101 — `step = (upper − lower) / (num_icons − 2)`, and the
+            // list's `[0]` and `[1]` are already spoken for by the exact `lower` and the exact
+            // `upper`. For `volume_adjustment`'s 0…1 that leaves a step of 0.5, NOT thirds.
+            // `high` is full scale alone; `low` is the lower half, `medium` the upper one.
+            expect(volumeIconFor(0.499)).toBe('audio-volume-low-symbolic');
+            expect(volumeIconFor(0.5)).toBe('audio-volume-medium-symbolic');
+            expect(volumeIconFor(0.999)).toBe('audio-volume-medium-symbolic');
+            // The C's `(guint)` cast truncates rather than rounds, so just under a half is
+            // still `low` and just under 1 is still `medium`.
+            expect(volumeIconFor(0.9)).toBe('audio-volume-medium-symbolic');
+        });
+
+        await it('is silent at the bottom whatever the range says, which is the muted arm', () => {
+            // gtkscalebutton.c:1088-1090 — `value == get_lower` takes `icons[0]`, and
+            // `icons[0]` of the volume button is the muted name. Out-of-range levels clamp to
+            // the adjustment's own ends, so a negative level is silence rather than the low name.
+            expect(volumeIconFor(-1)).toBe('audio-volume-muted-symbolic');
+            expect(volumeIconFor(0)).toBe('audio-volume-muted-symbolic');
         });
     });
 

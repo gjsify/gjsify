@@ -324,12 +324,31 @@ export class GtkInscription extends HTMLElement {
         // The MEASURE, transcribed. `labelWidthCharsExtent` is the `MAX (min_chars,
         // nat_chars)` of gtkinscription.c:348 over the CSS `ch` unit, which is the same
         // average-char-width Pango measures in `get_char_pixels`.
-        const { minCh, maxCh } = labelWidthCharsExtent(this.minChars, this.natChars);
-        // `gtk_inscription_measure_width` returns NOTHING when both counts are zero
-        // (gtkinscription.c:344-345), so the declarations are cleared rather than set to 0 —
-        // `min-width: 0` would be a different, much smaller widget.
-        this.style.setProperty('--gtk-inscription-min-ch', minCh === null ? 'auto' : `${minCh}ch`);
-        this.style.setProperty('--gtk-inscription-width', maxCh === null ? 'auto' : `${maxCh}ch`);
+        //
+        // BUT THE ZERO CASE IS THIS WIDGET'S, NOT THE LABEL'S, and the helper cannot carry
+        // it. `labelWidthCharsExtent` reads `widthChars >= 0` as "there is a request" because
+        // that is GtkLabel's convention, where -1 is the no-request value
+        // (`GtkLabel:width-chars`, gtkinscription.c's own contrast at :638-644). GtkInscription's
+        // counts are `guint` with a floor of ZERO, so it has no -1 to mean "no request" with
+        // and spells the case as an early return instead:
+        //
+        //   if (self->min_chars == 0 && self->nat_chars == 0)
+        //     return;                                   (gtkinscription.c:344-345)
+        //
+        // which leaves both requests at GTK's "none" marker. Handing (0, 0) to the label's
+        // helper therefore answered `0ch` — a real zero-width request, the very much smaller
+        // widget the C explicitly declines to be — so the zero test is taken HERE, and the
+        // helper is asked only about a pair that has already been found to size the widget.
+        const minChars = this.minChars;
+        const natChars = this.natChars;
+        if (minChars === 0 && natChars === 0) {
+            this.style.setProperty('--gtk-inscription-min-ch', 'auto');
+            this.style.setProperty('--gtk-inscription-width', 'auto');
+        } else {
+            const { minCh, maxCh } = labelWidthCharsExtent(minChars, natChars);
+            this.style.setProperty('--gtk-inscription-min-ch', `${minCh}ch`);
+            this.style.setProperty('--gtk-inscription-width', `${maxCh}ch`);
+        }
         // The line half is the same `MAX` over a line height, and `lh` is that unit in CSS:
         // it resolves to the element's own line box, which is what Pango's `line_pixels` is
         // (gtkinscription.c:383-384). The counts repeat the zero case, which is a separate

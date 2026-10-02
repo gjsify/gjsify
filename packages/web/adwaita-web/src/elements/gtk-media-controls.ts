@@ -66,6 +66,19 @@
 // here changes with the level the way it does in C: the element picks the one of four
 // `audio-volume-*` names `GtkVolumeButton` would, and does nothing else with it.
 //
+// AND THE FOUR NAMES ARE THE SYMBOLIC ONES, IN AN ORDER THAT IS NOT THE ORDER OF THE
+// LEVELS. `GtkVolumeButton:use-symbolic` defaults TRUE (gtkvolumebutton.c:186-188) and is a
+// CONSTRUCT property, so `gtk_volume_button_set_property` swaps the template's list for
+// `icons_symbolic` (`:142-148`) before anything reads it — the names in play are
+// `audio-volume-{muted,high,low,medium}-symbolic` (`:74-77`), in THAT order. It is a
+// `GtkScaleButton`, and `gtk_scale_button_update_icon` (gtkscalebutton.c:1066-1104) indexes
+// that list: the exact `lower` takes `[0]`, the exact `upper` takes `[1]`, and everything
+// between is `(guint)((value − lower) / step) + 2` with
+// `step = (upper − lower) / (num_icons − 2)` — which for 0…1 and four icons is a HALF. So
+// `high` belongs to full scale alone, `muted` to silence alone, and `low`/`medium` split at
+// one half, not at thirds. `normalizeIconName` accepts either spelling, and the emitted
+// names keep the suffix the C's own list carries.
+//
 // Reference: refs/gtk/gtk/ui/gtkmediacontrols.ui (the whole node tree and both adjustments)
 // Reference: refs/gtk/gtk/gtkmediacontrols.c (`totem_time_to_string` :75-132,
 //   `update_timestamp` :352-366, `update_duration` :380-392, the one object property
@@ -83,7 +96,9 @@ const PAUSE_ICON = 'media-playback-pause-symbolic';
 
 /**
  * The four `audio-volume-*` names `GtkVolumeButton` derives from a 0…1 level, one constant
- * each rather than an array of them.
+ * each rather than an array of them, in the ORDER `icons_symbolic` holds them
+ * (gtkvolumebutton.c:74-77) — which is muted, HIGH, low, medium, and not the order of the
+ * levels.
  *
  * The shape is load-bearing, not stylistic. `check-adwaita-icon-masks.mjs` reads an emitted
  * icon name out of the SOURCE with a regex for a SCREAMING_SNAKE constant whose name ends in
@@ -94,42 +109,61 @@ const PAUSE_ICON = 'media-playback-pause-symbolic';
  * `normalizeIconName` accepts either spelling, and dropping it buys nothing.
  */
 export const VOLUME_MUTED_ICON = 'audio-volume-muted-symbolic';
-/** Below a third of the range — GTK's own volume button's second name. */
-export const VOLUME_LOW_ICON = 'audio-volume-low-symbolic';
-/** Below two thirds — the third name. */
-export const VOLUME_MEDIUM_ICON = 'audio-volume-medium-symbolic';
-/** Above two thirds, and at full scale — the fourth. */
+/** The FULL-SCALE name — `[1]` in the list, so only the exact `upper` reaches it. */
 export const VOLUME_HIGH_ICON = 'audio-volume-high-symbolic';
+/** Below a half — `[2]`, the lower of the two middle names. */
+export const VOLUME_LOW_ICON = 'audio-volume-low-symbolic';
+/** From a half up to — but not at — full scale — `[3]`. */
+export const VOLUME_MEDIUM_ICON = 'audio-volume-medium-symbolic';
+
+/** `volume_adjustment`'s `lower` (ui/gtkmediacontrols.ui leaves it at the `GtkAdjustment`
+ * default of 0) and its `upper` 1 — the two ends `gtk_scale_button_update_icon` tests for. */
+const VOLUME_LOWER = 0;
+const VOLUME_UPPER = 1;
+/** How many names `icons_symbolic` carries — `num_icons` in `gtk_scale_button_update_icon`. */
+const VOLUME_ICON_COUNT = 4;
 
 /**
- * The icon `GtkVolumeButton` shows at `volume` (0…1). GTK's own volume button crosses each
- * third of the range; the boundaries are the icon names' own (`muted` below a third, `low`,
- * `medium`, `high` above), and `muted` is also what a zero volume shows whatever else the
- * range says.
+ * The icon `GtkVolumeButton` shows at `volume` (0…1), as `gtk_scale_button_update_icon`
+ * derives it (gtkscalebutton.c:1086-1104): the exact `lower` is `[0]` (muted), the exact
+ * `upper` is `[1]` (high), and a value between them indexes `[2]`/`[3]` by
+ * `(guint)((value − lower) / step) + 2` with `step = (upper − lower) / (num_icons − 2)` — a
+ * HALF for a 0…1 adjustment over four icons.
  */
 export function volumeIconFor(volume: number): string {
-    if (volume <= 0) return VOLUME_MUTED_ICON;
-    if (volume < 1 / 3) return VOLUME_LOW_ICON;
-    if (volume < 2 / 3) return VOLUME_MEDIUM_ICON;
-    return VOLUME_HIGH_ICON;
+    const value = Math.min(VOLUME_UPPER, Math.max(VOLUME_LOWER, Number.isFinite(volume) ? volume : 1));
+    if (value === VOLUME_LOWER) return VOLUME_MUTED_ICON;
+    if (value === VOLUME_UPPER) return VOLUME_HIGH_ICON;
+    const step = (VOLUME_UPPER - VOLUME_LOWER) / (VOLUME_ICON_COUNT - 2);
+    // The C casts the quotient to `guint`, which truncates toward zero; the value is already
+    // inside the range here, so that is the same as a floor.
+    return Math.trunc((value - VOLUME_LOWER) / step) + 2 === 2 ? VOLUME_LOW_ICON : VOLUME_MEDIUM_ICON;
 }
 
 /**
  * `totem_time_to_string` (gtkmediacontrols.c:75-132), in seconds.
  *
  * The `remaining` bump is the C's own (`:81-82`) and it is not a rounding fudge: the C
- * computes the remaining time as `duration − timestamp` and then displays it one second
- * higher so that `current + remaining = total` for a whole second of playback rather than
- * being one second short at every boundary.
+ * computes the remaining time as `duration - timestamp` and then increments `_time` — the
+ * WHOLE TOTAL, not the seconds field — so that `current + remaining = total` holds for a
+ * whole second of playback rather than being one second short at every boundary. That is why
+ * 300 s of remaining time reads `-5:01` and not `-5:00`: the seconds field only appears to
+ * move when the input's own seconds are zero, and the increment carries at 59.
+ *
+ * NOTHING HERE FLOORS A NEGATIVE, because the C does not. `_time % 60` in C99 keeps the sign
+ * of the dividend, so five seconds negative is zero minutes and `-5` seconds and the
+ * function returns the nonsense `0:-5`; the C's CALLERS guard the subtraction instead
+ * (`duration > timestamp ? duration - timestamp : 0`, :364), and so does every call site
+ * here. The C's arithmetic is transcribed rather than repaired, so a caller that skips the
+ * guard sees what GTK would have shown.
  *
  * The hour branch is `hour > 0 || force_hour` — an ELEVEN-MINUTE video is `11:03`, not
  * `0:11:03` — and `force_hour` is FALSE at every call site in the C (`:358, :364, :389`).
  * It stays a parameter because it is part of the function's contract, not because anything
  * here passes it.
  *
- * @param seconds total or remaining time, in seconds; negatives are floored to 0 by the
- *   caller in the C (`duration > timestamp ? duration - timestamp : 0`, :364) and floored
- *   here too, so the hour and minute splits are never taken from a negative quotient.
+ * @param seconds total or remaining time, in seconds; a negative is NOT floored here, exactly
+ *   as it is not in the C — see above.
  */
 export function mediaTimeToString(seconds: number, remaining = false, forceHour = false): string {
     let time = Math.trunc(seconds);
@@ -287,16 +321,25 @@ export class GtkMediaControls extends HTMLElement {
         this._setVolume(value);
     }
 
-    /** Whether the bar is live — the C's `gtk_media_controls_set_sensitive`. */
+    /**
+     * Whether the bar is live — the C's `gtk_media_controls_set_sensitive`.
+     *
+     * Loosely typed on purpose: `_adoptMedia` coerces its optional chain to `null`, and this
+     * answers "is there a stream" for any field state rather than only the two the coercion
+     * produces. A `!== null` test here read `undefined` as a stream.
+     */
     get sensitive(): boolean {
-        return this._media !== null;
+        return this._media != null;
     }
 
     /** `play_button_clicked` (ui/gtkmediacontrols.ui) — the button's only action. */
     private _togglePlay(): void {
-        if (!this._media) return;
-        if (this._media.paused) void this._media.play().catch(() => {});
-        else this._media.pause();
+        // `!= null`, not `!== null`: an `undefined` `_media` is "no stream" here for the same
+        // reason it is in `sensitive`.
+        const media = this._media ?? null;
+        if (media === null) return;
+        if (media.paused) void media.play().catch(() => {});
+        else media.pause();
     }
 
     /**
@@ -342,6 +385,15 @@ export class GtkMediaControls extends HTMLElement {
      * `<gtk-video>` (the template's `controls_revealer` child), so the nearest ancestor video
      * is the stream — and a controls bar used on its own names one with a `for` attribute
      * holding an id.
+     *
+     * The optional chain's `undefined` IS COERCED TO `null`, and that is not tidiness: `?? null`
+     * is what keeps `_media` in the domain `sensitive` and `_render` compare against. A bar with
+     * no enclosing video used to store `undefined` here, `undefined !== null` then reported the
+     * template's `sensitive` 0 bar as LIVE, and the `!this._media.paused` at the end of
+     * `_render` threw `can't access property "paused", this._media is undefined` — which is the
+     * uncaught error `tests/browser/specs/adwaita-upgrade-order.spec.ts` fails on. `null` is
+     * what `gtk_media_controls_new()` leaves behind: the template has no stream at all, and
+     * `sensitive` is 0 until one is set (ui/gtkmediacontrols.ui).
      */
     private _adoptMedia(): void {
         const id = this.getAttribute('for');
@@ -352,7 +404,8 @@ export class GtkMediaControls extends HTMLElement {
         const byId = id ? this.ownerDocument.getElementById(id) : null;
         const media =
             (byId instanceof HTMLVideoElement ? byId : null) ??
-            this.closest('gtk-video')?.querySelector<HTMLVideoElement>('video');
+            this.closest('gtk-video')?.querySelector<HTMLVideoElement>('video') ??
+            null;
         if (media === this._media) {
             this._render();
             return;
@@ -435,7 +488,13 @@ export class GtkMediaControls extends HTMLElement {
      */
     private _render(): void {
         if (!this._initialized) return;
-        const live = this._media !== null;
+        // One truth, one expression. The live test was spelled out a second time at the
+        // `!this._media.paused` call below, where an `_media` of `undefined` — which is what
+        // an optional chain hands back when there is no enclosing `<gtk-video>` — passes
+        // `!== null` and then throws on the property read. Deriving the playing state from the
+        // same narrowing makes that unrepresentable.
+        const media = this._media ?? null;
+        const live = media !== null;
         this.classList.toggle('insensitive', !live);
         this._playButton.disabled = !live;
         this._seekScale.disabled = !live;
@@ -443,7 +502,7 @@ export class GtkMediaControls extends HTMLElement {
         this._volumeScale.disabled = !live;
         this._updateDuration();
         this._updateTimestamp();
-        this._updatePlaying(this._media !== null && !this._media.paused);
+        this._updatePlaying(live && !media.paused);
     }
 }
 
