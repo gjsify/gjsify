@@ -277,6 +277,12 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
                 'or `gjsify.ship.license.project`. Both deb and rpm carry it as a required field.',
         );
     }
+    // Written BACK, not read twice: the packers read `settings.license` and the AppStream
+    // renderers read `metadata.license.project`, so resolving the `package.json#license`
+    // fallback into the first alone left `<project_license>` empty in the staged metainfo
+    // and warned about a field the project had answered. The returned metadata is what every
+    // renderer reads, so this is where the one answer has to land.
+    metadata.license = { ...metadata.license, project: license };
 
     const maintainer = ship.maintainer ?? formatAuthor(pkg.author) ?? formatDeveloper(metadata);
     if (!maintainer) {

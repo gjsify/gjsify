@@ -19,6 +19,7 @@ import {
 } from './settings.js';
 import type { ConfigDataShip, ShipAppOptions } from '../../types/config-data.js';
 import { normaliseVersion } from './version.js';
+import { renderMetainfoApp, validateAppMetadata } from '../app-metadata.js';
 
 function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
     return {
@@ -82,6 +83,48 @@ export default async () => {
             );
             expect(settings.appId).toBe('org.example.Hello');
             expect(settings.summary).toBe('From ship');
+        });
+
+        await it('carries the resolved licence into the metadata the renderers read', async () => {
+            // `gjsify.ship.license.project` and `package.json#license` are the SAME
+            // answer for two consumers: the packers read `settings.license`, the
+            // AppStream renderers read `metadata.license.project`. Resolving the
+            // fallback into one and not the other shipped a `.deb` carrying
+            // `License: AGPL-3.0-or-later` next to a metainfo whose
+            // `<project_license>` was empty — and warned about a missing field the
+            // project had answered.
+            const resolved = resolveShipSettings(
+                input({
+                    pkg: { ...input().pkg, license: 'AGPL-3.0-or-later' },
+                    ship: { appId: 'org.example.Hello', summary: 'Summary', homepageUrl: 'https://example.org' },
+                }),
+            );
+            expect(resolved.settings.license).toBe('AGPL-3.0-or-later');
+            expect(resolved.metadata.license?.project).toBe('AGPL-3.0-or-later');
+            const metadataInputs = {
+                appId: resolved.settings.appId,
+                name: resolved.settings.name,
+                command: resolved.settings.binaryName,
+                kind: resolved.settings.kind,
+                metadata: resolved.metadata,
+                configKey: 'gjsify.ship',
+                copyrightYear: 2026,
+            };
+            expect(renderMetainfoApp(metadataInputs)).toContain('<project_license>AGPL-3.0-or-later</project_license>');
+            expect(validateAppMetadata(metadataInputs).map((missing) => missing.field)).not.toContain(
+                'gjsify.ship.license.project',
+            );
+        });
+
+        await it('lets an explicit gjsify.ship licence win over package.json', async () => {
+            const resolved = resolveShipSettings(
+                input({
+                    pkg: { ...input().pkg, license: 'AGPL-3.0-or-later' },
+                    ship: { appId: 'org.example.Hello', license: { project: 'MIT' } },
+                }),
+            );
+            expect(resolved.settings.license).toBe('MIT');
+            expect(resolved.metadata.license?.project).toBe('MIT');
         });
 
         await it('warns rather than fails when a GUI app ships no icon', async () => {
