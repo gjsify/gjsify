@@ -55,7 +55,7 @@ the symbol is still absent from the win32 typelib, and that is what the ratchet 
 
 The 2026-08-11 measurement still holds: `wingtk/gvsbuild` hardcodes `self.platform = "x64"` and
 publishes no arm64 ZIP (#1117). What changed is that we stopped waiting. Route and reasons:
-[ADR 0088](../../docs/adr/0088-win32-arm64-gtk-is-built-from-source-by-our-msvc-gvsbuild-fork.md)
+[ADR 0089](../../docs/adr/0089-win32-arm64-gtk-is-built-from-source-by-our-msvc-gvsbuild-fork.md)
 — GTK is built from source by `gjsify/gvsbuild` (PR #1, `feat/arm64-platform`), MSVC end to end,
 not MinGW/`CLANGARM64`, so the x64 addon recipe transfers unchanged.
 

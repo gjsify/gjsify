@@ -1,4 +1,4 @@
-# 88. win32-arm64 GTK is built from source by our MSVC gvsbuild fork
+# 89. win32-arm64 GTK is built from source by our MSVC gvsbuild fork
 
 - Status: **Accepted**
 - Date: 2026-10-02
