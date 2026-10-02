@@ -51,6 +51,7 @@ import {
     stampAppDirTimes,
 } from '../utils/ship/appimage.js';
 import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
+import { assertNoDroppedFlatpakModules } from '../utils/ship/flatpak-config.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { iconSizes, resolveAppIcon } from '../utils/ship/icons.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
@@ -361,6 +362,9 @@ async function assemble(args: ShipOptions): Promise<void> {
             );
         }
     }
+    // Under `--stage` too: the stage records the Flatpak settings, and a stage
+    // that quietly omits the project's modules packs without them later.
+    if (formats.some((format) => format.id === 'flatpak')) assertNoDroppedFlatpakModules(flatpak);
     if (!args.stage) assertPackable(formats, layout, args.os === undefined ? 'host' : 'positional', unusable);
     // BEFORE the build, beside `assertCanPack` and for the same reason: a
     // `--sign` this host cannot honour — wrong OS, no tool, a layout that has no
