@@ -1,0 +1,40 @@
+---
+// A closed disclosure row for detail a reader only wants sometimes. Styled like an
+// Adwaita expander row (rounded card, chevron, title row) from the site's own
+// `.adw-boxed-list` / `.adw-row-expander` rules — `adw-row-expander` on the
+// `<details>`, because those rules are written `.adw-row-expander > summary`, and
+// the ONE chevron is the right-hand `.adw-chevron` those rules rotate on open.
+interface Props {
+    title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<details class="adw-boxed-list adw-row-expander more-info">
+    <summary class="adw-row not-content">
+        <span class="adw-row-title"><span class="adw-row-title-plain">{title}</span></span>
+        <span class="adw-row-meta"><span class="adw-chevron"></span></span>
+    </summary>
+    <div class="more-info-body">
+        <slot />
+    </div>
+</details>
+
+<style>
+    .more-info {
+        margin-block: var(--adw-spacing-m);
+    }
+
+    .more-info-body {
+        padding: var(--adw-spacing-l);
+    }
+
+    .more-info-body :global(> :first-child) {
+        margin-top: 0;
+    }
+
+    .more-info-body :global(> :last-child) {
+        margin-bottom: 0;
+    }
+</style>

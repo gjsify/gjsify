@@ -4,18 +4,18 @@ description: Install the CLI, scaffold a project, and get a GTK 4 window running
 ---
 
 import CommandTabs from '../../components/CommandTabs.astro';
+import MoreInfo from '../../components/MoreInfo.astro';
 
-Install the CLI, scaffold a project, run it. About a minute later a GTK 4 window
-is on screen, running your own TypeScript.
+Install the CLI, scaffold a project, run it. About a minute later a GTK 4 window is
+on screen, running your own TypeScript.
 
-**First, pick your runtime.** gjsify targets four: GJS, Node.js, Bun and Deno.
-Every command block on this page has a tab per runtime, and the tab you pick
-follows you across the rest of the site. If a step fails, jump to
-[If it did not start](#if-it-did-not-start).
+Every command block on this page has a tab per runtime — GJS, Node.js, Bun, Deno —
+and the tab you pick follows you across the rest of the site.
 
 ## What you need
 
-One JavaScript runtime, and the GNOME libraries your app itself uses:
+One JavaScript runtime, and the GNOME libraries your app uses. On Linux, GTK 4 and
+libadwaita come from your distribution.
 
 | Runtime | Version | Reaches |
 |---|---|---|
@@ -24,15 +24,16 @@ One JavaScript runtime, and the GNOME libraries your app itself uses:
 | Bun | current release | Linux, macOS, Windows |
 | Deno | 2 | Linux, macOS, Windows |
 
-On Linux, GTK 4 and libadwaita come from your distribution and every runtime uses
-them. The package lists are [further down](#if-it-did-not-start).
+On macOS and Windows the Node, Bun and Deno route brings its own GTK, so there is
+nothing to install by hand.
 
-On macOS and Windows the Node, Bun and Deno route brings its own GTK.
+<MoreInfo title="Where GTK comes from on macOS and Windows">
 `@gjsify/gtk-runtime-darwin-arm64`, `-darwin-x64` and `-win32-x64` carry it, and
-`@gjsify/node-gi` loads `gi://` out of them, so there is nothing to install by
-hand. Windows has no `gjs` binary at all, so take Node, Bun or Deno there. macOS
-has one from Homebrew, but nobody verifies the GJS route there end to end, which
-is why [Platform Support](/gjsify/platform-support/) calls that column partial.
+`@gjsify/node-gi` loads `gi://` out of them. Windows has no `gjs` binary at all, so
+take Node, Bun or Deno there. macOS has one from Homebrew, but nobody verifies the
+GJS route end to end, which is why [Platform Support](/gjsify/platform-support/)
+calls that column partial.
+</MoreInfo>
 
 ## Install the CLI
 
@@ -61,19 +62,17 @@ is why [Platform Support](/gjsify/platform-support/) calls that column partial.
 </CommandTabs>
 
 All four give you the same `gjsify` command, and the runtime you installed with
-becomes the one it builds for by default.
-
-Each route puts the launcher somewhere different: `~/.local/bin` for the GJS
-bootstrap (which runs on stock `gjs` and needs no Node.js), your npm prefix,
-`~/.bun/bin` for Bun, `~/.deno/bin` for Deno. If that directory is not on your
-`PATH` yet, add it:
+becomes the one it builds for by default. Each route puts the launcher somewhere
+different, so add that directory to your `PATH` if the shell cannot find it:
+`~/.local/bin` after the GJS bootstrap, your npm prefix after npm, `~/.bun/bin` after
+Bun, `~/.deno/bin` after Deno.
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Updating, pinning a version, adding the CLI to one project instead of globally,
-and uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
+Updating, pinning a version, adding the CLI to one project instead of globally, and
+uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
 
 ## Create and run your first app
 
@@ -119,35 +118,36 @@ and uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
 A window titled `hello-gjsify` opens with a label in it. That window is your
 `src/index.ts`, bundled into one file and executed by the runtime you picked.
 
-:::caution[Keep the `@latest`]
-`npm create`, `bunx` and `deno run` all reuse a cached copy of an unpinned
-package. So an unpinned `npm create @gjsify/app` can scaffold from a scaffolder
-you last used months ago, whose templates predate `build:node` and the
-`start:node` script. You find that out four commands later, as a "missing script"
-error with no hint about where it came from. The tag forces a fresh resolve.
+<MoreInfo title="Why the @latest tag matters">
+`npm create`, `bunx` and `deno run` all reuse a cached copy of an unpinned package. So
+an unpinned `npm create @gjsify/app` can scaffold from a scaffolder you last used
+months ago, whose templates predate `build:node` and the `start:node` script. You find
+that out four commands later, as a "missing script" error with no hint about where it
+came from. The tag forces a fresh resolve.
 
-Deno applies a second rule on top: it refuses any version published in the last
-24 hours and takes the previous one instead, without saying so. That is why its
-command carries `--reload --min-dep-age=0`. Both rules, and how to see which
-version you actually got, are on
+Deno applies a second rule on top: it refuses any version published in the last 24
+hours and takes the previous one instead, without saying so. That is why its command
+carries `--reload --min-dep-age=0`. Both rules, and how to see which version you
+actually got, are on
 [Which version do `npx`, `bunx` and `deno run` give you?](/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you)
-:::
+</MoreInfo>
 
-In a terminal the CLI asks which runtime to set the project up for, opening on the
-one it is running on, and then which package manager to install with. In a script
-it takes the same defaults and prints what it took. Your answer changes no
-scaffolded byte: every template ships a bundle for every runtime, so it only
-decides which start script the printed next steps name. Set it outright with
-`--runtime gjs|node|bun|deno`.
+<MoreInfo title="Which runtime and template the CLI picks">
+In a terminal the CLI asks which runtime to set the project up for, opening on the one
+it is running on, and then which package manager to install with. In a script it takes
+the same defaults and prints what it took. Your answer changes no scaffolded byte: every
+template ships a bundle for every runtime, so it only decides which start script the
+printed next steps name. Set it outright with `--runtime gjs|node|bun|deno`.
 
-That is why the Bun and Deno commands above pass it. `bunx` and `deno run` fetch
-an npm bin and start it on Node, so the CLI's "which runtime am I on?" answers
-`node`, and its next steps would name `npm`. Correct about itself, and not what
-you asked for.
+That is why the Bun and Deno commands above pass it. `bunx` and `deno run` fetch an npm
+bin and start it on Node, so the CLI's "which runtime am I on?" answers `node`, and its
+next steps would name `npm`. Correct about itself, and not what you asked for.
 
 Leave `--template` off and the CLI asks which one you want too. That one has no
 defensible default, so in a script `--template` is required.
+</MoreInfo>
 
+<MoreInfo title="The templates">
 | Template | What you get |
 |---|---|
 | `gtk-minimal` | a `Gtk.ApplicationWindow` declared in Blueprint, no Adwaita |
@@ -159,12 +159,12 @@ defensible default, so in a script `--template` is required.
 | `web-server-express` | HTTP server on Express |
 
 All seven run on GJS, Node.js, Bun and Deno. Each one declares that set in
-`gjsify.example.runtimes`, and `gjsify run --runtime <name>` checks against it.
-Asking for a runtime a project has no bundle for fails with a message instead of
-crashing somewhere inside one.
+`gjsify.example.runtimes`, and `gjsify run --runtime <name>` checks against it. Asking
+for a runtime a project has no bundle for fails with a message instead of crashing
+somewhere inside one.
+</MoreInfo>
 
-## What the CLI generated
-
+<MoreInfo title="What the CLI generated">
 ```txt title="hello-gjsify"
 hello-gjsify/
 ├── src/
@@ -196,8 +196,7 @@ The scripts are the whole build system:
 Two bundles out of one `src/index.ts`. `dist/index.gjs.js` is what GJS runs.
 `dist/index.node.mjs` is shared by Node, Bun and Deno, because Node-API is their
 common ABI and none of them needs a target of its own. Both builds name `--app`
-explicitly, so the target cannot silently follow whichever runtime invoked the
-build.
+explicitly, so the target cannot silently follow whichever runtime invoked the build.
 
 `dev` is the loop you will spend the most time in. It watches `src/`, rebuilds on
 every change and relaunches the app, with no separate watcher to install; see
@@ -252,6 +251,7 @@ yourself. It sets `LD_LIBRARY_PATH` and `GI_TYPELIB_PATH` so the bundle finds
 native packages such as `@gjsify/webgl`, which is why every `start:*` script above
 goes through it. For a GJS bundle, `gjsify info` prints those paths if you want to
 export them by hand.
+</MoreInfo>
 
 ## Add a button
 
@@ -272,11 +272,9 @@ Nothing in that file names a runtime. The same bytes build for GJS, Node.js, Bun
 and Deno, and so does every TypeScript sample on this site, the
 [widget gallery](/gjsify/adwaita/) included.
 
-`applicationId` is the session-bus name your app claims, and every project needs
-its own. Change it if you copy this file into a second project. When two running
-apps claim one name, GTK treats the second launch as a remote instance of the
-first, forwards its `activate` to that app's window, and exits 0 with no window
-and no error of its own.
+`applicationId` is the session-bus name your app claims, and every project needs its
+own. Give each project its own: when two running apps claim one name, GTK treats the
+second launch as a remote instance of the first and exits 0 with no window of its own.
 
 Give the label a name in `src/main-window.blp` so TypeScript can reach it, and
 add the button beside it. The caption goes through `_()` because a string set
@@ -373,9 +371,7 @@ ws.addEventListener('message', (event) => console.log(event.data))
 
 [Packages](/gjsify/packages/overview/) lists what is implemented.
 
-<details>
-<summary>Global detection missed something?</summary>
-
+<MoreInfo title="Global detection missed something?">
 It is rare, and it happens with libraries that reach `globalThis` through another
 object, which hides the access from static analysis. Keep `auto` on and name the
 identifier you need:
@@ -387,8 +383,7 @@ gjsify build … --globals auto,dom
 ```
 
 The [CLI Reference](/gjsify/cli-reference/#known-identifiers) has the full list.
-
-</details>
+</MoreInfo>
 
 ## If it did not start
 
@@ -418,12 +413,11 @@ Ask the CLI what is missing:
 </CommandTabs>
 
 It prints a line per dependency, names the `@gjsify/*` package that wants each
-optional one, and warns when your `@girs/*` types describe a newer library than
-the one installed. It checks one fixed list, `gjs` included, so on a machine
-without it that row reads as missing even though a `--app node` build never asks
-for it.
+optional one, and warns when your `@girs/*` types describe a newer library than the
+one installed. It checks one fixed list, `gjs` included.
 
-To install the required set on Linux:
+<MoreInfo title="The system libraries to install">
+On Linux:
 
 <CommandTabs title="Install the system libraries" group="distro">
   <Fragment slot="fedora">
@@ -449,9 +443,9 @@ To install the required set on Linux:
 On macOS and Windows there is no equivalent list. `@gjsify/node-gi` loads GTK from
 `@gjsify/gtk-runtime-<platform>-<arch>` instead, which npm, Bun and Deno install
 for you. [Platform Support](/gjsify/platform-support/) has the per-package picture.
+</MoreInfo>
 
-Three things that trip people up:
-
+<MoreInfo title="Three things that trip people up">
 - **`gjs` is too old.** 1.86 is the floor. Fedora 43+, Arch and Debian
   forky/sid ship it; Debian 13 (trixie) ships 1.82.3 and will not work.
 - **`gjsify: command not found`** means the launcher directory is not on your
@@ -460,13 +454,13 @@ Three things that trip people up:
 - **A second window never appears.** Two apps that claim the same
   `applicationId` are one app to GTK, whichever runtime they are on. Give each
   project its own, as described [above](#add-a-button).
+</MoreInfo>
 
 ## Next steps
 
 - [Widget Gallery](/gjsify/adwaita/): every Adwaita component, with live previews
 - [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/): navigation, dialogs, toasts, the app shell
 - [Runtimes](/gjsify/runtimes/): build the same source for GJS, Node.js, Bun, Deno or the browser
-- [Storybook](/gjsify/guides/storybook/): browse and drive your own widgets
 - [Ship a Flatpak](/gjsify/guides/flatpak-app/): put your app on Flathub
 - [One-line installer](/gjsify/guides/distributing-gjs-apps/): let users install your app with `curl`
 - [CLI Reference](/gjsify/cli-reference/): every command and flag

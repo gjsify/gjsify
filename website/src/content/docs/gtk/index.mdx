@@ -4,24 +4,28 @@ description: The GTK 4 widgets a GNOME app uses and libadwaita does not ship, on
 ---
 
 import AdwGalleryCard from '../../../components/AdwGalleryCard.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
-Your app is a GTK 4 program. Libadwaita adds a design system on top of GTK
-instead of replacing it, so a GNOME app draws widgets from both libraries. There
-is no `Adw.Entry`, no `Adw.DropDown` and no `Adw.MenuButton`. An app that needs
-one of those uses GTK's own widget, and the Adwaita stylesheet paints it.
+Your app is a GTK 4 program, and Libadwaita adds a design system on top of GTK
+instead of replacing it — so a GNOME app draws widgets from both. There is no
+`Adw.Entry`, no `Adw.DropDown` and no `Adw.MenuButton`. An app that needs one uses
+GTK's own widget, and the Adwaita stylesheet paints it.
 
-This section holds those widgets. A widget is documented under the library that
-owns its GType, which is the rule
-[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host)
-already uses to name its tags. So `Gtk.Entry` is here and `Adw.EntryRow` is under
+This section holds those widgets: `Gtk.Entry` is here and `Adw.EntryRow` is under
 [Adwaita](/gjsify/adwaita/), and the two are different widgets one namespace
 apart.
 
-The pages read like the Adwaita ones, three windows per widget with the
+<MoreInfo title="Which library a widget is documented under">
+A widget is documented under the library that owns its GType, which is the rule
+[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host)
+already uses to name its tags.
+
+These pages read like the Adwaita ones, three windows per widget with the
 Blueprint beside the TypeScript, as
 [How a widget page reads](/gjsify/adwaita/#how-a-widget-page-reads) explains.
 Blueprint is the way to lay these widgets out too, with
 [the same setup](/gjsify/adwaita/#write-the-layout-in-blueprint).
+</MoreInfo>
 
 ## Get the widgets
 
@@ -35,18 +39,23 @@ const entry = new Gtk.Entry({ placeholderText: 'Search files…' });
 ```
 
 In the browser and on a phone these widgets come from the same packages as the
-Adwaita ones, [installed the same way](/gjsify/adwaita/#get-the-widgets), and
-the GType rule names them there too: `Gtk.Entry` is `<gtk-entry>` and
-`Gtk.MenuButton` is `<gtk-menu-button>` in `@gjsify/adwaita-web`, and
-`Gtk.Entry` and `Gtk.MenuButton` in
+Adwaita ones, [installed the same way](/gjsify/adwaita/#get-the-widgets), and the
+GType rule names them there too: `Gtk.Entry` is `<gtk-entry>` and `Gtk.MenuButton`
+is `<gtk-menu-button>` in `@gjsify/adwaita-web`, and `Gtk.Entry` and
+`Gtk.MenuButton` in
 [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita).
-Both export them from a `Gtk` namespace, beside `Adw` and a `Gio` namespace that
-holds `Gio.Menu` for a menu button's model. What makes them look Adwaita is the
+Both export them from a `Gtk` namespace. What makes them look Adwaita is the
 stylesheet, not the widget.
 
 ```html
 <gtk-entry placeholder="Search files…"></gtk-entry>
 ```
+
+<MoreInfo title="The namespaces beside `Gtk`">
+Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
+`Gio.Menu`, which is what a menu button's model takes, and `Gtk.StringList` and
+`Gtk.Adjustment` for the widgets that need them.
+</MoreInfo>
 
 ## Browse the widgets
 
@@ -78,6 +87,5 @@ header bars and clamps, split views, view switchers, avatars, banners and
 dialogs. Start at [Adwaita](/gjsify/adwaita/).
 
 The [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/) carries both sets
-in one component browser, so you can change a widget's properties from a controls
-panel and watch it update. Run it as a native window with `gjsify storybook`, or
-use the version embedded on that page.
+in one component browser you can poke at. Run it as a native window with
+`gjsify storybook`.

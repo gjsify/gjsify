@@ -4,28 +4,23 @@ description: "Adwaita buttons, icon-plus-label content, split buttons and toggle
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
-Libadwaita adds three button widgets to GTK's own. Put an **icon plus a label**
-on a button with button content, use a **split button** to pair an action with a
-menu of alternatives, or reach for a **toggle group** when a row of linked
-buttons should act as a single-choice selector.
+Libadwaita adds three button widgets to GTK's own: **button content** for an icon
+plus a label, a **split button** pairing an action with alternatives, and a
+**toggle group** for a single-choice selector. `Gtk.Button` and `Gtk.MenuButton`
+are GTK's, under [Gtk Buttons](/gjsify/gtk/buttons/).
 
-The plain button and the menu button belong to GTK. They are `Gtk.Button` and
-`Gtk.MenuButton`, documented under [Gtk Buttons](/gjsify/gtk/buttons/) with the
-style classes that shape them.
-
-:::note
+<MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour Libadwaita drives natively (a
 split button's popover) can be simplified here. A toggle group's keyboard
 navigation is not: see below.
-:::
+</MoreInfo>
 
 ## Button Content
 
 To put an icon _and_ text on a button, make an **Adw.ButtonContent** its child.
-It pairs a symbolic icon with a label, so the action reads at a glance and in
-words. Set `can-shrink` if the label may ellipsize when horizontal space runs
-short.
+Set `can-shrink` if the label may ellipsize when horizontal space runs short.
 
 <AdwWidget title="Adw.ButtonContent" blueprint="adwaita/button-content.blp">
   <Fragment slot="gjs">
@@ -75,8 +70,7 @@ short.
 
 Use a **split button** when one action is the obvious default and the rest are
 variations on it. Clicking the main half runs the default; the attached arrow
-opens a menu with the alternatives. Add `.flat` for the variant that belongs in a
-header bar or toolbar, where a raised button looks too heavy.
+opens a menu with the alternatives.
 
 <AdwWidget title="Adw.SplitButton" blueprint="adwaita/split-button.blp">
   <Fragment slot="gjs">
@@ -131,26 +125,29 @@ header bar or toolbar, where a raised button looks too heavy.
 
 ## Toggle Group
 
-For a small set of mutually exclusive options, such as a view mode, use a
-**toggle group**: a linked row where exactly one toggle is active at a time. Each
-toggle takes an icon, a label, or both. The style classes `.flat` and `.round`
-adapt the group for a toolbar or give it a pill shape.
+For a small set of mutually exclusive options, such as a view mode, use a **toggle
+group**: a linked row where exactly one toggle is active at a time. Each toggle takes an
+icon, a label, or both, and the style classes `.flat` and `.round` adapt the group for a
+toolbar or give it a pill shape.
 
-Each toggle carries a **name**, and the group's `active-name` picks the active one
-by it, so code that switches the view mode says `'grid'` instead of counting
-toggles.
+Each toggle carries a **name**, and the group's `active-name` picks the active one by it,
+so code that switches the view mode says `'grid'` instead of counting toggles.
 
+<MoreInfo title="Keyboard and accessibility">
 A toggle group is a **single tab stop**, the way `Adw.ToggleGroup` routes focus:
 Tab enters on the active toggle and the next Tab leaves the group, while Left and
 Right move between toggles. Up and Down stay the page's, as they are upstream.
 Home and End jump to the ends — that pair is the WAI-ARIA pattern rather than
-anything GTK does, since GTK's focus directions have no Home or End. It announces itself as a radio group with one
-checked toggle — `GTK_ACCESSIBLE_ROLE_RADIO_GROUP` upstream — unless the element
-already carries a `role` when it connects, which it then keeps; `role="tablist"`
-additionally switches the toggles to tabs, the way `Adw.InlineViewSwitcher` does.
-Set it in markup or before the element is inserted: it is read once, which is all
-GTK allows too — `GtkAccessible:accessible-role` is documented "cannot be changed
-once set", and the only setter is class-level.
+anything GTK does, since GTK's focus directions have no Home or End.
+
+It announces itself as a radio group with one checked toggle —
+`GTK_ACCESSIBLE_ROLE_RADIO_GROUP` upstream — unless the element already carries a
+`role` when it connects, which it then keeps; `role="tablist"` additionally
+switches the toggles to tabs, the way `Adw.InlineViewSwitcher` does. Set it in
+markup or before the element is inserted: it is read once, which is all GTK allows
+too — `GtkAccessible:accessible-role` is documented "cannot be changed once set",
+and the only setter is class-level.
+</MoreInfo>
 
 <AdwWidget title="Adw.ToggleGroup" blueprint="adwaita/toggle-group.blp">
   <Fragment slot="gjs">

@@ -5,34 +5,27 @@ description: The Adwaita design system for GTK 4, one page per widget family, wi
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 import AdwGalleryCard from '../../../components/AdwGalleryCard.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
-Adwaita is GNOME's design system for GTK 4: the rows, buttons, header bars and
-dialogs a GNOME app is made of. GJSify gives you the whole set from TypeScript,
-and the same widget renders as a real Libadwaita widget on the desktop and as a
-custom element in the browser.
-
-Adwaita is one design system GJSify supports, not a requirement. Your app is an
-ordinary GTK 4 program, so you can mix in plain `Gtk.*` widgets or style your
-own, and the browser components live in a package you opt into. Libadwaita ships
-no entry, drop down, plain button or menu button, and those GTK widgets are
-documented under [Gtk](/gjsify/gtk/).
+Adwaita is GNOME's design system for GTK 4: the rows, buttons, header bars and dialogs a
+GNOME app is made of. GJSify gives you the whole set from TypeScript, and the same widget
+renders as a real Libadwaita widget on the desktop and as a custom element in the browser.
+It is one design system GJSify supports, not a requirement; the GTK widgets libadwaita does
+not ship are under [Gtk](/gjsify/gtk/).
 
 ## Write the layout in Blueprint
 
-Declare the widget tree in a Blueprint `.blp` file and keep TypeScript for what
-the widgets do. `gjsify build` compiles an imported `.blp` to GtkBuilder XML in
-process, with no `blueprint-compiler` installed, and `xgettext` finds every
-`_("…")` string in it. Every widget page shows the Blueprint beside the
-TypeScript. [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/#describe-the-window-in-blueprint)
-turns one into a window class. Reach for a
-[UI framework](/gjsify/frameworks/) only where the tree changes shape with your
-data.
+Declare the widget tree in a Blueprint `.blp` file and keep TypeScript for what the widgets
+do. `gjsify build` compiles an imported `.blp` to GtkBuilder XML in process, with no
+`blueprint-compiler` installed, and `xgettext` finds every `_("…")` string in it.
+[Native Adwaita Apps](/gjsify/guides/native-adwaita-app/#describe-the-window-in-blueprint)
+turns one into a window class. Reach for a [UI framework](/gjsify/frameworks/) only where
+the tree changes shape with your data.
 
 ## Get the widgets
 
-On the desktop the widgets come from the Libadwaita library already installed on
-the machine. `@girs/adw-1` is the type package for it, and nothing else is
-needed:
+On the desktop the widgets come from the Libadwaita library already installed on the
+machine. `@girs/adw-1` is the type package for it, and nothing else is needed:
 
 ```ts
 import Adw from 'gi://Adw?version=1';
@@ -40,8 +33,8 @@ import Adw from 'gi://Adw?version=1';
 const row = new Adw.SwitchRow({ title: 'Automatic updates', active: true });
 ```
 
-For the browser, install the port and import it once. That registers every
-element and applies the stylesheet, so from there you write HTML:
+For the browser, install the port and import it once. That registers every element and
+applies the stylesheet, so from there you write HTML:
 
 ```bash
 gjsify install @gjsify/adwaita-web
@@ -59,49 +52,49 @@ import '@gjsify/adwaita-web';
 
 The package entry is TypeScript, so it goes through your bundler like any other
 dependency: `gjsify build --app browser`, the
-[`gjsifyBrowser()` Vite preset](/gjsify/guides/vite-plugin/), or whatever you
-already use.
+[`gjsifyBrowser()` Vite preset](/gjsify/guides/vite-plugin/), or whatever you already use.
+To change how any of it looks, set the [design tokens](./theming/).
 
 | Package | What it holds |
 |---|---|
 | `@gjsify/adwaita-web` | the custom elements and the compiled stylesheet |
-| `@gjsify/adwaita-core` | the behaviour both ports share, with no rendering: breakpoints, color scheme, toast queue, row state machines |
+| `@gjsify/adwaita-core` | the behaviour both ports share, with no rendering |
 | `@gjsify/adwaita-fonts` | Adwaita Sans as TTF files plus the `@font-face` CSS |
-| `@gjsify/adwaita-icons` | the symbolic icons as importable SVG strings, plus a `toDataUri()` helper |
-
-To change how any of it looks, set the [design tokens](./theming/).
+| `@gjsify/adwaita-icons` | the symbolic icons as importable SVG strings |
 
 ## How a widget page reads
 
-Every widget block is three windows. The first runs the widget in the browser
-port, so it follows the light and dark toggle like a real window. **GJS** holds
-the `@girs` program and the Blueprint declaration that goes with it, two files of
-one program against the real widget. **UI frameworks** holds the same widget
-through an element model: the HTML that paints the preview, then Solid, Vue and
-React through `@gjsify/gtk-host`, then the NativeScript XML template that runs on
-a phone. Where a widget is built in code rather than declared, a recorded reason
-takes the place of the snippet. Choose a tab once and every block on the site
-follows it.
+Every widget block is three windows. The first runs the widget in the browser port, so it
+follows the light and dark toggle like a real window. **GJS** holds the `@girs` program and
+the Blueprint declaration that goes with it. **UI frameworks** holds the same widget
+through an element model: the HTML that paints the preview, then Solid, Vue and React
+through `@gjsify/gtk-host`, then the NativeScript XML template that runs on a phone.
 
-A block built from one Blueprint file reads in a different order, because there the
-file is the template every snippet refers to. **Blueprint** shows that file, straight
-under the preview and with no tabs. **Code** holds every program that loads it: the
-`@girs` TypeScript, which runs unchanged on GJS, Node.js, Deno and Bun, then the Web
-Components and NativeScript loaders, then Solid, Vue and React. The two loaders are
-several files each, picked in a small row under the tab bar: the layout in the port's
+A block built from one Blueprint file reads in a different order, because there the file is
+the template every snippet refers to. **Blueprint** shows that file, straight under the
+preview and with no tabs. **Code** holds every program that loads it. Choose a tab once and
+every block on the site follows it.
+
+<MoreInfo title="The one-Blueprint block in full">
+**Code** holds the `@girs` TypeScript, which runs unchanged on GJS, Node.js, Deno and Bun,
+then the Web Components and NativeScript loaders, then Solid, Vue and React. The two loaders
+are several files each, picked in a small row under the tab bar: the layout in the port's
 own markup, generated from the Blueprint file, the code that loads it, and the same code
 building the Blueprint file instead.
 
+Where a widget is built in code rather than declared, a recorded reason takes the place of
+the snippet.
+
 Libadwaita and GTK are the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1) and
-[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). Both ports follow
-their naming and export the widgets as `Adw` and `Gtk` namespaces, beside a
-`Gio` namespace that holds `Gio.Menu` and `Gio.MenuItem`, so
-`import { Adw, Gio } from '@gjsify/adwaita-web'` builds a menu model the way GJS
-does. `Gtk.StringList` and `Gtk.Adjustment` sit in the `Gtk` namespace for the
-same reason. Built with `--gi-renderer`, a browser or NativeScript bundle also
-answers `gi://Adw` and `gi://Gtk` from the port, and refuses `gi://Gio` by name.
+[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). Both ports follow their
+naming and export the widgets as `Adw` and `Gtk` namespaces, beside a `Gio` namespace that
+holds `Gio.Menu` and `Gio.MenuItem`, so `import { Adw, Gio } from '@gjsify/adwaita-web'`
+builds a menu model the way GJS does. `Gtk.StringList` and `Gtk.Adjustment` sit in the
+`Gtk` namespace for the same reason. Built with `--gi-renderer`, a browser or NativeScript
+bundle also answers `gi://Adw` and `gi://Gtk` from the port, and refuses `gi://Gio` by name.
 Where a port differs, the window that shows it says so.
+</MoreInfo>
 
 ## Browse the widgets
 
@@ -177,9 +170,8 @@ Where a port differs, the window that shows it says so.
 <CardGrid>
   <Card title="On the desktop">
     Real Libadwaita widgets, typed by [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1):
-    `Adw.SwitchRow`, `Adw.HeaderBar`, `Adw.NavigationSplitView`. This is the
-    reference the other two ports follow, and the code runs unchanged on GJS,
-    Node.js, Bun and Deno.
+    `Adw.SwitchRow`, `Adw.HeaderBar`, `Adw.NavigationSplitView`. This is the reference the
+    other two ports follow, and the code runs unchanged on GJS, Node.js, Bun and Deno.
   </Card>
   <Card title="In the browser">
     [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
@@ -194,16 +186,15 @@ Where a port differs, the window that shows it says so.
   </Card>
 </CardGrid>
 
-The web and NativeScript ports share one behaviour layer, so a fix to a toast
-queue or a spin-button clamp lands in both at once. If you want the mechanics,
-see [How It Works](/gjsify/how-it-works/).
+The web and NativeScript ports share one behaviour layer, so a fix to a toast queue or a
+spin-button clamp lands in both at once. For the mechanics, see
+[How It Works](/gjsify/how-it-works/).
 
 ## Try the widgets interactively
 
-The [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/) is a component
-browser: pick a widget, change its properties from a controls panel, and watch it
-update. Run it as a native window with `gjsify storybook`, or use the version
-embedded on that page.
+The [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/) is a component browser: pick a
+widget, change its properties from a controls panel, and watch it update. Run it as a
+native window with `gjsify storybook`.
 
 Ready to assemble a whole app out of these? Start with
 [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/).

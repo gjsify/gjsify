@@ -4,32 +4,29 @@ description: "GTK's standalone controls, the text entry and the drop down. A liv
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
-Two controls on this page stand on their own rather than inside a boxed list. A
-single-line **entry** takes typed text, and a **drop down** picks one value out
-of a list. Both belong to GTK. They are `Gtk.Entry` and `Gtk.DropDown`,
-libadwaita ships neither, and the Adwaita stylesheet gives them their GNOME look.
+Two GTK controls stand on their own rather than inside a boxed list: a single-line
+**entry** for typed text, and a **drop down** that picks one value from a list.
+Libadwaita ships neither. Each has a boxed-list twin — `Adw.EntryRow` and
+`Adw.ComboRow` — under [Boxed Lists](/gjsify/adwaita/boxed-lists/), and which one
+you want is a question about the surrounding layout.
 
-Each has a boxed-list twin, `Adw.EntryRow` and `Adw.ComboRow`, documented under
-[Boxed Lists](/gjsify/adwaita/boxed-lists/). Which one you want is a question
-about the surrounding layout rather than about the control. A preferences page
-uses the rows, a toolbar or a dialog uses these.
-
-:::note
+<MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour the toolkits drive natively can
 be simplified here. Two divergences are worth knowing: `<gtk-entry>` has no
 `editable`, so a field you may read but not change is spelled `disabled`, which
 also greys it; and the NativeScript drop down opens the platform action sheet,
 which has no search field.
-:::
+</MoreInfo>
 
 ## Entry
 
 A single-line text field. Give it a **placeholder** to say what belongs in it
 while it is empty, a **value** for the text itself, and `disabled` when it should
 be read-only. For a field that belongs in a preferences group, use
-[Entry Row](/gjsify/adwaita/boxed-lists/#entry-row) instead. It is the same
-control in row presentation, and the label doubles as the row title.
+[Entry Row](/gjsify/adwaita/boxed-lists/#entry-row) instead: the same control in
+row presentation, with the label as the row title.
 
 <AdwWidget title="Gtk.Entry">
   <Fragment slot="preview">
@@ -84,16 +81,17 @@ control in row presentation, and the label doubles as the row title.
 
 ## Drop Down
 
-Pick one value from a list. The button shows the current selection and the list
-opens in a popover; **selected** is the zero-based index of the chosen option,
-and `enable-search` adds a filter field for a long list. For the same choice
-presented as a boxed-list row, use
+Pick one value from a list. **selected** is the zero-based index of the chosen
+option, and `enable-search` adds a filter field for a long list. For the same
+choice presented as a boxed-list row, use
 [Combo Row](/gjsify/adwaita/boxed-lists/#combo-row).
 
+<MoreInfo title="The model property">
 The list is the **model** property — an array of plain strings, or of
 `{ value, label }` objects — and it is the same array the combo row takes, so a
 model written for one works on the other unchanged. Assign a new one at any time:
 the popover follows, and the rows that did not change keep their place.
+</MoreInfo>
 
 <AdwWidget title="Gtk.DropDown">
   <Fragment slot="preview">

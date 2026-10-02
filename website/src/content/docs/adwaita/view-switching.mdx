@@ -4,20 +4,19 @@ description: "Adwaita view-switching widgets: view switcher, view switcher bar, 
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
-When your window has several peer pages and shows one at a time, put the pages in
-a **view stack** and give the user a **switcher** to pick between them. Five
-switchers are on this page: a segmented bar, the same bar pinned to the bottom
-edge for a narrow window, a strip of tabs, a compact toolbar control and a
-swipeable pager. All of them adapt to the window, so a wide desktop gets the full
-switcher and a narrow phone gets a collapsed one.
+When your window has several peer pages and shows one at a time, put the pages in a
+**view stack** and give the user a **switcher** to pick between them. Five switchers are
+on this page, and all of them adapt to the window: a wide desktop gets the full switcher
+and a narrow phone gets a collapsed one.
 
-:::note
+<MoreInfo title="What the preview does not show">
 The previews run the browser port, so gestures Libadwaita drives natively
-(drag-to-reorder tabs, the tab bar's auto-hide, cross-fade transitions) can be
-simplified here. Click a switcher button, a tab or a carousel dot to move between
-pages. The carousel's own gestures are not simplified — see below.
-:::
+(drag-to-reorder tabs, the tab bar's auto-hide, cross-fade transitions) can be simplified
+here. Click a switcher button, a tab or a carousel dot to move between pages. The
+carousel's own gestures are not simplified — see below.
+</MoreInfo>
 
 ## View Switcher
 
@@ -169,11 +168,14 @@ swaps between the two on a breakpoint.
 ## View Switcher Bar
 
 The **narrow-window** half of the same pattern. When the window is too slim for a
-switcher in the header bar, put one at the bottom edge instead — that is a view
-switcher bar, pinned into a toolbar view's bottom slot and bound to the same
-stack. `reveal` is a **request, not a state**: a stack with fewer than two pages
-stays collapsed however loudly it is asked, so a bar over a one-page stack simply
-does not appear.
+switcher in the header bar, put one at the bottom edge instead — that is a view switcher
+bar, pinned into a [toolbar view](/gjsify/adwaita/layout/#toolbar-view)'s bottom slot
+and bound to the same stack.
+
+<MoreInfo title="`reveal` is a request, not a state">
+A stack with fewer than two pages stays collapsed however loudly it is asked, so a bar
+over a one-page stack simply does not appear.
+</MoreInfo>
 
 <AdwWidget title="Adw.ViewSwitcherBar" blueprint="adwaita/view-switcher-bar.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">
@@ -210,11 +212,15 @@ does not appear.
 
 ## Tab View
 
-Reach for a tab view when the pages are not fixed. Unlike a view switcher, tabs
-are meant to be added, closed and reordered while the app runs. The **tab bar**
-draws one chip per page, each with a title and a close button, and raises the
-selected chip onto the view background. Turn on **autohide** and the bar
-disappears once a single page is left, so a one-tab document looks chrome-free.
+Reach for a tab view when the pages are not fixed. Unlike a view switcher, tabs are meant
+to be added, closed and reordered while the app runs. The **tab bar** draws one chip per
+page, each with a title and a close button, and raises the selected chip onto the view
+background.
+
+<MoreInfo title="Autohide">
+Turn on **autohide** and the bar disappears once a single page is left, so a one-tab
+document looks chrome-free.
+</MoreInfo>
 
 <AdwWidget title="Adw.TabView" padding="flush" stage="height: 260px; width: 100%; display: flex;">
   <Fragment slot="preview">
@@ -441,29 +447,30 @@ makes it fit a header bar or a tight toolbar.
 
 ## Carousel
 
-For onboarding screens and galleries, use a carousel: pages sit side by side and
-the user flicks, scrolls or clicks a **page indicator** to move between them. Two
-indicator widgets bind to a carousel, **dots** (shown here) and **lines**. Both
-track the fractional scroll position and grow the marker nearest the current
-page.
+For onboarding screens and galleries, use a carousel: pages sit side by side and the
+user flicks, scrolls or clicks a **page indicator** to move between them. Two indicator
+widgets bind to a carousel, **dots** (shown here) and **lines**. Both track the
+fractional scroll position and grow the marker nearest the current page.
 
-A carousel answers to three gestures. **Touch** and a **touchpad** scroll it
-natively — the browser owns those, momentum and snapping included. A **mouse
-drag** is the one the browser has no gesture for, so it is implemented: press
-inside the carousel and pull, and the pages follow the cursor. Where it lands is
-`Adw.SwipeTracker`'s decision, not the browser's — the drag's velocity is
-projected and the nearest reachable page wins, so a short flick pages and a slow
-half-drag settles back.
+<MoreInfo title="The three gestures">
+**Touch** and a **touchpad** scroll the carousel natively — the browser owns those,
+momentum and snapping included. A **mouse drag** is the one the browser has no gesture
+for, so it is implemented: press inside the carousel and pull, and the pages follow the
+cursor. Where it lands is `Adw.SwipeTracker`'s decision, not the browser's — the drag's
+velocity is projected and the nearest reachable page wins, so a short flick pages and a
+slow half-drag settles back.
+</MoreInfo>
 
-Three knobs are worth knowing. The **scroll wheel** pages the carousel by
-default; set `allow-scroll-wheel="false"` to leave wheel events to the page
-instead. **Mouse drag** is on by default; `allow-mouse-drag="false"` leaves
-dragging to touch, as it does upstream. **Long swipes** are off by default; turn
-them on to let one flick skip several pages — with the caveat that a *touchpad*
-flick can already cross more than one page here. The setting is applied (each page
-gets `scroll-snap-stop: always` when long swipes are off), but the browser does not
-honour it for that gesture; GTK, which runs the same input through its own tracker,
-does.
+<MoreInfo title="The three knobs">
+The **scroll wheel** pages the carousel by default; set `allow-scroll-wheel="false"` to
+leave wheel events to the page instead. **Mouse drag** is on by default;
+`allow-mouse-drag="false"` leaves dragging to touch, as it does upstream. **Long swipes**
+are off by default; turn them on to let one flick skip several pages — with the caveat
+that a *touchpad* flick can already cross more than one page here. The setting is
+applied (each page gets `scroll-snap-stop: always` when long swipes are off), but the
+browser does not honour it for that gesture; GTK, which runs the same input through its
+own tracker, does.
+</MoreInfo>
 
 <AdwWidget title="Adw.Carousel" blueprint="adwaita/carousel.blp" padding="flush" stage="height: 260px; width: 100%; display: grid; justify-content: stretch;">
   <Fragment slot="gjs">

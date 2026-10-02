@@ -4,27 +4,27 @@ description: "Adwaita navigation widgets: navigation split view, overlay split v
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
 These widgets move the user between the top-level places of your app, and they
-adapt that movement to the window size for free. On a wide window a sidebar and
-its content sit side by side. As the window narrows, the same structure folds
-into a stack you push and pop, or into a panel that overlays the content. You
-build one structure, not two.
+adapt that movement to the window size for free. On a wide window a sidebar and its
+content sit side by side; as the window narrows, the same structure folds into a stack
+you push and pop, or into a panel that overlays the content. You build one structure,
+not two.
 
-:::note
+<MoreInfo title="What the preview does not show">
 These are the widgets that lean hardest on Libadwaita: adaptive breakpoints,
 gesture-driven overlays, animated push and pop, back-swipe. The previews run the
-browser port, so each shows one representative state (sidebar shown, sheet open)
-and the collapse, overlay and slide interactions are simplified.
-:::
+browser port, so each shows one representative state (sidebar shown, sheet open) and
+the collapse, overlay and slide interactions are simplified.
+</MoreInfo>
 
 ## Navigation Split View
 
-The workhorse for a mail-client or settings layout: a resizable **sidebar beside
-a content pane**. On a wide window the two sit side by side. When the window is
-narrow the view **collapses** into a single navigation stack, so selecting a
-sidebar row pushes the content page and a back button returns to the list. Give
-the sidebar and the content each their own navigation page and header bar.
+The workhorse for a mail-client or settings layout: a resizable **sidebar beside a
+content pane**. On a wide window the two sit side by side; when the window is narrow
+the view **collapses** into a single navigation stack, so selecting a sidebar row pushes
+the content page and a back button returns to the list.
 
 <AdwWidget title="Adw.NavigationSplitView" blueprint="adwaita/navigation-split-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
@@ -75,10 +75,10 @@ the sidebar and the content each their own navigation page and header bar.
 
 ## Overlay Split View
 
-Also a sidebar **beside** the content, but with a different collapsed behaviour:
-instead of replacing the content, the sidebar slides **over the top** of it as a
-temporary panel above a dimming scrim. Choose this one for a utility, filter or
-navigation pane that should not push the main content aside on a narrow window.
+Also a sidebar **beside** the content, but with a different collapsed behaviour: instead
+of replacing the content, the sidebar slides **over the top** of it as a temporary panel
+above a dimming scrim. Choose it for a utility, filter or navigation pane that should not
+push the main content aside on a narrow window.
 
 <AdwWidget title="Adw.OverlaySplitView" blueprint="adwaita/overlay-split-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
@@ -124,13 +124,15 @@ navigation pane that should not push the main content aside on a narrow window.
 
 ## Navigation View
 
-A **navigation stack**: push a page, pop it, and get the back button for free.
-The root page shows first. Pushing slides the next page in from the trailing edge
-when transitions are animated, and a back-swipe gesture takes the user back.
+A **navigation stack**: push a page, pop it, and get the back button for free. Pushing
+slides the next page in from the trailing edge when transitions are animated, and a
+back-swipe gesture takes the user back.
 
+<MoreInfo title="Pushing a page by its tag">
 A page carries a **tag**, and the code below pushes the detail page by its tag when
-**Open contact** is clicked. The preview builds the file alone, without that code,
-so it shows the root page.
+**Open contact** is clicked. The preview builds the file alone, without that code, so it
+shows the root page.
+</MoreInfo>
 
 <AdwWidget title="Adw.NavigationView" blueprint="adwaita/navigation-view.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden;">
   <Fragment slot="gjs">
@@ -170,13 +172,14 @@ so it shows the root page.
 ## Sidebar
 
 The list that goes inside a split view: **selectable items** grouped into titled
-sections, where selecting one drives the content beside it. Each item takes a
-title, an optional subtitle and a leading icon. Two modes let it adapt: a
-persistent `sidebar` for wide layouts and a full-width `page` for narrow ones.
+sections, where selecting one drives the content beside it. Each item takes a title, an
+optional subtitle and a leading icon. Two modes let it adapt: a persistent `sidebar` for
+wide layouts and a full-width `page` for narrow ones.
 
-Use this rather than a boxed list. A boxed list draws itself as a settings card,
-which looks wrong edge to edge in a pane; a sidebar is a flat selectable list and
-already knows how to be one.
+<MoreInfo title="Why not a boxed list">
+A boxed list draws itself as a settings card, which looks wrong edge to edge in a pane;
+a sidebar is a flat selectable list and already knows how to be one.
+</MoreInfo>
 
 <AdwWidget title="Adw.Sidebar" blueprint="adwaita/sidebar.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
   <Fragment slot="gjs">
@@ -212,14 +215,17 @@ already knows how to be one.
 
 ## Bottom Sheet
 
-A sheet that **slides up from the bottom edge** over the content it belongs to,
-which suits contextual actions and secondary content on a narrow window. Make it
-**modal** to dim the content behind it. `canClose` is on by default, so Escape or
-a click on the dimmed area dismisses the sheet; switch it off to keep the sheet
-up until your own code closes it. The preview starts with the sheet up: click the
-dimmed area to dismiss it. Bringing it back is a property set (`open = true`), which
-the code below wires to the button; the preview builds the file alone, so there the
-button shows the content pane and does nothing.
+A sheet that **slides up from the bottom edge** over the content it belongs to, which
+suits contextual actions and secondary content on a narrow window. Make it **modal** to
+dim the content behind it.
+
+<MoreInfo title="Closing the sheet, and what the preview shows">
+`canClose` is on by default, so Escape or a click on the dimmed area dismisses the
+sheet; switch it off to keep the sheet up until your own code closes it. The preview
+starts with the sheet up: click the dimmed area to dismiss it. Bringing it back is a
+property set (`open = true`), which the code below wires to the button; the preview
+builds the file alone, so there the button shows the content pane and does nothing.
+</MoreInfo>
 
 <AdwWidget title="Adw.BottomSheet" blueprint="adwaita/bottom-sheet.blp" padding="flush" stage="height: 340px; width: 100%; display: grid; justify-content: stretch; overflow: hidden; position: relative;">
   <Fragment slot="gjs">

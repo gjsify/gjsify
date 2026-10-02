@@ -609,7 +609,11 @@ a[aria-current='page']:hover {
   border-bottom: none;
 }
 
-/* Expander row — wraps a <details> element */
+/* Expander row — the class belongs on the <details>, which is what every rule
+   below is written against (`.adw-row-expander > summary`). On the <summary>
+   itself they matched nothing: the row kept the GENERIC `details summary` look
+   below — padding, the left-hand `::before` chevron — and `.adw-chevron` never
+   rotated on open, which is the second half of the same defect. */
 .adw-row-expander {
   display: block;
   padding: 0;
@@ -630,7 +634,24 @@ a[aria-current='page']:hover {
   color: var(--sl-color-white);
 }
 
+/* ONE chevron: the right-hand one this component draws and rotates on open. Three
+   others claim the same spot — the site's own LEFT-hand `details summary::before`
+   above, Starlight's copy of it, and the native marker — and `list-style: none`
+   alone silences none of them (it also does not out-specify the first, (0,1,2)).
+   Starlight's rule reaches this summary because its `:not(:where(.not-content *))`
+   excludes DESCENDANTS of `.not-content`, while the summary carries the class
+   ITSELF. */
+.sl-markdown-content .adw-row-expander > summary::before {
+  content: none;
+  display: none;
+}
+
 .adw-row-expander > summary::-webkit-details-marker {
+  display: none;
+}
+
+.adw-row-expander > summary::marker {
+  content: '';
   display: none;
 }
 

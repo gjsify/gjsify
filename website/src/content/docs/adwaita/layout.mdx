@@ -4,6 +4,7 @@ description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapB
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
 These four containers give an Adwaita window its shape. Use a **clamp** to hold
 content at a readable width, a **header bar** for the top chrome, a **toolbar
@@ -11,40 +12,7 @@ view** to frame content between fixed bars, and a **wrap box** to let a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
 
-A NativeScript template reaches these widgets through its `xmlns`, and the namespace
-is a MODULE: NativeScript loads it and reads the element name off its exports, so
-`xmlns:adw="~/adw"` needs an app-local `app/adw.ts` that re-exports what the markup
-names. A bare package specifier there does not resolve. There is one barrel per
-library, `~/adw` for `Adw.*` and `~/gtk` for `Gtk.*`, because the prefix is the only
-thing in XML that can say which library a widget belongs to. Point both at one module
-and `<adw:Button>` silently builds the GTK button.
-
-Every NativeScript tab in this gallery was inflated on an Android device before it was
-written down.
-[`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
-loads each template through NativeScript's own `Builder` and asserts the view tree it
-built. That is the only way to tell a template that renders from one that renders
-something else: an attribute arrives as a string, and a child a widget has no slot for
-is added to the layout anyway.
-
-The wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
-`AdwWrapBox`, so a child placed in one was refused by name. That was deliberate: a
-renderer guessing the policy would call `add`, `append` or `set_child` and be wrong at
-exit 0. The policy is now curated against libadwaita, so the block has a tree like the
-other three.
-
-React Native primitives go inside these containers too, through
-[`@gjsify/react-native`](/gjsify/frameworks/react-native/). The Adwaita element is the
-same one the React tab shows, and a `<View>` or `<Text>` sits in its default slot. The
-clamp, the header bar and the toolbar view carried a tab for that pairing, and they were
-the only three blocks on the site with one, so the [React Native
-page](/gjsify/frameworks/react-native/#adwaita-widgets) carries it in full instead. Two
-facts from there are worth having before you try it. The primitives need their token
-scales installed with `configureStyle({ tokens })` before the first render, because a
-class naming a token you have not declared throws out of the render and leaves an empty
-window at exit 0 with nothing in the log. And such a tree is a GTK window rather than a
-phone screen, which is why it was never the NativeScript tab.
-
+<MoreInfo title="The ports, and what they follow">
 Libadwaita is the reference, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
@@ -53,35 +21,70 @@ follow its naming, and where a port differs, the window that shows it says so. B
 answer `gi://Adw` and `gi://Gtk`. On NativeScript that resolves once you build with
 `gjsify build --app nativescript --gi-renderer`.
 
-:::note
-The previews run the browser port, so behaviour Libadwaita drives natively (a
-toolbar view revealing each bar independently, a clamp's tightening threshold)
-can be simplified here.
-:::
+The previews run the browser port, so behaviour Libadwaita drives natively (a toolbar
+view revealing each bar independently, a clamp's tightening threshold) can be
+simplified here.
+</MoreInfo>
+
+<MoreInfo title="The NativeScript tabs were inflated on a device">
+[`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
+loads each template through NativeScript's own `Builder` and asserts the view tree it
+built. That is the only way to tell a template that renders from one that renders
+something else: an attribute arrives as a string, and a child a widget has no slot for
+is added to the layout anyway.
+
+A NativeScript template reaches these widgets through its `xmlns`, and the namespace is
+a MODULE: NativeScript loads it and reads the element name off its exports, so
+`xmlns:adw="~/adw"` needs an app-local `app/adw.ts` that re-exports what the markup
+names. A bare package specifier there does not resolve. There is one barrel per library,
+`~/adw` for `Adw.*` and `~/gtk` for `Gtk.*`, because the prefix is the only thing in XML
+that can say which library a widget belongs to. Point both at one module and
+`<adw:Button>` silently builds the GTK button.
+
+The wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
+`AdwWrapBox`, so a child placed in one was refused by name. That was deliberate: a
+renderer guessing the policy would call `add`, `append` or `set_child` and be wrong at
+exit 0. The policy is now curated against libadwaita, so the block has a tree like the
+other three.
+</MoreInfo>
+
+<MoreInfo title="React Native primitives go in these containers too">
+The Adwaita element is the same one the React tab shows, and a `<View>` or `<Text>` sits
+in its default slot. The clamp, the header bar and the toolbar view carried a tab for
+that pairing, and they were the only three blocks on the site with one, so the [React
+Native page](/gjsify/frameworks/react-native/#adwaita-widgets) carries it in full
+instead. Two facts from there are worth having before you try it. The primitives need
+their token scales installed with `configureStyle({ tokens })` before the first render,
+because a class naming a token you have not declared throws out of the render and leaves
+an empty window at exit 0 with nothing in the log. And such a tree is a GTK window
+rather than a phone screen, which is why it was never the NativeScript tab.
+</MoreInfo>
 
 ## Clamp
 
 Wrap long-form content in a clamp so it stops growing at a **maximum width** and
-stays centred in anything wider. As the window shrinks, the clamp starts
-tightening the child once it passes the **tightening threshold**. That keeps text
-at a comfortable measure on a large display without wasting room on a small one.
+stays centred in anything wider. Below the **tightening threshold** the clamp starts
+tightening the child, which keeps text at a comfortable measure on a large display
+without wasting room on a small one.
 
-This block is written in a different shape from the others on the page. The layout
-exists once, as a Blueprint file, and every surface builds that file: GTK compiles it
-to GtkBuilder XML, and the web and NativeScript ports build its `?shared-tree`
-projection. The preview is that projection, built by `@gjsify/adwaita-web`, and
-**Blueprint** under it is the file. The **Web Components** and **NativeScript** tabs of
-**Code** hold the files of a project, picked in the small row under the tab bar. The first
-is the same layout in the port's own markup, `index.html` or `views/clamp.xml`, generated
-from the Blueprint file when the site is built, so the ids match. The code that goes with
-it reaches an element by its id, which is where the platforms differ: the web clamp takes
-its size as an attribute, the other two as a property. The file marked **(Blueprint)** is
-that same code building the layout from the Blueprint file instead of the markup.
+<MoreInfo title="Why this block is shaped differently">
+The layout exists once, as a Blueprint file, and every surface builds that file: GTK
+compiles it to GtkBuilder XML, and the web and NativeScript ports build its
+`?shared-tree` projection. The preview is that projection, built by
+`@gjsify/adwaita-web`, and **Blueprint** under it is the file. The **Web Components**
+and **NativeScript** tabs of **Code** hold the files of a project, picked in the small
+row under the tab bar. The first is the same layout in the port's own markup,
+`index.html` or `views/clamp.xml`, generated from the Blueprint file when the site is
+built, so the ids match. The code that goes with it reaches an element by its id, which
+is where the platforms differ: the web clamp takes its size as an attribute, the other
+two as a property. The file marked **(Blueprint)** is that same code building the layout
+from the Blueprint file instead of the markup.
 
 The first tab is one program for four runtimes. Built with `gjsify build --app gjs` it
 runs on GJS, and built with `--app node` the same source runs on Node.js, Deno and Bun
 through `node-gi`. It calls `Adw.init()` so that the builder knows `Adw.Clamp` in a
 bare script too; inside an `Adw.Application` the call is harmless.
+</MoreInfo>
 
 <AdwWidget title="Adw.Clamp" blueprint="adwaita/clamp.blp">
   <Fragment slot="gjs">

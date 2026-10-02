@@ -4,26 +4,26 @@ description: "Adwaita presentation widgets: avatar, banner, shortcut label, spin
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
-These widgets show state and identity rather than collect input. Use an
-**avatar** for a person or account, a **banner** for an in-context message, a
-**shortcut label** to draw a keyboard shortcut as keycaps, a **spinner** while
-work is running, a **status page** for an empty or error state, and a **window
-title** in a header bar.
+These widgets show state and identity rather than collect input: an **avatar** for a
+person or account, a **banner** for an in-context message, a **shortcut label** to draw a
+keyboard shortcut as keycaps, a **spinner** while work runs, a **status page** for an empty
+or error state, and a **window title** in a header bar.
 
-:::note
+<MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour Libadwaita drives natively (a
-spinner's animation timing, a banner's reveal transition) can be simplified here.
-The NativeScript port diverges in two places worth knowing: its avatar has no
-icon fallback, and its banner takes plain text rather than markup.
-:::
+spinner's animation timing, a banner's reveal transition) can be simplified here. The
+NativeScript port diverges in two places worth knowing: its avatar has no icon
+fallback, and its banner takes plain text rather than markup.
+</MoreInfo>
 
 ## Avatar
 
-Stand in for a person, account or entity. Ask for **initials** and give it a
-**name**, and it derives the initials and a stable background colour from that
-name; with either missing it falls back to a symbolic **icon**. **Size** scales
-it from an inline list glyph up to a full profile header.
+Stand in for a person, account or entity. Ask for **initials** and give it a **name**,
+and it derives the initials and a stable background colour from that name; with either
+missing it falls back to a symbolic **icon**. **Size** scales it from an inline list
+glyph up to a full profile header.
 
 <AdwWidget title="Adw.Avatar" blueprint="adwaita/avatar.blp">
   <Fragment slot="gjs">
@@ -98,12 +98,15 @@ space while the message applies.
 
 ## Shortcut Label
 
-Draw a keyboard shortcut as **keycaps** instead of writing it out in prose. You
-give it one **accelerator** string and it renders the keys in GTK's fixed order,
-whatever order you wrote the modifiers in. The string has four levels: a space
-lists **alternatives**, `...` is a **range**, `+` means the shortcuts are pressed
-**in sequence**, and `&` means they are held **together**. An empty accelerator
-shows the **disabled-text** placeholder instead.
+Draw a keyboard shortcut as **keycaps** instead of writing it out in prose. You give it
+one **accelerator** string and it renders the keys in GTK's fixed order, whatever order
+you wrote the modifiers in.
+
+<MoreInfo title="The four levels of an accelerator">
+A space lists **alternatives**, `...` is a **range**, `+` means the shortcuts are pressed
+**in sequence**, and `&` means they are held **together**. An empty accelerator shows the
+**disabled-text** placeholder instead.
+</MoreInfo>
 
 <AdwWidget title="Adw.ShortcutLabel" blueprint="adwaita/shortcut-label.blp">
   <Fragment slot="gjs">

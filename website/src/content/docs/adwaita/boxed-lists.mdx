@@ -4,24 +4,24 @@ description: "Adwaita boxed-list rows: preferences group, action, switch, entry,
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
 Reach for a **boxed list** whenever you build a settings or detail screen: a set
 of related rows gathered into one rounded card. The card is a **preferences
-group**, and each row is a small self-contained control (a toggle, a text field,
-a drop-down, a button).
+group**, and each row is a small self-contained control.
 
-:::note
+<MoreInfo title="What the preview does not show">
 The previews run the browser port, so behaviour Libadwaita drives natively (an
 entry's apply button, a spin button's repeat, the press feedback on a row) can be
 simplified here.
-:::
+</MoreInfo>
 
 ## Preferences Group
 
-Start with the group: it draws its rows as one rounded card. Give it a **title**,
-a **description**, and a **header-suffix** widget (a button or switch pinned to
-the trailing edge of the header). Stack several groups to build a full
-preferences page.
+The group draws its rows as one rounded card. Give it a **title**, a
+**description**, and a **header-suffix** widget (a button or switch pinned to
+the trailing edge of the header). Stack several groups for a full preferences
+page.
 
 <AdwWidget title="Adw.PreferencesGroup" blueprint="adwaita/preferences-group.blp">
   <Fragment slot="gjs">
@@ -217,13 +217,6 @@ to reveal it. Use it anywhere a password or key is edited inline.
 Pick one option from a fixed list. The row shows an inline **drop-down**, and the
 selection is an index into the model you gave it, not the string itself.
 
-The list is the **model** property, a `Gtk.StringList` in the Blueprint below. Write
-`model` before `selected`: GtkBuilder sets properties in the order the file gives
-them, and setting a model resets the selection, so a `selected` written first ends
-up on the first item. In code the model can also be an array of plain strings, or of
-`{ value, label }` objects when the value you store differs from the text you
-show — `{ label: 'Blue' }` on its own is addressed by `'Blue'`.
-
 <AdwWidget title="Adw.ComboRow" blueprint="adwaita/combo-row.blp">
   <Fragment slot="gjs">
     ```ts
@@ -257,9 +250,9 @@ show — `{ label: 'Blue' }` on its own is addressed by `'Blue'`.
   </Fragment>
 </AdwWidget>
 
-The model stays live. Assign a new one whenever your data changes and the row
-follows — the visible list, the inline value and the chevron, which the row hides
-while there is nothing to choose between:
+The model stays live: assign a new one and the row follows — the visible list, the
+inline value and the chevron, which the row hides while there is nothing to choose
+between.
 
 ```ts
 const row = document.querySelector('adw-combo-row');
@@ -271,12 +264,18 @@ row.selectedItem; // → { value: 'Teal', label: 'Teal' }
 row.model = [...row.model, { value: 'g', label: 'Green' }];
 ```
 
-That last line adds one option and leaves the two already on screen alone, so a
-list that grows does not flicker or lose the reader's place.
+<MoreInfo title="What the model property accepts">
+The list is the **model** property, a `Gtk.StringList` in the Blueprint above. In
+code it can also be an array of plain strings, or of `{ value, label }` objects
+when the value you store differs from the text you show — `{ label: 'Blue' }` on
+its own is addressed by `'Blue'`. Write `model` before `selected` in Blueprint:
+GtkBuilder sets properties in file order, and setting a model resets the selection,
+so a `selected` written first ends up on the first item.
 
-Reading `row.model` hands you a copy of the list, so you can build the next one
-out of it — push, filter, rename an item — and nothing on screen moves until you
-assign it back.
+That last line above adds one option and leaves the two already on screen alone, so
+a list that grows does not flicker or lose the reader's place. Reading `row.model`
+hands you a copy, so you can push, filter or rename an item and nothing on screen
+moves until you assign it back.
 
 The same array is what [`<gtk-drop-down>`](/gjsify/gtk/controls/#drop-down) takes,
 under the same `model` name — and so do `Adw.ComboRow` on NativeScript and the
@@ -289,15 +288,16 @@ above use it because it is what a GJS author writes. On GJS it is the real
 `model = ['Blue', 'Teal']` and
 `model = new Gtk.StringList({ strings: ['Blue', 'Teal'] })` are the same write and
 either one reads back the same list.
+</MoreInfo>
 
-:::note
+<MoreInfo title="Which widgets take a `model`">
 `model` is what this row and the drop-down take, and only they. The widgets whose
 contents are **child widgets** — sidebar, tab view, toggle group, view stack,
 carousel — have no such property, here or in Libadwaita: their items are added one
 at a time. Keep using what each one already gives you — `<adw-sidebar>`'s
 `sections`, `<adw-tab-view>`'s `appendPage()`, or plain child elements in markup
 for the toggle group, the view stack and the carousel.
-:::
+</MoreInfo>
 
 ## Spin Row
 
@@ -428,4 +428,4 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
 - [Layout](../layout/): the `Clamp` that keeps a boxed list at a readable width.
 - [Feedback](../feedback/): the preferences dialog these groups go into.
 - [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
-  live component browser you can poke at.
+  component browser you can poke at.

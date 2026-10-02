@@ -4,33 +4,34 @@ description: "Adwaita feedback widgets: toast, alert dialog, about dialog and pr
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
 
 Two ways to tell the user something. A **toast** slides a short message over the
-content and gets out of the way on its own, so use it when nothing needs to
-happen next. A **dialog** puts a modal surface in front of the window and waits
-for an answer, so use it when something does. This page also covers the two
-dialogs every app is expected to have: About and Preferences.
+content and gets out of the way on its own, so use it when nothing needs to happen
+next. A **dialog** puts a modal surface in front of the window and waits for an
+answer, so use it when something does.
 
-:::note
+<MoreInfo title="How the previews differ from the widget">
 The previews hold each dialog **open** and each toast **visible**, which is not
-how they behave in an app: there they are modal windows and transient overlays
-the user triggers. Each one also sits in a fixed-height stage here so it stays
+how they behave in an app: there they are modal windows and transient overlays the
+user triggers. Each one also sits in a fixed-height stage here so it stays
 contained, while a real window sizes and centres itself.
-:::
+</MoreInfo>
 
 ## Toast
 
 A short line of text, optionally with one action button, that floats over the
-content for a few seconds and then dismisses itself. You do not add a toast to
-your layout: you wrap the page in a **toast overlay** and hand it toasts at
-runtime. The overlay layers them above the bottom edge without displacing
-anything beneath.
+content for a few seconds and then dismisses itself. You do not add a toast to your
+layout: you wrap the page in a **toast overlay** and hand it toasts at runtime.
 
-The overlay shows **one toast at a time**. Add a second while the first is
-visible and it waits its turn, appearing once the visible one goes away, whether
-by its timeout, its close button, its action button or an explicit dismissal.
-Every port behaves the same way here, so a queue you tested in the browser holds
-on the desktop.
+<MoreInfo title="One toast at a time">
+The overlay layers toasts above the bottom edge without displacing anything
+beneath, and shows **one toast at a time**. Add a second while the first is visible
+and it waits its turn, appearing once the visible one goes away, whether by its
+timeout, its close button, its action button or an explicit dismissal. Every port
+behaves the same way here, so a queue you tested in the browser holds on the
+desktop.
+</MoreInfo>
 
 <AdwWidget title="Adw.Toast" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
@@ -131,11 +132,14 @@ on the desktop.
 
 ## Alert Dialog
 
-Ask a question the user has to answer: a bold **heading**, some **body** text and
-a row of **responses** to choose between. Each response is a button with a string
-ID, and that ID is what reaches your code. Give one response a **destructive** or
-**suggested** appearance to mark the consequence, and set the **default** and
-**close** responses so Enter and Escape do the right thing.
+Ask a question the user has to answer: a bold **heading**, some **body** text and a row of
+**responses**. Each response is a button with a string ID, and that ID is what reaches your
+code. Set the **default** and **close** responses so Enter and Escape do the right thing.
+
+<MoreInfo title="Marking the consequence">
+Give one response a **destructive** or **suggested** appearance and the choice reads at a
+glance before the reader commits to it.
+</MoreInfo>
 
 <AdwWidget title="Adw.AlertDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
@@ -217,10 +221,10 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
 
 ## About Dialog
 
-Wire this to the _About_ entry in your primary menu and you are done. Fill in the
-app metadata and the dialog builds the rest: a large **icon**, the application
-**name**, a **developer** line, a **version** pill, and Details, Credits and
-Legal sub-pages you never lay out yourself.
+Wire this to the _About_ entry in your primary menu and you are done. Fill in the app
+metadata and the dialog builds the rest: a large **icon**, the application **name**, a
+**developer** line, a **version** pill, and Details, Credits and Legal sub-pages you
+never lay out yourself.
 
 <AdwWidget title="Adw.AboutDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
@@ -303,10 +307,14 @@ Legal sub-pages you never lay out yourself.
 ## Preferences Dialog
 
 The container behind your _Preferences_ command. Organise it into **pages**, each
-holding **groups** of [boxed-list rows](../boxed-lists/): switches, drop-downs,
-spin buttons. Most apps need only one page, which is what the example shows. In a
-native window, extra pages sit behind a view switcher and you see one at a time;
-the web port renders them stacked instead.
+holding **groups** of [boxed-list rows](../boxed-lists/). Most apps need only one
+page, which is what the example shows.
+
+<MoreInfo title="Pages on the two ports">
+In a native window, extra pages sit behind a
+[view switcher](/gjsify/adwaita/view-switching/) and you see one at a time; the web
+port renders them stacked instead.
+</MoreInfo>
 
 <AdwWidget title="Adw.PreferencesDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
