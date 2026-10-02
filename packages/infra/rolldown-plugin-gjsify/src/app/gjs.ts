@@ -154,6 +154,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
 
     const virtualEntries = wrapInputWithSideEffects(entryPoints, sideEffectImports, {
         preserveDefaultExport: input.pluginOptions.preserveDefaultExport === true,
+        exitOnReportedCode: true,
     });
     const finalInput = virtualEntries.input;
 
