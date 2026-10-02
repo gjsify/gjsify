@@ -349,6 +349,104 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'single', set: 'set_child' },
     },
     {
+        // THE REVEALER IS A BIN, and that is the whole of its placement. `GtkBuildable`
+        // routes a widget child to exactly one place — `gtk_revealer_buildable_add_child`
+        // has no `type` arm at all, so every child it takes goes to
+        // `gtk_revealer_set_child` (gtkrevealer.c:666-679) — and the `child` property is
+        // installed with that setter (gtkrevealer.c:747-749, `GTK_TYPE_WIDGET`). `single`
+        // rather than `uncurated` for the reason `GtkFrame` above is: the ONE thing an
+        // application does with a revealer is give it something to hide.
+        //
+        // The four `transition-*`/`reveal-*` properties beside it are PROPERTIES, not
+        // placement — `policyProblems()` holds the methods a row names and nothing else,
+        // so their presence or absence in this comment changes nothing GTK does.
+        gtype: 'GtkRevealer',
+        ctor: () => Gtk.Revealer,
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        // TWO SLOTS, and `slotted` rather than `single` because they are not
+        // interchangeable: `gtk_expander_buildable_add_child` reads a `type`, and
+        // `"label"` goes to `gtk_expander_set_label_widget` while a bare widget child
+        // goes to `gtk_expander_set_child` (gtkexpander.c:449-465). Both properties are
+        // widget-typed (`label-widget` at :351, `child` at :370), so a descriptor that
+        // declared only the `child` would refuse a placement GTK accepts.
+        //
+        // NO `remove`, and the absence is the measurement rather than an oversight: every
+        // slot here is a `set_`-prefixed setter, which `detachChild` empties by writing
+        // `null` back through itself. MEASURED: this class has no `remove` method of its
+        // own, every `remove*` on it being `GtkWidget`'s. `Adw.NavigationSplitView` in
+        // `adw.ts` is the row that states the same rule for the same reason.
+        gtype: 'GtkExpander',
+        ctor: () => Gtk.Expander,
+        children: {
+            kind: 'slotted',
+            slots: { child: 'set_child', label: 'set_label_widget' },
+            defaultSlot: 'child',
+        },
+    },
+    {
+        // TWO SLOTS, NAMED, and the setters GTK's own buildable routes to:
+        // `gtk_paned_buildable_add_child` reads `"start"` and `"end"` and calls
+        // `gtk_paned_set_start_child` / `gtk_paned_set_end_child` (gtkpaned.c:793-834);
+        // the properties are installed right beside the four resize/shrink flags the same
+        // function writes (:501-534 for the flags, :544 and :554 for the two children).
+        //
+        // `defaultSlot: 'start'` is the branch a typeless child takes FIRST (gtkpaned.c:
+        // :814-822), so a `<gtk-label>` with no slot lands where GtkBuilder would put it.
+        // That branch then FILLS the second untyped child into `end`, which one
+        // `defaultSlot` cannot spell — an unslotted tree gets `start` for every child, so
+        // the SECOND one replaces the first. Declared rather than papered over, because
+        // the alternative is a silent replacement at exit 0; the answer in a tree is two
+        // `slot` attributes.
+        //
+        // AND THE RESIZE/SHRINK FLAGS ARE NOT PLACEMENT. `gtk_paned_buildable_add_child`
+        // sets `resize-start-child: false` and `shrink-start-child: true` beside the
+        // start child (gtkpaned.c:803-805) — that is GtkBuilder's per-slot DEFAULT, not
+        // an adoption rule, and the pspecs (:501-534) still default both flags to TRUE for
+        // everybody. They are props a tree writes and nothing here claims them.
+        gtype: 'GtkPaned',
+        ctor: () => Gtk.Paned,
+        children: {
+            kind: 'slotted',
+            slots: { start: 'set_start_child', end: 'set_end_child' },
+            defaultSlot: 'start',
+        },
+    },
+    {
+        // THREE NAMED SLOTS. GTK's buildable reads three type names — `"start"`,
+        // `"center"`, `"end"` — and each routes to its own setter (gtkcenterbox.c:113-135);
+        // the three properties are `start-widget`, `center-widget` and `end-widget`
+        // (:285, :297, :313), over a `GTK_TYPE_CENTER_LAYOUT` (:344) rather than a bin
+        // layout. This is the THREE-slot member of the family `GtkOverlay` above already
+        // curates: named attachment points that are not interchangeable, so `slotted` and
+        // not `ordered`.
+        //
+        // `defaultSlot: 'center'` because the CENTRE is the one the widget is named for
+        // and the one an unslotted author means — and it is the one a header bar's own
+        // uses, since libadwaita builds a `GtkCenterBox` inside every `Adw.HeaderBar`
+        // (MEASURED by `slotHonoured` in `scripts/generate-adwaita-framework-snippets.mjs`,
+        // which reads `get_start_widget()`/`get_end_widget()` off it to tell two slots
+        // apart; there the centre holds the title widget). `Gtk.Paned`'s default is
+        // `start`, for the branch a typeless child takes first there.
+        //
+        // `remove` is absent for the same reason `Gtk.Expander`'s is above: all three slots
+        // are setters, and MEASURED this class has no `remove` method of its own (every
+        // `remove*` on it being `GtkWidget`'s), so `detachChild` empties each by writing
+        // `null` back through its own setter.
+        gtype: 'GtkCenterBox',
+        ctor: () => Gtk.CenterBox,
+        children: {
+            kind: 'slotted',
+            slots: {
+                start: 'set_start_widget',
+                center: 'set_center_widget',
+                end: 'set_end_widget',
+            },
+            defaultSlot: 'center',
+        },
+    },
+    {
         gtype: 'GtkStack',
         ctor: () => Gtk.Stack,
         children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name', titled: true },

@@ -428,6 +428,62 @@
                 valign="end"
             />
         </gtk-overlay>
+        <gtk-center-box
+            :shrink-center-last="true"
+            :width-request="320"
+            halign="center"
+        >
+            <gtk-label
+                slot="start"
+                label="Start"
+            />
+            <gtk-label
+                slot="center"
+                label="Centre"
+            />
+            <gtk-label
+                slot="end"
+                label="End"
+            />
+        </gtk-center-box>
+        <gtk-revealer
+            transition-type="slide-down"
+            :transition-duration="250"
+            :reveal-child="true"
+        >
+            <gtk-label
+                label="The revealed child"
+                :margin-top="12"
+                :margin-bottom="12"
+            />
+        </gtk-revealer>
+        <gtk-paned
+            orientation="horizontal"
+            :width-request="400"
+            :height-request="120"
+            :position="-1"
+        >
+            <gtk-label
+                slot="start"
+                label="First child"
+                :width-request="100"
+            />
+            <gtk-label
+                slot="end"
+                label="Second child"
+                :width-request="300"
+            />
+        </gtk-paned>
+        <gtk-expander
+            :use-underline="true"
+            label="_More options"
+        >
+            <gtk-label
+                label="Notifications"
+                :margin-top="12"
+                :margin-bottom="12"
+            />
+        </gtk-expander>
         <gtk-text
             text="correct-horse-battery"
             placeholder-text="A single line"

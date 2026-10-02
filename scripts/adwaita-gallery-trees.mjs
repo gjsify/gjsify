@@ -722,6 +722,72 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        // THREE NAMED SLOTS — `start`, `center` and `end`, the three type names
+        // GtkCenterBox's buildable reads (gtkcenterbox.c:113-135) — and one property of the
+        // widget's own: `shrink-center-last`, which is a flag and not a placement. The width
+        // REQUEST is what gives the block a size to show; the three children are its whole
+        // content.
+        widget: 'Gtk.CenterBox',
+        page: 'layout',
+        root: {
+            tag: 'gtk-center-box',
+            props: { shrinkCenterLast: true, widthRequest: 320, halign: 'center' },
+            children: [
+                { tag: 'gtk-label', slot: 'start', props: { label: 'Start' } },
+                { tag: 'gtk-label', slot: 'center', props: { label: 'Centre' } },
+                { tag: 'gtk-label', slot: 'end', props: { label: 'End' } },
+            ],
+        },
+    },
+    {
+        // `single`, so the child needs no slot. The three properties are the widget's own
+        // — `transition-type`, `transition-duration`, `reveal-child` (gtkrevealer.c:707-736)
+        // — and the margins are on the CHILD, because a revealer has no padding of its own.
+        widget: 'Gtk.Revealer',
+        page: 'layout',
+        root: {
+            tag: 'gtk-revealer',
+            props: { transitionType: 'slide-down', transitionDuration: 250, revealChild: true },
+            children: [{ tag: 'gtk-label', props: { label: 'The revealed child', marginTop: 12, marginBottom: 12 } }],
+        },
+    },
+    {
+        // TWO NAMED SLOTS, and BOTH are written out: the descriptor's `defaultSlot` is
+        // `start`, so an unslotted second child would land in `start` a second time and
+        // REPLACE the first at exit 0 (gtkpaned.c:814-822 is the branch that fills `end`
+        // for the second untyped child — one `defaultSlot` cannot spell that). The two
+        // width REQUESTs are what divide the panes, because `position: -1` hands the
+        // divider back to them.
+        widget: 'Gtk.Paned',
+        page: 'layout',
+        root: {
+            tag: 'gtk-paned',
+            props: { orientation: 'horizontal', widthRequest: 400, heightRequest: 120, position: -1 },
+            children: [
+                { tag: 'gtk-label', slot: 'start', props: { label: 'First child', widthRequest: 100 } },
+                { tag: 'gtk-label', slot: 'end', props: { label: 'Second child', widthRequest: 300 } },
+            ],
+        },
+    },
+    {
+        // `useUnderline` BEFORE `label`, the order the widget needs: `gtk_expander_set_label`
+        // builds a `GtkLabel` and forwards the underline flag to it, so a `label` written
+        // first would take a label that then never learns about the mnemonic.
+        //
+        // The `label-widget` SLOT is deliberately not used here, and that is the one thing
+        // this block does not show: `label` is a STRING property and `slot="label"` is the
+        // OTHER placement — the widget that replaces that label outright, which is a
+        // different widget from the child below. A tree that used both at once would read
+        // as though it did.
+        widget: 'Gtk.Expander',
+        page: 'layout',
+        root: {
+            tag: 'gtk-expander',
+            props: { useUnderline: true, label: '_More options' },
+            children: [{ tag: 'gtk-label', props: { label: 'Notifications', marginTop: 12, marginBottom: 12 } }],
+        },
+    },
     // ------------------------------------------------------------------ gtk text
     {
         widget: 'Gtk.Text',
@@ -1361,24 +1427,23 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Gtk.TreeExpander':
         'it watches a Gtk.TreeListRow, which only a Gtk.TreeListModel produces from a create-model CALLBACK: ' +
         'a function, and the ParamSpec seam has no branch for either type.',
-    // Three GTK containers whose CHILD is the point, and where gtk-host's descriptor table
-    // has no row: `GtkOverlay` beside them IS curated (`slots: { child, overlay }`, which is
-    // why its block is a tree above), so this group is the missing half of one decision
-    // rather than a verdict about the widgets. Each names the file that would settle it.
-    'Gtk.Revealer':
-        'uncurated-placement: no row for GtkRevealer in packages/framework/gtk-host/src/descriptors/gtk.ts, so its one child cannot be placed.',
-    'Gtk.Paned':
-        'uncurated-placement: no row for GtkPaned in packages/framework/gtk-host/src/descriptors/gtk.ts, so neither of its two slots can be placed.',
-    'Gtk.Expander':
-        'uncurated-placement: no row for GtkExpander in packages/framework/gtk-host/src/descriptors/gtk.ts, so its label and its child cannot be placed.',
+    // `Gtk.Revealer`, `Gtk.Paned`, `Gtk.Expander` and `Gtk.CenterBox` WERE HERE, and every
+    // one of them said the same thing: "no row for <GType> in
+    // packages/framework/gtk-host/src/descriptors/gtk.ts". Curating those four rows is what
+    // makes this group disappear rather than shrink — the three placements of a
+    // `GtkCenterBox` and the two of a `Gtk.Paned` are ordinary NAMED slots, and the
+    // descriptor table now says so (`slots: { start, center, end }` and `slots: { start,
+    // end }`), which is the same decision `Gtk.Overlay` already carried. The blocks are
+    // trees above. The four probe pairs that measured the refusals moved to
+    // `PLACEMENTS_NOT_IN_THE_GALLERY` in `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`
+    // in the same commit, which is what arm 5b demands in the other direction.
+    //
     // The rest are not placement refusals: the widget cannot be written as a static
     // tree at all, in any dialect.
     'Gtk.TextView':
         'its text lives in a Gtk.TextBuffer set with set_buffer(), and a buffer is a GObject no attribute can carry — a static tree would render an empty view, which teaches a reader that GtkTextView is blank.',
     'Gtk.SearchBar':
         'its child is a widget reference (`child`), and GtkSearchBar has no curated child policy for one — the bar without its entry is an empty strip, which is what a static tree would render.',
-    'Gtk.CenterBox':
-        'uncurated-placement: GtkCenterBox has no descriptor, and its children are three NAMED slots — start, centre, end — rather than the ordered child list every other container here takes.',
     'Gtk.Fixed':
         "Gtk.Fixed places each child with gtk_fixed_put(child, x, y), and a tree carries no position: every child would be written at 0, 0, which is exactly what GtkBuilder's own buildable does (gtkfixed.c:171-177) and what no reader would copy.",
     'Gtk.Grid':

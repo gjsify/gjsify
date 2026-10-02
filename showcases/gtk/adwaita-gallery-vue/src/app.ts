@@ -317,6 +317,29 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
             ] }
     },
+    { widget: 'Gtk.CenterBox', root:
+        { tag: 'gtk-center-box', gtype: 'GtkCenterBox', props: {"shrinkCenterLast":true,"widthRequest":320,"halign":"center"}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'start', props: {"label":"Start"} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'center', props: {"label":"Centre"} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'end', props: {"label":"End"} }
+            ] }
+    },
+    { widget: 'Gtk.Revealer', root:
+        { tag: 'gtk-revealer', gtype: 'GtkRevealer', props: {"transitionType":"slide-down","transitionDuration":250,"revealChild":true}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The revealed child","marginTop":12,"marginBottom":12} }
+            ] }
+    },
+    { widget: 'Gtk.Paned', root:
+        { tag: 'gtk-paned', gtype: 'GtkPaned', props: {"orientation":"horizontal","widthRequest":400,"heightRequest":120,"position":-1}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'start', props: {"label":"First child","widthRequest":100} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'end', props: {"label":"Second child","widthRequest":300} }
+            ] }
+    },
+    { widget: 'Gtk.Expander', root:
+        { tag: 'gtk-expander', gtype: 'GtkExpander', props: {"useUnderline":true,"label":"_More options"}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Notifications","marginTop":12,"marginBottom":12} }
+            ] }
+    },
     { widget: 'Gtk.Text', root:
         { tag: 'gtk-text', gtype: 'GtkText', props: {"text":"correct-horse-battery","placeholderText":"A single line","maxLength":32} }
     },
