@@ -4,7 +4,7 @@
 
 import Gda from '@girs/gda-6.0';
 import Gio from '@girs/gio-2.0';
-import { executeStatement } from './execution.ts';
+import { executeStatement, integerColumns } from './execution.ts';
 import { parseSql } from './parse-sql.ts';
 
 /**
@@ -93,21 +93,36 @@ function exec(connection: Gda.Connection, sql: string): void {
     executeStatement(connection, stmt, null, () => undefined);
 }
 
-/** Every row of a one- or two-column SELECT, as text. */
-function query(connection: Gda.Connection, sql: string): string[][] {
+/**
+ * Every row of a SELECT with `columnCount` columns, as text.
+ *
+ * The count must be passed, and it is what makes the rows READABLE at all: without a
+ * `ColumnTypes` the execution is a forward cursor, whose `get_n_rows()` is **-1** — so a
+ * `row < get_n_rows()` loop runs zero times and the query answers "no rows" for every
+ * input. That is not a wrong number but a wrong ANSWER here: the wipe below then drops
+ * nothing and `isPristine()` passes on whatever the consumer left behind, which is how a
+ * parked connection handed `table t already exists` to the next caller.
+ */
+function query(connection: Gda.Connection, sql: string, columnCount: number): string[][] {
     const [stmt] = parseSql(connection, sql);
-    return executeStatement(connection, stmt, null, (model) => {
-        if (!model) return [];
-        const rows: string[][] = [];
-        for (let row = 0; row < model.get_n_rows(); row++) {
-            const cells: string[] = [];
-            for (let col = 0; col < model.get_n_columns(); col++) {
-                cells.push(String(model.get_value_at(col, row)));
+    return executeStatement(
+        connection,
+        stmt,
+        null,
+        (model) => {
+            if (!model) return [];
+            const rows: string[][] = [];
+            for (let row = 0; row < model.get_n_rows(); row++) {
+                const cells: string[] = [];
+                for (let col = 0; col < model.get_n_columns(); col++) {
+                    cells.push(String(model.get_value_at(col, row)));
+                }
+                rows.push(cells);
             }
-            rows.push(cells);
-        }
-        return rows;
-    });
+            return rows;
+        },
+        integerColumns(columnCount),
+    );
 }
 
 const DROP_KEYWORD: Record<string, string> = { table: 'TABLE', view: 'VIEW', index: 'INDEX', trigger: 'TRIGGER' };
@@ -118,6 +133,7 @@ function userObjects(connection: Gda.Connection, schema: string): string[][] {
         connection,
         `SELECT type, name FROM ${schema} WHERE name NOT LIKE 'sqlite_%'
          ORDER BY CASE type WHEN 'trigger' THEN 0 WHEN 'view' THEN 1 WHEN 'index' THEN 2 ELSE 3 END`,
+        2,
     );
 }
 
@@ -164,10 +180,10 @@ function wipeMemory(connection: Gda.Connection): void {
  */
 function isPristine(connection: Gda.Connection): boolean {
     for (const schema of ['sqlite_master', 'sqlite_temp_master']) {
-        if (query(connection, `SELECT name FROM ${schema}`).length > 0) return false;
+        if (query(connection, `SELECT name FROM ${schema}`, 1).length > 0) return false;
     }
     for (const pragma of ['pragma_user_version()', 'pragma_application_id()']) {
-        const [row] = query(connection, `SELECT * FROM ${pragma}`);
+        const [row] = query(connection, `SELECT * FROM ${pragma}`, 1);
         if (!row || row[0] !== '0') return false;
     }
     return true;
