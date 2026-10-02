@@ -159,6 +159,8 @@ on:
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
       - 'scripts/check-prebuild-reproducible.mjs'
+      # Writes bytes into every darwin Rust cdylib, from the bridges' meson.build.
+      - 'scripts/macho-set-uuid.mjs'
       - 'scripts/manifest-conformance/**'
       - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
@@ -229,6 +231,8 @@ on:
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
       - 'scripts/check-prebuild-reproducible.mjs'
+      # Writes bytes into every darwin Rust cdylib, from the bridges' meson.build.
+      - 'scripts/macho-set-uuid.mjs'
       - 'scripts/manifest-conformance/**'
       - 'packages/infra/manifest-conformance/**'
       # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
@@ -1653,8 +1657,11 @@ jobs:
       # changed. Measured on darwin-arm64, two clean builds of @gjsify/terminal-native
       # differed in 112 of 39152 bytes — the `LC_UUID`, one byte of an `N_OSO` stab's
       # `n_value` (an intermediate object's mtime) and the ad-hoc signature computed
-      # over both. `buildtype=plain` in every meson project is the fix; this is what
-      # holds it.
+      # over both. `buildtype=plain` in every meson project fixes that class; the
+      # three cargo bridges carry no debug map at all and needed a second, unrelated
+      # fix for the same 48-byte symptom (rustc's absolute-path install name, and an
+      # ld64 `LC_UUID` that is not a function of the bytes ld64 emits) — see
+      # docs/prebuilds.md. This step is what holds both.
       #
       # The committed comparison is in the same script and is REPORTED, not gated —
       # it cannot gate: the Homebrew closure this job installs is unpinned, so a moved

@@ -158,11 +158,14 @@ describe('diffStagedSets — what the gate reports', () => {
     });
 });
 
-describe('channelHint — names candidates, asserts none', () => {
-    it('does not call a UUID difference a debug map', () => {
+describe('channelHint — names the measured cause', () => {
+    it('names the UUID fix, never a debug map', () => {
         const hint = channelHint([{ verdict: 'uuid-only', regions: ['16 byte(s) in the LC_UUID payload'] }]);
         assert.ok(hint.includes('LC_UUID'));
-        assert.ok(hint.includes('not established'), 'the cause is unmeasured and the text must say so');
+        assert.ok(hint.includes('NOT a debug map'), 'a UUID difference must not be read as a debug map');
+        // The cause is measured since the cargo cdylibs pin their install name: the hint names
+        // the step that fixes it instead of listing candidates.
+        assert.ok(hint.includes('macho-set-uuid.mjs'), 'the hint must name the measured fix');
         assert.ok(!hint.includes('buildtype=plain'), 'the debug-map reading does not belong to this shape');
     });
 
