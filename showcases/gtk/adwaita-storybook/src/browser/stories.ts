@@ -52,6 +52,9 @@ import { OverlayWebStories } from './layout/overlay.web.js';
 import { PanedWebStories } from './layout/paned.web.js';
 import { RevealerWebStories } from './layout/revealer.web.js';
 import { SeparatorWebStories } from './layout/separator.web.js';
+import { BreakpointBinWebStories } from './layout/breakpoint-bin.web.js';
+import { LayoutSlotWebStories } from './layout/layout-slot.web.js';
+import { MultiLayoutViewWebStories } from './layout/multi-layout-view.web.js';
 import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
 import { ColorDialogButtonWebStories } from './buttons/color-dialog-button.web.js';
 import { FontDialogButtonWebStories } from './buttons/font-dialog-button.web.js';
@@ -130,6 +133,9 @@ export const stories: WebStoryModule[] = [
     PanedWebStories,
     RevealerWebStories,
     SeparatorWebStories,
+    BreakpointBinWebStories,
+    LayoutSlotWebStories,
+    MultiLayoutViewWebStories,
     ToolbarViewWebStories,
     WrapBoxWebStories,
     CarouselWebStories,

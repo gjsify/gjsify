@@ -213,6 +213,12 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // size from its allocation.
     'adw-spinner size': { kind: 'port-only' },
 
+    // The same shape for the adaptive bin: `AdwBreakpointBin` has no `breakpoints`
+    // property, and `AdwBreakpoint` is a GObject with no tag, so the conditions and
+    // their setters need a markup spelling. The bin's own two properties are
+    // `child` and `current-breakpoint`, and both are objects.
+    'adw-breakpoint-bin breakpoints': { kind: 'port-only' },
+
     // `<gtk-check-button>` names its two states the way HTML and the stylesheet do.
     // GTK's are `active` and `inconsistent` (gtkcheckbutton.c:647-691) and GTK raises
     // the same state flags for them, so this is the ATTRIBUTE NAME that moved — the two

@@ -23,10 +23,12 @@ export interface BreakpointPickVector {
  * `adw_breakpoint_bin_size_allocate` iterates backwards and takes the first match:
  * "Iterate in reverse order since we prioritize breakpoints added last" (:432).
  *
- * CORE-ONLY: GAP — no renderer drives this table yet. The NativeScript bin binds
- * breakpoints to a view's post-layout size and runs its own callbacks; moving it onto
- * `BreakpointBinState` is a diff with its own spec surface, and the rule lands first so
- * the React Native set is written against it. Tracked in #1343.
+ * DRIVEN from the browser renderer, by `packages/web/adwaita-web/src/
+ * adw-breakpoint-bin.spec.ts`: each row is a real `<adw-breakpoint-bin>` with a real
+ * `<adw-label>` per object, resized through a real `ResizeObserver`, and the pick read
+ * back off the element. The NativeScript port has no `AdwBreakpointBin` view yet —
+ * `status/open-todos/adwaita-ports.md` records that — so this table holds the browser
+ * side alone today, and the `#1343` React Native work is written against it.
  */
 export const BREAKPOINT_PICK_VECTORS: ReadonlyArray<BreakpointPickVector> = [
     { conditions: [], size: { width: 800, height: 600 }, pick: null, rule: 'no breakpoints, no pick' },
@@ -104,10 +106,11 @@ export interface BreakpointTransitionVector {
  * their originals, skipping any the incoming breakpoint also sets, then write the
  * incoming values.
  *
- * CORE-ONLY: GAP — no renderer drives this table yet. The NativeScript bin binds
- * breakpoints to a view's post-layout size and runs its own callbacks; moving it onto
- * `BreakpointBinState` is a diff with its own spec surface, and the rule lands first so
- * the React Native set is written against it. Tracked in #1343.
+ * Driven from the browser renderer by `packages/web/adwaita-web/src/
+ * adw-breakpoint-bin.spec.ts`, which replays each row as a sequence of resizes of one
+ * mounted `<adw-breakpoint-bin>` and reads the attribute each write landed on. The
+ * NativeScript port has no `AdwBreakpointBin` view yet, so this table holds the browser
+ * side alone today; #1343 is the React Native set written against it.
  */
 export const BREAKPOINT_TRANSITION_VECTORS: ReadonlyArray<BreakpointTransitionVector> = [
     {

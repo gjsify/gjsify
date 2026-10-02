@@ -23,6 +23,8 @@ import { AdwSplitViewsTest } from './split-views.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
 import { AdwActionRowsTest } from './adw-action-rows.spec.js';
 import { AdwBreakpointsTest } from './breakpoints.spec.js';
+import { AdwBreakpointBinTest } from './adw-breakpoint-bin.spec.js';
+import { AdwMultiLayoutViewTest } from './adw-multi-layout-view.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
@@ -144,6 +146,8 @@ run({
     AdwButtonRowTest,
     AdwActionRowsTest,
     AdwBreakpointsTest,
+    AdwBreakpointBinTest,
+    AdwMultiLayoutViewTest,
     AdwDataGridTest,
     AdwDialogTest,
     GtkDropDownTest,

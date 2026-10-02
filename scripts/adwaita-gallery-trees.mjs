@@ -440,6 +440,19 @@ export const ADWAITA_GALLERY_TREES = [
     },
     // ------------------------------------------------------------------ layout
     {
+        widget: 'Adw.BreakpointBin',
+        page: 'layout',
+        // A bin, so the whole tree is the one child: `AdwBreakpointBin`'s descriptor is
+        // `single` / `set_child` (packages/framework/gtk-host/src/descriptors/adw.ts:331)
+        // and the BREAKPOINTS are imperative in every dialect — `add_breakpoint` takes an
+        // `Adw.Breakpoint` GObject that has no tag. Hence the label below is the tree and
+        // the block's prose is where the condition lives.
+        root: {
+            tag: 'adw-breakpoint-bin',
+            children: [{ tag: 'gtk-label', props: { label: 'Wide', ellipsize: 'end', cssClasses: ['title-1'] } }],
+        },
+    },
+    {
         widget: 'Adw.Clamp',
         page: 'layout',
         // A refusal until #1368 landed, and the refusal probe is what said so: the
@@ -801,6 +814,16 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // entry here nor ledgered in the probe, and a ledgered parent nothing probes. It
     // is what caught `Adw.WrapBox` the moment its descriptor landed, before the
     // gallery could ship a refusal that had stopped being true.
+    // The two adaptive containers are HERE for the layout half, not for the placement:
+    // `AdwLayout` is a GObject (`G_DEFINE_TYPE… G_TYPE_OBJECT`, adw-layout.c:37), so it has
+    // no tag in a table of concrete widgets and each layout is the element that carries
+    // the `name` — and each child is paired with a slot by
+    // `adw_multi_layout_view_set_child(id, widget)` (:656). A static tree can spell
+    // neither half, and the browser element carries them as markup instead.
+    'Adw.MultiLayoutView':
+        'its layouts are AdwLayout GObjects, which have no tag, and every child is paired with a slot by set_child(id, widget); neither half is a static tree.',
+    'Adw.LayoutSlot':
+        'a slot is identified by its construct-only `id` rather than by a parent slot name, and it only ever appears inside an AdwLayout inside an Adw.MultiLayoutView — neither of which is markup here.',
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',
     'Adw.Carousel': 'uncurated-placement: AdwCarousel has no child policy.',

@@ -434,6 +434,16 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   platform does not export: the browser substitutes `<input type="color">` and a family
   list, and there is no `@nativescript/core` view for either, so the open question there is
   whether a colour or font picker belongs on a touch target at all.
+- **`<adw-breakpoint-bin>`, `<adw-multi-layout-view>` and `<adw-layout-slot>` on
+  NativeScript.** All three browser elements, their stories and their gallery blocks
+  exist, and the headless half is done — `BreakpointBinState` plus the two conformance
+  tables the browser spec drives. The NativeScript port has none of the three widgets,
+  so the stories are ledgered as not rendered there and their XML templates refused.
+  What is missing is not the picking but the SIZE SOURCE and the tree surgery: the
+  breakpoint bin needs a view's post-layout size bound to its own allocation, and the
+  multi-layout view has to re-parent children between slots on a platform whose
+  `LayoutBase` has no notion of a slot ID. `AdwLayout` is a GObject there too, so the
+  layouts need the same markup-to-object step the browser gets for free.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

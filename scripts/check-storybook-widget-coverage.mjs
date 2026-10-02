@@ -169,6 +169,11 @@ const ONE_RENDERER_ONLY = {
         decision:
             'No `AdwAlertResponse` type upstream — a response is an id passed to `adw_alert_dialog_add_response()`, whose MARKUP form is a GtkBuildable `<response>` child, which is what this element mirrors. NativeScript calls the method against the same `AdwAlertResponses` in adwaita-core, so only the browser needs a tag to declare one in.',
     },
+    'breakpoint-bin': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+        vectors: ['BREAKPOINT_PICK_VECTORS', 'BREAKPOINT_TRANSITION_VECTORS'],
+    },
     'bottom-sheet-bottom-bar': {
         only: 'web',
         decision:
@@ -283,6 +288,14 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'search-entry': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'layout-slot': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'multi-layout-view': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

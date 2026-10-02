@@ -207,6 +207,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
             ] }
     },
+    { widget: 'Adw.BreakpointBin', root:
+        { tag: 'adw-breakpoint-bin', gtype: 'AdwBreakpointBin', children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Wide","ellipsize":"end","cssClasses":["title-1"]} }
+            ] }
+    },
     { widget: 'Adw.Clamp', root:
         { tag: 'adw-clamp', gtype: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"This content is clamped: it stops growing past the maximum size and stays centred.","wrap":true,"xalign":0,"cssClasses":["card"]} }

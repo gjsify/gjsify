@@ -74,6 +74,12 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
  * `check-storybook-widget-coverage.mjs`'s `ONE_RENDERER_ONLY`).
  */
 const NOT_ON_THIS_TARGET = {
+    'breakpoint-bin@nativescript':
+        'status/open-todos/adwaita-ports.md, "<adw-breakpoint-bin> on NativeScript": the port has no Adw.BreakpointBin view yet, so the story is rendered by the other two targets only.',
+    'layout-slot@nativescript':
+        'status/open-todos/adwaita-ports.md, "<adw-layout-slot> on NativeScript": the port has no Adw.LayoutSlot view yet, so the story is rendered by the other two targets only.',
+    'multi-layout-view@nativescript':
+        'status/open-todos/adwaita-ports.md, "<adw-multi-layout-view> on NativeScript": the port has no Adw.MultiLayoutView view yet, so the story is rendered by the other two targets only.',
     'check-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-check-button> on NativeScript": @nativescript/core ships no checkbox view, so the port has none and the story is rendered by the other two targets only.',
     'gtk-spinner@nativescript':

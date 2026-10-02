@@ -274,6 +274,13 @@
                 valign="end"
             />
         </gtk-overlay>
+        <adw-breakpoint-bin>
+            <gtk-label
+                label="Wide"
+                ellipsize="end"
+                :css-classes="['title-1']"
+            />
+        </adw-breakpoint-bin>
         <adw-clamp
             :maximum-size="400"
             :tightening-threshold="300"

@@ -381,6 +381,16 @@ const GtkOverlay = () => (
     </gtk-overlay>
 );
 
+const AdwBreakpointBin = () => (
+    <adw-breakpoint-bin>
+        <gtk-label
+            label="Wide"
+            ellipsize="end"
+            cssClasses={['title-1']}
+        />
+    </adw-breakpoint-bin>
+);
+
 const AdwClamp = () => (
     <adw-clamp
         maximumSize={400}
@@ -696,6 +706,7 @@ const Gallery = () => (
         <GtkSpinner />
         <GtkSeparator />
         <GtkOverlay />
+        <AdwBreakpointBin />
         <AdwClamp />
         <AdwHeaderBar />
         <AdwToolbarView />
@@ -899,6 +910,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'gtk-overlay', gtype: 'GtkOverlay', props: {"widthRequest":260,"heightRequest":160}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Main child","halign":"center","valign":"center","cssClasses":["dimmed"]} },
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
+            ] }
+    },
+    { widget: 'Adw.BreakpointBin', root:
+        { tag: 'adw-breakpoint-bin', gtype: 'AdwBreakpointBin', children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Wide","ellipsize":"end","cssClasses":["title-1"]} }
             ] }
     },
     { widget: 'Adw.Clamp', root:

@@ -171,6 +171,11 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- GtkOverlay.vue — mount(GtkOverlay, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-overlay\n        :width-request=\"260\"\n        :height-request=\"160\"\n    >\n        <gtk-label\n            label=\"Main child\"\n            halign=\"center\"\n            valign=\"center\"\n            :css-classes=\"['dimmed']\"\n        />\n        <gtk-label\n            slot=\"overlay\"\n            label=\"2\"\n            halign=\"end\"\n            valign=\"end\"\n        />\n    </gtk-overlay>\n</template>",
         react: "// createRoot(container).render(<GtkOverlay />) — from '@gjsify/gtk-host/react'\nconst GtkOverlay = () => (\n    <gtk-overlay\n        widthRequest={260}\n        heightRequest={160}\n    >\n        <gtk-label\n            label=\"Main child\"\n            halign=\"center\"\n            valign=\"center\"\n            cssClasses={['dimmed']}\n        />\n        <gtk-label\n            slot=\"overlay\"\n            label=\"2\"\n            halign=\"end\"\n            valign=\"end\"\n        />\n    </gtk-overlay>\n);",
     },
+    'Adw.BreakpointBin': {
+        solid: "// mount(() => <AdwBreakpointBin />, container) — from '@gjsify/gtk-host/solid'\nconst AdwBreakpointBin = () => (\n    <adw-breakpoint-bin>\n        <gtk-label\n            label=\"Wide\"\n            ellipsize=\"end\"\n            cssClasses={['title-1']}\n        />\n    </adw-breakpoint-bin>\n);",
+        vue: "<!-- AdwBreakpointBin.vue — mount(AdwBreakpointBin, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <adw-breakpoint-bin>\n        <gtk-label\n            label=\"Wide\"\n            ellipsize=\"end\"\n            :css-classes=\"['title-1']\"\n        />\n    </adw-breakpoint-bin>\n</template>",
+        react: "// createRoot(container).render(<AdwBreakpointBin />) — from '@gjsify/gtk-host/react'\nconst AdwBreakpointBin = () => (\n    <adw-breakpoint-bin>\n        <gtk-label\n            label=\"Wide\"\n            ellipsize=\"end\"\n            cssClasses={['title-1']}\n        />\n    </adw-breakpoint-bin>\n);",
+    },
     'Adw.Clamp': {
         solid: "// mount(() => <AdwClamp />, container) — from '@gjsify/gtk-host/solid'\nconst AdwClamp = () => (\n    <adw-clamp\n        maximumSize={400}\n        tighteningThreshold={300}\n    >\n        <gtk-label\n            label=\"This content is clamped: it stops growing past the maximum size and stays centred.\"\n            wrap\n            xalign={0}\n            cssClasses={['card']}\n        />\n    </adw-clamp>\n);",
         vue: "<!-- AdwClamp.vue — mount(AdwClamp, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <adw-clamp\n        :maximum-size=\"400\"\n        :tightening-threshold=\"300\"\n    >\n        <gtk-label\n            label=\"This content is clamped: it stops growing past the maximum size and stays centred.\"\n            :wrap=\"true\"\n            :xalign=\"0\"\n            :css-classes=\"['card']\"\n        />\n    </adw-clamp>\n</template>",
@@ -245,6 +250,8 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
  * tab and a tab that cannot exist look identical, and only one of them is a fact.
  */
 export const ADWAITA_FRAMEWORK_REFUSALS: Readonly<Record<string, string>> = {
+    'Adw.MultiLayoutView': "its layouts are AdwLayout GObjects, which have no tag, and every child is paired with a slot by set_child(id, widget); neither half is a static tree.",
+    'Adw.LayoutSlot': "a slot is identified by its construct-only `id` rather than by a parent slot name, and it only ever appears inside an AdwLayout inside an Adw.MultiLayoutView — neither of which is markup here.",
     'Adw.PreferencesDialog': "uncurated-placement: a page cannot be a child of AdwPreferencesDialog.",
     'Adw.BottomSheet': "uncurated-placement: no child policy for the sheet or the content.",
     'Adw.Carousel': "uncurated-placement: AdwCarousel has no child policy.",

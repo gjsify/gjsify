@@ -1,16 +1,21 @@
 ---
 title: Layout
-description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapBox. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView, WrapBox and the adaptive trio BreakpointBin, MultiLayoutView and LayoutSlot. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
-These four containers give an Adwaita window its shape. Use a **clamp** to hold
+These containers give an Adwaita window its shape. Use a **clamp** to hold
 content at a readable width, a **header bar** for the top chrome, a **toolbar
 view** to frame content between fixed bars, and a **wrap box** to let a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
+
+The last three are the **adaptive** ones. A **breakpoint bin** gives breakpoints a
+home without a window, a **multi-layout view** holds one set of children and several
+arrangements of them, and a **layout slot** is the named hole one of those
+arrangements leaves for a child.
 
 <MoreInfo title="The ports, and what they follow">
 Libadwaita is the reference, typed by
@@ -270,6 +275,283 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
     chip.add_css_class('pill');
     wrap.append(chip);
     wrap.childSpacing = 12;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Breakpoint Bin
+
+Give breakpoints a home without a window. The bin holds **breakpoints**, each a
+condition on its own size plus the properties to write while that condition holds,
+and on every resize it applies the **last** one that matches — not the narrowest.
+Its single child is whatever rearranges itself.
+
+The markup form is `breakpoints`, a JSON array because `Adw.Breakpoint` is a
+GObject rather than a widget and `add_breakpoint()` is the whole upstream API.
+Each setter names a **target** (a selector for a descendant), an attribute
+**property** and its **value**; the value the target held when the setter was
+registered is what leaving the breakpoint restores.
+
+<MoreInfo title="A bin with breakpoints has no minimum size">
+Adding a breakpoint makes the bin measure no minimum on either axis, and the
+`AdwBreakpointBin` docs say the stage must set `width-request` / `height-request`
+for the smallest size you support. The preview does that with inline styles, which
+is why the stage under this block is 300px wide: narrow it far enough and the
+label swaps.
+</MoreInfo>
+
+<AdwWidget title="Adw.BreakpointBin" stage="width: 300px; height: 70px;">
+  <Fragment slot="preview">
+    ```html
+    <adw-breakpoint-bin style="min-width: 150px; height: 60px;" breakpoints='[{"condition":"max-width: 200px","setters":[{"target":"#caption","property":"label","value":"Narrow"}]}]'>
+      <gtk-label id="caption" label="Wide" class="title-1"></gtk-label>
+    </adw-breakpoint-bin>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.BreakpointBin();
+    bin.set_size_request(150, 60);
+
+    const caption = new Gtk.Label({ label: 'Wide', ellipsize: Gtk.EllipsizeMode.END });
+    caption.add_css_class('title-1');
+    bin.set_child(caption);
+
+    // A breakpoint writes properties while its condition holds, and the LAST
+    // one that matches wins. Leaving it restores the values the setters
+    // captured when they were added.
+    const narrow = new Adw.Breakpoint(Adw.BreakpointCondition.parse('max-width: 200px'));
+    narrow.add_setter(caption, 'label', 'Narrow');
+    bin.add_breakpoint(narrow);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.BreakpointBin {
+      width-request: 150;
+      height-request: 60;
+
+      Gtk.Label caption {
+        label: _("Wide");
+        ellipsize: end;
+
+        styles ["title-1"]
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.BreakpointBin();
+    bin.set_size_request(150, 60);
+
+    const caption = new Gtk.Label({ label: 'Wide', ellipsize: Gtk.EllipsizeMode.END });
+    caption.add_css_class('title-1');
+    bin.set_child(caption);
+
+    // A breakpoint writes properties while its condition holds, and the LAST
+    // one that matches wins. Leaving it restores the values the setters
+    // captured when they were added.
+    const narrow = new Adw.Breakpoint(Adw.BreakpointCondition.parse('max-width: 200px'));
+    narrow.add_setter(caption, 'label', 'Narrow');
+    bin.add_breakpoint(narrow);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Multi Layout View
+
+One set of children, several arrangements of them. Every child has an **id**,
+every layout has **slots** with ids, and switching layouts re-inserts each child
+into the slot of the **same id** — which is how a secondary pane becomes a
+sidebar in one arrangement and part of the content in another without the
+application moving anything. **layout-name** picks the arrangement; the first one
+declared is the one in use until you say otherwise.
+
+An `Adw.Layout` is a GObject, so there is no `Adw.Layout` tag: here a direct
+child carrying `name` **is** the layout, a direct child carrying `slot` is a
+child, and an `<adw-layout-slot>` inside a layout is where that child lands.
+
+<MoreInfo title="Why this block has no framework snippet">
+A layout is a GObject upstream and each child is paired with a slot by a method
+call, so neither half is a static tree in any of the dialects — the gallery ledger
+says so rather than publishing markup that would render nothing. The browser
+element carries both in markup, which is what the preview above shows.
+</MoreInfo>
+
+<AdwWidget title="Adw.MultiLayoutView" stage="width: 420px; height: 220px;">
+  <Fragment slot="preview">
+    ```html
+    <adw-multi-layout-view layout-name="wide" style="width: 100%; height: 100%;">
+      <adw-navigation-split-view name="wide" style="width: 100%; height: 100%;">
+        <adw-layout-slot id="secondary" slot="sidebar"></adw-layout-slot>
+        <adw-layout-slot id="primary" slot="content"></adw-layout-slot>
+      </adw-navigation-split-view>
+      <adw-navigation-split-view name="narrow" collapsed style="width: 100%; height: 100%;">
+        <adw-layout-slot id="secondary" slot="content"></adw-layout-slot>
+        <adw-layout-slot id="primary" slot="content"></adw-layout-slot>
+      </adw-navigation-split-view>
+      <adw-navigation-page slot="primary" tag="inbox" title="Inbox">
+        <gtk-label label="General — 12 unread"></gtk-label>
+      </adw-navigation-page>
+      <adw-navigation-page slot="secondary" tag="message" title="Message">
+        <gtk-label label="Resizing the window"></gtk-label>
+      </adw-navigation-page>
+    </adw-multi-layout-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    const wide = new Adw.NavigationSplitView({ minSidebarWidth: 160 });
+    wide.sidebar = new Adw.LayoutSlot('secondary');
+    wide.content = new Adw.LayoutSlot('primary');
+
+    const narrow = new Adw.NavigationSplitView({ collapsed: true, minSidebarWidth: 160 });
+    narrow.sidebar = new Adw.LayoutSlot('secondary');
+    narrow.content = new Adw.LayoutSlot('primary');
+
+    const view = new Adw.MultiLayoutView();
+    // The FIRST layout added is the one in use.
+    const first = new Adw.Layout(wide);
+    first.name = 'wide';
+    view.add_layout(first);
+    const second = new Adw.Layout(narrow);
+    second.name = 'narrow';
+    view.add_layout(second);
+
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    view.set_child('secondary', new Adw.NavigationPage({ title: 'Message', tag: 'message' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.MultiLayoutView {
+      layout-name: "wide";
+
+      Adw.NavigationSplitView {
+        min-sidebar-width: 160;
+
+        Adw.LayoutSlot {
+          id: "secondary";
+        }
+
+        Adw.LayoutSlot {
+          id: "primary";
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    const wide = new Adw.NavigationSplitView({ minSidebarWidth: 160 });
+    wide.sidebar = new Adw.LayoutSlot('secondary');
+    wide.content = new Adw.LayoutSlot('primary');
+
+    const narrow = new Adw.NavigationSplitView({ collapsed: true, minSidebarWidth: 160 });
+    narrow.sidebar = new Adw.LayoutSlot('secondary');
+    narrow.content = new Adw.LayoutSlot('primary');
+
+    const view = new Adw.MultiLayoutView();
+    // The FIRST layout added is the one in use.
+    const first = new Adw.Layout(wide);
+    first.name = 'wide';
+    view.add_layout(first);
+    const second = new Adw.Layout(narrow);
+    second.name = 'narrow';
+    view.add_layout(second);
+
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    view.set_child('secondary', new Adw.NavigationPage({ title: 'Message', tag: 'message' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Layout Slot
+
+The named hole one layout of a multi-layout view leaves for a child. It takes the
+child whose **id** matches its own, and its visibility follows that child's — so
+hiding the child takes the hole with it and nothing more. The **id** is
+construct-only upstream, which is why it is the one thing this element reads.
+
+A slot on its own is a bin, and that is what the preview shows. To see the pairing
+work, use the view above: the two slots in it are what the `secondary` and
+`primary` children land in.
+
+<MoreInfo title="Duplicate ids across layouts are the widget's own model">
+The example in the libadwaita documentation puts an `AdwLayoutSlot` with
+`id="primary"` in **both** layouts of one view — that is how a child follows a
+layout change. The element resolves slots from the layout it is currently
+mounting, never by looking an id up in the document, so two slots sharing an id
+are ordinary.
+</MoreInfo>
+
+<AdwWidget title="Adw.LayoutSlot" stage="width: 360px; height: 90px;">
+  <Fragment slot="preview">
+    ```html
+    <adw-layout-slot id="primary">
+      <gtk-label label="The child the view inserted here."></gtk-label>
+    </adw-layout-slot>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    // A slot only ever exists inside a layout, and a layout inside a view:
+    // the view is what inserts the child whose id matches the slot's.
+    const slot = new Adw.LayoutSlot('primary');
+    const layout = new Adw.Layout(slot);
+    layout.name = 'only';
+
+    const view = new Adw.MultiLayoutView();
+    view.add_layout(layout);
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.LayoutSlot {
+      id: "primary";
+
+      Gtk.Label {
+        label: _("The child the view inserted here.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    // A slot only ever exists inside a layout, and a layout inside a view:
+    // the view is what inserts the child whose id matches the slot's.
+    const slot = new Adw.LayoutSlot('primary');
+    const layout = new Adw.Layout(slot);
+    layout.name = 'only';
+
+    const view = new Adw.MultiLayoutView();
+    view.add_layout(layout);
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
     ```
   </Fragment>
 </AdwWidget>
