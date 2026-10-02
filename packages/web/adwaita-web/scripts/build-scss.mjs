@@ -21,6 +21,9 @@ import {
     listRemoveSymbolic,
     mailReplySenderSymbolic,
     mailSendSymbolic,
+    mediaEjectSymbolic,
+    mediaPlaybackPauseSymbolic,
+    mediaPlaybackStartSymbolic,
     openMenuSymbolic,
     sendToSymbolic,
     sidebarShowSymbolic,
@@ -44,9 +47,15 @@ import {
     userTrashSymbolic,
 } from '@gjsify/adwaita-icons/places';
 import {
+    audioVolumeHighSymbolic,
+    audioVolumeLowSymbolic,
+    audioVolumeMediumSymbolic,
+    audioVolumeMutedSymbolic,
     avatarDefaultSymbolic,
+    dialogErrorSymbolic,
     imageMissingSymbolic,
     mailUnreadSymbolic,
+    mediaPlaylistRepeatSymbolic,
     starredSymbolic,
 } from '@gjsify/adwaita-icons/status';
 import { dialogWarningSymbolic } from '@gjsify/adwaita-icons/status';
@@ -134,6 +143,19 @@ const ICONS = {
     'contact-new': contactNewSymbolic,
     'mail-unread': mailUnreadSymbolic,
     'avatar-default': avatarDefaultSymbolic,
+    // The GtkVideo overlay's four-way choice (gtkvideo.c:626-646) and the GtkMediaControls
+    // transport. `media-eject` and `media-playback-pause` are the other two arms: eject is
+    // the NO-STREAM arm and pause is the play button's playing state.
+    'media-playback-start': mediaPlaybackStartSymbolic,
+    'media-playback-pause': mediaPlaybackPauseSymbolic,
+    'media-eject': mediaEjectSymbolic,
+    'media-playlist-repeat': mediaPlaylistRepeatSymbolic,
+    'dialog-error': dialogErrorSymbolic,
+    // `volumeIconFor`'s four names — GtkVolumeButton derives its icon from the level.
+    'audio-volume-muted': audioVolumeMutedSymbolic,
+    'audio-volume-low': audioVolumeLowSymbolic,
+    'audio-volume-medium': audioVolumeMediumSymbolic,
+    'audio-volume-high': audioVolumeHighSymbolic,
     'camera-photo': cameraPhotoSymbolic,
     'user-trash': userTrashSymbolic,
     'view-reveal': viewRevealSymbolic,

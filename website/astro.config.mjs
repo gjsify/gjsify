@@ -142,6 +142,7 @@ export default defineConfig({
                                 { slug: 'gtk/buttons' },
                                 { slug: 'gtk/dialogs' },
                                 { slug: 'gtk/drawing' },
+                                { slug: 'gtk/media' },
                                 { slug: 'gtk/indicators' },
                                 { slug: 'gtk/text' },
                                 { slug: 'gtk/layout' },

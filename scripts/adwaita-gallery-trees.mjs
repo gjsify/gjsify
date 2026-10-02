@@ -536,6 +536,67 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    // ------------------------------------------------------------------- gtk media
+    {
+        widget: 'Gtk.Image',
+        page: 'media',
+        // `iconSize` and NO `size` in pixels: the widget's measurement comes from the icon
+        // size enum's own minimum and natural (gtkspinner.c:110-123 is the same shape), and
+        // `GtkSize` has no pixel member a tree could name that is not a fixed enum.
+        root: { tag: 'gtk-image', props: { iconName: 'avatar-default-symbolic', iconSize: 'dialog' } },
+    },
+    {
+        widget: 'Gtk.Picture',
+        page: 'media',
+        // `keepAspectRatio` FIRST, and it is there at all because it is a MAPPING onto
+        // `contentFit` (gtkpicture.c:1017-1021): a `contentFit` written afterwards is the
+        // application's, which is what the cover in this block is.
+        root: {
+            tag: 'gtk-picture',
+            props: {
+                keepAspectRatio: true,
+                contentFit: 'cover',
+                alternativeText: 'A tangerine',
+                widthRequest: 240,
+                heightRequest: 160,
+            },
+        },
+    },
+    {
+        widget: 'Gtk.Inscription',
+        page: 'media',
+        // `minChars` BEFORE `natChars` because the natural is `MAX (min_chars, nat_chars)`
+        // (gtkinscription.c:348): the pair only means what it reads in that order. A size
+        // REQUEST is given because a tree has no parent box to grow inside — the point of
+        // the four counters is only visible against a fixed frame.
+        root: {
+            tag: 'gtk-inscription',
+            props: { text: 'A caption in a fixed box', minChars: 10, minLines: 2, widthRequest: 320 },
+        },
+    },
+    {
+        widget: 'Gtk.Video',
+        page: 'media',
+        // No `mediaStream` prop, because it is an OBJECT and a static tree cannot hold one —
+        // which is exactly why the browser replica drives a real `<video>` and why this block
+        // shows the NO-STREAM arm (the eject glyph) on both renderers.
+        root: { tag: 'gtk-video', props: { loop: true, widthRequest: 320, heightRequest: 180 } },
+    },
+    {
+        widget: 'Gtk.MediaControls',
+        page: 'media',
+        // A `GtkBox` root because the bar has no `media-stream` to attach, so what a tree
+        // CAN show is the state every bar starts in: the template ships the whole box
+        // `sensitive` 0 (ui/gtkmediacontrols.ui), which is why nothing here presses anything.
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                { tag: 'gtk-video', props: { loop: true, widthRequest: 320, heightRequest: 180 } },
+                { tag: 'gtk-media-controls', props: { cssClasses: ['osd', 'bottom'] } },
+            ],
+        },
+    },
     // ------------------------------------------------------------------ gtk layout
     {
         widget: 'Gtk.Frame',

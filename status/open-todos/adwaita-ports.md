@@ -421,6 +421,34 @@ exactly why they must not be written as decisions.
   _level-bar.scss:71-93`) and the reduced-motion hourglass swap
   (`refs/gtk/gtk/gtkspinner.c:145-161`) are both libadwaita-over-GTK decisions a
   platform spinner makes for itself.
+- **`<gtk-inscription>`, `<gtk-picture>` and `<gtk-media-controls>` on NativeScript.**
+  Three browser elements and their gallery blocks exist; the NativeScript port has none of
+  the three, and each refusal is a NEAR NEIGHBOUR rather than a platform survey.
+  `GtkInscription` sizes itself in CHARACTERS and LINES and never looks at its own text
+  (`refs/gtk/gtk/gtkinscription.c:338-349`); the port's text primitives are a NativeScript
+  `Label` and an `AdwEntryRow`, both of which ask their content for a size — that is
+  `GtkLabel`'s half of the pair and not this one, so the widget has no counterpart to borrow
+  the two character counters from. `GtkPicture` fits a `GdkPaintable` by `content-fit`, and
+  the port's `Image` carries its own `stretch` modes: fitting an image is the port's
+  existing job, and there is no second widget to hold the fit. `GtkMediaControls` holds
+  exactly ONE property and it is an object, `media-stream`
+  (`refs/gtk/gtk/gtkmediacontrols.c:296-306`), so the widget is a pure view of a stream the
+  backend owns; the port's `Video` is the play surface itself with no bar drawn over it, and
+  there is no `GtkMediaStream` to drive one from. What none of this settles is whether the
+  Adwaita EXPRESSION for any of them is wanted on a touch target: an icon, a fitted picture
+  and a transport bar are the three things a phone already does natively, and the browser
+  replicas exist because a document is a different medium, not because the widgets are
+  missing. Their stories are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
+  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused.
+- **`<gtk-video>` on NativeScript.** `@nativescript/core` DOES ship a `Video`, and that is
+  exactly what makes this one different from the three above: the frames are the only part of
+  `GtkVideo` that platform code covers. The widget is a play SURFACE — the three overlay nodes
+  over the media are the whole of it (`refs/gtk/gtk/ui/gtkvideo.ui`), and the transport lives
+  in a separate `GtkMediaControls` the port also has no host for. So the open question is
+  whether the overlay icon and the self-hiding controls bar are a wanted phone idiom at all
+  (`refs/gtk/gtk/gtkvideo.c:125-133` is the three-second reveal), which is a product question
+  rather than a buildability one: a `<Video>` with a native overlay is what a platform already
+  offers. Story ledgered as not rendered there, XML template refused.
 - **`<adw-dialog>` on NativeScript.** `AdwDialog` is a real upstream widget
   (`adw-dialog.h`) and the browser element, its block and its story all exist; the
   NativeScript port has the three SPECIALISED dialogs — alert, about, preferences —

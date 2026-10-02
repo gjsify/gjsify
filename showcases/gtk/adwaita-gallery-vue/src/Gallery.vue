@@ -312,6 +312,39 @@
                 <adw-window-title title="Notes" />
             </adw-header-bar>
         </gtk-window-handle>
+        <gtk-image
+            icon-name="avatar-default-symbolic"
+            icon-size="dialog"
+        />
+        <gtk-picture
+            :keep-aspect-ratio="true"
+            content-fit="cover"
+            alternative-text="A tangerine"
+            :width-request="240"
+            :height-request="160"
+        />
+        <gtk-inscription
+            text="A caption in a fixed box"
+            :min-chars="10"
+            :min-lines="2"
+            :width-request="320"
+        />
+        <gtk-video
+            :loop="true"
+            :width-request="320"
+            :height-request="180"
+        />
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-video
+                :loop="true"
+                :width-request="320"
+                :height-request="180"
+            />
+            <gtk-media-controls :css-classes="['osd', 'bottom']" />
+        </gtk-box>
         <gtk-frame
             label="Details"
             :label-xalign="0"

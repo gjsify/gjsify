@@ -210,6 +210,12 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-image': {
         'icon-name': 'The name of the icon in the icon theme.',
     },
+    'gtk-inscription': {
+        'min-chars': null,
+        'min-lines': null,
+        'nat-chars': 'The number of characters that should ideally fit into the inscription.',
+        'text': null,
+    },
     'gtk-label': {
         'label': null,
     },
@@ -238,6 +244,11 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'gtk-password-entry': {
         'show-peek-icon': 'Whether to show an icon for revealing the content.',
+    },
+    'gtk-picture': {
+        'alternative-text': 'The alternative textual description for the picture.',
+        'can-shrink': 'If the `GtkPicture` can be made smaller than the natural size of its contents.',
+        'content-fit': 'How the content should be resized to fit inside the `GtkPicture`.',
     },
     'gtk-popover': {
         'autohide': 'Whether to dismiss the popover on outside clicks.',
@@ -339,6 +350,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'group': 'The toggle button whose group this widget belongs to.',
         'label': null,
     },
+    'gtk-video': {
+        'autoplay': 'If the video should automatically begin playing.',
+        'loop': 'If new media files should be set to loop.',
+    },
     'gtk-viewport': {
         'scroll-to-focus': 'Whether to scroll when the focus changes.',
     },
@@ -379,6 +394,7 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
+    'gtk-image size': 'port-only',
     'gtk-list-view selection-mode': 'port-only',
     'gtk-page-setup-unix-dialog open': 'declarative-state',
     'gtk-password-entry placeholder': 'renamed',
@@ -402,12 +418,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 210,
-    glossed: 82,
-    nameSuffices: 95,
-    divergent: 32,
+    set: 220,
+    glossed: 88,
+    nameSuffices: 98,
+    divergent: 33,
     authored: 1,
-    commentLines: 116,
+    commentLines: 129,
 };
 
 /**

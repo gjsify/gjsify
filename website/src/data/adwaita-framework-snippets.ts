@@ -201,6 +201,31 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- GtkWindowHandle.vue — mount(GtkWindowHandle, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-window-handle>\n        <adw-header-bar>\n            <adw-window-title title=\"Notes\" />\n        </adw-header-bar>\n    </gtk-window-handle>\n</template>",
         react: "// createRoot(container).render(<GtkWindowHandle />) — from '@gjsify/gtk-host/react'\nconst GtkWindowHandle = () => (\n    <gtk-window-handle>\n        <adw-header-bar>\n            <adw-window-title title=\"Notes\" />\n        </adw-header-bar>\n    </gtk-window-handle>\n);",
     },
+    'Gtk.Image': {
+        solid: "// mount(() => <GtkImage />, container) — from '@gjsify/gtk-host/solid'\nconst GtkImage = () => (\n    <gtk-image\n        iconName=\"avatar-default-symbolic\"\n        iconSize=\"dialog\"\n    />\n);",
+        vue: "<!-- GtkImage.vue — mount(GtkImage, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-image\n        icon-name=\"avatar-default-symbolic\"\n        icon-size=\"dialog\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkImage />) — from '@gjsify/gtk-host/react'\nconst GtkImage = () => (\n    <gtk-image\n        iconName=\"avatar-default-symbolic\"\n        iconSize=\"dialog\"\n    />\n);",
+    },
+    'Gtk.Picture': {
+        solid: "// mount(() => <GtkPicture />, container) — from '@gjsify/gtk-host/solid'\nconst GtkPicture = () => (\n    <gtk-picture\n        keepAspectRatio\n        contentFit=\"cover\"\n        alternativeText=\"A tangerine\"\n        widthRequest={240}\n        heightRequest={160}\n    />\n);",
+        vue: "<!-- GtkPicture.vue — mount(GtkPicture, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-picture\n        :keep-aspect-ratio=\"true\"\n        content-fit=\"cover\"\n        alternative-text=\"A tangerine\"\n        :width-request=\"240\"\n        :height-request=\"160\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkPicture />) — from '@gjsify/gtk-host/react'\nconst GtkPicture = () => (\n    <gtk-picture\n        keepAspectRatio\n        contentFit=\"cover\"\n        alternativeText=\"A tangerine\"\n        widthRequest={240}\n        heightRequest={160}\n    />\n);",
+    },
+    'Gtk.Inscription': {
+        solid: "// mount(() => <GtkInscription />, container) — from '@gjsify/gtk-host/solid'\nconst GtkInscription = () => (\n    <gtk-inscription\n        text=\"A caption in a fixed box\"\n        minChars={10}\n        minLines={2}\n        widthRequest={320}\n    />\n);",
+        vue: "<!-- GtkInscription.vue — mount(GtkInscription, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-inscription\n        text=\"A caption in a fixed box\"\n        :min-chars=\"10\"\n        :min-lines=\"2\"\n        :width-request=\"320\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkInscription />) — from '@gjsify/gtk-host/react'\nconst GtkInscription = () => (\n    <gtk-inscription\n        text=\"A caption in a fixed box\"\n        minChars={10}\n        minLines={2}\n        widthRequest={320}\n    />\n);",
+    },
+    'Gtk.Video': {
+        solid: "// mount(() => <GtkVideo />, container) — from '@gjsify/gtk-host/solid'\nconst GtkVideo = () => (\n    <gtk-video\n        loop\n        widthRequest={320}\n        heightRequest={180}\n    />\n);",
+        vue: "<!-- GtkVideo.vue — mount(GtkVideo, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-video\n        :loop=\"true\"\n        :width-request=\"320\"\n        :height-request=\"180\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkVideo />) — from '@gjsify/gtk-host/react'\nconst GtkVideo = () => (\n    <gtk-video\n        loop\n        widthRequest={320}\n        heightRequest={180}\n    />\n);",
+    },
+    'Gtk.MediaControls': {
+        solid: "// mount(() => <GtkMediaControls />, container) — from '@gjsify/gtk-host/solid'\nconst GtkMediaControls = () => (\n    <gtk-box\n        orientation=\"vertical\"\n        spacing={12}\n    >\n        <gtk-video\n            loop\n            widthRequest={320}\n            heightRequest={180}\n        />\n        <gtk-media-controls cssClasses={['osd', 'bottom']} />\n    </gtk-box>\n);",
+        vue: "<!-- GtkMediaControls.vue — mount(GtkMediaControls, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-box\n        orientation=\"vertical\"\n        :spacing=\"12\"\n    >\n        <gtk-video\n            :loop=\"true\"\n            :width-request=\"320\"\n            :height-request=\"180\"\n        />\n        <gtk-media-controls :css-classes=\"['osd', 'bottom']\" />\n    </gtk-box>\n</template>",
+        react: "// createRoot(container).render(<GtkMediaControls />) — from '@gjsify/gtk-host/react'\nconst GtkMediaControls = () => (\n    <gtk-box\n        orientation=\"vertical\"\n        spacing={12}\n    >\n        <gtk-video\n            loop\n            widthRequest={320}\n            heightRequest={180}\n        />\n        <gtk-media-controls cssClasses={['osd', 'bottom']} />\n    </gtk-box>\n);",
+    },
     'Gtk.Frame': {
         solid: "// mount(() => <GtkFrame />, container) — from '@gjsify/gtk-host/solid'\nconst GtkFrame = () => (\n    <gtk-frame\n        label=\"Details\"\n        labelXalign={0}\n    >\n        <gtk-label label=\"A framed region: the label sits in the top edge of the border.\" />\n    </gtk-frame>\n);",
         vue: "<!-- GtkFrame.vue — mount(GtkFrame, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-frame\n        label=\"Details\"\n        :label-xalign=\"0\"\n    >\n        <gtk-label label=\"A framed region: the label sits in the top edge of the border.\" />\n    </gtk-frame>\n</template>",

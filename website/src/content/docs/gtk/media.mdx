@@ -1,0 +1,531 @@
+---
+title: Media
+description: "The widgets that show things: the symbolic icon, an image fitted to its box, text measured in characters and lines, and a video with its transport. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Five GTK widgets all put something on the screen that is not text laid out by a box:
+the **icon**, the **picture**, the **inscription**, the **video** and its **controls**.
+They are grouped here rather than with the layout widgets because they are
+content, and because two of them — the picture and the inscription — have a property
+that changes what they *measure* rather than what they draw.
+
+<MoreInfo title="What the NativeScript port has">
+None of the five, and the reasons differ. `@nativescript/core` ships an `Image` and a
+`Video`, so for those two the platform covers the frames and what is missing is the
+Adwaita expression; the inscription measures in characters and lines, which no
+port text widget does. The XML template tab of each block says so instead of
+showing one.
+</MoreInfo>
+
+## Image
+
+The symbolic icon: a name, resolved against the icon theme, drawn in the colour of
+whatever contains it. A name the theme cannot resolve draws the missing-image glyph,
+which is what GTK draws for it — so **icon-name** is the whole API, along with the
+**size** that comes from the icon-size enum rather than from a property of its own.
+
+`Gtk.Image` is not an image viewer. It draws *symbolic* icons at theme sizes, which is
+why an arbitrary bitmap belongs in [Picture](#picture) instead.
+
+<AdwWidget title="Gtk.Image">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:24px;align-items:center;justify-content:center;">
+      <!-- icon-name: The name of the icon in the icon theme. -->
+      <gtk-image icon-name="avatar-default-symbolic" size="48"></gtk-image>
+      <!-- icon-name: The name of the icon in the icon theme. -->
+      <gtk-image icon-name="user-trash-symbolic" size="48"></gtk-image>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const avatar = new Gtk.Image({ iconName: 'avatar-default-symbolic' });
+    // The size is GTK's ICON_SIZE enum, not a pixel count. It is measured, not just drawn:
+    // both the minimum and the natural size of the box come from the icon's intrinsic size.
+    avatar.iconSize = 'dialog';
+
+    // `pixelSize` is the other half, and the one to reach for when you want a number rather
+    // than a named size: it overrides `iconSize` for as long as it is set.
+    const exact = new Gtk.Image({ iconName: 'avatar-default-symbolic', pixelSize: 48 });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 24;
+
+      Gtk.Image {
+        icon-name: "avatar-default-symbolic";
+        pixel-size: 48;
+      }
+
+      Gtk.Image {
+        icon-name: "user-trash-symbolic";
+        pixel-size: 48;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const avatar = new Gtk.Image({ iconName: 'avatar-default-symbolic' });
+    // The size is GTK's ICON_SIZE enum, not a pixel count. It is measured, not just drawn:
+    // both the minimum and the natural size of the box come from the icon's intrinsic size.
+    avatar.iconSize = 'dialog';
+
+    // `pixelSize` is the other half, and the one to reach for when you want a number rather
+    // than a named size: it overrides `iconSize` for as long as it is set.
+    const exact = new Gtk.Image({ iconName: 'avatar-default-symbolic', pixelSize: 48 });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="The web port masks where GTK resolves">
+A CSS mask needs its glyph inlined as a data URI, so the browser element draws a
+subset of `@gjsify/adwaita-icons` — inlining all of it costs about five times the
+size of the stylesheet it would sit in. A name outside that subset draws the
+missing-image glyph, the same as a name the theme cannot resolve. `registerIcon()`
+is the way in for a glyph the package does not ship.
+</MoreInfo>
+
+## Picture
+
+An image fitted to the box it is given, rather than sized by itself. **content-fit**
+picks one of four modes — `contain`, `cover`, `fill`, `scale-down` — and those four
+are the four CSS `object-fit` values, including the one GTK added and CSS already
+had. **can-shrink** decides whether it may be smaller than its content, and
+**alternative-text** is what a screen reader hears.
+
+`keep-aspect-ratio` is deprecated but not inert: writing it sets `content-fit` to
+`contain` (true) or `fill` (false), and reading it asks the other question —
+*is the mode anything but `fill`* — so a `cover` or `scale-down` picture reads back
+`true`, because those preserve the ratio just as `contain` does.
+
+<AdwWidget title="Gtk.Picture">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:12px;align-items:center;justify-content:center;">
+      <!-- content-fit: How the content should be resized to fit inside the `GtkPicture`. -->
+      <!-- can-shrink: If the `GtkPicture` can be made smaller than the natural size of its contents. -->
+      <!-- alternative-text: The alternative textual description for the picture. -->
+      <gtk-picture content-fit="contain" can-shrink="true" alternative-text="Contained" style="width:120px;height:80px;"></gtk-picture>
+      <!-- content-fit: How the content should be resized to fit inside the `GtkPicture`. -->
+      <!-- can-shrink: If the `GtkPicture` can be made smaller than the natural size of its contents. -->
+      <!-- alternative-text: The alternative textual description for the picture. -->
+      <gtk-picture content-fit="cover" can-shrink="true" alternative-text="Covered" style="width:120px;height:80px;"></gtk-picture>
+      <!-- content-fit: How the content should be resized to fit inside the `GtkPicture`. -->
+      <!-- can-shrink: If the `GtkPicture` can be made smaller than the natural size of its contents. -->
+      <!-- alternative-text: The alternative textual description for the picture. -->
+      <gtk-picture content-fit="scale-down" can-shrink="true" alternative-text="Scaled down" style="width:120px;height:80px;"></gtk-picture>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The paintable comes from a file, a texture or anything else GdkPaintable-shaped.
+    const photo = new Gtk.Picture({ contentFit: Gtk.ContentFit.COVER });
+    photo.set_paintable(Gdk.Texture.new_from_filename('photo.jpg'));
+    photo.set_size_request(320, 240);
+
+    // `can-shrink` is the MEASURE: a picture that may shrink reports a minimum of zero on
+    // both axes whatever the paintable is, which is what every thumbnail needs.
+    const thumb = new Gtk.Picture({ canShrink: true });
+    thumb.set_paintable(Gdk.Texture.new_from_filename('thumb.jpg'));
+
+    // Deprecated in 4.8 and still a MAPPING onto content-fit, not a stored boolean.
+    const old = new Gtk.Picture();
+    old.keep_aspect_ratio = true; // → content-fit: CONTAIN
+
+    photo.alternative_text = 'A tangerine';
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+
+      Gtk.Picture {
+        content-fit: contain;
+        can-shrink: true;
+        alternative-text: "Contained";
+        width-request: 120;
+        height-request: 80;
+      }
+
+      Gtk.Picture {
+        content-fit: cover;
+        can-shrink: true;
+        alternative-text: "Covered";
+        width-request: 120;
+        height-request: 80;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The paintable comes from a file, a texture or anything else GdkPaintable-shaped.
+    const photo = new Gtk.Picture({ contentFit: Gtk.ContentFit.COVER });
+    photo.set_paintable(Gdk.Texture.new_from_filename('photo.jpg'));
+    photo.set_size_request(320, 240);
+
+    // `can-shrink` is the MEASURE: a picture that may shrink reports a minimum of zero on
+    // both axes whatever the paintable is, which is what every thumbnail needs.
+    const thumb = new Gtk.Picture({ canShrink: true });
+    thumb.set_paintable(Gdk.Texture.new_from_filename('thumb.jpg'));
+
+    // Deprecated in 4.8 and still a MAPPING onto content-fit, not a stored boolean.
+    const old = new Gtk.Picture();
+    old.keep_aspect_ratio = true; // → content-fit: CONTAIN
+
+    photo.alternative_text = 'A tangerine';
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="What a paintable with no ratio does">
+`fill` and "the paintable reports no intrinsic aspect ratio" are the same branch in GTK:
+there is nothing to preserve, so the content is stretched whatever the mode says. The
+four modes are an exact mapping onto CSS `object-fit` — the rare case that is true
+rather than approximate.
+</MoreInfo>
+
+## Inscription
+
+Text laid out to a size in **characters** and **lines** rather than to a size in
+pixels. It is the widget for text whose extent should be the same everywhere: a
+caption under an icon that must not reflow when the string changes, a placeholder
+reserving four lines so the page does not jump.
+
+That means it never measures its own content. `Gtk.Label` asks its text how big it
+wants to be; `Gtk.Inscription` multiplies `min-chars` by the font's average character
+width and stops there — so the four counters are the size request, and the natural
+size is the **larger** of the minimum and the natural count, never the smaller.
+
+The defaults are the opposite of a label's, and it is worth knowing them: `min-chars`
+3, `min-lines` 1, `nat-chars` and `nat-lines` 0, `xalign` 0 and `yalign` 0.5. So out
+of the box an inscription is start-aligned — which is what a caption under a centred
+icon wants, with no CSS of its own — and reserves three characters and one line.
+
+**wrap-mode** also defaults differently, and the reason is the widget's purpose: a box
+of a known character count has to break a word that does not fit it, so the default is
+`word-char` where a label defaults to `word`. **text-overflow** is `clip`, so nothing
+disappears without being asked for.
+
+<AdwWidget title="Gtk.Inscription">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:16px;align-items:stretch;">
+      <gtk-inscription min-chars="10" min-lines="2" text="A caption in a fixed box"></gtk-inscription>
+      <!-- nat-chars: The number of characters that should ideally fit into the inscription. -->
+      <gtk-inscription min-chars="4" nat-chars="24" text="A wider natural size"></gtk-inscription>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // A caption that must not reflow when its string changes.
+    const caption = new Gtk.Inscription({
+        text: 'A caption in a fixed box',
+        minChars: 10,
+        minLines: 2,
+    });
+
+    // The natural size is MAX (min_chars, nat_chars) — never the smaller of the two, so a
+    // nat BELOW the min does not shrink the widget below what it reserved.
+    const wide = new Gtk.Inscription({ text: 'A wider natural size', minChars: 4, natChars: 24 });
+
+    // Word-char is the default HERE and word is the label's, for the same reason: the box
+    // is a known number of characters wide, so a longer word has to break inside it.
+    const strict = new Gtk.Inscription({ wrapMode: Gtk.WrapMode.WORD });
+
+    // `markup` is Pango markup and is REDUCED to its plain text by the browser port; the
+    // GTK side renders the bold itself.
+    const rich = new Gtk.Inscription({ markup: '<b>Bold</b> and plain' });
+
+    // Both counts at zero means the widget does not participate in sizing at all — which is
+    // not the same as asking for zero pixels.
+    const loose = new Gtk.Inscription({ text: 'Fits what it can', minChars: 0, natChars: 0 });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 16;
+
+      Gtk.Inscription {
+        text: "A caption in a fixed box";
+        min-chars: 10;
+        min-lines: 2;
+      }
+
+      Gtk.Inscription {
+        text: "A wider natural size";
+        min-chars: 4;
+        nat-chars: 24;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // A caption that must not reflow when its string changes.
+    const caption = new Gtk.Inscription({
+        text: 'A caption in a fixed box',
+        minChars: 10,
+        minLines: 2,
+    });
+
+    // The natural size is MAX (min_chars, nat_chars) — never the smaller of the two, so a
+    // nat BELOW the min does not shrink the widget below what it reserved.
+    const wide = new Gtk.Inscription({ text: 'A wider natural size', minChars: 4, natChars: 24 });
+
+    // Word-char is the default HERE and word is the label's, for the same reason: the box
+    // is a known number of characters wide, so a longer word has to break inside it.
+    const strict = new Gtk.Inscription({ wrapMode: Gtk.WrapMode.WORD });
+
+    // `markup` is Pango markup and is REDUCED to its plain text by the browser port; the
+    // GTK side renders the bold itself.
+    const rich = new Gtk.Inscription({ markup: '<b>Bold</b> and plain' });
+
+    // Both counts at zero means the widget does not participate in sizing at all — which is
+    // not the same as asking for zero pixels.
+    const loose = new Gtk.Inscription({ text: 'Fits what it can', minChars: 0, natChars: 0 });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="The same CSS name as a label">
+`GtkInscription`'s CSS name is `label`, so libadwaita's whole label cascade reaches it —
+including `.dimmed`, `.numeric` and the title classes. It is not a label: it has no
+label string, no child widget, and above all no measurement of its own text.
+</MoreInfo>
+
+## Video
+
+A play surface with three overlay nodes over the frames: an icon, and a controls bar
+that reveals itself when you move the pointer and withdraws three seconds after you
+stop. It owns no playback — a `GtkMediaStream` sits behind it and answers every question
+of what is playing — so **autoplay**, **loop** and **graphics-offload** are all it has.
+
+The icon is a four-way choice and the order carries meaning: no stream at all draws the
+**eject** glyph (there is nothing here to play), a stream with an error draws **error**,
+a stream that has ended draws **repeat**, and anything else draws **play**. Error is
+tested before ended, so a stream that both failed and finished shows the error.
+
+There is no pause glyph over the frames. The icon is *hidden* while the video plays and
+the controls bar carries the pause button, which is why the two are separate widgets.
+
+<AdwWidget title="Gtk.Video">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:12px;align-items:center;justify-content:center;">
+      <!-- autoplay: If the video should automatically begin playing. -->
+      <!-- loop: If new media files should be set to loop. -->
+      <gtk-video autoplay="false" loop="true" style="width:200px;height:113px;">
+        <video style="width:100%;height:100%;"></video>
+      </gtk-video>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+    import GstPlay from 'gi://GstPlay?version=1.0';
+
+    // `GdkPaintable` is where the picture comes from: a texture, a file, a stream frame.
+    const texture: Gdk.Texture = Gdk.Texture.new_for_filename('clip.jpg');
+
+    const video = new Gtk.Video({ loop: true });
+    video.set_size_request(320, 180);
+
+    // The stream is what answers "what is playing" — the widget has no transport of its
+    // own, which is why the browser replica drives a real `<video>`.
+    // GStreamer builds the stream; the widget only ever holds it.
+    const stream = new GstPlay.MediaStream();
+    stream.uri = 'file:///media/clip.webm';
+    video.set_media_stream(stream);
+
+    // `autoplay` waits for the stream to become PREPARED and for the widget to be mapped.
+    // It does not play on the write, so setting it before the stream exists is not a bug.
+    video.autoplay = true;
+
+    // A rendering hint: GTK moves the subtree into a shared GL texture, which CSS has no
+    // equivalent for. The property takes the write; nothing is gained on a browser.
+    video.graphics_offload = false;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Video {
+      width-request: 320;
+      height-request: 180;
+      autoplay: true;
+      loop: true;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+    import GstPlay from 'gi://GstPlay?version=1.0';
+
+    // `GdkPaintable` is where the picture comes from: a texture, a file, a stream frame.
+    const texture: Gdk.Texture = Gdk.Texture.new_for_filename('clip.jpg');
+
+    const video = new Gtk.Video({ loop: true });
+    video.set_size_request(320, 180);
+
+    // The stream is what answers "what is playing" — the widget has no transport of its
+    // own, which is why the browser replica drives a real `<video>`.
+    // GStreamer builds the stream; the widget only ever holds it.
+    const stream = new GstPlay.MediaStream();
+    stream.uri = 'file:///media/clip.webm';
+    video.set_media_stream(stream);
+
+    // `autoplay` waits for the stream to become PREPARED and for the widget to be mapped.
+    // It does not play on the write, so setting it before the stream exists is not a bug.
+    video.autoplay = true;
+
+    // A rendering hint: GTK moves the subtree into a shared GL texture, which CSS has no
+    // equivalent for. The property takes the write; nothing is gained on a browser.
+    video.graphics_offload = false;
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="The replica is a real `<video>`">
+GTK's `GtkMediaStream` is an abstract playback backend and the browser already ships
+one: `<video>`. The replica therefore puts a real video element inside, applies
+`autoplay` and `loop` as the two properties GTK declares, and reflects its events back
+out. It does not reimplement a transport — there is no buffering model, no seek-pending
+flag, no pipeline — because the C has none either; those live in the backend behind the
+stream, not in the widget. A video with no stream shows the eject glyph in both.
+</MoreInfo>
+
+## Media Controls
+
+The transport bar: play, position, duration, volume. It holds exactly **one** property
+and it is an object — `media-stream` — so every control is a view of the stream it was
+handed. The template ships the whole box insensitive, so a bar you have just created is
+one you cannot press.
+
+Two details in the time display are easy to get wrong, and both are in the C:
+
+- Which label shows what. The *position* label shows the elapsed time. The label beside
+  it shows what **remains**, negatively, and is visible only once a duration is known.
+- The remaining count is bumped **up by one second**, so that `current + remaining` equals
+  the total for a whole second rather than being one short at every boundary.
+
+An hours field appears only when there is an hour to show: an eleven-minute video reads
+`11:03`, and only past an hour does it become `1:00:00`.
+
+<AdwWidget title="Gtk.MediaControls">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;justify-content:center;">
+      <gtk-video loop="true" style="width:320px;height:180px;">
+        <video style="width:100%;height:100%;"></video>
+        <gtk-media-controls style="position:absolute;inset:auto 0 0 0;padding:12px;"></gtk-media-controls>
+      </gtk-video>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // A bar with no stream attached is INERT: the template ships the whole box
+    // insensitive, and `set_sensitive` is what a media stream turns on.
+    const controls = Gtk.MediaControls.new();
+    controls.set_sensitive(true);
+
+    // The time format is the C's own: "5:02" elapsed, "-5:03" remaining, and an hours
+    // field only once there is an hour to put in it. The remaining count is one second
+    // HIGH on purpose, so current + remaining == total at every boundary.
+    //
+    // The seek scale is in SECONDS, not 0…1: the adjustment behind it is reset to the
+    // media's own duration, and its template's upper of 10 is only the pre-stream
+    // placeholder.
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.Video {
+        width-request: 320;
+        height-request: 180;
+
+        Gtk.Revealer {
+          Gtk.MediaControls {
+            styles ["osd", "bottom"]
+          }
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // A bar with no stream attached is INERT: the template ships the whole box
+    // insensitive, and `set_sensitive` is what a media stream turns on.
+    const controls = Gtk.MediaControls.new();
+    controls.set_sensitive(true);
+
+    // The time format is the C's own: "5:02" elapsed, "-5:03" remaining, and an hours
+    // field only once there is an hour to put in it. The remaining count is one second
+    // HIGH on purpose, so current + remaining == total at every boundary.
+    //
+    // The seek scale is in SECONDS, not 0…1: the adjustment behind it is reset to the
+    // media's own duration, and its template's upper of 10 is only the pre-stream
+    // placeholder.
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Two labels, and neither is called duration">
+The pair reads as *position* and *duration*, and that is a misnomer: the first shows the
+elapsed time and the second shows what remains, negatively. Before a duration is known
+the first label carries the elapsed time alone and the second is hidden, because there is
+no total to compare it against.
+</MoreInfo>
+
+## Related
+
+- [Controls](../controls/): the entry, the drop down, the checkbox and the switch.
+- [Indicators](../indicators/): the three ways GTK says how far along something is.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

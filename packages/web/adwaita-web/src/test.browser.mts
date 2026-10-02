@@ -110,6 +110,14 @@ import { GtkViewportTest } from './gtk-viewport.spec.js';
 import { GtkWindowHandleTest } from './gtk-window-handle.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
+// The media group, after `GtkLabelTest` because `<gtk-media-controls>` adopts its stream from
+// the nearest ancestor `<gtk-video>` and `<gtk-inscription>` asserts the `.numeric`-shaped
+// label rules `GtkLabelTest` established — neither is order-dependent, but grouping the four
+// here is what makes the block findable.
+import { GtkPictureTest } from './gtk-picture.spec.js';
+import { GtkInscriptionTest } from './gtk-inscription.spec.js';
+import { GtkVideoTest } from './gtk-video.spec.js';
+import { GtkMediaControlsTest } from './gtk-media-controls.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
@@ -206,6 +214,10 @@ run({
     GtkWindowHandleTest,
     GtkBoxTest,
     GtkLabelTest,
+    GtkPictureTest,
+    GtkInscriptionTest,
+    GtkVideoTest,
+    GtkMediaControlsTest,
     AdwAvatarTest,
     AdwCarouselTest,
     AdwBottomSheetTest,

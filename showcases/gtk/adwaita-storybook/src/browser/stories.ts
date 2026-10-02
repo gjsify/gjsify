@@ -109,6 +109,11 @@ import { NavigationSplitViewWebStories } from './navigation/navigation-split-vie
 import { NavigationViewWebStories } from './navigation/navigation-view.web.js';
 import { OverlaySplitViewWebStories } from './navigation/overlay-split-view.web.js';
 import { PopoverMenuBarWebStories } from './navigation/popover-menu-bar.web.js';
+import { ImageWebStories } from './media/image.web.js';
+import { InscriptionWebStories } from './media/inscription.web.js';
+import { MediaControlsWebStories } from './media/media-controls.web.js';
+import { PictureWebStories } from './media/picture.web.js';
+import { VideoWebStories } from './media/video.web.js';
 import { SidebarWebStories } from './navigation/sidebar.web.js';
 import { AboutDialogWebStories } from './feedback/about-dialog.web.js';
 import { AlertDialogWebStories } from './feedback/alert-dialog.web.js';
@@ -220,6 +225,11 @@ export const stories: WebStoryModule[] = [
     OverlaySplitViewWebStories,
     PopoverMenuBarWebStories,
     SidebarWebStories,
+    ImageWebStories,
+    InscriptionWebStories,
+    PictureWebStories,
+    VideoWebStories,
+    MediaControlsWebStories,
     AboutDialogWebStories,
     AlertDialogWebStories,
     DialogWebStories,

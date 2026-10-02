@@ -141,6 +141,19 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Media" href="/gjsify/gtk/media/" description="The symbolic icon, an image fitted to its box, text held to a size in characters and lines, and a video with its transport.">
+    <Fragment slot="preview">
+      <div style="display:flex;gap:12px;align-items:center;width:100%;max-width:220px;">
+        <gtk-image icon-name="avatar-default-symbolic" size="40"></gtk-image>
+        <gtk-picture content-fit="cover" style="width:80px;height:60px;">
+          <svg viewBox="0 0 320 180" width="320" height="180" xmlns="http://www.w3.org/2000/svg">
+            <rect width="320" height="180" fill="rgb(144 192 160)"></rect>
+          </svg>
+        </gtk-picture>
+        <gtk-inscription min-chars="6" min-lines="2" text="Chars"></gtk-inscription>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
   <AdwGalleryCard title="Layout" href="/gjsify/gtk/layout/" description="The separator that draws a rule between two groups, or a gap when it is a spacer.">
     <Fragment slot="preview">
       <gtk-box orientation="vertical" spacing="8" style="align-items:center;width:100%;max-width:200px;">

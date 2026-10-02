@@ -240,6 +240,24 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                     ] }
             ] }
     },
+    { widget: 'Gtk.Image', root:
+        { tag: 'gtk-image', gtype: 'GtkImage', props: {"iconName":"avatar-default-symbolic","iconSize":"dialog"} }
+    },
+    { widget: 'Gtk.Picture', root:
+        { tag: 'gtk-picture', gtype: 'GtkPicture', props: {"keepAspectRatio":true,"contentFit":"cover","alternativeText":"A tangerine","widthRequest":240,"heightRequest":160} }
+    },
+    { widget: 'Gtk.Inscription', root:
+        { tag: 'gtk-inscription', gtype: 'GtkInscription', props: {"text":"A caption in a fixed box","minChars":10,"minLines":2,"widthRequest":320} }
+    },
+    { widget: 'Gtk.Video', root:
+        { tag: 'gtk-video', gtype: 'GtkVideo', props: {"loop":true,"widthRequest":320,"heightRequest":180} }
+    },
+    { widget: 'Gtk.MediaControls', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-video', gtype: 'GtkVideo', props: {"loop":true,"widthRequest":320,"heightRequest":180} },
+                { tag: 'gtk-media-controls', gtype: 'GtkMediaControls', props: {"cssClasses":["osd","bottom"]} }
+            ] }
+    },
     { widget: 'Gtk.Frame', root:
         { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A framed region: the label sits in the top edge of the border."} }

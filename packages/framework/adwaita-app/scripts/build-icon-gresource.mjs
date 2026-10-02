@@ -63,6 +63,14 @@ const staging = join(pkgRoot, 'tmp/icon-theme');
  * already carries that argument and its verdict.
  */
 const SUBSET = [
+    // The GtkVideo overlay's four-way choice (gtkvideo.c:626-646) and the
+    // GtkMediaControls transport. `media-eject` is the NO-STREAM arm and
+    // `media-playback-pause` the play button's playing state, so all four are
+    // named by a surface that renders on GTK and not only on the browser — which
+    // is the same reason the other rows are here.
+    ['actions', 'media-eject'],
+    ['actions', 'media-playback-pause'],
+    ['actions', 'media-playback-start'],
     ['actions', 'contact-new'],
     ['actions', 'document-edit'],
     ['actions', 'document-open'],
@@ -113,10 +121,16 @@ const SUBSET = [
     ['places', 'folder-download'],
     ['places', 'folder-music'],
     ['places', 'user-trash'],
+    ['status', 'audio-volume-high'],
+    ['status', 'audio-volume-low'],
+    ['status', 'audio-volume-medium'],
+    ['status', 'audio-volume-muted'],
     ['status', 'avatar-default'],
+    ['status', 'dialog-error'],
     ['status', 'dialog-warning'],
     ['status', 'image-missing'],
     ['status', 'mail-unread'],
+    ['status', 'media-playlist-repeat'],
     ['status', 'starred'],
     ['ui', 'pan-down'],
     ['ui', 'pan-end'],

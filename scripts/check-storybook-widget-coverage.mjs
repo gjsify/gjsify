@@ -97,9 +97,15 @@ const NO_STORY_OF_ITS_OWN = {
         'Feedback/Preferences Dialog renders it — the story builds an `Adw.PreferencesPage`, fills it with a group of rows and adds it to the dialog. A page only ever appears inside a preferences dialog, so the story is named after the thing the reader is looking for.',
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
-    image: 'There is no Adwaita or GTK icon WIDGET to demonstrate: GTK draws a `Gtk.Image` inline, as the navigation stories do, and the browser element exists because CSS needs a box to hang a symbolic on — so a story would show a GTK primitive rather than an Adwaita widget. This is the exemption the two retired one-renderer rows said the pair would inherit on the day it converged (2026-09-05), which is what it did: `AdwIcon` became `GtkImage`, both renderers now spell it `image`, and one row replaces the pair plus its `sameWidgetAs` bridge.',
-    box: "GTK's layout primitive, not an Adwaita widget — libadwaita styles what a caller puts IN one — and every story's preview is already built in one: nine story files construct a `Gtk.Box`, so a reader looking for it finds it around every other widget. The browser element exists for the same reason the NativeScript class does, as a TARGET: an authored tree (a `.blp` mounted through `mountSharedTree`) names `Gtk.Box`, and without an element that tag realised as an unknown inline node. A story of its own would show a GTK primitive, the verdict `image` gets above.",
-    label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive, the verdict `image` gets above.",
+    // `image` used to sit here — "there is no Adwaita or GTK icon WIDGET to demonstrate", an
+    // exemption the two retired one-renderer rows said the pair would inherit on the day
+    // `AdwIcon` converged on `GtkImage` (2026-09-05). It no longer holds, and the reason is
+    // one fact rather than a decision: Media/Image now renders it on GTK and on the browser,
+    // so there is a story and this row would be a stale exemption that also outlives its own
+    // argument. What stays true is the neighbouring reasoning below — a story of its own
+    // would show a GTK primitive — and it now rests on each row instead.
+    box: "GTK's layout primitive, not an Adwaita widget — libadwaita styles what a caller puts IN one — and every story's preview is already built in one: nine story files construct a `Gtk.Box`, so a reader looking for it finds it around every other widget. The browser element exists for the same reason the NativeScript class does, as a TARGET: an authored tree (a `.blp` mounted through `mountSharedTree`) names `Gtk.Box`, and without an element that tag realised as an unknown inline node. A story of its own would show a GTK primitive rather than an Adwaita widget, which is the same verdict every row around it gives.",
+    label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive rather than an Adwaita widget, which is the same verdict every row around it gives.",
     'carousel-indicator-dots':
         'View Switching/Carousel renders it: the carousel stories come as a pair, Dots and Lines, one per indicator, and each builds the carousel the indicator binds to — an indicator alone marks no pages.',
     'carousel-indicator-lines':
@@ -291,6 +297,11 @@ const ONE_RENDERER_ONLY = {
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
     },
+    inscription: {
+        only: 'web',
+        decision:
+            "`GtkInscription` sizes itself in CHARACTERS and LINES (gtkinscription.c:338-349, :370-391) and its defaults are the opposite of GtkLabel's — `min-chars` 3, `xalign` 0, `wrap-mode` WORD_CHAR (gtkinscription.c:59-69, :738-740). `@nativescript/core` ships no such widget, and neither of the port's two text primitives measures in those units: a NativeScript `Label` asks its content for a size, which is GtkLabel's half of the pair and not this one.",
+    },
     'level-bar': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -337,6 +348,16 @@ const ONE_RENDERER_ONLY = {
     'password-entry': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'media-controls': {
+        only: 'web',
+        decision:
+            "`GtkMediaControls` holds exactly ONE property and it is an OBJECT — `media-stream` (gtkmediacontrols.c:296-306) — so there is no scalar surface for a port to mirror; the widget is a pure view of a stream the backend owns. `@nativescript/core` has `Video` and no transport bar, and the port's `Video` is the play surface itself rather than a bar drawn over it, so the widget has nowhere to live there.",
+    },
+    picture: {
+        only: 'web',
+        decision:
+            "`GtkPicture` draws a `GdkPaintable` fitted by `content-fit`, and the four enum members ARE the four CSS `object-fit` values including `scale-down` (gtkpicture.c:146-205, :520-531) — an exact mapping rather than an approximation. `@nativescript/core` has an `Image` with its own `stretch` modes, which are that widget's property and not this one: fitting an image is the port's existing job, and there is no second widget to hold the fit.",
     },
     popover: {
         only: 'web',
@@ -496,6 +517,11 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             "There is no AdwViewSwitcherPage upstream at all: a view switcher takes an AdwViewStack and reads its AdwViewStackPages. This element is this port's markup form of that same page descriptor, and NativeScript passes the descriptors to `AdwViewSwitcherBase.setViews`.",
+    },
+    video: {
+        only: 'web',
+        decision:
+            '`GtkVideo` is a play SURFACE with a `GtkMediaStream` behind it and no transport of its own (gtkvideo.c:400-445, ui/gtkvideo.ui) — the three overlay nodes over the frames are the whole widget. `@nativescript/core` ships a `Video`, but it is the frames alone: there is no widget for the overlay icon and the self-hiding controls bar, and the port has no `GtkMediaStream` to drive one from. The browser element takes a real `<video>` for exactly that reason.',
     },
     window: {
         only: 'web',

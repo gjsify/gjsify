@@ -130,6 +130,16 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no segmented-bar view and ActivityIndicator has no value, so the story is rendered by the other two targets only.',
     'password-entry@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.PasswordEntry widget yet, so the story is rendered by the other two targets only.',
+    'image@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-inscription>, <gtk-picture> and <gtk-media-controls> on NativeScript": the three refusals are about widgets a phone already does natively, so whether the Adwaita expression is wanted on a touch target is the open question and the story is rendered by the other two targets only.',
+    'inscription@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-inscription>, <gtk-picture> and <gtk-media-controls> on NativeScript": the port measures its text in content, not in characters and lines, so the two counters GtkInscription exists for have nothing to borrow and the story is rendered by the other two targets only.',
+    'media-controls@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-inscription>, <gtk-picture> and <gtk-media-controls> on NativeScript": the widget is a pure view of a GtkMediaStream and the port has no stream to view, so the story is rendered by the other two targets only.',
+    'picture@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-inscription>, <gtk-picture> and <gtk-media-controls> on NativeScript": the port fits an image in Image\'s own stretch modes, so there is no second widget to hold the fit and the story is rendered by the other two targets only.',
+    'video@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-video> on NativeScript": the platform Video covers the frames and not the overlay icon or the self-hiding controls bar, and whether those belong on a touch target is the open question, so the story is rendered by the other two targets only.',
     'progress-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-progress-bar> on NativeScript": @nativescript/core ships a determinate Progress, but no Adwaita expression for it, so the story is rendered by the other two targets only.',
     'scale@nativescript':

@@ -119,6 +119,15 @@
 @use 'grid_view';
 @use 'column_view';
 @use 'tree_expander';
+// The media group, in dependency order and nothing else: `picture` fits a replaced
+// element, `inscription` is text measured in characters and lines, `video` lays an
+// overlay out and hosts a `media_controls` inside its revealer, so `media_controls`
+// comes after `video` only in the sense that `video` NAMES it — neither partial reads
+// the other, and the order here is readability, not precedence.
+@use 'picture';
+@use 'inscription';
+@use 'video';
+@use 'media_controls';
 @use 'preferences';
 @use 'preferences_row';
 @use 'card';

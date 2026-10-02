@@ -223,6 +223,12 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // their setters need a markup spelling. The bin's own two properties are
     // `child` and `current-breakpoint`, and both are objects.
     'adw-breakpoint-bin breakpoints': { kind: 'port-only' },
+    // The same shape, on the GTK image. `GtkImage:icon-size`
+    // is an ENUM of NAMED sizes and libadwaita carries those in `_common.scss`'s
+    // `.normal-icons` / `.large-icons` rather than in the widget, so there is no pixel
+    // property for the fence to name — the element's `size` is its own, and the stylesheet
+    // is what turns it into an edge length.
+    'gtk-image size': { kind: 'port-only' },
 
     // `<gtk-check-button>` names its two states the way HTML and the stylesheet do.
     // GTK's are `active` and `inconsistent` (gtkcheckbutton.c:647-691) and GTK raises
