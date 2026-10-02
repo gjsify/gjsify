@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import {
     SHELL_PWD,
     cat,
+    earlyThenLateStdout,
     echo,
     echoErr,
     exitOk,
@@ -455,7 +456,7 @@ export default async () => {
             expect(code).toBe(0);
         });
 
-        await it('should emit close event after exit', async () => {
+        await it('should emit close after exit', async () => {
             const { spawn } = await import('node:child_process');
             const child = spawn(...echo('hello'));
             const events: string[] = [];
@@ -465,6 +466,42 @@ export default async () => {
             expect(events.length).toBe(2);
             expect(events[0]).toBe('exit');
             expect(events[1]).toBe('close');
+        });
+
+        await it('should emit close only after the piped stdout has ended', async () => {
+            // `exit` means the process is gone; `close` means its stdio is too.
+            // A grandchild inherits the stdout pipe here, so the pipe outlives the
+            // direct child and `LATE` arrives AFTER `exit`. Emitting `close`
+            // beside `exit` made that unreachable: a consumer ending on `close`
+            // lost the tail. The order-only test above cannot see it, because for
+            // a child that writes and exits in one breath both events already
+            // land in that order.
+            //
+            // Only the RELATIVE order of the three facts the fix owns is asserted.
+            // `data:EARLY` versus `exit` is a race nobody controls — the child's
+            // write and the process reaping are independent, so a busy host can
+            // deliver the reaping first — and pinning it would make this test
+            // flaky rather than stricter. `data:LATE` after `exit` and `close`
+            // last are exactly what the fix guarantees.
+            const { spawn } = await import('node:child_process');
+            const child = spawn(...earlyThenLateStdout(500));
+            const events: string[] = [];
+            let out = '';
+            child.stdout!.on('data', (chunk: Buffer) => {
+                out += chunk.toString();
+                events.push(`data:${chunk.toString()}`);
+            });
+            child.on('exit', () => events.push('exit'));
+            child.on('close', () => events.push('close'));
+            await new Promise<void>((resolve) => child.on('close', () => resolve()));
+            expect(events[events.length - 1]).toBe('close');
+            // Real Node on win32 (CI, cmd.exe) emits `close` with only `EARLY`:
+            // the grandchild's inherited handle does not keep the parent's pipe
+            // open there, so `LATE` is never part of this stream. The survivor
+            // contract below is POSIX; `close` last holds everywhere.
+            if (process.platform === 'win32') return;
+            expect(out).toBe('EARLYLATE');
+            expect(events.indexOf('exit')).toBeLessThan(events.indexOf('data:LATE'));
         });
 
         await it('should emit non-zero exit code for failing command', async () => {

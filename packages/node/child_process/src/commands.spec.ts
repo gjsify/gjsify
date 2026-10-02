@@ -321,6 +321,56 @@ export function printEnvThenCat(name: string): Command {
     );
 }
 
+/**
+ * Write `EARLY`, exit at once, and leave a GRANDCHILD holding the same stdout
+ * pipe that writes `LATE` after `delayMs` — the scenario that separates `exit`
+ * from `close`.
+ *
+ * The grandchild is spawned with the parent's own stdout INHERITED, so the pipe
+ * has no EOF while it runs: Node holds `close` until that pipe closes, and a
+ * consumer that ends on `close` still receives `LATE`. `sh -c '( sleep 0.5;
+ * printf LATE ) & printf EARLY; exit 0'` is the same shape, but it needs a
+ * POSIX shell — the reason every other command here is driven through the
+ * interpreter running this suite instead.
+ *
+ * `unref()` in the Node dialect is what makes it the same shape AT ALL: a
+ * referenced child handle keeps the parent's event loop alive until the
+ * grandchild exits, so the direct child would sit there past its own `exit` and
+ * the ordering under test could never occur. Gio has no equivalent — a
+ * `Gio.Subprocess` does not hold the GJS main loop — so only Node needs it.
+ *
+ * PASS 500, not a token delay. The window has to survive the direct child
+ * being spawned, its interpreter booting and its write reaching the pipe before
+ * the grandchild's timer is even started, and the tightest budget for that is
+ * the Windows CI leg: a loaded runner there can take hundreds of ms just to
+ * schedule the next process, which is the margin that has to absorb it. Too
+ * small and the grandchild writes before the direct child is reaped, the pipe
+ * closes with `exit` and `close` together, and the test silently stops testing
+ * anything. Too large only costs wall clock — the whole bundle budget is 30 s.
+ *
+ * The grandchild's source travels as an extra ARGV entry instead of being
+ * nested inside the parent's, because the two dialects quote differently and a
+ * literal-in-a-literal is how that goes wrong.
+ */
+export function earlyThenLateStdout(delayMs: number): Command {
+    const millis = Math.round(delayMs);
+    const grandchild = ON_GJS
+        ? `${GJS_WRITE}imports.gi.GLib.usleep(${millis} * 1000);W(1,'LATE')`
+        : `setTimeout(function(){process.stdout.write('LATE')},${millis})`;
+    return evalSource(
+        {
+            node:
+                "const{spawn}=require('child_process');" +
+                "spawn(process.execPath,['-e',process.argv[2]],{stdio:['ignore','inherit','inherit']}).unref();" +
+                "process.stdout.write('EARLY')",
+            gjs:
+                "imports.gi.Gio.Subprocess.new([ARGV[0],'-c',ARGV[1]],imports.gi.Gio.SubprocessFlags.NONE);" +
+                `${GJS_WRITE}W(1,'EARLY')`,
+        },
+        [INTERPRETER, grandchild],
+    );
+}
+
 /** Print an environment variable, then the working directory on the next line. */
 export function printEnvThenPwd(name: string): Command {
     return evalSource(
