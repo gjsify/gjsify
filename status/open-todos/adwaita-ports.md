@@ -410,6 +410,29 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   is the row `GtkEntry` is not, and `GtkEntry` carries no icon, no clear button and no
   delayed signal for a search field to hang. Whether a standalone scale or a standalone
   search field belongs on a touch target at all is the product question, not a port.
+  state.
+- **`<gtk-action-bar>`, `<gtk-header-bar>` and `<gtk-window-controls>` on NativeScript.** All three
+  browser elements and their gallery blocks exist; the NativeScript port has none of the three, so
+  their stories are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
+  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused. This is not a
+  platform survey the way `<gtk-check-button>` above was: the port ALREADY ships
+  `AdwHeaderBar` and `GtkActionBar` (`widgets/adw-header-bar.ts`, `widgets/gtk-action-bar.ts`), so
+  what is missing is the GTK HALF of each — a titlebar whose centre is a plain derived `GtkLabel`
+  rather than an `AdwWindowTitle` (`gtkheaderbar.c:274-290`), and a bottom bar that is a GTK widget
+  rather than the one libadwaita styles. The third is the one with no neighbour at all:
+  `GtkWindowControls` draws its buttons from `Gtk.Settings:gtk-decoration-layout`
+  (`gtkwindowcontrols.c:129-140`), a display-wide default NativeScript has no equivalent of, so the
+  question is what a touch target's window chrome should be at all — and whether the platform's own
+  title bar is the whole answer.
+- **`<gtk-window>` and `<gtk-application-window>` on NativeScript.** Neither browser element's
+  counterpart is missing because the port cannot do windows — its `Page` IS the window
+  (`Page.adw-window`, `packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24`), which is
+  why `<gtk-window>` is a DECISION in `ONE_RENDERER_ONLY` and only the two story slots are gaps. What
+  is undecided is the frame PROPERTY half: `decorated`, `deletable`, `resizable`, `maximized` and
+  `hide-on-close` decide which frame buttons a page draws (`gtkwindowcontrols.c:270-274`), and a
+  `Page` has nothing for them to decide. `GtkApplicationWindow` adds a menubar built from the
+  application's `GMenuModel` (`gtkapplicationwindow.c:337-348`), and whether a phone has room for
+  one is the product question.
 - **The four model-driven views on NativeScript.** `<gtk-list-view>`,
   `<gtk-grid-view>`, `<gtk-column-view>` and `<gtk-tree-expander>` exist on the browser
   with their gallery blocks; the NativeScript port has none of the four, so their stories

@@ -46,6 +46,9 @@
 // documented surface and fails on a class with no rule behind it.
 @use 'style_classes';
 @use 'window';
+// <adw-header-bar>, <gtk-header-bar> AND <gtk-window-controls>, in ONE partial because
+// upstream's `_header-bar.scss` styles `headerbar`, `windowcontrols` and `windowtitle`
+// together — and because a bar's frame buttons ARE its window controls.
 @use 'headerbar';
 @use 'action_bar';
 @use 'window_title';

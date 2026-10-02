@@ -905,6 +905,35 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     gtkHostTree('Adw.WindowTitle'),
+    // --------------------------------------------------------------- gtk/windows
+    {
+        widget: 'Gtk.HeaderBar',
+        page: 'windows',
+        root: {
+            tag: 'gtk-header-bar',
+            props: { decorationLayout: 'menu:minimize,maximize,close' },
+            children: [
+                { tag: 'gtk-button', slot: 'start', props: { label: 'Back', cssClasses: ['flat'] } },
+                // `title`, not `center`: the buildable child type of a GtkHeaderBar's centre
+                // is `title` (gtkheaderbar.c:683-686), and `title-widget` is the
+                // DEPRECATED spelling the property position uses.
+                { tag: 'gtk-label', slot: 'title', props: { label: 'Mailboxes' } },
+                { tag: 'gtk-button', slot: 'end', props: { label: 'Search', cssClasses: ['flat'] } },
+                { tag: 'gtk-button', slot: 'end', props: { label: 'Menu', cssClasses: ['flat'] } },
+            ],
+        },
+    },
+    {
+        // `side` and `decoration-layout` are the whole widget's surface, and a
+        // GtkWindowControls builds its OWN buttons — there is nothing to place in it, which
+        // is why the tree is childless and `Gtk.ActionBar` beside it is a refusal.
+        widget: 'Gtk.WindowControls',
+        page: 'windows',
+        root: {
+            tag: 'gtk-window-controls',
+            props: { side: 'end', decorationLayout: 'menu:minimize,maximize,close' },
+        },
+    },
 ];
 
 /**
@@ -935,11 +964,11 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // hand-kept number beside this list went stale. The list is the count.
     //
     // COUNT THE GROUP, not the probe. This note read "13 of 13", and the probe has
-    // driven ELEVEN placements since it landed in #1376 — never thirteen. Two of the
-    // eleven are not entries here at all: a split view that raises `rejected-child`
-    // rather than `uncurated-placement`, and a `gtk-action-bar` that is no gallery
-    // block. Thirteen is the count from before two placements turned out to be
-    // ACCEPTED and left the list, restated beside a list that was already shorter —
+    // driven ELEVEN placements since it landed in #1376 — never thirteen. One of the
+    // eleven is not an entry here at all: a split view that raises `rejected-child`
+    // rather than `uncurated-placement`, which `PLACEMENTS_NOT_IN_THE_GALLERY` in the
+    // probe ledgered. Thirteen is the count from before two placements turned out to
+    // be ACCEPTED and left the list, restated beside a list that was already shorter —
     // a number kept by hand next to the thing it counts.
     //
     // THE ARM THIS NOTE ASKED FOR EXISTS: arm 5b of
@@ -960,6 +989,8 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'its layouts are AdwLayout GObjects, which have no tag, and every child is paired with a slot by set_child(id, widget); neither half is a static tree.',
     'Adw.LayoutSlot':
         'a slot is identified by its construct-only `id` rather than by a parent slot name, and it only ever appears inside an AdwLayout inside an Adw.MultiLayoutView — neither of which is markup here.',
+    // gallery could ship a refusal that had stopped being true, and it is what turned
+    // `Gtk.ActionBar` from "probed, not a gallery block" into a refusal of its own.
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',
     'Adw.Carousel': 'uncurated-placement: AdwCarousel has no child policy.',
@@ -973,6 +1004,27 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'uncurated-placement — its content is the `GtkPopover:child` PROPERTY, a widget a tree ' +
         'cannot spell, and `GtkPopover` has no curated child policy in the descriptor table, so a ' +
         'child placed inside it is refused by name.',
+    // ---------------------------------------------------------------- gtk/windows
+    'Gtk.ActionBar':
+        'uncurated-placement: GtkActionBar has no child policy in the descriptor table, so a child ' +
+        'placed into it — the START/CENTER/END packing every other bar on this page shows — is refused ' +
+        'by name. Its own `revealed` property is a scalar the tree could carry; the three PACKED ' +
+        'WIDGETS are not, and a bar with none of them teaches nothing.',
+    // The two windows are refused for the OTHER reason, and it is not placement: both take their
+    // content through a WIDGET-typed PROPERTY whose value is another widget. `titlebar` is the
+    // one that decides it — it is what makes a Gtk.Window a window (Gtk.HeaderBar's whole reason
+    // for existing, gtkheaderbar.c:36-60) — and no dialect spells a widget REFERENCE as an
+    // attribute. `Gtk.ApplicationWindow` adds `menubar`, which is worse: it is built from a
+    // `GMenuModel` on the GtkApplication (gtkapplicationwindow.c:337-348), a DATA model that has
+    // no markup spelling in any of the three.
+    'Gtk.Window':
+        'a Gtk.Window is its `titlebar` and its `child`, and `titlebar` is a widget-typed PROPERTY: ' +
+        'a reference is spelled differently in all three dialects, and dropping it would leave a window ' +
+        'with no titlebar, which is the one thing it is not.',
+    'Gtk.ApplicationWindow':
+        "its menubar is built by `gtk_popover_menu_bar_new_from_model` over the GtkApplication's " +
+        'GMenuModel (gtkapplicationwindow.c:337-348, :408-412) — a DATA model no attribute carries — ' +
+        'and its `titlebar` is the same widget reference that refuses Gtk.Window above.',
     // ------------------------------------------------------------------ the model views
     //
     // ADR 0046 § "Deliberately left open", restated by its Amendment: the three views keep

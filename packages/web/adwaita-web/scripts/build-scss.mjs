@@ -59,6 +59,7 @@ import {
     windowCloseSymbolic,
     windowMaximizeSymbolic,
     windowMinimizeSymbolic,
+    windowRestoreSymbolic,
 } from '@gjsify/adwaita-icons/ui';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
@@ -151,11 +152,14 @@ const ICONS = {
     'application-x-executable': applicationXExecutableSymbolic,
     // GtkWindowControls' glyphs — needed by anything that draws an Adwaita window
     // frame in the browser, where there is no window manager to draw it. All
-    // three, because the set a window shows is the PLATFORM's decoration layout:
-    // close alone on GNOME, minimize/maximize/close on Windows.
+    // four, because the set a window shows is the PLATFORM's decoration layout:
+    // close alone on GNOME, minimize/maximize/close on Windows — and the maximize
+    // button swaps to `window-restore` while the window is maximized
+    // (gtkwindowcontrols.c:347-350).
     'window-close': windowCloseSymbolic,
     'window-minimize': windowMinimizeSymbolic,
     'window-maximize': windowMaximizeSymbolic,
+    'window-restore': windowRestoreSymbolic,
     // The libadwaita fallback for a NULL/empty icon-name: every view switcher substitutes
     // it, so it has to resolve to a real glyph rather than to an empty mask.
     'image-missing': imageMissingSymbolic,

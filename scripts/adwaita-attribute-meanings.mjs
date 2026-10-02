@@ -94,6 +94,15 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
     },
+    'gtk-action-bar': {
+        'revealed': 'Controls whether the action bar shows its contents.',
+    },
+    'gtk-application-window': {
+        'default-height': null,
+        'default-width': null,
+        'show-menubar': 'If this property is true, the window will display a menubar unless it is shown by the desktop shell.',
+        'title': null,
+    },
     'gtk-aspect-frame': {
         'obey-child': 'Whether the `GtkAspectFrame` should use the aspect ratio of its child.',
         'ratio': 'The aspect ratio to be used by the `GtkAspectFrame`.',
@@ -103,6 +112,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-box': {
         'orientation': null,
         'spacing': 'The amount of space between children.',
+    },
+    'gtk-button': {
+        'label': null,
     },
     'gtk-check-button': {
         'label': null,
@@ -143,6 +155,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'max-columns': 'Maximum number of columns per row.',
         'min-columns': 'Minimum number of columns per row.',
         'model': null,
+    },
+    'gtk-header-bar': {
+        'show-title-buttons': 'Whether to show title buttons like close, minimize, maximize.',
     },
     'gtk-label': {
         'label': null,
@@ -242,6 +257,16 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'group': 'The toggle button whose group this widget belongs to.',
         'label': null,
     },
+    'gtk-window': {
+        'default-height': null,
+        'default-width': null,
+        'deletable': 'Whether the window frame should have a close button.',
+        'resizable': 'If true, users can resize the window.',
+        'title': null,
+    },
+    'gtk-window-controls': {
+        'side': 'Whether the widget shows start or end side of the decoration layout.',
+    },
 };
 
 /**
@@ -259,6 +284,7 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-preferences-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
+    'gtk-button flat': 'style-class',
     'gtk-check-button checked': 'renamed',
     'gtk-check-button indeterminate': 'renamed',
     'gtk-entry disabled': 'inverted',
@@ -284,12 +310,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 144,
-    glossed: 58,
-    nameSuffices: 61,
-    divergent: 24,
+    set: 158,
+    glossed: 64,
+    nameSuffices: 68,
+    divergent: 25,
     authored: 1,
-    commentLines: 85,
+    commentLines: 92,
 };
 
 /**

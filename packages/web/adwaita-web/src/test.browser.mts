@@ -57,6 +57,11 @@ import { GtkSpinnerTest } from './gtk-spinner.spec.js';
 import { GtkColumnViewTest } from './gtk-column-view.spec.js';
 import { GtkGridViewTest } from './gtk-grid-view.spec.js';
 import { GtkListViewTest } from './gtk-list-view.spec.js';
+import { GtkHeaderBarTest } from './gtk-header-bar.spec.js';
+import { GtkWindowControlsTest } from './gtk-window-controls.spec.js';
+import { GtkWindowTest } from './gtk-window.spec.js';
+import { GtkApplicationWindowTest } from './gtk-application-window.spec.js';
+import { GtkActionBarTest } from './gtk-action-bar.spec.js';
 import { GtkSeparatorTest } from './gtk-separator.spec.js';
 import { GtkTreeExpanderTest } from './gtk-tree-expander.spec.js';
 import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
@@ -134,6 +139,11 @@ run({
     GtkColumnViewTest,
     GtkGridViewTest,
     GtkListViewTest,
+    GtkHeaderBarTest,
+    GtkWindowControlsTest,
+    GtkWindowTest,
+    GtkApplicationWindowTest,
+    GtkActionBarTest,
     GtkSeparatorTest,
     GtkTreeExpanderTest,
     GtkToggleButtonTest,

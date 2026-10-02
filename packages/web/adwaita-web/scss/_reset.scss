@@ -40,12 +40,13 @@ $adw-components:
   adw-split-button, adw-status-page, adw-switch-row, adw-tab-button, adw-tab-page, adw-tab-view, adw-toast-overlay,
   adw-toggle, adw-toggle-group, adw-toolbar-view, adw-view-stack, adw-view-stack-page, adw-view-switcher,
   adw-view-switcher-bar, adw-view-switcher-page, adw-window, adw-window-title, adw-wrap-box, gtk-action-bar,
-  gtk-aspect-frame, gtk-box, gtk-button, gtk-center-box, gtk-check-button, gtk-color-dialog-button, gtk-column-view,
-  gtk-drop-down, gtk-editable-label, gtk-entry, gtk-expander, gtk-fixed, gtk-font-dialog-button, gtk-frame, gtk-grid,
-  gtk-grid-view, gtk-image, gtk-label, gtk-level-bar, gtk-link-button, gtk-list-view, gtk-menu-button, gtk-overlay,
-  gtk-paned, gtk-password-entry, gtk-popover, gtk-popover-bin, gtk-popover-menu, gtk-popover-menu-bar, gtk-progress-bar,
-  gtk-revealer, gtk-scale, gtk-scale-button, gtk-search-bar, gtk-search-entry, gtk-separator, gtk-spin-button,
-  gtk-spinner, gtk-switch, gtk-text, gtk-text-view, gtk-toggle-button, gtk-tree-expander;
+  gtk-application-window, gtk-aspect-frame, gtk-box, gtk-button, gtk-center-box, gtk-check-button,
+  gtk-color-dialog-button, gtk-column-view, gtk-drop-down, gtk-editable-label, gtk-entry, gtk-expander, gtk-fixed,
+  gtk-font-dialog-button, gtk-frame, gtk-grid, gtk-grid-view, gtk-header-bar, gtk-image, gtk-label, gtk-level-bar,
+  gtk-link-button, gtk-list-view, gtk-menu-button, gtk-overlay, gtk-paned, gtk-password-entry, gtk-popover,
+  gtk-popover-bin, gtk-popover-menu, gtk-popover-menu-bar, gtk-progress-bar, gtk-revealer, gtk-scale, gtk-scale-button,
+  gtk-search-bar, gtk-search-entry, gtk-separator, gtk-spin-button, gtk-spinner, gtk-switch, gtk-text, gtk-text-view,
+  gtk-toggle-button, gtk-tree-expander, gtk-window, gtk-window-controls;
 
 // Roots: re-root the inherited typographic properties (and the box model) so a
 // host page's font / colour / spacing cannot flow into the widget. Every value

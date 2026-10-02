@@ -22,6 +22,7 @@
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 export { GtkActionBar as ActionBar } from '../elements/gtk-action-bar.js';
+export { GtkApplicationWindow as ApplicationWindow } from '../elements/gtk-application-window.js';
 export { GtkAspectFrame as AspectFrame } from '../elements/gtk-aspect-frame.js';
 export { GtkBox as Box } from '../elements/gtk-box.js';
 export { GtkButton as Button } from '../elements/gtk-button.js';
@@ -38,6 +39,7 @@ export { GtkFontDialogButton as FontDialogButton } from '../elements/gtk-font-di
 export { GtkFrame as Frame } from '../elements/gtk-frame.js';
 export { GtkGrid as Grid } from '../elements/gtk-grid.js';
 export { GtkGridView as GridView } from '../elements/gtk-grid-view.js';
+export { GtkHeaderBar as HeaderBar } from '../elements/gtk-header-bar.js';
 export { GtkImage as Image } from '../elements/gtk-image.js';
 export { GtkLinkButton as LinkButton } from '../elements/gtk-link-button.js';
 export { GtkLabel as Label } from '../elements/gtk-label.js';
@@ -66,3 +68,5 @@ export { GtkText as Text } from '../elements/gtk-text.js';
 export { GtkTextView as TextView } from '../elements/gtk-text-view.js';
 export { GtkToggleButton as ToggleButton } from '../elements/gtk-toggle-button.js';
 export { GtkTreeExpander as TreeExpander } from '../elements/gtk-tree-expander.js';
+export { GtkWindow as Window } from '../elements/gtk-window.js';
+export { GtkWindowControls as WindowControls } from '../elements/gtk-window-controls.js';

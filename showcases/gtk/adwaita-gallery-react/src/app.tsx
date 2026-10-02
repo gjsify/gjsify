@@ -766,6 +766,37 @@ const AdwWindowTitle = () => (
     />
 );
 
+const GtkHeaderBar = () => (
+    <gtk-header-bar decorationLayout="menu:minimize,maximize,close">
+        <gtk-button
+            slot="start"
+            label="Back"
+            cssClasses={['flat']}
+        />
+        <gtk-label
+            slot="title"
+            label="Mailboxes"
+        />
+        <gtk-button
+            slot="end"
+            label="Search"
+            cssClasses={['flat']}
+        />
+        <gtk-button
+            slot="end"
+            label="Menu"
+            cssClasses={['flat']}
+        />
+    </gtk-header-bar>
+);
+
+const GtkWindowControls = () => (
+    <gtk-window-controls
+        side="end"
+        decorationLayout="menu:minimize,maximize,close"
+    />
+);
+
 /** Every gallery snippet in one column, so one root carries them all. */
 const Gallery = () => (
     <gtk-box orientation="vertical" spacing={24}>
@@ -823,6 +854,8 @@ const Gallery = () => (
         <GtkPopoverMenuBar />
         <GtkPopoverBin />
         <AdwWindowTitle />
+        <GtkHeaderBar />
+        <GtkWindowControls />
     </gtk-box>
 );
 
@@ -1168,6 +1201,17 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Adw.WindowTitle', root:
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
+    },
+    { widget: 'Gtk.HeaderBar', root:
+        { tag: 'gtk-header-bar', gtype: 'GtkHeaderBar', props: {"decorationLayout":"menu:minimize,maximize,close"}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'start', props: {"label":"Back","cssClasses":["flat"]} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'title', props: {"label":"Mailboxes"} },
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'end', props: {"label":"Search","cssClasses":["flat"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'end', props: {"label":"Menu","cssClasses":["flat"]} }
+            ] }
+    },
+    { widget: 'Gtk.WindowControls', root:
+        { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
     },
 ];
 

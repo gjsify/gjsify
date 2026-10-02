@@ -88,3 +88,8 @@ export * from './view-switching/tab-button.meta.js';
 export * from './view-switching/tab-view.meta.js';
 export * from './view-switching/view-switcher-bar.meta.js';
 export * from './view-switching/view-switcher.meta.js';
+export * from './windows/action-bar.meta.js';
+export * from './windows/application-window.meta.js';
+export * from './windows/gtk-header-bar.meta.js';
+export * from './windows/window-controls.meta.js';
+export * from './windows/window.meta.js';

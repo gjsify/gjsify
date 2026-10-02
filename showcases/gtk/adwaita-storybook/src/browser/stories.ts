@@ -100,6 +100,11 @@ import { AboutDialogWebStories } from './feedback/about-dialog.web.js';
 import { AlertDialogWebStories } from './feedback/alert-dialog.web.js';
 import { PreferencesDialogWebStories } from './feedback/preferences-dialog.web.js';
 import { ToastWebStories } from './feedback/toast.web.js';
+import { ActionBarWebStories } from './windows/action-bar.web.js';
+import { ApplicationWindowWebStories } from './windows/application-window.web.js';
+import { GtkHeaderBarWebStories } from './windows/gtk-header-bar.web.js';
+import { WindowControlsWebStories } from './windows/window-controls.web.js';
+import { WindowWebStories } from './windows/window.web.js';
 
 export const stories: WebStoryModule[] = [
     OverviewWidgetsWebStories,
@@ -186,4 +191,9 @@ export const stories: WebStoryModule[] = [
     AlertDialogWebStories,
     PreferencesDialogWebStories,
     ToastWebStories,
+    GtkHeaderBarWebStories,
+    WindowControlsWebStories,
+    ActionBarWebStories,
+    WindowWebStories,
+    ApplicationWindowWebStories,
 ];

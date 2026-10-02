@@ -41,6 +41,7 @@ export const STORYBOOK_CATEGORY_ORDER: readonly string[] = [
     // page of its own is needed for any of the four to make sense.
     'Text',
     'Layout',
+    'Windows',
     'View Switching',
     'Navigation',
     'Feedback',

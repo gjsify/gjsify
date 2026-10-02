@@ -75,9 +75,8 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     // child TYPE. Kept because the gallery's tree depends on it: the split view's
     // slots take an `Adw.NavigationPage` and nothing else.
     ['adw-navigation-split-view', 'adw-toolbar-view'],
-    // Not a gallery block of its own, but the reason `Adw.ToolbarView`'s bottom bar
-    // is a styled box in every framework snippet while the GJS and Blueprint tabs
-    // use the real thing.
+    // IS a gallery block of its own now (gtk/windows), and its tree is childless because every
+    // child placement into it is refused — so this pair is the measurement behind that refusal.
     ['gtk-action-bar', 'gtk-button'],
 ];
 
@@ -93,8 +92,6 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
 export const PLACEMENTS_NOT_IN_THE_GALLERY: Record<string, string> = {
     'adw-navigation-split-view':
         'curated by #1368, so this is no longer a PLACEMENT refusal — GTK refuses the child TYPE. Probed because the gallery TREE depends on it: the slots take an Adw.NavigationPage and nothing else.',
-    'gtk-action-bar':
-        "not a gallery block of its own, but the reason Adw.ToolbarView's bottom bar is a styled box in every framework snippet while the GJS and Blueprint tabs use the real thing.",
 };
 
 let refused = 0;

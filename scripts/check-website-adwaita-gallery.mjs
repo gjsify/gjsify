@@ -235,6 +235,10 @@ const TITLED_AFTER = {
     // meta file is `gtk-spinner.meta.ts` (the storybook keys every meta on its file
     // name, so a second `spinner.meta.ts` would silently displace one of the two), and
     // this row is what lets it carry a block titled after the GTK one.
+    'gtk-header-bar': {
+        title: 'Gtk.HeaderBar',
+        reason: 'the Adwaita half of the same widget already holds `Layout/Header Bar`, and this meta is the GTK one of the two. Same reason `gtk-spinner` below carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — `Adw.HeaderBar` centres an `AdwWindowTitle` with a subtitle, `Gtk.HeaderBar` centres a derived `GtkLabel` with none.',
+    },
     'gtk-spinner': {
         title: 'Gtk.Spinner',
         reason: 'Gtk.Spinner shares its bare name with Adw.Spinner, which holds `Presentation/Spinner`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/indicators/. Not a style-class story — the two spinners are different widgets (a quarter arc on a faint ring vs. a breathing arc), which is why the file is named apart.',

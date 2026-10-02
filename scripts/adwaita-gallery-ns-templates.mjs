@@ -623,6 +623,28 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no bare preferences row: AdwActionRow is the row it ships, and a title-only base has no template of its own (status/open-todos/adwaita-ports.md).',
     'Adw.TabButton':
         'The NativeScript port has no tab button: AdwTabView is the only tab widget it ships, and its page counter is not a separate view (status/open-todos/adwaita-ports.md).',
+    // --- the gtk/windows page: three bars and two windows, none of them a View ---
+    'Gtk.ActionBar':
+        'The port HAS GtkActionBar, and GtkActionBar.pack_start is what a template would route a child ' +
+        'through — but the gallery block shows the three packed widgets that make a bar a bar, and ' +
+        'GtkBox.addChild appends every child into ONE layout, so an XML template could only show an empty ' +
+        'bar (status/open-todos/adwaita-ports.md).',
+    'Gtk.HeaderBar':
+        'The port has no titlebar widget: AdwHeaderBar.pack_start puts a button in a side box, and the ' +
+        'GTK centre is a plain derived GtkLabel the markup cannot spell, so a template could only show a ' +
+        'bar with no title (status/open-todos/adwaita-ports.md).',
+    'Gtk.WindowControls':
+        'The port has no window-frame buttons at all, and GtkBox.addChild is the nearest container it could ' +
+        'hold them in — there is nothing behind it that reads a decoration layout, which is where every one ' +
+        'of those buttons comes from (status/open-todos/adwaita-ports.md).',
+    'Gtk.Window':
+        "NativeScript's Page IS the window, so there is no window view to inflate: GtkBox.addChild is the " +
+        'content surface, and the frame properties the block documents — deletable, resizable, maximized, ' +
+        'decorated — have no counterpart on a Page (status/open-todos/adwaita-ports.md).',
+    'Gtk.ApplicationWindow':
+        "NativeScript's Page IS the window, and its menubar would be a Gio.MenuModel on the application, " +
+        'which GtkBox.addChild cannot take and no XML attribute carries (status/open-todos/adwaita-ports.md).',
+    // --- not a View ---
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

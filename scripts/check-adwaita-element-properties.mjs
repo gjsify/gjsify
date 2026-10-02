@@ -284,6 +284,38 @@ const KNOWN_GAPS = {
         'pixels-below-lines',
         'pixels-inside-wrap',
     ],
+    // ── The gtk/windows page (2026-10-02). Four new elements, and the gaps are the two
+    // branches of one macOS-only property plus the window facts a page has no way to ask a
+    // compositor for.
+    'gtk-header-bar': [
+        // `Gtk.HeaderBar:use-native-controls` (since 4.18) has ONE effect: it makes the bar
+        // build a `GtkWindowButtonsQuartz` instead of the three symbolic buttons
+        // (gtkheaderbar.c:639-651 creates the controls; gtkwindowcontrols.c:281-303 is the
+        // macOS branch). The GIR says so on the property itself — "On Linux, this option has
+        // no effect" — and this port is not macOS, so the attribute is observed for the
+        // property's sake and changes nothing.
+        'use-native-controls',
+    ],
+    'gtk-window-controls': [],
+    // Every one of these is a fact about a SURFACE a compositor owns, or about GTK's own
+    // input bookkeeping, and a browser document has neither. They are listed together
+    // because the reasons are one family; see `gtk-window.ts` for each one's own line.
+    'gtk-window': [
+        // Which point stays fixed while the window is resized PROGRAMMATICALLY (gtkwindow.c:1163).
+        // A browser box is laid out, never resized that way — there is no `resize()` to aim.
+        'gravity',
+        // GTK maintains it from user input and the GIR says an application must not set it (:969).
+        'focus-visible',
+        // Same, for the mnemonic underline (:956).
+        'mnemonics-visible',
+        // A DOM node has no destroy, and a page has no parent window to destroy it with.
+        'destroy-with-parent',
+        // F10 activating the menubar — `<gtk-application-window>`'s half, and it needs the
+        // `Gio.MenuModel` the bar is built from (:1150).
+        'handle-menubar-accel',
+        // Write-only, and written by the launcher that started the application (:883).
+        'startup-id',
+    ],
 };
 
 /** @returns {string[]} one line per problem; empty means aligned. */

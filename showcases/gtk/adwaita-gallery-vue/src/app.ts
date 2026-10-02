@@ -361,6 +361,17 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Adw.WindowTitle', root:
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
     },
+    { widget: 'Gtk.HeaderBar', root:
+        { tag: 'gtk-header-bar', gtype: 'GtkHeaderBar', props: {"decorationLayout":"menu:minimize,maximize,close"}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'start', props: {"label":"Back","cssClasses":["flat"]} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'title', props: {"label":"Mailboxes"} },
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'end', props: {"label":"Search","cssClasses":["flat"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'end', props: {"label":"Menu","cssClasses":["flat"]} }
+            ] }
+    },
+    { widget: 'Gtk.WindowControls', root:
+        { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
+    },
 ];
 
 /** `AdwHeaderBar` for an `Adw.HeaderBar` instance — the GType, not the JS class. */

@@ -247,6 +247,13 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // edge itself rather than leaving half of GTK's placement unstated.
     'gtk-popover align': { kind: 'port-only' },
     'gtk-popover-menu align': { kind: 'port-only' },
+
+    // `flat` is a GtkWidget STYLE CLASS (GTK_CSS_NAME "flat"), not a property:
+    // `gtk_widget_get_style_class` reads a string list off the node, so there is no
+    // ParamSpec for a fence to name. The elements honour it as a bare attribute because a
+    // `.blp`'s `styles ["flat"]` becomes exactly that, and libadwaita's own rules select it —
+    // it is the borderless look every window-frame slot above depends on.
+    'gtk-button flat': { kind: 'style-class' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */
@@ -337,6 +344,13 @@ const FUNCTION_WORDS = stemmed(
  * Every word here is checked back: one that is the residue of no attribute in the
  * corpus is stale and fails, so the list cannot quietly grow into a place where a
  * comment is suppressed by hand.
+ *
+ * `display` LEFT this list on 2026-10-02, and the check is what said so: it was the
+ * residue of three of the gallery's attribute docs, and the gtk/windows page added a
+ * fourth (`Gtk.ApplicationWindow:show-menubar` — "the window will display a menubar").
+ * That is {@link SHARED_VOCABULARY_MIN_DOCS} exactly, so the frequency floor now
+ * accounts for it and a hand-written entry suppressing the same word is the copy this
+ * file exists to delete. The other three are still under the floor.
  */
 const PRESENTATION_WORDS = stemmed('current information below url');
 

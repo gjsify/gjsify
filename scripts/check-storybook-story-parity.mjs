@@ -96,8 +96,14 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row> and <adw-tab-button> on NativeScript": the port has no AdwPreferencesRow widget yet, so the story is rendered by the other two targets only.',
     'tab-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row> and <adw-tab-button> on NativeScript": the port has no AdwTabButton widget yet, so the story is rendered by the other two targets only.',
+    'action-bar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no bottom bar, so the story is rendered by the other two targets only.',
+    'application-window@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window class to drive one property on and the story is rendered by the other two targets only.',
     'check-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-check-button> on NativeScript": @nativescript/core ships no checkbox view, so the port has none and the story is rendered by the other two targets only.',
+    'gtk-header-bar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no titlebar widget, so the story is rendered by the other two targets only.',
     'gtk-spinner@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-level-bar> and <gtk-spinner> on NativeScript": the port has no view for GTK\'s own spinner — AdwSpinner is the one it ships — so the story is rendered by the other two targets only.',
     'level-bar@nativescript':
@@ -169,6 +175,10 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.ColorDialogButton widget yet, so the story is rendered by the other two targets only.',
     'font-dialog-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.FontDialogButton widget yet, so the story is rendered by the other two targets only.',
+    'window@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window widget to render a story on and the story is rendered by the other two targets only.',
+    'window-controls@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no window-frame buttons, and it has no Gtk.Settings to read a decoration layout from either, so the story is rendered by the other two targets only.',
 };
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */

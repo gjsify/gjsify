@@ -593,5 +593,30 @@
             title="Inbox"
             subtitle="3 unread messages"
         />
+        <gtk-header-bar decoration-layout="menu:minimize,maximize,close">
+            <gtk-button
+                slot="start"
+                label="Back"
+                :css-classes="['flat']"
+            />
+            <gtk-label
+                slot="title"
+                label="Mailboxes"
+            />
+            <gtk-button
+                slot="end"
+                label="Search"
+                :css-classes="['flat']"
+            />
+            <gtk-button
+                slot="end"
+                label="Menu"
+                :css-classes="['flat']"
+            />
+        </gtk-header-bar>
+        <gtk-window-controls
+            side="end"
+            decoration-layout="menu:minimize,maximize,close"
+        />
     </gtk-box>
 </template>
