@@ -119,4 +119,19 @@ export interface PluginOptions {
      * measured incident: `WorkspaceImportGuardOptions.toolchainAnchor`.
      */
     toolchainAnchor?: string;
+    /**
+     * Leave the byte-1 `globalThis.process` stub OUT of the bundle (ADR 0081).
+     *
+     * The stub is not inert to `--globals auto`: `renderChunk` ASSIGNS
+     * `globalThis.process` before any module body, and the detector reads the
+     * ANALYSIS bundle's own output — so every pass saw `process` as a free
+     * global it had detected and injected `@gjsify/process` unconditionally.
+     * Measured on an empty entry: 140 KB instead of ~3 KB.
+     *
+     * Set ONLY by `detectAutoGlobals`, which builds a throwaway bundle to
+     * analyse. The FINAL build must keep the stub: `glob`, `path-scurry` and
+     * `readable-stream` read `process.platform` at top level during `__esm`
+     * lazy init, before any import side effect fires. A consumer never sets it.
+     */
+    skipProcessStub?: boolean;
 }

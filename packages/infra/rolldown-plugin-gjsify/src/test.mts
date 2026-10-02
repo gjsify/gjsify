@@ -5,5 +5,13 @@ import rnRouteManifestSuite from './plugins/rn-route-manifest.spec.js';
 import cssAsStringSuite from './plugins/css-as-string.spec.js';
 import giOptionalSuite from './plugins/gi-optional.spec.js';
 import zipPathSuite from './utils/zip-path.spec.js';
+import autoGlobalsSuite from './utils/auto-globals.spec.js';
 
-run({ addonResolveSuite, cssAsStringSuite, giOptionalSuite, rnRouteManifestSuite, zipPathSuite });
+run({
+    addonResolveSuite,
+    autoGlobalsSuite,
+    cssAsStringSuite,
+    giOptionalSuite,
+    rnRouteManifestSuite,
+    zipPathSuite,
+});
