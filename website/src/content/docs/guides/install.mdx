@@ -238,7 +238,8 @@ Deno needs `-f` from the second install onwards: without it, it stops with
 <CommandTabs title="Install an exact version">
   <Fragment slot="gjsify">
     ```bash
-    gjs -m /tmp/g.mjs --tag 0.46.0
+    curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
+      -o /tmp/g.mjs && gjs -m /tmp/g.mjs --tag 0.46.0 && rm /tmp/g.mjs
     ```
   </Fragment>
   <Fragment slot="npm">
@@ -258,9 +259,12 @@ Deno needs `-f` from the second install onwards: without it, it stops with
   </Fragment>
 </CommandTabs>
 
-On the GJS route `--tag` takes an npm dist-tag (`latest`, `next`) or an exact
-version, and `gjsify self-update --tag 0.46.0` does the same for an install you
-already have.
+On the GJS route `--tag` belongs to the bootstrap script: it takes an npm
+dist-tag (`latest`, `next`) or an exact version and installs that
+`@gjsify/cli`. The line above fetches the script again on purpose, because the
+install line at the top deleted it. If you already have a GJS install,
+`gjsify self-update --tag 0.46.0` moves it to that version and downloads
+nothing.
 
 ## Install somewhere else
 
