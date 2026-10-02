@@ -94,6 +94,12 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
     },
+    'gtk-aspect-frame': {
+        'obey-child': 'Whether the `GtkAspectFrame` should use the aspect ratio of its child.',
+        'ratio': 'The aspect ratio to be used by the `GtkAspectFrame`.',
+        'xalign': null,
+        'yalign': 'The vertical alignment of the child.',
+    },
     'gtk-box': {
         'orientation': null,
         'spacing': 'The amount of space between children.',
@@ -124,6 +130,14 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'font-desc': null,
         'use-font': 'Whether the buttons label will be drawn in the selected font.',
         'use-size': null,
+    },
+    'gtk-frame': {
+        'label': null,
+        'label-xalign': null,
+    },
+    'gtk-grid': {
+        'column-spacing': 'The amount of space between two consecutive columns.',
+        'row-spacing': 'The amount of space between two consecutive rows.',
     },
     'gtk-grid-view': {
         'max-columns': 'Maximum number of columns per row.',
@@ -250,12 +264,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 124,
-    glossed: 45,
-    nameSuffices: 58,
+    set: 132,
+    glossed: 50,
+    nameSuffices: 61,
     divergent: 20,
     authored: 1,
-    commentLines: 69,
+    commentLines: 77,
 };
 
 /**

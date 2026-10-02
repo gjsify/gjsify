@@ -76,6 +76,11 @@ import { GtkEditableLabelTest } from './gtk-editable-label.spec.js';
 import { GtkSearchBarTest } from './gtk-search-bar.spec.js';
 import { GtkTextTest } from './gtk-text.spec.js';
 import { GtkTextViewTest } from './gtk-text-view.spec.js';
+import { GtkFrameTest } from './gtk-frame.spec.js';
+import { GtkAspectFrameTest } from './gtk-aspect-frame.spec.js';
+import { GtkCenterBoxTest } from './gtk-center-box.spec.js';
+import { GtkGridTest } from './gtk-grid.spec.js';
+import { GtkFixedTest } from './gtk-fixed.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
@@ -148,6 +153,11 @@ run({
     GtkTextTest,
     GtkTextViewTest,
     GtkSearchBarTest,
+    GtkFrameTest,
+    GtkAspectFrameTest,
+    GtkCenterBoxTest,
+    GtkGridTest,
+    GtkFixedTest,
     GtkBoxTest,
     GtkLabelTest,
     AdwAvatarTest,

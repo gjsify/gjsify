@@ -416,6 +416,39 @@ export const ADWAITA_GALLERY_TREES = [
     },
     // ------------------------------------------------------------------ gtk layout
     {
+        widget: 'Gtk.Frame',
+        page: 'layout',
+        root: {
+            tag: 'gtk-frame',
+            props: { label: 'Details', labelXalign: 0 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: { label: 'A framed region: the label sits in the top edge of the border.' },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.AspectFrame',
+        page: 'layout',
+        root: {
+            tag: 'gtk-aspect-frame',
+            // `obey-child` FALSE, because at its TRUE default the declared ratio is inert
+            // and the frame takes the shape of its child — which is what the descriptor
+            // table's own note on `GtkAspectFrame` says.
+            props: { ratio: 2, obeyChild: false, xalign: 0.5, yalign: 0.5 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: {
+                        label: 'The frame gives this child the ratio above, and puts it where xalign and yalign say.',
+                    },
+                },
+            ],
+        },
+    },
+    {
         widget: 'Gtk.Separator',
         page: 'layout',
         root: {
@@ -907,6 +940,12 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'its text lives in a Gtk.TextBuffer set with set_buffer(), and a buffer is a GObject no attribute can carry — a static tree would render an empty view, which teaches a reader that GtkTextView is blank.',
     'Gtk.SearchBar':
         'its child is a widget reference (`child`), and GtkSearchBar has no curated child policy for one — the bar without its entry is an empty strip, which is what a static tree would render.',
+    'Gtk.CenterBox':
+        'uncurated-placement: GtkCenterBox has no descriptor, and its children are three NAMED slots — start, centre, end — rather than the ordered child list every other container here takes.',
+    'Gtk.Fixed':
+        "Gtk.Fixed places each child with gtk_fixed_put(child, x, y), and a tree carries no position: every child would be written at 0, 0, which is exactly what GtkBuilder's own buildable does (gtkfixed.c:171-177) and what no reader would copy.",
+    'Gtk.Grid':
+        'A cell position is DATA on the child — `layout: { column, row }`, which the host reads for a `coords` parent (policies.ts:787-793) — and `SharedTreeNode` declares no field for it, so every cell in a tree is attached at 0, 0 and the four labels would render on top of each other.',
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',
     'Adw.AlertDialog': 'its responses are add_response() calls and it is shown with present(); neither is markup.',
     'Adw.AboutDialog': 'a dialog is opened with present(), so a static tree renders nothing a reader would see.',

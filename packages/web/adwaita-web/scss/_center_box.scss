@@ -1,0 +1,25 @@
+// _center_box.scss — <gtk-center-box>: three children, and the space between them.
+//
+// `gtk_center_box_set_css_name (widget_class, I_("box"))` (gtkcenterbox.c:345) means the
+// theme's `box` rule styles this widget, and libadwaita ships NO `box` rule — a box draws
+// nothing, it only places. `justify-content: space-between` IS the placement: the centre
+// layout puts the start child at the start, the end child at the end and the centre between
+// them, growing the centre into whatever is left when it expands
+// (gtkcenterlayout.c:174-186).
+//
+// The `shrink-center-last` weights and a `baseline-position` are written INLINE by the
+// element, because both are per-instance values a selector cannot express: the weights
+// differ per child, and the position is a fraction.
+//
+// Reference: refs/gtk/gtk/gtkcenterbox.c:345-346
+// Reference: refs/gtk/gtk/gtkcenterlayout.c:144-186
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-center-box {
+  display: flex;
+  justify-content: space-between;
+  // A child's default `valign` is FILL, and the centre layout's one line takes the whole
+  // cross axis — the same thing `_box.scss` states for `<gtk-box>`.
+  align-items: stretch;
+}

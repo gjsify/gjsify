@@ -198,6 +198,16 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.Spinner', root:
         { tag: 'gtk-spinner', gtype: 'GtkSpinner', props: {"spinning":true,"widthRequest":32,"heightRequest":32} }
     },
+    { widget: 'Gtk.Frame', root:
+        { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A framed region: the label sits in the top edge of the border."} }
+            ] }
+    },
+    { widget: 'Gtk.AspectFrame', root:
+        { tag: 'gtk-aspect-frame', gtype: 'GtkAspectFrame', props: {"ratio":2,"obeyChild":false,"xalign":0.5,"yalign":0.5}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The frame gives this child the ratio above, and puts it where xalign and yalign say."} }
+            ] }
+    },
     { widget: 'Gtk.Separator', root:
         { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Above"} },

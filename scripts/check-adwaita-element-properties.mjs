@@ -194,6 +194,11 @@ const KNOWN_GAPS = {
         'visibility',
     ],
     'gtk-image': ['file', 'icon-size', 'pixel-size', 'resource', 'use-fallback'],
+    // `baseline-row` aligns every row's baseline to ONE row's, so a child whose `valign` is
+    // baseline lines up across row boundaries (gtkgrid.c:474-479). A CSS grid aligns
+    // baselines WITHIN one row track and has no per-grid baseline line, so there is no value
+    // this attribute could hold that would do it.
+    'gtk-grid': ['baseline-row'],
     // `natural-wrap-mode` is a natural-SIZE-REQUEST hint over a size-negotiation protocol
     // this renderer does not run (a browser lays out once, it does not ask a widget for a
     // preferred width first); `single-line-mode` pins the height to one line's

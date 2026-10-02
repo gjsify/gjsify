@@ -169,6 +169,10 @@ const ONE_RENDERER_ONLY = {
         decision:
             'No `AdwAlertResponse` type upstream — a response is an id passed to `adw_alert_dialog_add_response()`, whose MARKUP form is a GtkBuildable `<response>` child, which is what this element mirrors. NativeScript calls the method against the same `AdwAlertResponses` in adwaita-core, so only the browser needs a tag to declare one in.',
     },
+    'aspect-frame': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'breakpoint-bin': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -197,6 +201,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK was a separate gap and is closed: `.card, .adw-card` is now a rule in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, both spellings on one selector the way `.boxed-list` already carries the same surface. It rendered NOTHING until then, and scripts/check-nativescript-theme-classes.mjs could not see it either — that reader saw only the package's own widget sources, never an app's.",
+    },
+    'center-box': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'check-button': {
         only: 'web',
@@ -236,6 +244,18 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     expander: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    fixed: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    frame: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    grid: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

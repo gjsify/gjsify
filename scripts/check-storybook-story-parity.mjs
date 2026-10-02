@@ -120,6 +120,16 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.ListView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
     'tree-expander@nativescript':
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.TreeExpander widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
+    'aspect-frame@nativescript':
+        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.AspectFrame widget, so the story is rendered by the other two targets only.',
+    'center-box@nativescript':
+        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.CenterBox widget, so the story is rendered by the other two targets only.',
+    'fixed@nativescript':
+        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Fixed widget, so the story is rendered by the other two targets only.',
+    'frame@nativescript':
+        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Frame widget, so the story is rendered by the other two targets only.',
+    'grid@nativescript':
+        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Grid widget, so the story is rendered by the other two targets only.',
     'separator@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
     'switch@nativescript':

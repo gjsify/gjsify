@@ -27,6 +27,15 @@
 @use 'labels';
 // <gtk-box>. Before every widget, which may place its own children in one.
 @use 'box';
+// The five Gtk layout containers after it, and they are here for ONE reason each: nothing
+// downstream of `box` needs to place children in one, and the frame's 1px border is the
+// only rule libadwaita writes for any of the five (`_misc.scss:4-15`) — so they belong with
+// the primitive they build on rather than in the widget run below.
+@use 'frame';
+@use 'aspect_frame';
+@use 'center_box';
+@use 'grid';
+@use 'fixed';
 // The REST of libadwaita's documented style-class surface — the widget-
 // independent half: the surfaces (`.background`, `.view`, `.frame`), `.card` and
 // the two boxed lists, `.toolbar`, `.spacer`, `.osd`, `.linked`, the app-icon

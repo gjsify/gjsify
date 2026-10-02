@@ -109,6 +109,10 @@ export class GtkLabel extends HTMLElement {
     private _wrapSpan: HTMLSpanElement | null = null;
     private _resizes: ResizeObserver | null = null;
 
+    /** Whether `_sync` last wrote `min-width` / `max-width` itself, and so may clear them. */
+    private _wroteMinWidth = false;
+    private _wroteMaxWidth = false;
+
     static get observedAttributes() {
         return [...PROPERTY_ATTRIBUTES];
     }
@@ -343,11 +347,19 @@ export class GtkLabel extends HTMLElement {
         // `width-chars` / `max-width-chars`, in `ch` — GTK's MINIMUM and NATURAL widths
         // (`get_default_widths`, gtklabel.c) — on the flex item itself, so wrap/ellipsize
         // resolve against that box rather than the ambient container.
+        //
+        // A REMOVAL is guarded by what this method last WROTE, because these two are the
+        // label's alone only while it holds an extent: `<gtk-aspect-frame>` writes
+        // `max-width: 100%` on the child it shapes, and an unconditional
+        // `removeProperty('max-width')` on the label's own next sync deleted the frame's
+        // constraint. The label clears what IT put there and nothing else.
         const extent = labelWidthCharsExtent(this.widthChars, this.maxWidthChars);
         if (extent.minCh !== null) this.style.minWidth = `${extent.minCh}ch`;
-        else this.style.removeProperty('min-width');
+        else if (this._wroteMinWidth) this.style.removeProperty('min-width');
         if (extent.maxCh !== null) this.style.maxWidth = `${extent.maxCh}ch`;
-        else this.style.removeProperty('max-width');
+        else if (this._wroteMaxWidth) this.style.removeProperty('max-width');
+        this._wroteMinWidth = extent.minCh !== null;
+        this._wroteMaxWidth = extent.maxCh !== null;
     }
 
     private _renderSingleLine(text: string): void {

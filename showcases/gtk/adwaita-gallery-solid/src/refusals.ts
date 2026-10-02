@@ -68,6 +68,9 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     ['gtk-paned', 'gtk-label'],
     ['gtk-revealer', 'gtk-label'],
     ['gtk-expander', 'gtk-label'],
+    // A Gtk layout container whose three children are NAMED slots, so the descriptor table
+    // has no ordered child list for it and the gallery's `Gtk.CenterBox` is a refusal.
+    ['gtk-center-box', 'gtk-label'],
     // Curated by #1368, so this is no longer a PLACEMENT refusal — GTK refuses the
     // child TYPE. Kept because the gallery's tree depends on it: the split view's
     // slots take an `Adw.NavigationPage` and nothing else.

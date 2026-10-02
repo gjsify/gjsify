@@ -251,6 +251,20 @@
             :width-request="32"
             :height-request="32"
         />
+        <gtk-frame
+            label="Details"
+            :label-xalign="0"
+        >
+            <gtk-label label="A framed region: the label sits in the top edge of the border." />
+        </gtk-frame>
+        <gtk-aspect-frame
+            :ratio="2"
+            :obey-child="false"
+            :xalign="0.5"
+            :yalign="0.5"
+        >
+            <gtk-label label="The frame gives this child the ratio above, and puts it where xalign and yalign say." />
+        </gtk-aspect-frame>
         <gtk-box
             orientation="vertical"
             :spacing="12"

@@ -60,6 +60,11 @@ import { EditableLabelWebStories } from './text/editable-label.web.js';
 import { SearchBarWebStories } from './text/search-bar.web.js';
 import { TextViewWebStories } from './text/text-view.web.js';
 import { TextWebStories } from './text/text.web.js';
+import { AspectFrameWebStories } from './layout/aspect-frame.web.js';
+import { CenterBoxWebStories } from './layout/center-box.web.js';
+import { FixedWebStories } from './layout/fixed.web.js';
+import { FrameWebStories } from './layout/frame.web.js';
+import { GridWebStories } from './layout/grid.web.js';
 import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
 import { ColorDialogButtonWebStories } from './buttons/color-dialog-button.web.js';
 import { FontDialogButtonWebStories } from './buttons/font-dialog-button.web.js';
@@ -151,6 +156,11 @@ export const stories: WebStoryModule[] = [
     TextWebStories,
     TextViewWebStories,
     SearchBarWebStories,
+    FrameWebStories,
+    AspectFrameWebStories,
+    CenterBoxWebStories,
+    GridWebStories,
+    FixedWebStories,
     ToolbarViewWebStories,
     WrapBoxWebStories,
     CarouselWebStories,

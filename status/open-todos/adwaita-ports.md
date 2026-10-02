@@ -462,6 +462,20 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   `GtkEntry` is not, and `<gtk-search-bar>` is a revealer plus a key-capture widget, and
   the port's theme has no Adwaita expression for either. The open decision is what the
   Adwaita EXPRESSION of each is on a touch target, not whether a stand-in is buildable.
+- **The five Gtk layout containers on NativeScript** — `<gtk-frame>`, `<gtk-aspect-frame>`,
+  `<gtk-center-box>`, `<gtk-grid>` and `<gtk-fixed>`. They have browser elements and
+  gallery blocks; the port has none of them, so their five stories are ledgered as not
+  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
+  their XML templates refused. The interesting half is not that they are missing but that
+  they are the wrong SHAPE to translate one-for-one: the frame's label, the aspect frame's
+  ratio, the centre box's three slots and the fixed's pixel offsets are all things
+  `component-builder`'s two doors (a string attribute, a child) either cannot carry or
+  carry with no arithmetic — `GtkBox` has no border-spacing a theme could style and
+  `GtkLabel` no `baseline-position` to align against, and there is no `Grid`-equivalent view
+  in `@nativescript/core` beyond `GridLayout`, which has no homogeneous lines at all.
+  `AbsoluteLayout` does cover `Gtk.Fixed` exactly, so whether these five arrive as five
+  widgets or as four styled boxes plus one `AbsoluteLayout` is the open question, not the
+  platform half.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

@@ -549,6 +549,20 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no editable label: GtkLabel carries the text and GtkEntry is the only editable surface it has, and the swap between the two is the widget (status/open-todos/adwaita-ports.md).',
     'Gtk.SearchBar':
         'The NativeScript port has no search bar: GtkBox lays its children out unconditionally and GtkEntry has no way to be revealed, so there is no strip to put one in (status/open-todos/adwaita-ports.md).',
+    // The five GTK layout containers. `Gtk.Fixed` is the one the platform would cover
+    // outright — `AbsoluteLayout` IS it — but the port has no view that takes a position
+    // from an XML attribute, and the block is about the widget rather than about the
+    // platform (status/open-todos/adwaita-ports.md).
+    'Gtk.AspectFrame':
+        "The NativeScript port has no aspect frame to shape a child with: GtkBox lays its children out in a StackLayout, and nothing there turns one child's size into a ratio (status/open-todos/adwaita-ports.md).",
+    'Gtk.CenterBox':
+        'The NativeScript port has no centre box to pin a start, a centre and an end child into: GtkBox has one layout and one child order, which is a different fact (status/open-todos/adwaita-ports.md).',
+    'Gtk.Fixed':
+        'The NativeScript port has no fixed view to place a child at an offset: GtkBox stacks its children rather than positioning them (status/open-todos/adwaita-ports.md).',
+    'Gtk.Frame':
+        'The NativeScript port has no frame view to draw a border and a title in around a child, and GtkBox is a plain stack the theme has nothing to frame (status/open-todos/adwaita-ports.md).',
+    'Gtk.Grid':
+        'The NativeScript port has no grid widget: GtkBox is a StackLayout and NativeScript has no subgrid, so every row would resolve its own auto tracks and stagger the columns (theme/adwaita.css:864-868).',
     'Gtk.Separator':
         'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
     'Gtk.Text':

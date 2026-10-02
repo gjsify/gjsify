@@ -22,16 +22,21 @@
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 export { GtkActionBar as ActionBar } from '../elements/gtk-action-bar.js';
+export { GtkAspectFrame as AspectFrame } from '../elements/gtk-aspect-frame.js';
 export { GtkBox as Box } from '../elements/gtk-box.js';
 export { GtkButton as Button } from '../elements/gtk-button.js';
-export { GtkColorDialogButton as ColorDialogButton } from '../elements/gtk-color-dialog-button.js';
+export { GtkCenterBox as CenterBox } from '../elements/gtk-center-box.js';
 export { GtkCheckButton as CheckButton } from '../elements/checks.js';
+export { GtkColorDialogButton as ColorDialogButton } from '../elements/gtk-color-dialog-button.js';
 export { GtkColumnView as ColumnView } from '../elements/gtk-column-view.js';
 export { GtkDropDown as DropDown } from '../elements/gtk-drop-down.js';
 export { GtkEditableLabel as EditableLabel } from '../elements/gtk-editable-label.js';
 export { GtkEntry as Entry } from '../elements/gtk-entry.js';
 export { GtkExpander as Expander } from '../elements/gtk-expander.js';
+export { GtkFixed as Fixed } from '../elements/gtk-fixed.js';
 export { GtkFontDialogButton as FontDialogButton } from '../elements/gtk-font-dialog-button.js';
+export { GtkFrame as Frame } from '../elements/gtk-frame.js';
+export { GtkGrid as Grid } from '../elements/gtk-grid.js';
 export { GtkGridView as GridView } from '../elements/gtk-grid-view.js';
 export { GtkImage as Image } from '../elements/gtk-image.js';
 export { GtkLinkButton as LinkButton } from '../elements/gtk-link-button.js';
