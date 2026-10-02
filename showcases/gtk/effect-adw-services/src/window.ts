@@ -27,7 +27,7 @@ import { Duration, Effect, Layer, Stream } from 'effect';
 import * as FileSystem from 'effect/FileSystem';
 import * as Path from 'effect/Path';
 
-import Template from './window.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './window.blp';
 
 import { fileSystemLayer, pathLayer } from '@gjsify/effect-platform';
 import { propertyStream, runInScope, windowScope, type WidgetScope } from '@gjsify/effect-platform/gtk';
@@ -50,19 +50,15 @@ const MAX_ROWS = 12;
  */
 const Services = Layer.mergeAll(fileSystemLayer, pathLayer);
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
+export interface EffectServicesWindow extends Children {}
 export class EffectServicesWindow extends Adw.ApplicationWindow {
-    declare private _pathRow: Adw.EntryRow;
-    declare private _resultGroup: Adw.PreferencesGroup;
-    declare private _statusRow: Adw.ActionRow;
-    declare private _fibersRow: Adw.ActionRow;
-    declare private _interruptedRow: Adw.ActionRow;
-
     static {
         GObject.registerClass(
             {
-                GTypeName: 'EffectServicesWindow',
+                GTypeName,
                 Template,
-                InternalChildren: ['pathRow', 'resultGroup', 'statusRow', 'fibersRow', 'interruptedRow'],
+                InternalChildren,
             },
             this,
         );

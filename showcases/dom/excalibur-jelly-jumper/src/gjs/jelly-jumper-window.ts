@@ -4,26 +4,23 @@
 // mirroring the browser's WebGL→Canvas2D fallback path.
 
 import GObject from 'gi://GObject?version=2.0';
-import type Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
 import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { startGame, type GameHandle } from '../game.js';
-import Template from './jelly-jumper-window.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './jelly-jumper-window.blp';
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
+export interface JellyJumperWindow extends Children {}
 export class JellyJumperWindow extends Adw.ApplicationWindow {
-    declare private _canvasContainer: Gtk.Box;
-    declare private _pauseButton: Gtk.Button;
-    declare private _audioButton: Gtk.Button;
-
     private _game: GameHandle | null = null;
 
     static {
         GObject.registerClass(
             {
-                GTypeName: 'JellyJumperWindow',
+                GTypeName,
                 Template,
-                InternalChildren: ['canvasContainer', 'pauseButton', 'audioButton'],
+                InternalChildren,
             },
             this,
         );

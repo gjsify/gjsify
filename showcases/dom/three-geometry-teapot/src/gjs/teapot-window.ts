@@ -13,42 +13,20 @@ import {
     DEFAULT_SHADING_INDEX,
     type TeapotDemo,
 } from '../three-demo.js';
-import Template from './teapot-window.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './teapot-window.blp';
 
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
+export interface TeapotWindow extends Children {}
 export class TeapotWindow extends Adw.ApplicationWindow {
-    declare private _glAreaContainer: Gtk.Box;
-    declare private _tessRow: Adw.ComboRow;
-    declare private _lidRow: Adw.SwitchRow;
-    declare private _bodyRow: Adw.SwitchRow;
-    declare private _bottomRow: Adw.SwitchRow;
-    declare private _fitLidRow: Adw.SwitchRow;
-    declare private _nonblinnRow: Adw.SwitchRow;
-    declare private _shadingRow: Adw.ComboRow;
-    declare private _splitView: Adw.OverlaySplitView;
-    declare private _sidebarToggleButton: Gtk.ToggleButton;
-    declare private _pauseButton: Gtk.Button;
-
     /** Live demo reference; set once the WebGLBridge is ready. */
     private _demo: TeapotDemo | null = null;
 
     static {
         GObject.registerClass(
             {
-                GTypeName: 'TeapotWindow',
+                GTypeName,
                 Template,
-                InternalChildren: [
-                    'glAreaContainer',
-                    'tessRow',
-                    'lidRow',
-                    'bodyRow',
-                    'bottomRow',
-                    'fitLidRow',
-                    'nonblinnRow',
-                    'shadingRow',
-                    'splitView',
-                    'sidebarToggleButton',
-                    'pauseButton',
-                ],
+                InternalChildren,
             },
             this,
         );
