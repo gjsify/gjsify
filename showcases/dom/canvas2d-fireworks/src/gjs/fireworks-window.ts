@@ -8,7 +8,7 @@ import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { start, type FireworksDemo } from '../fireworks.js';
 import Template, { type Children, GTypeName, InternalChildren } from './fireworks-window.blp';
 
-// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
 export interface FireworksWindow extends Children {}
 export class FireworksWindow extends Adw.ApplicationWindow {
     /** Live demo reference; set once the Canvas2DBridge is ready. */

@@ -10,7 +10,7 @@ import { Canvas2DBridge } from '@gjsify/canvas2d';
 import { startGame, type GameHandle } from '../game.js';
 import Template, { type Children, GTypeName, InternalChildren } from './jelly-jumper-window.blp';
 
-// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
 export interface JellyJumperWindow extends Children {}
 export class JellyJumperWindow extends Adw.ApplicationWindow {
     private _game: GameHandle | null = null;

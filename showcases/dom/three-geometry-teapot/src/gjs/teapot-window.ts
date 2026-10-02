@@ -15,7 +15,7 @@ import {
 } from '../three-demo.js';
 import Template, { type Children, GTypeName, InternalChildren } from './teapot-window.blp';
 
-// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
 export interface TeapotWindow extends Children {}
 export class TeapotWindow extends Adw.ApplicationWindow {
     /** Live demo reference; set once the WebGLBridge is ready. */

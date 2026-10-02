@@ -50,7 +50,7 @@ const MAX_ROWS = 12;
  */
 const Services = Layer.mergeAll(fileSystemLayer, pathLayer);
 
-// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
 export interface EffectServicesWindow extends Children {}
 export class EffectServicesWindow extends Adw.ApplicationWindow {
     static {

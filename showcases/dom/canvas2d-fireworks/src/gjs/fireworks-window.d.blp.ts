@@ -1,4 +1,4 @@
-// GENERATED from fireworks-window.blp — do not edit. ADR 0087 says what these exports mean.
+// GENERATED from fireworks-window.blp — do not edit. ADR 0088 says what these exports mean.
 // Regenerate with `gjsify blueprint types`; `scripts/check-blueprint-sidecars.mjs` holds it.
 
 import type Adw from 'gi://Adw?version=1';
@@ -17,7 +17,7 @@ export declare const GTypeName: 'FireworksWindow';
  * A MUTABLE tuple, and the `readonly` is missing for a reason that is not ours: `@girs`
  * declares `GObject.MetaInfo['InternalChildren']` as `string[]`, so a `readonly` tuple is
  * refused at the call site with TS4104 and the consumer would have to spread it — the
- * boilerplate ADR 0087 exists to remove. The tuple still pins the exact ids and arity,
+ * boilerplate ADR 0088 exists to remove. The tuple still pins the exact ids and arity,
  * which is the property that matters. `status/open-todos/blueprint.md` carries the
  * upstream half.
  */

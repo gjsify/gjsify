@@ -11,7 +11,7 @@ import { WebGLBridge } from '@gjsify/webgl';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 import Template, { type Children, GTypeName, InternalChildren } from './ldraw-window.blp';
 
-// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0087)
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children (ADR 0088)
 export interface LDrawWindow extends Children {}
 export class LDrawWindow extends Adw.ApplicationWindow {
     static {
