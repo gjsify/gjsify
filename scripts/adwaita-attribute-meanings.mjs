@@ -257,7 +257,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-revealer': {
         'reveal-child': null,
         'transition-duration': 'The animation duration, in milliseconds.',
-        'transition-type': 'The type of animation used to transition.',
+        'transition-type': null,
     },
     'gtk-scale': {
         'adjustment': 'The adjustment that is controlled by the range.',
@@ -299,6 +299,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'gtk-spinner': {
         'spinning': null,
+    },
+    'gtk-stack': {
+        'transition-duration': 'The animation duration, in milliseconds.',
+        'transition-type': null,
     },
     'gtk-switch': {
         'active': 'Whether the `GtkSwitch` widget is in its on or off state.',
@@ -381,9 +385,9 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 199,
+    set: 201,
     glossed: 80,
-    nameSuffices: 86,
+    nameSuffices: 88,
     divergent: 32,
     authored: 1,
     commentLines: 113,

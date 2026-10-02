@@ -147,6 +147,7 @@ export default defineConfig({
                                 { slug: 'gtk/layout' },
                                 { slug: 'gtk/windows' },
                                 { slug: 'gtk/models' },
+                                { slug: 'gtk/stacks' },
                                 { slug: 'gtk/popovers' },
                                 { slug: 'gtk/scrolling' },
                             ],

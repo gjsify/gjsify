@@ -1027,6 +1027,17 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     gtkHostTree('Adw.WindowTitle'),
+    // ------------------------------------------------------------------- gtk stacks
+    {
+        widget: 'Gtk.Stack',
+        page: 'stacks',
+        // The pages are CHILDREN here, and the page metadata is not a property of the
+        // child widget but of the `GtkStackPage` GObject that wraps it
+        // (gtkstack.c:212-233) — which has no tag in the descriptor table. So the two
+        // properties a page would carry (`title`, `needs-attention`) have nowhere to
+        // live in a static tree, and the block's fences build the pages imperatively.
+        root: { tag: 'gtk-stack', props: { transitionType: 'slide-left-right', transitionDuration: 200 } },
+    },
     // --------------------------------------------------------------- gtk/windows
     {
         widget: 'Gtk.HeaderBar',

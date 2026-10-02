@@ -72,6 +72,7 @@ export { GtkScrollbar as Scrollbar } from '../elements/gtk-scrollbar.js';
 export { GtkSeparator as Separator } from '../elements/gtk-separator.js';
 export { GtkSpinButton as SpinButton } from '../elements/gtk-spin-button.js';
 export { GtkSpinner as Spinner } from '../elements/gtk-spinner.js';
+export { GtkStack as Stack } from '../elements/gtk-stack.js';
 export { GtkStringList as StringList } from '@gjsify/adwaita-core';
 export { GtkSwitch as Switch } from '../elements/gtk-switch.js';
 export { GtkText as Text } from '../elements/gtk-text.js';

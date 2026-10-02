@@ -295,6 +295,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    stack: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     // The GTK dialogs. `AdwAboutDialog` and the three GTK ones are DIFFERENT widgets that
     // share a bare name once the namespace is dropped, which is why `<gtk-about-dialog>`
     // needs no entry here and the other three do.

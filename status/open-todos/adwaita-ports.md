@@ -366,6 +366,24 @@ exactly why they must not be written as decisions.
   buildable. Its story is therefore ledgered as not rendered there
   (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
   template refused.
+- **`<gtk-stack>`, `<gtk-stack-switcher>`, `<gtk-stack-sidebar>` and `<gtk-notebook>` on
+  NativeScript.** All four browser elements and their gallery blocks exist; the
+  NativeScript port has none of the four. Every one of them is the same question from a
+  different side, and it is a question about the Adwaita EXPRESSION rather than about the
+  platform: `@nativescript/core` ships `TabView` (`ui/tab-view`), so a stack is
+  expressible there the way it is on GTK — but `TabView` owns its own tab strip, which is
+  `GtkStackSwitcher` AND `GtkStackSidebar` in one, and it has no separate content-only
+  half to drive one of those with. `AdwToggleView`/`AdwNavigationView` in the port are
+  built on `StackLayout`, which is a `GridLayout` that hides one child at a time — so the
+  closest thing this port has to `GtkStack` is a layout, not a widget, and it carries
+  neither the two `*homogeneous` axes nor `transition-type`. The transitions are the part
+  with no counterpart at all: the 23 members of `GtkStackTransitionType`
+  (`refs/gtk/gtk/gtkstack.c:95-121`), the two-way nick resolved by page order
+  (`get_simple_transition_type`, `refs/gtk/gtk/gtkstack.c:1162-1200`) and the reduced-
+  motion swap to a crossfade (`:1320-1340`) are GTK's own animation vocabulary, and a
+  NativeScript page transition is chosen by the platform, not authored. So the four
+  stories are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
+  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused.
 - **`<gtk-drawing-area>`, `<gtk-gl-area>`, `<gtk-graphics-offload>` and `<gtk-drag-icon>` on
   NativeScript.** Four browser elements with their blocks and stories, and a NativeScript port
   with no counterpart for any of them: `GtkBox` is the container one would sit in and nothing in

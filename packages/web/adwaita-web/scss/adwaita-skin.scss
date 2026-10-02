@@ -125,6 +125,10 @@
 @use 'data_grid';
 @use 'bin';
 @use 'clamp';
+// <gtk-stack> AND <gtk-stack-switcher> AND <gtk-stack-sidebar>, in ONE partial: upstream
+// styles the switcher's buttons out of `_buttons.scss` and the sidebar's rows out of
+// `_sidebars.scss`, so a stack and the two things that switch over it share styles.
+@use 'stack';
 @use 'clamp_scrollable';
 // <adw-spinner> AND <gtk-spinner>, in ONE partial because upstream's
 // `_spinner.scss` styles `spinner` and `image.spinner` in the same file.

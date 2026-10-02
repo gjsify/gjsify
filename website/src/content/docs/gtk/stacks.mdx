@@ -1,0 +1,152 @@
+---
+title: Stacks
+description: "GTK's page containers: the stack that shows one child at a time, the switcher and sidebar that switch over it, and the notebook of draggable tabs. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Three widgets keep a set of pages and show **one of them at a time**. The
+**stack** is the container itself; the **switcher** and the **sidebar** are two
+different controls that switch over a stack; the **notebook** is the older
+container that brings its own tab bar with it.
+
+<MoreInfo title="A `GtkStackPage` is not a widget">
+`Gtk.StackPage` is a GObject, not a widget (`gtkstack.c:212-233`), so it has no
+element of its own. Its six properties live on the page element as attributes —
+`title`, `icon-name`, `needs-attention`, `use-underline` — and `name` is the id
+`visible-child-name` speaks. The browser port follows that mapping rather than
+inventing a wrapper element GTK does not have.
+</MoreInfo>
+
+## Stack
+
+One visible child out of many. **`transition-type`** picks the animation —
+`crossfade`, the four `slide-…`, the eight `over-…` / `under-…` and the rotates —
+and **`transition-duration`** its length; a two-way nick such as
+`slide-left-right` resolves to one of the one-directional types by which page you
+came from, exactly as `get_simple_transition_type` does.
+
+**hhomogeneous** and **vhomogeneous** say whether every page is allocated the
+same width and height; both are on by default, and the measure pass then looks
+at the visible page alone. **`interpolate-size`** lets the stack's own box resize
+smoothly during the change.
+
+<AdwWidget title="Gtk.Stack">
+  <Fragment slot="preview">
+    ```html
+    <!-- transition-duration: The animation duration, in milliseconds. -->
+    <gtk-stack transition-type="slide-left-right" transition-duration="200" style="height:220px;">
+      <div name="overview" title="Overview">Three pages, one visible at a time.</div>
+      <div name="activity" title="Activity">Switching is animated by transition-type.</div>
+      <div name="settings" title="Settings" needs-attention>This page wants your attention.</div>
+    </gtk-stack>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Gtk.Stack({
+        transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
+        transitionDuration: 200,
+    });
+
+    // `add_titled` is the three-argument form: the child, its name and its title. The
+    // returned `GtkStackPage` is a GObject, not a widget — `needs_attention` and
+    // `use_underline` are set on it, and a switcher reads them to draw its button.
+    const settings = stack.add_titled(new Gtk.Label({ label: 'This page wants your attention.' }), 'settings', 'Settings');
+    settings.needs_attention = true;
+    settings.use_underline = true;
+
+    // Selecting by name is what a switcher, a sidebar and the property itself all do.
+    stack.visible_child_name = 'activity';
+
+    // Hidden pages are skipped entirely: setting the name of a hidden page changes
+    // nothing, and hiding the visible one falls back to the first visible page.
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Stack {
+      // The Blueprint spelling of an enum member is underscored; the GIR nick
+      // (`slide-left-right`) is what the property carries at runtime.
+      transition-type: slide_left_right;
+      transition-duration: 200;
+
+      // A GtkStackPage is a GObject, so a `.blp` names the type explicitly where the
+      // child widget would otherwise carry the page's properties.
+      Gtk.StackPage {
+        name: "overview";
+        title: "Overview";
+
+        child: Gtk.Label {
+          label: "Three pages, one visible at a time.";
+        };
+      }
+
+      Gtk.StackPage {
+        name: "activity";
+        title: "Activity";
+
+        child: Gtk.Label {
+          label: "Switching is animated by transition-type.";
+        };
+      }
+
+      Gtk.StackPage {
+        name: "settings";
+        title: "Settings";
+        needs-attention: true;
+
+        child: Gtk.Label {
+          label: "This page wants your attention.";
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Gtk.Stack({
+        transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
+        transitionDuration: 200,
+    });
+
+    // `add_titled` is the three-argument form: the child, its name and its title. The
+    // returned `GtkStackPage` is a GObject, not a widget — `needs_attention` and
+    // `use_underline` are set on it, and a switcher reads them to draw its button.
+    const settings = stack.add_titled(new Gtk.Label({ label: 'This page wants your attention.' }), 'settings', 'Settings');
+    settings.needs_attention = true;
+    settings.use_underline = true;
+
+    // Selecting by name is what a switcher, a sidebar and the property itself all do.
+    stack.visible_child_name = 'activity';
+
+    // Hidden pages are skipped entirely: setting the name of a hidden page changes
+    // nothing, and hiding the visible one falls back to the first visible page.
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="What the NativeScript port has">
+`@nativescript/core`'s `TabView` owns its own tab strip, so there is no
+content-only stack there to drive a separate switcher with, and the
+`transition-type` vocabulary — the 23 members of `GtkStackTransitionType`, the
+two-way nick resolved by page order, the reduced-motion swap to a crossfade — is
+GTK's own animation vocabulary, which a NativeScript page transition does not
+expose. The XML template tab of every block on this page says so instead of
+showing one.
+</MoreInfo>
+## Related
+
+- [Layout](../layout/): the containers a page inside a stack is built from.
+- [Buttons](../buttons/): the toggle button a switcher's row is made of.
+- [Adwaita View Switching](/gjsify/adwaita/view-switching/): `Adw.ViewStack` and
+  the three switchers, libadwaita's own answer to the same job.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

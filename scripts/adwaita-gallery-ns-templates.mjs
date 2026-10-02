@@ -561,6 +561,13 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.TreeExpander':
         'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
         'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',
+    'Gtk.Stack':
+        'The NativeScript port has no content-only stack: AdwTabView is the widget it has, and its tab strip ' +
+        'lives inside it (AdwTabView.pages), so there is no separate switcher to point at the content. The ' +
+        'content-only half the port does have is AdwViewStack, whose add() takes a view and a name — and its ' +
+        'own header records that its visibility switch is "instant, no cross-fade", so neither of the two ' +
+        '*homogeneous axes nor the transition vocabulary has anything to land on ' +
+        '(status/open-todos/adwaita-ports.md).',
     'Gtk.EditableLabel':
         'The NativeScript port has no editable label: GtkLabel carries the text and GtkEntry is the only editable surface it has, and the swap between the two is the widget (status/open-todos/adwaita-ports.md).',
     'Gtk.SearchBar':

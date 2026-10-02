@@ -654,6 +654,10 @@
             title="Inbox"
             subtitle="3 unread messages"
         />
+        <gtk-stack
+            transition-type="slide-left-right"
+            :transition-duration="200"
+        />
         <gtk-header-bar decoration-layout="menu:minimize,maximize,close">
             <gtk-button
                 slot="start"

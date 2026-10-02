@@ -851,6 +851,13 @@ const AdwWindowTitle = () => (
     />
 );
 
+const GtkStack = () => (
+    <gtk-stack
+        transitionType="slide-left-right"
+        transitionDuration={200}
+    />
+);
+
 const GtkHeaderBar = () => (
     <gtk-header-bar decorationLayout="menu:minimize,maximize,close">
         <gtk-button
@@ -946,6 +953,7 @@ const Gallery = () => (
         <GtkPopoverMenuBar />
         <GtkPopoverBin />
         <AdwWindowTitle />
+        <GtkStack />
         <GtkHeaderBar />
         <GtkWindowControls />
     </gtk-box>
@@ -1335,6 +1343,9 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Adw.WindowTitle', root:
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
+    },
+    { widget: 'Gtk.Stack', root:
+        { tag: 'gtk-stack', gtype: 'GtkStack', props: {"transitionType":"slide-left-right","transitionDuration":200} }
     },
     { widget: 'Gtk.HeaderBar', root:
         { tag: 'gtk-header-bar', gtype: 'GtkHeaderBar', props: {"decorationLayout":"menu:minimize,maximize,close"}, children: [

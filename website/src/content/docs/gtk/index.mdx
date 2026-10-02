@@ -155,6 +155,14 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       <gtk-list-view model='["Documents","Downloads","Music"]' show-separators style="width:100%;max-width:200px;"></gtk-list-view>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Stacks" href="/gjsify/gtk/stacks/" description="The stack that shows one child at a time, the switcher and sidebar that switch over it, and the notebook of draggable tabs.">
+    <Fragment slot="preview">
+      <gtk-stack transition-type="slide-left-right" style="width:100%;max-width:200px;height:80px;">
+        <div name="first" title="First" style="display:flex;align-items:center;justify-content:center;">One visible child of many.</div>
+        <div name="second" title="Second" style="display:flex;align-items:center;justify-content:center;">The switch makes the other one visible.</div>
+      </gtk-stack>
+    </Fragment>
+  </AdwGalleryCard>
   <AdwGalleryCard title="Popovers" href="/gjsify/gtk/popovers/" description="The surface itself, the menu-model popover, a menu bar of them, and the container that turns a right click into one.">
     <Fragment slot="preview">
       <gtk-popover-menu-bar menu-model='[{"label":"File","submenu":[{"label":"New Window"},{"label":"Quit"}]},{"label":"Edit","submenu":[{"label":"Undo"}]}]' style="width:100%;"></gtk-popover-menu-bar>
