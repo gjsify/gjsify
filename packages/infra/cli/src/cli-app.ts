@@ -65,6 +65,7 @@ import {
     storybookCommand as storybook,
     devCommand as dev,
     debugCommand as debug,
+    devtoolsCommand as devtools,
     browseCommand as browse,
     webextCommand as webext,
 } from './commands/index.js';
@@ -191,6 +192,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(storybook.command, storybook.description, storybook.builder, storybook.handler)
         .command(dev.command, dev.description, dev.builder, dev.handler)
         .command(debug.command, debug.description, debug.builder, debug.handler)
+        .command(devtools.command, devtools.description, devtools.builder, devtools.handler)
         .command(browse.command, browse.description, browse.builder, browse.handler)
         .command(webext.command, webext.description, webext.builder, webext.handler)
         .demandCommand(1)

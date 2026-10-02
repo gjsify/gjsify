@@ -41,5 +41,6 @@ export * from './affected.js';
 export * from './storybook.js';
 export * from './dev.js';
 export * from './debug.js';
+export * from './devtools.js';
 export * from './browse.js';
 export { webextCommand } from './webext/index.js';

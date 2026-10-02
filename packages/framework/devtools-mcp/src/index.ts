@@ -2,6 +2,8 @@
 // Pure named exports.
 
 export { runDevtoolsMcp } from './run-server.js';
+export { runDevtoolsCli } from './cli.js';
+export type { DevtoolsCliClient, DevtoolsCliGlobalOptions, RunDevtoolsCliOptions } from './cli.js';
 export { DbusDevtoolsClient } from './dbus-client.js';
 export type { DbusDevtoolsClientOptions, DevtoolsInstanceRef } from './dbus-client.js';
 export { chooseClientTransport } from './transport-choice.js';

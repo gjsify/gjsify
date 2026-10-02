@@ -550,7 +550,7 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 | `test` | Defaults for [`gjsify test`](#gjsify-test). |
 | `example` | Declared runtimes for [`gjsify run --runtime`](#gjsify-run) and [`gjsify showcase`](#gjsify-showcase). |
 | `storybook` | Defaults for [`gjsify storybook`](#gjsify-storybook). |
-| `browse`, `devtools` | Defaults for [`gjsify browse`](#gjsify-browse) and [`gjsify debug`](#gjsify-debug). |
+| `browse`, `devtools` | Defaults for [`gjsify browse`](#gjsify-browse), [`gjsify debug`](#gjsify-debug) and [`gjsify devtools`](#gjsify-devtools). |
 | `flatpak` | Config for the [`gjsify flatpak`](#gjsify-flatpak) commands. |
 | `ship` | Config for [`gjsify ship`](#gjsify-ship). Metadata falls back to `flatpak`. |
 
@@ -1399,6 +1399,30 @@ gjsify debug --build-only --out dist/bridge.gjs.mjs   # build once, point .mcp.j
 | `--build-only` | `false` | Build the bridge bundle without launching it. |
 
 `gjsify debug` logs to stderr only, because stdout is the JSON-RPC channel. The bridge resolves `@gjsify/devtools-mcp` from your project's `node_modules`. There is no `--runtime` here. The bridge bundle is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. The app it talks to can be on any of the four, since the two only ever meet over D-Bus. Full workflow: [Debugging and remote control](/gjsify/guides/devtools/).
+
+### `gjsify devtools`
+
+Drive a running, devtools-enabled GJSify app from a **script**: the same `org.gjsify.Devtools` control plane and the same transport as [`gjsify debug`](#gjsify-debug), with an argv front end instead of MCP. Where `debug` is the shape an AI agent wants, this is the one a Makefile, a CI step or a shell script wants — an MCP answer is base64 inside a JSON-RPC frame, so `Screenshot` cannot be piped into a file, and `gdbus` cannot write binary either.
+
+```bash
+gjsify devtools shot /tmp/app.png --bus-name org.example.App   # PNG on disk + the size it carries
+gjsify devtools find Adw.StatusPage:error --bus-name org.example.App   # stdout = the widget path
+gjsify devtools activate /toplevel:0/child:3 --bus-name org.example.App
+gjsify devtools help                                          # every operation and flag
+```
+
+Operations mirror the control-plane methods: `shot`, `find`, `activate`, `key`, `tree`, `property`, `focused`, `toplevels`, `resize`, `present`, `status`, `actions`, `css`, `gsettings`, `instances`.
+
+| Option | Default | Description |
+|---|---|---|
+| `--bus-name <name>` | `gjsify.devtools.busNameBase`, else the storybook or browser app id | The app's D-Bus base name — its GTK application id. There is no derived fallback, because the bus name **is** the application id and a guess produces a name nothing answers to. |
+| `--address <addr>` | `GJSIFY_DEVTOOLS_ADDRESS`, then the address file the app publishes, then the session bus | Peer D-Bus address (`unix:path=…`, `nonce-tcp:…`) instead of the session bus — the only way to reach the app on macOS or Windows. |
+| `--instance <label>` | `GJSIFY_DEVTOOLS_INSTANCE` | Instance label of a multi-instance app. |
+| `--timeout <seconds>` | `30` | Poll `GetStatus` until the control plane answers. `0` does not wait. Polling rather than sleeping is deliberate: a cold start measured 94 s before the first call was served. |
+| `--globals <value>` | `auto` | Value for `gjsify build --globals`. |
+| `--out <path>` | `node_modules/.cache/gjsify-devtools` | Output bundle path. |
+
+The result goes to **stdout** and progress to **stderr**, so `$(gjsify devtools find …)` is the widget path. **Exit codes are the contract**: `0` done, `1` the app said no (no match, refused key, no image), `2` the request itself was wrong (unknown operation, no `--bus-name`). `shot` prints the size out of the PNG header rather than the size asked for — `ResizeWindow` answers with the size it was *asked* for, so a window that ignored the resize still reports success.
 
 ### `gjsify browse`
 
