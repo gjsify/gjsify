@@ -50,6 +50,7 @@
         "tests/e2e/flatpak/run.mjs": 258047,
         "tests/e2e/foreach-command/run.mjs": 34376,
         "tests/e2e/foreign-platform-paths-gate/run.mjs": 1273,
+        "tests/e2e/gi-optional/run.mjs": 2,
         "tests/e2e/gi-renderer-arms/run.mjs": 1,
         "tests/e2e/gi-runtime-prologue/run.mjs": 938,
         "tests/e2e/git-hooks-cli-bundle-staleness/run.mjs": 1297,

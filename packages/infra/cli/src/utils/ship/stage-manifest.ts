@@ -161,6 +161,18 @@ export interface StageManifest {
     mtime: number;
     /** GI namespaces the bundle imports, `Ns-Version` where the specifier pins one. */
     namespaces: string[];
+    /**
+     * The subset of {@link namespaces} the BUNDLE marks optional (ADR 0087).
+     *
+     * OPTIONAL on read, deliberately, and that is the {STAGE_SCHEMA_VERSION} header's
+     * "a field an older reader would simply ignore" case: a stage written before the
+     * split has no such key, and answering "nothing is optional" makes every
+     * namespace a `Depends:` again — today's behaviour, and the SAFE direction. A
+     * newer reader packing an OLDER stage therefore over-declares instead of dropping
+     * a requirement the artifact cannot run without, which is the one error here that
+     * ships a package that dies at first launch.
+     */
+    optionalNamespaces?: string[];
     settings: PackSettings;
     staged: StageFileRecord[];
     overlay: Partial<Record<FormatId, StageOverlayFile[]>>;
@@ -173,6 +185,8 @@ export interface StageManifestInput {
     formats: readonly FormatDescriptor[];
     mtime: number;
     namespaces: readonly string[];
+    /** The optional subset of {@link namespaces} — see {@link StageManifest}. */
+    optionalNamespaces?: readonly string[];
     staged: readonly StagedFile[];
     /** Per-format overlay, as `planOverlay` produced it. */
     overlay: ReadonlyMap<FormatId, readonly StagedFile[]>;
@@ -263,6 +277,7 @@ export function writeStageManifest(input: StageManifestInput): StageManifest {
         formats: input.formats.map((format) => format.id),
         mtime: input.mtime,
         namespaces: [...input.namespaces],
+        optionalNamespaces: [...(input.optionalNamespaces ?? [])],
         settings: toPackSettings(input.settings),
         staged: input.staged.map((file) => ({
             path: file.path,
@@ -369,6 +384,14 @@ export function readStageManifest(stageDir: string): StageManifest {
         namespaces: expectArray(data.namespaces, at('namespaces')).map((entry, index) =>
             expectString(entry, at(`namespaces[${index}]`)),
         ),
+        // Absent is the empty set, not an error — see the field's doc comment.
+        ...(data.optionalNamespaces === undefined
+            ? {}
+            : {
+                  optionalNamespaces: expectArray(data.optionalNamespaces, at('optionalNamespaces')).map(
+                      (entry, index) => expectString(entry, at(`optionalNamespaces[${index}]`)),
+                  ),
+              }),
         settings: readPackSettings(record(data.settings, at('settings')), at('settings')),
         staged: expectArray(data.staged, at('staged')).map((entry, index) => {
             const file = record(entry, at(`staged[${index}]`));

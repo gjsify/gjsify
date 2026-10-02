@@ -34,6 +34,19 @@
 // `walkModuleAst` answers both questions in ONE pass, and it is the same acorn
 // pass the CLI already uses to compute its own runtime closure — so there is one
 // definition of "what does this file import" rather than two.
+//
+// HARD OR OPTIONAL, since ADR 0087: a `gi://Ns?version=X&optional` import still
+// appears in the emitted file, so this scanner still reports its namespace — and
+// `depends.ts` has to know it may be absent. The discriminator is the marker
+// statement the bundler's own optional shim emits (`GI_OPTIONAL_MARKER`, imported
+// from the plugin that writes it rather than restated here). NOT the `import()`
+// SHAPE, which was the tempting reading of the same file: an app that writes its own
+// `await import('gi://Goa')` without the flag must stay a HARD dependency, and
+// classifying it as optional would move a package the host must have out of its
+// `Depends:` — the failure this whole chain exists to prevent, reached from the other
+// direction.
+
+import { GI_OPTIONAL_MARKER } from '@gjsify/rolldown-plugin-gjsify';
 
 import {
     importedSpecifier,
@@ -50,11 +63,32 @@ const NODE_GI_MODULE = '@gjsify/node-gi/gi';
 const NAMESPACE = /^[A-Za-z][A-Za-z\d_]*$/;
 
 /**
+ * What a bundle loads, split by whether the host must provide it.
+ *
+ * `namespaces` is the union — the same answer {@link scanGiNamespaces} has always
+ * given — and `optional` is the subset the artifact itself marks optional. A namespace
+ * in both is still a hard dependency as far as anything else is concerned: the
+ * importer asked for it both ways, and only one of those edges degrades.
+ */
+export interface GiRequirements {
+    /** Every GI namespace the bundle loads, `Ns-Version` where a specifier pins one. */
+    namespaces: string[];
+    /** The subset carrying the bundler's optional marker — absent is not fatal. */
+    optional: string[];
+}
+
+/**
  * Extract the GI namespaces a bundle imports, as `Ns-Version` when the
  * specifier pins one and bare `Ns` when it does not.
  */
 export function scanGiNamespaces(source: string): string[] {
+    return scanGiRequirements(source).namespaces;
+}
+
+/** {@link scanGiNamespaces}, plus which of them the artifact marks optional (ADR 0087). */
+export function scanGiRequirements(source: string): GiRequirements {
     const found = new Set<string>();
+    const optional = new Set<string>();
     // TWO SETS, because the two kinds of binding are not interchangeable and
     // treating them as one over-approximated on a real minified bundle. A
     // namespace object (`import * as gi`) and a required module object are only
@@ -98,10 +132,51 @@ export function scanGiNamespaces(source: string): string[] {
     });
 
     for (const call of calls) {
+        const marker = optionalMarkerNamespace(call);
+        if (marker !== null) {
+            optional.add(marker);
+            continue;
+        }
         const key = requireGiNamespace(call, callable, objects);
         if (key !== null) found.add(key);
     }
-    return [...found].sort();
+    return { namespaces: [...found].sort(), optional: [...optional].filter((ns) => found.has(ns)).sort() };
+}
+
+/**
+ * The namespace an optional-marker call names, or `null` when this is not one.
+ *
+ * The shape is the bundler's: `globalThis[Symbol.for(GI_OPTIONAL_MARKER)]?.("Ns", "X")`,
+ * matched on BOTH halves rather than on the whole statement — the minifier rewrites
+ * the string literals to backticks and the optional call to a `ChainExpression`
+ * around the `CallExpression` this walk still reaches, and a plain call (a host that
+ * has a handler the minifier could prove is non-null) reads the same way.
+ */
+function optionalMarkerNamespace(call: AstNode): string | null {
+    const callee = call.callee as AstNode | undefined;
+    if (callee?.type !== 'MemberExpression' || callee.computed !== true) return null;
+    // `globalThis[Symbol.for(KEY)]` — a computed member whose PROPERTY is the
+    // `Symbol.for` call, so the key is an argument of that inner call rather than
+    // of the outer one. Verified against acorn's own shape: `optional` chaining
+    // wraps the whole thing in a `ChainExpression`, which the walk descends into,
+    // so the `CallExpression` reaches this function either way.
+    const keyCall = callee.property as AstNode | undefined;
+    if (keyCall?.type !== 'CallExpression') return null;
+    const keyCallee = keyCall.callee as AstNode | undefined;
+    const keyObject = keyCallee?.type === 'MemberExpression' ? (keyCallee.object as AstNode | undefined) : undefined;
+    const keyProperty =
+        keyCallee?.type === 'MemberExpression' ? (keyCallee.property as AstNode | undefined) : undefined;
+    if (keyObject?.type !== 'Identifier' || keyObject.name !== 'Symbol') return null;
+    if (keyProperty?.type !== 'Identifier' || keyProperty.name !== 'for') return null;
+    const keyArgs = (keyCall.arguments as AstNode[] | undefined) ?? [];
+    if (staticStringValue(keyArgs[0] as SpecifierNode | undefined) !== GI_OPTIONAL_MARKER) return null;
+    const host = callee.object as AstNode | undefined;
+    if (host?.type !== 'Identifier' || host.name !== 'globalThis') return null;
+    const args = (call.arguments as AstNode[] | undefined) ?? [];
+    const namespace = staticStringValue(args[0] as SpecifierNode | undefined);
+    if (namespace === null || !NAMESPACE.test(namespace)) return null;
+    const version = staticStringValue(args[1] as SpecifierNode | undefined);
+    return version === null || version === '' ? namespace : `${namespace}-${version}`;
 }
 
 /** `gi://Gtk?version=4.0` → `Gtk-4.0`; `gi://Gtk` → `Gtk`; anything else → null. */

@@ -113,6 +113,7 @@
         "test:e2e:ns-platform-resolve": "node --test tests/e2e/ns-platform-resolve/run.mjs",
         "test:e2e:ns-vite-fixes": "node --test tests/e2e/ns-vite-fixes/run.mjs",
         "test:e2e:gi-renderer-arms": "node --test tests/e2e/gi-renderer-arms/run.mjs",
+        "test:e2e:gi-optional": "node --test tests/e2e/gi-optional/run.mjs",
         "test:e2e:gresource": "node --test tests/e2e/gresource/run.mjs",
         "test:e2e:publish": "node --test tests/e2e/publish/run.mjs",
         "test:e2e:onboard": "node --test tests/e2e/onboard/run.mjs",

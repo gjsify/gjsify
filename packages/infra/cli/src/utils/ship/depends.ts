@@ -252,6 +252,17 @@ export interface DependsInputs {
     /** GI namespaces the bundle imports, in `Ns-Version` spelling. */
     namespaces: readonly string[];
     /**
+     * The subset of {@link namespaces} the bundle declares OPTIONAL (ADR 0087 —
+     * `gi://Ns?version=X&optional`): a `Recommends:` entry, never a `Depends:`.
+     *
+     * Kept as its own list rather than filtered out of {@link namespaces}, because
+     * the AppImage has no package list at all and still has to SAY which of its host
+     * requirements are optional — and because a stage manifest written before the
+     * split carries no such field, where answering "everything is hard" is the safe
+     * direction.
+     */
+    optionalNamespaces?: readonly string[];
+    /**
      * Whether the payload installs into `share/icons/hicolor/`.
      *
      * Was `kind: 'app' | 'cli'`, which is a proxy for the question and not the question:
@@ -352,29 +363,59 @@ export function hostProvidedNamespaces(
 }
 
 /**
- * The `Depends:` / `Requires:` list for one format.
+ * One format's dependency lists, split by how hard the requirement is.
  *
- * @throws when a namespace has no entry in the table — see the module header.
+ * `requires` is what an absent package makes the app fail over; `recommends` is what
+ * its absence only costs. A namespace the BUNDLE marked optional (ADR 0087) is the
+ * second kind by declaration — the app's own `check()` degrades — and both `.deb`
+ * and `.rpm` have a field for it, so there is no reason to declare it hard.
  */
-export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): string[] {
+export interface DerivedDepends {
+    /** `Depends:` / `Requires:` — a package the artifact cannot run without. */
+    requires: string[];
+    /** `Recommends:` — installed by default where the format has such a field. */
+    recommends: string[];
+    /**
+     * Optional namespaces no table row is known for.
+     *
+     * REPORTED, never fatal: a `Recommends:` line for a namespace nobody mapped is
+     * the one case where saying nothing is correct — the app runs without the
+     * typelib either way, which is precisely what the flag declared. The HARD
+     * unmapped case still throws, below.
+     */
+    unmappedOptional: string[];
+}
+
+/**
+ * The `Depends:` / `Requires:` list for one format, plus its `Recommends:`.
+ *
+ * @throws when a HARD namespace has no entry in the table — see the module header.
+ */
+export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): DerivedDepends {
     // The interpreter the launcher execs, and nothing else: a package declares ONE.
     // Linux is the only place this is a dependency at all — macOS and Windows have
     // no system Node, so an artifact for those CARRIES one from
     // `@gjsify/node-runtime-<target>`, and that is the whole reason those three
     // packages exist and this one line is their opposite.
-    const out: string[] =
+    const requires: string[] =
         inputs.interpreter === 'node'
             ? [`${NODE_PACKAGE[format]} >= ${inputs.minNodeVersion ?? DEFAULT_NODE_FLOOR}`]
             : [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
+    const recommends: string[] = [];
+    const optional = new Set(inputs.optionalNamespaces ?? []);
     const unmapped: string[] = [];
+    const unmappedOptional: string[] = [];
 
     for (const namespace of hostProvidedNamespaces(inputs.namespaces, inputs.bundledTypelibs)) {
         const entry = lookupTypelib(namespace, inputs.typelibPackages);
         if (entry === undefined) {
-            unmapped.push(namespace);
+            (optional.has(namespace) ? unmappedOptional : unmapped).push(namespace);
             continue;
         }
-        out.push(entry[format]);
+        // A namespace imported both ways is a HARD dependency — one importer asked
+        // for it unguarded — and a package manager field may not name it twice.
+        if (optional.has(namespace) && !requires.includes(entry[format])) recommends.push(entry[format]);
+        else requires.push(entry[format]);
     }
 
     if (unmapped.length > 0) {
@@ -393,7 +434,7 @@ export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): st
 
     // The package that owns `/usr/share/icons/hicolor` — so this follows the icons, not the
     // app/cli distinction that used to stand in for them.
-    if (inputs.hasIcons) out.push('hicolor-icon-theme');
+    if (inputs.hasIcons) requires.push('hicolor-icon-theme');
     // The package that ships `glib-compile-schemas`, NOT `gsettings-desktop-schemas`
     // (which ships GNOME's own `org.gnome.desktop.*` schemas and has nothing to
     // do with compiling ours). Measured: `rpm -qf /usr/bin/glib-compile-schemas`
@@ -402,12 +443,16 @@ export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): st
     // silently skips, the schema is never compiled, and the first
     // `Gio.Settings.new()` aborts the app — an install that succeeds and an app
     // that does not start.
-    if (inputs.hasSchemas) out.push(SCHEMA_COMPILER_PACKAGE[format]);
-    out.push(...inputs.extra);
+    if (inputs.hasSchemas) requires.push(SCHEMA_COMPILER_PACKAGE[format]);
+    requires.push(...inputs.extra);
 
     // Set-dedupe keeps first-insertion order, so the interpreter stays first and
     // the list is stable across runs.
-    return [...new Set(out)];
+    return {
+        requires: [...new Set(requires)],
+        recommends: [...new Set(recommends)].filter((name) => !requires.includes(name)),
+        unmappedOptional,
+    };
 }
 
 /**

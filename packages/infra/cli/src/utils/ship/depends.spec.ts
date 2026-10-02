@@ -19,7 +19,11 @@ import {
 } from './depends.js';
 import { resolveFormats } from './formats.js';
 import { LAYOUTS } from './layout.js';
-import { parseGiSpecifier, scanGiNamespaces } from './gi-namespaces.js';
+import { parseGiSpecifier, scanGiNamespaces, scanGiRequirements } from './gi-namespaces.js';
+// The shim that WRITES the optional marker, imported rather than restated: the
+// reader's job is to recognise the shape its sibling emits, and a copy of that
+// shape in a test is a copy that keeps agreeing with itself.
+import { giOptionalShimSource, giOptionalNodeShimSource } from '@gjsify/rolldown-plugin-gjsify';
 
 const base = { hasIcons: true, hasSchemas: false, interpreter: 'gjs' as const, extra: [] };
 
@@ -28,7 +32,7 @@ export default async () => {
         await it('needs no distro package for a typelib the payload carries', async () => {
             // `Gwebgl` has no `gir1.2-…` anywhere: it arrives as an npm prebuild. Without this the
             // check fails every project that uses gjsify's WebGL bridge.
-            const depends = deriveDepends('deb', {
+            const { requires } = deriveDepends('deb', {
                 namespaces: ['Gtk-4.0', 'Gwebgl-0.1'],
                 hasIcons: true,
                 hasSchemas: false,
@@ -36,8 +40,8 @@ export default async () => {
                 extra: [],
                 bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib', '/p/gi/libgwebgl.so'],
             });
-            expect(depends.some((d) => d.includes('gwebgl'))).toBe(false);
-            expect(depends.some((d) => d.includes('gtk-4'))).toBe(true);
+            expect(requires.some((d) => d.includes('gwebgl'))).toBe(false);
+            expect(requires.some((d) => d.includes('gtk-4'))).toBe(true);
         });
 
         await it('still fails for a namespace nothing ships and nothing maps', async () => {
@@ -57,14 +61,14 @@ export default async () => {
 
         await it('maps namespaces to the package that ships the typelib, per format', async () => {
             const namespaces = ['Gtk-4.0', 'Adw-1', 'Gio-2.0'];
-            expect(deriveDepends('deb', { ...base, namespaces })).toStrictEqual([
+            expect(deriveDepends('deb', { ...base, namespaces }).requires).toStrictEqual([
                 'gjs >= 1.86',
                 'gir1.2-adw-1',
                 'gir1.2-glib-2.0',
                 'gir1.2-gtk-4.0',
                 'hicolor-icon-theme',
             ]);
-            expect(deriveDepends('rpm', { ...base, namespaces })).toStrictEqual([
+            expect(deriveDepends('rpm', { ...base, namespaces }).requires).toStrictEqual([
                 'gjs >= 1.86',
                 'libadwaita',
                 'glib2',
@@ -74,12 +78,12 @@ export default async () => {
         });
 
         await it('collapses namespaces that share one package', async () => {
-            const depends = deriveDepends('rpm', { ...base, namespaces: ['Gtk-4.0', 'Gdk-4.0', 'Gsk-4.0'] });
-            expect(depends.filter((entry) => entry === 'gtk4').length).toBe(1);
+            const { requires } = deriveDepends('rpm', { ...base, namespaces: ['Gtk-4.0', 'Gdk-4.0', 'Gsk-4.0'] });
+            expect(requires.filter((entry) => entry === 'gtk4').length).toBe(1);
         });
 
         await it('resolves an unpinned specifier when the table has exactly one version', async () => {
-            expect(deriveDepends('rpm', { ...base, namespaces: ['Gtk'] })).toContain('gtk4');
+            expect(deriveDepends('rpm', { ...base, namespaces: ['Gtk'] }).requires).toContain('gtk4');
         });
 
         await it('FAILS on a namespace it cannot map, naming it and the escape hatch', async () => {
@@ -96,7 +100,7 @@ export default async () => {
             // — so the unmapped-namespace failure is the wrong answer here, and
             // until this it made `gjsify ship` throw for every such project.
             expect(
-                deriveDepends('deb', { ...base, namespaces: ['GjsifyHttpSoupBridge-1.0', 'Gtk-4.0'] }),
+                deriveDepends('deb', { ...base, namespaces: ['GjsifyHttpSoupBridge-1.0', 'Gtk-4.0'] }).requires,
             ).toStrictEqual(['gjs >= 1.86', 'gir1.2-gtk-4.0', 'hicolor-icon-theme']);
             // Anchored on the PascalCase the bridge builds emit, so a real
             // system namespace that merely starts with those letters still has
@@ -105,12 +109,12 @@ export default async () => {
         });
 
         await it('accepts a namespace once the project supplies the row', async () => {
-            const depends = deriveDepends('deb', {
+            const { requires } = deriveDepends('deb', {
                 ...base,
                 namespaces: ['Nautilus-3.0'],
                 typelibPackages: { 'Nautilus-3.0': { deb: 'gir1.2-nautilus-3.0', rpm: 'nautilus' } },
             });
-            expect(depends).toContain('gir1.2-nautilus-3.0');
+            expect(requires).toContain('gir1.2-nautilus-3.0');
         });
 
         await it('does NOT let free-form `depends` silence an unmapped namespace', async () => {
@@ -127,13 +131,15 @@ export default async () => {
             // `gir1.2-*` pulls in, so naming the wrong one means the postinst's
             // `command -v` guard skips, the schema is never compiled, and the
             // first `Gio.Settings.new()` aborts the app.
-            expect(deriveDepends('rpm', { ...base, namespaces: [], hasSchemas: true })).toContain('glib2');
-            expect(deriveDepends('deb', { ...base, namespaces: [], hasSchemas: true })).toContain('libglib2.0-bin');
-            expect(deriveDepends('deb', { ...base, namespaces: [] })).not.toContain('libglib2.0-bin');
+            expect(deriveDepends('rpm', { ...base, namespaces: [], hasSchemas: true }).requires).toContain('glib2');
+            expect(deriveDepends('deb', { ...base, namespaces: [], hasSchemas: true }).requires).toContain(
+                'libglib2.0-bin',
+            );
+            expect(deriveDepends('deb', { ...base, namespaces: [] }).requires).not.toContain('libglib2.0-bin');
         });
 
         await it('appends the configured extras last, deduplicated', async () => {
-            expect(deriveDepends('rpm', { ...base, namespaces: [], extra: ['gtk4', 'dconf'] })).toStrictEqual([
+            expect(deriveDepends('rpm', { ...base, namespaces: [], extra: ['gtk4', 'dconf'] }).requires).toStrictEqual([
                 'gjs >= 1.86',
                 'hicolor-icon-theme',
                 'gtk4',
@@ -142,7 +148,9 @@ export default async () => {
         });
 
         await it('honours a lowered GJS floor', async () => {
-            expect(deriveDepends('deb', { ...base, namespaces: [], minGjsVersion: '1.82' })[0]).toBe('gjs >= 1.82');
+            expect(deriveDepends('deb', { ...base, namespaces: [], minGjsVersion: '1.82' }).requires[0]).toBe(
+                'gjs >= 1.82',
+            );
         });
 
         await it('spells the Node dependency differently per format, because the names differ', async () => {
@@ -151,13 +159,15 @@ export default async () => {
             // `--whatprovides 'nodejs >= 24'` answers nodejs22-1:22.23.1,
             // because the virtual `nodejs` Provide carries Epoch 1 and a bare
             // `>= 24` desugars to `0:24`. `nodejs(engine)` has no epoch.
-            expect(deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' })).toContain(
+            expect(deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' }).requires).toContain(
                 'nodejs(engine) >= 24',
             );
-            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' })).toContain('nodejs >= 24');
+            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' }).requires).toContain(
+                'nodejs >= 24',
+            );
             // The rpm spelling must never leak into a Debian `Depends:` — the
             // failure `SCHEMA_COMPILER_PACKAGE`'s header records, one row over.
-            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' })).not.toContain(
+            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' }).requires).not.toContain(
                 'nodejs(engine) >= 24',
             );
         });
@@ -168,18 +178,18 @@ export default async () => {
             // heuristic, so a package could declare both — and a `>= 24` floor is
             // unsatisfiable on every current DEB stable, which turns a working
             // GJS package into one apt refuses everywhere.
-            const gjs = deriveDepends('rpm', { ...base, namespaces: [] });
+            const gjs = deriveDepends('rpm', { ...base, namespaces: [] }).requires;
             expect(gjs[0]).toBe('gjs >= 1.86');
             expect(gjs.some((d) => d.startsWith('nodejs'))).toBe(false);
 
-            const node = deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' });
+            const node = deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' }).requires;
             expect(node[0]).toBe('nodejs(engine) >= 24');
             expect(node.some((d) => d.startsWith('gjs'))).toBe(false);
         });
 
         await it('honours a lowered Node floor', async () => {
             expect(
-                deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node', minNodeVersion: '20' }),
+                deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node', minNodeVersion: '20' }).requires,
             ).toContain('nodejs >= 20');
         });
 
@@ -200,6 +210,89 @@ export default async () => {
             for (const namespace of ['Gtk-4.0', 'Adw-1', 'GLib-2.0', 'Gio-2.0', 'GObject-2.0', 'GtkSource-5']) {
                 expect(knownNamespaces()).toContain(namespace);
             }
+        });
+
+        // ── hard vs optional (ADR 0087) ────────────────────────────────────
+
+        await it('puts an optional typelib in Recommends, never in Depends', async () => {
+            // THE POINT OF THE SPLIT. `&optional` means the app has a degrade path,
+            // and a hard `Depends:` turns that declaration into the opposite: apt
+            // REFUSES to install the package without the typelib, so the feature
+            // the author made optional decides whether the app exists on the
+            // machine.
+            const derived = deriveDepends('deb', {
+                ...base,
+                namespaces: ['Gtk-4.0', 'Notify-0.7'],
+                optionalNamespaces: ['Notify-0.7'],
+            });
+            expect(derived.requires).toContain('gir1.2-gtk-4.0');
+            expect(derived.requires).not.toContain('gir1.2-notify-0.7');
+            expect(derived.recommends).toStrictEqual(['gir1.2-notify-0.7']);
+        });
+
+        await it('maps the optional half per format, like the hard half', async () => {
+            const derived = deriveDepends('rpm', {
+                ...base,
+                namespaces: ['Gtk-4.0', 'Notify-0.7'],
+                optionalNamespaces: ['Notify-0.7'],
+            });
+            expect(derived.requires).toContain('gtk4');
+            expect(derived.requires).not.toContain('libnotify');
+            expect(derived.recommends).toStrictEqual(['libnotify']);
+        });
+
+        await it('never names a package in both lists', async () => {
+            // A namespace imported both ways is a HARD dependency — one importer
+            // asked for it unguarded — and dpkg would reject a package whose
+            // `Depends:` and `Recommends:` disagree about the same name.
+            const derived = deriveDepends('deb', {
+                ...base,
+                namespaces: ['Gtk-4.0', 'Gdk-4.0', 'Notify-0.7'],
+                optionalNamespaces: ['Gdk-4.0', 'Notify-0.7'],
+            });
+            expect(derived.requires).toContain('gir1.2-gtk-4.0');
+            expect(derived.recommends).not.toContain('gir1.2-gtk-4.0');
+            expect(derived.recommends).toStrictEqual(['gir1.2-notify-0.7']);
+        });
+
+        await it('does not fail the build for an optional namespace nothing maps', async () => {
+            // THE ASYMMETRY, and it is deliberate. An unmapped HARD namespace
+            // fails the build because a package with a silent dependency dies on
+            // the user's machine after the download. An unmapped OPTIONAL one
+            // cannot: the app runs without the typelib by declaration, so there
+            // is nothing to be wrong about — it is REPORTED instead.
+            const derived = deriveDepends('deb', {
+                ...base,
+                namespaces: ['Nautilus-3.0'],
+                optionalNamespaces: ['Nautilus-3.0'],
+            });
+            expect(derived.requires).toStrictEqual(['gjs >= 1.86', 'hicolor-icon-theme']);
+            expect(derived.recommends).toStrictEqual([]);
+            expect(derived.unmappedOptional).toStrictEqual(['Nautilus-3.0']);
+            // And the same namespace, hard, still refuses — the optional list must
+            // not become a hatch that turns the check off.
+            expect(() => deriveDepends('deb', { ...base, namespaces: ['Nautilus-3.0'] })).toThrow('gi://Nautilus');
+        });
+
+        await it('recommends an optional namespace the project did map', async () => {
+            const derived = deriveDepends('deb', {
+                ...base,
+                namespaces: ['Nautilus-3.0'],
+                optionalNamespaces: ['Nautilus-3.0'],
+                typelibPackages: { 'Nautilus-3.0': { deb: 'gir1.2-nautilus-3.0', rpm: 'nautilus' } },
+            });
+            expect(derived.recommends).toStrictEqual(['gir1.2-nautilus-3.0']);
+            expect(derived.unmappedOptional).toStrictEqual([]);
+        });
+
+        await it('recommends nothing when the bundle marks nothing optional', async () => {
+            // The stage-manifest path: a stage written before the split carries no
+            // `optionalNamespaces`, and the safe reading of that is "everything is
+            // hard" — today's behaviour, over-declaring rather than dropping a
+            // requirement the app cannot start without.
+            const derived = deriveDepends('deb', { ...base, namespaces: ['Gtk-4.0', 'Notify-0.7'] });
+            expect(derived.recommends).toStrictEqual([]);
+            expect(derived.requires).toContain('gir1.2-notify-0.7');
         });
     });
 
@@ -406,6 +499,72 @@ export default async () => {
             expect(parseGiSpecifier('gi://Gtk?version=4.0')).toBe('Gtk-4.0');
             expect(parseGiSpecifier('gi://Gtk')).toBe('Gtk');
             expect(parseGiSpecifier('node:fs')).toBe(null);
+        });
+
+        await it('still reports an optional namespace among the namespaces', async () => {
+            // `namespaces` is the union, unchanged: an optional namespace IS
+            // imported, and every reader that only asks "what does this bundle
+            // load" keeps its answer.
+            const scanned = scanGiRequirements(
+                `${giOptionalShimSource('gi://Notify?version=0.7', 'Notify', '0.7')}\nimport Gtk from "gi://Gtk?version=4.0";\nconsole.log(Gtk);\n`,
+            );
+            expect(scanned.namespaces).toStrictEqual(['Gtk-4.0', 'Notify-0.7']);
+            expect(scanned.optional).toStrictEqual(['Notify-0.7']);
+        });
+
+        await it('reads the marker the --app gjs shim emits', async () => {
+            // VERBATIM from the plugin that writes it, so this fails when the shim
+            // changes shape rather than when the reader drifts from a copy of it.
+            const scanned = scanGiRequirements(giOptionalShimSource('gi://Soup?version=3.0', 'Soup', '3.0'));
+            expect(scanned.namespaces).toStrictEqual(['Soup-3.0']);
+            expect(scanned.optional).toStrictEqual(['Soup-3.0']);
+        });
+
+        await it('reads the marker in a MINIFIED bundle, where the strings are template literals', async () => {
+            // Minify is the build's default and rewrites `"Soup"` to `` `Soup` ``,
+            // the exact rewriting `staticStringValue` exists for — which is why the
+            // reader goes through it instead of comparing the emitted text.
+            const minified = giOptionalShimSource('gi://Soup?version=3.0', 'Soup', '3.0').replaceAll('"', '`');
+            expect(scanGiRequirements(minified).optional).toStrictEqual(['Soup-3.0']);
+        });
+
+        await it('reads the marker the --app node shim emits, which has no gi:// specifier at all', async () => {
+            // The node bundle carries `requireGi("Soup","3.0")` and NO `gi://`
+            // specifier, so this is the shape `ship` must classify for a node
+            // artifact — the case the gjs arm alone answers `[]` to.
+            const scanned = scanGiRequirements(giOptionalNodeShimSource('Soup', '3.0'));
+            expect(scanned.namespaces).toStrictEqual(['Soup-3.0']);
+            expect(scanned.optional).toStrictEqual(['Soup-3.0']);
+        });
+
+        await it('does NOT treat an unflagged dynamic import as optional', async () => {
+            // THE DISCRIMINATOR, and the reason the reader is not a shape test. An
+            // app may write `await import("gi://Soup?version=3.0")` itself with no
+            // flag; reading that shape as optional would move a package the host
+            // must provide out of `Depends:` — the failure this chain exists to
+            // prevent, reached from the other direction.
+            const scanned = scanGiRequirements('try { await import("gi://Soup?version=3.0"); } catch { }\n');
+            expect(scanned.namespaces).toStrictEqual(['Soup-3.0']);
+            expect(scanned.optional).toStrictEqual([]);
+        });
+
+        await it('reads no marker out of a foreign globalThis call', async () => {
+            // The KEY is matched, not the callee: an app's own
+            // `globalThis[Symbol.for("app.events")].emit("Soup","3.0")` must not
+            // become an optional GI dependency, for the same reason a foreign
+            // `requireGi` is not read — over-approximating fails the build.
+            const foreign =
+                'globalThis[Symbol.for("app.events")].emit("Soup", "3.0");\nconst m = await import("gi://Soup?version=3.0");\n';
+            expect(scanGiRequirements(foreign).optional).toStrictEqual([]);
+        });
+
+        await it('lets the marker only SHRINK the namespace list, never invent one', async () => {
+            // A hand-planted marker must not smuggle a namespace past the
+            // unmapped-namespace check into a Recommends entry.
+            const planted = 'globalThis[Symbol.for("gjsify.optionalGi")]?.("Ghost", "1.0");';
+            const scanned = scanGiRequirements(planted);
+            expect(scanned.namespaces).toStrictEqual([]);
+            expect(scanned.optional).toStrictEqual([]);
         });
     });
 };

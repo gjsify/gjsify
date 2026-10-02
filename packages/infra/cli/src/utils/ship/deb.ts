@@ -34,6 +34,16 @@ export interface DebInputs {
     prefix: string;
     /** Already-derived dependency list, in `name`/`name >= version` form. */
     depends: readonly string[];
+    /**
+     * Soft dependencies, rendered as `Recommends:`.
+     *
+     * Debian Policy § 7.2: a recommended package is installed by default and
+     * `--no-install-recommends` is the user's way out. That is what an `&optional`
+     * typelib is (ADR 0087) — the app runs without it and loses a feature — so
+     * putting it in `Depends:` would let an optional integration decide whether
+     * the package installs at all.
+     */
+    recommends?: readonly string[];
     /** Debian architecture (`amd64`, `all`, …). */
     archLabel: string;
     /** Unix seconds stamped into every header. */
@@ -132,6 +142,13 @@ function renderControl(inputs: DebInputs, installedSize: number): string {
         ['Installed-Size', String(installedSize)],
     ];
     if (inputs.depends.length > 0) fields.push(['Depends', inputs.depends.map(formatDebDepend).join(', ')]);
+    // After `Depends`, which is the field order dpkg-deb --control writes and the
+    // one `grep '^Depends:'` on a control file assumes. Omitted when empty rather
+    // than written as `Recommends:` with nothing after it — a field with an empty
+    // value is a parse error here, the same reason `formatDebDepend` exists.
+    if (inputs.recommends !== undefined && inputs.recommends.length > 0) {
+        fields.push(['Recommends', inputs.recommends.map(formatDebDepend).join(', ')]);
+    }
     fields.push(['Section', settings.section], ['Priority', 'optional']);
     if (settings.homepage) fields.push(['Homepage', settings.homepage]);
 

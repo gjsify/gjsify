@@ -222,12 +222,24 @@ export function appImageHostRequirements(input: {
     minGjsVersion?: string;
     minNodeVersion?: string;
     namespaces: readonly string[];
+    /**
+     * The subset of {@link namespaces} the bundle marks optional (ADR 0087).
+     *
+     * An AppImage has no `Depends:` field, so "optional" cannot become a package
+     * list here — it becomes WORDING instead. That is not cosmetic: an AppRun user
+     * told a typelib is required and lacking it goes looking for another distro
+     * package, while one told it is optional reads the same sentence correctly.
+     */
+    optionalNamespaces?: readonly string[];
     bundledTypelibs?: readonly string[];
 }): string[] {
     const floor = interpreterFloor(input);
+    const optional = new Set(input.optionalNamespaces ?? []);
     return [
         `${input.app} (>= ${floor})`,
-        ...hostProvidedNamespaces(input.namespaces, input.bundledTypelibs).map((ns) => `the ${ns} typelib`),
+        ...hostProvidedNamespaces(input.namespaces, input.bundledTypelibs).map((ns) =>
+            optional.has(ns) ? `the ${ns} typelib (optional)` : `the ${ns} typelib`,
+        ),
     ];
 }
 
