@@ -21,7 +21,11 @@
 //
 // Reference: refs/gtk/gtk/gtkfontdialogbutton.c (font_desc, font_description_style_equal,
 //   update_font_info's size format, apply_use_font)
-// Reference: refs/gtk/gtk/gtkfonts.c (`pango_font_description_to_string`'s word order)
+// `pango_font_description_to_string` itself is PANGO's, not GTK's: the pinned refs/gtk has no
+// pango/ tree, so the word order above is transcribed from Pango's own
+// `pango_font_description_to_string` and there is no refs/ coordinate for a reader to open.
+// `refs/gtk/gtk/gtkfontchooserwidget.c:1549` is the GTK-side counterpart — GTK's one call
+// site that puts the round-tripped string back on the wire.
 // Copyright (c) GNOME contributors (Pango). LGPLv2.1+.
 // Modifications: Implemented for @gjsify/adwaita-web as plain data.
 

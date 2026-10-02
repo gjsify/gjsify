@@ -4,7 +4,7 @@
 // The node is `scalebutton.scale` holding `button.toggle`
 // (gtkscalebutton.c:87-97), and the DOCK is a `GtkPopover` with the `scale-popup` style
 // class holding a box of [minus, scale, plus] with 4px margins and 4px spacing
-// (gtkscalebutton.ui) — all three of those numbers restated here, because the box is the
+// (gtk/ui/gtkscalebutton.ui) — all three of those numbers restated here, because the box is the
 // dock's whole layout and GTK sizes the scale to `SCALE_SIZE` (100px) along its axis.
 //
 // The RANGE ITSELF is libadwaita's `scale` node (_scale.scss:19-251): the 12px padding,
@@ -19,7 +19,7 @@
 //
 // Reference: refs/gtk/gtk/gtkscalebutton.c:87-97 (the node), :869-889 (the orientation),
 //   :1099-1100 (the steppers' sensitivity)
-// Reference: refs/gtk/gtk/gtkscalebutton.ui (the dock, its box, its margins)
+// Reference: refs/gtk/gtk/ui/gtkscalebutton.ui:13-25 (the dock, its box, its margins)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss:1-60 (trough, highlight, slider)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web — the scale is `<input type="range">`

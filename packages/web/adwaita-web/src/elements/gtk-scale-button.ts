@@ -1,7 +1,7 @@
 // <gtk-scale-button> — a button whose press opens a scale: the volume control of a
 // media player, the brightness slider of a toolbar. GTK builds it from a TOGGLE BUTTON
 // with an icon plus a popover ("dock") holding a box of [minus, scale, plus]
-// (gtkscalebutton.ui), and every rule below is transcribed from the C rather than
+// (gtk/ui/gtkscalebutton.ui), and every rule below is transcribed from the C rather than
 // guessed, because most of them are visible and none is "the slider just works".
 //
 //   · THE ICON FOLLOWS THE VALUE. `gtk_scale_button_update_icon` (:1040-1098): no icon
@@ -40,7 +40,7 @@
 //
 // Reference: refs/gtk/gtk/gtkscalebutton.c (icon selection, orientation, the steppers,
 //   the scroll handler, the key bindings)
-// Reference: refs/gtk/gtk/gtkscalebutton.ui (the template: the dock and its box)
+// Reference: refs/gtk/gtk/ui/gtkscalebutton.ui:13-56 (the template: the dock and its box)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss (trough, highlight, slider)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
@@ -152,7 +152,7 @@ export class GtkScaleButton extends HTMLElement {
         box.append(this._minusEl, this._rangeEl, this._plusEl);
 
         this._dockEl = document.createElement('gtk-popover') as GtkPopover;
-        // `gtkscalebutton.ui` gives the dock the `scale-popup` style class.
+        // `gtk/ui/gtkscalebutton.ui` gives the dock the `scale-popup` style class.
         this._dockEl.classList.add('scale-popup');
         this._dockEl.replaceChildren(box);
         this._dockEl.anchor = this._buttonEl;
