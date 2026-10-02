@@ -518,3 +518,44 @@ it stays where clause 4 put it. What is owed is a `refused/` file naming the cla
 changes, and a line in the flip's decision: a build that trips a type error gets it from the
 compiler, and the in-repo parser is not that reader.
 
+
+### A typed `.blp` export cannot be `readonly`, because `@girs` declares `InternalChildren` mutable
+
+ADR 0088 emits `export declare const InternalChildren: ['menuButton']` — an exact tuple, and
+deliberately NOT `readonly`. `GObject.MetaInfo['InternalChildren']` is `string[]` in
+`@girs/gobject-2.0` 5.4.0, and a `readonly` tuple is not assignable to a mutable array: measured
+on TypeScript 6.0.3, `registerClass({ GTypeName, Template, InternalChildren }, this)` fails with
+TS4104 "The type 'readonly [\"menuButton\"]' is 'readonly' and cannot be assigned to the mutable
+type 'string[]'". The consumer's way out is `InternalChildren: [...InternalChildren]`, which is a
+line of boilerplate back at the import site — the one thing ADR 0088 exists to remove.
+
+A mutable tuple loses nothing that matters: it still pins the exact ids and the arity, so a
+renamed id in the `.blp` still reds the consumer's type-check. What it admits is a `.push()` on a
+list nobody mutates.
+
+The root fix is upstream and it is OURS: `MetaInfo` should declare `readonly string[]` for
+`InternalChildren`, `Implements`, `Requires` and `CssName`-adjacent arrays — a widened PARAMETER
+type, so every existing caller keeps compiling. That lands in ts-for-gir, ships in the next
+`@girs` release, and the pinned bump here is where this sidecar can tighten by one word.
+
+### The other in-repo `.blp` consumers still transcribe their ids by hand
+
+ADR 0088 migrated `showcases/gtk/adw-blueprint-layout` (both files) and proved the shape: GJS
+probe PASS, both bundles build, sidecars committed and gated. Not migrated:
+
+- `showcases/gtk/effect-adw-services` — 5 internal children
+- `showcases/dom/{canvas2d-fireworks,excalibur-jelly-jumper,three-geometry-teapot,three-loader-ldraw,three-postprocessing-pixel}`
+  — 4–8 internal children each
+- `templates/{adw-canvas2d,adw-game,adw-webgl,gtk-minimal}` — the scaffolds `gjsify create` copies
+
+Each is mechanical — `gjsify blueprint types <dir>`, `allowArbitraryExtensions` in its tsconfig,
+`declare private _x` deleted in favour of `extends Children` — and each is a separate verification,
+because the DOM showcases each carry their own probe. The templates are NOT mechanical and were
+held back on purpose: migrating a scaffold changes what every new project starts with, and the
+`.d.blp.ts` would travel through `process-template` into `dist-templates/`. Decide that
+deliberately rather than as a sweep.
+
+The migration is also where a WRONG hand-written declaration surfaces: the derivation reads the
+`.blp`'s own type reference, so a `declare private _x: Adw.ActionRow` over a `Gtk.ListBoxRow` in
+the template stops compiling. That is the point, and it is why this is one review per consumer
+rather than one commit.

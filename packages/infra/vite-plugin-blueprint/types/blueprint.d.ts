@@ -1,3 +1,16 @@
+/**
+ * The FALLBACK, and only the fallback, since ADR 0088.
+ *
+ * A `.blp` with an `x.d.blp.ts` sidecar beside it is typed by that sidecar instead — measured on
+ * TypeScript 6.0.3, a sidecar read under `allowArbitraryExtensions` wins over this wildcard. This
+ * stays because the migration is per-file and must be: a `.blp` with no sidecar keeps typing as
+ * the XML string it has always been, so nothing had to move when the named exports landed.
+ *
+ * It is also what makes the missing-sidecar case LOUD rather than silent. A consumer writing
+ * `import { build } from './x.blp'` against a file with no sidecar lands here, where only
+ * `default` exists, and `tsc` reports TS2614 naming each missing member — which is why
+ * `scripts/check-blueprint-sidecars.mjs` does not check for that case itself.
+ */
 declare module '*.blp' {
     const content: string;
     export default content;

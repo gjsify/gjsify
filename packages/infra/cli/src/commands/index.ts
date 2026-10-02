@@ -44,3 +44,4 @@ export * from './debug.js';
 export * from './devtools.js';
 export * from './browse.js';
 export { webextCommand } from './webext/index.js';
+export { blueprintCommand, blueprintTypesCommand } from './blueprint/index.js';

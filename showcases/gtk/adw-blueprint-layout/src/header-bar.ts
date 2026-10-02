@@ -12,15 +12,21 @@
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
-import type Gtk from 'gi://Gtk?version=4.0';
 
-import Template from './header-bar.blp';
+import Template, { type Children, GTypeName, InternalChildren } from './header-bar.blp';
+
+// ADR 0088: the class name, the id list and the type of every internal child come from the
+// `.blp` that declares them — rename `menuButton` there and THIS file stops compiling, where
+// the three hand-written copies used to stay valid while `_menuButton` read `undefined` at run
+// time. `extends Children` on a merged interface and never fields in the class body:
+// `registerClass` installs the members, so a field would be `undefined` at construction and
+// shadow them — which is why the rule below is disabled rather than obeyed.
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children, so a class field would shadow them
+export interface GalleryHeaderBar extends Children {}
 
 export class GalleryHeaderBar extends Adw.Bin {
-    declare private _menuButton: Gtk.MenuButton;
-
     static {
-        GObject.registerClass({ GTypeName: 'GalleryHeaderBar', Template, InternalChildren: ['menuButton'] }, this);
+        GObject.registerClass({ GTypeName, Template, InternalChildren }, this);
     }
 
     constructor() {

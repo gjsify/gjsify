@@ -14,8 +14,9 @@
 // wiring is wrong — `orientation: vertical` is `1` only through `resolveIdent`, and
 // `Gtk.ApplicationWindow` is `GtkApplicationWindow` only through `gtypeName`.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
     BlueprintEmitError,
@@ -49,6 +50,25 @@ const refusalLine = (file: string): number => {
     if (!entry) throw new Error(`corpus/refused/${file} is in no CORPUS_REFUSALS entry`);
     return entry.line;
 };
+
+/**
+ * The `const xml = …; export default xml;` pair ADR 0088 made the XML exit emit.
+ *
+ * The golden BYTES are still what is compared — that is the property this suite exists for —
+ * and only the wrapper around them moved: the XML became a binding so `build()` can read it
+ * without a second copy of the string in the module.
+ */
+const xmlModule = (golden: string) => `const xml = ${JSON.stringify(golden)};\nexport default xml;`;
+
+/**
+ * The plugin under test, with sidecar writing OFF.
+ *
+ * Every `.blp` this suite loads is a file the repository tracks, so a default-options plugin
+ * would write a `.d.blp.ts` beside each one as a side effect of running the tests — a test run
+ * that dirties the working tree. The one case that does want a write asks for it explicitly,
+ * against a file it created itself.
+ */
+const pluginUnderTest = () => blueprintPlugin({ sidecars: false });
 
 /** The plugin's `load` hook, as a plain callable. Nothing in it reads the Rollup context. */
 const loadOf = (plugin: Plugin) => {
@@ -120,13 +140,15 @@ export default async () => {
                 'utf8',
             );
 
-            const loaded = await loadOf(blueprintPlugin())(source);
+            const loaded = await loadOf(pluginUnderTest())(source);
 
-            expect(loaded).toBe(`export default ${JSON.stringify(golden)};`);
+            // The golden bytes, and the named exports the file's own template earns beside them.
+            expect((loaded as string).startsWith(xmlModule(golden))).toBe(true);
+            expect((loaded as string).includes("export const GTypeName = 'MainWindow';")).toBe(true);
         });
 
         await it('leaves a file that is not a .blp to the next plugin', async () => {
-            expect(await loadOf(blueprintPlugin())(join(repoRoot, 'package.json'))).toBe(undefined);
+            expect(await loadOf(pluginUnderTest())(join(repoRoot, 'package.json'))).toBe(undefined);
         });
 
         await it('refuses a construct outside the subset, naming the file and the line', async () => {
@@ -138,7 +160,7 @@ export default async () => {
             const source = join(blueprintDir, `corpus/refused/${file}`);
             let thrown: unknown;
             try {
-                await loadOf(blueprintPlugin())(source);
+                await loadOf(pluginUnderTest())(source);
             } catch (error) {
                 thrown = error;
             }
@@ -158,7 +180,7 @@ export default async () => {
             const source = join(blueprintDir, 'corpus/refused/bad-escape.blp');
             let thrown: unknown;
             try {
-                await loadOf(blueprintPlugin())(source);
+                await loadOf(pluginUnderTest())(source);
             } catch (error) {
                 thrown = error;
             }
@@ -181,9 +203,11 @@ export default async () => {
                 join(blueprintDir, 'corpus/real/showcases_gtk_effect-adw-services_src_window.ui'),
                 'utf8',
             );
-            const plugin = blueprintPlugin();
+            const plugin = pluginUnderTest();
 
-            expect(await loadOf(plugin)(source)).toBe(`export default ${JSON.stringify(golden)};`);
+            expect(((await loadOf(plugin)(source)) as string).startsWith(xmlModule(golden))).toBe(true);
+            // The tree exit is untouched by ADR 0088: it carries no ids and no template class, so
+            // it stays the bare `export default` it was.
             expect(await loadOf(plugin)(`${source}?shared-tree`)).toBe(
                 `export default ${JSON.stringify(projectionOf(source).node)};`,
             );
@@ -201,7 +225,7 @@ export default async () => {
 
             let thrown: unknown;
             try {
-                await loadOf(blueprintPlugin())(`${source}?shared-tree`);
+                await loadOf(pluginUnderTest())(`${source}?shared-tree`);
             } catch (error) {
                 thrown = error;
             }
@@ -217,16 +241,52 @@ export default async () => {
                 expect(refusal.message.includes(`${loss.kind} at ${source}:${loss.line}`)).toBe(true);
             }
 
-            expect(typeof (await loadOf(blueprintPlugin())(source))).toBe('string');
+            expect(typeof (await loadOf(pluginUnderTest())(source))).toBe('string');
         });
 
         await it('resolves the query by stripping it and putting it back', async () => {
-            const resolve = resolveIdOf(blueprintPlugin());
+            const resolve = resolveIdOf(pluginUnderTest());
             expect(await resolve('./main-window.blp?shared-tree')).toBe('/resolved./main-window.blp?shared-tree');
             // Everything else stays the bundler's: a bare `.blp` already resolves, and a query
             // on a file that is not one is not this plugin's.
             expect(await resolve('./main-window.blp')).toBe(null);
             expect(await resolve('./theme.css?shared-tree')).toBe(null);
+        });
+
+        await it('writes the sidecar beside the .blp, and not again when it is current', async () => {
+            // ADR 0088 § 4, at the producer. In a directory this test owns: the suite's other
+            // cases load tracked `.blp` files, and a default-options plugin over one of those
+            // would make running the tests dirty the working tree.
+            const dir = mkdtempSync(join(tmpdir(), 'blp-sidecar-'));
+            const source = join(dir, 'probe.blp');
+            writeFileSync(source, 'using Gtk 4.0;\ntemplate $Probe: Gtk.Box {\n  Gtk.Button go-button { }\n}\n');
+
+            await loadOf(blueprintPlugin())(source);
+
+            const sidecar = join(dir, 'probe.d.blp.ts');
+            const written = readFileSync(sidecar, 'utf8');
+            expect(written.includes("export declare const GTypeName: 'Probe';")).toBe(true);
+            // The MEASURED member spelling, through the producer rather than the derivation.
+            expect(written.includes('_go_button: Gtk.Button;')).toBe(true);
+
+            // A second load must not touch the file. An identical rewrite still moves the mtime,
+            // which a watcher reads as a change — the rebuild loop `writeSidecar` exists to avoid.
+            const before = statSync(sidecar).mtimeMs;
+            await loadOf(blueprintPlugin())(source);
+            expect(statSync(sidecar).mtimeMs).toBe(before);
+
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it('writes no sidecar when the option is off', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'blp-nosidecar-'));
+            const source = join(dir, 'probe.blp');
+            writeFileSync(source, 'using Gtk 4.0;\nGtk.Box holder { }\n');
+
+            await loadOf(blueprintPlugin({ sidecars: false }))(source);
+
+            expect(existsSync(join(dir, 'probe.d.blp.ts'))).toBe(false);
+            rmSync(dir, { recursive: true, force: true });
         });
     });
 };

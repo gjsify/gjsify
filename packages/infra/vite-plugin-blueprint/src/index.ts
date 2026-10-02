@@ -1,14 +1,18 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 import {
     accessibilityElement,
     accessibilityValue,
     type EmitOptions,
     emitGtkBuilderXml,
+    emitTypedModule,
+    emitTypedSidecar,
     enumOrFlagsTypeOf,
     gtypeName,
     parseBlueprint,
     projectToSharedNode,
     resolveIdent,
+    sidecarPathFor,
 } from '@gjsify/blueprint';
 import minifyXML from 'minify-xml';
 import { type Plugin } from 'vite';
@@ -16,6 +20,14 @@ import { type Plugin } from 'vite';
 export interface BlueprintPluginOptions {
     minify?: boolean;
     verbose?: boolean;
+    /**
+     * Write each `.blp`'s `x.d.blp.ts` sidecar beside it during `load` (ADR 0088 § 4). On by
+     * default: the types are what the named exports are FOR, and a build that emits `build()`
+     * without them leaves every consumer on the ambient `*.blp` wildcard.
+     *
+     * A `.blp` under `node_modules` is never written, whatever this says — see `writeSidecar`.
+     */
+    sidecars?: boolean;
 }
 
 // Blueprint's OWN two error types are not re-exported here, and that is the shape rather than
@@ -107,8 +119,34 @@ function readId(id: string): { file: string; sharedTree: boolean } | undefined {
     return { file, sharedTree: new URLSearchParams(id.slice(queryAt + 1)).has(SHARED_TREE_PARAM) };
 }
 
+/**
+ * Write the sidecar beside its `.blp`, unless nothing would change.
+ *
+ * ONLY ON A DIFFERENCE, for two reasons that both bite in watch mode: a write with identical
+ * bytes still moves the mtime, which the watcher sees as a change and turns into a rebuild
+ * loop; and a `.blp` whose sidecar is already correct should leave the working tree untouched,
+ * so `git status` after a build stays a statement about what the author changed.
+ *
+ * NEVER UNDER `node_modules`. A `.blp` shipped inside a dependency is not this project's to
+ * edit, and the tree may be read-only or a store symlink. A failure to write anywhere else is
+ * reported and not thrown: the sidecar is the developer's convenience and
+ * `scripts/check-blueprint-sidecars.mjs` is the enforcement, so a read-only checkout should
+ * still build.
+ */
+async function writeSidecar(file: string, text: string, verbose: boolean): Promise<void> {
+    if (file.includes('node_modules')) return;
+    const path = sidecarPathFor(file);
+    try {
+        if ((await readFile(path, 'utf8').catch(() => undefined)) === text) return;
+        await writeFile(path, text, 'utf8');
+        if (verbose) console.log(`Wrote ${path} (@gjsify/vite-plugin-blueprint)`);
+    } catch (error) {
+        console.warn(`vite-plugin-blueprint: could not write ${path}: ${(error as Error).message}`);
+    }
+}
+
 export default function blueprintPlugin(options: BlueprintPluginOptions = {}): Plugin {
-    const { minify = false, verbose = false } = options;
+    const { minify = false, verbose = false, sidecars = true } = options;
 
     return {
         name: 'vite-plugin-blueprint',
@@ -175,8 +213,20 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
                 if (verbose) console.log(`Minified XML for ${asked.file}`);
             }
 
-            // Return the XML content as a string
-            return `export default ${JSON.stringify(xmlContent)};`;
+            // ADR 0088's named exports, beside the `default` that does not move. The module text
+            // is `@gjsify/blueprint`'s, not this file's, because the sidecar DECLARES what this
+            // implements and the two have to be written together — `typed-exports.mjs` § the
+            // MODULE a bundler gets says why they share a file.
+            //
+            // The sidecar is written AFTER the module is emitted, so a `.blp` the derivation
+            // refuses leaves no sidecar behind claiming exports the module does not have.
+            const moduleText = emitTypedModule(ast, xmlContent);
+            // `basename` from `node:path`, and this plugin is the one caller for which the HOST is
+            // the authority: a vite/rolldown plugin only ever runs in the Node process driving the
+            // build, on the machine whose paths `asked.file` is a path on. `@gjsify/blueprint`
+            // cannot do this itself — see `typed-exports.mjs` § `emitTypedSidecar`.
+            if (sidecars) await writeSidecar(asked.file, emitTypedSidecar(ast, basename(asked.file)), verbose);
+            return moduleText;
         },
     };
 }

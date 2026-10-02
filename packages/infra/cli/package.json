@@ -142,6 +142,7 @@
         "cli"
     ],
     "dependencies": {
+        "@gjsify/blueprint": "workspace:^",
         "@gjsify/buffer": "workspace:^",
         "@gjsify/create-app": "workspace:^",
         "@gjsify/node-globals": "workspace:^",

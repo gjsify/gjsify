@@ -88,12 +88,16 @@ export type SurfaceIsExactlyThese = Assert<
         | 'BlueprintSyntaxError'
         | 'accessibilityElement'
         | 'accessibilityValue'
+        | 'deriveExports'
         | 'emitGtkBuilderXml'
+        | 'emitTypedModule'
+        | 'emitTypedSidecar'
         | 'enumOrFlagsTypeOf'
         | 'gtypeName'
         | 'parseBlueprint'
         | 'projectToSharedNode'
         | 'resolveIdent'
+        | 'sidecarPathFor'
     >
 >;
 

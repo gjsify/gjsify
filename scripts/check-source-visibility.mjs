@@ -218,9 +218,14 @@ const SPEC_SUBJECT = new RegExp(`\\.spec\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`
  *
  * `.spec.`, a leading `test`, and `.d.` are naming conventions both sides already agree
  * on. The extension after each is the question, and it comes from the vocabulary.
+ *
+ * A declaration file may carry a second extension INSIDE the marker — TypeScript types
+ * `header-bar.blp` through `header-bar.d.blp.ts` under `allowArbitraryExtensions`
+ * (ADR 0088) — and that segment is part of the convention, not of the question: whatever
+ * sits between `.d.` and the extension, the extension is still the vocabulary's.
  */
 const TEST_ENTRY_SUBJECT = new RegExp(`^test(\\..*)?\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
-const DECLARATION_SUBJECT = new RegExp(`\\.d\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+const DECLARATION_SUBJECT = new RegExp(`\\.d\\.(?:[^./]+\\.)?(${TS_SOURCE_EXTENSIONS.join('|')})$`);
 
 /** @param {string} name a BASE name, as the walkers' own exclusions take one */
 const isNonShippingSubject = (name) =>

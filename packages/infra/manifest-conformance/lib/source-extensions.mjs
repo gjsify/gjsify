@@ -60,17 +60,26 @@ export function sourcePathspecs(extensions = CODE_SOURCE_EXTENSIONS) {
 }
 
 /**
- * A TypeScript DECLARATION file — `.d.ts`, and its two module variants.
+ * A TypeScript DECLARATION file — `.d.ts`, its two module variants, and the
+ * `allowArbitraryExtensions` shape `x.d.<ext>.ts`.
  *
  * Every caller that had this as `endsWith('.d.ts')` was one `.d.cts` away from
  * grading a declaration file as source: `packages/node/stream/src/cjs-interop.fixture.d.cts`
  * is tracked today and slipped into the comment budget the moment `cts` joined the
  * vocabulary above.
  *
+ * The middle segment is the SAME incident one shape further out, and ADR 0088 is what
+ * brought the shape into this tree. TypeScript types a non-TS import by putting the
+ * arbitrary extension inside the marker — `header-bar.blp` is declared by
+ * `header-bar.d.blp.ts` — so a file every bit as declaration-only as a `.d.ts`, and
+ * GENERATED besides, read as hand-written source to a walker keyed on `.d.ts`. Measured:
+ * the two committed sidecars put 19 comment lines into `showcases`' comment budget and
+ * took it 19 over its ceiling, on text no human wrote and an emitter re-emits.
+ *
  * @param {string} name
  */
 export function isDeclarationFile(name) {
-    return /\.d\.[cm]?ts$/.test(name);
+    return /\.d\.(?:[^./]+\.)?[cm]?ts$/.test(name);
 }
 
 /** @param {string} name @param {readonly string[]} extensions */
