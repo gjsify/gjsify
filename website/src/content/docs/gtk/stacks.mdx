@@ -343,6 +343,137 @@ the sidebar does not, so a page carrying only an icon gets **no row at all**.
   </Fragment>
 </AdwWidget>
 
+## Notebook
+
+The older page container, and **a stack that brings its own tab bar**. In C it holds a
+`GtkStack` for the pages and a header widget beside it, which is why **`page`** is an
+**index** rather than a name: the stack speaks names, the notebook speaks positions.
+
+**`tab-pos`** says which edge the strip is on — `top`, `bottom`, `left`, `right` — and
+**`show-tabs`** takes it away entirely. **`show-border`** is the bevel around the pages:
+in C it is a CSS *class* (`gtk_notebook_set_show_border` adds `.frame`), and its own
+docs say it only shows once the tabs are not. **`enable-popup`** puts the pages in a
+right-click menu.
+
+A `GtkNotebookPage` is a GObject too, so **`tab-label`**, **`menu-label`**, **`tab-fill`**,
+**`tab-expand`** and **`reorderable`** live on the page element. A page with no
+`tab-label` is not left out of the strip — it is numbered, **"Page 3"**, counting the
+visible pages from one.
+
+Three guards are C's, not ours: a **negative** `page` means the *last* page rather than
+"none", an **out-of-range** `page` does nothing at all, and a page whose element is
+**`hidden`** cannot be switched to.
+
+<AdwWidget title="Gtk.Notebook">
+  <Fragment slot="preview">
+    ```html
+    <!-- tab-pos: Which side of the notebook holds the tabs. -->
+    <gtk-notebook tab-pos="top" style="width:420px;height:150px;">
+      <div tab-label="Overview" menu-label="Overview">A notebook brings its own tab strip.</div>
+      <div tab-label="Activity" menu-label="Activity">tab-pos says which edge the strip is on.</div>
+      <div menu-label="Notes">No tab-label, so the tab reads "Page 3".</div>
+    </gtk-notebook>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const notebook = new Gtk.Notebook({ tabPos: Gtk.PositionType.TOP });
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const tab = (text: string) => new Gtk.Label({ label: text });
+
+    // `append_page_menu`, because a GtkNotebookPage carries a tab-label AND a menu-label:
+    // two properties, and only the `_menu` form takes both (gtknotebook.c:5871-5884).
+    notebook.append_page_menu(
+        page('A notebook brings its own tab strip.'),
+        tab('Overview'),
+        tab('Overview'),
+        -1,
+    );
+    notebook.append_page_menu(
+        page('tab-pos says which edge the strip is on.'),
+        tab('Activity'),
+        tab('Activity'),
+        -1,
+    );
+
+    // The LAST page passes NO tab label, which is what makes C number it "Page 3" rather
+    // than draw no tab at all (`gtk_notebook_update_labels`, gtknotebook.c:4353-4373).
+    notebook.append_page(page('No tab-label, so the tab reads "Page 3".'), -1);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Notebook {
+      tab-pos: top;
+
+      // A GtkNotebookPage is a GObject, so a `.blp` names the type explicitly where the
+      // child widget would otherwise carry the page's properties — the same seam
+      // `Gtk.StackPage` has on the stack above.
+      Gtk.NotebookPage {
+        tab-label: "Overview";
+        menu-label: "Overview";
+
+        child: Gtk.Label {
+          label: "A notebook brings its own tab strip.";
+        };
+      }
+
+      Gtk.NotebookPage {
+        tab-label: "Activity";
+        menu-label: "Activity";
+
+        child: Gtk.Label {
+          label: "tab-pos says which edge the strip is on.";
+        };
+      }
+
+      // No tab-label: this is the page C numbers for us.
+      Gtk.NotebookPage {
+        menu-label: "Notes";
+
+        child: Gtk.Label {
+          label: "No tab-label, so the tab reads \"Page 3\".";
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const notebook = new Gtk.Notebook({ tabPos: Gtk.PositionType.TOP });
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const tab = (text: string) => new Gtk.Label({ label: text });
+
+    // `append_page_menu`, because a GtkNotebookPage carries a tab-label AND a menu-label:
+    // two properties, and only the `_menu` form takes both (gtknotebook.c:5871-5884).
+    notebook.append_page_menu(
+        page('A notebook brings its own tab strip.'),
+        tab('Overview'),
+        tab('Overview'),
+        -1,
+    );
+    notebook.append_page_menu(
+        page('tab-pos says which edge the strip is on.'),
+        tab('Activity'),
+        tab('Activity'),
+        -1,
+    );
+
+    // The LAST page passes NO tab label, which is what makes C number it "Page 3" rather
+    // than draw no tab at all (`gtk_notebook_update_labels`, gtknotebook.c:4353-4373).
+    notebook.append_page(page('No tab-label, so the tab reads "Page 3".'), -1);
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Related
 
 - [Layout](../layout/): the containers a page inside a stack is built from.

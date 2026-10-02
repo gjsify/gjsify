@@ -219,6 +219,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'model': null,
         'show-separators': null,
     },
+    'gtk-notebook': {
+        'tab-pos': 'Which side of the notebook holds the tabs.',
+    },
     'gtk-page-setup-unix-dialog': {
         'title': null,
     },
@@ -391,12 +394,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 203,
-    glossed: 80,
+    set: 204,
+    glossed: 81,
     nameSuffices: 90,
     divergent: 32,
     authored: 1,
-    commentLines: 113,
+    commentLines: 114,
 };
 
 /**

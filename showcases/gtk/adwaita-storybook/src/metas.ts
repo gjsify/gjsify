@@ -98,6 +98,7 @@ export * from './text/text-view.meta.js';
 export * from './text/text.meta.js';
 export * from './view-switching/carousel.meta.js';
 export * from './view-switching/inline-view-switcher.meta.js';
+export * from './view-switching/notebook.meta.js';
 export * from './view-switching/stack-sidebar.meta.js';
 export * from './view-switching/stack-switcher.meta.js';
 export * from './view-switching/stack.meta.js';

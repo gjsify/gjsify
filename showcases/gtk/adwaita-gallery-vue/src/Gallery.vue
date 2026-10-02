@@ -683,5 +683,9 @@
             side="end"
             decoration-layout="menu:minimize,maximize,close"
         />
+        <gtk-notebook
+            tab-pos="top"
+            :page="0"
+        />
     </gtk-box>
 </template>

@@ -336,6 +336,11 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- GtkWindowControls.vue — mount(GtkWindowControls, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-window-controls\n        side=\"end\"\n        decoration-layout=\"menu:minimize,maximize,close\"\n    />\n</template>",
         react: "// createRoot(container).render(<GtkWindowControls />) — from '@gjsify/gtk-host/react'\nconst GtkWindowControls = () => (\n    <gtk-window-controls\n        side=\"end\"\n        decorationLayout=\"menu:minimize,maximize,close\"\n    />\n);",
     },
+    'Gtk.Notebook': {
+        solid: "// mount(() => <GtkNotebook />, container) — from '@gjsify/gtk-host/solid'\nconst GtkNotebook = () => (\n    <gtk-notebook\n        tabPos=\"top\"\n        page={0}\n    />\n);",
+        vue: "<!-- GtkNotebook.vue — mount(GtkNotebook, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-notebook\n        tab-pos=\"top\"\n        :page=\"0\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkNotebook />) — from '@gjsify/gtk-host/react'\nconst GtkNotebook = () => (\n    <gtk-notebook\n        tabPos=\"top\"\n        page={0}\n    />\n);",
+    },
 };
 
 /**

@@ -94,6 +94,7 @@ import { ViewportWebStories } from './layout/viewport.web.js';
 import { WrapBoxWebStories } from './layout/wrap-box.web.js';
 import { CarouselWebStories } from './view-switching/carousel.web.js';
 import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
+import { NotebookWebStories } from './view-switching/notebook.web.js';
 import { StackSidebarWebStories } from './view-switching/stack-sidebar.web.js';
 import { StackSwitcherWebStories } from './view-switching/stack-switcher.web.js';
 import { StackWebStories } from './view-switching/stack.web.js';
@@ -204,6 +205,7 @@ export const stories: WebStoryModule[] = [
     StackWebStories,
     StackSwitcherWebStories,
     StackSidebarWebStories,
+    NotebookWebStories,
     TabButtonWebStories,
     TabViewWebStories,
     ViewSwitcherWebStories,

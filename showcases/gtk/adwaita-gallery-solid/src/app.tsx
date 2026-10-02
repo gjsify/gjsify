@@ -889,6 +889,13 @@ const GtkWindowControls = () => (
     />
 );
 
+const GtkNotebook = () => (
+    <gtk-notebook
+        tabPos="top"
+        page={0}
+    />
+);
+
 /** Every gallery snippet in one column, so one mount carries them all. */
 const Gallery = () => (
     <gtk-box orientation="vertical" spacing={24}>
@@ -956,6 +963,7 @@ const Gallery = () => (
         <GtkStack />
         <GtkHeaderBar />
         <GtkWindowControls />
+        <GtkNotebook />
     </gtk-box>
 );
 
@@ -1357,6 +1365,9 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.WindowControls', root:
         { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
+    },
+    { widget: 'Gtk.Notebook', root:
+        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top","page":0} }
     },
 ];
 

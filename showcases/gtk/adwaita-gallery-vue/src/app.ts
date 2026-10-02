@@ -417,6 +417,9 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.WindowControls', root:
         { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
     },
+    { widget: 'Gtk.Notebook', root:
+        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top","page":0} }
+    },
 ];
 
 /** `AdwHeaderBar` for an `Adw.HeaderBar` instance — the GType, not the JS class. */

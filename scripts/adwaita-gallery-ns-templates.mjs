@@ -561,6 +561,11 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.TreeExpander':
         'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
         'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',
+    'Gtk.Notebook':
+        "The NativeScript port has no notebook: @nativescript/core's TabView (ui/tab-view) owns its own tab " +
+        'strip, which is exactly what Gtk.Notebook IS, and it has no separate content-only stack to hold its ' +
+        "pages — the port's content-only half is AdwViewStack, and a TabView cannot be pointed at one " +
+        '(status/open-todos/adwaita-ports.md).',
     'Gtk.StackSidebar':
         'The NativeScript port has no bare sidebar list either: AdwTabView draws the strip itself, and ' +
         'AdwNavigationSplitView (sidebarWidth, isSidebarCollapsed) is the one place the port has a sidebar at ' +

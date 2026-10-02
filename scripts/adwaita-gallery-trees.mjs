@@ -1067,6 +1067,16 @@ export const ADWAITA_GALLERY_TREES = [
             props: { side: 'end', decorationLayout: 'menu:minimize,maximize,close' },
         },
     },
+    {
+        widget: 'Gtk.Notebook',
+        page: 'stacks',
+        // The same seam as the stack above: the pages are CHILDREN here and their metadata
+        // belongs to the `GtkNotebookPage` GObject that wraps one
+        // (G_DEFINE_TYPE (…, G_TYPE_OBJECT), gtknotebook.c:423), which has no tag in the
+        // descriptor table — so `tab-label` has nowhere to live in a static tree and the
+        // block's fences build the pages with it.
+        root: { tag: 'gtk-notebook', props: { tabPos: 'top', page: 0 } },
+    },
 ];
 
 /**

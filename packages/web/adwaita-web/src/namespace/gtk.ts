@@ -52,6 +52,7 @@ export { GtkLabel as Label } from '../elements/gtk-label.js';
 export { GtkLevelBar as LevelBar } from '../elements/gtk-level-bar.js';
 export { GtkListView as ListView } from '../elements/gtk-list-view.js';
 export { GtkMenuButton as MenuButton } from '../elements/gtk-menu-button.js';
+export { GtkNotebook as Notebook } from '../elements/gtk-notebook.js';
 export { GtkOverlay as Overlay } from '../elements/gtk-overlay.js';
 export { GtkPageSetupUnixDialog as PageSetupUnixDialog } from '../elements/gtk-page-setup-unix-dialog.js';
 export { GtkPaned as Paned } from '../elements/gtk-paned.js';
