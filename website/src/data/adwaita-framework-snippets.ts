@@ -97,14 +97,14 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         react: "// createRoot(container).render(<GtkScaleButton />) — from '@gjsify/gtk-host/react'\nconst GtkScaleButton = () => (\n    <gtk-scale-button\n        icons={['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic']}\n        value={70}\n    />\n);",
     },
     'Gtk.ColorDialogButton': {
-        solid: "// mount(() => <GtkColorDialogButton />, container) — from '@gjsify/gtk-host/solid'\nconst GtkColorDialogButton = () => (\n    <gtk-color-dialog-button dialog={{  }} />\n);",
-        vue: "<!-- GtkColorDialogButton.vue — mount(GtkColorDialogButton, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-color-dialog-button :dialog=\"{  }\" />\n</template>",
-        react: "// createRoot(container).render(<GtkColorDialogButton />) — from '@gjsify/gtk-host/react'\nconst GtkColorDialogButton = () => (\n    <gtk-color-dialog-button dialog={{  }} />\n);",
+        solid: "// mount(() => <GtkColorDialogButton />, container) — from '@gjsify/gtk-host/solid'\nconst GtkColorDialogButton = () => (\n    <gtk-color-dialog-button />\n);",
+        vue: "<!-- GtkColorDialogButton.vue — mount(GtkColorDialogButton, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-color-dialog-button />\n</template>",
+        react: "// createRoot(container).render(<GtkColorDialogButton />) — from '@gjsify/gtk-host/react'\nconst GtkColorDialogButton = () => (\n    <gtk-color-dialog-button />\n);",
     },
     'Gtk.FontDialogButton': {
-        solid: "// mount(() => <GtkFontDialogButton />, container) — from '@gjsify/gtk-host/solid'\nconst GtkFontDialogButton = () => (\n    <gtk-font-dialog-button\n        dialog={{  }}\n        fontDesc=\"Sans Bold 12\"\n    />\n);",
-        vue: "<!-- GtkFontDialogButton.vue — mount(GtkFontDialogButton, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-font-dialog-button\n        :dialog=\"{  }\"\n        font-desc=\"Sans Bold 12\"\n    />\n</template>",
-        react: "// createRoot(container).render(<GtkFontDialogButton />) — from '@gjsify/gtk-host/react'\nconst GtkFontDialogButton = () => (\n    <gtk-font-dialog-button\n        dialog={{  }}\n        fontDesc=\"Sans Bold 12\"\n    />\n);",
+        solid: "// mount(() => <GtkFontDialogButton />, container) — from '@gjsify/gtk-host/solid'\nconst GtkFontDialogButton = () => (\n    <gtk-font-dialog-button />\n);",
+        vue: "<!-- GtkFontDialogButton.vue — mount(GtkFontDialogButton, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-font-dialog-button />\n</template>",
+        react: "// createRoot(container).render(<GtkFontDialogButton />) — from '@gjsify/gtk-host/react'\nconst GtkFontDialogButton = () => (\n    <gtk-font-dialog-button />\n);",
     },
     'Gtk.MenuButton': {
         solid: "// mount(() => <GtkMenuButton />, container) — from '@gjsify/gtk-host/solid'\nconst GtkMenuButton = () => (\n    <gtk-menu-button\n        iconName=\"open-menu-symbolic\"\n        cssClasses={['flat']}\n        menuModel={[\n            { label: 'Preferences', action: 'app.preferences' },\n            { label: 'Keyboard Shortcuts', action: 'win.show-help-overlay' },\n            { label: 'About', action: 'app.about' },\n        ]}\n    />\n);",
@@ -202,9 +202,9 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         react: "// createRoot(container).render(<GtkWindowHandle />) — from '@gjsify/gtk-host/react'\nconst GtkWindowHandle = () => (\n    <gtk-window-handle>\n        <adw-header-bar>\n            <adw-window-title title=\"Notes\" />\n        </adw-header-bar>\n    </gtk-window-handle>\n);",
     },
     'Gtk.Image': {
-        solid: "// mount(() => <GtkImage />, container) — from '@gjsify/gtk-host/solid'\nconst GtkImage = () => (\n    <gtk-image\n        iconName=\"avatar-default-symbolic\"\n        iconSize=\"dialog\"\n    />\n);",
-        vue: "<!-- GtkImage.vue — mount(GtkImage, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-image\n        icon-name=\"avatar-default-symbolic\"\n        icon-size=\"dialog\"\n    />\n</template>",
-        react: "// createRoot(container).render(<GtkImage />) — from '@gjsify/gtk-host/react'\nconst GtkImage = () => (\n    <gtk-image\n        iconName=\"avatar-default-symbolic\"\n        iconSize=\"dialog\"\n    />\n);",
+        solid: "// mount(() => <GtkImage />, container) — from '@gjsify/gtk-host/solid'\nconst GtkImage = () => (\n    <gtk-image\n        iconName=\"avatar-default-symbolic\"\n        iconSize=\"large\"\n    />\n);",
+        vue: "<!-- GtkImage.vue — mount(GtkImage, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-image\n        icon-name=\"avatar-default-symbolic\"\n        icon-size=\"large\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkImage />) — from '@gjsify/gtk-host/react'\nconst GtkImage = () => (\n    <gtk-image\n        iconName=\"avatar-default-symbolic\"\n        iconSize=\"large\"\n    />\n);",
     },
     'Gtk.Picture': {
         solid: "// mount(() => <GtkPicture />, container) — from '@gjsify/gtk-host/solid'\nconst GtkPicture = () => (\n    <gtk-picture\n        keepAspectRatio\n        contentFit=\"cover\"\n        alternativeText=\"A tangerine\"\n        widthRequest={240}\n        heightRequest={160}\n    />\n);",
@@ -237,9 +237,9 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         react: "// createRoot(container).render(<GtkFlowBox />) — from '@gjsify/gtk-host/react'\nconst GtkFlowBox = () => (\n    <gtk-flow-box\n        selectionMode=\"multiple\"\n        minChildrenPerLine={2}\n        maxChildrenPerLine={4}\n        rowSpacing={6}\n        columnSpacing={6}\n        widthRequest={320}\n    >\n        <gtk-flow-box-child>\n            <gtk-label label=\"Red\" />\n        </gtk-flow-box-child>\n        <gtk-flow-box-child>\n            <gtk-label label=\"Orange\" />\n        </gtk-flow-box-child>\n        <gtk-flow-box-child>\n            <gtk-label label=\"Yellow\" />\n        </gtk-flow-box-child>\n        <gtk-flow-box-child>\n            <gtk-label label=\"Green\" />\n        </gtk-flow-box-child>\n        <gtk-flow-box-child>\n            <gtk-label label=\"Blue\" />\n        </gtk-flow-box-child>\n    </gtk-flow-box>\n);",
     },
     'Gtk.Calendar': {
-        solid: "// mount(() => <GtkCalendar />, container) — from '@gjsify/gtk-host/solid'\nconst GtkCalendar = () => (\n    <gtk-calendar\n        date=\"2026-10-02\"\n        showWeekNumbers\n        halign=\"center\"\n    />\n);",
-        vue: "<!-- GtkCalendar.vue — mount(GtkCalendar, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-calendar\n        date=\"2026-10-02\"\n        :show-week-numbers=\"true\"\n        halign=\"center\"\n    />\n</template>",
-        react: "// createRoot(container).render(<GtkCalendar />) — from '@gjsify/gtk-host/react'\nconst GtkCalendar = () => (\n    <gtk-calendar\n        date=\"2026-10-02\"\n        showWeekNumbers\n        halign=\"center\"\n    />\n);",
+        solid: "// mount(() => <GtkCalendar />, container) — from '@gjsify/gtk-host/solid'\nconst GtkCalendar = () => (\n    <gtk-calendar\n        showWeekNumbers\n        halign=\"center\"\n    />\n);",
+        vue: "<!-- GtkCalendar.vue — mount(GtkCalendar, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-calendar\n        :show-week-numbers=\"true\"\n        halign=\"center\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkCalendar />) — from '@gjsify/gtk-host/react'\nconst GtkCalendar = () => (\n    <gtk-calendar\n        showWeekNumbers\n        halign=\"center\"\n    />\n);",
     },
     'Gtk.Frame': {
         solid: "// mount(() => <GtkFrame />, container) — from '@gjsify/gtk-host/solid'\nconst GtkFrame = () => (\n    <gtk-frame\n        label=\"Details\"\n        labelXalign={0}\n    >\n        <gtk-label label=\"A framed region: the label sits in the top edge of the border.\" />\n    </gtk-frame>\n);",

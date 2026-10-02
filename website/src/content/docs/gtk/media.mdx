@@ -48,7 +48,7 @@ why an arbitrary bitmap belongs in [Picture](#picture) instead.
     const avatar = new Gtk.Image({ iconName: 'avatar-default-symbolic' });
     // The size is GTK's ICON_SIZE enum, not a pixel count. It is measured, not just drawn:
     // both the minimum and the natural size of the box come from the icon's intrinsic size.
-    avatar.iconSize = 'dialog';
+    avatar.iconSize = Gtk.IconSize.LARGE;
 
     // `pixelSize` is the other half, and the one to reach for when you want a number rather
     // than a named size: it overrides `iconSize` for as long as it is set.
@@ -81,7 +81,7 @@ why an arbitrary bitmap belongs in [Picture](#picture) instead.
     const avatar = new Gtk.Image({ iconName: 'avatar-default-symbolic' });
     // The size is GTK's ICON_SIZE enum, not a pixel count. It is measured, not just drawn:
     // both the minimum and the natural size of the box come from the icon's intrinsic size.
-    avatar.iconSize = 'dialog';
+    avatar.iconSize = Gtk.IconSize.LARGE;
 
     // `pixelSize` is the other half, and the one to reach for when you want a number rather
     // than a named size: it overrides `iconSize` for as long as it is set.

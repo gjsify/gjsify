@@ -169,11 +169,8 @@
             :icons="['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic']"
             :value="70"
         />
-        <gtk-color-dialog-button :dialog="{  }" />
-        <gtk-font-dialog-button
-            :dialog="{  }"
-            font-desc="Sans Bold 12"
-        />
+        <gtk-color-dialog-button />
+        <gtk-font-dialog-button />
         <gtk-menu-button
             icon-name="open-menu-symbolic"
             :css-classes="['flat']"
@@ -314,7 +311,7 @@
         </gtk-window-handle>
         <gtk-image
             icon-name="avatar-default-symbolic"
-            icon-size="dialog"
+            icon-size="large"
         />
         <gtk-picture
             :keep-aspect-ratio="true"
@@ -385,7 +382,6 @@
             </gtk-flow-box-child>
         </gtk-flow-box>
         <gtk-calendar
-            date="2026-10-02"
             :show-week-numbers="true"
             halign="center"
         />

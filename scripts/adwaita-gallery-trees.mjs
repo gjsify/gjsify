@@ -268,17 +268,17 @@ export const ADWAITA_GALLERY_TREES = [
     {
         widget: 'Gtk.ColorDialogButton',
         page: 'buttons',
-        // `rgba` is a GdkRGBA boxed property and `dialog` a GtkColorDialog GObject, so
-        // neither is a scalar an attribute can carry in this vocabulary; the element reads
-        // both as JSON/text it parses itself, which is the same door `adjustment` uses.
-        root: { tag: 'gtk-color-dialog-button', props: { dialog: {} } },
+        // `rgba` is a GdkRGBA boxed property and `dialog` a GtkColorDialog GObject: neither is
+        // a value a tree can spell, and a placeholder object does not typecheck against the
+        // GTK property, so the tree sets neither and the dialects show the default button.
+        root: { tag: 'gtk-color-dialog-button', props: {} },
     },
     {
         widget: 'Gtk.FontDialogButton',
         page: 'buttons',
-        // `font-desc` is a PangoFontDescription and `language` a PangoLanguage: two more
-        // boxed properties, and the strings here are the Pango spellings of each.
-        root: { tag: 'gtk-font-dialog-button', props: { dialog: {}, fontDesc: 'Sans Bold 12' } },
+        // `font-desc` is a PangoFontDescription and `language` a PangoLanguage: boxed
+        // properties a tree cannot spell, so the dialects show the default button.
+        root: { tag: 'gtk-font-dialog-button', props: {} },
     },
     {
         widget: 'Gtk.MenuButton',
@@ -541,9 +541,9 @@ export const ADWAITA_GALLERY_TREES = [
         widget: 'Gtk.Image',
         page: 'media',
         // `iconSize` and NO `size` in pixels: the widget's measurement comes from the icon
-        // size enum's own minimum and natural (gtkspinner.c:110-123 is the same shape), and
-        // `GtkSize` has no pixel member a tree could name that is not a fixed enum.
-        root: { tag: 'gtk-image', props: { iconName: 'avatar-default-symbolic', iconSize: 'dialog' } },
+        // size enum's own minimum and natural (gtkspinner.c:110-123 is the same shape).
+        // GTK 4's `GtkIconSize` is inherit / normal / large — `dialog` was GTK 3's.
+        root: { tag: 'gtk-image', props: { iconName: 'avatar-default-symbolic', iconSize: 'large' } },
     },
     {
         widget: 'Gtk.Picture',
@@ -650,11 +650,11 @@ export const ADWAITA_GALLERY_TREES = [
     {
         widget: 'Gtk.Calendar',
         page: 'lists',
-        // `date` as the ISO form `GDateTime` serialises to, and `showWeekNumbers` — FALSE by
-        // default (gtkcalendar.c:458-460) and the one flag that adds a grid COLUMN.
+        // `showWeekNumbers` — FALSE by default (gtkcalendar.c:458-460) and the one flag that
+        // adds a grid COLUMN. No `date`: it is a `GDateTime` boxed property, not a string.
         root: {
             tag: 'gtk-calendar',
-            props: { date: '2026-10-02', showWeekNumbers: true, halign: 'center' },
+            props: { showWeekNumbers: true, halign: 'center' },
         },
     },
     // ------------------------------------------------------------------ gtk layout
