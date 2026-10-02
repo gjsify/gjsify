@@ -1239,13 +1239,23 @@ const NAMESPACE_PREFIXES = ['adw', 'gtk'];
  * The prefix of a tag in the generated table IS the library that owns the GType — the
  * generator derives it from there — so clause 1 is a string split here rather than a
  * mapping this file would otherwise have to invent and then keep.
+ *
+ * THE MEMBER IS `tagClass(tag)` WITH THE NAMESPACE CUT OFF, not a second derivation of the
+ * same tail. `gtk-gl-area` is why: the GIR spells the class `GtkGLArea`, the naive split of
+ * the tag spells it `GlArea`, and the two answers disagree about a name a reader types.
+ * `tagClass` carries that exception with its reason; deriving the member here would be a
+ * second copy of the same list, and a second copy is what this gate exists to prevent.
  */
 function namespacePlace(tag) {
     const [prefix, ...rest] = tag.split('-');
     if (!NAMESPACE_PREFIXES.includes(prefix) || rest.length === 0) return null;
+    const namespace = prefix[0].toUpperCase() + prefix.slice(1);
+    const klass = tagClass(tag);
     return {
-        namespace: prefix[0].toUpperCase() + prefix.slice(1),
-        member: rest.map((part) => part[0].toUpperCase() + part.slice(1)).join(''),
+        namespace,
+        member: klass.startsWith(namespace)
+            ? klass.slice(namespace.length)
+            : rest.map((part) => part[0].toUpperCase() + part.slice(1)).join(''),
     };
 }
 

@@ -198,6 +198,9 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.Spinner', root:
         { tag: 'gtk-spinner', gtype: 'GtkSpinner', props: {"spinning":true,"widthRequest":32,"heightRequest":32} }
     },
+    { widget: 'Gtk.GLArea', root:
+        { tag: 'gtk-gl-area', gtype: 'GtkGLArea', props: {"autoRender":true,"hasDepthBuffer":false,"widthRequest":240,"heightRequest":160} }
+    },
     { widget: 'Gtk.DrawingArea', root:
         { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":16}, children: [
                 { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":120} },

@@ -89,6 +89,7 @@ export class GtkDrawingArea extends HTMLElement {
     /** The last device pixel ratio the backing store was built for. */
     private _scale = 1;
     private _resize: ResizeObserver | null = null;
+    private _frame: number | null = null;
 
     static get observedAttributes() {
         return ['content-width', 'content-height'];
@@ -145,13 +146,21 @@ export class GtkDrawingArea extends HTMLElement {
 
     /**
      * `gtk_widget_queue_draw` on this widget: the documented way to ask for the draw
-     * function to be called again (gtkdrawingarea.c:127-129). GTK coalesces the request
-     * into the next frame; here the draw is immediate, because a 2D canvas is drawn on
-     * demand and there is no frame clock to wait for.
+     * function to be called again (gtkdrawingarea.c:127-129).
+     *
+     * AND WHY IT IS NOT IMMEDIATE. `queue_draw` marks the window dirty and the frame clock
+     * draws it on the next frame, so a draw function that calls `queue_draw` keeps
+     * ANIMATING rather than recursing — and a 2D canvas drawn synchronously would turn the
+     * same application into a stack overflow. One animation frame is the browser's frame
+     * clock, and coalescing through it is what makes "paint from the function" a loop and
+     * not a crash. Several requests before the frame are one frame, as in the C.
      */
     queueDraw(): void {
-        if (!this._initialized) return;
-        this._draw();
+        if (!this._initialized || this._frame !== null) return;
+        this._frame = requestAnimationFrame(() => {
+            this._frame = null;
+            this._draw();
+        });
     }
 
     connectedCallback() {
@@ -174,6 +183,8 @@ export class GtkDrawingArea extends HTMLElement {
     disconnectedCallback() {
         this._resize?.disconnect();
         this._resize = null;
+        if (this._frame !== null) cancelAnimationFrame(this._frame);
+        this._frame = null;
     }
 
     attributeChangedCallback(name: string) {
@@ -184,7 +195,7 @@ export class GtkDrawingArea extends HTMLElement {
         // republished first so the CSS floor moves with the property.
         if (name === 'content-width' || name === 'content-height') this._publishSize();
         this._notify(name);
-        if (name === 'content-width' || name === 'content-height') this._draw();
+        if (name === 'content-width' || name === 'content-height') this.queueDraw();
     }
 
     /**

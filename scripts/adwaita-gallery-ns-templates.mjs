@@ -589,6 +589,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).',
     'Gtk.DrawingArea':
         'The NativeScript port has no drawing surface: GtkBox is the container one would sit in and it has no child that paints, so a drawing area there would be an empty box with a size request (status/open-todos/adwaita-ports.md).',
+    'Gtk.GLArea':
+        'The NativeScript port has no GL view, so there is nothing to render into and no context to keep current: GtkBox would hold a plain View instead, and a View has no render signal for GtkBox to forward (status/open-todos/adwaita-ports.md).',
     'Gtk.Overlay':
         'The NativeScript port has no overlay view: GtkBox appends every child to the layout, and there is nothing in it to stack one over another (status/open-todos/adwaita-ports.md).',
     'Gtk.Revealer':

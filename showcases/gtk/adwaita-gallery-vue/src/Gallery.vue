@@ -251,6 +251,12 @@
             :width-request="32"
             :height-request="32"
         />
+        <gtk-gl-area
+            :auto-render="true"
+            :has-depth-buffer="false"
+            :width-request="240"
+            :height-request="160"
+        />
         <gtk-box
             orientation="vertical"
             :spacing="16"

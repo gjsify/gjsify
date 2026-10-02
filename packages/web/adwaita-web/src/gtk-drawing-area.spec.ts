@@ -117,9 +117,12 @@ export const GtkDrawingAreaTest = async () => {
             });
             await settled();
             const seen = calls;
-            // gtkdrawingarea.c:127-129 — queue_draw calls the draw function again.
+            // gtkdrawingarea.c:127-129 — queue_draw calls the draw function again, on the
+            // NEXT FRAME: the C marks the window dirty and the frame clock draws it.
             el.queueDraw();
-            expect(calls).toBe(seen + 1);
+            expect(calls).toBe(seen);
+            await settled();
+            expect(calls).toBeGreaterThan(seen);
             host.remove();
         });
 
@@ -138,6 +141,7 @@ export const GtkDrawingAreaTest = async () => {
             el.setDrawFunc(() => {
                 calls += 1;
             });
+            await settled();
             expect(calls).toBe(seen + 1);
             // With no function the snapshot returns before drawing (:251-252), so nothing
             // is painted from here on however often a redraw is asked for.

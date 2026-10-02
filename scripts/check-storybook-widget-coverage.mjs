@@ -254,6 +254,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'gl-area': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'editable-label': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',

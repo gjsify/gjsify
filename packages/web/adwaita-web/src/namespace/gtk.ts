@@ -40,6 +40,7 @@ export { GtkExpander as Expander } from '../elements/gtk-expander.js';
 export { GtkFixed as Fixed } from '../elements/gtk-fixed.js';
 export { GtkFontDialogButton as FontDialogButton } from '../elements/gtk-font-dialog-button.js';
 export { GtkFrame as Frame } from '../elements/gtk-frame.js';
+export { GtkGLArea as GLArea } from '../elements/gtk-gl-area.js';
 export { GtkGrid as Grid } from '../elements/gtk-grid.js';
 export { GtkGridView as GridView } from '../elements/gtk-grid-view.js';
 export { GtkHeaderBar as HeaderBar } from '../elements/gtk-header-bar.js';

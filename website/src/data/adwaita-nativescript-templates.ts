@@ -92,6 +92,7 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Gtk.TextView': "The NativeScript port has no multi-line editor: GtkEntry is single-line by construction and @nativescript/core has no view the port themes as one (status/open-todos/adwaita-ports.md).",
     'Gtk.ToggleButton': "The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).",
     'Gtk.DrawingArea': "The NativeScript port has no drawing surface: GtkBox is the container one would sit in and it has no child that paints, so a drawing area there would be an empty box with a size request (status/open-todos/adwaita-ports.md).",
+    'Gtk.GLArea': "The NativeScript port has no GL view, so there is nothing to render into and no context to keep current: GtkBox would hold a plain View instead, and a View has no render signal for GtkBox to forward (status/open-todos/adwaita-ports.md).",
     'Gtk.Overlay': "The NativeScript port has no overlay view: GtkBox appends every child to the layout, and there is nothing in it to stack one over another (status/open-todos/adwaita-ports.md).",
     'Gtk.Revealer': "The NativeScript port has no revealer view: GtkBox has no transition to run between a collapsed and an expanded child (status/open-todos/adwaita-ports.md).",
     'Gtk.Paned': "The NativeScript port has no paned view: GtkBox has no divider to place between two children, and so no second slot to take (status/open-todos/adwaita-ports.md).",

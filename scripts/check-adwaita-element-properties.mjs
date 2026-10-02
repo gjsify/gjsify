@@ -169,6 +169,11 @@ const KNOWN_GAPS = {
     'gtk-about-dialog': ['artists', 'authors', 'documenters'],
     'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
+    // `use-es` is DEPRECATED in GTK 4.12 and `allowed-apis` replaced it
+    // (gtkglarea.c:969-971, :1235-1254). The element carries the replacement, so the
+    // retired spelling is all that is left — and it cannot go on being observed without
+    // the element teaching a name GTK itself withdrew.
+    'gtk-gl-area': ['use-es'],
     'gtk-entry': [
         'activates-default',
         'enable-emoji-completion',

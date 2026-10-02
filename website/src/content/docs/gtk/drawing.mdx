@@ -146,3 +146,163 @@ for it — there is nothing to theme, which is also why a draw function that pai
 background has to read the widget's own colour (`gtk_widget_get_color`) instead of
 assuming one.
 </MoreInfo>
+## GL Area
+
+The same idea with a GPU behind it. **auto-render** says whether `::render` is emitted
+every time the widget draws, **has-depth-buffer** and **has-stencil-buffer** decide what
+the framebuffer has in it, and **allowed-apis** is a *set* — `gl gles` (the default),
+`gles` or `gl` — not a choice.
+
+The two signals are the whole contract, and their order is the part applications get
+wrong. `::resize` arrives with the **device-pixel** viewport (logical size × scale
+factor) **before** the first `::render` and before every later one, so a program that
+sets up its projection there cannot draw into a viewport nobody told it about.
+
+The render flag is cleared *after* `::render`, so `queue_render()` from inside the
+handler queues its frame and loses its flag — one render, not a loop. Nothing redraws on
+its own either way: **auto-render** decides whether a draw you asked for ends in
+`::render`, and animating means asking, from a tick callback.
+
+One property refuses to change late. `allowed-apis` is read when the context is created,
+so GTK refuses a write to a realized area — and the browser replica does the same, putting
+the attribute back rather than starting a second context.
+
+<MoreInfo title="What this replica actually is">
+A `<canvas>` with a real WebGL context, and the block says so where a reader would
+otherwise assume parity. Three differences are real and none of them is a bug: WebGL and
+WebGL2 are both **ES**, so `api` always reports the ES flavour the browser gave out (no
+browser offers desktop GL) and `allowed-apis` picks between two ES *versions*; WebGL
+clears its drawing buffer after compositing unless the context asks it not to, so the
+element creates the context with `preserveDrawingBuffer` — the counterpart of the texture
+GTK keeps between frames; and `::create-context` still works, a handler supplying its own
+context through `detail.context`. There is no frame clock here either, so a draw happens
+when the allocation changes, when `queue_render()` asks for one, or when a property that
+ends in `queue_draw` changes — an application animating a GL area asks for its frames,
+exactly as it would in GTK.
+</MoreInfo>
+
+<AdwWidget title="Gtk.GLArea">
+  <Fragment slot="preview">
+    ```html
+    <!-- No intrinsic size of its own: `GtkGLArea` has no measure function, so the
+         allocation is the parent's to give and the request below is the whole size. -->
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+      <!-- auto-render: If set to %TRUE the ::render signal will be emitted every time the widget draws. -->
+      <!-- has-depth-buffer: If set to %TRUE the widget will allocate and enable a depth buffer for the target framebuffer. -->
+      <gtk-gl-area auto-render has-depth-buffer style="width:240px;height:160px;"></gtk-gl-area>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <gtk-gl-area id="area" style="width:240px;height:160px;">
+    </gtk-gl-area>
+
+    <script type="module">
+        const area = document.getElementById('area');
+
+        // ORDER, not decoration: `resize` carries the device-pixel viewport and arrives
+        // before every `render`, the first one included.
+        area.addEventListener('resize', (event) => {
+            const { width, height } = event.detail;
+            area.context.viewport(0, 0, width, height);
+        });
+        area.addEventListener('render', (event) => {
+            // The context is the whole GL API, and the browser's is ES — see the note
+            // above the block. A scene is a compiled program and a buffer; this tab is
+            // about the ORDER of the two signals, and the story draws the triangle.
+            const { context } = event.detail;
+            context.clearColor(0.15, 0.16, 0.18, 1);
+            context.clear(context.COLOR_BUFFER_BIT);
+        });
+
+        // Nothing redraws on its own. `queueRender()` asks for the next frame, and the
+        // flag SURVIVES a request made from inside the handler — which is what a tick
+        // callback is: the browser's stand-in for GLib's.
+        function tick () {
+            area.queueRender();
+            requestAnimationFrame(tick);
+        }
+        tick();
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+    import GLib from 'gi://GLib?version=2.0';
+
+    const area = new Gtk.GLArea({ autoRender: true, hasDepthBuffer: false });
+    // A SET, read when the context is created — GTK refuses a write to a realized area,
+    // so it belongs before the first render.
+    area.allowed_apis = Gdk.GLAPI.GL | Gdk.GLAPI.GLES;
+
+    // ORDER: `resize` first (device pixels — logical size × scale factor), then `render`.
+    area.connect('resize', (area, width, height) => {
+        area.get_context().viewport(0, 0, width, height);
+    });
+    area.connect('render', (area) => {
+        // The context IS the whole GL API — `gdk_gl_context_*` mirrors GL — so the
+        // browser replica's `WebGLRenderingContext` answers to the same calls. A scene is
+        // a compiled program and a buffer: `gl.use_program` and `gl.draw_arrays`.
+        const gl = area.get_context();
+        gl.clear_color(0.15, 0.16, 0.18, 1.0);
+        gl.clear(0x4000);
+    });
+
+    // Nothing redraws on its own: a tick callback asking per frame is what animates it.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 33, () => {
+        area.queue_render();
+        return GLib.SOURCE_CONTINUE;
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.GLArea {
+      auto-render: true;
+      has-depth-buffer: false;
+
+      // A GL area has no measure function, so its size is a request like any other
+      // widget's. `allowed-apis` is a SET — `allowed-apis: gl gles;` — and it is read
+      // once, when the context is created.
+      width-request: 240;
+      height-request: 160;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+    import GLib from 'gi://GLib?version=2.0';
+
+    const area = new Gtk.GLArea({ autoRender: true, hasDepthBuffer: false });
+    // A SET, read when the context is created — GTK refuses a write to a realized area,
+    // so it belongs before the first render.
+    area.allowed_apis = Gdk.GLAPI.GL | Gdk.GLAPI.GLES;
+
+    // ORDER: `resize` first (device pixels — logical size × scale factor), then `render`.
+    area.connect('resize', (area, width, height) => {
+        area.get_context().viewport(0, 0, width, height);
+    });
+    area.connect('render', (area) => {
+        // The context IS the whole GL API — `gdk_gl_context_*` mirrors GL — so the
+        // browser replica's `WebGLRenderingContext` answers to the same calls. A scene is
+        // a compiled program and a buffer: `gl.use_program` and `gl.draw_arrays`.
+        const gl = area.get_context();
+        gl.clear_color(0.15, 0.16, 0.18, 1.0);
+        gl.clear(0x4000);
+    });
+
+    // Nothing redraws on its own: a tick callback asking per frame is what animates it.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 33, () => {
+        area.queue_render();
+        return GLib.SOURCE_CONTINUE;
+    });
+    ```
+  </Fragment>
+</AdwWidget>

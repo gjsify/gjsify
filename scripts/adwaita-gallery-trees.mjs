@@ -416,6 +416,18 @@ export const ADWAITA_GALLERY_TREES = [
     },
     // ----------------------------------------------------------------- gtk drawing
     {
+        widget: 'Gtk.GLArea',
+        page: 'drawing',
+        // A GL area has NO measure function (no `widget_class->measure` in gtkglarea.c), so
+        // the size REQUESTS are what it needs in a tree — the allocation is the parent's
+        // to give. `auto-render` first: it is the property the `render` signal is gated on,
+        // and a tree is read in order.
+        root: {
+            tag: 'gtk-gl-area',
+            props: { autoRender: true, hasDepthBuffer: false, widthRequest: 240, heightRequest: 160 },
+        },
+    },
+    {
         widget: 'Gtk.DrawingArea',
         page: 'drawing',
         // The two content properties and nothing else: a draw function is a CALLBACK, and a

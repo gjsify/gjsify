@@ -163,7 +163,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ADWAITA_STORY_SRC, adwaitaStoryMetas } from './adwaita-elements.mjs';
+import { ADWAITA_STORY_SRC, adwaitaStoryMetas, classTag } from './adwaita-elements.mjs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 const args = process.argv.slice(2);
@@ -214,9 +214,12 @@ const NOT_IN_THE_GALLERY = {
  * `Adw.Entry` — a fact this repo previously got wrong in a citation).
  */
 const bareName = (title) => {
-    const match = /^(?:Adw|Gtk)\.([A-Za-z][A-Za-z0-9]*)$/.exec(title);
+    const match = /^(Adw|Gtk)\.([A-Za-z][A-Za-z0-9]*)$/.exec(title);
     if (!match) return null;
-    return match[1].replaceAll(/(?<!^)([A-Z])/g, '-$1').toLowerCase();
+    // `classTag` is the INVERSE of the `tagClass` the rest of the tree derives classes
+    // with, and it is the only one of the two that knows an acronym: a hand-rolled
+    // `kebab` here spelled `Gtk.GLArea` `g-l-area`, which is a widget nothing ships.
+    return classTag(`${match[1]}${match[2]}`).replace(/^[a-z]+-/, '');
 };
 
 /**
@@ -448,6 +451,8 @@ function filesSectionsInMenu(root) {
  * that only where the widget cannot be expressed as markup at all.
  */
 const MARKUP_OVERRIDE_LEDGER = {
+    'Gtk.GLArea':
+        'The same reason as `Gtk.DrawingArea`, one widget further: a GL area paints nothing without `::render` and `::resize`, and the preview fence mounts an element whose canvas is empty for exactly that reason. The `web` tab carries the markup that draws, including the order the two signals must arrive in.',
     'Gtk.DrawingArea':
         '`set_draw_func` is a CALLBACK, and a markup fence cannot install one — the live preview mounts the element exactly as the fence shows it, which is a blank area of the requested size, because with no function installed the widget paints nothing (gtkdrawingarea.c:251-252). So the preview depicts what is declarable and the `web` tab carries the markup that actually paints, script and all.',
     'Adw.Toast':
