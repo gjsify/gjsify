@@ -37,6 +37,7 @@ import { PreferencesGroupWebStories } from './rows/preferences-group.web.js';
 import { PreferencesRowWebStories } from './rows/preferences-row.web.js';
 import { SpinRowWebStories } from './rows/spin-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
+import { DragIconWebStories } from './drawing/drag-icon.web.js';
 import { DrawingAreaWebStories } from './drawing/drawing-area.web.js';
 import { GLAreaWebStories } from './drawing/gl-area.web.js';
 import { GraphicsOffloadWebStories } from './drawing/graphics-offload.web.js';
@@ -146,6 +147,7 @@ export const stories: WebStoryModule[] = [
     ProgressBarWebStories,
     LevelBarWebStories,
     GtkSpinnerWebStories,
+    DragIconWebStories,
     DrawingAreaWebStories,
     GLAreaWebStories,
     GraphicsOffloadWebStories,

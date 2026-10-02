@@ -453,6 +453,8 @@ function filesSectionsInMenu(root) {
 const MARKUP_OVERRIDE_LEDGER = {
     'Gtk.GLArea':
         'The same reason as `Gtk.DrawingArea`, one widget further: a GL area paints nothing without `::render` and `::resize`, and the preview fence mounts an element whose canvas is empty for exactly that reason. The `web` tab carries the markup that draws, including the order the two signals must arrive in.',
+    'Gtk.DragIcon':
+        'A drag icon is not a declared child of anything: `gtk_drag_icon_get_for_drag` creates one for a drag operation and GTK destroys it when the drag ends, and the live preview cannot hold a pointer down to start one. So the preview depicts the declarable half — the draggable row and the icon element — and the `web` tab carries the `dragstart` handler that calls `get_for_drag`, which is the whole API.',
     'Gtk.DrawingArea':
         '`set_draw_func` is a CALLBACK, and a markup fence cannot install one — the live preview mounts the element exactly as the fence shows it, which is a blank area of the requested size, because with no function installed the widget paints nothing (gtkdrawingarea.c:251-252). So the preview depicts what is declarable and the `web` tab carries the markup that actually paints, script and all.',
     'Adw.Toast':

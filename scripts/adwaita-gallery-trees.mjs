@@ -1111,6 +1111,11 @@ export const ADWAITA_GALLERY_REFUSALS = {
         "Gtk.Fixed places each child with gtk_fixed_put(child, x, y), and a tree carries no position: every child would be written at 0, 0, which is exactly what GtkBuilder's own buildable does (gtkfixed.c:171-177) and what no reader would copy.",
     'Gtk.Grid':
         'A cell position is DATA on the child — `layout: { column, row }`, which the host reads for a `coords` parent (policies.ts:787-793) — and `SharedTreeNode` declares no field for it, so every cell in a tree is attached at 0, 0 and the four labels would render on top of each other.',
+    'Gtk.DragIcon':
+        'a GtkRoot that nothing parents: gtk-host refuses it at the insert as `unparentable-child` ' +
+        'because it has no `present()`, `close()` or `destroy()` (measured — it is the one ' +
+        'GtkDragIcon-shaped name in `placement.spec.ts:469`), and GTK creates one FOR a drag rather than ' +
+        'building it. Its child is set by a GtkDragSource at drag time, which no tree can carry.',
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',
     'Adw.AlertDialog': 'its responses are add_response() calls and it is shown with present(); neither is markup.',
     'Adw.AboutDialog': 'a dialog is opened with present(), so a static tree renders nothing a reader would see.',

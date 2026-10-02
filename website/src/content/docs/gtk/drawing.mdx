@@ -12,6 +12,10 @@ box, a size and a callback, and everything on screen is what the callback painte
 all — it hands its one child to the compositor untouched, which is cheaper than
 compositing a texture per frame.
 
+The fourth, the **drag icon**, draws nothing either, and for the opposite reason: it is
+not a widget an application builds at all but one that belongs to a drag operation and
+dies with it.
+
 What none of them have is styling. Their CSS nodes carry no rule in libadwaita's
 stylesheet, so what you see here is geometry, not a theme.
 
@@ -303,6 +307,151 @@ exactly as it would in GTK.
         area.queue_render();
         return GLib.SOURCE_CONTINUE;
     });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Drag Icon
+
+The fourth widget on this page is the one **no application builds**. A `GtkDragIcon` belongs
+to a drag operation: `get_for_drag(drag)` returns the icon that drag is using, creating it if
+there is none, and GTK destroys it when the drag ends. Its own docs say the rest — *drag
+icons do not allow user input* — and the class makes it true in `init`, which calls
+`gtk_widget_set_can_target (self, FALSE)`.
+
+There is exactly one property, **child**, and it does the whole job: `set_child` unparents
+the previous child, parents the new one, shows the icon and notifies. Its size is the child's
+preferred size, which is why an icon is exactly as big as what it carries.
+
+What makes the widget interesting is `create_widget_for_value`, which is what a
+**`GtkDragSource`** calls to decide what a drag shows. It answers for six kinds of value: a
+string is a `GtkLabel`, a `GdkRGBA` is a colour swatch, a `GdkPaintable` and a `GFile` are
+`GtkImage`s at the large size, a `GtkTextBuffer` is a painted `GtkPicture` of its selection,
+a `GskRenderNode` is an image of its bounds — and `NULL` for anything else. The hotspot is
+the other half of a drag icon's setup: `set_from_paintable` calls
+`gdk_drag_set_hotspot (drag, hot_x, hot_y)` and aligns that point of the paintable with the
+cursor's.
+
+<MoreInfo title="What this replica actually is">
+The platform paints its own drag image and offers no way to hand a live widget to it, so the
+replica asks for a transparent drag image and mirrors the icon as a fixed-position element
+that follows the pointer for the length of the drag. Where a browser refuses the transparent
+image the platform's own ghost shows as well, and that is the one thing here a page cannot
+own. The **hotspot is fixed at (0, 0)** for the same reason: a browser's drag image is
+positioned by an offset passed once, and the mirror puts the icon's top-left *at* the
+pointer. Two of `create_widget_for_value`'s six answers are ported — a string and a colour,
+the two a drag source can offer without asking the file system anything — and the header
+names the four that are not.
+</MoreInfo>
+
+<AdwWidget title="Gtk.DragIcon">
+  <Fragment slot="preview">
+    ```html
+    <!-- A drag icon is not a declared child of anything: the only markup is the icon
+         itself, which GTK creates FOR a drag and destroys with it. Nothing is visible
+         until a drag begins — a preview cannot hold a pointer down — so the `web` tab
+         carries the row that starts one. -->
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <div draggable="true" style="padding:12px;border:1px solid var(--border-color);border-radius:12px;">
+        Report.odt
+      </div>
+      <gtk-drag-icon hidden></gtk-drag-icon>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <div id="row" draggable="true" style="padding:12px;">Report.odt</div>
+    <gtk-drag-icon id="icon"></gtk-drag-icon>
+
+    <script type="module">
+        import { Gtk } from '@gjsify/adwaita-web';
+
+        const row = document.getElementById('row');
+
+        // `dragstart` is `GtkDragSource::drag-begin` — the moment a drag begins, and the
+        // only moment a drag icon exists.
+        row.addEventListener('dragstart', (event) => {
+            if (event.dataTransfer !== null) {
+                // `actions` on the source is the effect this drag may have; `copy` and
+                // `move` are the two `Gdk.DragAction` bits of the story.
+                event.dataTransfer.effectAllowed = 'copy';
+                event.dataTransfer.setData('text/plain', 'Report.odt');
+            }
+
+            // `get_for_drag` is the ONLY way to reach an icon, and
+            // `create_widget_for_value` is what decides what a value shows: a string is a
+            // `GtkLabel` (:531-534), a `GdkRGBA` a colour swatch (:544-553).
+            const icon = Gtk.DragIcon.getForDrag(event);
+            icon.setChild(Gtk.DragIcon.createWidgetForValue('Report.odt'));
+        });
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+
+    // A draggable row. `GtkDragSource` is an EVENT CONTROLLER, not a widget, so it is
+    // added to one with `gtk_widget_add_controller` (gtkdragsource.c:44-58).
+    const row = new Gtk.ListBoxRow();
+    row.set_child(new Gtk.Label({ label: 'Report.odt' }));
+
+    const source = Gtk.DragSource.new();
+    source.actions = Gdk.DragAction.COPY;
+
+    // `prepare` answers the content, set just in time rather than ahead.
+    source.connect('prepare', () => Gdk.ContentProvider.new_for_value('Report.odt'));
+
+    // `drag-begin` is where the icon is set: `get_for_drag` is the only way to reach one
+    // (gtkdragicon.c:400-421), and `create_widget_for_value` decides what a value shows.
+    source.connect('drag-begin', (source, drag) => {
+        const icon = Gtk.DragIcon.get_for_drag(drag);
+        icon.set_child(Gtk.DragIcon.create_widget_for_value('Report.odt'));
+    });
+    row.add_controller(source);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    // A drag icon CANNOT be declared: `gtk_drag_icon_get_for_drag` creates one for a drag
+    // operation and GTK destroys it when the drag ends, so there is no instance a .blp
+    // could put in a tree. What a .blp CAN hold is the row the drag starts from — and the
+    // GtkDragSource that gives it a drag is an event CONTROLLER, which is code, so the icon
+    // is set there too.
+    Gtk.ListBoxRow {
+      Gtk.Label {
+        label: _("Report.odt");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+
+    // A draggable row. `GtkDragSource` is an EVENT CONTROLLER, not a widget, so it is
+    // added to one with `gtk_widget_add_controller` (gtkdragsource.c:44-58).
+    const row = new Gtk.ListBoxRow();
+    row.set_child(new Gtk.Label({ label: 'Report.odt' }));
+
+    const source = Gtk.DragSource.new();
+    source.actions = Gdk.DragAction.COPY;
+
+    // `prepare` answers the content, set just in time rather than ahead.
+    source.connect('prepare', () => Gdk.ContentProvider.new_for_value('Report.odt'));
+
+    // `drag-begin` is where the icon is set: `get_for_drag` is the only way to reach one
+    // (gtkdragicon.c:400-421), and `create_widget_for_value` decides what a value shows.
+    source.connect('drag-begin', (source, drag) => {
+        const icon = Gtk.DragIcon.get_for_drag(drag);
+        icon.set_child(Gtk.DragIcon.create_widget_for_value('Report.odt'));
+    });
+    row.add_controller(source);
     ```
   </Fragment>
 </AdwWidget>

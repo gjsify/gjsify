@@ -250,6 +250,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'drag-icon': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'drawing-area': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',

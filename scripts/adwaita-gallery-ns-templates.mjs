@@ -593,6 +593,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no compositor passthrough to wrap anything in: a video or a web view sits in a GtkBox cell and is composited like every other view, so the wrapper would be a plain container with no property of its own to set (status/open-todos/adwaita-ports.md).',
     'Gtk.GLArea':
         'The NativeScript port has no GL view, so there is nothing to render into and no context to keep current: GtkBox would hold a plain View instead, and a View has no render signal for GtkBox to forward (status/open-todos/adwaita-ports.md).',
+    'Gtk.DragIcon':
+        'A drag icon is not a widget an application builds — it belongs to a drag operation and dies with it — and @nativescript/core has no drag gesture to attach one to. The port has the pieces a dragged row would show and nothing that starts the drag: GtkLabel.set_markup is the whole of the label side and GtkBox.addChild the whole of the container, so an icon here would be a child nothing ever shows (status/open-todos/adwaita-ports.md).',
     'Gtk.Overlay':
         'The NativeScript port has no overlay view: GtkBox appends every child to the layout, and there is nothing in it to stack one over another (status/open-todos/adwaita-ports.md).',
     'Gtk.Revealer':

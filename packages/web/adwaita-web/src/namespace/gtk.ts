@@ -33,6 +33,7 @@ export { GtkColorDialogButton as ColorDialogButton } from '../elements/gtk-color
 export { GtkColumnView as ColumnView } from '../elements/gtk-column-view.js';
 export { GtkDropDown as DropDown } from '../elements/gtk-drop-down.js';
 export { GtkDrawingArea as DrawingArea } from '../elements/gtk-drawing-area.js';
+export { GtkDragIcon as DragIcon } from '../elements/gtk-drag-icon.js';
 export { GtkEditableLabel as EditableLabel } from '../elements/gtk-editable-label.js';
 export { GtkEmojiChooser as EmojiChooser } from '../elements/gtk-emoji-chooser.js';
 export { GtkEntry as Entry } from '../elements/gtk-entry.js';

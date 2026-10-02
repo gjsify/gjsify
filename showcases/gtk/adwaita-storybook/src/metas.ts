@@ -25,6 +25,7 @@ export * from './controls/scale.meta.js';
 export * from './controls/search-entry.meta.js';
 export * from './controls/spin-button.meta.js';
 export * from './controls/switch.meta.js';
+export * from './drawing/drag-icon.meta.js';
 export * from './drawing/drawing-area.meta.js';
 export * from './drawing/gl-area.meta.js';
 export * from './drawing/graphics-offload.meta.js';

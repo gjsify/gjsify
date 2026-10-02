@@ -92,6 +92,10 @@
 // own. No dependency on anything above it — it styles one canvas — so the order here is
 // placement, not precedence.
 @use 'drawing';
+// The `dnd` node, which libadwaita styles once for the whole widget
+// (`_common.scss:30-32`) and which is otherwise geometry: a drag icon has no parent to lay
+// out in, because it is a GtkRoot with its own surface. No dependency on anything above it.
+@use 'drag_icon';
 // The layout CONTAINERS GTK owns and libadwaita only styles. `_paned` draws the divider as
 // an inset box-shadow on the `separator` node a `GtkPanedHandle` carries, which is a
 // different rule from `<gtk-separator>`'s own fill — so it needs its own partial rather

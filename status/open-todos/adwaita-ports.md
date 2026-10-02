@@ -366,9 +366,9 @@ exactly why they must not be written as decisions.
   buildable. Its story is therefore ledgered as not rendered there
   (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
   template refused.
-- **`<gtk-drawing-area>`, `<gtk-gl-area>` and `<gtk-graphics-offload>` on NativeScript.**
-  Three browser elements with their blocks and stories, and a NativeScript port with no
-  counterpart for any of them: `GtkBox` is the container one would sit in and nothing in
+- **`<gtk-drawing-area>`, `<gtk-gl-area>`, `<gtk-graphics-offload>` and `<gtk-drag-icon>` on
+  NativeScript.** Four browser elements with their blocks and stories, and a NativeScript port
+  with no counterpart for any of them: `GtkBox` is the container one would sit in and nothing in
   the port paints — a drawing area would be an empty box with a size request. The GL area
   is the harder half of the same question: a GPU surface is what `@nativescript/core` has
   NO view for, and the whole contract is a signal pair
@@ -381,9 +381,16 @@ exactly why they must not be written as decisions.
   composites it like every other view, so `Gtk.GraphicsOffload` would be a container with
   nothing to pass on — and GTK's own list of what PROHIBITS offload
   (`refs/gtk/gtk/gtkgraphicsoffload.c:64-75`: a clip, an alpha channel, a filter, a
-  transform beyond translation and scale) is a list the port cannot even check for. All
-  three stories are therefore ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
-  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused.
+  transform beyond translation and scale) is a list the port cannot even check for. The drag
+  icon is the fourth question and the shortest: it is not a widget an application builds at
+  all — `gtk_drag_icon_get_for_drag` returns the icon a drag is USING and GTK destroys it
+  with the drag (`refs/gtk/gtk/gtkdragicon.c:42-58,400-421`) — so it needs a drag gesture to
+  belong to, and `@nativescript/core` has none to attach a controller to. The port can show
+  what a dragged row would carry (`GtkLabel`, and `GtkLabel.set_markup` for the markup case)
+  and can put it in a `GtkBox`, which is the whole of the widget minus the one part that
+  makes it a widget. All four stories are therefore ledgered as not rendered there
+  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and their XML
+  templates refused.
 - **`<gtk-level-bar>` and `<gtk-spinner>` on NativeScript.** Both browser elements and
   their gallery blocks exist; the NativeScript port has neither, and both refusals are
   about a widget the port already has a NEAR NEIGHBOUR for. `ActivityIndicator` is the

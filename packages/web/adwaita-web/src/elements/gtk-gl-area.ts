@@ -160,7 +160,9 @@ export class GtkGLArea extends HTMLElement {
     set allowedApis(v: GlApi[]) {
         if (this._context !== null) {
             // `g_return_if_fail (!gtk_widget_get_realized (…))` (:1242) — see the header.
-            this.setAttribute('allowed-apis', this._allowedApis.join(' '));
+            // `_write` rather than `setAttribute`: the write-back fires this callback
+            // again, and the guard stops it when the value is already the one in force.
+            this._write('allowed-apis', this._allowedApis.join(' '));
             return;
         }
         this._allowedApis = APIS.filter((api) => v.includes(api));
@@ -291,12 +293,11 @@ export class GtkGLArea extends HTMLElement {
                 // lifetime. A custom element cannot refuse an attribute write the way the C
                 // refuses a call, so the write is undone: the attribute goes back to the set
                 // in force, which is the state the property keeps, and nothing notifies. The
-                // page can see the refusal; the C only warns.
+                // page can see the refusal; the C only warns. `_write` rather than
+                // `setAttribute`: this write fires the callback again, and the guard is what
+                // stops the second pass from writing a third.
                 if (this._context !== null) {
-                    // `setAttribute` fires this callback again even with an unchanged value, so
-                    // the undo only writes when the attribute really moved.
-                    const inForce = this._allowedApis.join(' ');
-                    if (this.getAttribute('allowed-apis') !== inForce) this.setAttribute('allowed-apis', inForce);
+                    this._write('allowed-apis', this._allowedApis.join(' '));
                     return;
                 }
                 this._allowedApis = parseApis(this);
@@ -364,8 +365,10 @@ export class GtkGLArea extends HTMLElement {
         this.makeCurrent();
         this.attachBuffers(context);
         // `glEnable`/`glDisable (GL_DEPTH_TEST)` per `has-depth-buffer` (:782-785).
-        if (this.hasDepthBuffer) context.enable(context.DEPTH_TEST);
-        else context.disable(context.DEPTH_TEST);
+        // As in `attachBuffers`: a handler-supplied context may not be a WebGL one at all,
+        // and a missing call is skipped rather than thrown (:782-785).
+        if (this.hasDepthBuffer) context.enable?.(context.DEPTH_TEST);
+        else context.disable?.(context.DEPTH_TEST);
 
         if (this._needsRender || this.autoRender) {
             if (this._needsResize) {
@@ -388,8 +391,13 @@ export class GtkGLArea extends HTMLElement {
      */
     attachBuffers(context: GlContext | null = this._context): void {
         if (context === null) return;
-        if (this.hasStencilBuffer) context.enable(context.STENCIL_TEST);
-        else context.disable(context.STENCIL_TEST);
+        // The C calls `glEnable`/`glDisable` straight (:583-618), because a `GdkGLContext`
+        // always has them. A `create-context` handler in a browser can hand the element
+        // anything at all — the spec's own case is a 2D context — so the calls are made
+        // where they exist and skipped where they do not, rather than throwing out of a
+        // frame the C would have drawn.
+        if (this.hasStencilBuffer) context.enable?.(context.STENCIL_TEST);
+        else context.disable?.(context.STENCIL_TEST);
         // The C's `have_buffers` guard: with the buffers already attached and nothing
         // resized, `attach_buffers` has nothing to do (:396-397).
         this._haveBuffers = true;

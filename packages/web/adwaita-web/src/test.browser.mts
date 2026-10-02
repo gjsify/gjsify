@@ -29,6 +29,7 @@ import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
+import { GtkDragIconTest } from './gtk-drag-icon.spec.js';
 import { GtkDrawingAreaTest } from './gtk-drawing-area.spec.js';
 import { GtkGLAreaTest } from './gtk-gl-area.spec.js';
 import { GtkGraphicsOffloadTest } from './gtk-graphics-offload.spec.js';
@@ -153,6 +154,7 @@ run({
     GtkSeparatorTest,
     GtkTreeExpanderTest,
     GtkDrawingAreaTest,
+    GtkDragIconTest,
     GtkGLAreaTest,
     GtkGraphicsOffloadTest,
     GtkToggleButtonTest,

@@ -47,12 +47,12 @@ export class GLAreaWebStory extends StoryElement {
         // The SAME two signals the GTK story connects, in the SAME order: `resize` arrives
         // before the first `render` and on every later allocation, and its numbers are
         // device pixels (gtkglarea.c:761-763, :797-807).
-        this._area.addEventListener('resize', (event) => {
+        this._area.addEventListener('resize', (event: Event) => {
             const { width, height } = (event as CustomEvent).detail as { width: number; height: number };
             this._viewport = `${width} × ${height}`;
             this._refresh();
         });
-        this._area.addEventListener('render', (event) => {
+        this._area.addEventListener('render', (event: Event) => {
             const { context } = (event as CustomEvent).detail as {
                 context: WebGLRenderingContext | WebGL2RenderingContext | null;
             };
@@ -112,10 +112,14 @@ export class GLAreaWebStory extends StoryElement {
         // WebGL2 extends WebGL, so one `instanceof` covers both.
         if (!(context instanceof WebGLRenderingContext)) return;
         if (!this._program) this._build(context);
+        const program = this._program;
+        // `_build` compiles and links; a driver that refuses either leaves nothing to draw,
+        // which is the end of this frame rather than an error thrown out of the handler.
+        if (program === null) return;
         context.clearColor(0.15, 0.16, 0.18, 1);
         context.clear(context.COLOR_BUFFER_BIT);
-        context.useProgram(this._program);
-        context.uniform1f(context.getUniformLocation(this._program, 'angle'), this._angle);
+        context.useProgram(program);
+        context.uniform1f(context.getUniformLocation(program, 'angle'), this._angle);
         context.bindBuffer(context.ARRAY_BUFFER, this._buffer);
         context.enableVertexAttribArray(0);
         context.vertexAttribPointer(0, 2, context.FLOAT, false, 0, 0);
