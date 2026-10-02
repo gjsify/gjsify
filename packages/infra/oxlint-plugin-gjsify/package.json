@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/oxlint-plugin-gjsify",
-    "version": "0.53.0",
+    "version": "0.54.0",
     "description": "oxlint JS plugin with gjsify's own lint rules for GJS/GTK code — Blueprint templates, translatable widget labels, GObject.registerClass field order, GJS-correct process exit, anchored deferral markers, and the CSS side-effect import that tree-shakes away. Wire it through `jsPlugins` in `.oxlintrc.json`.",
     "type": "module",
     "main": "lib/index.js",

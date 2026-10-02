@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.54.0](https://github.com/gjsify/gjsify/compare/v0.53.0...v0.54.0) (2026-10-02)
+
+### Features
+
+* **blueprint:** hold an extern body to the oracle, and accept ADR 0062 ([#1951](https://github.com/gjsify/gjsify/issues/1951)) ([dc323af](https://github.com/gjsify/gjsify/commit/dc323af4a52f53048046b7c992ff48c923e2c8d2)), closes [#1694](https://github.com/gjsify/gjsify/issues/1694) [#1690](https://github.com/gjsify/gjsify/issues/1690) [#1694](https://github.com/gjsify/gjsify/issues/1694)
+* **blueprint:** typed exports from a .blp ([#1984](https://github.com/gjsify/gjsify/issues/1984)) ([8af7476](https://github.com/gjsify/gjsify/commit/8af7476f673f670625a8fdd702c90755e6b4b06c)), closes [#1143](https://github.com/gjsify/gjsify/issues/1143) [#1146](https://github.com/gjsify/gjsify/issues/1146)
+* **devtools:** a scriptable client for the control plane ([#1949](https://github.com/gjsify/gjsify/issues/1949)) ([287be1f](https://github.com/gjsify/gjsify/commit/287be1fb1e0ed5a14cf1fe6c1cbc81e52cd7e825))
+* **mcp:** add @gjsify/mcp server runtime ([#1946](https://github.com/gjsify/gjsify/issues/1946)) ([dfca623](https://github.com/gjsify/gjsify/commit/dfca62399fa8e1382657da469902f8e6142784e7))
+* **node-gi:** ship libgda in the darwin runtime ([#1942](https://github.com/gjsify/gjsify/issues/1942)) ([91deb64](https://github.com/gjsify/gjsify/commit/91deb6409fc528c9487083b972f24b00afd41b4b))
+* **oxlint-plugin:** publish to npm ([#1953](https://github.com/gjsify/gjsify/issues/1953)) ([5d39629](https://github.com/gjsify/gjsify/commit/5d39629daa44d7ed3cdf4ceb805e2bdd82f294ee))
+* **rolldown-plugin:** optional gi:// imports ([#1931](https://github.com/gjsify/gjsify/issues/1931)) ([#1947](https://github.com/gjsify/gjsify/issues/1947)) ([4b5359d](https://github.com/gjsify/gjsify/commit/4b5359d574f23e1f1b8784cbce09fdbb2856fb13)), closes [#1957](https://github.com/gjsify/gjsify/issues/1957)
+* **timers:** return Node-compatible timer handles ([#1950](https://github.com/gjsify/gjsify/issues/1950)) ([9a56bd9](https://github.com/gjsify/gjsify/commit/9a56bd9002ccdecdcbbc8f5519d16ec757d9ee83))
+* typed .blp exports in the showcases ([#1988](https://github.com/gjsify/gjsify/issues/1988)) ([531da02](https://github.com/gjsify/gjsify/commit/531da02d151dd2d3fb0e7e3b73708d277a18bad2)), closes [#1984](https://github.com/gjsify/gjsify/issues/1984)
+* **webext:** add an opera target ([#1936](https://github.com/gjsify/gjsify/issues/1936)) ([79062ab](https://github.com/gjsify/gjsify/commit/79062abcd2625f0ea8184eb1eb57efb49958ef86))
+
+### Bug Fixes
+
+* **audit:** audit the shipped populations ([#1952](https://github.com/gjsify/gjsify/issues/1952)) ([e8a5958](https://github.com/gjsify/gjsify/commit/e8a5958fc0d5b01e6a66ae85dc96c6b84d2aab75)), closes [#1898](https://github.com/gjsify/gjsify/issues/1898) [#1947](https://github.com/gjsify/gjsify/issues/1947)
+* build utils lib/esm before any bundler clause ([#1976](https://github.com/gjsify/gjsify/issues/1976)) ([f17fb90](https://github.com/gjsify/gjsify/commit/f17fb9055cc62f8124a2224c70d709fe3e5cdd6f)), closes [#1899](https://github.com/gjsify/gjsify/issues/1899) [#1980](https://github.com/gjsify/gjsify/issues/1980)
+* **child_process:** close after piped stdio ends ([#1990](https://github.com/gjsify/gjsify/issues/1990)) ([ec1381d](https://github.com/gjsify/gjsify/commit/ec1381dc8e8cc4b51520576111f3173724f13214))
+* **ci:** anchor probe retirement to publish time ([#1979](https://github.com/gjsify/gjsify/issues/1979)) ([4038ffc](https://github.com/gjsify/gjsify/commit/4038ffc0a2b96f24b437707b171c9a8576b2bd4a))
+* **cli:** a failed probe is not a missing engine ([#1978](https://github.com/gjsify/gjsify/issues/1978)) ([669833d](https://github.com/gjsify/gjsify/commit/669833d9afd540c50290d5c829a617cdb57cd7db))
+* **cli:** carry resolved ship licence into metadata ([#1989](https://github.com/gjsify/gjsify/issues/1989)) ([03df5d7](https://github.com/gjsify/gjsify/commit/03df5d7497b4c31e4b9f012a04ab5dde944be03f))
+* **cli:** sign a real .app, then read both containers ([#1929](https://github.com/gjsify/gjsify/issues/1929)) ([fbf7aba](https://github.com/gjsify/gjsify/commit/fbf7aba993c284ace40ff5118e75cf14f87c7ab3))
+* **examples:** webext-hello knows opera ([#1938](https://github.com/gjsify/gjsify/issues/1938)) ([77de3c3](https://github.com/gjsify/gjsify/commit/77de3c301e51dc7bc4bd195342588dd56dba11e0))
+* flush unit stdio, ref self-sinking windows ([#2000](https://github.com/gjsify/gjsify/issues/2000)) ([04f7c82](https://github.com/gjsify/gjsify/commit/04f7c821580654ad6992ac2d9511f60d3538185b)), closes [#1999](https://github.com/gjsify/gjsify/issues/1999) [#1999](https://github.com/gjsify/gjsify/issues/1999)
+* **gamepad-native:** link frameworks into virtual-pad ([#1944](https://github.com/gjsify/gjsify/issues/1944)) ([251ed65](https://github.com/gjsify/gjsify/commit/251ed656310253c5915f5db5abbe7be8812bbefc)), closes [#1820](https://github.com/gjsify/gjsify/issues/1820)
+* **prebuilds:** pin the rust cdylib link identity ([#1935](https://github.com/gjsify/gjsify/issues/1935)) ([8f52ece](https://github.com/gjsify/gjsify/commit/8f52eceef91f0a756e09033ab3b3ca3266c3b90d)), closes [#1923](https://github.com/gjsify/gjsify/issues/1923)
+* **prebuilds:** read the repro diff off the artifact ([#1934](https://github.com/gjsify/gjsify/issues/1934)) ([e4b93db](https://github.com/gjsify/gjsify/commit/e4b93db89f666aa2d43904af700b1918287d3643))
+* rescue faces a font map cannot serve ([#1927](https://github.com/gjsify/gjsify/issues/1927)) ([d18b920](https://github.com/gjsify/gjsify/commit/d18b920b63f1005b0dbd66c602a7c10392b2c825))
+* **stream:** alias addListener to on on Readable ([#1958](https://github.com/gjsify/gjsify/issues/1958)) ([6782d42](https://github.com/gjsify/gjsify/commit/6782d42babaffab22aa12deca650c7813645cd7b)), closes [#1976](https://github.com/gjsify/gjsify/issues/1976)
+* **terminal:** a readable prebuild may still not be callable ([#1928](https://github.com/gjsify/gjsify/issues/1928)) ([a407293](https://github.com/gjsify/gjsify/commit/a4072937b0597d5af221852fd880dddb69b5d5b4))
+* **tty:** claim the raw-mode debt setRawMode creates ([#1940](https://github.com/gjsify/gjsify/issues/1940)) ([a9f1f59](https://github.com/gjsify/gjsify/commit/a9f1f59c00ded7c78ac66e45b09d265bea9dbb02)), closes [#1908](https://github.com/gjsify/gjsify/issues/1908)
+* unblock @gjsify/napi@0.53.0 on a cold tree (two defects) ([#1983](https://github.com/gjsify/gjsify/issues/1983)) ([fd12266](https://github.com/gjsify/gjsify/commit/fd122660bb0e780767af3d8c4f94bfb6dd617fe9)), closes [#1901](https://github.com/gjsify/gjsify/issues/1901)
+
+### Documentation
+
+* **adr:** 0089 builds win32-arm64 GTK from our fork ([#1997](https://github.com/gjsify/gjsify/issues/1997)) ([9835419](https://github.com/gjsify/gjsify/commit/98354191b98fbb4778f9e30c2ecacf99304344d2)), closes [#1117](https://github.com/gjsify/gjsify/issues/1117) [#1984](https://github.com/gjsify/gjsify/issues/1984)
+* **adr:** derive a format's runtimes from what exists ([#1957](https://github.com/gjsify/gjsify/issues/1957)) ([78837d3](https://github.com/gjsify/gjsify/commit/78837d361fc02d7731927aad21ef855a2c0b5484))
+* **ci:** record the darwin rn-probe promotion ([#1996](https://github.com/gjsify/gjsify/issues/1996)) ([5211cf3](https://github.com/gjsify/gjsify/commit/5211cf3057d078e470a684b67cb83afe1085fcb1)), closes [#1993](https://github.com/gjsify/gjsify/issues/1993) [#1992](https://github.com/gjsify/gjsify/issues/1992)
+* cut measured comment debt in five trees ([#1943](https://github.com/gjsify/gjsify/issues/1943)) ([9f651f5](https://github.com/gjsify/gjsify/commit/9f651f52609971bd9d96a34a926b51e77c2d614e))
+* **framework:** cut comment debt in gtk-host and react-native ([#1939](https://github.com/gjsify/gjsify/issues/1939)) ([f50fd7c](https://github.com/gjsify/gjsify/commit/f50fd7c9351d10290c6213384b381864e06a5135)), closes [#1927](https://github.com/gjsify/gjsify/issues/1927)
+* **governance:** record merge queue settings ([#1959](https://github.com/gjsify/gjsify/issues/1959)) ([b8d1fc9](https://github.com/gjsify/gjsify/commit/b8d1fc9cfbf346d44d1e2bcaac9401ff71a5961a))
+* **release:** prose for the 0.54.0 train ([#2002](https://github.com/gjsify/gjsify/issues/2002)) ([bb7ff1d](https://github.com/gjsify/gjsify/commit/bb7ff1d6a7e6afe448ca02199f6bc1cb3ca7a96d))
+* **templates:** adw-game names its Blueprint UI ([#1948](https://github.com/gjsify/gjsify/issues/1948)) ([42c0afe](https://github.com/gjsify/gjsify/commit/42c0afe2791720a1b2156b87c5caa2888d850660)), closes [#1690](https://github.com/gjsify/gjsify/issues/1690) [#1953](https://github.com/gjsify/gjsify/issues/1953) [#1953](https://github.com/gjsify/gjsify/issues/1953)
+* **website:** build() in the gallery snippets ([#1987](https://github.com/gjsify/gjsify/issues/1987)) ([5df02d8](https://github.com/gjsify/gjsify/commit/5df02d89763e2f5c19c6a6692325fe16b33903f3))
+* **website:** one window per gallery block ([#1986](https://github.com/gjsify/gjsify/issues/1986)) ([8f35924](https://github.com/gjsify/gjsify/commit/8f359241505e4466d4b82c48878043402029b31f))
+* **website:** simpler, shorter docs ([#1985](https://github.com/gjsify/gjsify/issues/1985)) ([e7351f7](https://github.com/gjsify/gjsify/commit/e7351f770a8debce1fb51304b9510b80ede87f46))
+
+### Continuous Integration
+
+* **cancel-pr-runs:** sweep dead merge-queue runs ([#1960](https://github.com/gjsify/gjsify/issues/1960)) ([2254bce](https://github.com/gjsify/gjsify/commit/2254bcef563a2a5dcbeb7154517f7c1b251b6557))
+* **gtk-os:** promote the darwin react-native probe ([#1992](https://github.com/gjsify/gjsify/issues/1992)) ([8f83b92](https://github.com/gjsify/gjsify/commit/8f83b92719474a21113cea660d7d862b0db81e66))
+* **macos:** keep the cold-bootstrap crash report ([#1937](https://github.com/gjsify/gjsify/issues/1937)) ([ecd91b7](https://github.com/gjsify/gjsify/commit/ecd91b79918d7ab99eedfa2b5dbe30bcc4e0c13b))
+* **main:** skip legs the merge queue proved ([#1963](https://github.com/gjsify/gjsify/issues/1963)) ([a8c29ca](https://github.com/gjsify/gjsify/commit/a8c29ca7363b2d58ce5eb4db89eccaa69a317e9a)), closes [#1183](https://github.com/gjsify/gjsify/issues/1183)
+* **node-gi:** prove the bundle row on bun and deno ([#1917](https://github.com/gjsify/gjsify/issues/1917)) ([70d5243](https://github.com/gjsify/gjsify/commit/70d5243554265f5f1a9b058b2b509a1767ff09fc)), closes [#1393](https://github.com/gjsify/gjsify/issues/1393) [#47](https://github.com/gjsify/gjsify/issues/47) [#1932](https://github.com/gjsify/gjsify/issues/1932)
+* promote the win32 media conformance probe ([#1965](https://github.com/gjsify/gjsify/issues/1965)) ([458b6a0](https://github.com/gjsify/gjsify/commit/458b6a01c3b7e9ffa627d7b5d7f3ebc2041bb775))
+* skip heavy workflows on draft PRs ([#1962](https://github.com/gjsify/gjsify/issues/1962)) ([40bf052](https://github.com/gjsify/gjsify/commit/40bf0526c177fb413b8188cca22fdf9e9c6bb9ec))
+* slim checkouts of utility jobs ([#1964](https://github.com/gjsify/gjsify/issues/1964)) ([31cb627](https://github.com/gjsify/gjsify/commit/31cb6273b814020368b94c462dee792efd74c72e))
+
+### Maintenance
+
+* rebaseline the comment-budget ceilings ([#1941](https://github.com/gjsify/gjsify/issues/1941)) ([686c1c2](https://github.com/gjsify/gjsify/commit/686c1c2af6b99b62ea7df5447cabd8c58769ad97))
+* update native prebuilds [skip ci] ([8ae8765](https://github.com/gjsify/gjsify/commit/8ae8765069ae37fac685ed9bfd87bc15b0efcda1))
+* update native prebuilds [skip ci] ([b6ebe69](https://github.com/gjsify/gjsify/commit/b6ebe69de3e0be1f8502d4e9d646f0ff5cee6cfd))
+* update native prebuilds [skip ci] ([aefb679](https://github.com/gjsify/gjsify/commit/aefb679a86469c7d05625fb6c9d4d11953e234e5))
+
+### Tests
+
+* **cli:** cover a transitive sibling edit ([#1945](https://github.com/gjsify/gjsify/issues/1945)) ([cdbf005](https://github.com/gjsify/gjsify/commit/cdbf00526bc1b00ead853a9086b22ef6df6efc10)), closes [#1905](https://github.com/gjsify/gjsify/issues/1905) [#1896](https://github.com/gjsify/gjsify/issues/1896)
+* **cli:** keep the grandchild fixture alive ([#1966](https://github.com/gjsify/gjsify/issues/1966)) ([dc76fd6](https://github.com/gjsify/gjsify/commit/dc76fd680e06851924824e56958abc9779088a25)), closes [#1952](https://github.com/gjsify/gjsify/issues/1952) [#1948](https://github.com/gjsify/gjsify/issues/1948)
+* **net:** drop blanket socket error swallows ([#1922](https://github.com/gjsify/gjsify/issues/1922)) ([0d11565](https://github.com/gjsify/gjsify/commit/0d115652c797a9724439e36574636a06bce06796))
+* **node-gi:** drop POSIX assumptions in tests ([#1995](https://github.com/gjsify/gjsify/issues/1995)) ([929a09f](https://github.com/gjsify/gjsify/commit/929a09f2a8fcce920d91eea389aa4de42f9052c5))
+
 ## [0.53.0](https://github.com/gjsify/gjsify/compare/v0.52.0...v0.53.0) (2026-10-01)
 
 ### Features
