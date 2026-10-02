@@ -71,6 +71,15 @@ jobs:
         with:
           # Fetch the full history so commitlint can walk back to the merge base.
           fetch-depth: 0
+          filter: blob:none
+          # The config for the action, plus the four scripts the later steps run.
+          sparse-checkout: |
+            commitlint.config.cjs
+            scripts/check-pr-title-subject.mjs
+            scripts/check-pr-body-lines.mjs
+            scripts/check-closing-keywords.mjs
+            scripts/decide-commitlint-verdict.mjs
+          sparse-checkout-cone-mode: false
 
       # Self-contained commitlint action: brings its own @commitlint/cli +
       # @commitlint/config-conventional, auto-detects the repo's

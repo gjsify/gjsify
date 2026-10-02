@@ -253,9 +253,15 @@ export async function gateHistoryReport(options) {
 
     // ── 1. Workflows with no run here ────────────────────────────────────────
     const missingWorkflows = [];
-    for (const workflow of active) {
-        if (runsHere.has(workflow.path)) continue;
-        const history = await historyOf(basename(workflow.path));
+    const missingWorkflowFilters = active.map((w, i) => (runsHere.has(w.path) ? null : { w, i }));
+    const missingHistories = await Promise.all(
+        missingWorkflowFilters.map((item) => (item ? historyOf(basename(item.w.path)) : null)),
+    );
+    for (let i = 0; i < missingWorkflowFilters.length; i++) {
+        const item = missingWorkflowFilters[i];
+        if (!item) continue;
+        const { w: workflow } = item;
+        const history = missingHistories[i];
         const last = history?.[0];
         missingWorkflows.push(
             last
@@ -271,8 +277,20 @@ export async function gateHistoryReport(options) {
 
     // ── 2. Legs skipped here, and when they last executed ────────────────────
     const staleLegs = [];
-    for (const [path, run] of [...runsHere.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-        const jobs = await jobsOf(run.id);
+    const sortedRuns = [...runsHere.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const allJobs = await Promise.all(sortedRuns.map(([_, run]) => jobsOf(run.id)));
+    const historyNeeded = sortedRuns.map((_, i) => {
+        const jobs = allJobs[i];
+        if (!jobs) return false;
+        return jobs.some((job) => job.conclusion === 'skipped');
+    });
+    const allHistories = await Promise.all(
+        sortedRuns.map(([path], i) => (historyNeeded[i] ? historyOf(basename(path)) : null)),
+    );
+    for (let i = 0; i < sortedRuns.length; i++) {
+        const [path, run] = sortedRuns[i];
+        const jobs = allJobs[i];
+        const history = allHistories[i];
         if (!jobs) continue;
         const unresolved = new Map();
         for (const job of jobs) {
@@ -280,7 +298,6 @@ export async function gateHistoryReport(options) {
         }
         if (unresolved.size === 0) continue;
 
-        const history = await historyOf(basename(path));
         let walked = 0;
         for (const older of history ?? []) {
             if (unresolved.size === 0) break;
