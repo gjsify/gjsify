@@ -4,37 +4,40 @@
 //
 // THE PARTS ARE GTK'S PARTS, NOT AN ARRANGEMENT OF THIS ONE'S. The child goes into a
 // `<gtk-viewport>` — `gtk_scrolled_window_set_property(child)` "will add the child to a
-// Gtk.Viewport and then set the viewport as the child" (gtkscrolledwindow.c:785-793) — and
+// Gtk.Viewport and then set the viewport as the child" (gtkscrolledwindow.c:780-793), which
+// `gtk_scrolled_window_set_child` does at gtkscrolledwindow.c:4362-4374 — and
 // each scrollbar is a `<gtk-scrollbar>` holding the adjustment of one axis, which is how
 // GTK reaches them too: `gtk_scrollbar_get_adjustment (GTK_SCROLLBAR (priv->hscrollbar))`
 // is the phrase the whole of `gtkscrolledwindow.c` reads a position through. So the
 // adjustments are computed by the VIEWPORT, from its own scroll metrics, in GTK's own
-// fractions (`gtkviewport.c:577-610`), and this widget owns only what a scrolled window
-// owns: WHICH scrollbars are visible, WHERE they sit, and what the keys do.
+// fractions (`viewport_set_adjustment_values`, gtkviewport.c:159-189), and this widget owns
+// only what a scrolled window owns: WHICH scrollbars are visible, WHERE they sit, and what
+// the keys do.
 //
 // VISIBILITY IS `update_scrollbar_visibility_flags` AND NOTHING ELSE — an automatic bar is
-// visible when `upper - lower > page_size` (gtkscrolledwindow.c:1553-1580), which is the
+// visible when `upper - lower > page_size` (gtkscrolledwindow.c:1553-1579), which is the
 // content being longer than the window, read here as the same comparison of the same six
-// numbers. GTK's guess-and-recheck loop above it (gtkscrolledwindow.c:1620-1747) exists
+// numbers. GTK's guess-and-recheck loop around it (gtkscrolledwindow.c:1608-1750) exists
 // because a GTK widget must be ASKED for its size and the answer moves when a scrollbar
 // takes some of it. A browser reports both numbers at once, so the loop has nothing to
 // converge on and the comparison is taken once per layout.
 //
-// WHERE THE BARS SIT IS `gtk_scrolled_window_allocate_scrollbar`, including its two
-// complications: `window-placement` moves them to the other edges (`top-left` is the
-// default, and the L/R half is direction-aware upstream — `:dir(rtl)` is that here), and an
+// WHERE THE BARS SIT IS `gtk_scrolled_window_allocate_scrollbar` (gtkscrolledwindow.c:3227-3305),
+// including its two complications: `window-placement` moves them to the other edges
+// (`top-left` is the default, and the L/R half is direction-aware upstream — `:dir(rtl)` is
+// that here, from `is_left = ltr != is_start` at :3244-3249), and an
 // OVERLAY bar is laid out INSIDE the content's own allocation, over it
-// (`priv->use_indicators`, gtkscrolledwindow.c:3257-3300) rather than beside it.
+// (`priv->use_indicators`, gtkscrolledwindow.c:3255-3300) rather than beside it.
 //
 // `overlay-scrolling` is read twice in GTK too: `use_indicators` is the AND of this property
 // with the `gtk-overlay-scrolling` SETTING, which is TRUE by default
-// (gtksettings.c:968-977), and the indicator is the "narrow, auto-hiding" scrollbar
+// (gtksettings.c:967-979), and the indicator is the "narrow, auto-hiding" scrollbar
 // `setup_indicator` fades in on every value change and back out `INDICATOR_FADE_OUT_DELAY`
-// after the last one (gtkscrolledwindow.c:190-197, 3807-3846). The settings half is the
+// after the last one (gtkscrolledwindow.c:191-196, 3807-3847). The settings half is the
 // `(hover: hover)` media query here: whether a pointer that can HOVER exists is what decides
 // between indicators and permanent bars — the sentence GTK's own class documentation puts
 // the other way round ("If no mouse device is present, the scrollbars will overlaid as
-// narrow, auto-hiding indicators over the content", gtkscrolledwindow.c:116-119).
+// narrow, auto-hiding indicators over the content", gtkscrolledwindow.c:108-112).
 //
 // THE EDGE INDICATORS ARE NOT REDRAWN HERE. `AdwScrollShading` already owns the undershoot
 // and overshoot bookkeeping for every scroller in this package — the unclamped position a
@@ -44,14 +47,15 @@
 // what turns a wheel push past an edge into this widget's `edge-overshot`.
 //
 // THE KEYS ARE `gtk_scrolled_window_class_init`'s OWN bindings, which are not the obvious
-// ones: every arrow and every Home/End needs CONTROL, and the bare Page Up/Down pair is the
-// VERTICAL axis while Ctrl+Page Up/Down is the horizontal one (gtkscrolledwindow.c:843-856).
-// `scroll-child` is an ACTION signal, so the adjustment moves FIRST and the signal follows.
-// `may_hscroll` / `may_vscroll` decide whether a key scrolls at all, and an EXTERNAL policy
-// counts — the bar is not drawn, but the widget can still be driven (gtkscrolledwindow.c:916-932).
+// ones: every arrow needs CONTROL, and Page Up/Down and Home/End are bound TWICE — bare for
+// the VERTICAL axis and with CONTROL for the horizontal one
+// (gtkscrolledwindow.c:894-910). `scroll-child` is an ACTION signal, so the adjustment moves
+// FIRST and the signal follows. `may_hscroll` / `may_vscroll` decide whether a key scrolls at
+// all, and an EXTERNAL policy counts — the bar is not drawn, but the widget can still be
+// driven (gtkscrolledwindow.c:916-930).
 //
 // `min-content-width` / `max-content-width` (and the heights) are GTK's SIZE REQUESTS
-// (`gtk_scrolled_window_measure`, gtkscrolledwindow.c:1820-1985): what the window asks its
+// (`gtk_scrolled_window_measure`, gtkscrolledwindow.c:1821-1985): what the window asks its
 // parent for along that axis, which is `min-width` / `max-width` here. -1, the pspec's
 // default, is "not written" and sets nothing.
 //
@@ -63,10 +67,11 @@
 // least its `max-content` size — the CSS name for the natural one — and `hscrollbar-policy:
 // never`, which adds the child's MINIMUM request instead (:1890-1892), is the same line
 // with `min-content`. The larger of the two wins, which is what adding both to two requests
-// and clamping them comes to.
+// and clamping them comes to. Which of the two is asked for AT ALL is `need_child_size`
+// (:1841-1844), so an unwritten request sets nothing on either.
 //
 // A11y: `role="generic"`, which GTK 4.12 gave the widget in place of the `group` it used
-// to report (gtkscrolledwindow.c:139-146). The scrollport inside is the announced part.
+// to report (gtkscrolledwindow.c:137-142, 913). The scrollport inside is the announced part.
 //
 // KNOWN_GAPS, the property behind each: `kinetic-scrolling` — the momentum after a touch
 // release is the platform's own and a page cannot hand a browser a deceleration curve;
@@ -76,8 +81,8 @@
 // Reference: refs/gtk/gtk/gtkscrolledwindow.c (class_init's key bindings, measure,
 //   size_allocate, allocate_scrollbar, update_scrollbar_visibility_flags, may_hscroll,
 //   setup_indicator, scroll_child, move_focus_out, get_overshoot)
-// Reference: refs/gtk/gtk/gtksettings.c:968-977 (the setting overlay-scrolling ANDs with)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_scrolling.scss:129-167 (scrolledwindow)
+// Reference: refs/gtk/gtk/gtksettings.c:967-979 (the setting overlay-scrolling ANDs with)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
@@ -130,7 +135,8 @@ function sizeRequest(value: string | null): number | null {
  *
  * `end` / `farEnd` are `Gtk.PositionType`'s two names for one axis's edges, and the
  * horizontal pair is inverted under `dir(rtl)` where GTK inverts it
- * (`_gtk_scrolled_window_set_adjustment_value`, gtkscrolledwindow.c:3395-3400) — which is
+ * (`maybe_emit_edge_reached`, gtkscrolledwindow.c:3656-3658, and the same in
+ * `_gtk_scrolled_window_set_adjustment_value` at :3346-3349) — which is
  * a CSS concern and lives in the stylesheet, so only the LTR names are named here.
  */
 const AXES = [
@@ -155,9 +161,9 @@ const AXES = [
 ] as const;
 
 /**
- * `gtk_scrolled_window_class_init`'s bindings (gtkscrolledwindow.c:843-856), read as a
- * table because the table IS the surprise: CONTROL for every arrow and every Home/End, and
- * Page Up/Down on the vertical axis bare and on the horizontal one with CONTROL.
+ * `gtk_scrolled_window_class_init`'s bindings (gtkscrolledwindow.c:894-910), read as a
+ * table because the table IS the surprise: CONTROL for every arrow, and Page Up/Down and
+ * Home/End on the vertical axis bare and on the horizontal one with CONTROL.
  *
  * `null` is a key this widget does not bind, which is how it reaches a focused child —
  * GTK's action handler returns FALSE and propagation continues.
@@ -173,15 +179,17 @@ function resolveScrollKey(event: KeyboardEvent): { scroll: GtkScrollType; horizo
         case 'ArrowDown':
             return event.ctrlKey ? { scroll: 'step-forward', horizontal: false } : null;
         // The pair is VERTICAL bare and HORIZONTAL with CONTROL — the reverse of what the two
-        // bindings read like (gtkscrolledwindow.c:849-852).
+        // bindings read like (gtkscrolledwindow.c:899-902).
         case 'PageUp':
             return { scroll: 'page-backward', horizontal: event.ctrlKey };
         case 'PageDown':
             return { scroll: 'page-forward', horizontal: event.ctrlKey };
+        // Home and End are bound TWICE, like Page Up/Down (gtkscrolledwindow.c:904-907):
+        // CONTROL for the horizontal axis and NOTHING for the vertical one.
         case 'Home':
-            return event.ctrlKey ? { scroll: 'start', horizontal: true } : null;
+            return { scroll: 'start', horizontal: event.ctrlKey };
         case 'End':
-            return event.ctrlKey ? { scroll: 'end', horizontal: true } : null;
+            return { scroll: 'end', horizontal: event.ctrlKey };
         default:
             return null;
     }
@@ -499,7 +507,7 @@ export class GtkScrolledWindow extends HTMLElement {
     /**
      * The viewport moved: hand the position to the bars, ask whether an edge was REACHED
      * (`maybe_emit_edge_reached` fires whenever the adjustment lands exactly on `lower` or
-     * `upper - page_size`, gtkscrolledwindow.c:3635-3672) and fade the indicators in.
+     * `upper - page_size`, gtkscrolledwindow.c:3629-3661) and fade the indicators in.
      */
     private _onViewportValue = (event: Event): void => {
         const bars = this._bars;
@@ -540,7 +548,9 @@ export class GtkScrolledWindow extends HTMLElement {
     /**
      * `_gtk_scrolled_window_set_adjustment_value`'s `EDGE_OVERSHOT`, from the shading
      * controller's unclamped position: negative is the near edge, positive the far one,
-     * and `0` is the settled case the C returns without emitting (gtkscrolledwindow.c:3380-3400).
+     * and `0` is the settled case the C returns without emitting — it is the value CLAMPED
+     * to `lower - MAX_OVERSHOOT_DISTANCE` and `upper - page_size + MAX_OVERSHOOT_DISTANCE`
+     * that the signal compares (gtkscrolledwindow.c:3306-3352).
      */
     private _edgeOvershot(distance: number): void {
         if (distance === 0) return;
@@ -553,7 +563,7 @@ export class GtkScrolledWindow extends HTMLElement {
     private _onKeyDown = (event: KeyboardEvent): void => {
         if (event.key === 'Tab' && event.ctrlKey) {
             // `move_focus_out` re-emits `move-focus` on the ROOT and GTK's focus chain
-            // takes it from there (gtkscrolledwindow.c:3055-3082). The browser's own Tab
+            // takes it from there (gtkscrolledwindow.c:3055-3076). The browser's own Tab
             // IS that chain, so this is the signal and the event is left to run.
             const directionType: GtkDirectionType = event.shiftKey ? 'backward' : 'forward';
             this.dispatchEvent(new CustomEvent('move-focus-out', { bubbles: true, detail: { directionType } }));

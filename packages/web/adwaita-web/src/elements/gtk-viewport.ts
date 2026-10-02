@@ -2,15 +2,16 @@
 // widget that does not know how to scroll itself.
 //
 // WHAT IT IS, in GTK's own words: "Implements scrollability for widgets that don't support
-// scrolling on their own" (gtkviewport.c:40-41). It has ONE property of its own
+// scrolling on their own" (gtkviewport.c:44-46). It has ONE property of its own
 // (`scroll-to-focus`) and takes its two adjustments from `Gtk.Scrollable`, the interface
-// every scroller in a `GtkScrolledWindow` is addressed through. This element is therefore
-// the CONTENT HALF of `<gtk-scrolled-window>`, exactly as it is in GTK: setting a
-// non-scrollable child on a scrolled window makes the window "add the child to a
-// Gtk.Viewport and then set the viewport as the child" (gtkscrolledwindow.c:785-793).
+// every scroller in a `GtkScrolledWindow` is addressed through (gtkviewport.c:318-327). This
+// element is therefore the CONTENT HALF of `<gtk-scrolled-window>`, exactly as it is in GTK:
+// setting a non-scrollable child on a scrolled window makes the window "add the child to a
+// Gtk.Viewport and then set the viewport as the child" (gtkscrolledwindow.c:780-793), which
+// is `gtk_scrolled_window_set_child` doing it at gtkscrolledwindow.c:4362-4374.
 //
 // THE ADJUSTMENTS ARE GTK'S ARITHMETIC, VERBATIM. `viewport_set_adjustment_values`
-// (gtkviewport.c:577-610) configures each axis as
+// (gtkviewport.c:159-189) configures each axis as
 //
 //     configure(value, lower: 0, upper: child_size, step: viewport_size * 0.1,
 //               page: viewport_size * 0.9, page_size: viewport_size)
@@ -24,20 +25,20 @@
 // there: the `viewport` node is the box that clips and the one that is measured, and a
 // browser scrollport is both at once.
 //
-// THE CHILD IS ALLOCATED ITS NATURAL SIZE, never shrunk — GTK measures the child and hands
-// it that (gtkviewport.c:129-160), so content wider than the window makes the window scroll
-// sideways instead of being squeezed into it. The CSS spelling of "never shrink it" is
-// `flex: none` on the child of a flex scrollport, which is in `_viewport.scss`; a child that
-// shrinks instead reports its minimum as its size, which is the one thing a viewport exists
-// to avoid.
+// THE CHILD IS ALLOCATED ITS NATURAL SIZE, never shrunk — `gtk_viewport_size_allocate`
+// measures the child and hands it `MAX (allocated, nat)` (gtkviewport.c:517-545, 550-560),
+// so content wider than the window makes the window scroll sideways instead of being squeezed
+// into it. The CSS spelling of "never shrink it" is `flex: none` on the child of a flex
+// scrollport, which is in `_viewport.scss`; a child that shrinks instead reports its minimum
+// as its size, which is the one thing a viewport exists to avoid.
 //
 // `scroll-to-focus` is the other property, and it is `gtk_viewport_scroll_to` driven by
 // `notify::focus-widget`: when the focus widget changes, the viewport moves its adjustment
-// so the focused widget is inside the window (gtkviewport.c:274-292, 620-645). A `focusin`
-// on the host is the same reach — it fires for every focus change inside this subtree and
-// nowhere else, which is also the `FOCUS_WITHIN` test the C applies first
-// (gtkviewport.c:625). `scrollIntoView` then replaces `gtk_scroll_info_compute_scroll` and
-// the two animated `set_value` calls.
+// so the focused widget is inside the window (`focus_change_handler`, gtkviewport.c:620-643).
+// A `focusin` on the host is the same reach — it fires for every focus change inside this
+// subtree and nowhere else, which is also the `FOCUS_WITHIN` test the C applies first
+// (gtkviewport.c:625-626). `scrollIntoView` then replaces `gtk_scroll_info_compute_scroll`
+// and the two animated `set_value` calls (gtkviewport.c:742-758).
 //
 // NO SLOT BINDING, deliberately. The element HAS no internal structure: a child's place is
 // the child list, so there is nothing to route it into, and `bindSlottedChildren` exists for
@@ -46,14 +47,15 @@
 // it in.
 //
 // A11y: GTK gave the widget the role `GTK_ACCESSIBLE_ROLE_GENERIC` in 4.12
-// (gtkviewport.c:63-66), so the element carries `role="generic"` and nothing else: what is
+// (gtkviewport.c:353-354), so the element carries `role="generic"` and nothing else: what is
 // inside the window is what a screen reader announces.
 //
 // NOT PORTED: `hscroll-policy` / `vscroll-policy` (`GtkScrollable`'s enum) choose whether
-// `upper` is the child's MINIMUM size or its NATURAL size — a size negotiation over a
-// protocol this layout does not run, since a browser scrollport has exactly one content
-// size. `hadjustment` / `vadjustment` are read-only properties here for the same reason
-// `GtkViewport` keeps configuring them: it OWNS them (gtkviewport.c:601-610).
+// `upper` is the child's MINIMUM size or its NATURAL size — the `GTK_SCROLL_MINIMUM` branch
+// of the same `size_allocate` (gtkviewport.c:532-535, 541-544) — and a browser scrollport has
+// exactly one content size. `hadjustment` / `vadjustment` are read-only properties here for
+// the same reason `GtkViewport` keeps configuring them: it OWNS them
+// (gtkviewport.c:479-500, `viewport_set_adjustment_values` reconfiguring on every allocation).
 //
 // Reference: refs/gtk/gtk/gtkviewport.c (size_allocate, viewport_set_adjustment_values,
 //   scroll_to_focus, focus_change_handler, scroll_to)
@@ -115,9 +117,9 @@ export class GtkViewport extends HTMLElement {
 
     /**
      * `GtkViewport:scroll-to-focus` — whether the viewport keeps the focus widget in view.
-     * TRUE in the pspec (gtkviewport.c:450), and an unknown value is the DEFAULT rather than
-     * "off": only the literal `false` turns it off, which is what FALSE in a construct bag
-     * means and what a boolean attribute has to spell out to be read at all.
+     * TRUE in the pspec (gtkviewport.c:338-340), and an unknown value is the DEFAULT rather
+     * than "off": only the literal `false` turns it off, which is what FALSE in a construct
+     * bag means and what a boolean attribute has to spell out to be read at all.
      */
     get scrollToFocus(): boolean {
         return this.getAttribute('scroll-to-focus') !== 'false';
@@ -169,7 +171,7 @@ export class GtkViewport extends HTMLElement {
     attributeChangedCallback(name: string) {
         // The handler's own registration depends on the value, so a change re-binds it — the
         // shape `scripts/check-adwaita-connect-rebind.mjs` accepts. GTK notifies here too
-        // (gtkviewport.c:616), and a property notify is the whole of that call.
+        // (gtkviewport.c:617), and a property notify is the whole of that call.
         this.dispatchEvent(
             new CustomEvent(`notify::${name}`, { bubbles: true, detail: { [name]: this.scrollToFocus } }),
         );
@@ -199,7 +201,7 @@ export class GtkViewport extends HTMLElement {
      * `null` asks only for the position to be CLAMPED, which is what a content that shrank
      * needs from a value that was legal a moment ago.
      *
-     * GTK animates the move (`gtk_adjustment_animate_to_value`, gtkviewport.c:637-638) for
+     * GTK animates the move (`gtk_adjustment_animate_to_value`, gtkviewport.c:757-758) for
      * `ANIMATION_DURATION` unless the widget should not animate — the browser's spelling of
      * that setting is `prefers-reduced-motion`, and `scrollIntoView`'s own `behavior` is where
      * the choice belongs.

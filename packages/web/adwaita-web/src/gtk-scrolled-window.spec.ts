@@ -185,6 +185,26 @@ export const GtkScrolledWindowTest = async () => {
             host.remove();
         });
 
+        await it('binds Home and End bare as well, on the vertical axis', async () => {
+            const { el, host } = mount();
+            await fill(el, 10);
+            const seen = record(el, 'scroll-child');
+            el.focus();
+            // Home and End are bound TWICE (gtkscrolledwindow.c:904-907): bare for the
+            // VERTICAL axis and with CONTROL for the horizontal one. Dropping the bare pair
+            // would leave both dead on the only axis a window usually scrolls.
+            el.viewport.scrollAxis('vertical', 120);
+            press(el, 'End');
+            expect(el.viewport.vadjustment.value).toBe(300);
+            expect((seen[0] as { scroll: string }).scroll).toBe('end');
+            expect((seen[0] as { horizontal: boolean }).horizontal).toBe(false);
+            press(el, 'Home');
+            expect(el.viewport.vadjustment.value).toBe(0);
+            expect((seen[1] as { scroll: string }).scroll).toBe('start');
+            expect((seen[1] as { horizontal: boolean }).horizontal).toBe(false);
+            host.remove();
+        });
+
         await it('emits move-focus-out for Ctrl+Tab, which GTK hands to the root', async () => {
             const { el, host } = mount();
             const seen = record(el, 'move-focus-out');
