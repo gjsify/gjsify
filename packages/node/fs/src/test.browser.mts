@@ -11,8 +11,9 @@
 // passes cleanly on engines/contexts without OPFS (the fallback contract).
 
 import { run, describe, it, expect } from '@gjsify/unit';
-import { Volume } from './browser/volume.js';
+import { Volume, __defaultVolume } from './browser/volume.js';
 import { enableOpfsPersistence, hasOpfs } from './browser/opfs.js';
+import { createReadStream } from './browser/stream.js';
 
 // Unique sub-directory per run so parallel test files / reruns don't collide.
 const TEST_ROOT = 'gjsify-fs-test-' + Math.random().toString(36).slice(2, 10);
@@ -22,6 +23,40 @@ run({
         await describe('hasOpfs()', async () => {
             await it('returns a boolean reflecting navigator.storage.getDirectory', async () => {
                 expect(typeof hasOpfs()).toBe('boolean');
+            });
+        });
+
+        await describe('createReadStream listener aliases', async () => {
+            // npm code subscribes with either spelling (`@xmpp/events`' onoff()
+            // resolves `addEventListener ?? addListener`), so a stream missing
+            // `addListener` throws instead of streaming. `createReadStream` reads
+            // the process-wide volume, not a fresh one.
+            it('streams through addListener("data")', async () => {
+                __defaultVolume.writeFileSync('/stream.txt', new TextEncoder().encode('streamed'));
+                const chunks: Uint8Array[] = [];
+                await new Promise<void>((resolve, reject) => {
+                    const s = createReadStream('/stream.txt');
+                    s.addListener('data', (c: unknown) => chunks.push(c as Uint8Array));
+                    s.on('end', () => resolve());
+                    s.on('error', reject);
+                });
+                expect(chunks.length).toBe(1);
+                expect(new TextDecoder().decode(chunks[0])).toBe('streamed');
+            });
+
+            it('unsubscribes through removeListener', async () => {
+                __defaultVolume.writeFileSync('/off.txt', new TextEncoder().encode('bye'));
+                const seen: string[] = [];
+                await new Promise<void>((resolve) => {
+                    const s = createReadStream('/off.txt');
+                    const handler = (c: unknown): void => {
+                        seen.push(new TextDecoder().decode(c as Uint8Array));
+                    };
+                    s.addListener('data', handler);
+                    s.removeListener('data', handler);
+                    s.on('end', () => resolve());
+                });
+                expect(seen.length).toBe(0);
             });
         });
 

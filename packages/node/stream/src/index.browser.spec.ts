@@ -249,6 +249,30 @@ export default async () => {
             });
         });
 
+        // ==================== listener aliases ====================
+        await describe('listener aliases', async () => {
+            await it('addListener should be the same function as on', async () => {
+                const proto = Readable.prototype as unknown as Record<string, unknown>;
+                expect(proto.addListener).toBe(proto.on);
+            });
+
+            await it('addListener("data") should start flowing mode', async () => {
+                const r = new Readable();
+                r.addListener('data', () => {});
+                expect((r as unknown as { _flowing: boolean | null })._flowing).toBe(true);
+            });
+
+            await it('addListener("data") should deliver pushed chunks', async () => {
+                const r = new Readable();
+                const chunks: unknown[] = [];
+                r.addListener('data', (chunk: unknown) => chunks.push(chunk));
+                r.push('hello');
+                await new Promise<void>((res) => setTimeout(res, 0));
+                expect(chunks.length).toBe(1);
+                expect(chunks[0]).toBe('hello');
+            });
+        });
+
         // ==================== backpressure ====================
         await describe('backpressure', async () => {
             await it('write should report not-ready while a slow _write is in flight', async () => {
