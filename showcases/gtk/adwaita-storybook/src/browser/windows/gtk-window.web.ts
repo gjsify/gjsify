@@ -1,4 +1,4 @@
-// Browser port of the Window story. Shares metadata with window.story.ts.
+// Browser port of the GTK Window story. Shares metadata with gtk-window.story.ts.
 //
 // The replica is an IN-PAGE FRAME, not a toplevel — see `gtk-window.ts`. The one thing this
 // story has to add for that to read is the `close-request` handler: GTK's default handler
@@ -6,18 +6,18 @@
 // cancels the signal.
 
 import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } from '@gjsify/adwaita-storybook';
-import { windowMeta } from '../../windows/window.meta.js';
+import { gtkWindowMeta } from '../../windows/gtk-window.meta.js';
 
-export class WindowWebStory extends StoryElement {
+export class GtkWindowWebStory extends StoryElement {
     private _window: HTMLElement | null = null;
     private _bar: HTMLElement | null = null;
 
     constructor() {
-        super(WindowWebStory.getMetadata(), 'Default');
+        super(GtkWindowWebStory.getMetadata(), 'Default');
     }
 
     static getMetadata(): StoryMeta {
-        return windowMeta;
+        return gtkWindowMeta;
     }
 
     initialize(): void {
@@ -55,4 +55,4 @@ export class WindowWebStory extends StoryElement {
     }
 }
 
-export const WindowWebStories: WebStoryModule = { stories: [WindowWebStory] };
+export const GtkWindowWebStories: WebStoryModule = { stories: [GtkWindowWebStory] };

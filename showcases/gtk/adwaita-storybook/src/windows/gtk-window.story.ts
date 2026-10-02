@@ -4,22 +4,22 @@
 import Gtk from 'gi://Gtk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
-import { windowMeta } from './window.meta.js';
+import { gtkWindowMeta } from './gtk-window.meta.js';
 
 /** Story: a real Gtk.Window whose frame properties are all driven by args. */
-export class WindowStory extends StoryWidget {
+export class GtkWindowStory extends StoryWidget {
     private _window: Gtk.Window | null = null;
 
     static {
-        GObject.registerClass({ GTypeName: 'AdwStorybookWindow' }, WindowStory);
+        GObject.registerClass({ GTypeName: 'AdwStorybookGtkWindow' }, GtkWindowStory);
     }
 
     constructor() {
-        super(StoryWidget.fromMeta(WindowStory.getMetadata(), 'Default'));
+        super(StoryWidget.fromMeta(GtkWindowStory.getMetadata(), 'Default'));
     }
 
     static getMetadata(): StoryMeta {
-        return { ...windowMeta, component: Gtk.Window.$gtype };
+        return { ...gtkWindowMeta, component: Gtk.Window.$gtype };
     }
 
     initialize(): void {
@@ -59,6 +59,6 @@ export class WindowStory extends StoryWidget {
     }
 }
 
-GObject.type_ensure(WindowStory.$gtype);
+GObject.type_ensure(GtkWindowStory.$gtype);
 
-export const WindowStories: StoryModule = { stories: [WindowStory] };
+export const GtkWindowStories: StoryModule = { stories: [GtkWindowStory] };

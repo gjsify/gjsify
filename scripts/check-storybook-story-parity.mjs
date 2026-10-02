@@ -102,7 +102,7 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwViewSwitcherSidebar widget yet, so the story is rendered by the other two targets only.',
     'action-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no bottom bar, so the story is rendered by the other two targets only.',
-    'application-window@nativescript':
+    'gtk-application-window@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window class to drive one property on and the story is rendered by the other two targets only.',
     'emoji-chooser@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no popover to host an emoji chooser in and no emoji table behind it, so the story is rendered by the other two targets only.',
@@ -221,7 +221,7 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.ColorDialogButton widget yet, so the story is rendered by the other two targets only.',
     'font-dialog-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.FontDialogButton widget yet, so the story is rendered by the other two targets only.',
-    'window@nativescript':
+    'gtk-window@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window widget to render a story on and the story is rendered by the other two targets only.',
     'window-controls@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no window-frame buttons, and it has no Gtk.Settings to read a decoration layout from either, so the story is rendered by the other two targets only.',

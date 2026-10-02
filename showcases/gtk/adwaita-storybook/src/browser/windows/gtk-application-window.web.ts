@@ -1,22 +1,22 @@
-// Browser port of the Application Window story. Shares metadata with application-window.story.ts.
+// Browser port of the GTK Application Window story. Shares metadata with gtk-application-window.story.ts.
 //
 // The menubar is a SLOT here, because GTK builds the bar from the application's menu model
 // and no attribute can carry one — see `gtk-application-window.ts`. So the "the application has
 // one" control adds and removes the SLOT rather than a `GMenuModel`.
 
 import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } from '@gjsify/adwaita-storybook';
-import { applicationWindowMeta } from '../../windows/application-window.meta.js';
+import { gtkApplicationWindowMeta } from '../../windows/gtk-application-window.meta.js';
 
-export class ApplicationWindowWebStory extends StoryElement {
+export class GtkApplicationWindowWebStory extends StoryElement {
     private _window: HTMLElement | null = null;
     private _menubar: HTMLElement | null = null;
 
     constructor() {
-        super(ApplicationWindowWebStory.getMetadata(), 'Default');
+        super(GtkApplicationWindowWebStory.getMetadata(), 'Default');
     }
 
     static getMetadata(): StoryMeta {
-        return applicationWindowMeta;
+        return gtkApplicationWindowMeta;
     }
 
     initialize(): void {
@@ -64,4 +64,4 @@ export class ApplicationWindowWebStory extends StoryElement {
     }
 }
 
-export const ApplicationWindowWebStories: WebStoryModule = { stories: [ApplicationWindowWebStory] };
+export const GtkApplicationWindowWebStories: WebStoryModule = { stories: [GtkApplicationWindowWebStory] };

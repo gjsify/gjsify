@@ -129,10 +129,10 @@ import { PreferencesDialogWebStories } from './feedback/preferences-dialog.web.j
 import { ShortcutsDialogWebStories } from './feedback/shortcuts-dialog.web.js';
 import { ToastWebStories } from './feedback/toast.web.js';
 import { ActionBarWebStories } from './windows/action-bar.web.js';
-import { ApplicationWindowWebStories } from './windows/application-window.web.js';
+import { GtkApplicationWindowWebStories } from './windows/gtk-application-window.web.js';
 import { GtkHeaderBarWebStories } from './windows/gtk-header-bar.web.js';
+import { GtkWindowWebStories } from './windows/gtk-window.web.js';
 import { WindowControlsWebStories } from './windows/window-controls.web.js';
-import { WindowWebStories } from './windows/window.web.js';
 
 export const stories: WebStoryModule[] = [
     OverviewWidgetsWebStories,
@@ -249,7 +249,7 @@ export const stories: WebStoryModule[] = [
     GtkHeaderBarWebStories,
     WindowControlsWebStories,
     ActionBarWebStories,
-    WindowWebStories,
-    ApplicationWindowWebStories,
+    GtkWindowWebStories,
+    GtkApplicationWindowWebStories,
     WindowHandleWebStories,
 ];

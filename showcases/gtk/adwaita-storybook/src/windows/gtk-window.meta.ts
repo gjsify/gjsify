@@ -1,10 +1,16 @@
-// Shared, renderer-agnostic metadata for the Window story. Imported by the GTK
-// renderer (window.story.ts) and the browser renderer
-// (browser/windows/window.web.ts), so both expose identical controls.
+// Shared, renderer-agnostic metadata for the GTK Window story. Imported by the GTK
+// renderer (gtk-window.story.ts) and the browser renderer
+// (browser/windows/gtk-window.web.ts), so both expose identical controls.
+//
+// The NAME is `gtk-window` and not `window` because `Adw.Window` holds that bare name
+// on the adwaita/layout page, and the storybook keys every meta on its file name: a
+// second `window.meta.ts` would silently displace one of the two. The block in
+// /gjsify/gtk/windows/ is titled `Gtk.Window`, which `TITLED_AFTER` in
+// `scripts/check-website-adwaita-gallery.mjs` maps onto this meta.
 
 import { ControlType, type StoryMeta } from '@gjsify/stories';
 
-export const windowMeta: StoryMeta = {
+export const gtkWindowMeta: StoryMeta = {
     title: 'Windows/Window',
     description:
         'Gtk.Window — a toplevel with a `titlebar` and a `child`, and the properties that ' +

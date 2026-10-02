@@ -250,9 +250,17 @@ const TITLED_AFTER = {
         title: 'Gtk.HeaderBar',
         reason: 'the Adwaita half of the same widget already holds `Layout/Header Bar`, and this meta is the GTK one of the two. Same reason `gtk-spinner` below carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — `Adw.HeaderBar` centres an `AdwWindowTitle` with a subtitle, `Gtk.HeaderBar` centres a derived `GtkLabel` with none.',
     },
+    'gtk-application-window': {
+        title: 'Gtk.ApplicationWindow',
+        reason: "Gtk.ApplicationWindow shares its bare name with Adw.ApplicationWindow, which holds `Layout/Application Window`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/windows/. Same reason `gtk-spinner` carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — libadwaita's adds `Gtk.ApplicationWindow:show-menubar`, a menubar built from a GMenuModel the GtkApplication installs, which is a DATA model no story control can carry.",
+    },
     'gtk-spinner': {
         title: 'Gtk.Spinner',
         reason: 'Gtk.Spinner shares its bare name with Adw.Spinner, which holds `Presentation/Spinner`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/indicators/. Not a style-class story — the two spinners are different widgets (a quarter arc on a faint ring vs. a breathing arc), which is why the file is named apart.',
+    },
+    'gtk-window': {
+        title: 'Gtk.Window',
+        reason: "Gtk.Window shares its bare name with Adw.Window, which holds `Layout/Window`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/windows/. Same reason `gtk-spinner` carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — GTK's decides its frame through `decorated`, `deletable`, `resizable`, `maximized` and `hide-on-close`, none of which Adw.Window has.",
     },
 };
 

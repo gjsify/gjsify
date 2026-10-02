@@ -6,7 +6,7 @@ import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
-import { applicationWindowMeta } from './application-window.meta.js';
+import { gtkApplicationWindowMeta } from './gtk-application-window.meta.js';
 
 /** The menu model the bar is built from — the thing no attribute can carry. */
 function menubarModel(): Gio.Menu {
@@ -23,25 +23,25 @@ function menubarModel(): Gio.Menu {
 }
 
 /** Story: a Gtk.ApplicationWindow whose `show-menubar` and menu model are both driven by args. */
-export class ApplicationWindowStory extends StoryWidget {
+export class GtkApplicationWindowStory extends StoryWidget {
     private _window: Gtk.ApplicationWindow | null = null;
     private _application: Gtk.Application | null = null;
     private _menubar: Gio.Menu | null = null;
 
     static {
-        GObject.registerClass({ GTypeName: 'AdwStorybookApplicationWindow' }, ApplicationWindowStory);
+        GObject.registerClass({ GTypeName: 'AdwStorybookGtkApplicationWindow' }, GtkApplicationWindowStory);
     }
 
     constructor() {
-        super(StoryWidget.fromMeta(ApplicationWindowStory.getMetadata(), 'Default'));
+        super(StoryWidget.fromMeta(GtkApplicationWindowStory.getMetadata(), 'Default'));
     }
 
     static getMetadata(): StoryMeta {
-        return { ...applicationWindowMeta, component: Gtk.ApplicationWindow.$gtype };
+        return { ...gtkApplicationWindowMeta, component: Gtk.ApplicationWindow.$gtype };
     }
 
     initialize(): void {
-        this._application = new Gtk.Application({ application_id: 'eu.jumplink.AdwStorybookApplicationWindow' });
+        this._application = new Gtk.Application({ application_id: 'eu.jumplink.AdwStorybookGtkApplicationWindow' });
         this._menubar = menubarModel();
         // The bar reads the MENU MODEL off the application, never off the window
         // (gtkapplicationwindow.c:337-348), so the story sets it on the application.
@@ -84,6 +84,6 @@ export class ApplicationWindowStory extends StoryWidget {
     }
 }
 
-GObject.type_ensure(ApplicationWindowStory.$gtype);
+GObject.type_ensure(GtkApplicationWindowStory.$gtype);
 
-export const ApplicationWindowStories: StoryModule = { stories: [ApplicationWindowStory] };
+export const GtkApplicationWindowStories: StoryModule = { stories: [GtkApplicationWindowStory] };
