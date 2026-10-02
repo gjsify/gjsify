@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/template-adw-game",
-    "description": "Adwaita game shell using Excalibur.js, WebGL → Canvas2D fallback.",
+    "description": "Adwaita game shell using Excalibur.js, WebGL → Canvas2D fallback (Blueprint UI).",
     "version": "0.1.10",
     "type": "module",
     "private": true,

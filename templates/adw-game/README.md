@@ -2,6 +2,15 @@
 
 An Adwaita game shell built on Excalibur.js, WebGL with a Canvas 2D fallback, scaffolded from the gjsify `adw-game` template.
 
+The window is declared in `src/main-window.blp` and `src/main-window.ts` holds only logic. That
+split is what makes the caption translatable: a string assigned from TypeScript carries no
+`translatable` attribute, so `xgettext` never sees it and the interface is untranslatable by
+construction. The drawing surface is the deliberate exception — it is a runtime object with no
+place in a template, so the `.blp` declares the empty container and the constructor appends it.
+
+Blueprint needs **no system tool**. `@gjsify/vite-plugin-blueprint` parses the `.blp` in process and
+emits GtkBuilder XML, so `npm run build` asks nothing of your machine beyond GTK 4 itself.
+
 ## Install
 
 ```bash

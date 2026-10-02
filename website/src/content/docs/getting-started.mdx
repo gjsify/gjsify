@@ -168,7 +168,9 @@ crashing somewhere inside one.
 ```txt title="hello-gjsify"
 hello-gjsify/
 ├── src/
-│   └── index.ts        # Gtk.Application entry point
+│   ├── index.ts        # Gtk.Application entry point
+│   ├── main-window.ts  # the window class, no widget construction
+│   └── main-window.blp # the window's widget tree, declared in Blueprint
 ├── package.json        # build / start / dev scripts wired to the gjsify CLI
 ├── tsconfig.json
 └── README.md
@@ -276,15 +278,54 @@ apps claim one name, GTK treats the second launch as a remote instance of the
 first, forwards its `activate` to that app's window, and exits 0 with no window
 and no error of its own.
 
-Inside the `activate` handler, next to the label the template already creates:
+Give the label a name in `src/main-window.blp` so TypeScript can reach it, and
+add the button beside it. The caption goes through `_()` because a string set
+in a template is what `xgettext` can see; a string set from TypeScript is not:
+
+```blueprint
+Gtk.Label title {
+  label: _("Hello from gjsify!");
+}
+
+Gtk.Button hello {
+  label: _("Say hello");
+
+  styles [
+    "suggested-action",
+  ]
+}
+```
+
+Then wire the click in `src/main-window.ts`, naming both children in
+`InternalChildren` and keeping the handler in the constructor:
 
 ```typescript
-const button = new Gtk.Button({ label: 'Say hello' });
-button.add_css_class('suggested-action');
-button.connect('clicked', () => title.set_label('Hello yourself!'));
+export class MainWindow extends Gtk.ApplicationWindow {
+    declare private _hello: Gtk.Button;
+    declare private _title: Gtk.Label;
 
-box.append(button);
+    static {
+        GObject.registerClass(
+            {
+                GTypeName: 'MainWindow',
+                Template,
+                InternalChildren: ['hello', 'title'],
+            },
+            this,
+        );
+    }
+
+    constructor(application: Gtk.Application) {
+        super({ application });
+        this._hello.connect('clicked', () => this._title.set_label('Hello yourself!'));
+    }
+}
 ```
+
+The split is the point: the template declares what the window *is*, TypeScript
+decides what it *does*. A list whose length is not known until runtime is
+still filled from TypeScript — declare the container in the `.blp` and append to
+it here.
 
 Build and start again and the button is there. For the Adwaita widgets (header
 bars, boxed lists, toasts, view switchers) see the
