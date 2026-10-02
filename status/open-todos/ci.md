@@ -291,8 +291,10 @@ a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now
 
 **What is still missing to retire each of the three left:**
 
-- `rn-probe` (darwin) — the RELEASE condition is met and was a PROXY: the step was red in 70
-  of 71 runs, on defects of its own. Its condition is now `retire-when: probe-green 5`,
+- `rn-probe` (darwin) — **RETIRED 2026-10-02**: promoted to a gate once `probe-green 5` was
+  met, green on both arches. As it stood before: the RELEASE condition was met and was a
+  PROXY: the step was red in 70 of 71 runs, on defects of its own. Its condition became
+  `retire-when: probe-green 5`,
   after three wrong proxies (an issue number, then "#1438 closes", then "the release
   carrying it"). What it is actually failing on, measured on run 35423439012 against a
   published 0.51.1 and none of it #1438:
