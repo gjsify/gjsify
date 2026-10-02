@@ -189,10 +189,12 @@
 # the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever flips
 # either suite step to gating should delete this paragraph with it.
 #
-# THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: FOUR
-# `continue-on-error` steps — one on darwin (react-native) and three on win32 (gtk-host,
-# react-native, and the conformance audit again). The audit was promoted on 2026-09-19 and
-# went back to a probe for the MP3 widening, with a tarball clause that ends it. Each remaining one carries `retire-when:` clauses that
+# THE FLAGS THIS FILE CARRIES, counted from the tree rather than remembered: THREE
+# `continue-on-error` steps, all three on win32 (gtk-host, react-native, and the
+# conformance audit again). The audit was promoted on 2026-09-19 and went back to a
+# probe for the MP3 widening, with a tarball clause that ends it; the darwin
+# react-native step was promoted on 2026-10-02 on a `probe-green 5` clause that came
+# true. Each remaining one carries `retire-when:` clauses that
 # `scripts/check-probe-retirement.mjs` evaluates on every run, so this number now
 # changes when a condition comes true rather than when somebody notices it has.
 #
@@ -208,12 +210,13 @@
 # GATES — there it means "probe the primitive rather than the wrapper".
 #
 # The standing cost of that arrangement, and what is still missing to retire each of the
-# three remaining flags, is an item in `status/open-todos/README.md`. NONE of them is now
+# two remaining flags, is an item in `status/open-todos/README.md`. NEITHER is now
 # waiting only on somebody re-reading a probe row, and the way that stopped being true
-# is the useful part: both conditions that had come true were acted on — the win32
-# conformance audit was promoted, and the darwin react-native probe was MEASURED first
-# and found red in 70 of 71 runs, so its condition was corrected rather than flipped. A
-# met condition is not evidence that a step passes.
+# is the useful part: every condition that came true was acted on, and each promotion was
+# MEASURED first rather than taken from the clause. The win32 conformance audit was
+# promoted on a tarball clause; the darwin react-native probe was found red in 70 of 71
+# runs, had its condition corrected to name the outcome, and was promoted only once five
+# recorded runs actually passed. A met condition is not evidence that a step passes.
 #
 # WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
 #
@@ -263,14 +266,14 @@
 #     non-interactive session anyway (window stations are per-session, and
 #     `MainWindowTitle` is empty for every GTK4 window — an assertion there needs
 #     `EnumWindows` by PID from inside the interactive session).
-#   · `@gjsify/react-native`'s step is a `continue-on-error` PROBE on both — see the
-#     darwin step's comment, which now carries a measurement that corrected its own
-#     retirement condition TWICE. The short version this line used to give — an engine
-#     fix in THIS checkout is invisible until it is PUBLISHED, because the addon here
-#     is the released one — was true and is no longer what blocks the step: that
-#     release shipped on 2026-09-03, and the probe was still red in 70 of the 71 `main`
-#     runs from 2026-09-10, on defects of its own. Same reason `node-gi.yml` kept
-#     `gtk-host` out of CI until it went in at 0 failures.
+#   · `@gjsify/react-native`'s step GATES on both arches, and it got there the slow way:
+#     the darwin step carried a retirement condition that was wrong TWICE before it named
+#     the outcome, so the history is kept beside the step rather than deleted. The short
+#     version this line used to give — an engine fix in THIS checkout is invisible until
+#     it is PUBLISHED, because the addon here is the released one — was true and is not
+#     what blocked it: that release shipped on 2026-09-03, and the step was still red in
+#     70 of the 71 `main` runs from 2026-09-10, on defects of its own. Same reason
+#     `node-gi.yml` kept `gtk-host` out of CI until it went in at 0 failures.
 #   · only `win32-x64`. gvsbuild publishes no arm64 GTK, so there is no
 #     `@gjsify/gtk-runtime-win32-arm64` to install and nothing to measure.
 #
@@ -511,68 +514,59 @@ jobs:
           GTK_A11Y: none
         run: node ../../infra/cli/lib/index.js run test:gjs-on-node
 
-      # A PROBE, and the retirement condition it used to carry — "when #1438 closes" —
-      # was WRONG, which this leg proved by going red the moment #1438 closed and the
-      # step was flipped to a gate. #1438's fix is in the ADDON'S C++
-      # (`GetGType`/`CallStaticMethod`), and the table at the top of this file says
-      # what runs here: node-gi's JS is the CHECKOUT'S, the addon is the PUBLISHED
-      # one. So this leg CANNOT see an engine fix that has not been released yet —
-      # measured on 2026-09-02, when the Linux node leg read 1222 of 1222 with a
-      # locally built addon and this leg read 1 of 1220 with the published 0.45.0
-      # binary, the same `popped` assertion on both arches. That is not a darwin
-      # finding and gating on it reports one.
+      # A GATE, and WHAT IT GUARANTEES: `@gjsify/react-native`'s suite runs on both darwin
+      # arches over the PUBLISHED `@gjsify/node-gi` prebuild and the PUBLISHED
+      # `@gjsify/gtk-runtime-<arch>` bundle, so what it answers is ADR 0024 § 4's actual
+      # question — does the artifact a stranger downloads run this layer — and a red here is
+      # that artifact failing, not a darwin finding reported as one.
       #
-      # The distinction is the point of the leg, not a flaw in it: it answers "does
-      # the artifact a stranger downloads run this layer" (ADR 0024 § 4), and the
-      # honest answer for an unreleased fix is "not yet".
+      # IT WAS A PROBE, and every condition it carried was a PROXY, which is the shape that
+      # recurs on this step. Three came true or were wrong before the clause stopped naming a
+      # release and named the step's own recorded outcome:
+      #   · "when #1438 closes" — wrong the moment it came true. This leg went red the
+      #     instant #1438 merged and the step was flipped to a gate. #1438's fix is in the
+      #     ADDON'S C++ (`GetGType`/`CallStaticMethod`), and the table at the top of this
+      #     file says what runs here: node-gi's JS is the CHECKOUT'S, the addon is the
+      #     PUBLISHED one. So this leg CANNOT see an engine fix that has not been released —
+      #     measured on 2026-09-02, when the Linux node leg read 1222 of 1222 with a locally
+      #     built addon and this leg read 1 of 1220 with the published 0.45.0 binary, the
+      #     same `popped` assertion on both arches.
+      #   · "the first published `@gjsify/node-gi` carrying #1438's engine fix" — shipped in
+      #     0.46.0 on 2026-09-03 and nobody re-read this row. MEASURED on 2026-09-19
+      #     against a published 0.51.1, over the 71 push-to-`main` runs from 2026-09-10,
+      #     this step was RED in 70 and measured nothing in the other one — not once green,
+      #     on either arch. A release is a proxy for "this can gate now" and this one was
+      #     wrong for the THIRD time on this single step.
+      #   · `retire-when: probe-green 5` — the first clause naming the OUTCOME rather than a
+      #     cause. `scripts/check-probe-retirement.mjs` evaluated it on every run, and it
+      #     reported MET on 2026-10-02, which is what this promotion answers: the check
+      #     closing its own window rather than a row going unread for sixteen days again.
       #
-      # RETIREMENT CONDITION, CORRECTED A SECOND TIME — and the correction is the finding.
-      # It used to read "the first published `@gjsify/node-gi` carrying #1438's engine fix".
-      # That shipped in 0.46.0 on 2026-09-03 and nobody re-read this row: MEASURED on
-      # 2026-09-19 against a published 0.51.1, over the 71 push-to-`main` runs from
-      # 2026-09-10, this probe was RED in 70 and measured nothing in the other one — not
-      # once green, on either arch. The release was a PROXY for "this can gate now", and the
-      # proxy was wrong for the THIRD time on this one step (`#1438 closes` before it, a
-      # bare issue number before that).
+      # WHAT WAS RED, measured on run 35423439012, and none of it #1438: darwin-arm64 read 7
+      # of 655. Six were ONE node-gi defect, not a darwin one — a JS `vfunc_*` override got
+      # its GObject ARGUMENTS as raw handles (gi.js: the `t.get_ancestor is not a function`
+      # five) and its OUT parameters were never written back (the addon's vfunc trampoline:
+      # GTK read 0 for every size the rail's `vfunc_measure` answered). Both halves are fixed
+      # in the tree. darwin-x64 died with NO summary line at all, after "publishes the window
+      # chrome" (#1546/#1549) — a worse shape than a count, and never attributed. Recorded in
+      # `status/open-todos/README.md`.
       #
-      # WHAT IS ACTUALLY RED, measured on run 35423439012 and none of it #1438:
-      #   · darwin-arm64 — 7 of 655. Six were ONE node-gi defect, not a darwin one: a JS
-      #     `vfunc_*` override got its GObject ARGUMENTS as raw handles (gi.js — the
-      #     `t.get_ancestor is not a function` five), and its OUT parameters were never
-      #     written back (the addon's vfunc trampoline — GTK read 0 for every size the
-      #     rail's `vfunc_measure` answered, the sixth). Both are fixed in the tree; the
-      #     gi.js half reaches this leg at once, the C++ half only with the first
-      #     published `@gjsify/node-gi` that carries it, so until then the same six stay
-      #     red with size mismatches instead of the TypeError. Measured on a real macOS
-      #     27 arm64 host: 649/655 on the published addon, 655/655 minus one host-only
-      #     icon-theme row on a locally built one. The seventh, a GTK diagnostic under
-      #     `tabs`, did not reproduce there. Recorded in `status/open-todos/README.md`.
-      #   · darwin-x64 — the runner exits 1 with NO summary line, dying after "publishes the
-      #     window chrome" (#1546/#1549). That is worse than a count, and it is not the same
-      #     defect as arm64's.
-      #
-      # So the condition stops being a proxy for the outcome and becomes the outcome: this
-      # step retires on five consecutive recorded `main` outcomes that pass. Three proxies
-      # have now been wrong, and the one thing none of them could be wrong about is what the
-      # probe itself reported. `scripts/check-probe-retirement.mjs` evaluates the clause
-      # below on every run and fails the day it comes true, so this row cannot go unread for
-      # sixteen days again.
-      #   retire-when: probe-green 5
-      - name: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
-        id: rn-probe
-        continue-on-error: true
+      # THE PROMOTION WAS MEASURED, because a met clause is not evidence that the step passes
+      # — which is why that check fails on a ripe probe in BOTH directions. Read off
+      # `steps.rn-probe.outcome` through the reporter, NOT off the job colour that
+      # `continue-on-error` forced to `success`: 36974684897, 36952604436, 36951474619 and
+      # 36936435151 green on BOTH arches, and 36931137687 green on x64 — its arm64 leg was
+      # cancelled and measured nothing, which `scanOutcomes` counts as neither green nor red
+      # rather than as a pass. No `Probe failed` annotation on any of them. On arm64 the suite
+      # reads 656 of 656 with 3737 assertions and ONE `it.failing` row, the sanctioned marker
+      # that RUNS and fails the day it starts passing.
+      - name: '@gjsify/react-native — the full suite on the shipped closure'
         working-directory: packages/framework/react-native
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
           GTK_A11Y: none
         run: node ../../infra/cli/lib/index.js run test:gjs-on-node
-      - name: 'Probe outcome: @gjsify/react-native'
-        if: always()
-        env:
-          PROBE_LABEL: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
-          PROBE_OUTCOME: ${{ steps.rn-probe.outcome }}
-        run: node scripts/report-probe-outcome.mjs
 
       # Manifest conformance including `os-axis`, which prints every claim below
       # `supported` with its mandatory reason — so the log carries the current
@@ -612,11 +606,12 @@ jobs:
       # true half, so nothing is blocked; the cost is attention, not merges.
       #
       # So the leg IN the window is a PROBE and not a gate — `continue-on-error` + an `id`
-      # + `report-probe-outcome.mjs`, the shape this file already uses 40 lines up, with a
+      # + `report-probe-outcome.mjs`, the shape the win32 probes below use, with a
       # retirement condition naming a RELEASE. It reports rather than silences: the audit
       # still prints the finding, and the reporter puts a `::warning::` on the PR saying the
       # job is green ONLY because of the flag. THIS step, on darwin, keeps gating — its
-      # declaration and the published payload agree. Little is given up in the window
+      # declaration and the published payload agree, and the react-native step above it
+      # gates too now. Little is given up in the window
       # either: only the `--media-payload` comparison goes advisory, because
       # `audit-runtimes.yml` runs `--check --strict` on every pull request with no paths
       # filter, so the os-axis half is already held.
