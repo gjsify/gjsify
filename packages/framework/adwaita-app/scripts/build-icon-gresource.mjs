@@ -67,6 +67,7 @@ const SUBSET = [
     ['actions', 'document-edit'],
     ['actions', 'document-open'],
     ['actions', 'document-save'],
+    ['actions', 'edit-clear'],
     ['actions', 'edit-copy'],
     ['actions', 'go-down'],
     ['actions', 'go-home'],
@@ -87,6 +88,8 @@ const SUBSET = [
     ['actions', 'view-paged'],
     ['actions', 'view-refresh'],
     ['actions', 'view-reveal'],
+    ['actions', 'value-decrease'],
+    ['actions', 'value-increase'],
     ['categories', 'preferences-system'],
     ['devices', 'camera-photo'],
     ['devices', 'network-wireless'],
@@ -101,9 +104,13 @@ const SUBSET = [
     ['status', 'image-missing'],
     ['status', 'mail-unread'],
     ['status', 'starred'],
+    ['ui', 'pan-down'],
+    ['ui', 'pan-end'],
+    ['ui', 'pan-end-rtl'],
     ['ui', 'window-close'],
     ['ui', 'window-maximize'],
     ['ui', 'window-minimize'],
+    ['ui', 'window-restore'],
 ];
 
 /**
@@ -145,6 +152,21 @@ const CONTEXT_DIR = { ui: 'actions', legacy: 'emblems' };
 
 /** `list-add` → `listAddSymbolic`, the icon generator's own rule. */
 const exportNameFor = (name) => `${name.replace(/-([a-z0-9])/g, (_a, c) => c.toUpperCase())}Symbolic`;
+
+/**
+ * The one subset name whose export AND file name do not follow from the name.
+ *
+ * `-symbolic-rtl` is GTK's SPELLING of a mirrored glyph, not the web map's: `build-scss.mjs`
+ * drops `-symbolic` and writes the web-facing key `pan-end-rtl`, and `panEndRtlSymbolic` is
+ * an export @gjsify/adwaita-icons has never had. Both halves are pinned by upstream: the
+ * icon-theme file is `pan-end-symbolic-rtl.svg` (hence the generated export
+ * `panEndSymbolicRtl`), and `icon_name_is_symbolic` (`refs/gtk/gtk/gtkicontheme.c:1986-1996`)
+ * accepts `-symbolic-rtl` as a symbolic SUFFIX — so GTK looks this glyph up under exactly
+ * that file name and `pan-end-rtl-symbolic.svg` would never be found.
+ */
+const OVERRIDES = {
+    'pan-end-rtl': { export: 'panEndSymbolicRtl', file: 'pan-end-symbolic-rtl.svg' },
+};
 
 /** The resource prefix. Namespaced to this package so no app can collide with it. */
 const PREFIX = '/eu/jumplink/gjsify/adwaita-app/icons';
@@ -190,10 +212,11 @@ const modules = new Map();
 const entries = [];
 for (const [subpath, name] of SUBSET) {
     if (!modules.has(subpath)) modules.set(subpath, await import(join(iconsPkg, `${subpath}.ts`)));
-    const glyph = modules.get(subpath)[exportNameFor(name)];
+    const exportName = OVERRIDES[name]?.export ?? exportNameFor(name);
+    const glyph = modules.get(subpath)[exportName];
     if (typeof glyph !== 'string') {
         throw new Error(
-            `build-icon-gresource: @gjsify/adwaita-icons/${subpath} exports no ${exportNameFor(name)} — ` +
+            `build-icon-gresource: @gjsify/adwaita-icons/${subpath} exports no ${exportName} — ` +
                 `the subset names a glyph the vendored theme does not have.`,
         );
     }
@@ -206,8 +229,10 @@ for (const [subpath, name] of SUBSET) {
         );
     }
     // `-symbolic` back on: the FILE name is what GTK matches the looked-up name against,
-    // and every one of these is looked up with the suffix.
-    const rel = `scalable/${dir}/${name}-symbolic.svg`;
+    // and every one of these is looked up with the suffix. An OVERRIDE names the file
+    // verbatim, because for `pan-end-rtl` the suffix order is `-symbolic-rtl`, not
+    // `-rtl-symbolic` (see {@link OVERRIDES}).
+    const rel = `scalable/${dir}/${OVERRIDES[name]?.file ?? `${name}-symbolic.svg`}`;
     mkdirSync(join(staging, `scalable/${dir}`), { recursive: true });
     writeFileSync(join(staging, rel), glyph);
     entries.push(rel);
