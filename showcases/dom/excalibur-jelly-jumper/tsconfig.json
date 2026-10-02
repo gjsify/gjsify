@@ -9,7 +9,7 @@
         "rootDir": "src",
         "skipLibCheck": true,
         "strict": false,
-      "allowArbitraryExtensions": true
+        "allowArbitraryExtensions": true
     },
     "reflection": true,
     "files": ["src/gjs/gjs.ts", "src/browser/browser.ts", "src/browser/browser-main.ts"]
