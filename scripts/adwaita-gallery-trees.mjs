@@ -741,6 +741,46 @@ export const ADWAITA_GALLERY_TREES = [
     },
     // ------------------------------------------------------------------ layout
     {
+        widget: 'Adw.Window',
+        page: 'layout',
+        // The TOPLEVEL, and the one container here whose child is the window's own
+        // property: `AdwWindow`'s descriptor is `children: { kind: 'single', set:
+        // 'set_content' }` with the TOPLEVEL placement, so the child below is placed
+        // (ADR 0054) and needs no slot name. `defaultWidth`/`defaultHeight` are
+        // GtkWindow's own size request, which is what `adw_window_init()` sets to
+        // 360×200 (adw-window.c:344).
+        root: {
+            tag: 'adw-window',
+            props: { defaultWidth: 440, defaultHeight: 240 },
+            children: [
+                {
+                    tag: 'adw-toolbar-view',
+                    children: [
+                        {
+                            tag: 'adw-header-bar',
+                            slot: 'top',
+                            children: [
+                                {
+                                    tag: 'adw-window-title',
+                                    slot: 'title',
+                                    props: { title: 'Text Editor', subtitle: 'notes.md' },
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'adw-status-page',
+                            slot: 'content',
+                            props: {
+                                title: 'Your Library',
+                                description: 'Content sits between the toolbars and scrolls independently of them.',
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
         widget: 'Adw.Bin',
         page: 'layout',
         root: {

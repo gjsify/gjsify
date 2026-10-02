@@ -1,6 +1,7 @@
 // _window.scss — adw-window styling.
+// Reference: refs/libadwaita/src/stylesheet/widgets/_window.scss (the frame; the
+//   `.maximized`/`.fullscreen` rules at 66-72 are the ones an in-page frame can use)
 // Reference: refs/adwaita-web/adwaita-web/scss/_window.scss
-// Reference: refs/libadwaita/src/stylesheet/widgets/_window.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
@@ -20,6 +21,26 @@ adw-window {
   overflow: hidden;
   outline: 1px solid rgb(255 255 255 / 7%);
   outline-offset: -1px;
+
+  // `window.maximized` / `window.fullscreen` zero the radius and drop the shadow
+  // (_window.scss:66-72). A page-sized window IS the maximised one here: the frame
+  // is in-page, so there is nothing outside it to cast a shadow on.
+  &.maximized,
+  &.fullscreen {
+    --window-radius: 0px;
+    outline: none;
+    box-shadow: none;
+  }
+}
+
+// The content area — the one child slot `Adw.Window:content` fills. It takes the
+// window's own column, so a toolbar view dropped in stretches both ways.
+.adw-window-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
 // <gtk-window> — the GTK frame, in the SAME file upstream styles `Adw.Window` in: libadwaita

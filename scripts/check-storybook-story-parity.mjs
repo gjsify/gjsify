@@ -237,6 +237,8 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no Gtk.Viewport widget yet, so the story is rendered by the other two targets only.',
     'window-handle@nativescript':
         'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no titlebar handle yet, so the story is rendered by the other two targets only.',
+    'window@nativescript':
+        'status/open-todos/adwaita-ports.md, "<adw-window> on NativeScript": NativeScript has no toplevel view to hang a window frame on — its `Page` IS the window, and the storybook\'s Page already carries the `adw-window` style class (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml), so the story is rendered by the other two targets only.',
 };
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */

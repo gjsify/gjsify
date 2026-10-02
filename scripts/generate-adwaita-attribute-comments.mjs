@@ -296,6 +296,14 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // property and generates its own sentence. The inversion is real and lives where a
     // reader of the element will find it: the six elements' headers, which each say why a
     // bare attribute means the opposite of what it reads like.
+
+    // The window's size request, under the attribute name libadwaita's own
+    // `adw_window_init()` uses to set it (adw-window.c:344) instead of GtkWindow's
+    // `default-width`/`default-height`. Both are the size the window asks for, so the
+    // pair is a rename and not a port addition — the element sets it on the host the way
+    // `gtk_widget_set_size_request()` does, and the same two words name the CSS box.
+    'adw-window width': { kind: 'renamed', girProperty: 'default-width' },
+    'adw-window height': { kind: 'renamed', girProperty: 'default-height' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */

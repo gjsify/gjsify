@@ -434,6 +434,25 @@
             :max-length="32"
         />
         <gtk-editable-label text="Ada Lovelace" />
+        <adw-window
+            :default-width="440"
+            :default-height="240"
+        >
+            <adw-toolbar-view>
+                <adw-header-bar slot="top">
+                    <adw-window-title
+                        slot="title"
+                        title="Text Editor"
+                        subtitle="notes.md"
+                    />
+                </adw-header-bar>
+                <adw-status-page
+                    slot="content"
+                    title="Your Library"
+                    description="Content sits between the toolbars and scrolls independently of them."
+                />
+            </adw-toolbar-view>
+        </adw-window>
         <adw-bin>
             <gtk-label
                 label="The one child of this bin."

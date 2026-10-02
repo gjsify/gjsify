@@ -715,6 +715,9 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port ships a platform Video and that is exactly the half it covers: the frames. The widget is a play SURFACE whose whole content is three overlay nodes over the media (ui/gtkvideo.ui), and the port has no media-stream behind its Video for the overlay icon to report on or for the three-second controls reveal to re-arm — there is no AdwSpinner or GtkBox in the port to hold one (status/open-todos/adwaita-ports.md).',
     'Gtk.MediaControls':
         'The NativeScript port has no transport view: its Video is the play surface itself with no bar drawn over it, and the widget holds exactly one property — `media-stream`, an object (gtkmediacontrols.c:296-306) — so there is no stream for a port to own and project the bar from. GtkBox is the container one would sit in and it has no run of equal children to hold six controls (status/open-todos/adwaita-ports.md).',
+    // --- no toplevel to hang a frame on ---
+    'Adw.Window':
+        'NativeScript has no toplevel: its Page IS the window — the storybook Page already carries the `adw-window` style class (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml), which the theme styles (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24) — so there is nothing for a window frame to be the frame OF. AdwToolbarView is the container this window would hold, and it is a template on its own block.',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

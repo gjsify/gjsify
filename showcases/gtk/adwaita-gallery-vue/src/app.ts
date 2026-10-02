@@ -323,6 +323,16 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.EditableLabel', root:
         { tag: 'gtk-editable-label', gtype: 'GtkEditableLabel', props: {"text":"Ada Lovelace"} }
     },
+    { widget: 'Adw.Window', root:
+        { tag: 'adw-window', gtype: 'AdwWindow', props: {"defaultWidth":440,"defaultHeight":240}, children: [
+                { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Text Editor","subtitle":"notes.md"} }
+                            ] },
+                        { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"title":"Your Library","description":"Content sits between the toolbars and scrolls independently of them."} }
+                    ] }
+            ] }
+    },
     { widget: 'Adw.Bin', root:
         { tag: 'adw-bin', gtype: 'AdwBin', children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The one child of this bin.","wrap":true,"xalign":0,"cssClasses":["card"]} }

@@ -94,6 +94,7 @@ import { PopoverMenuWebStories } from './layout/popover-menu.web.js';
 import { PopoverWebStories } from './layout/popover.web.js';
 import { ToolbarViewWebStories } from './layout/toolbar-view.web.js';
 import { ViewportWebStories } from './layout/viewport.web.js';
+import { WindowWebStories } from './layout/window.web.js';
 import { WrapBoxWebStories } from './layout/wrap-box.web.js';
 import { CarouselWebStories } from './view-switching/carousel.web.js';
 import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
@@ -212,6 +213,7 @@ export const stories: WebStoryModule[] = [
     FixedWebStories,
     ToolbarViewWebStories,
     ViewportWebStories,
+    WindowWebStories,
     WrapBoxWebStories,
     CarouselWebStories,
     InlineViewSwitcherWebStories,

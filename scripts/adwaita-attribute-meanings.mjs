@@ -118,6 +118,7 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'policy': null,
     },
     'adw-window-title': {
+        'subtitle': null,
         'title': null,
     },
     'gtk-about-dialog': {
@@ -401,6 +402,8 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-shortcuts-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
+    'adw-window height': 'renamed',
+    'adw-window width': 'renamed',
     'gtk-about-dialog open': 'declarative-state',
     'gtk-button flat': 'style-class',
     'gtk-check-button checked': 'renamed',
@@ -433,12 +436,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 229,
+    set: 232,
     glossed: 87,
-    nameSuffices: 108,
-    divergent: 33,
+    nameSuffices: 109,
+    divergent: 35,
     authored: 1,
-    commentLines: 120,
+    commentLines: 121,
 };
 
 /**

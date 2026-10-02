@@ -598,6 +598,28 @@ const GtkEditableLabel = () => (
     <gtk-editable-label text="Ada Lovelace" />
 );
 
+const AdwWindow = () => (
+    <adw-window
+        defaultWidth={440}
+        defaultHeight={240}
+    >
+        <adw-toolbar-view>
+            <adw-header-bar slot="top">
+                <adw-window-title
+                    slot="title"
+                    title="Text Editor"
+                    subtitle="notes.md"
+                />
+            </adw-header-bar>
+            <adw-status-page
+                slot="content"
+                title="Your Library"
+                description="Content sits between the toolbars and scrolls independently of them."
+            />
+        </adw-toolbar-view>
+    </adw-window>
+);
+
 const AdwBin = () => (
     <adw-bin>
         <gtk-label
@@ -1044,6 +1066,7 @@ const Gallery = () => (
         <GtkOverlay />
         <GtkText />
         <GtkEditableLabel />
+        <AdwWindow />
         <AdwBin />
         <AdwBreakpointBin />
         <AdwClamp />
@@ -1373,6 +1396,16 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.EditableLabel', root:
         { tag: 'gtk-editable-label', gtype: 'GtkEditableLabel', props: {"text":"Ada Lovelace"} }
+    },
+    { widget: 'Adw.Window', root:
+        { tag: 'adw-window', gtype: 'AdwWindow', props: {"defaultWidth":440,"defaultHeight":240}, children: [
+                { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Text Editor","subtitle":"notes.md"} }
+                            ] },
+                        { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"title":"Your Library","description":"Content sits between the toolbars and scrolls independently of them."} }
+                    ] }
+            ] }
     },
     { widget: 'Adw.Bin', root:
         { tag: 'adw-bin', gtype: 'AdwBin', children: [

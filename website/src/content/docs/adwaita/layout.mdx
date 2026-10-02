@@ -1,15 +1,16 @@
 ---
 title: Layout
-description: "Adwaita layout containers: Bin, Clamp, ClampScrollable, HeaderBar, ToolbarView and WrapBox, plus the adaptive trio BreakpointBin, MultiLayoutView and LayoutSlot. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita's window and its layout containers: Window, Bin, Clamp, ClampScrollable, HeaderBar, ToolbarView and WrapBox, plus the adaptive trio BreakpointBin, MultiLayoutView and LayoutSlot. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
-These containers give an Adwaita window its shape. Use a **bin** when a slot holds
-one replaceable widget, a **clamp** to hold content at a readable width (and a
-**scrollable clamp** when that content scrolls), a **header bar** for the top
-chrome, a **toolbar view** to frame content between fixed bars, and a **wrap box** to let a run of
+An Adwaita window is a frame plus the containers that give it shape. The **window**
+is the frame itself; a **bin** holds one replaceable widget where a slot calls for
+it, a **clamp** holds content at a readable width (and a **scrollable clamp** when
+that content scrolls), a **header bar** is the top chrome, a **toolbar view** frames
+content between fixed bars, and a **wrap box** lets a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
 
@@ -31,6 +32,91 @@ The previews run the browser port, so behaviour Libadwaita drives natively (a to
 view revealing each bar independently, a clamp's tightening threshold) can be
 simplified here.
 </MoreInfo>
+
+## Window
+
+The frame everything else goes into. It styles no chrome of its own: you give it a
+**content** widget — normally a [toolbar view](#toolbar-view) with a header bar — and
+it asks for the size `Adw.Window` asks for, 360 × 200 px, unless you set a default
+size yourself.
+
+<MoreInfo title="The preview is a window drawn in the page">
+`Adw.Window` is a toplevel. On the desktop it is a real window that the compositor
+places, maximises, tiles and closes. A browser document has no window manager, so
+`<adw-window>` is a framed box **in the page**: the frame libadwaita draws for a
+client-side-decorated window, the content property, the breakpoints and the
+open-dialog bookkeeping — and none of what a compositor owns, so no titlebar, no
+minimise button and no window placement. What you put inside it behaves the same.
+</MoreInfo>
+
+<AdwWidget title="Adw.Window" padding="flush" stage="height: 300px; width: 100%; display: flex; align-items: center; justify-content: center;">
+  <Fragment slot="preview">
+    ```html
+    <adw-window width="440" height="240">
+      <adw-toolbar-view>
+        <adw-header-bar slot="top">
+          <adw-window-title slot="title" title="Text Editor" subtitle="notes.md"></adw-window-title>
+        </adw-header-bar>
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page
+          slot="content"
+          title="Your Library"
+          description="Content sits between the toolbars and scrolls independently of them."
+        ></adw-status-page>
+      </adw-toolbar-view>
+    </adw-window>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    Adw.init();
+
+    const headerBar = new Adw.HeaderBar();
+    headerBar.set_title_widget(new Adw.WindowTitle({ title: 'Text Editor', subtitle: 'notes.md' }));
+
+    const toolbarView = new Adw.ToolbarView({ top_bar: headerBar });
+    toolbarView.content = new Adw.StatusPage({
+        title: 'Your Library',
+        description: 'Content sits between the toolbars and scrolls independently of them.',
+    });
+
+    // ONE child, and it is a property: `content` takes the widget itself, so this is
+    // never an `append()`.
+    const window = new Adw.Window({ content: toolbarView });
+
+    // The size request `adw_window_init()` makes is 360×200 (adw-window.c:344).
+    window.set_default_size(440, 240);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Window {
+      default-width: 440;
+      default-height: 240;
+
+      content: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          title-widget: Adw.WindowTitle {
+            title: _("Text Editor");
+            subtitle: _("notes.md");
+          };
+        }
+
+        content: Adw.StatusPage {
+          title: _("Your Library");
+          description: _("Content sits between the toolbars and scrolls independently of them.");
+        };
+      };
+    }
+    ```
+  </Fragment>
+</AdwWidget>
 
 <MoreInfo title="The NativeScript tabs were inflated on a device">
 [`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
@@ -680,6 +766,7 @@ are ordinary.
 
 - [Boxed Lists](../boxed-lists/): the rows a `Clamp` keeps at a readable width.
 - [Navigation](../navigation/): split views and pages that pair with a `HeaderBar`.
+- [Feedback](../feedback/): the dialogs that present themselves over the window.
 - [Native Adwaita Apps](../../guides/native-adwaita-app/): assemble these into a
   running app.
 - [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
