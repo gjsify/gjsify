@@ -63,6 +63,8 @@ import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
 import { GtkLevelBarTest } from './gtk-level-bar.spec.js';
 import { GtkSpinnerTest } from './gtk-spinner.spec.js';
 import { GtkStackTest } from './gtk-stack.spec.js';
+import { GtkStackSidebarTest } from './gtk-stack-sidebar.spec.js';
+import { GtkStackSwitcherTest } from './gtk-stack-switcher.spec.js';
 import { GtkColumnViewTest } from './gtk-column-view.spec.js';
 import { GtkGridViewTest } from './gtk-grid-view.spec.js';
 import { GtkListViewTest } from './gtk-list-view.spec.js';
@@ -150,6 +152,8 @@ run({
     GtkLevelBarTest,
     GtkSpinnerTest,
     GtkStackTest,
+    GtkStackSwitcherTest,
+    GtkStackSidebarTest,
     GtkColumnViewTest,
     GtkGridViewTest,
     GtkListViewTest,

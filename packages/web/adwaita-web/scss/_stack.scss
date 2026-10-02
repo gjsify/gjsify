@@ -243,3 +243,221 @@ gtk-stack[data-transition-type^='under-'] > .adw-stack-page.transitioning-out {
 // `gtk_stack_start_transition` skips the whole tracker when the effective type is NONE
 // or the duration is 0 (gtkstack.c:1400-1403), which is what the element does too — the
 // `transition-running` attribute is simply never set.
+// ── Gtk.StackSwitcher ──────────────────────────────────────────────────────
+// A linked row of toggle buttons, one per page (gtkstackswitcher.c:277-300), and C puts
+// the `.linked` class on the switcher itself (gtkstackswitcher.c:49-57) so the buttons
+// share one rounded group instead of being individually rounded.
+gtk-stack-switcher {
+    display: flex;
+    box-sizing: border-box;
+    min-width: 0;
+
+    > .adw-stack-switcher-button {
+        display: inline-flex;
+        flex: 1 1 0;
+        min-width: 0;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 3px 12px;
+        min-height: 30px;
+        border: 1px solid var(--border-color, var(--separator-color));
+        background-color: var(--button-bg-color);
+        color: var(--window-fg-color);
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+
+        // `.linked` (gtkstackswitcher.c:49-57): the inner corners lose their radius and
+        // the neighbours' borders collapse, so the row reads as one control. This is the
+        // same shape `_linked.scss` builds for `.linked > button` in libadwaita.
+        &:first-child {
+            border-start-start-radius: var(--button-radius);
+            border-end-start-radius: var(--button-radius);
+        }
+
+        &:last-child {
+            border-start-end-radius: var(--button-radius);
+            border-end-end-radius: var(--button-radius);
+        }
+
+        &:not(:first-child) {
+            border-inline-start-width: 0;
+        }
+
+        &:not(:last-child) {
+            border-inline-end-width: 0;
+        }
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+
+        // The active button is the SELECTED page: `on_button_toggled` drives the stack's
+        // selection from the toggle (gtkstackswitcher.c:117-133), so the checked styling
+        // has to sit on the same state. `_buttons.scss` gives the checked button the
+        // `--button-active-color` fill, and the switcher's own padding is widened by
+        // 6px on each side for the needs-attention dot (_buttons.scss:282-292).
+        &.active {
+            background-color: var(--button-active-color);
+            color: var(--window-fg-color);
+        }
+
+        &:disabled {
+            opacity: var(--strong-disabled-opacity, 0.45);
+
+            > * {
+                opacity: 1;
+            }
+        }
+
+        .adw-stack-switcher-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .adw-stack-switcher-icon {
+            flex: none;
+            width: 16px;
+            height: 16px;
+        }
+
+        // `%needs_attention` (_buttons.scss:294-300, _sidebars.scss:101-105): a 6px dot
+        // behind the label, drawn rather than themed, because a custom SVG mask has no
+        // libadwaita counterpart to borrow.
+        &.needs-attention::after {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            margin-inline-start: 6px;
+            border-radius: 50%;
+            background-color: var(--accent-bg-color);
+        }
+    }
+
+    // `icon-button` vs `text-button` (gtkstackswitcher.c:158-176): an icon-only button
+    // gets a square min-width, a titled one a 100px floor (`&.text-button { min-width:
+    // 100px }`, _buttons.scss:296).
+    &[data-button-mode='icon'] > .adw-stack-switcher-button {
+        min-width: 34px;
+    }
+
+    &[data-button-mode='text'] > .adw-stack-switcher-button {
+        min-width: 100px;
+    }
+
+    // `GtkStackSwitcher` is a `GtkOrientable` (gtkstackswitcher.c:47), so the row can be
+    // vertical — the C installs a GtkBoxLayout whose orientation follows the property
+    // (:500-513).
+    &[orientation='vertical'] {
+        flex-direction: column;
+
+        > .adw-stack-switcher-button {
+            flex: 0 1 auto;
+
+            &:not(:first-child) {
+                border-inline-start-width: 1px;
+                border-inline-end-width: 1px;
+                border-top-width: 0;
+            }
+
+            &:not(:last-child) {
+                border-bottom-width: 0;
+            }
+        }
+    }
+}
+
+// ── Gtk.StackSidebar ───────────────────────────────────────────────────────
+// `stacksidebar row` — a vertical list of the stack's pages
+// (refs/libadwaita/src/stylesheet/widgets/_sidebars.scss:95-108): 10px 4px padding, a
+// label inset by 6px, and the same `.needs-attention` treatment. The rows live in a
+// `.navigation-sidebar` list (gtkstacksidebar.c:155), which is the list libadwaita
+// already styles — so the list's own background comes from there and this partial only
+// gives the ROW its metrics.
+gtk-stack-sidebar {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow-y: auto;
+
+    > .adw-stack-sidebar-list {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    > .adw-stack-sidebar-list > .adw-stack-sidebar-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        padding: 10px 4px;
+        min-height: 36px;
+        border: none;
+        background: none;
+        color: inherit;
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        text-align: start;
+        cursor: pointer;
+        transition: background-color 150ms ease-in-out;
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+
+        // The row carries the selection, exactly as a `GtkListBoxRow` does
+        // (gtkstacksidebar.c:317-338 selects and unselects rows).
+        &.selected {
+            background-color: var(--button-active-color);
+            color: var(--window-fg-color);
+        }
+
+        .adw-stack-sidebar-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            // `> label { padding-left: 6px; padding-right: 6px }`
+            // (_sidebars.scss:97-100), here as padding so the ellipsis measures right.
+            padding: 0 6px;
+        }
+
+        // `%needs_attention` (_sidebars.scss:101-105): a 6px dot in front of the label,
+        // drawn as a gradient because a custom SVG mask has no libadwaita counterpart
+        // to borrow.
+        &.needs-attention .adw-stack-sidebar-title {
+            background-image: radial-gradient(circle, var(--accent-bg-color) 6px, transparent 6px);
+            background-size: 6px 6px;
+            background-repeat: no-repeat;
+            background-position: left center;
+        }
+    }
+}

@@ -304,6 +304,12 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'transition-duration': 'The animation duration, in milliseconds.',
         'transition-type': null,
     },
+    'gtk-stack-sidebar': {
+        'stack': null,
+    },
+    'gtk-stack-switcher': {
+        'stack': null,
+    },
     'gtk-switch': {
         'active': 'Whether the `GtkSwitch` widget is in its on or off state.',
         'state': 'The backend state that is controlled by the switch.',
@@ -385,9 +391,9 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 201,
+    set: 203,
     glossed: 80,
-    nameSuffices: 88,
+    nameSuffices: 90,
     divergent: 32,
     authored: 1,
     commentLines: 113,

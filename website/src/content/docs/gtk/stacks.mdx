@@ -142,6 +142,207 @@ GTK's own animation vocabulary, which a NativeScript page transition does not
 expose. The XML template tab of every block on this page says so instead of
 showing one.
 </MoreInfo>
+## StackSwitcher
+
+A linked row of toggle buttons, one per page of a stack. **`stack`** names the
+stack by id and the row follows it in both directions: clicking a button makes
+its page visible, and a page change anywhere else re-marks the buttons. You
+cannot deselect the current page by clicking its own button — GTK undoes the
+deactivation from the stack itself.
+
+What each button shows follows the page. A **title** gives a label button; an
+**icon-name** gives an icon button and puts the title on the switcher as a
+tooltip; a page with **both** shows both; and a page with **neither** is left out
+of the row entirely. **`needs-attention`** on a page puts a dot on its button.
+**orientation** turns the row vertical.
+
+<AdwWidget title="Gtk.StackSwitcher">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:420px;">
+      <gtk-stack-switcher stack="switcher-stack"></gtk-stack-switcher>
+      <gtk-stack id="switcher-stack" style="height:120px;">
+        <div name="inbox" title="Inbox" icon-name="mail-unread-symbolic">Three unread conversations.</div>
+        <div name="drafts" icon-name="document-edit-symbolic" needs-attention>One draft needs your attention.</div>
+      </gtk-stack>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+
+    // A title alone is a text button; an icon alone is an icon button whose tooltip is
+    // the title; a page with NEITHER is skipped by the row (gtkstackswitcher.c:200).
+    stack.add_titled(page('Older conversations kept for reference.'), 'archive', 'Archive');
+    const drafts = stack.add_titled_with_icon(page('One draft needs your attention.'), 'drafts', '', 'document-edit-symbolic');
+    drafts.needs_attention = true;
+
+    // `stack` is a widget property in C, so it is set through the setter; the row builds
+    // itself from the stack's pages and follows it from then on.
+    const switcher = new Gtk.StackSwitcher({ stack });
+    switcher.orientation = Gtk.Orientation.VERTICAL;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.StackSwitcher switcher {
+        stack: stack;
+      }
+
+      Gtk.Stack stack {
+        transition-type: slide_left_right;
+
+        Gtk.StackPage {
+          name: "inbox";
+          title: "Inbox";
+          icon-name: "mail-unread-symbolic";
+
+          child: Gtk.Label {
+            label: "Three unread conversations.";
+          };
+        }
+
+        Gtk.StackPage {
+          name: "drafts";
+          icon-name: "document-edit-symbolic";
+          needs-attention: true;
+
+          child: Gtk.Label {
+            label: "One draft needs your attention.";
+          };
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+
+    // A title alone is a text button; an icon alone is an icon button whose tooltip is
+    // the title; a page with NEITHER is skipped by the row (gtkstackswitcher.c:200).
+    stack.add_titled(page('Older conversations kept for reference.'), 'archive', 'Archive');
+    const drafts = stack.add_titled_with_icon(page('One draft needs your attention.'), 'drafts', '', 'document-edit-symbolic');
+    drafts.needs_attention = true;
+
+    // `stack` is a widget property in C, so it is set through the setter; the row builds
+    // itself from the stack's pages and follows it from then on.
+    const switcher = new Gtk.StackSwitcher({ stack });
+    switcher.orientation = Gtk.Orientation.VERTICAL;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## StackSidebar
+
+The same binding as the switcher, in a vertical list down the side of your window.
+**`stack`** names the stack by id and the rows follow it in both directions.
+
+A row is made of the page's **title** alone. That is the one rule where this and
+the switcher disagree: the switcher falls back to an icon when there is no title,
+the sidebar does not, so a page carrying only an icon gets **no row at all**.
+**`needs-attention`** puts a dot in front of the label.
+
+<AdwWidget title="Gtk.StackSidebar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:12px;width:460px;height:160px;">
+      <gtk-stack-sidebar stack="sidebar-stack" style="width:180px;"></gtk-stack-sidebar>
+      <gtk-stack id="sidebar-stack" style="flex:1;">
+        <div name="inbox" title="Inbox" icon-name="mail-unread-symbolic">Three unread conversations.</div>
+        <div name="drafts" title="Drafts" needs-attention>One draft needs your attention.</div>
+      </gtk-stack>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+    const drafts = stack.add_titled(page('One draft needs your attention.'), 'drafts', 'Drafts');
+    drafts.needs_attention = true;
+
+    // A page with an icon and NO title gets no row: `update_row` reads title,
+    // needs-attention and visible, and never icon-name (gtkstacksidebar.c:178-186).
+    stack.add_titled_with_icon(page('No row for this page.'), 'settings', '', 'preferences-system-symbolic');
+
+    const sidebar = new Gtk.StackSidebar({ stack });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Paned {
+      orientation: horizontal;
+
+      start-child: Gtk.StackSidebar sidebar {
+        stack: stack;
+      };
+
+      end-child: Gtk.Stack stack {
+        transition-type: slide_left_right;
+
+        Gtk.StackPage {
+          name: "inbox";
+          title: "Inbox";
+          icon-name: "mail-unread-symbolic";
+
+          child: Gtk.Label {
+            label: "Three unread conversations.";
+          };
+        }
+
+        Gtk.StackPage {
+          name: "drafts";
+          title: "Drafts";
+          needs-attention: true;
+
+          child: Gtk.Label {
+            label: "One draft needs your attention.";
+          };
+        }
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+    const drafts = stack.add_titled(page('One draft needs your attention.'), 'drafts', 'Drafts');
+    drafts.needs_attention = true;
+
+    // A page with an icon and NO title gets no row: `update_row` reads title,
+    // needs-attention and visible, and never icon-name (gtkstacksidebar.c:178-186).
+    stack.add_titled_with_icon(page('No row for this page.'), 'settings', '', 'preferences-system-symbolic');
+
+    const sidebar = new Gtk.StackSidebar({ stack });
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Related
 
 - [Layout](../layout/): the containers a page inside a stack is built from.

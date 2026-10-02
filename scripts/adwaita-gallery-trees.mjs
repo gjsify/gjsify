@@ -1167,6 +1167,12 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // it cannot, and it refuses by name (`list-model-mismatch`) rather than writing a NULL
     // the diagnostics gate would not see. The browser elements take the portable list
     // directly, which is why their blocks have a preview and a replica and no dialect tab.
+    'Gtk.StackSwitcher':
+        'its `stack` is a widget REFERENCE (gtk_stack_switcher_set_stack), and a ref is spelled differently in ' +
+        'all three dialects — so the switcher and the stack it drives cannot both be written in one tree.',
+    'Gtk.StackSidebar':
+        'its `stack` is a widget REFERENCE (gtk_stack_sidebar_set_stack), and a ref is spelled differently in ' +
+        'all three dialects — so the sidebar and the stack it drives cannot both be written in one tree.',
     'Gtk.ListView':
         'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and its rows come ' +
         'from a Gtk.SignalListItemFactory — a pair of callbacks no dialect spells.',

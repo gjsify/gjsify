@@ -162,6 +162,10 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Grid widget, so the story is rendered by the other two targets only.',
     'separator@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
+    'stack-sidebar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-stack>, <gtk-stack-switcher>, <gtk-stack-sidebar> and <gtk-notebook> on NativeScript": @nativescript/core\'s TabView owns its own tab strip, so the port has no content-only stack to drive one with, so the story is rendered by the other two targets only.',
+    'stack-switcher@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-stack>, <gtk-stack-switcher>, <gtk-stack-sidebar> and <gtk-notebook> on NativeScript": @nativescript/core\'s TabView owns its own tab strip, so the port has no content-only stack to drive one with, so the story is rendered by the other two targets only.',
     'stack@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-stack>, <gtk-stack-switcher>, <gtk-stack-sidebar> and <gtk-notebook> on NativeScript": @nativescript/core\'s TabView owns its tab strip, so the port has no content-only stack to drive one with, so the story is rendered by the other two targets only.',
     'switch@nativescript':
