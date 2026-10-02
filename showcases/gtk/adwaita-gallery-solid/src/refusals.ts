@@ -60,17 +60,17 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     ['adw-tab-view', 'gtk-label'],
     ['adw-toggle-group', 'gtk-label'],
     ['adw-view-switcher', 'gtk-label'],
-    // The GTK containers whose block is refused in `ADWAITA_GALLERY_REFUSALS`: a paned, a
-    // revealer and an expander all exist as tags and as browser elements, and none of them
-    // has a descriptor row, so a child placed into one is refused BY NAME. `GtkOverlay` is
-    // beside them deliberately absent — it IS curated (`slots: { child, overlay }`), and its
-    // block is a tree.
     ['gtk-paned', 'gtk-label'],
     ['gtk-revealer', 'gtk-label'],
     ['gtk-expander', 'gtk-label'],
     // A Gtk layout container whose three children are NAMED slots, so the descriptor table
     // has no ordered child list for it and the gallery's `Gtk.CenterBox` is a refusal.
     ['gtk-center-box', 'gtk-label'],
+    // `Gtk.Popover`'s content is its `child` PROPERTY, so nothing about the widget names it
+    // — and the descriptor table curates no child policy for `GtkPopover`, which is the
+    // refusal `ADWAITA_GALLERY_REFUSALS` states. Probed so arm 5b of
+    // `check-generated-website-data.mjs` has something to measure rather than prose.
+    ['gtk-popover', 'gtk-label'],
     // Curated by #1368, so this is no longer a PLACEMENT refusal — GTK refuses the
     // child TYPE. Kept because the gallery's tree depends on it: the split view's
     // slots take an `Adw.NavigationPage` and nothing else.

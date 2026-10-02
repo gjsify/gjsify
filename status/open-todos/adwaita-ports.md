@@ -476,6 +476,22 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   `AbsoluteLayout` does cover `Gtk.Fixed` exactly, so whether these five arrive as five
   widgets or as four styled boxes plus one `AbsoluteLayout` is the open question, not the
   platform half.
+- **`<gtk-popover>`, `<gtk-popover-menu>`, `<gtk-popover-menu-bar>` and
+  `<gtk-popover-bin>` on NativeScript.** All four exist on the browser with their gallery
+  blocks, and all four are refused an XML template because the NativeScript port has no
+  POPUP SURFACE to put a menu in. Its menus run through a button —
+  `GtkMenuButton.menuModel`, and `GtkDropDown` documents the substitution it makes instead
+  (`packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21`): the platform
+  `action()` sheet. That is a defensible phone idiom for a MENU, and it is the wrong answer
+  for the other three: `Gtk.Popover` takes arbitrary content, `Gtk.PopoverMenu` needs the
+  page stack a `GtkStack` would give, and `GtkPopoverMenuBar`'s whole behaviour is
+  `set_active_item`'s click-opens / hover-selects rule (gtkpopovermenubar.c:126-163), which
+  an action sheet cannot express at all — there is no bar to walk. So what is open is
+  whether a NativeScript popup is a port at all or stays the sheet: a popover is POSITIONED
+  (CSS `position`/`align`, no overflow flip in either renderer), and `@nativescript/core`
+  has no positioned overlay that is not a modal. The dismissal machinery would come free —
+  `PopoverState` and `resolvePopoverKey` are renderer-neutral (ADR 0089) — so the question is
+  the surface, not the behaviour.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

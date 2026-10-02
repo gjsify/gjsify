@@ -62,6 +62,12 @@
 // The ONE popover surface. Emitted BEFORE the widgets that host one, so a
 // consumer's (or a widget's) own higher-specificity rule still wins over it.
 @use 'popover';
+// <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin>. All three AFTER
+// `popover`, because every surface they own is `<gtk-popover>`'s and none of them restates
+// it — they add the menubar's item rules and the bin's `.has-open-popup`, and libadwaita
+// puts both in the same file as `popover.menu` for the same reason.
+@use 'popover_menu_bar';
+@use 'popover_bin';
 @use 'split_button';
 @use 'menu_button';
 @use 'drop_down';

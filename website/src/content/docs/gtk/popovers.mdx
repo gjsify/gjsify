@@ -1,0 +1,444 @@
+---
+title: Popovers
+description: "GTK's four popover widgets — the surface itself, the menu-driven one, the menu bar and the context-menu container — with a live preview, its markup, and the TypeScript and Blueprint code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+A **popover** is the small surface that appears next to something rather than
+over the whole window: a tooltip you can interact with, a menu, a context menu
+on a row. GTK has four widgets for it, and they stack — the **popover** is the
+surface, the **popover menu** is that surface filled from a menu model, the
+**popover menu bar** is a row of menus, and the **popover bin** wraps any widget
+so that a right click on it opens one.
+
+Libadwaita styles the surface (`popover > contents`: an 8 px inset, a 15 px
+radius and a three-layer shadow) and the menu inside it (`popover.menu` swaps the
+8 px inset for a 6 px one and draws 32 px rows with 9 px corners), and adds
+neither of the other two to its stylesheet. Both are on this page, because a
+menu bar is not a look and a bin is not a widget: they are behaviour.
+
+<MoreInfo title="What the NativeScript port has">
+None of the four. The port's menus run through a button —
+`GtkMenuButton.menuModel` — and it has no view that takes arbitrary content as a
+popup's child, so there is no surface for `Gtk.Popover`, no page stack for
+`Gtk.PopoverMenu`, no bar for `Gtk.PopoverMenuBar` and no container for
+`Gtk.PopoverBin`. The XML template tab of every block here says so instead of
+showing one.
+</MoreInfo>
+
+## Popover
+
+The surface itself. It holds whatever widget you put in it and shows it beside
+its parent. **position** picks the side (`bottom`, `top`, `start`, `end`) and
+**align** picks the edge on the vertical axis — GTK spells that as the parent
+widget's own `halign`, which is why the browser element carries an `align`
+attribute of its own.
+
+The one worth trying is **autohide**. It defaults to on, and it is GTK's *grab*:
+with it on, an outside click or an <kbd>Esc</kbd> dismisses the popover. Turn it
+off and the popover no longer takes the focus, which is what an entry's
+completion list needs — the caret stays in the entry and the list follows the
+typing.
+
+<AdwWidget title="Gtk.Popover">
+  <Fragment slot="preview">
+    ```html
+    <div style="position:relative;display:inline-block;">
+      <button>Show popover</button>
+      <!-- position: How to place the popover, relative to its parent. -->
+      <!-- autohide: Whether to dismiss the popover on outside clicks. -->
+      <gtk-popover open position="bottom" align="start" autohide="true">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <gtk-label label="Anything you like"></gtk-label>
+        </div>
+      </gtk-popover>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const button = new Gtk.Button({ label: 'Show popover' });
+
+    const content = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+    content.append(new Gtk.Label({ label: 'Anything you like' }));
+
+    const popover = new Gtk.Popover({ child: content });
+    popover.set_parent(button); // the popover's anchor is its PARENT widget
+
+    // GTK's grab. `popover.autohide` defaults to TRUE, and it is what dismisses the
+    // popover on an outside click and takes the focus when it opens.
+    popover.autohide = true;
+
+    popover.position = Gtk.PositionType.BOTTOM;
+    // There is no `align` on GtkPopover: the popover is placed against its PARENT, and a
+    // parent owns its own alignment, so `start` is the button's own halign — a property the
+    // NativeScript port's `GtkButton` does not have.
+
+    popover.popup();
+    popover.popdown();
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+
+      Gtk.Button {
+        label: "Show popover";
+
+        Gtk.Popover {
+          autohide: true;
+          position: bottom;
+
+          Gtk.Box {
+            orientation: vertical;
+            spacing: 6;
+
+            Gtk.Label {
+              label: "Anything you like";
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const button = new Gtk.Button({ label: 'Show popover' });
+
+    const content = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+    content.append(new Gtk.Label({ label: 'Anything you like' }));
+
+    const popover = new Gtk.Popover({ child: content });
+    popover.set_parent(button); // the popover's anchor is its PARENT widget
+
+    // GTK's grab. `popover.autohide` defaults to TRUE, and it is what dismisses the
+    // popover on an outside click and takes the focus when it opens.
+    popover.autohide = true;
+
+    popover.position = Gtk.PositionType.BOTTOM;
+    // There is no `align` on GtkPopover: the popover is placed against its PARENT, and a
+    // parent owns its own alignment, so `start` is the button's own halign — a property the
+    // NativeScript port's `GtkButton` does not have.
+
+    popover.popup();
+    popover.popdown();
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Why the popover has no Solid, Vue or React snippet">
+Its content is the `GtkPopover:child` property, and a property that holds a
+widget has no literal form a JSX expression or an XML attribute can carry. Every
+other popover on this page takes a **menu model** instead, which does, so all
+three snippets are there.
+</MoreInfo>
+
+## Popover Menu
+
+The same surface filled from a **menu model** rather than from a child widget —
+which is what makes it more than a surface, because a submenu becomes a *named
+page of the one popup* rather than a second window beside it.
+**visible-submenu** is that name: `'main'` is the root, and a submenu's label is
+its own. Reading it tells you where the reader is; writing it opens that page.
+
+**menu-model** is the JSON the two other menu widgets take too: items, `section`
+groups and `submenu` nests, with the attribute names GTK reads. A section
+carries the heading, and an item may carry an `accel`, an `icon` or an `action`.
+
+<AdwWidget title="Gtk.PopoverMenu">
+  <Fragment slot="preview">
+    ```html
+    <div style="position:relative;display:inline-block;">
+      <button>Open menu</button>
+      <!-- position: How to place the popover, relative to its parent. -->
+      <!-- autohide: Whether to dismiss the popover on outside clicks. -->
+      <!-- menu-model: The model from which the menu is made. -->
+      <gtk-popover-menu
+        open
+        position="bottom"
+        align="start"
+        autohide="true"
+        menu-model='[{"label":"New Window","accel":"<Control>N"},{"section":[{"label":"Cut"},{"label":"Copy"},{"label":"Paste"}],"label":"Edit"},{"label":"Open With","submenu":[{"label":"Text Editor"},{"label":"Web Browser"}]}]'
+      ></gtk-popover-menu>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const button = new Gtk.Button({ label: 'Open menu' });
+
+    const menu = new Gio.Menu();
+    menu.append('New Window', 'app.new-window');
+
+    const edit = new Gio.Menu();
+    edit.append('Cut', 'app.cut');
+    edit.append('Copy', 'app.copy');
+    edit.append('Paste', 'app.paste');
+    // A labelled SECTION is the heading the browser element spells `menu-title`.
+    menu.append_section('Edit', edit);
+
+    const openWith = new Gio.Menu();
+    openWith.append('Text Editor', 'app.open-with-text-editor');
+    openWith.append('Web Browser', 'app.open-with-browser');
+    menu.append_submenu('Open With', openWith);
+
+    // `new_from_model` builds SLIDING submenus, which is the page-swap the browser
+    // element draws. The nested form is the `flags` argument of `new_from_model_full`.
+    const popover = Gtk.PopoverMenu.new_from_model(menu);
+    popover.set_parent(button);
+
+    // The name of the visible page: "main" for the root, a submenu's label for itself.
+    popover.visibleSubmenu = 'main';
+    popover.visibleSubmenu = 'Open With';
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+
+      Gtk.Button {
+        label: "Open menu";
+
+        Gtk.PopoverMenu {
+          autohide: true;
+          position: bottom;
+          visible-submenu: "main";
+          // `menu-model` is a Gio.MenuModel and there is NO Blueprint type for one:
+          // GtkBuilder's <menu> XML is not a widget. Set it from code, as above.
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const button = new Gtk.Button({ label: 'Open menu' });
+
+    const menu = new Gio.Menu();
+    menu.append('New Window', 'app.new-window');
+
+    const edit = new Gio.Menu();
+    edit.append('Cut', 'app.cut');
+    edit.append('Copy', 'app.copy');
+    edit.append('Paste', 'app.paste');
+    // A labelled SECTION is the heading the browser element spells `menu-title`.
+    menu.append_section('Edit', edit);
+
+    const openWith = new Gio.Menu();
+    openWith.append('Text Editor', 'app.open-with-text-editor');
+    openWith.append('Web Browser', 'app.open-with-browser');
+    menu.append_submenu('Open With', openWith);
+
+    // `new_from_model` builds SLIDING submenus, which is the page-swap the browser
+    // element draws. The nested form is the `flags` argument of `new_from_model_full`.
+    const popover = Gtk.PopoverMenu.new_from_model(menu);
+    popover.set_parent(button);
+
+    // The name of the visible page: "main" for the root, a submenu's label for itself.
+    popover.visibleSubmenu = 'main';
+    popover.visibleSubmenu = 'Open With';
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Popover Menu Bar
+
+A horizontal bar whose items pop up a menu. There is exactly one way to make
+one — from a model — and **the model must hold submenus at the top level**, one
+per item; anything else is refused with GTK's own "Don't know how to handle this
+item".
+
+What makes it a menu bar and not a row of menu buttons is one rule:
+**clicking an item opens its menu, hovering only selects it.** And a second
+follows from it — the item whose menu is actually up is the one that gets
+`.active`, so walking the bar with the pointer shows selection without lighting
+anything. <kbd>←</kbd> and <kbd>→</kbd> move between items and wrap; with a menu
+open they belong to the menu instead, which is where <kbd>↑</kbd> and
+<kbd>↓</kbd> already live.
+
+<AdwWidget title="Gtk.PopoverMenuBar">
+  <Fragment slot="preview">
+    ```html
+    <!-- menu-model: The `GMenuModel` from which the menu bar is created. -->
+    <gtk-popover-menu-bar
+      menu-model='[{"label":"File","submenu":[{"label":"New Window"},{"label":"Open"},{"label":"Quit"}]},{"label":"Edit","submenu":[{"label":"Undo"},{"label":"Redo"}]},{"label":"View","submenu":[{"label":"Zoom In"},{"label":"Zoom Out"}]}]'
+    ></gtk-popover-menu-bar>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gio.Menu();
+    for (const [label, items] of [
+        ['File', ['New Window', 'Open', 'Quit']],
+        ['Edit', ['Undo', 'Redo']],
+        ['View', ['Zoom In', 'Zoom Out']],
+    ]) {
+        const submenu = new Gio.Menu();
+        for (const item of items) submenu.append(item, `app.${item}`);
+        // A toplevel node that is not a submenu is refused with
+        // "Don't know how to handle this item".
+        bar.append_submenu(label, submenu);
+    }
+
+    // The ONLY constructor: there is none that takes children.
+    const menubar = Gtk.PopoverMenuBar.new_from_model(bar);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.PopoverMenuBar {
+      // `menu-model` is a Gio.MenuModel and there is NO Blueprint type for one:
+      // GtkBuilder's <menu> XML is not a widget. Set it from code, as above.
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gio.Menu();
+    for (const [label, items] of [
+        ['File', ['New Window', 'Open', 'Quit']],
+        ['Edit', ['Undo', 'Redo']],
+        ['View', ['Zoom In', 'Zoom Out']],
+    ]) {
+        const submenu = new Gio.Menu();
+        for (const item of items) submenu.append(item, `app.${item}`);
+        // A toplevel node that is not a submenu is refused with
+        // "Don't know how to handle this item".
+        bar.append_submenu(label, submenu);
+    }
+
+    // The ONLY constructor: there is none that takes children.
+    const menubar = Gtk.PopoverMenuBar.new_from_model(bar);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Popover Bin
+
+GTK 4.22's answer to "any part of this window can offer a menu". Wrap a widget
+in it and the container owns the popover, the gestures and a **`menu.popup`**
+action. **`menu-model`** builds the popover for you and pins it below the child;
+**handle-input** is what makes a right click — or a long press on a touchscreen —
+open it, and it defaults to off, so a plain click still reaches the child.
+
+While the popup is up the child wears libadwaita's `has-open-popup` class,
+which is how a list row or a sidebar row stays highlighted while its own menu
+covers the list.
+
+<AdwWidget title="Gtk.PopoverBin">
+  <Fragment slot="preview">
+    ```html
+    <!-- menu-model: The `GMenuModel` from which the popup will be created. -->
+    <!-- handle-input: Whether the popover bin will handle input to trigger the popup. -->
+    <gtk-popover-bin
+      menu-model='[{"label":"Cut"},{"label":"Copy"},{"label":"Paste"},{"label":"Delete"}]'
+      handle-input
+    >
+      <gtk-label label="Right-click me"></gtk-label>
+    </gtk-popover-bin>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const row = new Gtk.ListBoxRow({ child: new Gtk.Label({ label: 'Right-click me' }) });
+
+    const menu = new Gio.Menu();
+    for (const label of ['Cut', 'Copy', 'Paste', 'Delete']) menu.append(label, `app.${label}`);
+
+    const bin = new Gtk.PopoverBin({ child: row });
+    // Builds a Gtk.PopoverMenu from the model and pins it to GTK_POS_BOTTOM. Setting it
+    // again REPLACES the popover; setting `popover` instead DROPS the model — the two are
+    // one slot from two directions.
+    bin.menuModel = menu;
+
+    // FALSE by default, and the reason a plain click reaches the child: the gesture only
+    // claims a CONTEXT MENU and a long press, and denies every other sequence.
+    bin.handleInput = true;
+
+    // `menu.popup` is an ACTION, so a keyboard binding or a test can reach the same popup
+    // the gesture does.
+    bin.activate_action('menu.popup', null);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.PopoverBin {
+      handle-input: true;
+      // `menu-model` is a Gio.MenuModel and there is NO Blueprint type for one:
+      // GtkBuilder's <menu> XML is not a widget. Set it from code, as above.
+
+      child: Gtk.Label {
+        label: "Right-click me";
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const row = new Gtk.ListBoxRow({ child: new Gtk.Label({ label: 'Right-click me' }) });
+
+    const menu = new Gio.Menu();
+    for (const label of ['Cut', 'Copy', 'Paste', 'Delete']) menu.append(label, `app.${label}`);
+
+    const bin = new Gtk.PopoverBin({ child: row });
+    // Builds a Gtk.PopoverMenu from the model and pins it to GTK_POS_BOTTOM. Setting it
+    // again REPLACES the popover; setting `popover` instead DROPS the model — the two are
+    // one slot from two directions.
+    bin.menuModel = menu;
+
+    // FALSE by default, and the reason a plain click reaches the child: the gesture only
+    // claims a CONTEXT MENU and a long press, and denies every other sequence.
+    bin.handleInput = true;
+
+    // `menu.popup` is an ACTION, so a keyboard binding or a test can reach the same popup
+    // the gesture does.
+    bin.activate_action('menu.popup', null);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Buttons](../buttons/): the menu button, whose popup is the popover menu with a
+  button attached.
+- [Navigation](../navigation/): the split view, the sidebar and the bottom sheet,
+  the other surfaces that own their own popup.
+- [Adwaita Presentation](/gjsify/adwaita/presentation/): the popovers libadwaita
+  draws on top of these.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

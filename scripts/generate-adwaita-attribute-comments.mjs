@@ -232,6 +232,21 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // attribute so a page can declare it, which is what the fence below does; a `.blp`
     // cannot call a method and says so instead.
     'gtk-progress-bar pulsing': { kind: 'declarative-state' },
+
+    // The popover's visible state, which is a METHOD PAIR in GTK (`gtk_popover_popup()`
+    // and `gtk_popover_popdown()`, gtkpopover.c:2433-2451) rather than a property:
+    // declarative markup cannot call a method, so the element reflects the state the two
+    // methods set as an attribute — ADR 0033's preference for a declarative template.
+    'gtk-popover open': { kind: 'declarative-state' },
+    'gtk-popover-menu open': { kind: 'declarative-state' },
+
+    // `GtkPopover` has NO align property: `gtk_popover_set_position` picks the SIDE
+    // (gtkpopover.c:1955-1976) and the edge comes from the anchor widget's own `halign`,
+    // because the anchor is the popover's PARENT and a parent owns its own alignment. A
+    // popover placed with CSS has no parent to inherit from, so the web port spells the
+    // edge itself rather than leaving half of GTK's placement unstated.
+    'gtk-popover align': { kind: 'port-only' },
+    'gtk-popover-menu align': { kind: 'port-only' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */

@@ -221,7 +221,16 @@ const KNOWN_GAPS = {
         // `activate` SIGNAL the property gates is dispatched here instead.
         'activates-default',
     ],
-    'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
+    // `autohide` left this list when `<gtk-popover>` began honouring it: GTK's grab is what
+    // dismisses the popover on an outside click and what takes the focus when it opens
+    // (gtkpopover.c:1188, :1245-1247), so the attribute gates the document listeners the
+    // element already binds.
+    'gtk-popover': ['cascade-popdown', 'has-arrow', 'mnemonics-visible'],
+    // `flags` is `GTK_POPOVER_MENU_SLIDING` (the default) against `GTK_POPOVER_MENU_NESTED`.
+    // Only the sliding half is modelled: a nested submenu opens as a SECOND popover beside
+    // the row (gtkpopovermenu.c:817-825), which needs the arrow this package does not draw
+    // and an anchor the CSS placement cannot point at.
+    'gtk-popover-menu': ['flags'],
     // `pulse-step` is the distance one `gtk_progress_bar_pulse()` call advances the
     // bouncing block (gtkprogressbar.c:830-847, :655-692): a property of a per-call
     // animation this element does not run — the indeterminate block is a CSS keyframe on

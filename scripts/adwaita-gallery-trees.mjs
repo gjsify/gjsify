@@ -839,6 +839,71 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    // ----------------------------------------------------------------- gtk popovers
+    //
+    // Three of the four are trees because their CONTENT IS A MODEL: ADR 0042 gave a menu a
+    // portable value form and `coerce` turns one into a real `Gio.Menu` at the ParamSpec
+    // seam, so `menuModel` is authorable here exactly as it is for `Adw.SplitButton` and
+    // `Gtk.MenuButton`. `Gtk.Popover` is the odd one out and is a refusal below — it has no
+    // model at all, only a `child`.
+    {
+        widget: 'Gtk.PopoverMenu',
+        page: 'popovers',
+        // No `children`: `GtkPopoverMenu` builds its own `GtkStack` of sections
+        // (gtkpopovermenu.c:707-717), so a child placed inside it would be a second content
+        // source fighting the model for the same surface.
+        root: {
+            tag: 'gtk-popover-menu',
+            props: {
+                menuModel: [
+                    { label: 'New Window', accel: '<Control>N' },
+                    {
+                        section: [{ label: 'Cut' }, { label: 'Copy' }, { label: 'Paste' }],
+                        label: 'Edit',
+                    },
+                    {
+                        label: 'Open With',
+                        submenu: [{ label: 'Text Editor' }, { label: 'Web Browser' }],
+                    },
+                ],
+            },
+        },
+    },
+    {
+        widget: 'Gtk.PopoverMenuBar',
+        page: 'popovers',
+        // TOPLEVEL SUBMENUS ONLY — `tracker_insert` builds one item per submenu link and
+        // warns "Don't know how to handle this item" for anything else
+        // (gtkpopovermenubar.c:422-468), so a bare item here would be a row that opens
+        // nothing.
+        root: {
+            tag: 'gtk-popover-menu-bar',
+            props: {
+                menuModel: [
+                    {
+                        label: 'File',
+                        submenu: [{ label: 'New Window' }, { label: 'Open' }, { label: 'Quit' }],
+                    },
+                    { label: 'Edit', submenu: [{ label: 'Undo' }, { label: 'Redo' }] },
+                    { label: 'View', submenu: [{ label: 'Zoom In' }, { label: 'Zoom Out' }] },
+                ],
+            },
+        },
+    },
+    {
+        widget: 'Gtk.PopoverBin',
+        page: 'popovers',
+        // The `child` is a SLOT here and a `popover` is built from the model
+        // (gtkpopoverbin.c:474-500), so the tree is the menu alone; `handle-input` is what
+        // makes a right click or a long press open it (gtkpopoverbin.c:624-655).
+        root: {
+            tag: 'gtk-popover-bin',
+            props: {
+                menuModel: [{ label: 'Cut' }, { label: 'Copy' }, { label: 'Paste' }, { label: 'Delete' }],
+                handleInput: true,
+            },
+        },
+    },
     gtkHostTree('Adw.WindowTitle'),
 ];
 
@@ -903,6 +968,11 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.ToggleGroup': 'uncurated-placement — and its toggles are AdwToggle GObjects, which have no tag either.',
     'Adw.ViewSwitcher':
         'uncurated-placement — and its `stack` is a widget REFERENCE, where the three dialects diverge.',
+    // ----------------------------------------------------------------- gtk popovers
+    'Gtk.Popover':
+        'uncurated-placement — its content is the `GtkPopover:child` PROPERTY, a widget a tree ' +
+        'cannot spell, and `GtkPopover` has no curated child policy in the descriptor table, so a ' +
+        'child placed inside it is refused by name.',
     // ------------------------------------------------------------------ the model views
     //
     // ADR 0046 § "Deliberately left open", restated by its Amendment: the three views keep

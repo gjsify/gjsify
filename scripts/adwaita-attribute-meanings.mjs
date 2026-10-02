@@ -167,6 +167,22 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-password-entry': {
         'show-peek-icon': 'Whether to show an icon for revealing the content.',
     },
+    'gtk-popover': {
+        'autohide': 'Whether to dismiss the popover on outside clicks.',
+        'position': 'How to place the popover, relative to its parent.',
+    },
+    'gtk-popover-bin': {
+        'handle-input': 'Whether the popover bin will handle input to trigger the popup.',
+        'menu-model': 'The `GMenuModel` from which the popup will be created.',
+    },
+    'gtk-popover-menu': {
+        'autohide': 'Whether to dismiss the popover on outside clicks.',
+        'menu-model': 'The model from which the menu is made.',
+        'position': 'How to place the popover, relative to its parent.',
+    },
+    'gtk-popover-menu-bar': {
+        'menu-model': 'The `GMenuModel` from which the menu bar is created.',
+    },
     'gtk-progress-bar': {
         'fraction': 'The fraction of total work that has been completed.',
         'show-text': 'Sets whether the progress bar will show a text in addition to the bar itself.',
@@ -250,6 +266,10 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-entry value': 'renamed',
     'gtk-list-view selection-mode': 'port-only',
     'gtk-password-entry placeholder': 'renamed',
+    'gtk-popover align': 'port-only',
+    'gtk-popover open': 'declarative-state',
+    'gtk-popover-menu align': 'port-only',
+    'gtk-popover-menu open': 'declarative-state',
     'gtk-progress-bar pulsing': 'declarative-state',
     'gtk-search-entry placeholder': 'renamed',
     'gtk-tree-expander depth': 'port-only',
@@ -264,12 +284,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 132,
-    glossed: 50,
+    set: 144,
+    glossed: 58,
     nameSuffices: 61,
-    divergent: 20,
+    divergent: 24,
     authored: 1,
-    commentLines: 77,
+    commentLines: 85,
 };
 
 /**

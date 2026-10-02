@@ -717,6 +717,51 @@ const AdwStatusPage = () => (
     </adw-status-page>
 );
 
+const GtkPopoverMenu = () => (
+    <gtk-popover-menu menuModel={[
+            { label: 'New Window', accel: '<Control>N' },
+            { section: [
+                { label: 'Cut' },
+                { label: 'Copy' },
+                { label: 'Paste' },
+            ], label: 'Edit' },
+            { label: 'Open With', submenu: [
+                { label: 'Text Editor' },
+                { label: 'Web Browser' },
+            ] },
+        ]} />
+);
+
+const GtkPopoverMenuBar = () => (
+    <gtk-popover-menu-bar menuModel={[
+            { label: 'File', submenu: [
+                { label: 'New Window' },
+                { label: 'Open' },
+                { label: 'Quit' },
+            ] },
+            { label: 'Edit', submenu: [
+                { label: 'Undo' },
+                { label: 'Redo' },
+            ] },
+            { label: 'View', submenu: [
+                { label: 'Zoom In' },
+                { label: 'Zoom Out' },
+            ] },
+        ]} />
+);
+
+const GtkPopoverBin = () => (
+    <gtk-popover-bin
+        menuModel={[
+            { label: 'Cut' },
+            { label: 'Copy' },
+            { label: 'Paste' },
+            { label: 'Delete' },
+        ]}
+        handleInput
+    />
+);
+
 const AdwWindowTitle = () => (
     <adw-window-title
         title="Inbox"
@@ -777,6 +822,9 @@ const Gallery = () => (
         <AdwShortcutLabel />
         <AdwSpinner />
         <AdwStatusPage />
+        <GtkPopoverMenu />
+        <GtkPopoverMenuBar />
+        <GtkPopoverBin />
         <AdwWindowTitle />
     </gtk-box>
 );
@@ -1111,6 +1159,15 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'adw-status-page', gtype: 'AdwStatusPage', props: {"iconName":"folder-symbolic","title":"No Documents","description":"Documents you create or open will appear here."}, children: [
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"New Document","cssClasses":["pill","suggested-action"],"halign":"center"} }
             ] }
+    },
+    { widget: 'Gtk.PopoverMenu', root:
+        { tag: 'gtk-popover-menu', gtype: 'GtkPopoverMenu', props: {"menuModel":[{"label":"New Window","accel":"<Control>N"},{"section":[{"label":"Cut"},{"label":"Copy"},{"label":"Paste"}],"label":"Edit"},{"label":"Open With","submenu":[{"label":"Text Editor"},{"label":"Web Browser"}]}]} }
+    },
+    { widget: 'Gtk.PopoverMenuBar', root:
+        { tag: 'gtk-popover-menu-bar', gtype: 'GtkPopoverMenuBar', props: {"menuModel":[{"label":"File","submenu":[{"label":"New Window"},{"label":"Open"},{"label":"Quit"}]},{"label":"Edit","submenu":[{"label":"Undo"},{"label":"Redo"}]},{"label":"View","submenu":[{"label":"Zoom In"},{"label":"Zoom Out"}]}]} }
+    },
+    { widget: 'Gtk.PopoverBin', root:
+        { tag: 'gtk-popover-bin', gtype: 'GtkPopoverBin', props: {"menuModel":[{"label":"Cut"},{"label":"Copy"},{"label":"Paste"},{"label":"Delete"}],"handleInput":true} }
     },
     { widget: 'Adw.WindowTitle', root:
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }

@@ -118,6 +118,14 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.GridView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
     'list-view@nativescript':
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.ListView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
+    'popover@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the port has no positioned popup surface at all — its menus go through the platform action() sheet, which cannot host arbitrary content — so the story is rendered by the other two targets only.',
+    'popover-bin@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the port has no positioned popup surface at all — its menus go through the platform action() sheet, which cannot host arbitrary content — so the story is rendered by the other two targets only.',
+    'popover-menu@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the port has no positioned popup surface at all — GtkMenuButton.menuModel is the one menu-bearing widget, and an action() sheet has no page stack to swap — so the story is rendered by the other two targets only.',
+    'popover-menu-bar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the port has no positioned popup surface at all — and a menu BAR needs a bar to walk, which an action() sheet is not — so the story is rendered by the other two targets only.',
     'tree-expander@nativescript':
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.TreeExpander widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
     'aspect-frame@nativescript':

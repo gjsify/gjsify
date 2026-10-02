@@ -144,6 +144,7 @@ export default defineConfig({
                                 { slug: 'gtk/text' },
                                 { slug: 'gtk/layout' },
                                 { slug: 'gtk/models' },
+                                { slug: 'gtk/popovers' },
                             ],
                         },
                         {

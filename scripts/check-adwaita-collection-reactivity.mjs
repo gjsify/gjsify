@@ -170,6 +170,13 @@ const COLLECTION_CENSUS = {
     'browser/adw-split-button': ['SplitButtonState.setMenuModel', 'attr:menu-model'],
     'browser/adw-toggle-group': ['ToggleGroupState.setLabels'],
     'browser/gtk-menu-button': ['attr:menu-model'],
+    // The three popovers whose content is a MENU. `GtkPopoverMenu` parses the attribute
+    // through the same core parser the menu button uses (ADR 0042) and has no state class
+    // of its own — `PopoverMenuView` holds the model — so `attr:menu-model` is the whole
+    // entry, exactly as it is for `<gtk-menu-button>`.
+    'browser/gtk-popover-menu': ['attr:menu-model'],
+    'browser/gtk-popover-menu-bar': ['attr:menu-model'],
+    'browser/gtk-popover-bin': ['attr:menu-model'],
     'browser/adw-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
     'browser/gtk-drop-down': ['ComboState.setModel', 'attr:model'],

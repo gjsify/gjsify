@@ -553,6 +553,42 @@
                 halign="center"
             />
         </adw-status-page>
+        <gtk-popover-menu :menu-model="[
+                { label: 'New Window', accel: '<Control>N' },
+                { section: [
+                    { label: 'Cut' },
+                    { label: 'Copy' },
+                    { label: 'Paste' },
+                ], label: 'Edit' },
+                { label: 'Open With', submenu: [
+                    { label: 'Text Editor' },
+                    { label: 'Web Browser' },
+                ] },
+            ]" />
+        <gtk-popover-menu-bar :menu-model="[
+                { label: 'File', submenu: [
+                    { label: 'New Window' },
+                    { label: 'Open' },
+                    { label: 'Quit' },
+                ] },
+                { label: 'Edit', submenu: [
+                    { label: 'Undo' },
+                    { label: 'Redo' },
+                ] },
+                { label: 'View', submenu: [
+                    { label: 'Zoom In' },
+                    { label: 'Zoom Out' },
+                ] },
+            ]" />
+        <gtk-popover-bin
+            :menu-model="[
+                { label: 'Cut' },
+                { label: 'Copy' },
+                { label: 'Paste' },
+                { label: 'Delete' },
+            ]"
+            :handle-input="true"
+        />
         <adw-window-title
             title="Inbox"
             subtitle="3 unread messages"
