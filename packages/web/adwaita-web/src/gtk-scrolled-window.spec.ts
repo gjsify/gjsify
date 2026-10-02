@@ -150,8 +150,12 @@ export const GtkScrolledWindowTest = async () => {
             el.removeAttribute('propagate-natural-height');
             el.setAttribute('vscrollbar-policy', 'never');
             expect(el.viewport.style.minHeight).toBe('min-content');
+            // With both asked for on ONE axis the natural wins, and the other axis keeps
+            // its own answer.
             el.setAttribute('propagate-natural-width', '');
             expect(el.viewport.style.minWidth).toBe('max-content');
+            expect(el.viewport.style.minHeight).toBe('min-content');
+            el.setAttribute('propagate-natural-height', '');
             expect(el.viewport.style.minHeight).toBe('max-content');
             host.remove();
         });
