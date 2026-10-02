@@ -657,6 +657,15 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Adw.ShortcutsDialog':
         'The port has no shortcuts dialog and nothing to build one from: AdwShortcutLabel is its whole shortcut surface, and that is ONE keycap rather than a list of rows, so there is no section and no item class to add. The generic-dialog refusal beside it applies for the same reason — a phone has no keyboard to list (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
+    // --- the scrolling trio: one root, and the two halves it is made of ---
+    'Gtk.ScrolledWindow':
+        'The NativeScript port has no scrolling container yet: GtkBox lays its children out and nothing else, so there is no view whose children a GtkBox could stand in for (status/open-todos/adwaita-ports.md).',
+    'Gtk.Scrollbar':
+        'The NativeScript port has no scrollbar view, and AdwSliderRow is a slider row rather than one — its adjustment belongs to a row, not to a movable thumb (status/open-todos/adwaita-ports.md).',
+    'Gtk.Viewport':
+        'The NativeScript port has no viewport view to clip a GtkBox against a window, and the scrolling container it would live in is absent too (status/open-todos/adwaita-ports.md).',
+    'Gtk.WindowHandle':
+        'The NativeScript port has no titlebar handle: AdwHeaderBar draws the strip but nothing can move the window from it, which is the whole of the widget (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

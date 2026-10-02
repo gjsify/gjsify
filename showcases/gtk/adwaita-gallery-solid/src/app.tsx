@@ -391,6 +391,43 @@ const GtkDrawingArea = () => (
     </gtk-box>
 );
 
+const GtkScrolledWindow = () => (
+    <gtk-scrolled-window
+        hscrollbarPolicy="automatic"
+        vscrollbarPolicy="automatic"
+        hasFrame={false}
+    >
+        <gtk-box
+            orientation="vertical"
+            spacing={8}
+        >
+            <gtk-label label="Row 1" />
+            <gtk-label label="Row 2" />
+            <gtk-label label="Row 3" />
+        </gtk-box>
+    </gtk-scrolled-window>
+);
+
+const GtkScrollbar = () => (
+    <gtk-scrollbar
+        orientation="vertical"
+        valign="center"
+        adjustment={{ value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 }}
+    />
+);
+
+const GtkViewport = () => (
+    <gtk-viewport scrollToFocus />
+);
+
+const GtkWindowHandle = () => (
+    <gtk-window-handle>
+        <adw-header-bar>
+            <adw-window-title title="Notes" />
+        </adw-header-bar>
+    </gtk-window-handle>
+);
+
 const GtkFrame = () => (
     <gtk-frame
         label="Details"
@@ -872,6 +909,10 @@ const Gallery = () => (
         <GtkGraphicsOffload />
         <GtkGLArea />
         <GtkDrawingArea />
+        <GtkScrolledWindow />
+        <GtkScrollbar />
+        <GtkViewport />
+        <GtkWindowHandle />
         <GtkFrame />
         <GtkAspectFrame />
         <GtkSeparator />
@@ -1093,6 +1134,28 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":16}, children: [
                 { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":120} },
                 { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":60} }
+            ] }
+    },
+    { widget: 'Gtk.ScrolledWindow', root:
+        { tag: 'gtk-scrolled-window', gtype: 'GtkScrolledWindow', props: {"hscrollbarPolicy":"automatic","vscrollbarPolicy":"automatic","hasFrame":false}, children: [
+                { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":8}, children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 1"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 2"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 3"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Scrollbar', root:
+        { tag: 'gtk-scrollbar', gtype: 'GtkScrollbar', props: {"orientation":"vertical","valign":"center","adjustment":{"value":80,"lower":0,"upper":400,"stepIncrement":10,"pageIncrement":80,"pageSize":120}} }
+    },
+    { widget: 'Gtk.Viewport', root:
+        { tag: 'gtk-viewport', gtype: 'GtkViewport', props: {"scrollToFocus":true} }
+    },
+    { widget: 'Gtk.WindowHandle', root:
+        { tag: 'gtk-window-handle', gtype: 'GtkWindowHandle', children: [
+                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', children: [
+                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Notes"} }
+                    ] }
             ] }
     },
     { widget: 'Gtk.Frame', root:

@@ -109,6 +109,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
     },
+    'adw-window-title': {
+        'title': null,
+    },
     'gtk-about-dialog': {
         'comments': null,
         'copyright': null,
@@ -267,6 +270,15 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'icons': null,
         'value': null,
     },
+    'gtk-scrollbar': {
+        'adjustment': 'The `GtkAdjustment` controlled by this scrollbar.',
+        'orientation': null,
+    },
+    'gtk-scrolled-window': {
+        'hscrollbar-policy': 'When the horizontal scrollbar is displayed.',
+        'overlay-scrolling': 'Whether overlay scrolling is enabled or not.',
+        'vscrollbar-policy': 'When the vertical scrollbar is displayed.',
+    },
     'gtk-search-bar': {
         'search-mode-enabled': 'Whether the search mode is on and the search bar shown.',
         'show-close-button': null,
@@ -305,6 +317,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'active': 'If the toggle button should be pressed in.',
         'group': 'The toggle button whose group this widget belongs to.',
         'label': null,
+    },
+    'gtk-viewport': {
+        'scroll-to-focus': 'Whether to scroll when the focus changes.',
     },
     'gtk-window': {
         'default-height': null,
@@ -356,6 +371,7 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-tree-expander depth': 'port-only',
     'gtk-tree-expander expandable': 'port-only',
     'gtk-tree-expander expanded': 'port-only',
+    'gtk-window-handle double-click-action': 'port-only',
 };
 
 /** Attributes whose gloss is AUTHORED on the page, because the GIR's is not true of the markup. */
@@ -365,12 +381,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 191,
-    glossed: 75,
-    nameSuffices: 84,
-    divergent: 31,
+    set: 199,
+    glossed: 80,
+    nameSuffices: 86,
+    divergent: 32,
     authored: 1,
-    commentLines: 104,
+    commentLines: 113,
 };
 
 /**

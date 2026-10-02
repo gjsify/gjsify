@@ -67,6 +67,8 @@ export { GtkScale as Scale } from '../elements/gtk-scale.js';
 export { GtkScaleButton as ScaleButton } from '../elements/gtk-scale-button.js';
 export { GtkSearchBar as SearchBar } from '../elements/gtk-search-bar.js';
 export { GtkSearchEntry as SearchEntry } from '../elements/gtk-search-entry.js';
+export { GtkScrolledWindow as ScrolledWindow } from '../elements/gtk-scrolled-window.js';
+export { GtkScrollbar as Scrollbar } from '../elements/gtk-scrollbar.js';
 export { GtkSeparator as Separator } from '../elements/gtk-separator.js';
 export { GtkSpinButton as SpinButton } from '../elements/gtk-spin-button.js';
 export { GtkSpinner as Spinner } from '../elements/gtk-spinner.js';
@@ -78,3 +80,5 @@ export { GtkToggleButton as ToggleButton } from '../elements/gtk-toggle-button.j
 export { GtkTreeExpander as TreeExpander } from '../elements/gtk-tree-expander.js';
 export { GtkWindow as Window } from '../elements/gtk-window.js';
 export { GtkWindowControls as WindowControls } from '../elements/gtk-window-controls.js';
+export { GtkViewport as Viewport } from '../elements/gtk-viewport.js';
+export { GtkWindowHandle as WindowHandle } from '../elements/gtk-window-handle.js';

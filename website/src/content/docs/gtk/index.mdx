@@ -110,6 +110,19 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Scrolling" href="/gjsify/gtk/scrolling/" description="The scrolled window with the scrollbars it draws itself, the viewport underneath it, and the titlebar handle.">
+    <Fragment slot="preview">
+      <gtk-scrolled-window style="width:100%;max-width:220px;height:120px;">
+        <gtk-box orientation="vertical" spacing="6">
+          <gtk-label label="Row 1"></gtk-label>
+          <gtk-label label="Row 2"></gtk-label>
+          <gtk-label label="Row 3"></gtk-label>
+          <gtk-label label="Row 4"></gtk-label>
+          <gtk-label label="Row 5"></gtk-label>
+        </gtk-box>
+      </gtk-scrolled-window>
+    </Fragment>
+  </AdwGalleryCard>
 </div>
   <AdwGalleryCard title="Indicators" href="/gjsify/gtk/indicators/" description="The progress bar for work with a measurable amount left, the level bar for a quantity in a range, and GTK's own busy spinner.">
     <Fragment slot="preview">

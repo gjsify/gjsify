@@ -47,9 +47,9 @@ $adw-components:
   gtk-gl-area, gtk-graphics-offload, gtk-grid, gtk-grid-view, gtk-header-bar, gtk-image, gtk-label, gtk-level-bar,
   gtk-link-button, gtk-list-view, gtk-menu-button, gtk-overlay, gtk-page-setup-unix-dialog, gtk-paned,
   gtk-password-entry, gtk-popover, gtk-popover-bin, gtk-popover-menu, gtk-popover-menu-bar, gtk-print-unix-dialog,
-  gtk-progress-bar, gtk-revealer, gtk-scale, gtk-scale-button, gtk-search-bar, gtk-search-entry, gtk-separator,
-  gtk-spin-button, gtk-spinner, gtk-switch, gtk-text, gtk-text-view, gtk-toggle-button, gtk-tree-expander,
-  gtk-window, gtk-window-controls;
+  gtk-progress-bar, gtk-revealer, gtk-scale, gtk-scale-button, gtk-scrollbar, gtk-scrolled-window, gtk-search-bar, gtk-search-entry, gtk-separator,
+  gtk-spin-button, gtk-spinner, gtk-switch, gtk-text, gtk-text-view, gtk-toggle-button, gtk-tree-expander, gtk-viewport,
+  gtk-window, gtk-window-controls, gtk-window-handle;
 
 // Roots: re-root the inherited typographic properties (and the box model) so a
 // host page's font / colour / spacing cannot flow into the widget. Every value

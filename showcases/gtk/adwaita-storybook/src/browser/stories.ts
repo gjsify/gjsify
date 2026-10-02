@@ -26,6 +26,7 @@ import { ShortcutLabelWebStories } from './presentation/shortcut-label.web.js';
 import { SpinnerWebStories } from './presentation/spinner.web.js';
 import { StatusPageWebStories } from './presentation/status-page.web.js';
 import { TreeExpanderWebStories } from './presentation/tree-expander.web.js';
+import { WindowHandleWebStories } from './presentation/window-handle.web.js';
 import { WindowTitleWebStories } from './presentation/window-title.web.js';
 import { ActionRowWebStories } from './rows/action-row.web.js';
 import { ButtonRowWebStories } from './rows/button-row.web.js';
@@ -56,6 +57,8 @@ import { ExpanderWebStories } from './layout/expander.web.js';
 import { OverlayWebStories } from './layout/overlay.web.js';
 import { PanedWebStories } from './layout/paned.web.js';
 import { RevealerWebStories } from './layout/revealer.web.js';
+import { ScrollbarWebStories } from './layout/scrollbar.web.js';
+import { ScrolledWindowWebStories } from './layout/scrolled-window.web.js';
 import { SeparatorWebStories } from './layout/separator.web.js';
 import { BreakpointBinWebStories } from './layout/breakpoint-bin.web.js';
 import { LayoutSlotWebStories } from './layout/layout-slot.web.js';
@@ -87,6 +90,7 @@ import { PopoverBinWebStories } from './layout/popover-bin.web.js';
 import { PopoverMenuWebStories } from './layout/popover-menu.web.js';
 import { PopoverWebStories } from './layout/popover.web.js';
 import { ToolbarViewWebStories } from './layout/toolbar-view.web.js';
+import { ViewportWebStories } from './layout/viewport.web.js';
 import { WrapBoxWebStories } from './layout/wrap-box.web.js';
 import { CarouselWebStories } from './view-switching/carousel.web.js';
 import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
@@ -174,6 +178,8 @@ export const stories: WebStoryModule[] = [
     PopoverMenuWebStories,
     PopoverBinWebStories,
     RevealerWebStories,
+    ScrollbarWebStories,
+    ScrolledWindowWebStories,
     SeparatorWebStories,
     BreakpointBinWebStories,
     LayoutSlotWebStories,
@@ -188,6 +194,7 @@ export const stories: WebStoryModule[] = [
     GridWebStories,
     FixedWebStories,
     ToolbarViewWebStories,
+    ViewportWebStories,
     WrapBoxWebStories,
     CarouselWebStories,
     InlineViewSwitcherWebStories,
@@ -216,4 +223,5 @@ export const stories: WebStoryModule[] = [
     ActionBarWebStories,
     WindowWebStories,
     ApplicationWindowWebStories,
+    WindowHandleWebStories,
 ];

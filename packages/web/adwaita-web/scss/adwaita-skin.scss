@@ -146,6 +146,13 @@
 @use 'password_entry_row';
 @use 'toast';
 @use 'toolbar_view';
+// The scrolling trio, beside `_scrolling.scss`'s edge indicators: the scrollbar first,
+// because the scrolled window's grid places it, and the viewport before the window, because
+// the window's grid has a cell for it.
+@use 'scrollbar';
+@use 'viewport';
+@use 'scrolled_window';
+@use 'window_handle';
 @use 'scrolling';
 @use 'wrap_box';
 @use 'panes';

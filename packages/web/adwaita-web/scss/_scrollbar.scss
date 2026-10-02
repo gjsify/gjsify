@@ -1,0 +1,228 @@
+// _scrollbar.scss — <gtk-scrollbar>: libadwaita's trough, slider and the two overlay
+// variants, with GTK's `range` level collapsed.
+//
+// THE SELECTOR REWRITE, and why it is not a guess. libadwaita addresses
+// `scrollbar > range > trough > slider` (`_scrolling.scss:6-8`) because `GtkScrollbar` builds
+// a `GtkRange` and parents it to itself (gtkscrollbar.c:404-420). There is no `<gtk-range>`
+// element in this package — `Gtk.Range` is the ancestor of `GtkScale` and `Gtk.Scrollbar` and
+// is documented through them — so the trough-and-slider pair IS the node below the range and
+// the two class names stand in for the two GTK nodes. Everything else is upstream's
+// declaration in upstream's order: the trough's `margin: 9px` (and the 8px it gives back on
+// the cross axis, `_scrolling.scss:38-48`), the slider's `$_slider_width: 8px`, its
+// `border: 8px solid transparent` with `background-clip: padding-box` — which is how an 8px
+// dot becomes a 24px pill — and the `$_slider_min_length: 40px` floor.
+//
+// THE BAR'S BOX IS THE TROUGH'S MARGINS, 24px on the cross axis, and the slider's negative
+// margin is what centres it: the border box is 24px where the trough is 8px, so
+// `top: 0; margin-top: -8px` puts the visible 8px exactly on the trough. `GtkScrollbar`
+// measures its range to the trough's size and its own allocation is what is left, so the
+// numbers here are the same ones GTK adds up.
+//
+// THE SLIDER'S LENGTH IS COMPUTED, not written here. `gtk_range_compute_slider_position`
+// derives it from `page_size / (upper - lower)` and its position from
+// `(value - lower) / (upper - lower - page_size)`, and the element writes both as
+// `--adw-scrollbar-size` / `--adw-scrollbar-position` in px. That is why the slider is
+// absolutely positioned rather than sized by a percentage: the two fractions have DIFFERENT
+// denominators, and a percentage of the trough is the wrong unit for either.
+//
+// `--scrollbar-outline-color` is upstream's own token and this package does not define it,
+// so every use falls back to the window foreground — the outline exists to keep an overlay
+// indicator legible over whatever is beneath it, which is the job the foreground does.
+
+$_slider_min_length: 40px;
+$_slider_width: 8px;
+$_scrollbar_transition: all 200ms linear;
+
+gtk-scrollbar {
+  position: relative;
+  display: block;
+  flex: none;
+  color: var(--window-fg-color);
+  touch-action: none;
+
+  // The cross axis, which is the trough's own 8px plus the 8px margin on each side.
+  &.horizontal {
+    height: $_slider_width + 16px;
+  }
+
+  &.vertical {
+    width: $_slider_width + 16px;
+  }
+
+  // `> range > trough` — the trough is the whole node and the slider rides inside it.
+  .adw-scrollbar-trough {
+    position: absolute;
+    margin: 9px;
+    border-radius: 99px;
+    transition: $_scrollbar_transition;
+
+    > .adw-scrollbar-slider {
+      position: absolute;
+      min-width: $_slider_width;
+      min-height: $_slider_width;
+      margin: -8px;
+      border: 8px solid transparent;
+      border-radius: 99px;
+      background-clip: padding-box;
+      transition: $_scrollbar_transition;
+      background-color: color-mix(in srgb, currentColor 20%, transparent);
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 40%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 60%, transparent);
+      }
+
+      @media (prefers-contrast: more) {
+        background-color: color-mix(in srgb, currentColor 40%, transparent);
+
+        &:hover {
+          background-color: color-mix(in srgb, currentColor 60%, transparent);
+        }
+
+        &:active {
+          background-color: currentColor;
+        }
+      }
+    }
+  }
+
+  &.horizontal > .adw-scrollbar-trough {
+    top: 8px;
+    right: 9px;
+    bottom: 8px;
+    left: 9px;
+
+    // `&.horizontal > range > trough > slider { min-width: $_slider_min_length }`, as a floor
+    // on the computed length rather than a minimum: the element writes the WIDTH, and
+    // upstream's `MIN (width, trough_width)` with the slider's own floor in front of it is
+    // exactly `max()`.
+    > .adw-scrollbar-slider {
+      top: 0;
+      left: 0;
+      height: $_slider_width;
+      width: max(var(--adw-scrollbar-size, #{$_slider_min_length}), #{$_slider_min_length});
+      transform: translateX(var(--adw-scrollbar-position, 0));
+    }
+  }
+
+  &.vertical > .adw-scrollbar-trough {
+    top: 9px;
+    right: 8px;
+    bottom: 9px;
+    left: 8px;
+
+    // The vertical twin of the rule above — `min-height`, in libadwaita's own words.
+    > .adw-scrollbar-slider {
+      top: 0;
+      left: 0;
+      width: $_slider_width;
+      height: max(var(--adw-scrollbar-size, #{$_slider_min_length}), #{$_slider_min_length});
+      transform: translateY(var(--adw-scrollbar-position, 0));
+    }
+  }
+
+  // `&:disabled { opacity: 0 }` on the slider upstream, which is how a bar with no adjustment
+  // disappears: `gtk_widget_set_sensitive` on the SCROLLBAR. The ATTRIBUTE and not
+  // `:disabled`, which matches only what can be disabled natively — a custom element carrying
+  // `disabled` is not one of that.
+  &[disabled] {
+    pointer-events: none;
+
+    .adw-scrollbar-slider {
+      opacity: 0;
+    }
+  }
+
+  // `> range.fine-tune > trough > slider` — the accent, which upstream paints for a range that
+  // is being FINE-TUNED, which in GTK is what `update_zoom_state` turns on: while Shift is
+  // held (gtkrange.c:1795-1802).
+  &.fine-tune > .adw-scrollbar-trough > .adw-scrollbar-slider {
+    &,
+    &:hover,
+    &:active {
+      background-color: color-mix(in srgb, var(--accent-color) 60%, transparent);
+
+      @media (prefers-contrast: more) {
+        background-color: var(--accent-color);
+      }
+    }
+  }
+
+  // `.overlay-indicator` — `setup_indicator`'s class, which is what turns GTK's permanent
+  // scrollbar into the "narrow, auto-hiding indicator" (`_scrolling.scss:56-118`). It sits
+  // OVER the content, so the trough keeps no background and the slider carries an outline to
+  // stay legible against whatever is beneath it. The opacity is `indicator_start_fade`'s,
+  // driven by `--adw-indicator-opacity` and transitioned over the fade duration.
+  &.overlay-indicator {
+    z-index: 2;
+    background: none;
+    box-shadow: none;
+    padding: 0;
+    opacity: var(--adw-indicator-opacity, 1);
+    transition: opacity 1000ms linear;
+
+    > .adw-scrollbar-trough {
+      outline: 1px solid transparent;
+
+      > .adw-scrollbar-slider {
+        outline: 1px solid color-mix(in srgb, var(--scrollbar-outline-color, var(--window-fg-color)) 60%, transparent);
+        outline-offset: -8px;
+
+        @media (prefers-contrast: more) {
+          outline: 1px solid var(--scrollbar-outline-color, var(--window-fg-color));
+        }
+      }
+    }
+
+    &:not(.hovering) > .adw-scrollbar-trough > .adw-scrollbar-slider {
+      min-width: 3px;
+      min-height: 3px;
+      outline-color: color-mix(in srgb, var(--scrollbar-outline-color, var(--window-fg-color)) 35%, transparent);
+
+      @media (prefers-contrast: more) {
+        outline-color: color-mix(in srgb, var(--scrollbar-outline-color, var(--window-fg-color)) 60%, transparent);
+      }
+    }
+
+    &.hovering > .adw-scrollbar-trough {
+      background-color: color-mix(in srgb, currentColor 10%, transparent);
+
+      @media (prefers-contrast: more) {
+        background-color: color-mix(in srgb, currentColor 25%, transparent);
+      }
+    }
+
+    &.horizontal {
+      > .adw-scrollbar-trough > .adw-scrollbar-slider {
+        min-width: $_slider_min_length;
+      }
+
+      &.hovering > .adw-scrollbar-trough > .adw-scrollbar-slider {
+        min-height: $_slider_width;
+      }
+
+      &:not(.hovering) > .adw-scrollbar-trough {
+        margin-top: 4px;
+        margin-bottom: 4px;
+      }
+    }
+
+    &.vertical {
+      > .adw-scrollbar-trough > .adw-scrollbar-slider {
+        min-height: $_slider_min_length;
+      }
+
+      &.hovering > .adw-scrollbar-trough > .adw-scrollbar-slider {
+        min-width: $_slider_width;
+      }
+
+      &:not(.hovering) > .adw-scrollbar-trough {
+        margin-left: 4px;
+        margin-right: 4px;
+      }
+    }
+  }
+}

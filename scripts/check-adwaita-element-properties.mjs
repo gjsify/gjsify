@@ -327,6 +327,21 @@ const KNOWN_GAPS = {
         // Write-only, and written by the launcher that started the application (:883).
         'startup-id',
     ],
+    // One property of a widget whose every OTHER scalar is implemented here.
+    //
+    // `kinetic-scrolling` is the deceleration after a touch release: GTK runs its own
+    // `GtkKineticScrolling` tick against the frame clock (`gtk_scrolled_window_decelerate`,
+    // gtkscrolledwindow.c:3460-3490) and a page cannot hand a browser a curve to run. The
+    // same answer covers the wheel step `get_wheel_detent_scroll_step` computes as
+    // `pow (page_size, 2.0 / 3.0)` (gtkscrolledwindow.c:1210-1230): the platform's own
+    // scrolling is what a reader gets, and the platform owns that arithmetic too.
+    //
+    // The two `propagate-natural-*` ARE ported: they ask the child for its natural size and
+    // add it to the window's own NATURAL request (`gtk_scrolled_window_measure`,
+    // gtkscrolledwindow.c:1881-1888, :1905-1906), which a browser layout states as `min-width:
+    // max-content` on the scrollport. A NEVER policy adds the child's MINIMUM request instead
+    // (:1890-1892), which is the same line with `min-content`.
+    'gtk-scrolled-window': ['kinetic-scrolling'],
 };
 
 /** @returns {string[]} one line per problem; empty means aligned. */

@@ -1,0 +1,366 @@
+---
+title: Scrolling
+description: "GTK's scrolling widgets: the scrolled window with its two scrollbars, the viewport underneath it and the scrollbar on its own, plus the titlebar handle. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Everything that scrolls in GTK is one of four widgets. `Gtk.ScrolledWindow` is the
+container you actually reach for; it puts its child in a **`Gtk.Viewport`** and
+draws up to two **`Gtk.Scrollbar`**s beside it. `Gtk.WindowHandle` is not part of
+that group at all — it is the titlebar strip — and it is here because it is the
+fourth of the widgets this page covers.
+
+None of the four is an Adwaita widget: libadwaita ships no scrolling widget and
+styles only the scrollbars, which is what `Gtk.Scrollbar`'s block below shows
+most of.
+
+<MoreInfo title="What the NativeScript port has">
+The previews run the browser port, which scrolls through the platform. The
+NativeScript port has none of these four widgets yet — no container, no
+viewport, no scrollbar and no titlebar handle — so the XML template tab of every
+block here says so instead of showing one.
+</MoreInfo>
+
+<MoreInfo title="What a scrolled window needs">
+GTK gives this widget an **allocation** from its parent and asks for very little
+itself, so it is its parent that decides how tall it is. A browser scrolled window
+needs the same from its author: give it a height, or it grows with its content
+and has nothing to scroll. Every preview below does, with `style="height:…"` on
+the scrolled window itself.
+</MoreInfo>
+
+## Scrolled Window
+
+One child, two adjustments, and a scrollbar per axis that appears only when there
+is something to scroll. The two **policies** decide whether a bar appears,
+**window-placement** which edge it takes, and **overlay-scrolling** turns the bars
+into the auto-hiding indicators GNOME draws over the content instead of beside it.
+
+The keys are GTK's, and they are not the obvious ones: **every arrow and every
+Home/End needs Control**, and Page Up/Down is the vertical axis bare while
+Ctrl+Page Up/Down is the horizontal one.
+
+<AdwWidget title="Gtk.ScrolledWindow">
+  <Fragment slot="preview">
+    ```html
+    <!-- vscrollbar-policy: When the vertical scrollbar is displayed. -->
+    <!-- hscrollbar-policy: When the horizontal scrollbar is displayed. -->
+    <!-- overlay-scrolling: Whether overlay scrolling is enabled or not. -->
+    <gtk-scrolled-window vscrollbar-policy="automatic" hscrollbar-policy="automatic" overlay-scrolling="true" style="width:100%;max-width:320px;height:160px;">
+      <!-- spacing: The amount of space between children. -->
+      <gtk-box orientation="vertical" spacing="6">
+        <gtk-label label="Row 1"></gtk-label>
+        <gtk-label label="Row 2"></gtk-label>
+        <gtk-label label="Row 3"></gtk-label>
+        <gtk-label label="Row 4"></gtk-label>
+        <gtk-label label="Row 5"></gtk-label>
+        <gtk-label label="Row 6"></gtk-label>
+        <gtk-label label="Row 7"></gtk-label>
+        <gtk-label label="Row 8"></gtk-label>
+      </gtk-box>
+    </gtk-scrolled-window>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+    for (let row = 1; row <= 8; row++) column.append(new Gtk.Label({ label: `Row ${row}` }));
+
+    const scrolled = new Gtk.ScrolledWindow({ child: column, vexpand: true });
+    scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC);
+    scrolled.set_overlay_scrolling(true);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ScrolledWindow {
+      vexpand: true;
+
+      Gtk.Box {
+        orientation: vertical;
+        spacing: 6;
+
+        Gtk.Label {
+          label: _("Row 1");
+        }
+
+        Gtk.Label {
+          label: _("Row 2");
+        }
+
+        Gtk.Label {
+          label: _("Row 3");
+        }
+
+        Gtk.Label {
+          label: _("Row 4");
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+    for (let row = 1; row <= 8; row++) column.append(new Gtk.Label({ label: `Row ${row}` }));
+
+    const scrolled = new Gtk.ScrolledWindow({ child: column, vexpand: true });
+    scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC);
+    scrolled.set_overlay_scrolling(true);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Scrollbar
+
+A trough and a slider, positioned by an **adjustment**. Its geometry is `GtkRange`'s
+and the two numbers it is made of do not share a denominator: the slider is
+`page_size` over the WHOLE range long, and it sits at the position over the
+SCROLLABLE range — the whole one less the page. That is why a long adjustment
+keeps a grabbable thumb instead of shrinking to nothing.
+
+`GtkScrollbar` has **no adjustment of its own** — unlike `GtkRange`, it makes none —
+so a bar without one is insensitive, which is what the markup below shows next to a
+bar with one.
+
+<AdwWidget title="Gtk.Scrollbar">
+  <Fragment slot="preview">
+    ```html
+    <!-- spacing: The amount of space between children. -->
+    <gtk-box orientation="horizontal" spacing="24" style="justify-content:center;align-items:center;">
+      <!-- adjustment: The `GtkAdjustment` controlled by this scrollbar. -->
+      <gtk-scrollbar orientation="vertical" adjustment='{"value":80,"lower":0,"upper":400,"stepIncrement":10,"pageIncrement":80,"pageSize":120}' style="height:200px;"></gtk-scrollbar>
+      <!-- adjustment: The `GtkAdjustment` controlled by this scrollbar. -->
+      <gtk-scrollbar orientation="horizontal" adjustment='{"value":80,"lower":0,"upper":400,"stepIncrement":10,"pageIncrement":80,"pageSize":120}' style="width:200px;"></gtk-scrollbar>
+      <gtk-scrollbar orientation="vertical" style="height:200px;"></gtk-scrollbar>
+    </gtk-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // `GtkScrollbar` creates no adjustment of its own, so one is handed to it.
+    const adjustment = new Gtk.Adjustment({
+        value: 80,
+        lower: 0,
+        upper: 400,
+        step_increment: 10,
+        page_increment: 80,
+        page_size: 120,
+    });
+
+    const vertical = new Gtk.Scrollbar({ adjustment, orientation: Gtk.Orientation.VERTICAL, valign: Gtk.Align.CENTER });
+    const horizontal = new Gtk.Scrollbar({ adjustment, orientation: Gtk.Orientation.HORIZONTAL });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: horizontal;
+      spacing: 24;
+
+      Gtk.Scrollbar {
+        orientation: vertical;
+        valign: center;
+
+        adjustment: Adjustment {
+          value: 80;
+          lower: 0;
+          upper: 400;
+          step-increment: 10;
+          page-increment: 80;
+          page-size: 120;
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // `GtkScrollbar` creates no adjustment of its own, so one is handed to it.
+    const adjustment = new Gtk.Adjustment({
+        value: 80,
+        lower: 0,
+        upper: 400,
+        step_increment: 10,
+        page_increment: 80,
+        page_size: 120,
+    });
+
+    const vertical = new Gtk.Scrollbar({ adjustment, orientation: Gtk.Orientation.VERTICAL, valign: Gtk.Align.CENTER });
+    const horizontal = new Gtk.Scrollbar({ adjustment, orientation: Gtk.Orientation.HORIZONTAL });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Viewport
+
+The widget under a scrolled window's child: "implements scrollability for widgets
+that don't support scrolling on their own". It has one property of its own,
+**scroll-to-focus** — whether a widget that takes the focus is scrolled into view
+— and its adjustments are its own: a step is a tenth of the window and a page nine
+tenths of it, whatever it wraps.
+
+The child is allocated its **natural size** and never shrunk, so content wider than
+the window scrolls sideways instead of being squeezed into it.
+
+<AdwWidget title="Gtk.Viewport">
+  <Fragment slot="preview">
+    ```html
+    <!-- scroll-to-focus: Whether to scroll when the focus changes. -->
+    <gtk-viewport scroll-to-focus="true" style="width:100%;max-width:320px;height:160px;">
+      <!-- spacing: The amount of space between children. -->
+      <gtk-box orientation="vertical" spacing="6">
+        <gtk-label label="Row 1"></gtk-label>
+        <gtk-label label="Row 2"></gtk-label>
+        <gtk-label label="Row 3"></gtk-label>
+        <gtk-label label="Row 4"></gtk-label>
+        <gtk-label label="Row 5"></gtk-label>
+        <gtk-label label="Row 6"></gtk-label>
+        <gtk-button label="Focus me"></gtk-button>
+      </gtk-box>
+    </gtk-viewport>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+    for (let row = 1; row <= 6; row++) column.append(new Gtk.Label({ label: `Row ${row}` }));
+    column.append(new Gtk.Button({ label: 'Focus me' }));
+
+    const viewport = new Gtk.Viewport({ child: column });
+    viewport.set_scroll_to_focus(true);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Viewport {
+      scroll-to-focus: true;
+
+      Gtk.Box {
+        orientation: vertical;
+        spacing: 6;
+
+        Gtk.Label {
+          label: _("Row 1");
+        }
+
+        Gtk.Label {
+          label: _("Row 2");
+        }
+
+        Gtk.Button {
+          label: _("Focus me");
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+    for (let row = 1; row <= 6; row++) column.append(new Gtk.Label({ label: `Row ${row}` }));
+    column.append(new Gtk.Button({ label: 'Focus me' }));
+
+    const viewport = new Gtk.Viewport({ child: column });
+    viewport.set_scroll_to_focus(true);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Window Handle
+
+The titlebar strip. It is the fourth widget on this page and the only one that is
+not about scrolling: dragging it moves the window, and a double click, a middle
+click and a right click raise the window actions the compositor names — or, where
+there is none, the `gtk-titlebar-double-click`, `-middle-click` and `-right-click`
+settings, whose values are `toggle-maximize`, `lower`, `minimize`, `menu` and
+`none`.
+
+A document cannot move or unmaximize the window it is rendered in, and no web API
+asks it to. The web port therefore reads the same three settings as **attributes**
+and raises the same action names as events: a `titlebar-action` event for every
+gesture, plus one event named for the action it chose.
+
+<AdwWidget title="Gtk.WindowHandle">
+  <Fragment slot="preview">
+    ```html
+    <gtk-window-handle double-click-action="toggle-maximize" style="width:100%;max-width:360px;">
+      <adw-header-bar>
+        <adw-window-title slot="title" title="Notes"></adw-window-title>
+      </adw-header-bar>
+    </gtk-window-handle>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    Adw.init();
+
+    const bar = new Adw.HeaderBar();
+    bar.set_title_widget(new Adw.WindowTitle({ title: 'Notes' }));
+
+    // A `GtkBinLayout` with one child: the handle itself draws nothing.
+    const handle = new Gtk.WindowHandle({ child: bar });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.WindowHandle {
+      Adw.HeaderBar {
+        Adw.WindowTitle {
+          title: _("Notes");
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    Adw.init();
+
+    const bar = new Adw.HeaderBar();
+    bar.set_title_widget(new Adw.WindowTitle({ title: 'Notes' }));
+
+    // A `GtkBinLayout` with one child: the handle itself draws nothing.
+    const handle = new Gtk.WindowHandle({ child: bar });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Layout](../layout/): the separator and the layout widgets libadwaita only
+  styles.
+- [Buttons](../buttons/): the button, the toggle button and the menu button.
+- [Adwaita Layout](/gjsify/adwaita/layout/): header bars, clamps and toolbar
+  views — and the toolbar view, whose content area is a scrolled window.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

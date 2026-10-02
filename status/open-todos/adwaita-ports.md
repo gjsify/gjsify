@@ -562,6 +562,25 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   has no positioned overlay that is not a modal. The dismissal machinery would come free —
   `PopoverState` and `resolvePopoverKey` are renderer-neutral (ADR 0089) — so the question is
   the surface, not the behaviour.
+- **`<gtk-scrolled-window>`, `<gtk-scrollbar>`, `<gtk-viewport>` and
+  `<gtk-window-handle>` on NativeScript.** All four browser elements and their gallery
+  blocks exist; the NativeScript port has none of the four widgets, so their stories are
+  ledgered as not rendered there and their XML templates refused. The same bullet covers
+  them from the widget side too — see "The scrolling widgets on NativeScript" above.
+- **The scrolling widgets on NativeScript.** `<gtk-scrolled-window>`, `<gtk-scrollbar>`,
+  `<gtk-viewport>` and `<gtk-window-handle>` are browser elements with gallery blocks, and
+  the NativeScript port has none of the four widgets, so their stories are ledgered as not
+  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
+  their XML templates refused. What is missing is the whole chain rather than one view: the
+  browser gets a scrolling container, its scrollbars and the viewport under them out of
+  `overflow: auto` plus two elements of its own, where `GtkBox` lays children out and
+  nothing else, so there is nothing for a scrolled window to stand in for and nothing to
+  drive a trough. The scrollbar is the sharpest of the four, because its geometry is
+  `page_size / (upper - lower)` and its position `(value - lower) / (upper - lower -
+  page_size)` — two different denominators that a NativeScript `ScrollView`'s own thumb
+  does not expose. The titlebar handle is the odd one out and is here because it is on the
+  same page: a `Page` cannot be dragged by a view inside it, so the gesture has no host
+  there at all.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

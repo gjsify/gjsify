@@ -274,6 +274,14 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // `.blp`'s `styles ["flat"]` becomes exactly that, and libadwaita's own rules select it —
     // it is the borderless look every window-frame slot above depends on.
     'gtk-button flat': { kind: 'style-class' },
+    // The TITLEBAR SETTINGS, as attributes. `GtkWindowHandle` has one GIR property and it is
+    // `child`; the gesture behaviour comes from `Gtk.Settings` (`gtk-titlebar-double-click`
+    // and its two siblings), resolved by the compositor first and unreachable from a widget
+    // — let alone from a document (gtkwindowhandle.c:305-333). The port spells the same three
+    // as attributes and raises the same action names as events, which is the only door a
+    // page has. Only the DOUBLE CLICK one is in a fence: it is the gesture the block shows,
+    // and an entry for a fence that sets nothing would be one the ratchet would call stale.
+    'gtk-window-handle double-click-action': { kind: 'port-only' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */

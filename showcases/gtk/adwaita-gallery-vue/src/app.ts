@@ -212,6 +212,28 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":60} }
             ] }
     },
+    { widget: 'Gtk.ScrolledWindow', root:
+        { tag: 'gtk-scrolled-window', gtype: 'GtkScrolledWindow', props: {"hscrollbarPolicy":"automatic","vscrollbarPolicy":"automatic","hasFrame":false}, children: [
+                { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":8}, children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 1"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 2"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 3"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Scrollbar', root:
+        { tag: 'gtk-scrollbar', gtype: 'GtkScrollbar', props: {"orientation":"vertical","valign":"center","adjustment":{"value":80,"lower":0,"upper":400,"stepIncrement":10,"pageIncrement":80,"pageSize":120}} }
+    },
+    { widget: 'Gtk.Viewport', root:
+        { tag: 'gtk-viewport', gtype: 'GtkViewport', props: {"scrollToFocus":true} }
+    },
+    { widget: 'Gtk.WindowHandle', root:
+        { tag: 'gtk-window-handle', gtype: 'GtkWindowHandle', children: [
+                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', children: [
+                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Notes"} }
+                    ] }
+            ] }
+    },
     { widget: 'Gtk.Frame', root:
         { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A framed region: the label sits in the top edge of the border."} }

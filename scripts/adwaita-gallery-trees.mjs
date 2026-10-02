@@ -457,6 +457,74 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    // ------------------------------------------------------------- gtk scrolling
+    {
+        widget: 'Gtk.ScrolledWindow',
+        page: 'scrolling',
+        // `GtkScrolledWindow` has a curated `single`/`set_child` policy, so the child below
+        // it is real — and it is a CHILD POLICY, not a decoration: `gtk_scrolled_window_set_property`
+        // wraps a non-scrollable child in a Gtk.Viewport itself (gtkscrolledwindow.c:785-793).
+        // No size on the window: `gtk_scrolled_window_measure` asks its parent, and the three
+        // dialects have no common way to say "fill what you are given" in one property.
+        root: {
+            tag: 'gtk-scrolled-window',
+            props: { hscrollbarPolicy: 'automatic', vscrollbarPolicy: 'automatic', hasFrame: false },
+            children: [
+                {
+                    tag: 'gtk-box',
+                    props: { orientation: 'vertical', spacing: 8 },
+                    children: [
+                        { tag: 'gtk-label', props: { label: 'Row 1' } },
+                        { tag: 'gtk-label', props: { label: 'Row 2' } },
+                        { tag: 'gtk-label', props: { label: 'Row 3' } },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.Scrollbar',
+        page: 'scrolling',
+        // The adjustment is a portable value (ADR 0047), so it is written as one object —
+        // the same spelling every other renderer takes, and the reason this block can have a
+        // tree where a bare scrollbar would teach nothing.
+        root: {
+            tag: 'gtk-scrollbar',
+            props: {
+                orientation: 'vertical',
+                valign: 'center',
+                adjustment: { value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 },
+            },
+        },
+    },
+    {
+        widget: 'Gtk.Viewport',
+        page: 'scrolling',
+        // A LEAF, and the reason is arm 5's: a child placed inside `gtk-viewport` needs a
+        // curated child policy on `GtkViewport`, which the descriptor table does not carry —
+        // it is one of the rows that is `uncurated` by default. `GtkScrolledWindow`, whose
+        // tree above has a child, DOES carry one. A block that showed the viewport's child
+        // would be showing markup this renderer refuses to mount.
+        root: {
+            tag: 'gtk-viewport',
+            props: { scrollToFocus: true },
+        },
+    },
+    {
+        widget: 'Gtk.WindowHandle',
+        page: 'scrolling',
+        // `GtkWindowHandle` is a `GtkBinLayout` with one child, so the header bar below it is
+        // the whole widget — which is what a titlebar is.
+        root: {
+            tag: 'gtk-window-handle',
+            children: [
+                {
+                    tag: 'adw-header-bar',
+                    children: [{ tag: 'adw-window-title', props: { title: 'Notes' } }],
+                },
+            ],
+        },
+    },
     // ------------------------------------------------------------------ gtk layout
     {
         widget: 'Gtk.Frame',

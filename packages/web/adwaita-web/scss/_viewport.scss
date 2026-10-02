@@ -1,0 +1,50 @@
+// _viewport.scss — <gtk-viewport>: the scrollport a `GtkScrolledWindow` puts its child in.
+//
+// LIBADWAITA STYLES NOTHING HERE, and that is the whole file's justification for existing:
+// `_scrolling.scss` has rules for `scrollbar` and for `scrolledwindow` and none for
+// `viewport`, because GTK gives the node no surface to paint (gtkviewport.c:52-56). What is
+// below is therefore the CSS of the NODE GTK builds — the measurement, the clipping and the
+// one allocation `gtk_viewport_size_allocate` performs — and each declaration says which half
+// of it it is.
+//
+// THE CHILD IS ALLOCATED ITS NATURAL SIZE. GTK measures the child and hands it that
+// (gtkviewport.c:129-160), so content wider than the window scrolls sideways instead of being
+// squeezed into it. A flex container whose items are `flex: none` is that rule in CSS:
+// `flex-basis: auto` sizes an item to its content and `flex-shrink: 0` keeps it there, and
+// `align-items: flex-start` stops the cross axis from stretching it to fill.
+//
+// THE SCROLLING IS THE PLATFORM'S. GTK's viewport translates its child by the adjustment
+// instead of scrolling it, and the browser's equivalent of a scrollport that scrolls is a
+// scroll container — with the SCROLLBAR hidden, because in GTK those belong to the scrolled
+// window (which builds them, gtkscrolledwindow.c:152-156) and never to the viewport. The one
+// consequence worth writing down is the momentum after a touch release: GTK's
+// `GtkKineticScrolling` is a deceleration curve a page cannot hand a browser, so what a reader
+// gets is the platform's own — see `GtkScrolledWindow:kinetic-scrolling`.
+//
+// `overflow: auto`, not `hidden`: a browser clamps either way, but only `auto` runs the
+// platform's momentum and rubber-banding, which is the whole of what a touch scroll does here.
+
+gtk-viewport {
+  display: flex;
+  // A COLUMN, which is a statement about markup rather than about GTK: a GtkViewport holds
+  // exactly ONE child, so a row and a column are the same layout there. Markup can hand a
+  // viewport several children, and stacking them is the arrangement every one of them came
+  // for — a row would lay ten labels side by side, which is the one answer no reader of a
+  // scrollable expects. A single child is unaffected by the direction.
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: auto;
+  // Both axes' scrollbars, hidden — `-webkit-scrollbar` for the engine that honours
+  // `scrollbar-width: none` only since 121, the pairing `_carousel.scss` already uses.
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  // `flex: none` is `flex: 0 0 auto` — GTK's "the child's natural size, not less".
+  > * {
+    flex: none;
+  }
+}

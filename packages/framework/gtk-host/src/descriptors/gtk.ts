@@ -154,6 +154,32 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'single', set: 'set_child' },
     },
     {
+        // The two halves of the scrolling trio, both measured from the GIR rather than
+        // inferred: each declares `GtkBuildable` with a `child` property whose setter is
+        // `set_child`, and `GtkViewport` is `single` in the same sense the frame above is —
+        // ONE child, addressed by replacing it.
+        gtype: 'GtkViewport',
+        ctor: () => Gtk.Viewport,
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        // A `GtkBinLayout` (gtkwindowhandle.c:550) with the one child a titlebar has, which
+        // is the whole widget: libadwaita styles nothing on the `windowhandle` node, so the
+        // child is what the reader sees.
+        gtype: 'GtkWindowHandle',
+        ctor: () => Gtk.WindowHandle,
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        // `GtkScrollbar` takes NO child: its content is a `GtkRange` the widget builds itself
+        // (gtkscrollbar.c:409-415), and `gtk_widget_class_set_layout_manager_type` is a
+        // `GtkBoxLayout` over that one internal node. Declared `none` so a tree that tries to
+        // put anything in a scrollbar is refused by name instead of mounting silently wrong.
+        gtype: 'GtkScrollbar',
+        ctor: () => Gtk.Scrollbar,
+        children: { kind: 'none' },
+    },
+    {
         gtype: 'GtkFrame',
         ctor: () => Gtk.Frame,
         children: { kind: 'single', set: 'set_child' },

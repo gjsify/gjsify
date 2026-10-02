@@ -199,6 +199,14 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<adw-dialog> and <adw-shortcuts-dialog> on NativeScript": the port ships the three SPECIALISED dialogs — AdwAlertDialog, AdwAboutDialog and AdwPreferencesDialog — each of which substitutes the platform\'s own sheet, and has no AdwDialog class to hold arbitrary content, so the story is rendered by the other two targets only.',
     'shortcuts-dialog@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-dialog> and <adw-shortcuts-dialog> on NativeScript": the port has no shortcuts dialog, no section and no item to build one from — AdwShortcutLabel is its whole shortcut surface, and it is one keycap, not a list — so the story is rendered by the other two targets only.',
+    'scrollbar@nativescript':
+        'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no Gtk.Scrollbar widget yet, so the story is rendered by the other two targets only.',
+    'scrolled-window@nativescript':
+        'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no scrolling container yet, so the story is rendered by the other two targets only.',
+    'viewport@nativescript':
+        'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no Gtk.Viewport widget yet, so the story is rendered by the other two targets only.',
+    'window-handle@nativescript':
+        'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no titlebar handle yet, so the story is rendered by the other two targets only.',
 };
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */

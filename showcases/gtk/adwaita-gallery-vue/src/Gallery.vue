@@ -278,6 +278,31 @@
                 :content-height="60"
             />
         </gtk-box>
+        <gtk-scrolled-window
+            hscrollbar-policy="automatic"
+            vscrollbar-policy="automatic"
+            :has-frame="false"
+        >
+            <gtk-box
+                orientation="vertical"
+                :spacing="8"
+            >
+                <gtk-label label="Row 1" />
+                <gtk-label label="Row 2" />
+                <gtk-label label="Row 3" />
+            </gtk-box>
+        </gtk-scrolled-window>
+        <gtk-scrollbar
+            orientation="vertical"
+            valign="center"
+            :adjustment="{ value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 }"
+        />
+        <gtk-viewport :scroll-to-focus="true" />
+        <gtk-window-handle>
+            <adw-header-bar>
+                <adw-window-title title="Notes" />
+            </adw-header-bar>
+        </gtk-window-handle>
         <gtk-frame
             label="Details"
             :label-xalign="0"

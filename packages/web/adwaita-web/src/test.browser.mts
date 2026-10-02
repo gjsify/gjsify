@@ -98,6 +98,10 @@ import { GtkAspectFrameTest } from './gtk-aspect-frame.spec.js';
 import { GtkCenterBoxTest } from './gtk-center-box.spec.js';
 import { GtkGridTest } from './gtk-grid.spec.js';
 import { GtkFixedTest } from './gtk-fixed.spec.js';
+import { GtkScrolledWindowTest } from './gtk-scrolled-window.spec.js';
+import { GtkScrollbarTest } from './gtk-scrollbar.spec.js';
+import { GtkViewportTest } from './gtk-viewport.spec.js';
+import { GtkWindowHandleTest } from './gtk-window-handle.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
@@ -184,6 +188,10 @@ run({
     GtkCenterBoxTest,
     GtkGridTest,
     GtkFixedTest,
+    GtkScrolledWindowTest,
+    GtkScrollbarTest,
+    GtkViewportTest,
+    GtkWindowHandleTest,
     GtkBoxTest,
     GtkLabelTest,
     AdwAvatarTest,

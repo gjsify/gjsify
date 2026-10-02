@@ -393,6 +393,18 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    scrollbar: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'scrolled-window': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    viewport: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'sidebar-item': {
         only: 'web',
         decision:
@@ -476,6 +488,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             "A libadwaita GObject that is not a GtkWidget (adw-shortcuts-item.c:39) — one row of a section, not a widget. The port's nearest thing is `AdwShortcutLabel`, and that is the accelerator ALONE: the title, the subtitle and the text-direction rule have no counterpart on a keycap.",
+    },
+    'window-handle': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
 };
 
