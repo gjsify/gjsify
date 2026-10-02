@@ -256,7 +256,7 @@ describe('decide-suite-scope: the wiring in the real workflows', () => {
                 assert.match(block, /\n {4}needs: scope\n/, `${wf}:${job} does not wait for scope`);
                 assert.match(
                     block,
-                    /\n {4}if: \$\{\{ !cancelled\(\) && needs\.scope\.outputs\.run != 'false' \}\}\n/,
+                    /\n {4}if: \$\{\{ !cancelled\(\) && needs\.scope\.outputs\.run != 'false'( && github\.event\.pull_request\.draft != true)? \}\}\n/,
                     `${wf}:${job} gate`,
                 );
             }

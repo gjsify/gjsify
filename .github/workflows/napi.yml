@@ -72,6 +72,7 @@ on:
       # in the libs cache key either. Nothing here can resolve it.
       - 'website/**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -119,6 +120,8 @@ env:
 jobs:
   build-test:
     name: Build & gates & conformance (GJS / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     # Backstop: a shim regression could hang a gate or the valgrind leg; cap the
     # job rather than wait the default 6h.
@@ -253,6 +256,8 @@ jobs:
 
   consumer:
     name: better-sqlite3 consumer gate (GJS / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -571,6 +576,8 @@ jobs:
   # reuses the consumer gate's proven Node-free-install + published-CLI recipe.
   nodegi-shim:
     name: node-gi N-API fidelity under shim (GJS / Fedora 44)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -788,6 +795,8 @@ jobs:
   # counterpart job — no prebuilt MSVC mozjs-140 exists (see status/open-todos/README.md).
   macos:
     name: macOS build + gates (GJS / macos-latest arm64)
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: macos-latest
     timeout-minutes: 30
     env:

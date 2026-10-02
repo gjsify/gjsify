@@ -137,6 +137,10 @@ large feature PR rather than several small stacked ones.** The measurement (four
 stacked PRs → three main-merge rounds, two bundle rebuilds before anything landed)
 is in [docs/governance.md](docs/governance.md).
 
+**Open PRs as draft, push in batches, mark ready when done** (`gh pr ready`): heavy CI skips
+on drafts and runs on `ready_for_review` ([why](docs/ci-selective.md)). Lint, format and the
+three required checks still run on every push.
+
 **Do not idle on CI.** A green run gates MERGING, not writing the next commit —
 push, keep going, check back. Watch the WORKFLOW status, not the check list: a
 workflow that has not spawned its jobs contributes zero checks, so "no pending

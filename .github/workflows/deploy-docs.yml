@@ -34,6 +34,7 @@ on:
       - '.github/workflows/deploy-docs.yml'
       - '.github/actions/gjsify-setup/**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'website/**'
       - 'packages/**'
@@ -59,6 +60,8 @@ concurrency:
 jobs:
   build:
     name: Build Documentation
+    # Draft PRs run only the cheap checks; `ready_for_review` starts this.
+    if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
