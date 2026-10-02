@@ -220,11 +220,12 @@ What would make the next occurrence cost minutes instead of an afternoon, in ord
 with a written retirement condition beside it, the arrangement
 [ADR 0044](../docs/adr/0044-an-instrument-states-what-it-measured.md) argues for: a
 knowingly-red gate teaches people to skip the job, and the next real finding then lands where
-nobody looks. Three are left; `conformance-win32` was promoted on 2026-09-19, went back to
-being a probe when the MP3/AAC widening (ADR 0056 § 7) outran the published payload, and
-was promoted again on 2026-10-01 by `check-probe-retirement.mjs` reporting its clause met —
+nobody looks. Two are left, both on win32. `conformance-win32` was promoted on 2026-09-19, went
+back to being a probe when the MP3/AAC widening (ADR 0056 § 7) outran the published payload,
+and was promoted again on 2026-10-01 by `check-probe-retirement.mjs` reporting its clause met —
 the check closing its own window, which is the arrangement working rather than being worked
-around.
+around. The darwin `rn-probe` was promoted on 2026-10-02 the same way, on a `probe-green 5`
+clause.
 
 **What it costs while it stands.** A `continue-on-error` step's CONCLUSION is forced to
 `success`, so the job colour, the PR page, the REST/GraphQL checks and `gh pr checks` all
@@ -250,9 +251,13 @@ NOTHING and is counted as neither:
 | probe | condition met | green | red | no measurement | verdict |
 |---|---|---|---|---|---|
 | `conformance-win32` | 2026-09-11, 0.49.0 | **58** | 5 | 8 | PROMOTED to a gate |
-| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0** | 70 | 1 | condition was WRONG |
+| darwin `rn-probe` | 2026-09-03, 0.46.0 | **0** | 70 | 1 | condition was WRONG → reworded to the outcome, PROMOTED 2026-10-02 |
 | `gtk-host-probe` (win32) | no — blocker fixed 2026-09-30, now awaits 5 green runs | 0 | 70 | 1 | left a probe |
 | `rn-probe-win32` | 1 of 2 clauses | 0 | 70 | 1 | left a probe |
+
+The first and second rows are the same shape twice, and the shape is the point: a promotion
+arrived at by CORRECTING the condition and then measuring the outcome, never by believing the
+condition. `rn-probe` took three proxies to get there.
 
 `conformance-win32`'s five reds are all between 04:24Z and 06:16Z on 2026-09-11, inside the
 widening window that closed when 0.49.0 published at 08:08:06Z; it was green in all 48
@@ -289,35 +294,38 @@ name — and because it searched every job in a run rather than the one that own
 a same-named GATING step's legs counted too. `check-probe-outcomes-read.mjs` now holds
 `PROBE_LABEL` to the step name, which is what makes the join sound.
 
-**What is still missing to retire each of the three left:**
+**What is still missing to retire each of the two left:**
 
-- `rn-probe` (darwin) — **RETIRED 2026-10-02**: promoted to a gate once `probe-green 5` was
-  met, green on both arches. As it stood before: the RELEASE condition was met and was a
-  PROXY: the step was red in 70 of 71 runs, on defects of its own. Its condition became
-  `retire-when: probe-green 5`,
-  after three wrong proxies (an issue number, then "#1438 closes", then "the release
-  carrying it"). What it is actually failing on, measured on run 35423439012 against a
-  published 0.51.1 and none of it #1438:
+- `rn-probe` (darwin) — **PROMOTED to a gate on 2026-10-02**, by `check-probe-retirement.mjs`
+  reporting `probe-green 5` met. This is the third condition this one step carried and the
+  first that named the OUTCOME: an issue number, then "#1438 closes", then "the release
+  carrying it" — all three proxies, all three wrong. What the probe was actually failing on,
+  measured on run 35423439012 against a published 0.51.1 and none of it #1438:
   - **darwin-arm64 — 7 of 655, six of them FIXED in the tree and waiting on a node-gi
     release.** They were one node-gi defect with two halves, neither darwin-specific (this
     probe is simply the only place the React Native suite runs on node-gi). A JS `vfunc_*`
     override received its GObject arguments as raw engine handles (`gi.js`), which is the
     five `t.get_ancestor is not a function` in the rail's `RailLayout.vfunc_measure`; and
     the addon's vfunc trampoline never wrote OUT parameters back, so GTK read 0 for every
-    size that override answered — the sixth, `Expected 0 to be greater than 0`. The gi.js
-    half reaches the probe immediately; the C++ half needs the next published
-    `@gjsify/node-gi`, and until then the same six stay red as size mismatches. Measured
+    size that override answered — the sixth, `Expected 0 to be greater than 0`. Measured
     on a real macOS 27 arm64 host: 649/655 on the published addon, all six green on a
     locally built one (test: `packages/node-gi/node-gi/test/vfunc-out-params.test.mjs`).
     The seventh, a GTK diagnostic under `tabs` on the `Adw.ViewSwitcher` moving to a
     bottom bar, did not reproduce on that host.
-  - **darwin-x64 — no count at all.** The runner exits 1 with no summary line, dying after
+  - **darwin-x64 — no count at all.** The runner exited 1 with no summary line, dying after
     `AppRegistry — the window the bootstrap builds (#1546, #1549) › publishes the window
-    chrome`. A different and worse shape than arm64's seven, and not attributed.
+    chrome`. A different and worse shape than arm64's seven, and never attributed.
 
-  Whoever picks this up: re-measure arm64 once a node-gi release carries the vfunc OUT
-  write-back, and the x64 death needs a local reproduction before it can be counted as
-  anything.
+  **THE PROMOTION WAS MEASURED, not read off the clause** — which is the check's own rule, and
+  the reason it fails on a ripe probe in both directions. Off `steps.rn-probe.outcome` through
+  the reporter, never off the job colour `continue-on-error` forced to `success`: 36974684897,
+  36952604436, 36951474619 and 36936435151 green on BOTH arches, 36931137687 green on x64. Its
+  arm64 leg there was CANCELLED and measured nothing, which `scanOutcomes` counts as neither
+  green nor red — a cancelled leg counted as a pass is how "0 green" once read as "2 green".
+  Zero `Probe failed` annotations across the five. On arm64 the suite reads 656 of 656 with
+  3737 assertions and one `it.failing` row, the marker that RUNS and fails the day it starts
+  passing. Both defects above are therefore gone rather than hidden: the x64 death stopped
+  happening and the six arm64 failures stopped happening.
 - `gtk-host-probe` (win32) — **the blocker is FIXED (#1446, 2026-09-30), the promotion is
   not.** A table row's class is now resolved through one question — does the RUNNING
   typelib have it — so a class GTK does not build on Windows is refused by name
