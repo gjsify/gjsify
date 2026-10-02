@@ -598,6 +598,95 @@ makes it fit a header bar or a tight toolbar.
   </Fragment>
 </AdwWidget>
 
+## View Switcher Sidebar
+
+The one Adw switcher built out of a **sidebar**, and the one whose rows can be
+**grouped into sections**. Point it at a view stack and each page becomes a row with
+its icon, its title and — when it asks — an unread **dot** or a **badge count**;
+`starts-section` on a page opens a new group, headed by that page's `section-title`.
+
+It is adaptive in the sidebar's sense: **mode="page"** turns it into a page of boxed
+lists, which is what a `NavigationSplitView` wants for its sidebar pane once the window
+is too narrow for a sidebar. Keep it in sidebar mode with an **OverlaySplitView**,
+where the pane is still a sidebar when collapsed.
+
+<MoreInfo title="Ordering of `activated`">
+Activating a row selects the stack page **first** and only then emits `activated` —
+that is the signal a split view reveals its content pane on, so a handler that read the
+stack inside it would otherwise reveal the page you were leaving.
+</MoreInfo>
+
+<AdwWidget title="Adw.ViewSwitcherSidebar" padding="flush" stage="height: 300px; width: 100%; display: flex;">
+  <Fragment slot="preview">
+    ```html
+    <adw-view-switcher-sidebar>
+      <!-- description: The description markup to be displayed below the title. -->
+      <adw-status-page slot="placeholder" title="No Results" description="Try a different search"></adw-status-page>
+    </adw-view-switcher-sidebar>
+    <adw-view-stack>
+      <adw-view-stack-page name="inbox" title="Inbox" starts-section section-title="Mail" badge-number="3"></adw-view-stack-page>
+      <adw-view-stack-page name="drafts" title="Drafts"></adw-view-stack-page>
+      <!-- needs-attention: Whether the page requires the user attention. -->
+      <adw-view-stack-page name="archive" title="Archive" starts-section section-title="Older" needs-attention></adw-view-stack-page>
+    </adw-view-stack>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Adw.ViewStack();
+    const inbox = stack.add(new Gtk.Box(), 'inbox');
+    inbox.title = 'Inbox';
+    // `starts_section` opens the group; `section_title` names it.
+    inbox.starts_section = true;
+    inbox.section_title = 'Mail';
+    inbox.badge_number = 3;
+
+    // Each page becomes a row; the stack's visible page marks its row.
+    const sidebar = new Adw.ViewSwitcherSidebar({ stack });
+    sidebar.connect('activated', () => console.log('Reveal the content pane'));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.NavigationSplitView {
+      sidebar: Adw.NavigationPage {
+        child: Adw.ViewSwitcherSidebar {
+          stack: pages;
+        };
+      };
+
+      content: Adw.NavigationPage {
+        child: Adw.ViewStack pages {};
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Adw.ViewStack();
+    const inbox = stack.add(new Gtk.Box(), 'inbox');
+    inbox.title = 'Inbox';
+    // `starts_section` opens the group; `section_title` names it.
+    inbox.starts_section = true;
+    inbox.section_title = 'Mail';
+    inbox.badge_number = 3;
+
+    // Each page becomes a row; the stack's visible page marks its row.
+    const sidebar = new Adw.ViewSwitcherSidebar({ stack });
+    sidebar.connect('activated', () => console.log('Reveal the content pane'));
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Carousel
 
 For onboarding screens and galleries, use a carousel: pages sit side by side and the

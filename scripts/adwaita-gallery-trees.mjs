@@ -1246,6 +1246,8 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.ShortcutsDialog':
         "a dialog is opened with present(), AND its content is AdwShortcutsSection objects — GObjects, not widgets, with no tag in a table of concrete widgets — so the row a static tree could spell would be a dialog with no portal and no sections. Its own descriptor says the same: `children: { kind: 'uncurated' }` (packages/framework/gtk-host/src/descriptors/adw.ts:69-74).",
     'Adw.ViewSwitcherBar': 'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
+    'Adw.ViewSwitcherSidebar':
+        "its `stack` is a widget reference AND every row is derived from that stack's page list, so a static tree would have to re-state the binding a second time.",
     'Adw.InlineViewSwitcher':
         'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
     // `Adw.SplitButton` and `Gtk.MenuButton` USED TO BE HERE — "its menu is a

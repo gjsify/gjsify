@@ -108,7 +108,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'title': null,
     },
     'adw-view-stack-page': {
+        'badge-number': null,
         'icon-name': null,
+        'name': null,
+        'needs-attention': 'Whether the page requires the user attention.',
         'title': null,
     },
     'adw-view-switcher': {
@@ -399,12 +402,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 207,
-    glossed: 81,
-    nameSuffices: 93,
+    set: 210,
+    glossed: 82,
+    nameSuffices: 95,
     divergent: 32,
     authored: 1,
-    commentLines: 114,
+    commentLines: 116,
 };
 
 /**

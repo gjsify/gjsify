@@ -102,6 +102,7 @@ export { AdwToggleGroup as ToggleGroup } from '../elements/adw-toggle-group.js';
 export { AdwToolbarView as ToolbarView } from '../elements/adw-toolbar-view.js';
 export { AdwViewStack as ViewStack } from '../elements/adw-view-stack.js';
 export { AdwViewSwitcher as ViewSwitcher } from '../elements/adw-view-switcher.js';
+export { AdwViewSwitcherSidebar as ViewSwitcherSidebar } from '../elements/adw-view-switcher-sidebar.js';
 export { AdwViewSwitcherBar as ViewSwitcherBar } from '../elements/adw-view-switcher-bar.js';
 export { AdwWindow as Window } from '../elements/adw-window.js';
 export { AdwWindowTitle as WindowTitle } from '../elements/adw-window-title.js';

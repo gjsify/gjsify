@@ -49,6 +49,13 @@ export interface AdwViewStackPageSpec<T = unknown> {
     needsAttention?: boolean;
     /** `AdwViewStackPage:use-underline`. Defaults to `false`. */
     useUnderline?: boolean;
+    /**
+     * `AdwViewStackPage:starts-section` — the page opens a NEW section, which is what
+     * `AdwViewSwitcherSidebar` groups on (`populate_sidebar`, adw-view-switcher-sidebar.c:225-243).
+     */
+    startsSection?: boolean;
+    /** `AdwViewStackPage:section-title` — the heading of the section this page opens. */
+    sectionTitle?: string | null;
 }
 
 /**
@@ -74,6 +81,10 @@ export interface AdwViewStackPageInfo<T = unknown> {
     readonly needsAttention: boolean;
     /** `AdwViewStackPage:use-underline` — whether the title carries a mnemonic. */
     readonly useUnderline: boolean;
+    /** `AdwViewStackPage:starts-section` — whether this page opens a new section. */
+    readonly startsSection: boolean;
+    /** `AdwViewStackPage:section-title`, `''` when the page declares none. */
+    readonly sectionTitle: string;
 }
 
 /** Payload of a selection change. */
@@ -108,6 +119,8 @@ interface PageRecord<T> {
     badgeNumber: number;
     needsAttention: boolean;
     useUnderline: boolean;
+    startsSection: boolean;
+    sectionTitle: string;
 }
 
 /**
@@ -215,6 +228,8 @@ export class ViewStackState<T = unknown> {
             badgeNumber: Number.isFinite(spec.badgeNumber) ? Math.trunc(spec.badgeNumber as number) : 0,
             needsAttention: spec.needsAttention === true,
             useUnderline: spec.useUnderline === true,
+            startsSection: spec.startsSection === true,
+            sectionTitle: spec.sectionTitle ?? '',
         };
     }
 

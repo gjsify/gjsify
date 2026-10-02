@@ -98,6 +98,8 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwTabButton widget yet, so the story is rendered by the other two targets only.',
     'tab-overview@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwTabOverview widget yet, so the story is rendered by the other two targets only.',
+    'view-switcher-sidebar@nativescript':
+        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwViewSwitcherSidebar widget yet, so the story is rendered by the other two targets only.',
     'action-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no bottom bar, so the story is rendered by the other two targets only.',
     'application-window@nativescript':

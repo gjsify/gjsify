@@ -654,6 +654,7 @@ export {
     viewSwitcherLabel,
     viewSwitcherPageFromStackPage,
     viewSwitcherPagesFromStack,
+    viewSwitcherSidebarSections,
 } from './view-switcher.js';
 export type {
     AdwInlineViewSwitcherDisplayMode,
@@ -667,6 +668,7 @@ export type {
     ViewSwitcherButtonModel,
     ViewSwitcherDragSwitchOptions,
     ViewSwitcherScheduler,
+    ViewSwitcherSidebarSection,
     ViewSwitcherStateChange,
     ViewSwitcherStateListener,
     ViewSwitcherStateOptions,
