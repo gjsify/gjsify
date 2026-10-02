@@ -496,11 +496,19 @@ async function utilsCore(): Promise<NativeLibrarySurface> {
         // singleton — inert today because only pure probe functions are read
         // through this edge, and a trap the first time that stops being true.
         //
-        // Anchored at the BUNDLE, not the cwd, so unlike every resolution around
-        // it this one finds nothing when the bundle is the published
+        // Off disk, therefore: `import.meta.url` is THIS bundle, so the walk
+        // follows the WORKSPACE, where `lib/esm` is a build output. That makes
+        // `@gjsify/utils build:esm` a precondition of every `gjsify build` under
+        // GJS — not a formality, and this edge is on the SUCCESS path of
+        // `tryLoadNative()`, so it gates the engine itself. #1901, which moved
+        // the probe onto this edge, is what v0.53.0's release `publish-napi` job
+        // died on. Ordered by rule 5 of `scripts/check-build-infra-order.mjs`.
+        //
+        // AND the walk only reaches the WORKSPACE when the bundle is inside it: it
+        // is ONE chain, rooted at the bundle, so a bundle that is the published
         // `cli.gjs.mjs` — one loose file in `<cache>/gjsify/bootstrap/`, with no
-        // `node_modules` above it. Callers must therefore treat a throw as "not
-        // measured" (see `tryLoadNative`), never as "no engine".
+        // `node_modules` above it — resolves nothing. Callers must therefore treat
+        // a throw as "not measured" (see `tryLoadNative`), never as "no engine".
         const href = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/native-library')).href;
         _utilsCore = (await import(/* @vite-ignore */ href)) as NativeLibrarySurface;
     }

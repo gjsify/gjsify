@@ -55,11 +55,12 @@
 // cold tree must not have a precondition only a cold tree can fail.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, statSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, statSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGjsifySpawn } from './resolve-gjsify.mjs';
+import { FACADE_PACKAGES } from './off-disk-toolchain-deps.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -82,13 +83,26 @@ const nodeRequire = createRequire(import.meta.url);
  */
 const HOST_IS_GJS = typeof globalThis.imports?.gi !== 'undefined';
 
-const FACADES = ['rolldown-native', 'lightningcss-native'];
+// The native facades this script builds. Named here by the SHARED constant, not
+// spelled out a second time: `check-build-infra-order.mjs` rule 5 reads the same
+// list to know that the `node scripts/bootstrap-native-facades.mjs` clause
+// already emits these two before any bundler clause runs, so a facade added in
+// one place and forgotten in the other would read as an un-emitted edge.
+const FACADES = FACADE_PACKAGES.map((n) => n.slice('@gjsify/'.length));
 
-// `packages/infra/<name>` packages the Node CLI entry imports STATICALLY (so they
-// must exist as `lib/esm/**` before `node <cli> …` can link) and that `build:infra`
-// only declaration-builds beforehand. Every other link-time dep of the CLI entry
-// is already fully tsc-built earlier; drift is caught by `ensureCliEntryLinks()`.
-const CLI_RUNTIME_DEPS = ['workspace', 'semver', 'npm-registry', 'tar'];
+// Workspace packages whose `lib/esm/**` must exist before anything below spawns a
+// CLI, and that `build:infra` only DECLARATION-builds beforehand. Two edges reach
+// it, and `ensureCliEntryLinks()` covers only the first: a STATIC import of the Node
+// CLI entry, and a RUNTIME `createRequire(…).resolve('@gjsify/<name>/…')` in a facade
+// (`rolldown-plugin-gjsify`'s css-as-string resolves the addon that way, so the
+// facades cannot load without it). The second edge is what 0.53.0's
+// `find the addon at run time` (#1899) opened, and it is why `utils` is here: with
+// its `lib/esm` missing, the facade loads and then dies resolving the native
+// prebuild, which the GJS-hosted `build:infra` reads as "no usable bundler engine"
+// long after the real cause. v0.53.0 lost `@gjsify/napi` to exactly that.
+// `ensureCliEntryLinks()` cannot catch it: it is skipped under GJS (the host this
+// fails on) and, under Node, the CLI entry is a bundle that inlines these packages.
+const CLI_RUNTIME_DEPS = ['workspace', 'semver', 'npm-registry', 'tar', 'utils'];
 
 // `--print-plan` reports the cold/warm decision and exits WITHOUT spawning
 // anything: the cold branch runs a multi-minute `build:infra`, so this is how the
@@ -208,6 +222,28 @@ function isFresh(out, srcDir) {
 }
 
 /**
+ * Locate a workspace package by its `@gjsify/<name>` name, through the symlink
+ * `gjsify install` wires.
+ *
+ * Spelled `packages/infra/<name>` until 0.53.0 needed `@gjsify/utils`, which lives
+ * in `packages/gjs/` — so the path said a package was inexpressible rather than
+ * misplaced, and its `lib/esm` went unbuilt. The symlink is also the resolution the
+ * runtime itself performs, so it cannot name a different tree than the one that
+ * later has to load.
+ */
+function workspacePackageDir(name) {
+    const link = join(root, 'node_modules', '@gjsify', name);
+    if (!existsSync(link)) {
+        console.error(
+            `[bootstrap-native-facades] no workspace member @gjsify/${name} (${link} does not exist).\n` +
+                'Run `gjsify install` before this script.',
+        );
+        process.exit(1);
+    }
+    return realpathSync(link);
+}
+
+/**
  * Emit `lib/esm` (+ `lib/types`) for the CLI's link-time runtime deps with plain
  * `tsc`, so the Node CLI entry spawned below can link.
  *
@@ -218,7 +254,7 @@ function isFresh(out, srcDir) {
 function buildCliRuntimeDeps() {
     let tscBin = null;
     for (const name of CLI_RUNTIME_DEPS) {
-        const pkgDir = join(root, 'packages', 'infra', name);
+        const pkgDir = workspacePackageDir(name);
         const srcDir = join(pkgDir, 'src');
         const libEntry = join(pkgDir, 'lib', 'esm', 'index.js');
         if (isFresh(libEntry, srcDir)) {
@@ -361,8 +397,8 @@ function ensureCliEntryLinks() {
     if (pkg) {
         lines.push(
             `That is @gjsify/${pkg} — a runtime dependency of the CLI's Node entry whose lib/esm is not built.`,
-            `Fix: add '${pkg}' to CLI_RUNTIME_DEPS in scripts/bootstrap-native-facades.mjs (if it lives under ` +
-                'packages/infra and is tsc-buildable), or give it a full build step in root package.json ' +
+            `Fix: add '${pkg}' to CLI_RUNTIME_DEPS in scripts/bootstrap-native-facades.mjs (if it is a ` +
+                'tsc-buildable workspace package), or give it a full build step in root package.json ' +
                 '`build:infra` BEFORE `gjsify workspace @gjsify/cli build`.',
         );
     } else {
@@ -414,7 +450,7 @@ function run(args, cwd) {
 buildCliRuntimeDeps();
 
 for (const name of FACADES) {
-    const pkgDir = join(root, 'packages', 'infra', name);
+    const pkgDir = workspacePackageDir(name);
     const srcDir = join(pkgDir, 'src', 'ts');
     const libEntry = join(pkgDir, 'lib', 'esm', 'index.js');
     const typesEntry = join(pkgDir, 'lib', 'types', 'index.d.ts');

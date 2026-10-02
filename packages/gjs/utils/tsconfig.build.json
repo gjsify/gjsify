@@ -1,0 +1,37 @@
+{
+    // The tsc-only `lib/esm` emit, for `build:esm`.
+    //
+    // `build:gjsify` cannot produce this first: `gjsify build` under GJS resolves
+    // `@gjsify/utils/native-library` OFF DISK from the bundler-engine picker in the
+    // CLI's own `src/bundler-pick.ts`, so `build:gjsify` — itself a `gjsify build`
+    // — would need the output it is meant to write. `build` still re-emits with
+    // Rolldown afterwards; the delta is the compile-time `__PACKAGE_VERSION__`
+    // define, which only `@gjsify/npm-registry` reads, and reads defensively.
+    // This is the same emit `scripts/bootstrap-native-facades.mjs` does for the
+    // CLI's link-time runtime deps, and for the same reason.
+    //
+    // `tsconfig.json` targets `outDir: "lib"` with `emitDeclarationOnly`, which
+    // suits `build:types` (declarations land in `declarationDir`) but has no JS to
+    // put in `lib/esm`, so both are overridden here rather than in the shared
+    // config every other script of this package reads.
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "lib/esm",
+        "emitDeclarationOnly": false,
+        // Not incremental, unlike the shared config. A `.tsbuildinfo` that
+        // outlives `lib/` makes tsc consider the project up to date: it prints
+        // nothing, emits nothing, exits 0, and the caller dies much later on a
+        // bare "Cannot find module" instead of here. `gjsify clear` does not know
+        // this config's build info by name, so a cleared tree would keep one.
+        // `scripts/bootstrap-native-facades.mjs` clears such a file and retries
+        // for the same reason; here the emit is simply always-on and cheap.
+        "composite": false,
+        "incremental": false
+    },
+    "exclude": [
+        "src/test.ts",
+        "src/test.mts",
+        "src/**/*.spec.ts",
+        "src/**/*.spec.mts"
+    ]
+}
