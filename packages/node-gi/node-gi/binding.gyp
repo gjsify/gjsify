@@ -68,6 +68,9 @@
           # `xcode_settings`, so the flags come from pkg-config via a helper that
           # emits BARE include dirs + FULL .lib paths (scripts/win-gi-gyp-flags.mjs) —
           # the exact shapes gyp forwards to cl.exe / link.exe.
+          # CRT: node_gi.node links the static CRT, GLib the dynamic one (as on the published
+          # win32-x64). Only memory GLib allocates AND frees may cross: never free GLib memory
+          # with the addon's CRT, or the addon's with GLib's.
           "include_dirs": [
             "<!@(node scripts/win-gi-gyp-flags.mjs --includes)"
           ],

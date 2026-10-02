@@ -1046,6 +1046,39 @@ test('the vendored corpus records where each text came from, and to which gvsbui
             );
         }
     }
+
+    // The arm64 stack is pinned differently: by COMMIT SHA of our gjsify/gvsbuild fork
+    // (ADR 0089), because wingtk publishes no arm64 ZIP. Every such pin under .github/
+    // must be the same full SHA, and the cache key must carry it — otherwise a pin bump
+    // keeps restoring the prefix built from the old one.
+    const githubDir = fileURLToPath(new URL('../../../../.github/', import.meta.url));
+    const forkFiles = [
+        ...['release.yml', 'node-gi.yml'].map((n) => join(githubDir, 'workflows', n)),
+        ...readdirSync(join(githubDir, 'actions'), { withFileTypes: true })
+            .filter((e) => e.isDirectory())
+            .map((e) => join(githubDir, 'actions', e.name, 'action.yml')),
+    ].filter((f) => existsSync(f));
+    const forkPins = new Map();
+    for (const file of forkFiles) {
+        const text = readFileSync(file, 'utf8');
+        for (const m of text.matchAll(/gjsify\/gvsbuild@([^\s"')]+)/g)) {
+            forkPins.set(m[1], [...(forkPins.get(m[1]) ?? []), file]);
+        }
+        for (const m of text.matchAll(/key:\s*gvsbuild-fork-([^\s]+?)-arm64/g)) {
+            forkPins.set(m[1], [...(forkPins.get(m[1]) ?? []), `${file} (cache key)`]);
+        }
+    }
+    assert.ok(forkPins.size > 0, 'no gjsify/gvsbuild fork pin found under .github/ — the pattern moved');
+    assert.deepEqual(
+        [...forkPins.keys()].filter((p) => !/^[0-9a-f]{40}$/.test(p)),
+        [],
+        'the gvsbuild fork must be pinned by a full 40-hex commit SHA on its default branch, never a branch or tag',
+    );
+    assert.equal(
+        forkPins.size,
+        1,
+        `the gjsify/gvsbuild fork is pinned at ${forkPins.size} different SHAs: ${JSON.stringify(Object.fromEntries(forkPins))}`,
+    );
 });
 
 // --- runtime data portability -----------------------------------------------

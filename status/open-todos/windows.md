@@ -67,12 +67,15 @@ passes node-gi's Windows CI set.
 the CI leg producing it; otherwise `audit-runtimes --check` fails, correctly. Remaining work, in
 order:
 
-1. Merge gjsify/gvsbuild#1 and pin its commit SHA on the fork's default branch, never a feature
-   branch head.
-2. A `windows-11-arm` leg in `node-gi.yml` and `napi.yml` that builds the prefix from the fork
-   (`pipx install git+https://github.com/gjsify/gvsbuild@<sha>`, `actions/cache` with an arm64
-   key, path `C:\gtk-build\gtk\ARM64\release`) — and `win32-arm64` in node-gi's
-   `gjsify.platforms` in that same PR.
+1. ~~Merge gjsify/gvsbuild#1 and pin its commit SHA~~ — done: pinned at `e6d37672568a` (the
+   merge commit on the fork's `main`).
+2. ~~A `windows-11-arm` leg~~ — **done in the PR that adds `win32-arm64` to node-gi's
+   `gjsify.platforms`** (refs #1117). `node-gi.yml` `windows-arm64` builds the prefix through
+   `.github/actions/gvsbuild-arm64-prefix` (the one SHA pin + cache key), builds the addon with
+   `vcvarsarm64` and runs the x64 leg's tests plus the windowing proof against the prefix;
+   `release.yml` `node-gi-prebuild-win32-arm64` ships the prebuild. `napi.yml` is unchanged: its
+   only Windows job is the manual-dispatch experimental gjs attempt, which is no platform CI
+   produces.
 3. `@gjsify/gtk-runtime-win32-arm64`, a new package. Touch points:
    `packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` (hard-fails unless
    win32/x64, `:127`), the `publish-gtk-runtime-win32-x64` job in `release.yml` (`:532`),

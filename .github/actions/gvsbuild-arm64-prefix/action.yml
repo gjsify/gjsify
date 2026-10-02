@@ -1,0 +1,72 @@
+name: gvsbuild arm64 GTK4 prefix
+description: >
+  Builds (or restores from cache) the win32-arm64 GTK4 prefix at
+  C:\gtk-build\gtk\ARM64\release with our MSVC gvsbuild fork (ADR 0089). Upstream
+  wingtk/gvsbuild publishes no arm64 ZIP, so unlike x64 there is nothing to download.
+  Windows-on-ARM runner only. The caller must run actions/checkout first.
+
+  THE FORK SHA BELOW IS THE ONLY PIN. It is a commit on the fork's default branch
+  (gjsify/gvsbuild PR #1 merged), never a feature-branch head, and it is part of the
+  cache key, so a bump rebuilds once. `gtk-runtime-bundle-gates.test.mjs` holds every
+  fork pin in .github/ to the same value. Exit: when upstream gvsbuild ships arm64,
+  switch to the `GVSBUILD_VERSION` pin and delete this action.
+
+runs:
+  using: composite
+  steps:
+    # The project list is the one the fork's own `Build GTK4 Binaries (ARM64)` job
+    # proves green; it is in the cache key because changing it changes the prefix.
+    - name: Restore the arm64 GTK4 prefix
+      id: cache-gtk
+      uses: actions/cache/restore@v4
+      with:
+        path: C:\gtk-build\gtk\ARM64\release
+        key: gvsbuild-fork-e6d37672568aab4919c71452f509291464980108-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+
+    - name: Set up Python
+      if: steps.cache-gtk.outputs.cache-hit != 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.14'
+
+    # Cold build measured at 1 h 32 min on windows-11-arm (fork CI). `-j2` is the
+    # fork's own out-of-memory guard for the hosted runner. Composite steps take
+    # no `timeout-minutes`; the calling jobs bound it (240 min).
+    - name: Build GTK4 from the gjsify/gvsbuild fork (MSVC, arm64)
+      if: steps.cache-gtk.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        python -m pip install "git+https://github.com/gjsify/gvsbuild@e6d37672568aab4919c71452f509291464980108"
+        if ($LASTEXITCODE -ne 0) { throw "pip install of the gvsbuild fork exited $LASTEXITCODE" }
+        # gvsbuild spells VS versions vs2022 / vs2026, not the major; same explicit
+        # map as node-gi.yml's windowing bundle job, an unknown major is an error.
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $vsMajor = (& $vswhere -latest -property installationVersion).Split('.')[0]
+        $vsVer = switch ($vsMajor) {
+          '17' { 'vs2022' }
+          '18' { 'vs2026' }
+          default { throw "unmapped Visual Studio major '$vsMajor' — add it here (gvsbuild spells these vs2022 / vs2026)" }
+        }
+        Write-Host "Visual Studio $vsMajor -> gvsbuild --vs-ver $vsVer"
+        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection gstreamer gst-plugins-base gst-plugins-good libsoup3 libvorbis
+        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64) exited $LASTEXITCODE" }
+
+    - name: Assert the prefix is complete
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $p = 'C:\gtk-build\gtk\ARM64\release'
+        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h')) {
+          if (-not (Test-Path "$p\$f")) { Write-Host "MISSING $p\$f"; exit 1 }
+        }
+        Write-Host "arm64 prefix present (cache hit: ${{ steps.cache-gtk.outputs.cache-hit }})"
+
+    # Saved HERE, not by actions/cache's post step: that one only runs when the whole job
+    # succeeds, so a failure in any later step threw away a 1.5 h build (run 37047489401).
+    - name: Save the arm64 GTK4 prefix
+      if: steps.cache-gtk.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: C:\gtk-build\gtk\ARM64\release
+        key: gvsbuild-fork-e6d37672568aab4919c71452f509291464980108-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1

@@ -2444,6 +2444,107 @@ jobs:
       - name: Run the node-gi consumer harness (pure-TS set, --require-pass)
         run: node scripts/node-gi-consumer-harness.mjs @gjsify/path @gjsify/string_decoder --runtimes node --require-pass
 
+  # win32-arm64 (ADR 0089, #1117). There is no wingtk arm64 ZIP, so the prefix is BUILT
+  # from our gjsify/gvsbuild fork (the composite action holds the one SHA pin + cache
+  # key) and the addon is built natively against it with MSVC — the x64 recipe, with
+  # vcvarsarm64 instead of the x64 environment and NO vcpkg libffi step: the fork's
+  # prefix ships ffi.h/ffi.lib. It runs the same test set as the x64 leg
+  # (display-free conformance on Node, smoke via the prebuild path) plus the windowing
+  # tests directly against the prefix: the x64 windowing proof needs a bundle built from
+  # a gvsbuild release, which an arm64 bundle does not have until
+  # @gjsify/gtk-runtime-win32-arm64 exists (status/open-todos/windows.md step 3).
+  # Cold cache costs ~1.5 h, a hit ~15 min; the timeout covers the cold case.
+  windows-arm64:
+    name: Windows build + conformance (Node / windows-11-arm arm64)
+    needs: scope
+    if: ${{ needs.scope.outputs.engine == 'true' }}
+    runs-on: windows-11-arm
+    timeout-minutes: 240
+    env:
+      GTK_PREFIX: 'C:\gtk-build\gtk\ARM64\release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Build or restore the arm64 GTK4 prefix
+        uses: ./.github/actions/gvsbuild-arm64-prefix
+
+      - name: Put GTK on PATH + set GI/PKG env
+        shell: pwsh
+        run: |
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GST_PLUGIN_SYSTEM_PATH=$env:GTK_PREFIX\lib\gstreamer-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # Hard gate, as in release.yml's x64 leg: an unresolvable girepository-2.0 would
+      # otherwise surface minutes later as a cl.exe C1083.
+      - name: Verify pkg-config sees girepository-2.0 + cairo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pkg-config --define-prefix --exists girepository-2.0 cairo
+          if ($LASTEXITCODE -ne 0) { Write-Host "girepository-2.0 / cairo not resolvable"; exit 1 }
+          Write-Host "girepository-2.0: $(pkg-config --define-prefix --modversion girepository-2.0)"
+          node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --includes
+          node packages/node-gi/node-gi/scripts/win-gi-gyp-flags.mjs --libs
+
+      # `node-gyp rebuild --arch=arm64` is what the install script runs once the env says
+      # arm64 and the arm64 MSVC toolset is on PATH (vcvarsarm64). No msvs_version: the runner
+      # image ships only VS 2026, and pinning 2022 made node-gyp refuse the very VS whose
+      # vcvars environment it was running in (run 37047489401); unset, it uses that one.
+      - name: Build native addon (node-gyp / MSVC arm64)
+        shell: pwsh
+        working-directory: packages/node-gi/node-gi
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -property installationPath
+          $vcvars = "$vsPath\VC\Auxiliary\Build\vcvarsarm64.bat"
+          if (-not (Test-Path $vcvars)) { throw "vcvarsarm64.bat not found at $vcvars" }
+          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
+          }
+          $env:npm_config_arch = 'arm64'
+          npm install --no-audit --no-fund --foreground-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Item build/Release/node_gi.node | Select-Object Length
+
+      - name: Conformance subset on Node (display-free)
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/cross-runtime.mjs node
+
+      - name: Stage win32-arm64 prebuild
+        working-directory: packages/node-gi/node-gi
+        run: node scripts/stage-prebuild.mjs
+
+      - name: Verify the staged prebuild loads (Node)
+        working-directory: packages/node-gi/node-gi
+        run: node --test test/smoke.test.mjs
+        env:
+          NODE_GI_NATIVE: prebuild
+
+      # GSK_RENDERER=cairo: no GPU on the runner. The prefix is the only GTK on PATH.
+      - name: Windowing proof against the arm64 prefix
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+        run: node --test test/windowing.test.mjs test/windowing-interactive.test.mjs test/widgets.test.mjs
+
+      - name: Upload win32-arm64 prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-arm64
+          path: packages/node-gi/node-gi/prebuilds/win32-arm64/node_gi.node
+          if-no-files-found: error
+
   # Windows Phase 2 — BUILD the batteries-included GTK runtime bundle. Reuses the
   # `windows` job's gvsbuild download/cache steps as the closure SOURCE (build-time
   # only; NOT shipped), then COLLECTS the display-free DLL closure into gtk/bin +
