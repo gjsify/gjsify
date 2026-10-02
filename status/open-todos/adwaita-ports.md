@@ -403,11 +403,14 @@ exactly why they must not be written as decisions.
   _level-bar.scss:71-93`) and the reduced-motion hourglass swap
   (`refs/gtk/gtk/gtkspinner.c:145-161`) are both libadwaita-over-GTK decisions a
   platform spinner makes for itself.
-- **`adw-dialog` on NativeScript.** `AdwDialog` is a real upstream widget
-  (`adw-dialog.h`) and the port has the three SPECIALISED dialogs — alert, about,
-  preferences — but no generic one. Every NativeScript dialog here is deliberately the
-  platform sheet ("There is NO custom in-app modal here", `adw-alert-dialog.ts`), and
-  a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
+- **`<adw-dialog>` on NativeScript.** `AdwDialog` is a real upstream widget
+  (`adw-dialog.h`) and the browser element, its block and its story all exist; the
+  NativeScript port has the three SPECIALISED dialogs — alert, about, preferences —
+  but no generic one, so the story is ledgered as not rendered there
+  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
+  template refused. Every NativeScript dialog here is deliberately the platform sheet
+  ("There is NO custom in-app modal here", `adw-alert-dialog.ts`), and a
+  content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
   card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
   open decision.
 - **`<gtk-about-dialog>`, `<gtk-emoji-chooser>`, `<gtk-page-setup-unix-dialog>` and

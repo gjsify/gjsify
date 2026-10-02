@@ -195,6 +195,8 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window widget to render a story on and the story is rendered by the other two targets only.',
     'window-controls@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no window-frame buttons, and it has no Gtk.Settings to read a decoration layout from either, so the story is rendered by the other two targets only.',
+    'dialog@nativescript':
+        'status/open-todos/adwaita-ports.md, "<adw-dialog> on NativeScript": the port ships the three SPECIALISED dialogs — AdwAlertDialog, AdwAboutDialog and AdwPreferencesDialog — each of which substitutes the platform\'s own sheet, and has no AdwDialog class to hold arbitrary content, so the story is rendered by the other two targets only.',
 };
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */

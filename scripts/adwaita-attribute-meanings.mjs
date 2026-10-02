@@ -36,6 +36,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'selected': null,
         'title': null,
     },
+    'adw-dialog': {
+        'title': null,
+    },
     'adw-inline-view-switcher': {
         'display-mode': null,
     },
@@ -315,6 +318,7 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-alert-response appearance': 'not-a-widget',
     'adw-alert-response id': 'not-a-widget',
     'adw-breakpoint-bin breakpoints': 'port-only',
+    'adw-dialog open': 'declarative-state',
     'adw-preferences-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
@@ -348,12 +352,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 182,
+    set: 184,
     glossed: 73,
-    nameSuffices: 79,
-    divergent: 29,
+    nameSuffices: 80,
+    divergent: 30,
     authored: 1,
-    commentLines: 101,
+    commentLines: 102,
 };
 
 /**

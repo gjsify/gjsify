@@ -1,6 +1,6 @@
 ---
 title: Feedback
-description: "Adwaita feedback widgets: toast, alert dialog, about dialog and preferences dialog. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita feedback widgets: toast, the generic dialog and the alert, about and preferences dialogs. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -9,7 +9,9 @@ import MoreInfo from '../../../components/MoreInfo.astro';
 Two ways to tell the user something. A **toast** slides a short message over the
 content and gets out of the way on its own, so use it when nothing needs to happen
 next. A **dialog** puts a modal surface in front of the window and waits for an
-answer, so use it when something does.
+answer, so use it when something does. The generic **dialog** takes whatever content
+you hand it; the **alert**, **about** and **preferences** dialogs below are the three
+shapes an app asks for often enough that libadwaita writes them for you.
 
 <MoreInfo title="How the previews differ from the widget">
 The previews hold each dialog **open** and each toast **visible**, which is not
@@ -126,6 +128,90 @@ desktop.
         timeout: 3000,
         buttonLabel: 'Undo',
     });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Dialog
+
+The dialog the other three are built on, and the one to reach for when none of them
+fits: it holds **whatever you give it** — one child, no content model of its own — and
+it decides for itself whether to be a **floating card** over the window or a **bottom
+sheet** across it. Give it a **title** and a flat header with a close button appears;
+leave the title off and the content runs to the edges.
+
+<MoreInfo title="How a dialog is dismissed">
+Three ways out, and one lock. <kbd>Escape</kbd>, the scrim and the close button all
+close the dialog, and all three are gated by **can-close**: while it is off, each of
+them raises a `close-attempt` instead and the dialog stays put — which is how you keep
+a user in a half-filled form. `force_close()` ignores the lock, so a program can always
+leave. Every close returns focus to the element that was focused before `present()`.
+</MoreInfo>
+
+<MoreInfo title="Sizing it">
+**Content width** and **content height** bound the card, and the browser port
+defaults the width to the same 360 px `Adw.Dialog` asks for. On a viewport narrower
+than that the dialog switches to a bottom sheet unless you pin **presentation mode**
+to `floating`.
+</MoreInfo>
+
+<AdwWidget title="Adw.Dialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <adw-dialog open title="Preferences">
+      <adw-preferences-page title="General">
+        <adw-preferences-group title="Appearance">
+          <!-- active: Whether the switch row is in the "on" or "off" position. -->
+          <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+        </adw-preferences-group>
+      </adw-preferences-page>
+    </adw-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    Adw.init();
+
+    const group = new Adw.PreferencesGroup({ title: 'Appearance' });
+    group.add(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
+
+    const page = new Adw.PreferencesPage({ title: 'General' });
+    page.add(group);
+
+    // ONE child, and it is a PROPERTY (`Adw.Dialog:child`), not a pack. The alert,
+    // about and preferences dialogs are this class with a content model added.
+    const dialog = new Adw.Dialog({ title: 'Preferences', child: page });
+
+    // `close()` honours can-close, `force_close()` does not; both raise `closed`.
+    dialog.present(window);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    // A dialog is PRESENTED, not shown: a `.blp` declares it, and the code that owns
+    // the window calls `present()` on the object it built.
+    Adw.Dialog {
+      title: _("Preferences");
+
+      child: Adw.PreferencesPage {
+        title: _("General");
+
+        Adw.PreferencesGroup {
+          title: _("Appearance");
+
+          Adw.SwitchRow {
+            title: _("Dark style");
+            subtitle: _("Use a dark colour scheme");
+            active: true;
+          }
+        }
+      };
+    }
     ```
   </Fragment>
 </AdwWidget>

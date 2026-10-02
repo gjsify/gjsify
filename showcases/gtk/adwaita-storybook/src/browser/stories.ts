@@ -102,6 +102,7 @@ import { PopoverMenuBarWebStories } from './navigation/popover-menu-bar.web.js';
 import { SidebarWebStories } from './navigation/sidebar.web.js';
 import { AboutDialogWebStories } from './feedback/about-dialog.web.js';
 import { AlertDialogWebStories } from './feedback/alert-dialog.web.js';
+import { DialogWebStories } from './feedback/dialog.web.js';
 import { EmojiChooserWebStories } from './feedback/emoji-chooser.web.js';
 import { GtkAboutDialogWebStories } from './feedback/gtk-about-dialog.web.js';
 import { PageSetupUnixDialogWebStories } from './feedback/page-setup-unix-dialog.web.js';
@@ -201,6 +202,7 @@ export const stories: WebStoryModule[] = [
     SidebarWebStories,
     AboutDialogWebStories,
     AlertDialogWebStories,
+    DialogWebStories,
     EmojiChooserWebStories,
     GtkAboutDialogWebStories,
     PageSetupUnixDialogWebStories,

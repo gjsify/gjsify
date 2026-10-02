@@ -652,6 +652,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.ApplicationWindow':
         "NativeScript's Page IS the window, and its menubar would be a Gio.MenuModel on the application, " +
         'which GtkBox.addChild cannot take and no XML attribute carries (status/open-todos/adwaita-ports.md).',
+    'Adw.Dialog':
+        'The NativeScript port has no generic dialog: the three it ships are AdwAlertDialog, AdwAboutDialog and AdwPreferencesDialog, and each substitutes the platform\'s own sheet rather than an in-app card ("There is NO custom in-app modal here", adw-alert-dialog.ts). A content-agnostic dialog has no platform sheet to be, and AdwBottomSheet is the only in-app surface the port has (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would

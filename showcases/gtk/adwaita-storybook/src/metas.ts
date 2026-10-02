@@ -31,6 +31,7 @@ export * from './drawing/gl-area.meta.js';
 export * from './drawing/graphics-offload.meta.js';
 export * from './feedback/about-dialog.meta.js';
 export * from './feedback/alert-dialog.meta.js';
+export * from './feedback/dialog.meta.js';
 export * from './feedback/emoji-chooser.meta.js';
 export * from './feedback/gtk-about-dialog.meta.js';
 export * from './feedback/page-setup-unix-dialog.meta.js';

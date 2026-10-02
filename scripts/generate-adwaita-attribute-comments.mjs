@@ -163,6 +163,7 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // preference for a declarative template is what this is.
     'adw-about-dialog open': { kind: 'declarative-state' },
     'adw-alert-dialog open': { kind: 'declarative-state' },
+    'adw-dialog open': { kind: 'declarative-state' },
     'adw-preferences-dialog open': { kind: 'declarative-state' },
 
     // `<adw-alert-response>` is not a widget at all: it is the markup form of
