@@ -300,9 +300,11 @@ For a boolean with a title beside it, use
 
 ## Scale
 
-A slider. `Gtk.Scale` extends `Gtk.Range`, and **`Gtk.Range` is abstract** — GTK refuses to
-instantiate it, so it has no page of its own; every property it declares is the one below,
-which is why this block reads `adjustment` rather than a `range`.
+A slider. `Gtk.Scale` extends `Gtk.Range`, and `Gtk.Range` has no page of its own: it is
+concrete (`gtk_range_get_type()` is a bare `G_DEFINE_TYPE_WITH_CODE`, gtkrange.c:267), but
+GTK only ever builds one as the base of `Gtk.Scale` and `Gtk.Scrollbar`. Every property it
+declares is therefore documented on one of those two — which is why this block reads
+`adjustment` rather than a `range`.
 
 The **adjustment** is the range: a JSON object with `lower`, `upper`, `stepIncrement`,
 `pageIncrement`, `pageSize` and `value`. The last one is the value, so it belongs inside

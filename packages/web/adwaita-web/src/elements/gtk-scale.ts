@@ -1,11 +1,12 @@
 // <gtk-scale> — a slider: a trough, the highlighted part of it and a knob you drag.
 //
-// `Gtk.Scale` EXTENDS `Gtk.Range`, and `Gtk.Range` is ABSTRACT — `gtk_range_get_type()`
-// is registered with `G_TYPE_FLAG_ABSTRACT`, so the base cannot be instantiated and has
-// no tag of its own here. Its whole surface is this widget's: the adjustment, the value,
-// `inverted`, the fill level and `round-digits` are `Gtk.Range` properties carried by
-// `<gtk-scale>`, and `Gtk.Scrollbar` carries the same ones. See the `Gtk.Range` entry in
-// `ADWAITA_GALLERY_TREES`' refusals for that ledger.
+// `Gtk.Scale` EXTENDS `Gtk.Range`, and `Gtk.Range` is CONCRETE — `gtk_range_get_type()`
+// is registered with a bare `G_DEFINE_TYPE_WITH_CODE` (gtkrange.c:267), with no
+// `G_TYPE_FLAG_ABSTRACT` anywhere in it. GTK still only ever builds one as the BASE of a
+// subclass, so it has no tag of its own here and no block: its whole surface is this
+// widget's and `Gtk.Scrollbar`'s — the adjustment, the value, `inverted`, the fill level
+// and `round-digits` are `Gtk.Range` properties carried by `<gtk-scale>` and
+// `<gtk-scrollbar>`, which is where they are documented.
 //
 // THE RANGE IS HEADLESS: `SpinState` from `@gjsify/adwaita-core` IS the portable
 // `Gtk.Adjustment` (ADR 0047) — the six numbers, the clamp and the two signals — and

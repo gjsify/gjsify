@@ -1253,11 +1253,16 @@ export const ADWAITA_GALLERY_TREES = [
  * does.
  */
 export const ADWAITA_GALLERY_REFUSALS = {
-    // NOT HERE, and deliberately: `Gtk.Range` is ABSTRACT — `gtk_range_get_type()` registers
-    // it with `G_TYPE_FLAG_ABSTRACT`, so `g_object_new` on it is a hard failure, and there is
-    // no gallery block and no tree for it. Its whole surface is `Gtk.Scale`'s, which is where
-    // the adjustment and the value are shown; neither ledger takes an entry for it, because
-    // both of those are keyed on a gallery block and it has none. It is said out loud in the
+    // NOT HERE, and deliberately: `Gtk.Range` is CONCRETE — `gtk_range_get_type()` is
+    // registered with a bare `G_DEFINE_TYPE_WITH_CODE` (gtkrange.c:267), with no
+    // `G_TYPE_FLAG_ABSTRACT` anywhere in it — and GTK only ever builds one as the BASE of
+    // `Gtk.Scale` and `Gtk.Scrollbar`, so its whole surface is documented on those two
+    // blocks (the adjustment and the value are `Gtk.Scale`'s to show). There is no gallery
+    // block and no tree for it, and therefore NO ENTRY in this list, in
+    // `ADWAITA_GALLERY_NS_REFUSALS` or in `NOT_IN_THE_GALLERY`: every one of the three is
+    // keyed on a block or a story meta that `check-generated-website-data.mjs` and
+    // `check-website-adwaita-gallery.mjs` hold against the pages, and an entry naming a
+    // widget no page carries fails in both directions. It is said out loud in the
     // `Gtk.Scale` section of website/src/content/docs/gtk/controls.mdx instead, and in the
     // header of packages/web/adwaita-web/src/elements/gtk-scale.ts.
     // Measured by `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`: the host
