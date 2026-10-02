@@ -189,6 +189,10 @@ const ONE_RENDERER_ONLY = {
         decision:
             '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="sheet">`, which leaves nothing in the tree. It is the markup form, not the only route: the element binds a plain `slot="sheet"` child too, through `bindSlottedChildren` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts).',
     },
+    bin: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     card: {
         only: 'web',
         decision:
@@ -216,6 +220,10 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'scale-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'clamp-scrollable': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -253,6 +261,10 @@ const ONE_RENDERER_ONLY = {
         decision:
             'Recorded in packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21 — the NativeScript file, not the browser one of the same name: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `GtkMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
         vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
+    },
+    'preferences-row': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'progress-bar': {
         only: 'web',
@@ -325,6 +337,10 @@ const ONE_RENDERER_ONLY = {
             "Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly — one boolean with no second phase, so the `active`/`state` pair a delayed change needs (gtkswitch.c:39-43, :637-654) has nowhere to live there. The browser has no such control at all, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one, and it carries both properties: the knob on `active`, libadwaita's `switch:checked` trough on `state`.",
     },
     'spin-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'tab-button': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

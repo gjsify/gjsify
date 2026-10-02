@@ -89,9 +89,12 @@
 @use 'column_view';
 @use 'tree_expander';
 @use 'preferences';
+@use 'preferences_row';
 @use 'card';
 @use 'data_grid';
+@use 'bin';
 @use 'clamp';
+@use 'clamp_scrollable';
 // <adw-spinner> AND <gtk-spinner>, in ONE partial because upstream's
 // `_spinner.scss` styles `spinner` and `image.spinner` in the same file.
 @use 'spinner';
@@ -123,6 +126,7 @@
 @use 'inline_view_switcher';
 @use 'view_stack';
 @use 'view_switcher_bar';
+@use 'tab_button';
 @use 'navigation_view';
 @use 'bottom_sheet';
 @use 'sidebar';

@@ -30,11 +30,11 @@
 // because the only spec touching this file instantiates `adw-switch-row`.
 $adw-components:
   adw-about-dialog, adw-action-row, gtk-action-bar, adw-alert-dialog, adw-alert-response,
-  adw-avatar, adw-banner, adw-bottom-sheet, adw-bottom-sheet-bottom-bar,
+  adw-avatar, adw-banner, adw-bin, adw-bottom-sheet, adw-bottom-sheet-bottom-bar,
   adw-bottom-sheet-content, adw-bottom-sheet-sheet, adw-breakpoint-bin, gtk-box, gtk-button, adw-button-content, adw-button-row,
   adw-card, adw-carousel, adw-carousel-indicator-dots,
   adw-carousel-indicator-lines, gtk-check-button, gtk-color-dialog-button, adw-clamp,
-  gtk-column-view, adw-combo-row,
+  adw-clamp-scrollable, gtk-column-view, adw-combo-row,
   adw-data-grid,
   adw-dialog, gtk-drop-down, gtk-entry, adw-entry-row, adw-expander-row, gtk-expander,
   gtk-font-dialog-button,
@@ -46,12 +46,12 @@ $adw-components:
   adw-navigation-page,
   adw-navigation-split-view, adw-navigation-view, adw-overlay-split-view, gtk-overlay,
   gtk-paned, adw-password-entry-row, gtk-password-entry, gtk-popover, adw-preferences-dialog,
-  adw-preferences-group, adw-preferences-page, gtk-progress-bar, adw-radio, gtk-revealer,
+  adw-preferences-group, adw-preferences-page, adw-preferences-row, gtk-progress-bar, adw-radio, gtk-revealer,
   gtk-scale, gtk-scale-button, gtk-search-entry, gtk-separator, gtk-spin-button,
   adw-shortcut-label, adw-sidebar, adw-sidebar-item,
   adw-sidebar-section, adw-source-view, adw-spinner, gtk-spinner, adw-spin-row,
   adw-split-button, adw-status-page, gtk-switch, adw-switch-row,
-  adw-tab-page, adw-tab-view, adw-toast-overlay, adw-toggle, gtk-toggle-button, adw-toggle-group,
+  adw-tab-button, adw-tab-page, adw-tab-view, adw-toast-overlay, adw-toggle, gtk-toggle-button, adw-toggle-group,
   adw-toolbar-view, gtk-tree-expander, adw-view-stack, adw-view-stack-page, adw-view-switcher,
   adw-view-switcher-bar, adw-view-switcher-page, adw-window, adw-window-title,
   adw-wrap-box;

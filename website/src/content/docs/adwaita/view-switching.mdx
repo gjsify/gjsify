@@ -1,6 +1,6 @@
 ---
 title: View Switching
-description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, inline view switcher and carousel. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, tab button, inline view switcher and carousel. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -294,6 +294,71 @@ document looks chrome-free.
         { title: 'Details', content: page('Details', 'The specifics, broken down line by line.') },
         { title: 'History', content: page('History', 'A log of every change made so far.') },
     ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Tab Button
+
+A button that stands in for a tab bar when there is no room for one. It shows
+how many pages its **view** holds, and lights a dot when a page you are not
+looking at needs attention. The number gets smaller from ten pages and gives way
+to a glyph at a hundred. Pair it with an action that opens a tab overview, and
+listen to `clicked` to do so.
+
+<AdwWidget title="Adw.TabButton">
+  <Fragment slot="preview">
+    ```html
+    <adw-tab-view id="tabs" style="display:none;">
+      <adw-tab-page title="One"></adw-tab-page>
+      <adw-tab-page title="Two"></adw-tab-page>
+      <adw-tab-page title="Three"></adw-tab-page>
+    </adw-tab-view>
+    <adw-tab-button view="tabs"></adw-tab-button>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // Counts the pages; `needs-attention` on a page that is not selected lights the dot.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => console.log('Open the tab overview'));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      Adw.TabButton {
+        view: tabs;
+      }
+
+      Adw.TabView tabs {}
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // Counts the pages; `needs-attention` on a page that is not selected lights the dot.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => console.log('Open the tab overview'));
     ```
   </Fragment>
 </AdwWidget>

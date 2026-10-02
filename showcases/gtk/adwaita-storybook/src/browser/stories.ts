@@ -34,6 +34,7 @@ import { EntryRowWebStories } from './rows/entry-row.web.js';
 import { ExpanderRowWebStories } from './rows/expander-row.web.js';
 import { PasswordEntryRowWebStories } from './rows/password-entry-row.web.js';
 import { PreferencesGroupWebStories } from './rows/preferences-group.web.js';
+import { PreferencesRowWebStories } from './rows/preferences-row.web.js';
 import { SpinRowWebStories } from './rows/spin-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
 import { CheckButtonWebStories } from './controls/check-button.web.js';
@@ -65,12 +66,15 @@ import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
 import { MenuButtonWebStories } from './buttons/menu-button.web.js';
 import { SplitButtonWebStories } from './buttons/split-button.web.js';
 import { ToggleGroupWebStories } from './buttons/toggle-group.web.js';
+import { BinWebStories } from './layout/bin.web.js';
+import { ClampScrollableWebStories } from './layout/clamp-scrollable.web.js';
 import { ClampWebStories } from './layout/clamp.web.js';
 import { HeaderBarWebStories } from './layout/header-bar.web.js';
 import { ToolbarViewWebStories } from './layout/toolbar-view.web.js';
 import { WrapBoxWebStories } from './layout/wrap-box.web.js';
 import { CarouselWebStories } from './view-switching/carousel.web.js';
 import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
+import { TabButtonWebStories } from './view-switching/tab-button.web.js';
 import { TabViewWebStories } from './view-switching/tab-view.web.js';
 import { ViewSwitcherWebStories } from './view-switching/view-switcher.web.js';
 import { ViewSwitcherBarWebStories } from './view-switching/view-switcher-bar.web.js';
@@ -103,6 +107,7 @@ export const stories: WebStoryModule[] = [
     ExpanderRowWebStories,
     PasswordEntryRowWebStories,
     PreferencesGroupWebStories,
+    PreferencesRowWebStories,
     SpinRowWebStories,
     SwitchRowWebStories,
     EntryWebStories,
@@ -126,6 +131,8 @@ export const stories: WebStoryModule[] = [
     LinkButtonWebStories,
     ScaleButtonWebStories,
     ToggleGroupWebStories,
+    BinWebStories,
+    ClampScrollableWebStories,
     ClampWebStories,
     HeaderBarWebStories,
     ExpanderWebStories,
@@ -140,6 +147,7 @@ export const stories: WebStoryModule[] = [
     WrapBoxWebStories,
     CarouselWebStories,
     InlineViewSwitcherWebStories,
+    TabButtonWebStories,
     TabViewWebStories,
     ViewSwitcherWebStories,
     ViewSwitcherBarWebStories,

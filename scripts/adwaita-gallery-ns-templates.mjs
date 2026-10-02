@@ -577,6 +577,14 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The port has no colour dialog button: GtkButton.child takes one view and @nativescript/core exports no colour-picker view, so the swatch it would host has nothing to collect the next colour from (status/open-todos/adwaita-ports.md).',
     'Gtk.FontDialogButton':
         'The port has no font dialog button: GtkButton.child takes a view but there is no font-picker view in @nativescript/core, so the two GtkLabel children the font_desc names cannot be filled from a chooser (status/open-todos/adwaita-ports.md).',
+    'Adw.Bin':
+        'The NativeScript port has no bin view: AdwClamp is the nearest one-child view it ships, and there is no plain one-child container beside it (status/open-todos/adwaita-ports.md).',
+    'Adw.ClampScrollable':
+        'The NativeScript port has no scrolling clamp: AdwClamp holds its child at a width but does not scroll it (status/open-todos/adwaita-ports.md).',
+    'Adw.PreferencesRow':
+        'The NativeScript port has no bare preferences row: AdwActionRow is the row it ships, and a title-only base has no template of its own (status/open-todos/adwaita-ports.md).',
+    'Adw.TabButton':
+        'The NativeScript port has no tab button: AdwTabView is the only tab widget it ships, and its page counter is not a separate view (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so

@@ -54,6 +54,15 @@ const AdwActionRow = () => (
     </adw-preferences-group>
 );
 
+const AdwPreferencesRow = () => (
+    <adw-preferences-group>
+        <adw-preferences-row
+            title="A plain preferences row"
+            useMarkup
+        />
+    </adw-preferences-group>
+);
+
 const AdwSwitchRow = () => (
     <adw-preferences-group>
         <adw-switch-row
@@ -378,6 +387,17 @@ const GtkOverlay = () => (
     </gtk-overlay>
 );
 
+const AdwBin = () => (
+    <adw-bin>
+        <gtk-label
+            label="The one child of this bin."
+            wrap
+            xalign={0}
+            cssClasses={['card']}
+        />
+    </adw-bin>
+);
+
 const AdwBreakpointBin = () => (
     <adw-breakpoint-bin>
         <gtk-label
@@ -674,6 +694,7 @@ const Gallery = () => (
     <gtk-box orientation="vertical" spacing={24}>
         <AdwPreferencesGroup />
         <AdwActionRow />
+        <AdwPreferencesRow />
         <AdwSwitchRow />
         <AdwEntryRow />
         <AdwPasswordEntryRow />
@@ -703,6 +724,7 @@ const Gallery = () => (
         <GtkSpinner />
         <GtkSeparator />
         <GtkOverlay />
+        <AdwBin />
         <AdwBreakpointBin />
         <AdwClamp />
         <AdwHeaderBar />
@@ -776,6 +798,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                         { tag: 'gtk-image', gtype: 'GtkImage', slot: 'prefix', props: {"iconName":"network-wireless-symbolic"} },
                         { tag: 'gtk-button', gtype: 'GtkButton', slot: 'suffix', props: {"iconName":"go-next-symbolic","cssClasses":["flat"],"valign":"center"} }
                     ] }
+            ] }
+    },
+    { widget: 'Adw.PreferencesRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-preferences-row', gtype: 'AdwPreferencesRow', props: {"title":"A plain preferences row","useMarkup":true} }
             ] }
     },
     { widget: 'Adw.SwitchRow', root:
@@ -907,6 +934,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'gtk-overlay', gtype: 'GtkOverlay', props: {"widthRequest":260,"heightRequest":160}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Main child","halign":"center","valign":"center","cssClasses":["dimmed"]} },
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
+            ] }
+    },
+    { widget: 'Adw.Bin', root:
+        { tag: 'adw-bin', gtype: 'AdwBin', children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The one child of this bin.","wrap":true,"xalign":0,"cssClasses":["card"]} }
             ] }
     },
     { widget: 'Adw.BreakpointBin', root:

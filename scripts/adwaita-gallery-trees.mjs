@@ -97,6 +97,14 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        widget: 'Adw.PreferencesRow',
+        page: 'boxed-lists',
+        root: {
+            tag: 'adw-preferences-group',
+            children: [{ tag: 'adw-preferences-row', props: { title: 'A plain preferences row', useMarkup: true } }],
+        },
+    },
     gtkHostTree('Adw.SwitchRow'),
     gtkHostTree('Adw.EntryRow'),
     {
@@ -439,6 +447,19 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     // ------------------------------------------------------------------ layout
+    {
+        widget: 'Adw.Bin',
+        page: 'layout',
+        root: {
+            tag: 'adw-bin',
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: { label: 'The one child of this bin.', wrap: true, xalign: 0, cssClasses: ['card'] },
+                },
+            ],
+        },
+    },
     {
         widget: 'Adw.BreakpointBin',
         page: 'layout',
@@ -868,6 +889,9 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',
     'Adw.AlertDialog': 'its responses are add_response() calls and it is shown with present(); neither is markup.',
     'Adw.AboutDialog': 'a dialog is opened with present(), so a static tree renders nothing a reader would see.',
+    'Adw.ClampScrollable':
+        'its child must be scrollable (a list view, a text view) and those are built from a model in code, so a static tree has no honest child to give it.',
+    'Adw.TabButton': 'its `view` is a widget reference, and a ref is spelled differently in all three dialects.',
     'Adw.ViewSwitcherBar': 'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
     'Adw.InlineViewSwitcher':
         'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',

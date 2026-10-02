@@ -1,14 +1,15 @@
 ---
 title: Layout
-description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView, WrapBox and the adaptive trio BreakpointBin, MultiLayoutView and LayoutSlot. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita layout containers: Bin, Clamp, ClampScrollable, HeaderBar, ToolbarView and WrapBox, plus the adaptive trio BreakpointBin, MultiLayoutView and LayoutSlot. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
-These containers give an Adwaita window its shape. Use a **clamp** to hold
-content at a readable width, a **header bar** for the top chrome, a **toolbar
-view** to frame content between fixed bars, and a **wrap box** to let a run of
+These containers give an Adwaita window its shape. Use a **bin** when a slot holds
+one replaceable widget, a **clamp** to hold content at a readable width (and a
+**scrollable clamp** when that content scrolls), a **header bar** for the top
+chrome, a **toolbar view** to frame content between fixed bars, and a **wrap box** to let a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
 
@@ -65,6 +66,58 @@ an empty window at exit 0 with nothing in the log. And such a tree is a GTK wind
 rather than a phone screen, which is why it was never the NativeScript tab.
 </MoreInfo>
 
+## Bin
+
+The smallest container libadwaita ships: a widget that holds **one child** and
+nothing else. It draws no frame of its own and hands the child its whole
+allocation, which makes it the thing to reach for when a slot needs a single
+replaceable widget. Setting a new child **replaces** the old one rather than
+stacking beside it, and a child that already has a parent is refused.
+
+<AdwWidget title="Adw.Bin">
+  <Fragment slot="preview">
+    ```html
+    <adw-bin style="width:260px;">
+      <gtk-label label="The one child of this bin."></gtk-label>
+    </adw-bin>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.Bin({ child: new Gtk.Label({ label: 'The one child of this bin.' }) });
+
+    // A second child REPLACES the first.
+    bin.child = new Gtk.Label({ label: 'The first child is gone.' });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Bin {
+      Gtk.Label {
+        label: _("The one child of this bin.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.Bin({ child: new Gtk.Label({ label: 'The one child of this bin.' }) });
+
+    // A second child REPLACES the first.
+    bin.child = new Gtk.Label({ label: 'The first child is gone.' });
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Clamp
 
 Wrap long-form content in a clamp so it stops growing at a **maximum width** and
@@ -120,6 +173,74 @@ in a bare script too; inside an `Adw.Application` the call is harmless.
     const label = clamp.getViewById<Gtk.Label>('label')!;
     label.label = 'Reached by its id.';
     clamp.maximumSize = 560;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Clamp Scrollable
+
+A clamp for a child that **scrolls**. A plain clamp would cut a list or a text
+view off at its maximum width, scrollbar included; the scrollable clamp keeps
+the scrollbar at the edge of the window and holds only the content at the
+**maximum size**, with the same **tightening threshold** curve as the clamp
+above. Its child has to be a scrollable one, a list view or a text view.
+
+<AdwWidget title="Adw.ClampScrollable">
+  <Fragment slot="preview">
+    ```html
+    <!-- maximum-size: The maximum size allocated to the child. -->
+    <!-- tightening-threshold: The size above which the child is clamped. -->
+    <adw-clamp-scrollable maximum-size="320" tightening-threshold="240" style="width:100%;height:120px;">
+      <!-- spacing: The amount of space between children. -->
+      <gtk-box orientation="vertical" spacing="6">
+        <gtk-label label="Line 1: held at the clamp's width."></gtk-label>
+        <gtk-label label="Line 2: while the rest scrolls."></gtk-label>
+        <gtk-label label="Line 3: and the scrollbar stays at the edge."></gtk-label>
+        <gtk-label label="Line 4: of the window."></gtk-label>
+        <gtk-label label="Line 5: not at the edge of the content."></gtk-label>
+      </gtk-box>
+    </adw-clamp-scrollable>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const text = new Gtk.TextView({ editable: false });
+    const clamp = new Adw.ClampScrollable({ maximumSize: 320, tighteningThreshold: 240, child: text });
+
+    // The scrolled window owns the scrollbars; the clamp only limits the content.
+    const scrolled = new Gtk.ScrolledWindow({ child: clamp });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.ScrolledWindow {
+      Adw.ClampScrollable {
+        maximum-size: 320;
+        tightening-threshold: 240;
+
+        Gtk.TextView {
+          editable: false;
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const text = new Gtk.TextView({ editable: false });
+    const clamp = new Adw.ClampScrollable({ maximumSize: 320, tighteningThreshold: 240, child: text });
+
+    // The scrolled window owns the scrollbars; the clamp only limits the content.
+    const scrolled = new Gtk.ScrolledWindow({ child: clamp });
     ```
   </Fragment>
 </AdwWidget>

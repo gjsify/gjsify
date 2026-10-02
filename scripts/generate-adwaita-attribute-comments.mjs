@@ -323,12 +323,6 @@ const FUNCTION_WORDS = stemmed(
  * corpus is stale and fails, so the list cannot quietly grow into a place where a
  * comment is suppressed by hand.
  */
-// `display` USED to be first in that string. It stopped being one the day a fourth
-// property doc in this corpus reached for the word — the frequency floor below then covers
-// it, and this list's own stale check fired ("the residue of no attribute in this corpus",
-// which is what it is for: a suppression nobody re-measured). Removing it here rather than
-// making the floor invisible is the direction the check asks for, and it re-fires if the
-// corpus ever shrinks back under the floor.
 const PRESENTATION_WORDS = stemmed('current information below url');
 
 /**

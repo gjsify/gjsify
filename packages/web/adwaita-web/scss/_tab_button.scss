@@ -1,0 +1,98 @@
+// _tab_button.scss — <adw-tab-button>.
+//
+// libadwaita's whole `tabbutton` block is three rules (_buttons.scss:647-663): the count
+// is `font-weight: 800` at `font-size: 10.5px`, dropping to `8px` under `.small`, and the
+// indicator sits a pixel back from the leading edge (`translate(-1px, 1px)` in LTR,
+// mirrored in RTL) so it does not touch the plate's stroke. The button itself is a
+// `.image-button` — `min-width: 24px` and 5px of padding either side (_buttons.scss:
+// 66-70) — which is where the counter's 24px outer box comes from.
+//
+// THE PLATE IS CSS, and that is what the two libadwaita glyphs are: `adw-tab-counter.svg`
+// is a 14×14 `rx≈2.94` rect with `stroke-width: 2` and NO fill, and `adw-tab-overflow.svg`
+// is that same rect plus one decorative mark. Both ship in `refs/libadwaita/src/icons/`
+// rather than in an icon theme, so neither is a `@gjsify/adwaita-icons` export and neither
+// could be compiled into the stylesheet — a border and a border-radius is the whole of
+// the counter glyph, and the overflow mark is an ellipsis, which is the shape libadwaita
+// puts between the two digits of a count it is not going to draw.
+//
+// The indicator is `AdwIndicatorBin`'s, whose own rule is in `_view-switcher.scss:83-104`:
+// a 6px dot in `color-mix(currentColor 40%, transparent)` with a 2px margin, turning to
+// `--accent-color` under `.needs-attention`.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss:66-70, 647-663
+// Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss:83-104
+//   (`indicatorbin > indicator`, and `.needs-attention`)
+// Reference: refs/libadwaita/src/icons/adw-tab-counter.svg, adw-tab-overflow.svg
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components — the `GtkImage` under the
+//   `GtkLabel` becomes the plate span, and the icon itself is drawn.
+
+adw-tab-button {
+  // The `.image-button` numbers, over the `.adw-button` defaults it inherits from the
+  // shared button surface (34px and 14px of padding otherwise).
+  .adw-button {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0 5px;
+  }
+
+  // The `AdwIndicatorBin`: the glyph with the count over it, and the dot beside both.
+  .adw-tab-button-indicatorbin {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // The glyph: adw-tab-counter.svg's rounded rectangle, 16×16, a 2px stroke, no fill.
+  .adw-tab-button-plate {
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+  }
+
+  .adw-tab-button-label {
+    // "We're intentionally using pixels here, as this label is a part of the icon"
+    // (_buttons.scss:650) — which is why these are px and not the em-derived sizes the
+    // rest of the stylesheet uses.
+    position: absolute;
+    font-weight: 800;
+    font-size: 10.5px;
+    line-height: 16px;
+    text-align: center;
+    width: 16px;
+
+    &.small {
+      font-size: 8px;
+    }
+  }
+
+  .adw-tab-button-indicator {
+    position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    min-width: 6px;
+    min-height: 6px;
+    border-radius: 100px;
+    margin: 2px;
+    background: color-mix(in srgb, currentColor 40%, transparent);
+
+    // `&.needs-attention > indicator { background: var(--accent-color) }`
+    // (_view-switcher.scss:100-102).
+    &.needs-attention {
+      background: var(--accent-color);
+    }
+  }
+
+  // The overflow mark, for a count of a hundred pages or more — the label is hidden
+  // there, exactly as `update_icon` hides it.
+  .adw-tab-button-indicatorbin.overflow .adw-tab-button-plate::after {
+    content: '\22ef';
+    font-size: 8px;
+    line-height: 12px;
+    display: block;
+    text-align: center;
+  }
+}

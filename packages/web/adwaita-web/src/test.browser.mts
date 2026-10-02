@@ -68,6 +68,10 @@ import { GtkLinkButtonTest } from './gtk-link-button.spec.js';
 import { GtkScaleButtonTest } from './gtk-scale-button.spec.js';
 import { GtkColorDialogButtonTest } from './gtk-color-dialog-button.spec.js';
 import { GtkFontDialogButtonTest } from './gtk-font-dialog-button.spec.js';
+import { AdwBinTest } from './adw-bin.spec.js';
+import { AdwClampScrollableTest } from './adw-clamp-scrollable.spec.js';
+import { AdwPreferencesRowTest } from './adw-preferences-row.spec.js';
+import { AdwTabButtonTest } from './adw-tab-button.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
@@ -132,6 +136,10 @@ run({
     GtkScaleButtonTest,
     GtkColorDialogButtonTest,
     GtkFontDialogButtonTest,
+    AdwBinTest,
+    AdwClampScrollableTest,
+    AdwPreferencesRowTest,
+    AdwTabButtonTest,
     GtkBoxTest,
     GtkLabelTest,
     AdwAvatarTest,

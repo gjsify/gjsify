@@ -76,6 +76,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                     ] }
             ] }
     },
+    { widget: 'Adw.PreferencesRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-preferences-row', gtype: 'AdwPreferencesRow', props: {"title":"A plain preferences row","useMarkup":true} }
+            ] }
+    },
     { widget: 'Adw.SwitchRow', root:
         { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
                 { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Automatic updates","subtitle":"Download and install updates without asking","active":true} }
@@ -205,6 +210,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'gtk-overlay', gtype: 'GtkOverlay', props: {"widthRequest":260,"heightRequest":160}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Main child","halign":"center","valign":"center","cssClasses":["dimmed"]} },
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
+            ] }
+    },
+    { widget: 'Adw.Bin', root:
+        { tag: 'adw-bin', gtype: 'AdwBin', children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The one child of this bin.","wrap":true,"xalign":0,"cssClasses":["card"]} }
             ] }
     },
     { widget: 'Adw.BreakpointBin', root:

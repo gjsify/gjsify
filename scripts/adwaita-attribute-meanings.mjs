@@ -27,6 +27,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'body': null,
         'heading': null,
     },
+    'adw-clamp-scrollable': {
+        'maximum-size': 'The maximum size allocated to the child.',
+        'tightening-threshold': 'The size above which the child is clamped.',
+    },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
         'selected': null,
@@ -59,6 +63,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'icon-name': null,
         'title': null,
     },
+    'adw-preferences-row': {
+        'title': null,
+        'use-markup': 'Whether to use Pango markup for the title label.',
+    },
     'adw-spin-row': {
         'adjustment': 'The adjustment that holds the value of the spin row.',
         'title': null,
@@ -72,6 +80,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'active': 'Whether the switch row is in the "on" or "off" position.',
         'subtitle': null,
         'title': null,
+    },
+    'adw-tab-button': {
+        'view': null,
     },
     'adw-tab-page': {
         'title': null,
@@ -223,12 +234,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 111,
-    glossed: 37,
-    nameSuffices: 53,
+    set: 116,
+    glossed: 40,
+    nameSuffices: 55,
     divergent: 20,
     authored: 1,
-    commentLines: 60,
+    commentLines: 64,
 };
 
 /**

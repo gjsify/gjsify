@@ -38,6 +38,12 @@
             </adw-action-row>
         </adw-preferences-group>
         <adw-preferences-group>
+            <adw-preferences-row
+                title="A plain preferences row"
+                :use-markup="true"
+            />
+        </adw-preferences-group>
+        <adw-preferences-group>
             <adw-switch-row
                 title="Automatic updates"
                 subtitle="Download and install updates without asking"
@@ -274,6 +280,14 @@
                 valign="end"
             />
         </gtk-overlay>
+        <adw-bin>
+            <gtk-label
+                label="The one child of this bin."
+                :wrap="true"
+                :xalign="0"
+                :css-classes="['card']"
+            />
+        </adw-bin>
         <adw-breakpoint-bin>
             <gtk-label
                 label="Wide"

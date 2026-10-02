@@ -444,6 +444,13 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   multi-layout view has to re-parent children between slots on a platform whose
   `LayoutBase` has no notion of a slot ID. `AdwLayout` is a GObject there too, so the
   layouts need the same markup-to-object step the browser gets for free.
+- **`<adw-bin>`, `<adw-clamp-scrollable>`, `<adw-preferences-row>` and `<adw-tab-button>`
+  on NativeScript.** The four browser elements and their gallery blocks exist; the
+  NativeScript port has none of them, so their stories are ledgered as not rendered
+  there (`NOT_ON_THIS_TARGET`) and their XML templates refused. The bin is the one-child
+  base `AdwClamp` and the rows could stand on; the scrolling clamp needs a scrollable
+  child `@nativescript/core` would have to supply; the preferences row is the title
+  half of `AdwActionRow`; the tab button is a counter over `AdwTabView`'s page list.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

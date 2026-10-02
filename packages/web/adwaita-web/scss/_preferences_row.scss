@@ -1,0 +1,51 @@
+// _preferences_row.scss — <adw-preferences-row>, the base of every boxed-list row.
+//
+// The row is a GTK `row` node inside the group's list, so its box comes from two places
+// in `_lists.scss`: `row` itself (a focus ring, `background-clip: padding-box`, and the
+// hover/active/selected colours under `.activatable`) and `list > row { padding: 2px }`
+// (:23-25). The metrics below are this package's shared row floor — the 50px minimum and
+// the card-fg hairline every `_row.scss` row uses — because libadwaita's own row height
+// is its theme's and a browser needs the number written down.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss:1-90 (`row`, `list > row`)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_preferences.scss (the group's card)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components — the GTK `row` node
+//   becomes the tag, and `:selected` becomes the row surface `<adw-preferences-group>`'s
+//   list box already paints.
+
+adw-preferences-row {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacing-m);
+  background-clip: padding-box;
+  color: var(--card-fg-color);
+  // The hairline between rows, which `_lists.scss` draws as
+  // `&:not(.horizontal) > row:not(.separator) { border-bottom: 1px solid $border_color }`
+  // (:32-34) — on the row, from the list it belongs to.
+  border-bottom: 1px solid var(--card-shade-color);
+
+  // `Gtk.Label:selectable` is `user-select: text`, and the element writes it on the
+  // title span itself; this is the row-level floor so a copyable title survives a
+  // stylesheet that resets selection.
+  .adw-row-title {
+    user-select: none;
+  }
+
+  // The slot the `child` property lands in: the preference's own controls, which sit
+  // after the title and take the rest of the row.
+  .adw-preferences-row-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-m);
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
