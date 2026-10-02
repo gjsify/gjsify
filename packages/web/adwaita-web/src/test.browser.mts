@@ -45,6 +45,9 @@ import { GtkPopoverMenuBarTest } from './gtk-popover-menu-bar.spec.js';
 import { GioMenuTest } from './gio-menu.spec.js';
 import { GtkValueDoorsTest } from './gtk-value-doors.spec.js';
 import { GtkButtonTest } from './gtk-button.spec.js';
+import { GtkAboutDialogTest } from './gtk-about-dialog.spec.js';
+import { GtkEmojiChooserTest } from './gtk-emoji-chooser.spec.js';
+import { GtkPrintDialogsTest } from './gtk-print-dialogs.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { GtkImageTest } from './gtk-image.spec.js';
@@ -207,6 +210,9 @@ run({
     GioMenuTest,
     GtkValueDoorsTest,
     GtkButtonTest,
+    GtkAboutDialogTest,
+    GtkEmojiChooserTest,
+    GtkPrintDialogsTest,
     AdwViewStackTest,
     AdwNavigationViewTest,
     AdwSidebarTest,

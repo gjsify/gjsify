@@ -87,6 +87,20 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Dialogs" href="/gjsify/gtk/dialogs/" description="GTK's about window with its stack switcher, the emoji chooser a text widget opens, and the page setup and print dialogs Unix has instead of native ones.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:12px;align-items:center;width:100%;max-width:280px;">
+        <gtk-about-dialog
+          open
+          program-name="Calculator"
+          version="48.1"
+          logo-icon-name="application-x-executable"
+          license-type="gpl-3-0"
+        ></gtk-about-dialog>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+</div>
   <AdwGalleryCard title="Indicators" href="/gjsify/gtk/indicators/" description="The progress bar for work with a measurable amount left, the level bar for a quantity in a range, and GTK's own busy spinner.">
     <Fragment slot="preview">
       <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:200px;">

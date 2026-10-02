@@ -335,6 +335,10 @@ export const ADWAITA_FRAMEWORK_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.AboutDialog': "a dialog is opened with present(), so a static tree renders nothing a reader would see.",
     'Adw.ClampScrollable': "its child must be scrollable (a list view, a text view) and those are built from a model in code, so a static tree has no honest child to give it.",
     'Adw.TabButton': "its `view` is a widget reference, and a ref is spelled differently in all three dialects.",
+    'Gtk.AboutDialog': "a dialog is opened with present(), so a static tree renders nothing a reader would see.",
+    'Gtk.PageSetupUnixDialog': "a dialog is opened with present(), and its paper list comes from a print backend (gtk_print_backend_load_modules) that a tree cannot reach.",
+    'Gtk.PrintUnixDialog': "a dialog is opened with present(), and its printer list, options and capabilities come from a print backend a tree cannot reach.",
+    'Gtk.EmojiChooser': "a GtkPopover is shown by popping it up from an anchor WIDGET, so a tree has nothing to attach the popover to — `parentElement` is the default anchor and a top-level tree element has none.",
     'Adw.ViewSwitcherBar': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
     'Adw.InlineViewSwitcher': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
 };

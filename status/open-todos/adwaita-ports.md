@@ -385,6 +385,20 @@ exactly why they must not be written as decisions.
   a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
   card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
   open decision.
+- **`<gtk-about-dialog>`, `<gtk-emoji-chooser>`, `<gtk-page-setup-unix-dialog>` and
+  `<gtk-print-unix-dialog>` on NativeScript.** Four browser elements and their gallery blocks
+  exist; the NativeScript port has none of the four, so their stories are ledgered as not
+  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
+  their XML templates refused. The port's ONE about dialog is `AdwAboutDialog`, a
+  `GridLayout` of preference rows — GTK's is a window with a stack switcher over Credits,
+  License and System pages, and the two are one widget only by name, which is half of what
+  this bullet is about. The other three have no counterpart of any kind: an emoji chooser
+  needs a popover AND the emoji table behind `org.gtk.gtk4.Settings.EmojiChooser`, and a
+  page-setup or print dialog needs paper sizes, margins and a printer list, which come from
+  CUPS over D-Bus (`gtk_print_backend_load_modules`) — a print subsystem no phone has. So the
+  open question is not whether each CAN be built: it is whether a document that has to be
+  printed, or an emoji inserted from a keyboard, is a phone interaction at all, and what its
+  Adwaita expression would be if it were.
 - **The GTK layout widgets on NativeScript.** Six browser elements and their gallery blocks
   exist — `<gtk-separator>`, `<gtk-toggle-button>`, `<gtk-overlay>`, `<gtk-revealer>`,
   `<gtk-paned>` and `<gtk-expander>` — and the NativeScript port has none of the six, so the

@@ -1,0 +1,430 @@
+---
+title: Dialogs
+description: "GTK's four dialogs: the About window, the emoji chooser, and the page setup and print dialogs Unix platforms have instead of native ones — with live previews and their TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Two of these are **windows you show** and two are **surfaces you pop up from a widget**,
+and GTK treats the two kinds quite differently: the first is a `GtkDialog` with an action
+area, the second a `GtkPopover` with a search entry. libadwaita restyles all four in one
+place — a flat titlebar, a framed `paper` in the print preview — and adds nothing else.
+
+<MoreInfo title="What the browser replicas can and cannot do">
+All four render their real layout here. Two of them cannot do the one thing their GTK
+counterpart exists for: **nothing prints**, because a browser has no print backend, no
+CUPS over D-Bus and no spooler, and `<gtk-print-unix-dialog>` therefore takes its printer
+list as an input instead of discovering one. The **emoji table is a curated subset** of
+GTK's, because GTK's is a compiled 1.2 MB GVariant per language. Both facts are stated
+where they are visible: in the dialog's own block below and in each element's header.
+</MoreInfo>
+
+## About Dialog
+
+GTK's own about window, and **not** the libadwaita one: a `GtkWindow` whose headerbar
+holds a `GtkStackSwitcher` — no title text at all — over four pages. The main page is a
+dialog-size logo over the **program name** in bold, then version, comments, website,
+copyright and licence as centred labels. The other three pages exist only when they have
+content, and each has its own rule: **License** only for a `license-type` of `custom`
+*and* a licence string, **System** for any non-empty text, **Credits** for any credit
+list, any extra `addCreditSection` or a `translator-credits` that is not the untranslated
+gettext sentinel. A dialog with none of the three shows an empty headerbar, which is what
+GTK shows.
+
+Setting a `license-type` other than `custom` does something worth knowing: it **overwrites
+`license`** with the standard warranty preamble, links it to that licence's URL, and turns
+`wrap-license` on.
+
+<AdwWidget title="Gtk.AboutDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <!-- authors / documenters / artists are string arrays set as properties, e.g.
+         el.authors = ['Ada Lovelace', 'Grace Hopper'];
+         el.addCreditSection('Reviewed by', ['Tony Hoare']); -->
+    <!-- logo-icon-name: A named icon to use as the logo for the about box. -->
+    <!-- website: The URL for the link to the website of the program. -->
+    <!-- website-label: The label for the link to the website of the program. -->
+    <!-- system-information: Information about the system on which the program is running. -->
+    <gtk-about-dialog
+      open
+      program-name="Calculator"
+      version="48.1"
+      logo-icon-name="application-x-executable"
+      comments="An arithmetic calculator for the GNOME desktop."
+      website="https://gitlab.gnome.org/World/gnome-calculator"
+      website-label="GNOME Calculator"
+      license-type="gpl-3-0"
+      copyright="© 2026 The GNOME Project"
+      system-information="GTK 4.24.0
+glibc 2.42"
+    ></gtk-about-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const dialog = new Gtk.AboutDialog({
+        programName: 'Calculator',
+        version: '48.1',
+        logoIconName: 'application-x-executable-symbolic',
+        comments: 'An arithmetic calculator for the GNOME desktop.',
+        website: 'https://gitlab.gnome.org/World/gnome-calculator',
+        websiteLabel: 'GNOME Calculator',
+        copyright: '© 2026 The GNOME Project',
+        systemInformation: 'GTK 4.24.0\nglibc 2.42',
+    });
+
+    // Any type but CUSTOM overwrites the licence text with the warranty preamble.
+    dialog.set_license_type(Gtk.License.GPL_3_0);
+
+    // `char **` properties, which no attribute can carry.
+    dialog.set_authors(['Ada Lovelace <ada@example.org>', 'Grace Hopper']);
+    dialog.set_documenters(['Barbara Liskov']);
+    dialog.set_artists(['Margaret Hamilton']);
+    dialog.set_translator_credits('Alan Turing\nKatherine Johnson');
+    dialog.add_credit_section('Reviewed by', ['Tony Hoare <tony@example.org>']);
+
+    dialog.present(parent);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.AboutDialog {
+      program-name: _("Calculator");
+      version: "48.1";
+      logo-icon-name: "application-x-executable-symbolic";
+      comments: _("An arithmetic calculator for the GNOME desktop.");
+      website: "https://gitlab.gnome.org/World/gnome-calculator";
+      website-label: _("GNOME Calculator");
+      license-type: gpl_3_0;
+      copyright: "© 2026 The GNOME Project";
+      system-information: "GTK 4.24.0\nglibc 2.42";
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const dialog = new Gtk.AboutDialog({
+        programName: 'Calculator',
+        version: '48.1',
+        logoIconName: 'application-x-executable-symbolic',
+        comments: 'An arithmetic calculator for the GNOME desktop.',
+        website: 'https://gitlab.gnome.org/World/gnome-calculator',
+        websiteLabel: 'GNOME Calculator',
+        copyright: '© 2026 The GNOME Project',
+        systemInformation: 'GTK 4.24.0\nglibc 2.42',
+    });
+
+    // Any type but CUSTOM overwrites the licence text with the warranty preamble.
+    dialog.set_license_type(Gtk.License.GPL_3_0);
+
+    // `char **` properties, which no attribute can carry.
+    dialog.set_authors(['Ada Lovelace <ada@example.org>', 'Grace Hopper']);
+    dialog.set_documenters(['Barbara Liskov']);
+    dialog.set_artists(['Margaret Hamilton']);
+    dialog.set_translator_credits('Alan Turing\nKatherine Johnson');
+    dialog.add_credit_section('Reviewed by', ['Tony Hoare <tony@example.org>']);
+
+    dialog.present(parent);
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="A credit line carries its own link">
+`"Ada <ada@example.org>"` and `"Ada https://example.org"` are both **one** string, and both
+render as a link — the same rule `parse_person` applies in libadwaita and
+`add_credits_section` applies here. The bracket form is an email, a bare `http(s)` URL is
+not, and the link is only as long as the text up to the first space, newline, tab or `>`.
+</MoreInfo>
+
+## Emoji Chooser
+
+The popover a text widget opens to insert an emoji, and the whole of it is **search**: a
+term matches when it is a **prefix** of a word in the emoji's name or in one of its
+keywords, a section with no match at all disappears heading included, and a search that
+empties every section shows the *No Results Found* page instead of the list. The toolbar
+below the list does two jobs — its buttons jump to a section, and the checked one follows
+the scroll position — which is why **Ctrl+N** and **Ctrl+P** move by section rather than by
+pixel, and why **Enter** picks the first result.
+
+Picking one emits **emoji-picked** with the Unicode *sequence* (what an entry inserts, not
+what a label shows) and records it in **Recents**, capped at 21 with no duplicates. Holding
+**Ctrl** keeps the popover open so a second one can be added; a second click on an emoji
+with skin tones opens its variants.
+
+<AdwWidget title="Gtk.EmojiChooser" padding="flush" stage="height: 420px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <div class="sb-emoji-row" style="position: relative; display: flex; gap: 8px; align-items: center;">
+      <input class="sb-emoji-entry" type="text" placeholder="Type a message…" />
+      <div class="sb-emoji-anchor">
+        <button class="adw-button flat circular" aria-label="Insert an emoji" onclick="document.querySelector('gtk-emoji-chooser').popup()">
+          <!-- icon-name: The name of the icon in the icon theme. -->
+          <gtk-image icon-name="face-smile"></gtk-image>
+        </button>
+        <!-- position: How to place the popover, relative to its parent. -->
+        <gtk-emoji-chooser position="bottom" align="end"></gtk-emoji-chooser>
+      </div>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const entry = new Gtk.Entry({ placeholderText: 'Type a message…' });
+    const chooser = Gtk.EmojiChooser.new();
+
+    // The signal carries the Unicode SEQUENCE, which is what an entry inserts.
+    chooser.connect('emoji-picked', (_chooser, text) => {
+        entry.text = entry.text + text;
+    });
+
+    // The popover's anchor is the widget it is a child of.
+    const button = new Gtk.Button({ iconName: 'face-smile-symbolic' });
+    chooser.set_parent(button);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: horizontal;
+      spacing: 8;
+
+      Gtk.Entry {
+        placeholder-text: _("Type a message…");
+      }
+
+      Gtk.EmojiChooser {
+        // A popover is shown by popping it up from an anchor, and a `.blp` has no call to
+        // make: the widget is here for the CSS-node contract the stylesheet selects on.
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const entry = new Gtk.Entry({ placeholderText: 'Type a message…' });
+    const chooser = Gtk.EmojiChooser.new();
+
+    // The signal carries the Unicode SEQUENCE, which is what an entry inserts.
+    chooser.connect('emoji-picked', (_chooser, text) => {
+        entry.text = entry.text + text;
+    });
+
+    // The popover's anchor is the widget it is a child of.
+    const button = new Gtk.Button({ iconName: 'face-smile-symbolic' });
+    chooser.set_parent(button);
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Where the emoji come from">
+GTK reads `/org/gtk/libgtk/emoji/<lang>.data` — a **compiled GVariant** of about 1.2 MB per
+language, holding each emoji's code points, its name in two languages and two keyword
+lists. Nothing in a browser can read that serialisation, so `<gtk-emoji-chooser>` ships a
+curated table with the same **shape**: the same nine sections in the same order, the same
+headings, the same `emoji-picked` sequence and the same prefix search over names and
+keywords. It is smaller, and a reader who searches for something it does not ship finds the
+*No Results Found* page — which is the same thing GTK shows for a search that matches
+nothing.
+</MoreInfo>
+
+## Page Setup Dialog
+
+The page setup dialog Unix platforms have instead of a native one: two drop downs, one
+label and four buttons. The label is the interesting part — it reports the chosen sheet as
+`W × H unit` and puts the **four margins in its tooltip**, and the numbers go through GTK's
+own `double_to_string`, which prints two decimals in inch, one in millimetres and then
+strips the zeros, so a whole millimetre comes out with no decimal point at all.
+
+The four orientation buttons are one radio group, and `set_page_setup` writes them. A setup
+whose margins match no row in the list is **appended** rather than dropped, because that is
+what the C does when `add_item` is set — which is the same call this dialog always makes.
+
+<AdwWidget title="Gtk.PageSetupUnixDialog" padding="flush" stage="height: 320px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <gtk-page-setup-unix-dialog open title="Page Setup"></gtk-page-setup-unix-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const dialog = Gtk.PageSetupUnixDialog.new('Page Setup', parent);
+
+    // The values the dialog takes: a paper size, an orientation and four margins.
+    const setup = new Gtk.PageSetup();
+    setup.set_paper_size_and_default_margins(Gtk.PaperSize.new('iso_a4'));
+    setup.set_orientation(Gtk.PageOrientation.LANDSCAPE);
+    dialog.set_page_setup(setup);
+
+    // The printer list comes from a print backend, so the dialog starts with the one row
+    // it builds in code: "Any Printer", for portable documents.
+    dialog.set_print_settings(settings);
+
+    dialog.present();
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.PageSetupUnixDialog {
+      title: _("Page Setup");
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const dialog = Gtk.PageSetupUnixDialog.new('Page Setup', parent);
+
+    // The values the dialog takes: a paper size, an orientation and four margins.
+    const setup = new Gtk.PageSetup();
+    setup.set_paper_size_and_default_margins(Gtk.PaperSize.new('iso_a4'));
+    setup.set_orientation(Gtk.PageOrientation.LANDSCAPE);
+    dialog.set_page_setup(setup);
+
+    // The printer list comes from a print backend, so the dialog starts with the one row
+    // it builds in code: "Any Printer", for portable documents.
+    dialog.set_print_settings(settings);
+
+    dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="The last row opens a dialog you will not see">
+The paper list ends with **Manage Custom Sizes…**, and picking it puts the drop down back
+to the previous size and then presents the custom-paper dialog. That half runs in GTK and
+runs here; the dialog it presents needs the same backends as the printer list, because a
+custom paper size is a per-printer thing. So the row resets the selection and stops.
+</MoreInfo>
+
+## Print Dialog
+
+Seven notebook pages over a printer list, and **the capabilities are what make it a dialog
+rather than a form**. `manual-capabilities` is the half of the mask the *application* can
+handle, and every control on the first two pages reads it: copies, reverse, scale, the
+two-sided sheet picker, and whether **Preview** appears at all — visible, not merely
+enabled. **Collate** needs the `collate` capability *and* a copies count above one, because
+collating one copy is nothing.
+
+Three properties only decide what the dialog lets a user reach: **current-page** (without a
+page, *Current Page* is insensitive), **support-selection** (without it, *Selection* is not
+shown) and **has-selection** (with support but nothing to print, it is insensitive). And
+the one control that explains itself: the two page thumbnails under Copies change their
+**numbers** with Collate and Reverse, and the second column appears only above one copy.
+
+<AdwWidget title="Gtk.PrintUnixDialog" padding="flush" stage="height: 460px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <!-- manual-capabilities: Capabilities the application can handle. -->
+    <!-- current-page: The current page in the document. -->
+    <gtk-print-unix-dialog
+      open
+      title="Print"
+      manual-capabilities="copies|collate|reverse|scale|preview|page-set"
+      current-page="2"
+      support-selection
+    ></gtk-print-unix-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const dialog = Gtk.PrintUnixDialog.new('Print', parent);
+
+    // The APPLICATION's half of the capability mask, which gates every control.
+    dialog.set_manual_capabilities(
+        Gtk.PrintCapabilities.COPIES |
+            Gtk.PrintCapabilities.COLLATE |
+            Gtk.PrintCapabilities.REVERSE |
+            Gtk.PrintCapabilities.SCALE |
+            Gtk.PrintCapabilities.PREVIEW |
+            Gtk.PrintCapabilities.PAGE_SET,
+    );
+
+    // The three properties that decide what the dialog lets a user reach.
+    dialog.set_current_page(2);
+    dialog.set_support_selection(true);
+    dialog.set_has_selection(true);
+
+    const settings = new Gtk.PrintSettings();
+    settings.set_copies('2');
+    dialog.set_settings(settings);
+
+    dialog.present();
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.PrintUnixDialog {
+      title: _("Print");
+      current-page: 2;
+      support-selection: true;
+      // `manual-capabilities` is a flags value, and a `.blp` has no notation for one: the
+      // compiler reads a bare identifier as a reference to another object, so it is set from
+      // TypeScript — see the `gjs` pane.
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const dialog = Gtk.PrintUnixDialog.new('Print', parent);
+
+    // The APPLICATION's half of the capability mask, which gates every control.
+    dialog.set_manual_capabilities(
+        Gtk.PrintCapabilities.COPIES |
+            Gtk.PrintCapabilities.COLLATE |
+            Gtk.PrintCapabilities.REVERSE |
+            Gtk.PrintCapabilities.SCALE |
+            Gtk.PrintCapabilities.PREVIEW |
+            Gtk.PrintCapabilities.PAGE_SET,
+    );
+
+    // The three properties that decide what the dialog lets a user reach.
+    dialog.set_current_page(2);
+    dialog.set_support_selection(true);
+    dialog.set_has_selection(true);
+
+    const settings = new Gtk.PrintSettings();
+    settings.set_copies('2');
+    dialog.set_settings(settings);
+
+    dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Nothing here prints">
+The replica is the dialog: its layout, its page set and every derivation GTK runs over a
+printer's capabilities and options. The **Print** button does what the C's does when no
+printer accepts jobs — it is insensitive — and it says so by taking its printer list as an
+**input** (`printers`), because GTK's comes from `gtk_print_backend_load_modules` and a
+browser has no CUPS. The four option pages (Image Quality, Color, Finishing, Advanced) are
+the empty grids the C leaves them in when `_gtk_printer_get_options` has no printer to ask.
+
+One C detail worth naming: **embed-page-setup** is the only thing that makes the paper size
+and orientation drop downs sensitive, and it is also what connects their `selected`
+handlers. That pairing is ported, so an un-embedded Page Setup page shows two dead drop
+downs exactly as GTK does.
+</MoreInfo>

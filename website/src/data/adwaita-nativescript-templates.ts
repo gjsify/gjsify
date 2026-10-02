@@ -115,4 +115,8 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Gtk.ApplicationWindow': "NativeScript's Page IS the window, and its menubar would be a Gio.MenuModel on the application, which GtkBox.addChild cannot take and no XML attribute carries (status/open-todos/adwaita-ports.md).",
     'Adw.Toast': "AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.",
     'Adw.AlertDialog': "AdwAlertDialog extends Observable, not View: it has no place in a view tree.",
+    'Gtk.AboutDialog': "The NativeScript port has no such dialog: AdwAboutDialog is the about dialog it ships, and it takes applicationName and version and nothing else — GTK's credits grid, stack switcher and licence page have no member to land in (status/open-todos/adwaita-ports.md).",
+    'Gtk.EmojiChooser': "The NativeScript port has no emoji chooser and no popover to host one: AdwComboRow opens the platform action() sheet instead, and @nativescript/core ships no emoji set to fill a grid with (status/open-todos/adwaita-ports.md).",
+    'Gtk.PageSetupUnixDialog': "The NativeScript port has no page setup dialog: AdwPreferencesDialog is its only page surface, and GtkBox has no page-setup model to read a paper size or four margins from (status/open-todos/adwaita-ports.md).",
+    'Gtk.PrintUnixDialog': "The NativeScript port has no print dialog: AdwPreferencesDialog has no printer list and no capabilities, and @nativescript/core ships nothing that talks to a print backend (status/open-todos/adwaita-ports.md).",
 };

@@ -235,6 +235,14 @@ const TITLED_AFTER = {
     // meta file is `gtk-spinner.meta.ts` (the storybook keys every meta on its file
     // name, so a second `spinner.meta.ts` would silently displace one of the two), and
     // this row is what lets it carry a block titled after the GTK one.
+    // `Gtk.AboutDialog` and `Adw.AboutDialog` are two DIFFERENT widgets whose BARE name is
+    // the same, and this file joins on the bare name — which is why the GTK one needs a meta
+    // of its own name (`gtk-about-dialog.meta.ts`) AND a row to carry a block titled after
+    // it. Same shape as `gtk-spinner` below, and for the same reason.
+    'gtk-about-dialog': {
+        title: 'Gtk.AboutDialog',
+        reason: "Gtk.AboutDialog shares its bare name with Adw.AboutDialog, which holds `Feedback/About Dialog`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/dialogs/. Not a style-class story — GTK's is a GtkWindow with a stack switcher over Credits, License and System pages, and libadwaita's is an AdwDialog with a navigation view and preference rows, so the two render differently in every respect a reader can see.",
+    },
     'gtk-header-bar': {
         title: 'Gtk.HeaderBar',
         reason: 'the Adwaita half of the same widget already holds `Layout/Header Bar`, and this meta is the GTK one of the two. Same reason `gtk-spinner` below carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — `Adw.HeaderBar` centres an `AdwWindowTitle` with a subtitle, `Gtk.HeaderBar` centres a derived `GtkLabel` with none.',

@@ -94,6 +94,17 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-view-switcher': {
         'policy': 'The policy to determine which mode to use.',
     },
+    'gtk-about-dialog': {
+        'comments': null,
+        'copyright': null,
+        'license-type': null,
+        'logo-icon-name': 'A named icon to use as the logo for the about box.',
+        'program-name': null,
+        'system-information': 'Information about the system on which the program is running.',
+        'version': null,
+        'website': 'The URL for the link to the website of the program.',
+        'website-label': 'The label for the link to the website of the program.',
+    },
     'gtk-action-bar': {
         'revealed': 'Controls whether the action bar shows its contents.',
     },
@@ -134,6 +145,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-editable-label': {
         'text': null,
     },
+    'gtk-emoji-chooser': {
+        'position': 'How to place the popover, relative to its parent.',
+    },
     'gtk-expander': {
         'label': null,
     },
@@ -159,6 +173,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-header-bar': {
         'show-title-buttons': 'Whether to show title buttons like close, minimize, maximize.',
     },
+    'gtk-image': {
+        'icon-name': 'The name of the icon in the icon theme.',
+    },
     'gtk-label': {
         'label': null,
     },
@@ -175,6 +192,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-list-view': {
         'model': null,
         'show-separators': null,
+    },
+    'gtk-page-setup-unix-dialog': {
+        'title': null,
     },
     'gtk-paned': {
         'orientation': null,
@@ -197,6 +217,12 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     },
     'gtk-popover-menu-bar': {
         'menu-model': 'The `GMenuModel` from which the menu bar is created.',
+    },
+    'gtk-print-unix-dialog': {
+        'current-page': 'The current page in the document.',
+        'manual-capabilities': 'Capabilities the application can handle.',
+        'support-selection': null,
+        'title': null,
     },
     'gtk-progress-bar': {
         'fraction': 'The fraction of total work that has been completed.',
@@ -284,18 +310,22 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-preferences-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
+    'gtk-about-dialog open': 'declarative-state',
     'gtk-button flat': 'style-class',
     'gtk-check-button checked': 'renamed',
     'gtk-check-button indeterminate': 'renamed',
+    'gtk-emoji-chooser align': 'port-only',
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
     'gtk-list-view selection-mode': 'port-only',
+    'gtk-page-setup-unix-dialog open': 'declarative-state',
     'gtk-password-entry placeholder': 'renamed',
     'gtk-popover align': 'port-only',
     'gtk-popover open': 'declarative-state',
     'gtk-popover-menu align': 'port-only',
     'gtk-popover-menu open': 'declarative-state',
+    'gtk-print-unix-dialog open': 'declarative-state',
     'gtk-progress-bar pulsing': 'declarative-state',
     'gtk-search-entry placeholder': 'renamed',
     'gtk-tree-expander depth': 'port-only',
@@ -310,12 +340,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 158,
-    glossed: 64,
-    nameSuffices: 68,
-    divergent: 25,
+    set: 178,
+    glossed: 72,
+    nameSuffices: 76,
+    divergent: 29,
     authored: 1,
-    commentLines: 92,
+    commentLines: 100,
 };
 
 /**

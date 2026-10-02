@@ -226,6 +226,21 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'gtk-check-button checked': { kind: 'renamed', girProperty: 'active' },
     'gtk-check-button indeterminate': { kind: 'renamed', girProperty: 'inconsistent' },
 
+    // `open` is the whole libadwaita dialog API — `present()` / `close()` — and the GTK
+    // dialogs are opened the same way (`gtk_window_present`). The elements expose the state
+    // as an attribute so a page can DECLARE a dialog open, which is what ADR 0033 prefers
+    // over an imperative call in a template. None of the three has a GIR property for it:
+    // `Gtk.Dialog` inherits `visible` from `Gtk.Widget`, and `open` is this port's spelling.
+    'gtk-about-dialog open': { kind: 'declarative-state' },
+    'gtk-page-setup-unix-dialog open': { kind: 'declarative-state' },
+    'gtk-print-unix-dialog open': { kind: 'declarative-state' },
+
+    // `align` is a PORT-ONLY attribute of `<gtk-popover>` and the chooser inherits it with
+    // the surface: `GtkPopover` has `position` as a property (which decides which SIDE the
+    // surface sits on) but no property for which EDGE it lines up with — the upstream value
+    // lives in the `align` CSS, and this renderer mirrors that in an attribute.
+    'gtk-emoji-chooser align': { kind: 'port-only' },
+
     // `pulsing` is GTK's ACTIVITY MODE, which is a method (`gtk_progress_bar_pulse()`,
     // gtkprogressbar.c:830-847) and a class on the progress NODE — there is no property
     // for it, because a bar is pulsed or it is not. The element exposes the state as an
@@ -351,8 +366,12 @@ const FUNCTION_WORDS = stemmed(
  * That is {@link SHARED_VOCABULARY_MIN_DOCS} exactly, so the frequency floor now
  * accounts for it and a hand-written entry suppressing the same word is the copy this
  * file exists to delete. The other three are still under the floor.
+ *
+ * `current` LEFT it the same way, when the gtk/dialogs page added
+ * `Gtk.PrintUnixDialog:current-page` ("The current page in the document.") to the two docs
+ * already spending it.
  */
-const PRESENTATION_WORDS = stemmed('current information below url');
+const PRESENTATION_WORDS = stemmed('information below url');
 
 /**
  * How many of the corpus's docs a word must appear in before it stops distinguishing

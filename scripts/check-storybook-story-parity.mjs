@@ -100,6 +100,14 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no bottom bar, so the story is rendered by the other two targets only.',
     'application-window@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window class to drive one property on and the story is rendered by the other two targets only.',
+    'emoji-chooser@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no popover to host an emoji chooser in and no emoji table behind it, so the story is rendered by the other two targets only.',
+    'gtk-about-dialog@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port\'s about dialog is AdwAboutDialog, a GridLayout of rows rather than GTK\'s window with a stack switcher, so the story is rendered by the other two targets only.',
+    'page-setup-unix-dialog@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no page-setup model to read a paper size or four margins from, so the story is rendered by the other two targets only.',
+    'print-unix-dialog@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no print backend, no printer list and no capabilities to gate a dialog on, so the story is rendered by the other two targets only.',
     'check-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-check-button> on NativeScript": @nativescript/core ships no checkbox view, so the port has none and the story is rendered by the other two targets only.',
     'gtk-header-bar@nativescript':

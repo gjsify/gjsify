@@ -21,6 +21,7 @@
 // are the same write and nothing in this package had to learn a second input shape.
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
+export { GtkAboutDialog as AboutDialog } from '../elements/gtk-about-dialog.js';
 export { GtkActionBar as ActionBar } from '../elements/gtk-action-bar.js';
 export { GtkApplicationWindow as ApplicationWindow } from '../elements/gtk-application-window.js';
 export { GtkAspectFrame as AspectFrame } from '../elements/gtk-aspect-frame.js';
@@ -32,6 +33,7 @@ export { GtkColorDialogButton as ColorDialogButton } from '../elements/gtk-color
 export { GtkColumnView as ColumnView } from '../elements/gtk-column-view.js';
 export { GtkDropDown as DropDown } from '../elements/gtk-drop-down.js';
 export { GtkEditableLabel as EditableLabel } from '../elements/gtk-editable-label.js';
+export { GtkEmojiChooser as EmojiChooser } from '../elements/gtk-emoji-chooser.js';
 export { GtkEntry as Entry } from '../elements/gtk-entry.js';
 export { GtkExpander as Expander } from '../elements/gtk-expander.js';
 export { GtkFixed as Fixed } from '../elements/gtk-fixed.js';
@@ -47,12 +49,14 @@ export { GtkLevelBar as LevelBar } from '../elements/gtk-level-bar.js';
 export { GtkListView as ListView } from '../elements/gtk-list-view.js';
 export { GtkMenuButton as MenuButton } from '../elements/gtk-menu-button.js';
 export { GtkOverlay as Overlay } from '../elements/gtk-overlay.js';
+export { GtkPageSetupUnixDialog as PageSetupUnixDialog } from '../elements/gtk-page-setup-unix-dialog.js';
 export { GtkPaned as Paned } from '../elements/gtk-paned.js';
 export { GtkPasswordEntry as PasswordEntry } from '../elements/gtk-password-entry.js';
 export { GtkPopover as Popover } from '../elements/gtk-popover.js';
 export { GtkPopoverBin as PopoverBin } from '../elements/gtk-popover-bin.js';
 export { GtkPopoverMenu as PopoverMenu } from '../elements/gtk-popover-menu.js';
 export { GtkPopoverMenuBar as PopoverMenuBar } from '../elements/gtk-popover-menu-bar.js';
+export { GtkPrintUnixDialog as PrintUnixDialog } from '../elements/gtk-print-unix-dialog.js';
 export { GtkProgressBar as ProgressBar } from '../elements/gtk-progress-bar.js';
 export { GtkRevealer as Revealer } from '../elements/gtk-revealer.js';
 export { GtkScale as Scale } from '../elements/gtk-scale.js';

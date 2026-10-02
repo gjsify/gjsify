@@ -83,6 +83,7 @@ import {
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
+import { faceSmileSymbolic } from '@gjsify/adwaita-icons/emotes';
 import {
     folderDocumentsSymbolic,
     folderDownloadSymbolic,
@@ -118,6 +119,9 @@ export const ICON_FALLBACK_NAME = 'image-missing';
  */
 const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'avatar-default': avatarDefaultSymbolic,
+    // The `Gtk.EmojiChooser` gallery block's "insert an emoji" button, the same face GTK
+    // puts on an entry's prefix.
+    'face-smile': faceSmileSymbolic,
     'camera-photo': cameraPhotoSymbolic,
     'contact-new': contactNewSymbolic,
     'document-edit': documentEditSymbolic,

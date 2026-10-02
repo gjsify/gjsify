@@ -161,6 +161,12 @@ const KNOWN_GAPS = {
     // is in the ATTRIBUTE NAME only. `use-underline` is a mnemonic hook on a `GtkLabel`
     // child (gtkcheckbutton.c:693-702); the label here is a plain `<span>` with no
     // keyval, so there is nothing for it to underline.
+    // The three GStrv credit lists (`char **`). `<adw-about-dialog>` sets its own
+    // `developers` / `designers` / `artists` / `documenters` as PROPERTIES and its entry
+    // above is the ledger for them, so this element's `authors` / `documenters` / `artists`
+    // are properties too — an attribute is one string, and a credit line is a `char *` with
+    // its own `<email>` / URL syntax inside it. `parseCreditPerson` reads them.
+    'gtk-about-dialog': ['artists', 'authors', 'documenters'],
     'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
     'gtk-entry': [

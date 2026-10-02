@@ -153,6 +153,11 @@
 @use 'navigation_view';
 @use 'bottom_sheet';
 @use 'sidebar';
+// GTK's own dialogs: the about window's layout, the emoji chooser's nodes, and the two
+// Unix print dialogs. After `popover` and `entry`, which the emoji chooser hosts.
+@use 'gtk_about_dialog';
+@use 'emoji_chooser';
+@use 'print_dialogs';
 @use 'about_dialog';
 @use 'alert_dialog';
 @use 'preferences_dialog';

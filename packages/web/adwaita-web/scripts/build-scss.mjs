@@ -35,7 +35,7 @@ import {
     viewRefreshSymbolic,
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
-import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
+import { cameraPhotoSymbolic, networkWirelessSymbolic, printerSymbolic } from '@gjsify/adwaita-icons/devices';
 import {
     folderDocumentsSymbolic,
     folderDownloadSymbolic,
@@ -49,6 +49,21 @@ import {
     mailUnreadSymbolic,
     starredSymbolic,
 } from '@gjsify/adwaita-icons/status';
+import { dialogWarningSymbolic } from '@gjsify/adwaita-icons/status';
+import {
+    emojiActivitiesSymbolic,
+    emojiBodySymbolic,
+    emojiFlagsSymbolic,
+    emojiFoodSymbolic,
+    emojiNatureSymbolic,
+    emojiObjectsSymbolic,
+    emojiPeopleSymbolic,
+    emojiRecentSymbolic,
+    emojiSymbolsSymbolic,
+    emojiTravelSymbolic,
+} from '@gjsify/adwaita-icons/categories';
+import { editFindSymbolic } from '@gjsify/adwaita-icons/actions';
+import { faceSmileSymbolic } from '@gjsify/adwaita-icons/emotes';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
@@ -163,6 +178,27 @@ const ICONS = {
     // The libadwaita fallback for a NULL/empty icon-name: every view switcher substitutes
     // it, so it has to resolve to a real glyph rather than to an empty mask.
     'image-missing': imageMissingSymbolic,
+    // `<gtk-emoji-chooser>`'s ten section buttons and its two `edit-find` glyphs (the
+    // search entry's leading icon and the empty page's 72px one). The categories are the
+    // `.ui`'s own icon names, one per section, and a section toolbar with nine identical
+    // squares would be a worse replica than the ~15 KB of stylesheet these cost.
+    'emoji-recent': emojiRecentSymbolic,
+    'emoji-people': emojiPeopleSymbolic,
+    'emoji-body': emojiBodySymbolic,
+    'emoji-nature': emojiNatureSymbolic,
+    'emoji-food': emojiFoodSymbolic,
+    'emoji-travel': emojiTravelSymbolic,
+    'emoji-activities': emojiActivitiesSymbolic,
+    'emoji-objects': emojiObjectsSymbolic,
+    'emoji-symbols': emojiSymbolsSymbolic,
+    'emoji-flags': emojiFlagsSymbolic,
+    'edit-find': editFindSymbolic,
+    // `<gtk-print-unix-dialog>`'s printer-list icon column and its conflicts action bar.
+    printer: printerSymbolic,
+    // The emoji story's "insert an emoji" button, which is the same face GTK puts on its
+    // own entry prefix.
+    'face-smile': faceSmileSymbolic,
+    'dialog-warning': dialogWarningSymbolic,
     // `<gtk-expander>`'s disclosure arrow — all THREE of `_expanders.scss`'s
     // `-gtk-icon-source` values, because the stylesheet swaps between them on `:checked`
     // and on `:dir(rtl)` and the web partial swaps the mask instead.
