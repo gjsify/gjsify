@@ -94,6 +94,7 @@ export { AdwSpinner as Spinner } from '../elements/adw-spinner.js';
 export { AdwSplitButton as SplitButton } from '../elements/adw-split-button.js';
 export { AdwStatusPage as StatusPage } from '../elements/adw-status-page.js';
 export { AdwSwitchRow as SwitchRow } from '../elements/adw-switch-row.js';
+export { AdwTabBar as TabBar } from '../elements/adw-tab-bar.js';
 export { AdwTabButton as TabButton } from '../elements/adw-tab-button.js';
 export { AdwTabOverview as TabOverview } from '../elements/adw-tab-overview.js';
 export { AdwTabView as TabView } from '../elements/adw-tab-view.js';

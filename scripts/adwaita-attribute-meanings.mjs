@@ -99,6 +99,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'subtitle': null,
         'title': null,
     },
+    'adw-tab-bar': {
+        'view': 'The tab view the tab bar controls.',
+    },
     'adw-tab-button': {
         'view': null,
     },
@@ -442,12 +445,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 236,
-    glossed: 87,
+    set: 237,
+    glossed: 88,
     nameSuffices: 110,
     divergent: 38,
     authored: 1,
-    commentLines: 122,
+    commentLines: 126,
 };
 
 /**

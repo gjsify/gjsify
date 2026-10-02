@@ -111,6 +111,11 @@ const ROVING_LEDGER = {
     // their surface to `PopoverMenuView` and hand out no tabindex of their own.
     'packages/web/adwaita-web/src/elements/popover-menu.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-tab-view.ts': 'own keydown listener',
+    // `<adw-tab-bar>` is the same widget over a view it does not own, and it answers the
+    // arrow keys itself (`adw-tab-bar.c` connects the same moves the view does). Its chips
+    // come from `src/tab-chip.js`, which sets no tabindex of its own — the roving
+    // obligation moved with the file that registers the keys, which is the ledger working.
+    'packages/web/adwaita-web/src/elements/adw-tab-bar.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-toggle-group.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher-bar.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher.ts': 'via ./roving-focus.js',

@@ -362,6 +362,126 @@ listen to `clicked` to do so.
   </Fragment>
 </AdwWidget>
 
+## Tab Bar
+
+The tab bar on its own. libadwaita keeps it a **separate widget** from the view it drives,
+bound through its **view** property, which is what lets one bar sit over a view it does not
+own — a header bar of its own, or a strip that belongs to the window rather than to the
+pages. `Adw.TabView` carries a merged bar of its own, so reach for this one when the bar
+and the view are two things in your layout.
+
+Each tab is a chip with the page's title, its icon and its close button. Two action
+widgets may sit either side of the chips, and **inverted** swaps the order inside every
+chip: the close button moves to the leading edge and the indicator to the trailing one.
+
+<MoreInfo title="Autohide and expand-tabs">
+**Autohide** is the bar's default upstream, and it hides the strip once a single page is
+left — a pinned page keeps it up. **Expand-tabs** makes the chips fill the strip instead of
+sitting at their smallest size. Both default TRUE in libadwaita, and an HTML boolean
+attribute can only spell "present", so both are opt-in in the markup: write the attribute to
+get the behaviour, leave it off for the other one.
+</MoreInfo>
+
+<AdwWidget title="Adw.TabBar" padding="flush" stage="height: 260px; width: 100%; display: flex; flex-direction: column;">
+  <Fragment slot="preview">
+    ```html
+    <!-- view: The tab view the tab bar controls. -->
+    <adw-tab-bar view="tabs" style="flex: 0 0 auto;">
+      <button slot="start-action-widget" class="adw-button flat image-button" title="New page">
+        <gtk-image icon="list-add"></gtk-image>
+      </button>
+      <button slot="end-action-widget" class="adw-button flat image-button" title="Menu">
+        <gtk-image icon="view-more"></gtk-image>
+      </button>
+    </adw-tab-bar>
+    <adw-tab-view id="tabs" style="flex: 1;">
+      <adw-tab-page title="Overview">
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page icon="view-paged" title="Overview" description="A summary of everything at a glance."></adw-status-page>
+      </adw-tab-page>
+      <adw-tab-page title="Details">
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page icon="view-paged" title="Details" description="The specifics, broken down line by line."></adw-status-page>
+      </adw-tab-page>
+      <adw-tab-page title="History">
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page icon="view-paged" title="History" description="A log of every change made so far."></adw-status-page>
+      </adw-tab-page>
+    </adw-tab-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const tabView = new Adw.TabView({ vexpand: true });
+    for (const [title, body] of [
+        ['Overview', 'A summary of everything at a glance.'],
+        ['Details', 'The specifics, broken down line by line.'],
+        ['History', 'A log of every change made so far.'],
+    ] as const) {
+        const page = tabView.append(new Adw.StatusPage({ iconName: 'view-paged-symbolic', title, description: body }));
+        page.title = title;
+    }
+
+    // The bar is a widget of its own over the view; `autohide` and `expand-tabs` both
+    // default TRUE here, so the strip would start collapsed without the first.
+    const tabBar = new Adw.TabBar({ view: tabView, autohide: false });
+    tabBar.startActionWidget = new Gtk.Button({ iconName: 'list-add-symbolic', cssClasses: ['flat'] });
+    tabBar.endActionWidget = new Gtk.Button({ iconName: 'view-more-symbolic', cssClasses: ['flat'] });
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+    box.append(tabBar);
+    box.append(tabView);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      orientation: vertical;
+
+      Adw.TabBar {
+        view: tabs;
+        autohide: false;
+
+        start-action-widget: Gtk.Button {
+          icon-name: "list-add-symbolic";
+          styles ["flat"]
+        };
+      }
+
+      Adw.TabView tabs {
+        vexpand: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
+    // namespace and keeps the package import.
+    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
+
+    const page = (title: string, body: string): Adw.StatusPage =>
+        new Adw.StatusPage({ iconName: 'view-paged-symbolic', title, description: body });
+
+    // The port has no Adw.TabBar: it draws the chips inside its own tab view, so the
+    // strip is not a view here and `view` has nothing to bind to.
+    const tabView = new Adw.TabView();
+    tabView.setViews([
+        { title: 'Overview', content: page('Overview', 'A summary of everything at a glance.') },
+        { title: 'Details', content: page('Details', 'The specifics, broken down line by line.') },
+        { title: 'History', content: page('History', 'A log of every change made so far.') },
+    ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Tab Overview
 
 The **overview** is every page at once: a grid of thumbnails over the tab view, with the

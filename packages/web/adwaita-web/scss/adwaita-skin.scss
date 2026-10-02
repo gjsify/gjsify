@@ -179,6 +179,11 @@
 @use 'overlay_split_view';
 @use 'navigation_split_view';
 @use 'carousel';
+// <adw-tab-bar> BEFORE <adw-tab-view>, and only because upstream writes both in ONE file:
+// `tabbar`, `tabbox` and `tab` (_tab-view.scss:1-95). The chip rules here and the merged
+// bar's are the same declarations against the same class names, so whichever partial is
+// emitted second would win on source order for a document that nests one bar in the other.
+@use 'tab_bar';
 @use 'tab_view';
 @use 'view_switcher';
 @use 'inline_view_switcher';

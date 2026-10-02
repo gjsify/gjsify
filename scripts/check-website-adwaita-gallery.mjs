@@ -723,9 +723,14 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.ViewSwitcher':
         'property: the port has no Adw.ViewStack page API behind the switcher — setViews() takes title, icon ' +
         'and content together, where GTK adds each page to the stack and binds the switcher to it.',
+    'Adw.TabBar':
+        'property: the port draws its chips inside AdwTabView, so it ships no Adw.TabBar view — and this ' +
+        "block's bar is bound to the view by an id reference where the pane above passes the element.",
     'Adw.TabView':
-        'property: the port has no Adw.TabBar and no Adw.TabPage, so setViews() carries the chips and the ' +
-        'pages together and there is no page object to set a title on.',
+        'property: the port has no Adw.TabPage, so setViews() carries the chips and the pages together and ' +
+        'there is no page object to set a title on; and it ships no Adw.TabBar view either, so the bar this ' +
+        "pane builds over the view is not a view there — <adw-tab-bar> is the browser's, and it binds " +
+        'through an id where this pane passes the element.',
     'Adw.InlineViewSwitcher':
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',

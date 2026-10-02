@@ -112,6 +112,7 @@ export * from './view-switching/notebook.meta.js';
 export * from './view-switching/stack-sidebar.meta.js';
 export * from './view-switching/stack-switcher.meta.js';
 export * from './view-switching/stack.meta.js';
+export * from './view-switching/tab-bar.meta.js';
 export * from './view-switching/tab-button.meta.js';
 export * from './view-switching/tab-overview.meta.js';
 export * from './view-switching/view-switcher-sidebar.meta.js';

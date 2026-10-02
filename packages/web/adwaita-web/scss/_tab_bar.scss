@@ -1,0 +1,317 @@
+// _tab_bar.scss — <adw-tab-bar>, libadwaita's tab bar as the separate widget it is: a
+// headerbar-coloured strip holding one chip per page, with an action widget on either
+// side of the chips and a two-pixel overflow bar underneath them.
+//
+// The chip rules below are the SAME declarations `scss/_tab_view.scss` writes for
+// `<adw-tab-view>`'s merged bar, from the same upstream block: `tabbar` / `tabbox` / `tab`
+// in refs/libadwaita/src/stylesheet/widgets/_tab-view.scss:1-95 with the chip's own
+// metrics from :154-176. Two copies rather than one shared partial, and deliberately so —
+// the merged bar is what every existing `<adw-tab-view>` test measures (it queries
+// `.adw-tab-bar` inside the view), so lifting its rules into a placeholder both selectors
+// `@extend` would change the compiled stylesheet for a widget this package did not touch.
+// The chip's own MARKUP is shared instead, in src/tab-chip.ts, which is where a change to
+// what a chip contains belongs.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-view.scss (tabbar .box,
+//   tabbox + its separator / revealer > indicator, tab, tabbox.single-tab tab,
+//   .start-action / .end-action, %tabbar-inline)
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:270 ($selected_color, the 10% the
+//   selected chip and the hover/active terms above it are mixed from)
+// Copyright (c) 2024-2025 Alice Mikhaylenko / Purism SPC. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-tab-bar {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  // `padding: 1px; padding-top: 0` — the strip's own 1px inset, which is where the
+  // separator between it and the view below comes from.
+  padding: 0 1px 1px;
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+  // libadwaita's inset bottom shade under the bar.
+  box-shadow: inset 0 -1px var(--headerbar-shade-color);
+  // The strip is the ONE scroll window in the widget: `AdwTabBox` sits in a
+  // `GtkScrolledWindow`, and pinned tabs stay outside it.
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &[hidden] {
+    display: none;
+  }
+
+  @media (prefers-contrast: more) {
+    box-shadow: inset 0 -1px var(--border-color);
+  }
+
+  // `%tabbar-inline`, the `.inline` style class (adw-tab-bar.c:65-69): the bar looks like
+  // part of an AdwHeaderBar by default, and this removes its background so it can sit in
+  // another context instead.
+  &.inline {
+    background-color: transparent;
+    color: inherit;
+    box-shadow: none;
+    padding-bottom: 0;
+  }
+
+  // `AdwBin`s either side of the box (adw-tab-bar.ui). The two `padding-*-: 0` rules are
+  // libadwaita's `:dir()` pair for exactly this: the action widget sits flush against the
+  // chips on the side it is on, which logical properties say once instead of twice.
+  .adw-tab-bar-start-action,
+  .adw-tab-bar-end-action {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 6px 5px;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .adw-tab-bar-start-action {
+    padding-inline-end: 0;
+  }
+
+  .adw-tab-bar-end-action {
+    padding-inline-start: 0;
+  }
+
+  .adw-tab-box {
+    display: flex;
+    align-items: stretch;
+    flex: 1 1 auto;
+    // `padding-bottom: 6px; padding-top: 6px; min-height: 34px`.
+    padding: 6px 0;
+    min-height: 34px;
+  }
+
+  // `inverted` — the box lays its children out the other way round, which is what puts a
+  // non-pinned tab's close button at the BEGINNING and its indicator at the end
+  // (adw-tab-bar.c:636-644).
+  &[inverted] .adw-tab-box {
+    flex-direction: row-reverse;
+  }
+
+  // A single tab draws no background at all (`tabbox.single-tab tab`, :79-87).
+  &.single-tab .adw-tab {
+    &,
+    &:hover,
+    &:active {
+      background: none;
+    }
+  }
+
+  // `revealer > indicator` (:44-55): the two-pixel accent bar under the chips, shown
+  // exactly while the strip cannot show them all.
+  .adw-tab-box-overflow {
+    flex: none;
+    align-self: center;
+    min-width: 2px;
+    border-radius: 2px;
+    margin: 3px 6px;
+    background-color: color-mix(in srgb, var(--accent-color) 50%, transparent);
+
+    &[hidden] {
+      display: none;
+    }
+
+    @media (prefers-contrast: more) {
+      background-color: var(--accent-color);
+    }
+  }
+
+  // --- a single tab ------------------------------------------------------------
+  // `tabbar, dnd > tab` (:154-176) for the metrics, `tab` (:56-77) for the states.
+  .adw-tab {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    // `min-height: 26px; padding: 4px`.
+    min-height: 26px;
+    padding: 4px;
+    margin: 0;
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: transparent;
+    color: inherit;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 150ms ease-in-out;
+
+    &:hover {
+      background-color: color-mix(in srgb, currentColor 7%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 16%, transparent);
+    }
+
+    // `:selected` is libadwaita's, and `$selected_color` is the currentColor 10% mix
+    // (_colors.scss:270); the two hover/active terms under it are the 13% and the 19%.
+    &.active {
+      background-color: color-mix(in srgb, currentColor 10%, transparent);
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 13%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 19%, transparent);
+      }
+    }
+
+    @media (prefers-contrast: more) {
+      &:hover,
+      &:active,
+      &.active {
+        box-shadow: inset 0 0 0 1px var(--border-color);
+      }
+    }
+  }
+
+  // The thin separators between tabs (`tabbox > separator`, :29-38), hidden next to the
+  // selected or the hovered one — which is `update_separators` in the element.
+  .adw-tab + .adw-tab::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 3px;
+    bottom: 3px;
+    width: 1px;
+    background-color: currentColor;
+    opacity: 0.2;
+    transition: opacity 150ms ease-in-out;
+    pointer-events: none;
+  }
+
+  .adw-tab.active + .adw-tab::before,
+  .adw-tab + .adw-tab.active::before,
+  .adw-tab:hover + .adw-tab::before,
+  .adw-tab + .adw-tab:hover::before {
+    opacity: 0;
+  }
+
+  .adw-tab-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .adw-tab-icon,
+  .adw-tab-indicator {
+    flex-shrink: 0;
+    // `indicator` (:166-172): the two-pixel accent underline, which is the page's own
+    // attention indicator and NOT the overflow bar above.
+    width: 16px;
+    height: 16px;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // `AdwTabPage:loading` swaps the icon image for the SAME paintable `Adw.Spinner` uses, so
+  // the chip mounts a real `<adw-spinner>` rather than a second ring drawn in CSS.
+  .adw-tab-spinner {
+    flex: none;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // A pinned tab is a single-glyph chip: libadwaita hides both the title and the close
+  // button at construction (adw-tab.c:645-650), and `tabCloseVisible` carries the same rule
+  // in the element.
+  .adw-tab.pinned {
+    padding: 0 4px;
+
+    .adw-tab-title {
+      display: none;
+    }
+  }
+
+  // `AdwTabPage:needs-attention` — the accent underline libadwaita animates in.
+  .adw-tab.needs-attention::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    width: 12px;
+    height: 2px;
+    transform: translateX(-50%);
+    border-radius: 1px;
+    background-color: var(--accent-bg-color);
+  }
+
+  // The close affordance: `button.image-button` inside a tab (:158-164) — a 24px round
+  // button with no fill of its own. Presence is decided in JS by `tabCloseVisible`.
+  .adw-tab-close {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    position: relative;
+    min-width: 24px;
+    min-height: 24px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 99px;
+    background-color: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+    transition:
+      background-color 150ms ease-in-out,
+      opacity 150ms ease-in-out;
+
+    &[hidden] {
+      display: none;
+    }
+
+    &:hover {
+      opacity: 1;
+      background-color: var(--button-hover-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 9px;
+      height: 1.5px;
+      background-color: currentColor;
+      border-radius: 1px;
+    }
+
+    &::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    &::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+  }
+
+  // `expand-tabs` — chips stretch to fill the strip evenly instead of sitting at their
+  // minimum size (adw-tab-bar.c:622-634, delegated to the tab box).
+  &[expand-tabs] .adw-tab {
+    flex: 1 1 0;
+    max-width: 200px;
+  }
+}

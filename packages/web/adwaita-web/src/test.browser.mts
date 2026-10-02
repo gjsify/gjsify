@@ -97,6 +97,7 @@ import { GtkFontDialogButtonTest } from './gtk-font-dialog-button.spec.js';
 import { AdwBinTest } from './adw-bin.spec.js';
 import { AdwClampScrollableTest } from './adw-clamp-scrollable.spec.js';
 import { AdwPreferencesRowTest } from './adw-preferences-row.spec.js';
+import { AdwTabBarTest } from './adw-tab-bar.spec.js';
 import { AdwTabButtonTest } from './adw-tab-button.spec.js';
 import { AdwTabOverviewTest } from './adw-tab-overview.spec.js';
 import { AdwViewSwitcherSidebarTest } from './adw-view-switcher-sidebar.spec.js';
@@ -204,6 +205,7 @@ run({
     AdwBinTest,
     AdwClampScrollableTest,
     AdwPreferencesRowTest,
+    AdwTabBarTest,
     AdwTabButtonTest,
     AdwTabOverviewTest,
     AdwViewSwitcherSidebarTest,

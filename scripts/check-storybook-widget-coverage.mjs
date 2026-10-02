@@ -501,6 +501,10 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'tab-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'tab-button': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',

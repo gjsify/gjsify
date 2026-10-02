@@ -666,6 +666,8 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no bare preferences row: AdwActionRow is the row it ships, and a title-only base has no template of its own (status/open-todos/adwaita-ports.md).',
     'Adw.TabButton':
         'The NativeScript port has no tab button: AdwTabView is the only tab widget it ships, and its page counter is not a separate view (status/open-todos/adwaita-ports.md).',
+    'Adw.TabBar':
+        'The NativeScript port has no tab bar: AdwTabView.setViews is the only tab surface it ships, and the strip is drawn inside that view rather than as a view of its own — so there is no class for a template to name (status/open-todos/adwaita-ports.md).',
     'Adw.ViewSwitcherSidebar':
         "The NativeScript port has no view-switcher sidebar: it ships AdwViewStack but not an AdwSidebar to drive from it, and nothing binds a stack's page list into one (status/open-todos/adwaita-ports.md).",
     'Adw.TabOverview':
