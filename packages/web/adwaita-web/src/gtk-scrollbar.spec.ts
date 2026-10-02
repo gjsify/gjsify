@@ -110,6 +110,68 @@ export const GtkScrollbarTest = async () => {
         });
     });
 
+    await describe('<gtk-scrollbar> the trough pointer rules', async () => {
+        await it('warps on a primary click outside the slider, wherever in the bar it lands', async () => {
+            const { el, host } = mount();
+            el.adjustment = { lower: 0, upper: 200, stepIncrement: 10, pageIncrement: 40, pageSize: 50, value: 0 };
+            const { trough, slider } = parts(el);
+            const box = trough.getBoundingClientRect();
+            // The BAR, not the trough: `gtk_range_click_gesture_pressed` folds everything
+            // that is not the slider into the trough (gtkrange.c:2052-2058), and libadwaita
+            // gives the trough its own `margin: 9px` (`_scrolling.scss:7`), so the margin
+            // between the bar's edge and the trough's is trough to GTK.
+            expect(box.left - el.getBoundingClientRect().left).toBeGreaterThan(0);
+            el.dispatchEvent(
+                new PointerEvent('pointerdown', {
+                    button: 0,
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: box.left + box.width * 0.75,
+                    clientY: box.top + box.height / 2,
+                }),
+            );
+            // `gtk-primary-button-warps-slider` defaults TRUE (gtksettings.c:734-736), so the
+            // slider jumps to three quarters of the trough.
+            expect(el.value > 100).toBe(true);
+            expect(slider.classList.contains('fine-tune')).toBe(false);
+            host.remove();
+        });
+
+        await it('pages on a middle click instead, and Shift is the fine adjustment', async () => {
+            const { el, host } = mount();
+            el.adjustment = { lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 40, pageSize: 0, value: 0 };
+            const { trough, slider } = parts(el);
+            const box = trough.getBoundingClientRect();
+            const at = (button: number, shiftKey: boolean, fraction: number): void => {
+                el.dispatchEvent(
+                    new PointerEvent('pointerdown', {
+                        button,
+                        shiftKey,
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: box.left + box.width * fraction,
+                        clientY: box.top + box.height / 2,
+                    }),
+                );
+            };
+            at(1, false, 0.9);
+            // A middle button PAGES toward the click (gtkrange.c:2097-2115), so a whole
+            // page increment rather than the click's own position.
+            expect(el.value).toBe(40);
+            // The direction is `click_value > value` — a bisection by click position, so
+            // the clicks are taken clearly to either side of where 40 sits (a tenth of the
+            // free space) rather than exactly on it, where the comparison is a tie.
+            at(0, true, 0.05);
+            expect(el.value).toBe(0);
+            at(0, true, 0.5);
+            expect(el.value).toBe(40);
+            // Shift on the SLIDER is the fine adjustment, not a page.
+            at(0, true, 0.5);
+            expect(slider.classList.contains('fine-tune')).toBe(false);
+            host.remove();
+        });
+    });
+
     await describe("<gtk-scrollbar> GtkRange's slider geometry", async () => {
         await it('sizes the slider by page_size over the whole range, and places it by the SCROLLABLE one', async () => {
             const { el, host } = mount(true);

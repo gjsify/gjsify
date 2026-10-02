@@ -2,7 +2,7 @@
 // scroll, and a widget in its own right (GTK ships one; a caller rarely builds one).
 //
 // IT IS A `GtkRange`, AND THE RANGE IS ITS CHILD, NOT ITS SIBLING. `GtkScrollbar` creates a
-// `GtkRange` and parents it to itself (`gtkscrollbar.c:404-420`), so the CSS node is
+// `GtkRange` and parents it to itself (`gtkscrollbar.c:263-278`), so the CSS node is
 //
 //     scrollbar
 //     ╰── range[.fine-tune]
@@ -33,11 +33,11 @@
 // THE POINTER RULES ARE `GtkRange`'s AT THE SETTINGS DEFAULT THEY SHIP WITH:
 // `gtk-primary-button-warps-slider` is TRUE (gtksettings.c:734-736), so a primary click in
 // the trough WARPS the slider to the click — onto the slider's own CENTRE, since the
-// slider's size is not fixed (gtkrange.c:1809-1827) — while a middle click, or Shift with
-// a primary one, PAGES toward it (gtkrange.c:1829-1846). Shift turns the drag into a FINE
+// slider's size is not fixed (gtkrange.c:2074-2096) — while a middle click, or Shift with
+// a primary one, PAGES toward it (gtkrange.c:2097-2115). Shift turns the drag into a FINE
 // adjustment: `update_zoom_state` adds `.fine-tune`, and `update_slider_position` then
 // scales the pointer's travel by `min(1, trough / range)` — `0.25` where that factor would
-// come out at 1, which is what a scale forces (gtkrange.c:2142-2160, 1795-1802).
+// come out at 1, which is what a scale forces (gtkrange.c:2163-2177, 1793-1804).
 //
 // A11y: `role="scrollbar"` with `aria-valuemin` / `aria-valuemax` / `aria-valuenow` —
 // `GTK_ACCESSIBLE_ROLE_SCROLLBAR` (gtkscrollbar.c:259) and the `GtkAccessibleRange` interface,
@@ -45,7 +45,7 @@
 // in that order (gtkscrollbar.c:309-313, 322-324).
 //
 // NOT PORTED: the autoscroll a SECONDARY click in the trough starts
-// (gtkrange.c:1848-1871) is a repeating timer against the trough's edge, and a browser
+// (gtkrange.c:2116-2132) is a repeating timer against the trough's edge, and a browser
 // opens its context menu there. Mark snapping (`update_slider_position`'s loop over
 // `n_marks`) belongs to `GtkScale`, which is where marks are declared.
 //
@@ -83,7 +83,7 @@ const ZOOM_FALLBACK = 0.25;
  * `GtkScrollbar`'s own doc answers the wheel question in units of the adjustment
  * ("`page-increment` … when the user asks to move by a page"), and `scroll_delta_to_value`
  * multiplies a WHEEL delta — which GDK reports PER DETENT — by that page increment
- * (gtkrange.c:1888-1901). Firefox reports three LINES per detent and Chrome about a
+ * (gtkrange.c:1889-1896). Firefox reports three LINES per detent and Chrome about a
  * hundred pixels, so both are converted with the convention `src/scroll-shading.ts`
  * already states.
  */
@@ -173,7 +173,7 @@ export class GtkScrollbar extends HTMLElement {
         this._notify('adjustment', { adjustment: this.adjustment });
     }
 
-    /** The position, which is the adjustment's own value (gtkrange.c:226-240). */
+    /** The position, which is the adjustment's own value (gtkrange.c:1168-1176). */
     get value(): number {
         return this.adjustment.value;
     }
@@ -266,7 +266,12 @@ export class GtkScrollbar extends HTMLElement {
             this._slider.className = SLIDER_CLASS;
             this._trough.appendChild(this._slider);
             this.replaceChildren(this._trough);
-            this._trough.addEventListener('pointerdown', this._onPointerDown);
+            // On the BAR, not the trough: `gtk_range_click_gesture_pressed` picks the widget
+            // under the pointer and folds everything that is not the slider into the trough
+            // (gtkrange.c:2052-2058), and libadwaita gives the trough a 9px margin — so the
+            // bar's own margin is trough as far as GTK is concerned and a click there warps
+            // the slider like any other.
+            this.addEventListener('pointerdown', this._onPointerDown);
             this.addEventListener('keydown', this._onKeyDown);
             this.addEventListener('wheel', this._onWheel, { passive: true });
             // An ARIA scrollbar is operable, and `GtkRange` answers keys on the widget's
@@ -302,7 +307,7 @@ export class GtkScrollbar extends HTMLElement {
 
     /**
      * The trough's three rules and the slider's drag, at the settings default
-     * (`gtk_range_click_gesture_pressed`, gtkrange.c:1768-1874).
+     * (`gtk_range_click_gesture_pressed`, gtkrange.c:2018-2138).
      */
     private _onPointerDown = (event: PointerEvent): void => {
         if (!this.hasAttribute('tabindex')) return;
@@ -312,13 +317,14 @@ export class GtkScrollbar extends HTMLElement {
         this.focus();
         const coord = this._coordinate(event);
         // `gtk_range_click_gesture_pressed` treats anything outside the slider as the
-        // trough, and Shift inside the slider is the fine adjustment.
+        // trough (gtkrange.c:2052-2058), and Shift inside the slider is the fine
+        // adjustment.
         const onSlider = event.target === this._slider;
         this._grabPosition = this._sliderPosition();
         this._grabDelta = coord - this._grabPosition;
         this._setZoom(onSlider && event.shiftKey);
         this._dragging = onSlider;
-        this._trough.setPointerCapture(event.pointerId);
+        this._capture(event.pointerId);
         this.addEventListener('pointermove', this._onPointerMove);
         this.addEventListener('pointerup', this._onPointerEnd);
         this.addEventListener('pointercancel', this._onPointerEnd);
@@ -338,7 +344,7 @@ export class GtkScrollbar extends HTMLElement {
      */
     private _onPointerMove = (event: PointerEvent): void => {
         if (!this._dragging) return;
-        // Shift anywhere in a drag is the fine adjustment (gtkrange.c:1655-1660).
+        // Shift anywhere in a drag is the fine adjustment (gtkrange.c:1953-1970).
         this._setZoom(event.shiftKey);
         const coord = this._coordinate(event);
         const zoom = this._zoom ? this._zoomFactor() : 1;
@@ -354,12 +360,30 @@ export class GtkScrollbar extends HTMLElement {
     private _endDrag(pointerId?: number): void {
         this._dragging = false;
         this._setZoom(false);
-        if (pointerId !== undefined && this._trough.hasPointerCapture(pointerId)) {
-            this._trough.releasePointerCapture(pointerId);
+        if (pointerId !== undefined && this.hasPointerCapture(pointerId)) {
+            this.releasePointerCapture(pointerId);
         }
         this.removeEventListener('pointermove', this._onPointerMove);
         this.removeEventListener('pointerup', this._onPointerEnd);
         this.removeEventListener('pointercancel', this._onPointerEnd);
+    }
+
+    /**
+     * Keep the gesture alive past the bar's own edges, which is what `GtkGestureDrag` does
+     * upstream for as long as the button is held.
+     *
+     * `setPointerCapture` THROWS for a pointer id the platform is no longer tracking, and an
+     * exception here would abort the gesture before the warp or the page that follows it —
+     * which is not a state a scrollbar can be in. So a refused capture is a drag that ends at
+     * the bar's edge, and the synchronous move still happens.
+     */
+    private _capture(pointerId: number): void {
+        try {
+            this.setPointerCapture(pointerId);
+        } catch {
+            // No capture: the pointermove listener below is on this element anyway, so a
+            // drag inside the bar is unaffected.
+        }
     }
 
     /** The keys `GtkScrollbar`'s own doc names: the arrow keys step, Page Up/Down page. */
@@ -452,7 +476,7 @@ export class GtkScrollbar extends HTMLElement {
     }
 
     /**
-     * `coord_to_value` (gtkrange.c:1840-1884): a coordinate along the trough scaled by the
+     * `coord_to_value` (gtkrange.c:1842-1886): a coordinate along the trough scaled by the
      * FREE space — the trough less the slider — because the slider's centre has to reach
      * both ends and not one of them twice over.
      */
