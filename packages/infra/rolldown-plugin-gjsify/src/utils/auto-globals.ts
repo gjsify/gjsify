@@ -404,6 +404,7 @@ export async function detectAutoGlobals(
         const factoryResult = await gjsifyPluginFactory({
             ...pluginOptions,
             autoGlobalsInject: currentInject,
+            skipProcessStub: true,
         } as PluginOptions);
 
         let gjsifyInstance: RolldownPluginOption;

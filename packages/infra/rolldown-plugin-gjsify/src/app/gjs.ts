@@ -298,11 +298,19 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // into the subset GTK4 understands.
         cssAsStringPlugin({ targets: { firefox: 60 << 16 } }),
         nodeModulesPathRewritePlugin({ bundleDir, runtimeResolve: format === 'esm' }),
-        processStubPlugin({
-            userBanner: input.userBanner,
-            captureBundleUrl: format === 'esm',
-            giSystemProbes: input.giSystemProbes,
-        }),
+        // ADR 0081: the byte-1 banner ASSIGNS `globalThis.process`, so a
+        // `--globals auto` ANALYSIS bundle that carries it reads its own stub
+        // back as a live global and injects `@gjsify/process` into every build.
+        // The final build keeps the stub — `glob`/`path-scurry` need it.
+        ...(input.pluginOptions.skipProcessStub
+            ? []
+            : [
+                  processStubPlugin({
+                      userBanner: input.userBanner,
+                      captureBundleUrl: format === 'esm',
+                      giSystemProbes: input.giSystemProbes,
+                  }),
+              ]),
         // resolveShebangLine returns null when disabled, else the resolved line
         // with `${env:…}` expanded.
         (() => {
