@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import * as native from '../index.js';
 import { requireGi } from '../gi.js';
@@ -64,7 +64,7 @@ function logStderr(runtime) {
         }
         writeFileSync(
             script,
-            `import { requireGi } from ${JSON.stringify(join(pkgRoot, 'gi.js'))};\n` +
+            `import { requireGi } from ${JSON.stringify(pathToFileURL(join(pkgRoot, 'gi.js')).href)};\n` +
                 `const GLib = requireGi('GLib', '2.0');\n` +
                 `GLib.log_structured('nodegi-parity', GLib.LogLevelFlags.LEVEL_MESSAGE, { MESSAGE: 'structured-gold' });\n`,
         );

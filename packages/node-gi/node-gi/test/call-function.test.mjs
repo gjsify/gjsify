@@ -5,16 +5,16 @@
 // free, and boolean returns.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostname } from 'node:os';
 
 import { callFunction, requireNamespace } from '../index.js';
+import { assertSameHostName } from './host-name.mjs';
 
 test('string return, no args: GLib.get_host_name()', () => {
     requireNamespace('GLib', '2.0');
     const name = callFunction('GLib', 'get_host_name');
     assert.equal(typeof name, 'string');
     assert.ok(name.length > 0);
-    assert.equal(name, hostname());
+    assertSameHostName(name);
 });
 
 test('int args + int return: GLib.random_int_range(5, 6) === 5', () => {

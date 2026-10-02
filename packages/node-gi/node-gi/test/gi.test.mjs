@@ -6,14 +6,14 @@
 // Headless: GLib functions + Gio.SimpleAction / SimpleActionGroup / Cancellable.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostname } from 'node:os';
 
 import { requireGi } from '../gi.js';
+import { assertSameHostName } from './host-name.mjs';
 
 test('namespace functions: GLib.get_host_name matches os.hostname', () => {
     const GLib = requireGi('GLib', '2.0');
     assert.equal(typeof GLib.get_host_name, 'function');
-    assert.equal(GLib.get_host_name(), hostname());
+    assertSameHostName(GLib.get_host_name());
     assert.equal(GLib.path_get_basename('/usr/bin/gjs'), 'gjs');
 });
 
