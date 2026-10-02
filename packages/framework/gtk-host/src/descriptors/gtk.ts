@@ -156,24 +156,28 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
     {
         // The two halves of the scrolling trio, both measured from the GIR rather than
         // inferred: each declares `GtkBuildable` with a `child` property whose setter is
-        // `set_child`, and `GtkViewport` is `single` in the same sense the frame above is —
-        // ONE child, addressed by replacing it.
+        // `set_child` (gtkviewport.c:347-349 installs the property;
+        // `gtk_window_handle_buildable_add_child` and
+        // `gtk_viewport_buildable_add_child` are what route it), and `GtkViewport` is
+        // `single` in the same sense the frame above is — ONE child, addressed by
+        // replacing it.
         gtype: 'GtkViewport',
         ctor: () => Gtk.Viewport,
         children: { kind: 'single', set: 'set_child' },
     },
     {
-        // A `GtkBinLayout` (gtkwindowhandle.c:550) with the one child a titlebar has, which
-        // is the whole widget: libadwaita styles nothing on the `windowhandle` node, so the
-        // child is what the reader sees.
+        // A `GtkBinLayout` (gtkwindowhandle.c:553) with the one child a titlebar has, which
+        // is the whole widget: libadwaita styles nothing on the `windowhandle` node
+        // (gtkwindowhandle.c:554), so the child is what the reader sees.
         gtype: 'GtkWindowHandle',
         ctor: () => Gtk.WindowHandle,
         children: { kind: 'single', set: 'set_child' },
     },
     {
         // `GtkScrollbar` takes NO child: its content is a `GtkRange` the widget builds itself
-        // (gtkscrollbar.c:409-415), and `gtk_widget_class_set_layout_manager_type` is a
-        // `GtkBoxLayout` over that one internal node. Declared `none` so a tree that tries to
+        // and parents to itself (gtkscrollbar.c:269-273), and
+        // `gtk_widget_class_set_layout_manager_type` is a `GtkBoxLayout` over that one
+        // internal node (gtkscrollbar.c:258). Declared `none` so a tree that tries to
         // put anything in a scrollbar is refused by name instead of mounting silently wrong.
         gtype: 'GtkScrollbar',
         ctor: () => Gtk.Scrollbar,
