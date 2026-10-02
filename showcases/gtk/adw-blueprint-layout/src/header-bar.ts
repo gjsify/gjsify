@@ -16,15 +16,11 @@ import GObject from 'gi://GObject?version=2.0';
 import Template, { type Children, GTypeName, InternalChildren } from './header-bar.blp';
 
 // ADR 0088: the class name, the id list and the type of every internal child come from the
-// `.blp` that declares them. Renaming `menuButton` in the template now fails THIS file's
-// type-check; before, the three hand-written copies stayed valid and `_menuButton` was
-// silently `undefined` at run time.
-//
-// `extends Children` on a merged interface and not fields in the class body: `registerClass`
-// installs the members, so a class field would be initialised to `undefined` at construction
-// and shadow the installed property. That is also the answer to the rule below — its rationale
-// is that TypeScript does not check whether a merged property is initialised, and here nothing
-// in TypeScript may initialise it.
+// `.blp` that declares them — rename `menuButton` there and THIS file stops compiling, where
+// the three hand-written copies used to stay valid while `_menuButton` read `undefined` at run
+// time. `extends Children` on a merged interface and never fields in the class body:
+// `registerClass` installs the members, so a field would be `undefined` at construction and
+// shadow them — which is why the rule below is disabled rather than obeyed.
 // oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children, so a class field would shadow them
 export interface GalleryHeaderBar extends Children {}
 
