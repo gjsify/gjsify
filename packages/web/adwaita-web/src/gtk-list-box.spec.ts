@@ -13,26 +13,65 @@ import { BOX_ALL_VECTORS, BOX_ROW_VECTORS, BOX_SELECT_VECTORS } from '@gjsify/ad
 import type { GtkListBox } from './elements/gtk-list-box.js';
 import type { GtkListBoxRow } from './elements/gtk-list-box-row.js';
 
+/** The labels the hand-written tests use; a vector that names a longer box gets a numbered row. */
 const LABELS = ['Documents', 'Downloads', 'Music', 'Pictures', 'Videos'];
 
+/**
+ * A box with `count` rows.
+ *
+ * `count` is the vector's own `length` whenever a table drives this: the tables name the box
+ * they are about, and a harness that silently ran every vector against the same five rows
+ * turned `select_all` on a four-row box into a five-row assertion and could not express a box
+ * longer than the labels.
+ */
 function mount(
     attrs: Record<string, string> = {},
     rowAttrs: Record<string, string>[] = [],
+    count = LABELS.length,
 ): { el: GtkListBox; host: HTMLElement } {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const el = document.createElement('gtk-list-box') as GtkListBox;
     for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
-    LABELS.forEach((label, index) => {
+    for (let index = 0; index < count; index++) {
         const row = document.createElement('gtk-list-box-row') as GtkListBoxRow;
         for (const [name, value] of Object.entries(rowAttrs[index] ?? {})) row.setAttribute(name, value);
         const text = document.createElement('span');
-        text.textContent = label;
+        text.textContent = LABELS[index] ?? `row ${index}`;
         row.appendChild(text);
         el.appendChild(row);
-    });
+    }
     host.appendChild(el);
     return { el, host };
+}
+
+/**
+ * Open the box on the state a vector names — its selection AND its anchor
+ * (`box->selected_row`, gtklistbox.c:145).
+ *
+ * The two are independent upstream, and `select_row` alone cannot reach the pair the
+ * `<Shift>` rows need: `gtk_list_box_unselect_row_internal` unselects a row in `multiple`
+ * mode and LEAVES THE ANCHOR ON IT (gtklistbox.c:1719-1722), so "a selection with an anchor
+ * that is not in it" is a state GTK is in, and a later `<Shift>` measures from the anchor.
+ * Selecting the anchor row and unselecting it again is the same pair of doors an application
+ * has, so the state is built through the element rather than around it.
+ */
+function openOn(el: GtkListBox, selection: readonly number[], anchor: number): void {
+    for (const position of selection) el.selectRow(el.rows[position]!);
+    if (anchor < 0) {
+        el.unselectAll();
+        return;
+    }
+    if (selection.includes(anchor)) return;
+    el.selectRow(el.rows[anchor]!);
+    el.unselectRow(el.rows[anchor]!);
+}
+
+/** Row attributes for a vector's length, with `position` marked unselectable, or none. */
+function rowAttrsFor(length: number, position: number | null): Record<string, string>[] {
+    const attrs = Array.from({ length }, () => ({}) as Record<string, string>);
+    if (position !== null && position >= 0 && position < length) attrs[position] = { selectable: 'false' };
+    return attrs;
 }
 
 const rowsOf = (el: GtkListBox): GtkListBoxRow[] => [...el.querySelectorAll('gtk-list-box-row')] as GtkListBoxRow[];
@@ -107,30 +146,25 @@ export const GtkListBoxTest = async () => {
             await it(vector.rule, async () => {
                 const attrs: Record<string, string> = { 'selection-mode': vector.mode };
                 if (vector.step.modify === true) attrs['activate-on-single-click'] = 'false';
-                const rowAttrs = LABELS.map(() => ({}));
-                if (vector.step.selectable === false && vector.position >= 0 && vector.position < LABELS.length) {
-                    rowAttrs[vector.position] = { selectable: 'false' };
-                }
-                const { el, host } = mount(attrs, rowAttrs);
-                // The step opens on the selection and anchor the vector names, so the click
-                // runs against a real state rather than a rebuilt one.
-                for (const position of vector.selection) el.selectRow(el.rows[position]!);
-                if (vector.anchor >= 0 && vector.selection.length > 0) el.selectRow(el.rows[vector.anchor]!);
-                if (vector.anchor === -1) el.unselectAll();
+                const rowAttrs = rowAttrsFor(vector.length, vector.step.selectable === false ? vector.position : null);
+                const { el, host } = mount(attrs, rowAttrs, vector.length);
+                openOn(el, vector.selection, vector.anchor);
                 if (vector.mode === 'browse') {
                     // `browse` refuses `unselect_all` (:986-987), so its starting selection is
                     // reached by selecting the one row and then another.
                     el.selectRow(el.rows[vector.selection[0] ?? 0]!);
                 }
                 await Promise.resolve();
-                if (vector.step.extend === true || vector.step.modify === true) {
-                    click(rowsOf(el)[vector.position]!, {
-                        ctrlKey: vector.step.modify === true,
-                        shiftKey: vector.step.extend === true,
-                    });
-                } else {
-                    click(rowsOf(el)[vector.position < 0 ? 0 : Math.min(vector.position, LABELS.length - 1)]!);
-                }
+                // A position the box does not have is the C's `row == NULL`: the press landed
+                // between rows or past the last one, `active_row` stays NULL and the release
+                // does nothing at all (gtklistbox.c:1911-1913, :1953-1954). A browser puts
+                // that click on the box, which is the DOM's spelling of "in no row" — clicking
+                // a clamped row instead would have tested a different click altogether.
+                const inBox = vector.position >= 0 && vector.position < vector.length;
+                click(inBox ? rowsOf(el)[vector.position]! : el, {
+                    ctrlKey: vector.step.modify === true,
+                    shiftKey: vector.step.extend === true,
+                });
                 expect(el.selectedRows).toStrictEqual(vector.expected.selection);
                 host.remove();
             });
@@ -140,12 +174,12 @@ export const GtkListBoxTest = async () => {
     await describe('<gtk-list-box> select_all / unselect_all refusals', async () => {
         for (const vector of BOX_ALL_VECTORS) {
             await it(vector.rule, async () => {
-                const { el, host } = mount({ 'selection-mode': vector.mode });
+                const { el, host } = mount({ 'selection-mode': vector.mode }, [], vector.length);
                 if (vector.op === 'select-all') {
                     el.selectAll();
                     expect(el.selectedRows).toStrictEqual(vector.expected ?? []);
                 } else {
-                    el.selectRow(el.rows[0]!);
+                    el.selectRow(el.rows[0] ?? null);
                     el.selectAll();
                     el.unselectAll();
                     // A refusal leaves the rows selected; a change clears them. The modes that
@@ -161,16 +195,13 @@ export const GtkListBoxTest = async () => {
     await describe('<gtk-list-box> drives the programmatic row vectors', async () => {
         for (const vector of BOX_ROW_VECTORS) {
             await it(vector.rule, async () => {
-                const rowAttrs = LABELS.map(() => ({}));
-                if (vector.step.selectable === false && vector.position !== null) {
-                    rowAttrs[vector.position] = { selectable: 'false' };
-                }
+                const rowAttrs = rowAttrsFor(vector.length, vector.step.selectable === false ? vector.position : null);
                 // `multiple` to BUILD the selection and the vector's own mode afterwards:
                 // `gtk_list_box_set_selection_mode` notifies and updates the rows but does
                 // NOT prune what is selected (gtklistbox.c:1219-1225), so a single-mode box
                 // holding two rows is a state GTK itself can be in, and one the element can.
-                const { el, host } = mount({ 'selection-mode': 'multiple' }, rowAttrs);
-                for (const position of vector.selection) el.selectRow(el.rows[position]!);
+                const { el, host } = mount({ 'selection-mode': 'multiple' }, rowAttrs, vector.length);
+                openOn(el, vector.selection, vector.anchor);
                 await Promise.resolve();
                 el.setAttribute('selection-mode', vector.mode);
                 await Promise.resolve();

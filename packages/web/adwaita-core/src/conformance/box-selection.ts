@@ -102,16 +102,19 @@ export const BOX_SELECT_VECTORS: readonly BoxSelectVector[] = [
     },
     {
         // `gtk_list_box_update_selection_full` tests `selectable` AFTER the NONE branch, so
-        // the row is left exactly as it was — and `set_selectable(false)` also unselects the
-        // row, which is the element's business and not part of this step.
+        // the row is left exactly as it was — and GTK cannot hold the clicked row selected
+        // AND unselectable at once: `gtk_list_box_row_set_selectable` UNSELECTS the row as it
+        // turns the flag off (gtklistbox.c:3697-3698). So the box opens on the OTHER row and
+        // the branch still has something to prove: a click on an unselectable row moves
+        // nothing, in the one mode where a click would otherwise have toggled.
         rule: 'an unselectable row is ignored, in every mode',
-        selection: [0, 2],
-        anchor: 2,
+        selection: [0],
+        anchor: 0,
         position: 2,
         length: 5,
         mode: 'multiple',
         step: { selectable: false },
-        expected: { selection: [0, 2], anchor: 2 },
+        expected: { selection: [0], anchor: 0 },
     },
     {
         rule: 'Shift+click with no anchor selects the clicked row and anchors on it',
@@ -246,6 +249,24 @@ export const BOX_ROW_VECTORS: readonly BoxRowVector[] = [
         mode: 'single',
         step: {},
         expected: { selection: [3], anchor: 3 },
+    },
+    {
+        // The arm a replace-everywhere port gets wrong, and the one that decides whether a
+        // `multiple` box can be built at all: `gtk_list_box_select_row_internal` clears the
+        // box only where the mode is NOT multiple (gtklistbox.c:1741-1742) and then adds the
+        // row, so two `select_row` calls leave BOTH rows selected — the same line as
+        // `gtk_flow_box_select_child_internal` (gtkflowbox.c:1012-1030). `select_row` is how
+        // `Gtk.ListBox` fills a multiple selection, so a version that replaced would cap a
+        // `multiple` box at one row however many calls it took.
+        rule: 'select_row in multiple mode ADDS to the selection and moves the anchor',
+        op: 'select',
+        selection: [0, 3],
+        anchor: 3,
+        position: 1,
+        length: 5,
+        mode: 'multiple',
+        step: {},
+        expected: { selection: [0, 1, 3], anchor: 1 },
     },
     {
         rule: "a null row is the C's unselect-everything, and clears the anchor",

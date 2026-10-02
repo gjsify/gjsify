@@ -188,6 +188,14 @@ export function listBoxSelect(
  * idempotent where the click toggles. The anchor still moves to `position` on success, and
  * a `null` row is the C's "unselect everything" (:923-926), which is why the result is a
  * selection rather than a boolean.
+ *
+ * THE OTHER HALF OF THE SAME C LINE, and the one a port that only ever REPLACES gets wrong:
+ * `gtk_list_box_select_row_internal` clears the box only where the mode is not `multiple`
+ * (:1741-1742) and then adds the row — so in `multiple` this ADDS to the selection instead of
+ * replacing it. `gtk_flow_box_select_child_internal` is the same line with `child` spelled
+ * that way (gtkflowbox.c:1012-1030), which is what makes it this module's function rather
+ * than the list box's. Selecting two rows one after the other is how a `multiple` box is ever
+ * built, so a `select_row` that replaced would leave no second row selectable at all.
  */
 export function listBoxSelectRow(
     selection: AdwBoxSelection,
@@ -205,8 +213,10 @@ export function listBoxSelectRow(
     if (!Number.isInteger(position) || position < 0 || position >= length) return { selection: current, anchor };
     if (current.includes(position)) return { selection: current, anchor };
 
-    // `!= GTK_SELECTION_MULTIPLE` clears first, which covers `browse` and `single` alike.
-    return { selection: [position], anchor: position };
+    // `!= GTK_SELECTION_MULTIPLE` clears first, which covers `browse` and `single` alike —
+    // and leaves `multiple` to ADD, which is the arm that turns two calls into a selection.
+    if (mode !== 'multiple') return { selection: [position], anchor: position };
+    return { selection: normalize([...current, position], length), anchor: position };
 }
 
 /**

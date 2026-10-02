@@ -118,9 +118,47 @@ export class GtkListBoxRow extends HTMLElement {
         // `gtk_list_box_row_init` adds `.activatable` and makes the row focusable BEFORE any
         // box exists (gtklistbox.c:3959-3966), because both properties default TRUE — so the
         // class is already right for a row nobody has adopted yet, and it is the tab stop. The
-        // box NARROWS it in `syncClasses`, which is where `can_select` enters.
-        this.syncClasses(true);
+        // box NARROWS it in `syncClasses`, which is where `can_select` enters — and it also
+        // takes the tab stop over, see {@link claim}.
+        //
+        // A custom element's connect reactions are enqueued PARENT FIRST, so a row inside a
+        // box reaches this line AFTER `<gtk-list-box>` has already answered for it, with
+        // `can_select` already answered from `selection-mode`. Deriving the pre-adoption
+        // answer here would put back what the box just removed: `.activatable` on every row
+        // of a `selection-mode="none"` box, and — because `syncClasses` also re-derives the
+        // tab stop — every row back in the Tab order under `tab-behavior`, which is the
+        // measured defect `gtk-list-box.spec.ts`'s tab-behavior block exists to catch.
+        if (this._claimed) this._syncActivation();
+        else this.syncClasses(true);
     }
+
+    /**
+     * Hand this row's `.activatable` class and tab stop to its box.
+     *
+     * Both are the box's to derive and neither is derivable here: `can_select` is the BOX's
+     * `selection-mode` (gtklistbox.c:3606-3609) and the tab stop is `GtkListBox:tab-behavior`,
+     * where `all` gives every activatable row its own stop and `item`/`cell` hand out a
+     * roving one — the split `gtk_list_box_focus` draws by walking rows between Tab presses
+     * only under `GTK_LIST_TAB_ALL` (gtklistbox.c:2037, :2067). The keys stay the row's:
+     * Enter and Space are `GtkListBoxRow`'s own (see `row-activation.ts`).
+     */
+    claim(): void {
+        this._claimed = true;
+    }
+
+    /** Give the row back to itself, for a box that no longer manages it. */
+    release(): void {
+        this._claimed = false;
+        // `gtk_list_box_update_row (NULL, row)` answers `can_select = FALSE` (gtklistbox.c:3606-3609),
+        // so what is left is the row's own `activatable` flag.
+        this.syncClasses(false);
+    }
+
+    /** What the box last said about itself; TRUE until a box narrows it. */
+    private _canSelect = true;
+
+    /** Set by {@link claim}. While it is set the row derives neither class nor tab stop. */
+    private _claimed = false;
 
     attributeChangedCallback() {
         if (!this._initialized) return;
@@ -129,9 +167,6 @@ export class GtkListBoxRow extends HTMLElement {
         // box has `selection-mode="none"`.
         this.syncClasses(this._canSelect);
     }
-
-    /** What the box last said about itself; TRUE until a box narrows it. */
-    private _canSelect = true;
 
     /**
      * Re-derive the tab stop and the `.activatable` class.
@@ -152,7 +187,8 @@ export class GtkListBoxRow extends HTMLElement {
             activatable: () => this.classList.contains('activatable'),
             activate: () => this.dispatchEvent(new CustomEvent('activate', { bubbles: true })),
         });
-        this._activation.sync();
+        // The KEYS are installed either way; only the tab stop belongs to a claimed row.
+        if (!this._claimed) this._activation.sync();
     }
 }
 

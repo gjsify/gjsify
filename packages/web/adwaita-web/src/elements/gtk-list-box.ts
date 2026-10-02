@@ -24,9 +24,13 @@
 // divergence `<gtk-list-view>` records and for the same reason.
 //
 // `tab-behavior` (4.18) is `tabIndex` on the rows: `all` gives every activatable row its own
-// tab stop, `item` and `cell` hand out a roving tabindex — which `attachRovingFocus` is what
-// makes navigable, since a roving tabindex that does not move leaves every unselected row
-// unreachable by any key (the incident `roving-focus.ts` records in full).
+// tab stop, `item` and `cell` hand out a roving tabindex — the split `gtk_list_box_focus`
+// draws by walking between rows for Tab only under `GTK_LIST_TAB_ALL` (gtklistbox.c:2037,
+// :2067), which is what makes the list one stop from outside under the other two. A roving
+// tabindex that does not move leaves every unselected row unreachable by any key, which is
+// what `attachRovingFocus` is for (the incident `roving-focus.ts` records in full). The rows
+// are `claim`ed here, so they stop deriving their own: a row's `connectedCallback` runs after
+// this one's and would otherwise put every row back in the Tab order.
 //
 // WHAT IS NOT HERE, and why nothing was lost. `bind_model` is ADR 0046's `Gio.ListModel` — the
 // family the four model views' refusals name. `set_filter_func`, `set_sort_func` and
@@ -267,6 +271,10 @@ export class GtkListBox extends HTMLElement {
     private _collectRows(): void {
         const next = [...this.querySelectorAll(':scope > gtk-list-box-row')] as GtkListBoxRow[];
         if (next.length === this._rows.length && next.every((row, position) => row === this._rows[position])) return;
+        // The box owns each row's `.activatable` class and tab stop while it manages it, and
+        // a row's own `connectedCallback` runs AFTER this one — see `GtkListBoxRow.claim`.
+        for (const row of this._rows) if (!next.includes(row)) row.release();
+        for (const row of next) row.claim();
         this._rows = next;
         this._selection = this._selection.filter((position) => position < this._rows.length);
         if (this._anchor >= this._rows.length) this._anchor = -1;
@@ -296,8 +304,10 @@ export class GtkListBox extends HTMLElement {
     /** The tab stops `tab-behavior` hands out: one per row, or one for the whole box. */
     private _syncTabIndexes(): void {
         const roving = this.tabBehavior !== 'all';
-        // GTK's cursor is the FIRST SELECTED row and row 0 before anything is selected
-        // (`gtk_list_box_update_cursor` walks back from the first selected row).
+        // Where Tab ENTERS the box is `gtk_list_box_focus` with no focus child yet: the
+        // selected row, and the first focusable row when there is none (gtklistbox.c:2108-2111).
+        // Leaving is the mirror image, `get_last_focusable` (:2099-2101), and the two stops
+        // are what `item`/`cell` mean — `all` walks rows in between (gtklistbox.c:2037, :2067).
         const cursor = this._selection.length > 0 ? this._selection[0]! : 0;
         this._rows.forEach((row, position) => {
             row.tabIndex = roving ? (position === cursor ? 0 : -1) : row.classList.contains('activatable') ? 0 : -1;
