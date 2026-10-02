@@ -202,6 +202,23 @@
                 :css-classes="['spacer']"
             />
         </gtk-box>
+        <gtk-overlay
+            :width-request="260"
+            :height-request="160"
+        >
+            <gtk-label
+                label="Main child"
+                halign="center"
+                valign="center"
+                :css-classes="['dimmed']"
+            />
+            <gtk-label
+                slot="overlay"
+                label="2"
+                halign="end"
+                valign="end"
+            />
+        </gtk-overlay>
         <adw-clamp
             :maximum-size="400"
             :tightening-threshold="300"

@@ -49,7 +49,14 @@ import {
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
-import { windowCloseSymbolic, windowMaximizeSymbolic, windowMinimizeSymbolic } from '@gjsify/adwaita-icons/ui';
+import {
+    panDownSymbolic,
+    panEndSymbolic,
+    panEndSymbolicRtl,
+    windowCloseSymbolic,
+    windowMaximizeSymbolic,
+    windowMinimizeSymbolic,
+} from '@gjsify/adwaita-icons/ui';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 // view-columns-symbolic is in NO icon theme — not the vendored one @gjsify/adwaita-icons
@@ -141,6 +148,12 @@ const ICONS = {
     // The libadwaita fallback for a NULL/empty icon-name: every view switcher substitutes
     // it, so it has to resolve to a real glyph rather than to an empty mask.
     'image-missing': imageMissingSymbolic,
+    // `<gtk-expander>`'s disclosure arrow — all THREE of `_expanders.scss`'s
+    // `-gtk-icon-source` values, because the stylesheet swaps between them on `:checked`
+    // and on `:dir(rtl)` and the web partial swaps the mask instead.
+    'pan-end': panEndSymbolic,
+    'pan-end-rtl': panEndSymbolicRtl,
+    'pan-down': panDownSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)

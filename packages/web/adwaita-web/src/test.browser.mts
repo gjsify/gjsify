@@ -54,6 +54,10 @@ import { GtkListViewTest } from './gtk-list-view.spec.js';
 import { GtkSeparatorTest } from './gtk-separator.spec.js';
 import { GtkTreeExpanderTest } from './gtk-tree-expander.spec.js';
 import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
+import { GtkExpanderTest } from './gtk-expander.spec.js';
+import { GtkOverlayTest } from './gtk-overlay.spec.js';
+import { GtkPanedTest } from './gtk-paned.spec.js';
+import { GtkRevealerTest } from './gtk-revealer.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
@@ -106,6 +110,10 @@ run({
     GtkSeparatorTest,
     GtkTreeExpanderTest,
     GtkToggleButtonTest,
+    GtkExpanderTest,
+    GtkOverlayTest,
+    GtkPanedTest,
+    GtkRevealerTest,
     GtkBoxTest,
     GtkLabelTest,
     AdwAvatarTest,

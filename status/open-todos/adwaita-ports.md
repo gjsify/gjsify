@@ -385,14 +385,20 @@ exactly why they must not be written as decisions.
   a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
   card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
   open decision.
-- **`<gtk-separator>` and `<gtk-toggle-button>` on NativeScript.** Both browser elements
-  and their gallery blocks exist; the NativeScript port has neither widget, so the two
+- **The GTK layout widgets on NativeScript.** Six browser elements and their gallery blocks
+  exist — `<gtk-separator>`, `<gtk-toggle-button>`, `<gtk-overlay>`, `<gtk-revealer>`,
+  `<gtk-paned>` and `<gtk-expander>` — and the NativeScript port has none of the six, so the
   stories are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
   `scripts/check-storybook-story-parity.mjs`) and their XML templates refused. The
-  separator is a 1px view with the `.spacer` variant; the toggle button is
+  separator is a 1px view with the `.spacer` variant and the toggle button is
   `GtkButton` plus a checked state that `@nativescript/core`'s `Button` has no
   `:checked` CSS state for, so the Adwaita expression is the open question, not the
-  state.
+  state. The other four are CONTAINERS: `GtkBox` places each child into a slot it already
+  names, so an overlay, a paned and a revealer are each a question about stacking, splitting
+  and animation that no NativeScript layout answers in the Adwaita idiom — and the
+  expander's disclosure is the one shape the port is missing where libadwaita's own is
+  `AdwExpanderRow`, which it already has. So the open question is the EXPRESSION of each,
+  not whether a view can be built.
 - **The four model-driven views on NativeScript.** `<gtk-list-view>`,
   `<gtk-grid-view>`, `<gtk-column-view>` and `<gtk-tree-expander>` exist on the browser
   with their gallery blocks; the NativeScript port has none of the four, so their stories

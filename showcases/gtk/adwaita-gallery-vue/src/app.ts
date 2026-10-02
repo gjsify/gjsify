@@ -170,6 +170,12 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-separator', gtype: 'GtkSeparator', props: {"orientation":"vertical","cssClasses":["spacer"]} }
             ] }
     },
+    { widget: 'Gtk.Overlay', root:
+        { tag: 'gtk-overlay', gtype: 'GtkOverlay', props: {"widthRequest":260,"heightRequest":160}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Main child","halign":"center","valign":"center","cssClasses":["dimmed"]} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
+            ] }
+    },
     { widget: 'Adw.Clamp', root:
         { tag: 'adw-clamp', gtype: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"This content is clamped: it stops growing past the maximum size and stays centred.","wrap":true,"xalign":0,"cssClasses":["card"]} }

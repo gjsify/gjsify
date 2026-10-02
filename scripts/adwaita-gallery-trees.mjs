@@ -324,6 +324,23 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        widget: 'Gtk.Overlay',
+        page: 'layout',
+        root: {
+            tag: 'gtk-overlay',
+            props: { widthRequest: 260, heightRequest: 160 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: { label: 'Main child', halign: 'center', valign: 'center', cssClasses: ['dimmed'] },
+                },
+                // The overlay child carries its placement, which is the whole of
+                // `gtk_overlay_get_child_position`: it reads nothing else.
+                { tag: 'gtk-label', slot: 'overlay', props: { label: '2', halign: 'end', valign: 'end' } },
+            ],
+        },
+    },
     // ------------------------------------------------------------------ layout
     {
         widget: 'Adw.Clamp',
@@ -709,6 +726,16 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Gtk.TreeExpander':
         'it watches a Gtk.TreeListRow, which only a Gtk.TreeListModel produces from a create-model CALLBACK: ' +
         'a function, and the ParamSpec seam has no branch for either type.',
+    // Three GTK containers whose CHILD is the point, and where gtk-host's descriptor table
+    // has no row: `GtkOverlay` beside them IS curated (`slots: { child, overlay }`, which is
+    // why its block is a tree above), so this group is the missing half of one decision
+    // rather than a verdict about the widgets. Each names the file that would settle it.
+    'Gtk.Revealer':
+        'uncurated-placement: no row for GtkRevealer in packages/framework/gtk-host/src/descriptors/gtk.ts, so its one child cannot be placed.',
+    'Gtk.Paned':
+        'uncurated-placement: no row for GtkPaned in packages/framework/gtk-host/src/descriptors/gtk.ts, so neither of its two slots can be placed.',
+    'Gtk.Expander':
+        'uncurated-placement: no row for GtkExpander in packages/framework/gtk-host/src/descriptors/gtk.ts, so its label and its child cannot be placed.',
     // The rest are not placement refusals: the widget cannot be written as a static
     // tree at all, in any dialect.
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',

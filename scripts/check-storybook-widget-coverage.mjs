@@ -198,12 +198,24 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    expander: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'image-button': {
         only: 'nativescript',
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
     },
     'level-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    overlay: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    paned: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -231,6 +243,10 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'list-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    revealer: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

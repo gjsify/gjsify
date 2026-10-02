@@ -60,6 +60,14 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     ['adw-tab-view', 'gtk-label'],
     ['adw-toggle-group', 'gtk-label'],
     ['adw-view-switcher', 'gtk-label'],
+    // The GTK containers whose block is refused in `ADWAITA_GALLERY_REFUSALS`: a paned, a
+    // revealer and an expander all exist as tags and as browser elements, and none of them
+    // has a descriptor row, so a child placed into one is refused BY NAME. `GtkOverlay` is
+    // beside them deliberately absent — it IS curated (`slots: { child, overlay }`), and its
+    // block is a tree.
+    ['gtk-paned', 'gtk-label'],
+    ['gtk-revealer', 'gtk-label'],
+    ['gtk-expander', 'gtk-label'],
     // Curated by #1368, so this is no longer a PLACEMENT refusal — GTK refuses the
     // child TYPE. Kept because the gallery's tree depends on it: the split view's
     // slots take an `Adw.NavigationPage` and nothing else.

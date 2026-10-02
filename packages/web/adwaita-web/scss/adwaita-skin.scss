@@ -55,6 +55,14 @@
 @use 'switch';
 @use 'entry';
 @use 'separator';
+// The layout CONTAINERS GTK owns and libadwaita only styles. `_paned` draws the divider as
+// an inset box-shadow on the `separator` node a `GtkPanedHandle` carries, which is a
+// different rule from `<gtk-separator>`'s own fill — so it needs its own partial rather
+// than a class the separator's rule would fight over.
+@use 'overlay';
+@use 'revealer';
+@use 'paned';
+@use 'expander';
 // The two form-control primitives, in ONE partial because upstream merges them
 // (there is no `_radio.scss` in libadwaita) — see _checks.scss.
 @use 'checks';

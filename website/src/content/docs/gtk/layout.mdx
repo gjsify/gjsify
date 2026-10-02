@@ -1,19 +1,19 @@
 ---
 title: Layout
-description: "GTK's layout widgets, starting with the separator. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "GTK's layout widgets: the separator, the overlay, the revealer, the paned and the expander. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
 The widgets that arrange other widgets belong to GTK, and libadwaita only styles
-them. This page grows with the ones the gallery covers; today it holds the
-**separator**.
+them. This page grows with the ones the gallery covers: the **separator**, the
+**overlay**, the **revealer**, the **paned** and the **expander**.
 
 <MoreInfo title="What the NativeScript port has">
-The previews run the browser port. `@gjsify/adwaita-nativescript` has no
-`Gtk.Separator` yet, so the XML template tab of a block here says so instead of
-showing one.
+The previews run the browser port. `@gjsify/adwaita-nativescript` has none of
+this page's widgets yet, so the XML template tab of a block here says so instead
+of showing one.
 </MoreInfo>
 
 ## Separator
@@ -98,6 +98,272 @@ distance without the line, a 12px gap that draws nothing.
     // `.spacer` keeps the distance and draws nothing.
     const gap = new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL });
     gap.add_css_class('spacer');
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Overlay
+
+Other widgets, stacked **on top of** one main child. `set_child` takes the widget
+the overlay sizes itself to; `add_overlay` stacks widgets over it. Where a
+stacked child lands is decided by its own **halign** and **valign** — that is all
+`gtk_overlay_get_child_position` reads — so an overlay child with neither fills
+the overlay, and one with an alignment keeps its natural size at that edge. GTK
+adds `.left` / `.right` / `.top` / `.bottom` to an edge-aligned overlay child, so a
+theme can round the corners of a badge that hangs off one.
+
+<AdwWidget title="Gtk.Overlay">
+  <Fragment slot="preview">
+    ```html
+    <gtk-overlay style="width:260px;height:160px;">
+      <!-- label: The contents of the label. -->
+      <gtk-label label="Main child" style="align-self:center;justify-self:center;"></gtk-label>
+      <!-- label: The contents of the label. -->
+      <gtk-label slot="overlay" label="2" style="align-self:end;justify-self:end;"></gtk-label>
+    </gtk-overlay>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const overlay = new Gtk.Overlay({ width_request: 260, height_request: 160 });
+
+    // The main child: the overlay's own size is this widget's size.
+    overlay.set_child(new Gtk.Label({ label: 'Main child', halign: Gtk.Align.CENTER, valign: Gtk.Align.CENTER }));
+
+    // Every other child stacks on top, placed by its own alignment.
+    overlay.add_overlay(new Gtk.Label({ label: '2', halign: Gtk.Align.END, valign: Gtk.Align.END }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Overlay {
+      width-request: 260;
+      height-request: 160;
+
+      Gtk.Label {
+        label: _("Main child");
+        halign: center;
+        valign: center;
+      }
+
+      [overlay]
+      Gtk.Label {
+        label: _("2");
+        halign: end;
+        valign: end;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const overlay = new Gtk.Overlay({ width_request: 260, height_request: 160 });
+
+    // The main child: the overlay's own size is this widget's size.
+    overlay.set_child(new Gtk.Label({ label: 'Main child' }));
+
+    // Every other child stacks on top; its own halign/valign place it.
+    overlay.add_overlay(new Gtk.Label({ label: '2' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Revealer
+
+Shows and hides one child with an animation. **Transition type** is one of fourteen
+nicks — `slide-down` is the default — and it is not only an opacity change: a slide
+scales the box along one axis while allocating the child at its **unscaled** size,
+and a *swing* folds it in with `sin (π · pos / 2)`. **Transition duration** is in
+milliseconds, and `0` skips the animation.
+
+<AdwWidget title="Gtk.Revealer">
+  <Fragment slot="preview">
+    ```html
+    <!-- transition-type: The type of animation used to transition. -->
+    <!-- transition-duration: The animation duration, in milliseconds. -->
+    <gtk-revealer transition-type="slide-down" transition-duration="250" reveal-child>
+      <!-- label: The contents of the label. -->
+      <gtk-label label="The revealed child" style="padding:12px;"></gtk-label>
+    </gtk-revealer>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const revealer = new Gtk.Revealer({
+      transition_type: Gtk.RevealerTransitionType.SLIDE_DOWN,
+      transition_duration: 250,
+      reveal_child: true,
+    });
+
+    const content = new Gtk.Label({ label: 'The revealed child', margin_top: 12, margin_bottom: 12 });
+    revealer.set_child(content);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Revealer {
+      transition-type: slide_down;
+      transition-duration: 250;
+      reveal-child: true;
+
+      Gtk.Label {
+        label: _("The revealed child");
+        margin-top: 12;
+        margin-bottom: 12;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const revealer = new Gtk.Revealer({
+      transition_type: Gtk.RevealerTransitionType.SLIDE_DOWN,
+      transition_duration: 250,
+      reveal_child: true,
+    });
+
+    const content = new Gtk.Label({ label: 'The revealed child' });
+    revealer.set_child(content);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Paned
+
+Two children either side of a divider the user drags. With both children resizable
+and no **position** set, GTK divides the paned in proportion to the two size
+*requests* rather than in half, so a narrow first child gets a narrow first pane.
+**Position** in pixels overrides that, and `-1` hands the choice back to the size
+requests. `resize-*` and `shrink-*` all default to true, so an author turns one off
+by writing `false`. **Wide handle** gives the divider the stronger separation
+libadwaita draws for it.
+
+<AdwWidget title="Gtk.Paned">
+  <Fragment slot="preview">
+    ```html
+    <!-- orientation: The orientation of the orientable. -->
+    <gtk-paned orientation="horizontal" style="width:400px;height:140px;">
+      <!-- label: The contents of the label. -->
+      <gtk-label label="First child" style="width:100px;"></gtk-label>
+      <!-- label: The contents of the label. -->
+      <gtk-label slot="end" label="Second child" style="width:300px;"></gtk-label>
+    </gtk-paned>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const paned = new Gtk.Paned({ orientation: Gtk.Orientation.HORIZONTAL, width_request: 400 });
+    paned.set_start_child(new Gtk.Label({ label: 'First child', width_request: 100 }));
+    paned.set_end_child(new Gtk.Label({ label: 'Second child', width_request: 300 }));
+
+    // `set_position (-1)` hands the divider back to the two size requests.
+    paned.position = -1;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Paned {
+      orientation: horizontal;
+      width-request: 400;
+
+      Gtk.Label {
+        label: _("First child");
+        width-request: 100;
+      }
+
+      [end]
+      Gtk.Label {
+        label: _("Second child");
+        width-request: 300;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const paned = new Gtk.Paned({ orientation: Gtk.Orientation.HORIZONTAL, width_request: 400 });
+    paned.set_start_child(new Gtk.Label({ label: 'First child' }));
+    paned.set_end_child(new Gtk.Label({ label: 'Second child' }));
+
+    // `set_position (-1)` hands the divider back to the two size requests.
+    paned.position = -1;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Expander
+
+A title the user clicks to reveal the child below it. **Label** makes a `GtkLabel`
+of its own, and `use-underline` turns a leading `_` into a mnemonic that
+`Alt`+that character activates. The disclosure arrow is a separate node and
+`:checked` is set on **that** node, which is what libadwaita's glyph swap keys on.
+**Resize toplevel** asks the window to grow with the disclosure.
+
+<AdwWidget title="Gtk.Expander">
+  <Fragment slot="preview">
+    ```html
+    <gtk-expander label="_More options" style="width:320px;">
+      <!-- label: The contents of the label. -->
+      <gtk-label label="Notifications" style="padding:12px;"></gtk-label>
+    </gtk-expander>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const expander = new Gtk.Expander();
+    // `set_label` builds a real GtkLabel and forwards `use_underline` to it, so the two
+    // are set in that order.
+    expander.use_underline = true;
+    expander.label = '_More options';
+    expander.set_child(new Gtk.Label({ label: 'Notifications', margin_top: 12, margin_bottom: 12 }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Expander {
+      use-underline: true;
+      label: _("_More options");
+
+      Gtk.Label {
+        label: _("Notifications");
+        margin-top: 12;
+        margin-bottom: 12;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const expander = new Gtk.Expander();
+    // `set_label` builds a real GtkLabel and forwards `use_underline` to it, so the two
+    // are set in that order.
+    expander.use_underline = true;
+    expander.label = '_More options';
+    expander.set_child(new Gtk.Label({ label: 'Notifications' }));
     ```
   </Fragment>
 </AdwWidget>

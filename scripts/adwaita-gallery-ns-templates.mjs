@@ -532,6 +532,14 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
     'Gtk.ToggleButton':
         'The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).',
+    'Gtk.Overlay':
+        'The NativeScript port has no overlay view: GtkBox appends every child to the layout, and there is nothing in it to stack one over another (status/open-todos/adwaita-ports.md).',
+    'Gtk.Revealer':
+        'The NativeScript port has no revealer view: GtkBox has no transition to run between a collapsed and an expanded child (status/open-todos/adwaita-ports.md).',
+    'Gtk.Paned':
+        'The NativeScript port has no paned view: GtkBox has no divider to place between two children, and so no second slot to take (status/open-todos/adwaita-ports.md).',
+    'Gtk.Expander':
+        'The NativeScript port has no bare expander view: AdwExpanderRow is the disclosure it does have, and this is the Gtk one with no boxed-list row around it (status/open-todos/adwaita-ports.md).',
     'Gtk.CheckButton':
         'The NativeScript port has no checkbox view: GtkBox is the container one would sit in and @nativescript/core ships nothing under its ui/ to put in it. The boolean idiom the port does have is AdwSwitchRow (status/open-todos/adwaita-ports.md).',
     'Gtk.Switch':

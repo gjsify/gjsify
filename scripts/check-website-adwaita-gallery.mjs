@@ -707,6 +707,23 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port has no Gtk.PropertyExpression, no Gtk.StringObject and no search field, so the ' +
         'expression line and enableSearch have no counterpart. The model is a Gtk.StringList on both sides ' +
         'now, and the construction is one text.',
+    'Gtk.Overlay':
+        'property: halign and valign are GTK alignment requests on the child an overlay places, and the port ' +
+        'has no layout surface to put them on — nor a Gtk.Overlay to place a child in at all, which is the ' +
+        'refusal in ADWAITA_GALLERY_NS_REFUSALS. The width and height requests on the overlay itself are ' +
+        'left in place because the whole construction is a class the port cannot resolve.',
+    'Gtk.Revealer':
+        'property: margin_top and margin_bottom are GTK margin requests and the port has no layout surface ' +
+        "to put them on; the transition type, duration and reveal flag are the widget's own and would be " +
+        'there if the port had a Gtk.Revealer to set them on.',
+    'Gtk.Paned':
+        'property: width_request is a GTK size request and the port has no layout surface to put it on, so ' +
+        'the two panes are told apart by their labels instead. The orientation and the position are the ' +
+        "widget's own and would be there if the port had a Gtk.Paned.",
+    'Gtk.Expander':
+        'property: margin_top and margin_bottom are GTK margin requests and the port has no layout surface ' +
+        "to put them on. The label, the underline flag and the disclosure are the widget's own and would be " +
+        'there if the port had a Gtk.Expander — which is the refusal in ADWAITA_GALLERY_NS_REFUSALS.',
 };
 
 /**

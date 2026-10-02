@@ -94,8 +94,16 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
     'switch@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-switch> on NativeScript": the port composes the platform Switch for AdwSwitchRow and has no standalone one with the two-property active/state pair, so the story is rendered by the other two targets only.',
+    'expander@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Expander widget yet, so the story is rendered by the other two targets only.',
+    'overlay@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Overlay widget yet, so the story is rendered by the other two targets only.',
+    'paned@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Paned widget yet, so the story is rendered by the other two targets only.',
+    'revealer@nativescript':
+        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Revealer widget yet, so the story is rendered by the other two targets only.',
     'toggle-button@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
 };
 
 /** A floor on length, not on meaning — the same one the widget ledger uses. */

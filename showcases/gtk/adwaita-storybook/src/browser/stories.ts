@@ -43,6 +43,10 @@ import { GtkSpinnerWebStories } from './controls/gtk-spinner.web.js';
 import { LevelBarWebStories } from './controls/level-bar.web.js';
 import { ProgressBarWebStories } from './controls/progress-bar.web.js';
 import { SwitchWebStories } from './controls/switch.web.js';
+import { ExpanderWebStories } from './layout/expander.web.js';
+import { OverlayWebStories } from './layout/overlay.web.js';
+import { PanedWebStories } from './layout/paned.web.js';
+import { RevealerWebStories } from './layout/revealer.web.js';
 import { SeparatorWebStories } from './layout/separator.web.js';
 import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
 import { ButtonContentWebStories } from './buttons/button-content.web.js';
@@ -105,6 +109,10 @@ export const stories: WebStoryModule[] = [
     ToggleGroupWebStories,
     ClampWebStories,
     HeaderBarWebStories,
+    ExpanderWebStories,
+    OverlayWebStories,
+    PanedWebStories,
+    RevealerWebStories,
     SeparatorWebStories,
     ToolbarViewWebStories,
     WrapBoxWebStories,

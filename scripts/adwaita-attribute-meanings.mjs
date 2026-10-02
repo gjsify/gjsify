@@ -85,6 +85,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-drop-down': {
         'selected': 'The position of the selected item.',
     },
+    'gtk-expander': {
+        'label': null,
+    },
     'gtk-grid-view': {
         'max-columns': 'Maximum number of columns per row.',
         'min-columns': 'Minimum number of columns per row.',
@@ -102,9 +105,17 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'model': null,
         'show-separators': null,
     },
+    'gtk-paned': {
+        'orientation': 'The orientation of the orientable.',
+    },
     'gtk-progress-bar': {
         'fraction': 'The fraction of total work that has been completed.',
         'show-text': 'Sets whether the progress bar will show a text in addition to the bar itself.',
+    },
+    'gtk-revealer': {
+        'reveal-child': null,
+        'transition-duration': 'The animation duration, in milliseconds.',
+        'transition-type': 'The type of animation used to transition.',
     },
     'gtk-separator': {
         'orientation': 'The orientation of the orientable.',
@@ -155,12 +166,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 73,
-    glossed: 25,
-    nameSuffices: 30,
+    set: 78,
+    glossed: 28,
+    nameSuffices: 32,
     divergent: 17,
     authored: 1,
-    commentLines: 49,
+    commentLines: 58,
 };
 
 /**
