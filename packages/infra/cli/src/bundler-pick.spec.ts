@@ -12,9 +12,11 @@
 // These tests prevent the adapter from silently dropping hooks /
 // mis-translating filters when real-world plugin shapes change.
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@gjsify/unit';
 import { isResolveMiss } from '@gjsify/rolldown-native';
 import {
@@ -25,6 +27,7 @@ import {
     translateSourcemapOption,
     mapToInjectArray,
     findRolldownNativeDir,
+    resolveNativeLibraryModule,
     type NativePlugin,
 } from './bundler-pick.js';
 import {
@@ -489,6 +492,88 @@ export default async () => {
                 { type: 'namespace', from: 'some-mod', alias: 'ns' },
             ]);
         });
+    });
+    // The edge that took @gjsify/napi off the v0.53.0 release train, as a
+    // resolution the Node tests CAN measure: `probeNativeLibrary()` is on
+    // `tryLoadNative()`'s success path, so failing to resolve this module means no
+    // engine and no `gjsify build` under GJS at all — but that whole path needs
+    // `imports.gi`, so from Node the resolution is the reachable part.
+    await describe('resolveNativeLibraryModule — the anchor, not just the emit', async () => {
+        // The release job's exact shape: the workspace carries a BUILT
+        // `@gjsify/utils`, and the bundle sits outside every node_modules chain
+        // (there, `~/.cache/gjsify/bootstrap/`). Emitting `lib/esm` was necessary
+        // and NOT sufficient — measured, the bundle-only anchor still failed with
+        // `not found in any node_modules directory` while the file was right there.
+        const root = realpathSync(mkdtempSync(join(tmpdir(), 'gjsify-native-library-anchor-')));
+        const wsRoot = join(root, 'workspace');
+        const utilsDir = join(wsRoot, 'node_modules', '@gjsify', 'utils');
+        const built = join(utilsDir, 'lib', 'esm', 'native-library.js');
+        mkdirSync(join(utilsDir, 'lib', 'esm'), { recursive: true });
+        // The real package's `exports` MAP, not a bare file: the subpath is only
+        // reachable through it, and RELATIVE targets, because an absolute path is
+        // not a legal target and every anchor rejects it.
+        writeFileSync(
+            join(utilsDir, 'package.json'),
+            JSON.stringify({
+                name: '@gjsify/utils',
+                type: 'module',
+                exports: {
+                    './native-library': {
+                        types: './lib/types/native-library.d.ts',
+                        default: './lib/esm/native-library.js',
+                    },
+                },
+            }),
+        );
+        writeFileSync(built, 'export const openNativeLibrary = () => null;\n');
+        const bundle = join(root, 'cache', 'bootstrap', 'cli.gjs.mjs');
+        mkdirSync(join(root, 'cache', 'bootstrap'), { recursive: true });
+        writeFileSync(bundle, '// bundle outside every node_modules chain\n');
+
+        await it('finds it through the cwd anchor when the bundle reaches no chain', () => {
+            // `realpath` on BOTH sides: the comparison IS the claim, and `tmpdir()`
+            // is a symlink on macOS (`/var` -> `/private/var`), so the resolver
+            // hands back a canonicalized path and the fixture path is not.
+            const reached = resolveNativeLibraryModule({ cwd: wsRoot, bundleUrl: pathToFileURL(bundle).href });
+            expect(realpathSync(reached)).toBe(realpathSync(built));
+        });
+
+        // The regression this pins, as the measurement that produced it: the pre-fix
+        // call was a bare `createRequire(import.meta.url).resolve(...)`, and on this
+        // fixture it cannot reach the fixture's copy. Asserted as "not THIS file"
+        // rather than "throws", because whether it throws is the HOST's business and
+        // it differs -- measured, Node throws `MODULE_NOT_FOUND` while Bun answers
+        // from its global install cache with a DIFFERENT `@gjsify/utils`. Both are
+        // the defect (the anchor lands on a tree that is not this one), and WHICH
+        // file came back is the invariant that actually matters.
+        await it('the bundle-only anchor it replaced cannot reach this tree', () => {
+            let reached: string | null = null;
+            try {
+                reached = createRequire(pathToFileURL(bundle).href).resolve('@gjsify/utils/native-library');
+            } catch {
+                reached = null; // Node: no chain, no file
+            }
+            expect(reached === null ? null : realpathSync(reached)).not.toBe(realpathSync(built));
+        });
+
+        // Never answers with THIS fixture's tree, and never `null`: `diagnoseNativeEngine()`
+        // names a miss, and a `null` would reduce a named cause to a bare "no usable
+        // bundler engine". Throwing is Node's answer; a host whose `require.resolve`
+        // answers from elsewhere (Bun) may hand back a path and the load then fails
+        // where the caller can say so.
+        await it('does not reach the fixture tree when no anchor leads there', () => {
+            const empty = join(root, 'empty');
+            mkdirSync(empty, { recursive: true });
+            let reached: string;
+            try {
+                reached = resolveNativeLibraryModule({ cwd: empty, bundleUrl: pathToFileURL(bundle).href });
+            } catch {
+                return; // threw: the contract on Node
+            }
+            expect(realpathSync(reached)).not.toBe(realpathSync(built));
+        });
+
+        rmSync(root, { recursive: true, force: true });
     });
     // The bridge's `ctx.resolve` is DECLARED to answer `null` for a specifier that
     // doesn't resolve, because that is what npm `rolldown` does and what every

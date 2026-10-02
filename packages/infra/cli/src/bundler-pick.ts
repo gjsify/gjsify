@@ -35,7 +35,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { RolldownOutput, InputOptions, RolldownWatcher } from 'rolldown';
 import type * as Rolldown from 'rolldown';
 import type { BundlerOptions } from './types/index.js';
-import { resolveNpmPackage } from './utils/resolve-npm-package.js';
+import { resolveNpmPackage, type ResolveNpmPackageOptions } from './utils/resolve-npm-package.js';
 // Static, not dynamic: `diagnoseNativeEngine()` is synchronous and called inside a
 // `throw` expression. Safe because check-system-deps imports only `node:` builtins,
 // all of which the GJS bundle already carries via `commands/install.ts`.
@@ -488,6 +488,44 @@ let _utilsCore: NativeLibrarySurface | null = null;
  */
 let _utilsCoreError: unknown = null;
 
+/**
+ * The file `@gjsify/utils/native-library` resolves to, or THROWS when no anchor
+ * reaches it.
+ *
+ * `resolveNpmPackage` first, the same resolver — and the same `?? createRequire`
+ * tail — the ENGINE loader below uses, for the same reason: ONE
+ * `createRequire(import.meta.url)` anchor walks exactly one node_modules chain,
+ * the one rooted at the BUNDLE. v0.53.0's release `publish-napi` job runs the
+ * published bundle from `~/.cache/gjsify/bootstrap/`, which is in no workspace's
+ * chain, so the bundle-only anchor found nothing — and since #1901 moved
+ * `probeNativeLibrary()` onto `tryLoadNative()`'s SUCCESS path, that is not a
+ * degraded diagnostic but NO ENGINE: every `gjsify build` under GJS died with
+ * "no usable bundler engine", reported by a diagnostic that resolves the same
+ * specifier and so could not name the cause. MEASURED on the release job's own
+ * shape: with `@gjsify/utils` FULLY BUILT, anchoring only at the bundle still
+ * fails with `Cannot find module "@gjsify/utils/native-library" - not found in
+ * any node_modules directory`; anchoring at cwd resolves it. `main.yml` never
+ * saw this because it exports `XDG_CACHE_HOME=$PWD/.gjsify-cache` and therefore
+ * caches the bundle INSIDE the workspace, where the bundle-only anchor happens
+ * to work.
+ *
+ * Two independent defects, so both are fixed where they live: this anchor, and
+ * the `lib/esm` emit it then needs on a cold tree (`@gjsify/utils build:esm`
+ * before the first bundler clause, rule 5 of
+ * `scripts/check-build-infra-order.mjs`).
+ *
+ * SCOPE, since it decides what this unblocks: the release job runs `build:infra`
+ * with the PUBLISHED bundle, which is fixed code this change cannot reach — so on
+ * its own it does NOT unblock v0.53.0. What does is the `XDG_CACHE_HOME` line in
+ * release.yml's `publish-napi` job, which puts that bundle inside the workspace
+ * where ANY anchor finds this tree. This fix is what stops the next release from
+ * depending on that line.
+ */
+export function resolveNativeLibraryModule(opts: ResolveNpmPackageOptions = {}): string {
+    const specifier = '@gjsify/utils/native-library';
+    return resolveNpmPackage(specifier, opts) ?? createRequire(opts.bundleUrl ?? import.meta.url).resolve(specifier);
+}
+
 async function utilsCore(): Promise<NativeLibrarySurface> {
     if (_utilsCore === null) {
         // `./native-library`, not `./core`: `core` re-exports `main-loop`, which
@@ -496,20 +534,17 @@ async function utilsCore(): Promise<NativeLibrarySurface> {
         // singleton — inert today because only pure probe functions are read
         // through this edge, and a trap the first time that stops being true.
         //
-        // Off disk, therefore: `import.meta.url` is THIS bundle, so the walk
-        // follows the WORKSPACE, where `lib/esm` is a build output. That makes
-        // `@gjsify/utils build:esm` a precondition of every `gjsify build` under
-        // GJS — not a formality, and this edge is on the SUCCESS path of
-        // `tryLoadNative()`, so it gates the engine itself. #1901, which moved
-        // the probe onto this edge, is what v0.53.0's release `publish-napi` job
-        // died on. Ordered by rule 5 of `scripts/check-build-infra-order.mjs`.
-        //
-        // AND the walk only reaches the WORKSPACE when the bundle is inside it: it
-        // is ONE chain, rooted at the bundle, so a bundle that is the published
-        // `cli.gjs.mjs` — one loose file in `<cache>/gjsify/bootstrap/`, with no
-        // `node_modules` above it — resolves nothing. Callers must therefore treat
-        // a throw as "not measured" (see `tryLoadNative`), never as "no engine".
-        const href = pathToFileURL(createRequire(import.meta.url).resolve('@gjsify/utils/native-library')).href;
+        // Off disk, so the resolution's ANCHORS matter — see
+        // `resolveNativeLibraryModule()` — and on a cold tree the WORKSPACE copy
+        // it finds is itself a build output, which is what
+        // `@gjsify/utils build:esm` orders (rule 5 of
+        // `scripts/check-build-infra-order.mjs`). Two independent preconditions,
+        // and v0.53.0's release `publish-napi` job needed both: a bundle-only
+        // anchor resolved nothing when the bundle was the published
+        // `cli.gjs.mjs` — one loose file in `<cache>/gjsify/bootstrap/`, no
+        // `node_modules` above it. So a throw here is "not measured" (see
+        // `tryLoadNative`), never "no engine".
+        const href = pathToFileURL(resolveNativeLibraryModule({ bundleUrl: import.meta.url })).href;
         _utilsCore = (await import(/* @vite-ignore */ href)) as NativeLibrarySurface;
     }
     return _utilsCore;
