@@ -641,6 +641,12 @@ Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object props,
   // Take a single strong, non-floating ref; the finalizer releases it.
   if (g_object_is_floating(obj)) {
     g_object_ref_sink(obj);
+  } else if (G_IS_INITIALLY_UNOWNED(obj)) {
+    // GtkWindow sinks its own floating ref and keeps it for the toplevel list,
+    // so g_object_new returned no ref to us. Adopting GTK's ref let destroy()
+    // finalize the window under a live JS handle (#1999). gjs takes the same
+    // extra ref (refs/gjs/gi/object.cpp, "GtkWindow does not return a ref").
+    g_object_ref(obj);
   }
   // Gtk.Widget composite template: instantiate the template tree on this
   // instance. The canonical GTK call is from instance_init; calling it here —

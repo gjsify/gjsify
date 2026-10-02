@@ -1704,6 +1704,29 @@ export const formatFailureVerdict = (counts: { failed: number; outside: number; 
  */
 export const exitCodeFor = (failed: number, bodyThrew: boolean): number => (failed > 0 || bodyThrew ? 1 : 0);
 
+/** The one member of a Node `Writable` that `flushed` needs. */
+export interface FlushableStream {
+    write(chunk: string, callback: (error?: Error | null) => void): unknown;
+}
+
+/**
+ * Resolve once everything already written to each stream has reached the OS.
+ *
+ * `process.exit()` DISCARDS output still queued in a stream, and on macOS a stdout PIPE is
+ * asynchronous in Node (synchronous on Linux, and a file is synchronous everywhere). Every CI log
+ * is a pipe. Measured on #1999: the react-native suite exited 1 on macOS with the log cut off
+ * after a passing case — the recap that named the failure was in the queue `process.exit` threw
+ * away, so the report said "exited with code 1" and nothing else. A slow reader reproduces it
+ * locally on every run; a file redirect never does, which is why it read as a crash.
+ *
+ * An empty write completes after every write queued before it. Its error argument is ignored: a
+ * reader that went away cannot be flushed to, and the exit must still happen.
+ */
+export const flushed = (streams: readonly FlushableStream[]): Promise<void> =>
+    Promise.all(streams.map((stream) => new Promise<void>((resolve) => stream.write('', () => resolve())))).then(
+        () => undefined,
+    );
+
 const printResult = () => {
     const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
     const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
@@ -2026,6 +2049,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
                 const exitCode = exitCodeFor(countTestsFailed + countFailuresOutsideTests, suiteBodyThrew);
                 try {
                     const process = globalThis.process || (await import('node:process'));
+                    await flushed([process.stdout, process.stderr]);
                     process.exit(exitCode);
                 } catch (_e) {
                     /* process unavailable */
