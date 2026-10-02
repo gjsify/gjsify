@@ -500,14 +500,25 @@ export const ADWAITA_GALLERY_TREES = [
     {
         widget: 'Gtk.Viewport',
         page: 'scrolling',
-        // A LEAF, and the reason is arm 5's: a child placed inside `gtk-viewport` needs a
-        // curated child policy on `GtkViewport`, which the descriptor table does not carry —
-        // it is one of the rows that is `uncurated` by default. `GtkScrolledWindow`, whose
-        // tree above has a child, DOES carry one. A block that showed the viewport's child
-        // would be showing markup this renderer refuses to mount.
+        // A `GtkViewport` holds exactly ONE child, so the column below is the whole widget —
+        // and the child policy is `single`/`set_child` in the descriptor table, which is what
+        // `GtkScrolledWindow`'s own row added above. A block showing a childless viewport
+        // would teach nothing about the one thing the widget is for: a window onto content
+        // too large to show whole.
         root: {
             tag: 'gtk-viewport',
             props: { scrollToFocus: true },
+            children: [
+                {
+                    tag: 'gtk-box',
+                    props: { orientation: 'vertical', spacing: 6 },
+                    children: [
+                        { tag: 'gtk-label', props: { label: 'Row 1' } },
+                        { tag: 'gtk-label', props: { label: 'Row 2' } },
+                        { tag: 'gtk-label', props: { label: 'Row 3' } },
+                    ],
+                },
+            ],
         },
     },
     {

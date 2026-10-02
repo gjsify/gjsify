@@ -297,7 +297,16 @@
             valign="center"
             :adjustment="{ value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 }"
         />
-        <gtk-viewport :scroll-to-focus="true" />
+        <gtk-viewport :scroll-to-focus="true">
+            <gtk-box
+                orientation="vertical"
+                :spacing="6"
+            >
+                <gtk-label label="Row 1" />
+                <gtk-label label="Row 2" />
+                <gtk-label label="Row 3" />
+            </gtk-box>
+        </gtk-viewport>
         <gtk-window-handle>
             <adw-header-bar>
                 <adw-window-title title="Notes" />

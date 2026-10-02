@@ -192,9 +192,9 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         react: "// createRoot(container).render(<GtkScrollbar />) — from '@gjsify/gtk-host/react'\nconst GtkScrollbar = () => (\n    <gtk-scrollbar\n        orientation=\"vertical\"\n        valign=\"center\"\n        adjustment={{ value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 }}\n    />\n);",
     },
     'Gtk.Viewport': {
-        solid: "// mount(() => <GtkViewport />, container) — from '@gjsify/gtk-host/solid'\nconst GtkViewport = () => (\n    <gtk-viewport scrollToFocus />\n);",
-        vue: "<!-- GtkViewport.vue — mount(GtkViewport, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-viewport :scroll-to-focus=\"true\" />\n</template>",
-        react: "// createRoot(container).render(<GtkViewport />) — from '@gjsify/gtk-host/react'\nconst GtkViewport = () => (\n    <gtk-viewport scrollToFocus />\n);",
+        solid: "// mount(() => <GtkViewport />, container) — from '@gjsify/gtk-host/solid'\nconst GtkViewport = () => (\n    <gtk-viewport scrollToFocus>\n        <gtk-box\n            orientation=\"vertical\"\n            spacing={6}\n        >\n            <gtk-label label=\"Row 1\" />\n            <gtk-label label=\"Row 2\" />\n            <gtk-label label=\"Row 3\" />\n        </gtk-box>\n    </gtk-viewport>\n);",
+        vue: "<!-- GtkViewport.vue — mount(GtkViewport, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-viewport :scroll-to-focus=\"true\">\n        <gtk-box\n            orientation=\"vertical\"\n            :spacing=\"6\"\n        >\n            <gtk-label label=\"Row 1\" />\n            <gtk-label label=\"Row 2\" />\n            <gtk-label label=\"Row 3\" />\n        </gtk-box>\n    </gtk-viewport>\n</template>",
+        react: "// createRoot(container).render(<GtkViewport />) — from '@gjsify/gtk-host/react'\nconst GtkViewport = () => (\n    <gtk-viewport scrollToFocus>\n        <gtk-box\n            orientation=\"vertical\"\n            spacing={6}\n        >\n            <gtk-label label=\"Row 1\" />\n            <gtk-label label=\"Row 2\" />\n            <gtk-label label=\"Row 3\" />\n        </gtk-box>\n    </gtk-viewport>\n);",
     },
     'Gtk.WindowHandle': {
         solid: "// mount(() => <GtkWindowHandle />, container) — from '@gjsify/gtk-host/solid'\nconst GtkWindowHandle = () => (\n    <gtk-window-handle>\n        <adw-header-bar>\n            <adw-window-title title=\"Notes\" />\n        </adw-header-bar>\n    </gtk-window-handle>\n);",
