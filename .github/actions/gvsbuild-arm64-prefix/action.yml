@@ -30,11 +30,11 @@ runs:
         python-version: '3.14'
 
     # Cold build measured at 1 h 32 min on windows-11-arm (fork CI). `-j2` is the
-    # fork's own out-of-memory guard for the hosted runner.
+    # fork's own out-of-memory guard for the hosted runner. Composite steps take
+    # no `timeout-minutes`; the calling jobs bound it (240 min).
     - name: Build GTK4 from the gjsify/gvsbuild fork (MSVC, arm64)
       if: steps.cache-gtk.outputs.cache-hit != 'true'
       shell: pwsh
-      timeout-minutes: 180
       run: |
         $ErrorActionPreference = 'Stop'
         python -m pip install "git+https://github.com/gjsify/gvsbuild@e6d37672568aab4919c71452f509291464980108"
