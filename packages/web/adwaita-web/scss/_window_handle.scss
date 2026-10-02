@@ -1,7 +1,7 @@
 // _window_handle.scss — <gtk-window-handle>: the box GTK's `GtkBinLayout` gives the child.
 //
 // `gtk_window_handle_class_init` sets `GTK_TYPE_BIN_LAYOUT` and the `windowhandle` CSS name
-// (gtkwindowhandle.c:550-552), and libadwaita has NO rule for either — the widget contributes
+// (gtkwindowhandle.c:553-554), and libadwaita has NO rule for either — the widget contributes
 // no surface, a shadow or a border, only the titlebar's gestures. `display: contents` is that
 // in CSS: the child keeps its own box, participates in its PARENT's layout as if the handle
 // were not there, and a titlebar strip can go anywhere a header bar goes without moving

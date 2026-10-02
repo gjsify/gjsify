@@ -3,7 +3,7 @@
 //
 // THE SELECTOR REWRITE, and why it is not a guess. libadwaita addresses
 // `scrollbar > range > trough > slider` (`_scrolling.scss:6-8`) because `GtkScrollbar` builds
-// a `GtkRange` and parents it to itself (gtkscrollbar.c:404-420). There is no `<gtk-range>`
+// a `GtkRange` and parents it to itself (gtkscrollbar.c:263-278). There is no `<gtk-range>`
 // element in this package — `Gtk.Range` is the ancestor of `GtkScale` and `Gtk.Scrollbar` and
 // is documented through them — so the trough-and-slider pair IS the node below the range and
 // the two class names stand in for the two GTK nodes. Everything else is upstream's
@@ -140,7 +140,7 @@ gtk-scrollbar {
 
   // `> range.fine-tune > trough > slider` — the accent, which upstream paints for a range that
   // is being FINE-TUNED, which in GTK is what `update_zoom_state` turns on: while Shift is
-  // held (gtkrange.c:1795-1802).
+  // held (gtkrange.c:1793-1804).
   &.fine-tune > .adw-scrollbar-trough > .adw-scrollbar-slider {
     &,
     &:hover,

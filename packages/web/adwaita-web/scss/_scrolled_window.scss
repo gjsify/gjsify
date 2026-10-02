@@ -14,18 +14,18 @@
 //     off the document.
 //
 // The third corner cell is `junction`, the node GTK draws where two bars meet
-// (gtkscrolledwindow.c:87-89); libadwaita paints nothing there, and neither does this — an
+// (gtkscrolledwindow.c:134-135); libadwaita paints nothing there, and neither does this — an
 // empty grid cell is the same absence with no node to hold it.
 //
 // AN OVERLAY INDICATOR IS LAID OUT INSIDE THE CONTENT, not beside it. That is
-// `priv->use_indicators` in the same function (gtkscrolledwindow.c:3257-3293): the bar's
+// `priv->use_indicators` in the same function (gtkscrolledwindow.c:3255-3300): the bar's
 // allocation starts at the content's far edge MINUS the bar's own thickness, so it lies over
 // the content instead of shrinking it. Hence the second template — positioned against the
 // window, which is `position: relative` here for the reason GTK's is a child of the
 // scrolledwindow node.
 //
 // `.frame` is `GtkScrolledWindow:has-frame`, which its own CSS-node documentation spells out:
-// "It gets a .frame style class added when `has-frame` is TRUE" (gtkscrolledwindow.c:88-92).
+// "It gets a .frame style class added when `has-frame` is TRUE" (gtkscrolledwindow.c:122-124).
 // The rule behind the class is libadwaita's `_misc.scss:4-7`, which `_style_classes.scss`
 // already carries, so no selector for it is repeated here.
 
@@ -33,7 +33,7 @@ gtk-scrolled-window {
   position: relative;
   display: grid;
   // GTK asks its parent for as little as it can: `gtk_scrolled_window_measure` reports the
-  // child's minimum only under `POLICY_NEVER` (gtkscrolledwindow.c:1836-1842) and the bars'
+  // child's minimum only under `POLICY_NEVER` (gtkscrolledwindow.c:1846-1895) and the bars'
   // own thickness otherwise. `minmax(0, 1fr)` is that request — a track that may collapse to
   // nothing rather than one that demands its content's height, which is what
   // `gtk_widget_set_size_request` lets an author override afterwards.
@@ -43,7 +43,7 @@ gtk-scrolled-window {
   min-height: 0;
   // GTK GIVES THIS WIDGET AN ALLOCATION from its parent and never decides its own size:
   // `gtk_scrolled_window_measure` reports the child's MINIMUM and the bars' own thickness
-  // (gtkscrolledwindow.c:1836-1842, 1859-1895), and `size_allocate` fills whatever it is
+  // (gtkscrolledwindow.c:1846-1895), and `size_allocate` fills whatever it is
   // given. A browser scrolled window needs the same from its author — a height, a
   // `flex-basis`, a parent track — because an auto-height box grows with its content and then
   // has nothing to scroll. `flex: 1 1 0%` is that allocation for the ordinary case of a

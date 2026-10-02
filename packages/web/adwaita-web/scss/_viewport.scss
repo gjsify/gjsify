@@ -2,13 +2,13 @@
 //
 // LIBADWAITA STYLES NOTHING HERE, and that is the whole file's justification for existing:
 // `_scrolling.scss` has rules for `scrollbar` and for `scrolledwindow` and none for
-// `viewport`, because GTK gives the node no surface to paint (gtkviewport.c:52-56). What is
+// `viewport`, because GTK gives the node no surface to paint (gtkviewport.c:353). What is
 // below is therefore the CSS of the NODE GTK builds — the measurement, the clipping and the
 // one allocation `gtk_viewport_size_allocate` performs — and each declaration says which half
 // of it it is.
 //
 // THE CHILD IS ALLOCATED ITS NATURAL SIZE. GTK measures the child and hands it that
-// (gtkviewport.c:129-160), so content wider than the window scrolls sideways instead of being
+// (gtkviewport.c:517-560), so content wider than the window scrolls sideways instead of being
 // squeezed into it. A flex container whose items are `flex: none` is that rule in CSS:
 // `flex-basis: auto` sizes an item to its content and `flex-shrink: 0` keeps it there, and
 // `align-items: flex-start` stops the cross axis from stretching it to fill.
@@ -16,7 +16,7 @@
 // THE SCROLLING IS THE PLATFORM'S. GTK's viewport translates its child by the adjustment
 // instead of scrolling it, and the browser's equivalent of a scrollport that scrolls is a
 // scroll container — with the SCROLLBAR hidden, because in GTK those belong to the scrolled
-// window (which builds them, gtkscrolledwindow.c:152-156) and never to the viewport. The one
+// window (which builds them, gtkscrolledwindow.c:4356-4363) and never to the viewport. The one
 // consequence worth writing down is the momentum after a touch release: GTK's
 // `GtkKineticScrolling` is a deceleration curve a page cannot hand a browser, so what a reader
 // gets is the platform's own — see `GtkScrolledWindow:kinetic-scrolling`.
