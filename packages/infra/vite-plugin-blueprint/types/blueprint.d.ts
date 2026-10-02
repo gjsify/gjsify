@@ -1,5 +1,5 @@
 /**
- * The FALLBACK, and only the fallback, since ADR 0087.
+ * The FALLBACK, and only the fallback, since ADR 0088.
  *
  * A `.blp` with an `x.d.blp.ts` sidecar beside it is typed by that sidecar instead — measured on
  * TypeScript 6.0.3, a sidecar read under `allowArbitraryExtensions` wins over this wildcard. This

@@ -1,4 +1,4 @@
-// Declarations for `typed-exports.mjs` — ADR 0087's third exit.
+// Declarations for `typed-exports.mjs` — ADR 0088's third exit.
 //
 // Hand-written beside the implementation, for the reason `ast.d.mts` § WHY A DECLARATION FILE
 // AND NOT A `.ts` gives: this package has no build step, because the gate that runs it installs
@@ -49,7 +49,7 @@ export interface BlueprintExports {
 }
 
 /**
- * The ids, types and template a `.blp` declares — ADR 0087 § 2 and § 3.
+ * The ids, types and template a `.blp` declares — ADR 0088 § 2 and § 3.
  *
  * Throws a `BlueprintEmitError` where an id would collide with the `builder` key `build()`
  * returns beside them.
@@ -57,7 +57,7 @@ export interface BlueprintExports {
 export declare function deriveExports(file: BlueprintFile): BlueprintExports;
 
 /**
- * The `x.d.blp.ts` text — what `allowArbitraryExtensions` reads (ADR 0087 § 4).
+ * The `x.d.blp.ts` text — what `allowArbitraryExtensions` reads (ADR 0088 § 4).
  *
  * `sourceName` is the `.blp`'s OWN name (`header-bar.blp`), not a path: the generated header is
  * the only thing that needs one, and this package has no build step and is also bundled into the

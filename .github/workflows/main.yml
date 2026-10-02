@@ -527,7 +527,7 @@ jobs:
       - name: Check every stated Blueprint corpus count
         run: su testuser -c 'node scripts/check-blueprint-corpus-counts.mjs'
 
-      # ADR 0087 commits each `.blp`'s `.d.blp.ts` sidecar, because a type-check is not a build:
+      # ADR 0088 commits each `.blp`'s `.d.blp.ts` sidecar, because a type-check is not a build:
       # `tree-checks` installs the workspace and does not build it, so types that only exist
       # after a bundler has run are types that gate cannot see. This holds the committed bytes
       # to what the `.blp` derives today. Plain `node`, like its three siblings above, and NOT

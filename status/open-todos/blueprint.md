@@ -521,13 +521,13 @@ compiler, and the in-repo parser is not that reader.
 
 ### A typed `.blp` export cannot be `readonly`, because `@girs` declares `InternalChildren` mutable
 
-ADR 0087 emits `export declare const InternalChildren: ['menuButton']` — an exact tuple, and
+ADR 0088 emits `export declare const InternalChildren: ['menuButton']` — an exact tuple, and
 deliberately NOT `readonly`. `GObject.MetaInfo['InternalChildren']` is `string[]` in
 `@girs/gobject-2.0` 5.4.0, and a `readonly` tuple is not assignable to a mutable array: measured
 on TypeScript 6.0.3, `registerClass({ GTypeName, Template, InternalChildren }, this)` fails with
 TS4104 "The type 'readonly [\"menuButton\"]' is 'readonly' and cannot be assigned to the mutable
 type 'string[]'". The consumer's way out is `InternalChildren: [...InternalChildren]`, which is a
-line of boilerplate back at the import site — the one thing ADR 0087 exists to remove.
+line of boilerplate back at the import site — the one thing ADR 0088 exists to remove.
 
 A mutable tuple loses nothing that matters: it still pins the exact ids and the arity, so a
 renamed id in the `.blp` still reds the consumer's type-check. What it admits is a `.push()` on a
@@ -540,7 +540,7 @@ type, so every existing caller keeps compiling. That lands in ts-for-gir, ships 
 
 ### The other in-repo `.blp` consumers still transcribe their ids by hand
 
-ADR 0087 migrated `showcases/gtk/adw-blueprint-layout` (both files) and proved the shape: GJS
+ADR 0088 migrated `showcases/gtk/adw-blueprint-layout` (both files) and proved the shape: GJS
 probe PASS, both bundles build, sidecars committed and gated. Not migrated:
 
 - `showcases/gtk/effect-adw-services` — 5 internal children

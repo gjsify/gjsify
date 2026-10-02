@@ -1,4 +1,4 @@
-// ADR 0087's derivation, held against the corpus and against the four facts that were MEASURED
+// ADR 0088's derivation, held against the corpus and against the four facts that were MEASURED
 // rather than reasoned.
 //
 // WHY THIS SPEC IS ONE PACKAGE OVER FROM THE CODE IT TESTS. `deriveExports` lives in
@@ -34,7 +34,7 @@ const exportsOf = (source: string) => deriveExports(parseBlueprint(source, 'spec
 const derive = (body: string) => exportsOf(`using Gtk 4.0;\nusing Adw 1;\n${body}`);
 
 export default async () => {
-    await describe('typed exports (ADR 0087)', async () => {
+    await describe('typed exports (ADR 0088)', async () => {
         await it('derives ids, types and the template class from every shipped .blp', async () => {
             // The whole corpus, because the parse and the derivation are both total over it:
             // anything that throws here is a construct the derivation does not hold, named.

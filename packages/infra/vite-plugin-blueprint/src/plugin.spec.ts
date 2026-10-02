@@ -52,7 +52,7 @@ const refusalLine = (file: string): number => {
 };
 
 /**
- * The `const xml = …; export default xml;` pair ADR 0087 made the XML exit emit.
+ * The `const xml = …; export default xml;` pair ADR 0088 made the XML exit emit.
  *
  * The golden BYTES are still what is compared — that is the property this suite exists for —
  * and only the wrapper around them moved: the XML became a binding so `build()` can read it
@@ -206,7 +206,7 @@ export default async () => {
             const plugin = pluginUnderTest();
 
             expect(((await loadOf(plugin)(source)) as string).startsWith(xmlModule(golden))).toBe(true);
-            // The tree exit is untouched by ADR 0087: it carries no ids and no template class, so
+            // The tree exit is untouched by ADR 0088: it carries no ids and no template class, so
             // it stays the bare `export default` it was.
             expect(await loadOf(plugin)(`${source}?shared-tree`)).toBe(
                 `export default ${JSON.stringify(projectionOf(source).node)};`,
@@ -254,7 +254,7 @@ export default async () => {
         });
 
         await it('writes the sidecar beside the .blp, and not again when it is current', async () => {
-            // ADR 0087 § 4, at the producer. In a directory this test owns: the suite's other
+            // ADR 0088 § 4, at the producer. In a directory this test owns: the suite's other
             // cases load tracked `.blp` files, and a default-options plugin over one of those
             // would make running the tests dirty the working tree.
             const dir = mkdtempSync(join(tmpdir(), 'blp-sidecar-'));

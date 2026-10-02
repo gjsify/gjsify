@@ -1,4 +1,4 @@
-// GENERATED from toolbar-view.blp — do not edit. ADR 0087 says what these exports mean.
+// GENERATED from toolbar-view.blp — do not edit. ADR 0088 says what these exports mean.
 // Regenerate with `gjsify blueprint types`; `scripts/check-blueprint-sidecars.mjs` holds it.
 
 /** The GtkBuilder XML this `.blp` compiles to. */

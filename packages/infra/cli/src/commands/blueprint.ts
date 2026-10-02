@@ -1,4 +1,4 @@
-// `gjsify blueprint types [paths..]` — write the `.d.blp.ts` sidecars ADR 0087 § 4 defines.
+// `gjsify blueprint types [paths..]` — write the `.d.blp.ts` sidecars ADR 0088 § 4 defines.
 //
 // WHY THE CLI HAS THIS AT ALL, when `@gjsify/vite-plugin-blueprint` already writes a sidecar
 // during `load`: a type-check is not a build. `gjsify check` runs `tsc` and nothing else, so a
@@ -55,7 +55,7 @@ function blueprintsUnder(path: string, found: string[]): string[] {
 export const blueprintTypesCommand: Command<unknown, BlueprintTypesOptions> = {
     command: 'types [paths..]',
     description:
-        'Generate the `<name>.d.blp.ts` type sidecar for each .blp (ADR 0087), so `import { build }` / ' +
+        'Generate the `<name>.d.blp.ts` type sidecar for each .blp (ADR 0088), so `import { build }` / ' +
         '`import { GTypeName }` type-check before anything is built. Defaults to the current directory.',
     builder: (yargs) =>
         yargs
@@ -140,7 +140,7 @@ export const blueprintTypesCommand: Command<unknown, BlueprintTypesOptions> = {
 
 export const blueprintCommand: Command = {
     command: 'blueprint <subcommand>',
-    description: 'Blueprint (.blp) tooling: generate the TypeScript type sidecars a .blp exports (ADR 0087).',
+    description: 'Blueprint (.blp) tooling: generate the TypeScript type sidecars a .blp exports (ADR 0088).',
     builder: (yargs) =>
         yargs
             .command(

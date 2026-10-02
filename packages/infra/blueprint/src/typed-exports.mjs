@@ -1,4 +1,4 @@
-// ADR 0087: the ids a `.blp` declares, derived as TYPED names, plus the `.d.blp.ts` sidecar
+// ADR 0088: the ids a `.blp` declares, derived as TYPED names, plus the `.d.blp.ts` sidecar
 // that carries them to TypeScript.
 //
 // A THIRD EXIT, and the reason it is here rather than in the plugin. ADR 0053 clause 1 has the
@@ -191,7 +191,7 @@ const quoteKey = (id) => (isBareKey(id) ? id : JSON.stringify(id));
  * flavour per host at module init, so the CLI's GJS bundle gets the host's own answer too (#1146
  * is the flavour selection that made that so).
  *
- * SPIKED BEFORE ADR 0087 WAS WRITTEN, on TypeScript 6.0.3: the sidecar wins over the wildcard,
+ * SPIKED BEFORE ADR 0088 WAS WRITTEN, on TypeScript 6.0.3: the sidecar wins over the wildcard,
  * a `.blp` with no sidecar still falls back to it, and without `allowArbitraryExtensions` the
  * sidecar is ignored — which is the negative control proving the first of the three.
  */
@@ -205,7 +205,7 @@ export function emitTypedSidecar(file, sourceName) {
     const imports = [...used].sort();
 
     const lines = [
-        `// GENERATED from ${sourceName} — do not edit. ADR 0087 says what these exports mean.`,
+        `// GENERATED from ${sourceName} — do not edit. ADR 0088 says what these exports mean.`,
         `// Regenerate with \`gjsify blueprint types\`; \`scripts/check-blueprint-sidecars.mjs\` holds it.`,
         '',
     ];
@@ -241,7 +241,7 @@ export function emitTypedSidecar(file, sourceName) {
                 ' * A MUTABLE tuple, and the `readonly` is missing for a reason that is not ours: `@girs`',
                 " * declares `GObject.MetaInfo['InternalChildren']` as `string[]`, so a `readonly` tuple is",
                 ' * refused at the call site with TS4104 and the consumer would have to spread it — the',
-                ' * boilerplate ADR 0087 exists to remove. The tuple still pins the exact ids and arity,',
+                ' * boilerplate ADR 0088 exists to remove. The tuple still pins the exact ids and arity,',
                 ' * which is the property that matters. `status/open-todos/blueprint.md` carries the',
                 ' * upstream half.',
                 ' */',
@@ -282,7 +282,7 @@ export function emitTypedSidecar(file, sourceName) {
  * IMPLEMENTS it, so a change to either is visible beside the other. Split across two packages
  * they would drift into a declaration that lies about a function nobody re-checked.
  *
- * `default` is the XML and does not move (ADR 0087 § 1). A template file gets no `gi://` import
+ * `default` is the XML and does not move (ADR 0088 § 1). A template file gets no `gi://` import
  * at all: `GTypeName` and `InternalChildren` are plain data, and importing Gtk to export two
  * strings would make every template module pull a typelib it never calls.
  */

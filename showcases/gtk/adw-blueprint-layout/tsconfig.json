@@ -12,7 +12,7 @@
     },
     "include": ["src/**/*"],
     "comment": [
-        "ADR 0087: `allowArbitraryExtensions` is what makes `src/*.d.blp.ts` the types of",
+        "ADR 0088: `allowArbitraryExtensions` is what makes `src/*.d.blp.ts` the types of",
         "`./x.blp`. Without it the sidecar is ignored and the ambient `*.blp` wildcard answers",
         "instead — which exports only `default`, so every named import fails with TS2614.",
         "Measured both ways while spiking the ADR."

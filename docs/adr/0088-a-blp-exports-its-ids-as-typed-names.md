@@ -1,4 +1,4 @@
-# 87. A `.blp` exports its ids as TYPED names, and the types travel in a committed sidecar
+# 88. A `.blp` exports its ids as TYPED names, and the types travel in a committed sidecar
 
 - Status: **Accepted**
 - Date: 2026-10-01

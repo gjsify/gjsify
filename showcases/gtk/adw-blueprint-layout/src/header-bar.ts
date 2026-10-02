@@ -15,7 +15,7 @@ import GObject from 'gi://GObject?version=2.0';
 
 import Template, { type Children, GTypeName, InternalChildren } from './header-bar.blp';
 
-// ADR 0087: the class name, the id list and the type of every internal child come from the
+// ADR 0088: the class name, the id list and the type of every internal child come from the
 // `.blp` that declares them. Renaming `menuButton` in the template now fails THIS file's
 // type-check; before, the three hand-written copies stayed valid and `_menuButton` was
 // silently `undefined` at run time.

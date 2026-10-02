@@ -21,7 +21,7 @@ export interface BlueprintPluginOptions {
     minify?: boolean;
     verbose?: boolean;
     /**
-     * Write each `.blp`'s `x.d.blp.ts` sidecar beside it during `load` (ADR 0087 § 4). On by
+     * Write each `.blp`'s `x.d.blp.ts` sidecar beside it during `load` (ADR 0088 § 4). On by
      * default: the types are what the named exports are FOR, and a build that emits `build()`
      * without them leaves every consumer on the ambient `*.blp` wildcard.
      *
@@ -213,7 +213,7 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
                 if (verbose) console.log(`Minified XML for ${asked.file}`);
             }
 
-            // ADR 0087's named exports, beside the `default` that does not move. The module text
+            // ADR 0088's named exports, beside the `default` that does not move. The module text
             // is `@gjsify/blueprint`'s, not this file's, because the sidecar DECLARES what this
             // implements and the two have to be written together — `typed-exports.mjs` § the
             // MODULE a bundler gets says why they share a file.

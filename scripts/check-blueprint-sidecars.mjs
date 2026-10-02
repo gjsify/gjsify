@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Every committed `*.d.blp.ts` is what its `.blp` derives TODAY.
 //
-// WHY THIS EXISTS. ADR 0087 § 4 commits the sidecars rather than generating them into a cache,
+// WHY THIS EXISTS. ADR 0088 § 4 commits the sidecars rather than generating them into a cache,
 // because a type-check is not a build: `tree-checks` installs the workspace and does not build
 // it, so types that only exist after a bundler has run are types the gate cannot see. The price
 // of committing is a second copy of a derived fact, and this repository has already paid for an
@@ -19,7 +19,7 @@
 // `import { build } from './x.blp'` and which has NO sidecar does not fail silently: the import
 // falls back to the ambient `declare module '*.blp'` wildcard, which exports only `default`, and
 // `tsc` reports TS2614 naming each missing member — measured on TypeScript 6.0.3 while spiking
-// ADR 0087 § 4. So `gjsify run check` already refuses it, loudly, at the import site. A grep for
+// ADR 0088 § 4. So `gjsify run check` already refuses it, loudly, at the import site. A grep for
 // `.blp` imports here would be a second, weaker reader of a question the type-checker answers
 // exactly, and it would have to guess about `import.meta.glob` (which `website/` uses).
 //
