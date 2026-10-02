@@ -128,8 +128,8 @@ SCROLLABLE range — the whole one less the page. That is why a long adjustment
 keeps a grabbable thumb instead of shrinking to nothing.
 
 `GtkScrollbar` has **no adjustment of its own** — unlike `GtkRange`, it makes none —
-so a bar without one is insensitive, which is what the markup below shows next to a
-bar with one.
+so the third bar below, which is given none, is a bar over an empty range: the
+thumb fills the trough and cannot move.
 
 <AdwWidget title="Gtk.Scrollbar">
   <Fragment slot="preview">

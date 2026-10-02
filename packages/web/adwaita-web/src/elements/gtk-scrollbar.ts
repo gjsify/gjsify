@@ -18,12 +18,17 @@
 // the selectors are rewritten.
 //
 // `GtkScrollbar` has TWO properties: `adjustment` and `orientation`, the second being
-// `GtkOrientable`'s defaulted to HORIZONTAL in `gtk_scrollbar_init` (gtkscrollbar.c:404-406).
-// There is no adjustment of its own — unlike `GtkRange`, which makes one — so a bare
-// `<gtk-scrollbar>` holds the pspec's NULL adjustment and is INSENSITIVE, exactly as
-// `gtk_scrollbar_adjustment_updated` leaves it (gtkscrollbar.c:349-364). The adjustment is
-// the portable value (ADR 0047), so a bar authored here is the one a `<gtk-scrolled-window>`
-// drives and the one a NativeScript `GtkAdjustment` would carry.
+// `GtkOrientable`'s defaulted to HORIZONTAL in `gtk_scrollbar_init` (gtkscrollbar.c:263-278).
+// There is no adjustment of its own — unlike `GtkRange`, which makes one — and a NULL one is
+// not a null range: `gtk_range_set_adjustment` SUBSTITUTES a zero adjustment
+// (`gtk_adjustment_new (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)`, gtkrange.c:687-688), so a bare
+// `<gtk-scrollbar>` is a bar over `upper == lower`, where `upper - lower == 0` makes
+// `gtk_range_compute_slider_position` fall back to the slider's OWN measured size and put it
+// at 0 (gtkrange.c:2779-2793) — a full-length thumb that cannot move. The widget stays
+// SENSITIVE: nothing in gtkscrollbar.c, gtkrange.c or gtkscrolledwindow.c ever calls
+// `gtk_widget_set_sensitive` on it, so there is no insensitivity to report. The adjustment
+// is the portable value (ADR 0047), so a bar authored here is the one a
+// `<gtk-scrolled-window>` drives and the one a NativeScript `GtkAdjustment` would carry.
 //
 // THE POINTER RULES ARE `GtkRange`'s AT THE SETTINGS DEFAULT THEY SHIP WITH:
 // `gtk-primary-button-warps-slider` is TRUE (gtksettings.c:734-736), so a primary click in
@@ -35,10 +40,9 @@
 // come out at 1, which is what a scale forces (gtkrange.c:2142-2160, 1795-1802).
 //
 // A11y: `role="scrollbar"` with `aria-valuemin` / `aria-valuemax` / `aria-valuenow` —
-// `GTK_ACCESSIBLE_ROLE_SCROLLBAR` and the `GtkAccessibleRange` interface, whose three
-// numbers are the adjustment's own (gtkscrollbar.c:60-71, 543-545). The nsensitive state is
-// `aria-disabled`, because that is what `gtk_widget_set_sensitive` amounts to for a widget
-// whose only input is its own adjustment.
+// `GTK_ACCESSIBLE_ROLE_SCROLLBAR` (gtkscrollbar.c:259) and the `GtkAccessibleRange` interface,
+// whose three numbers are the adjustment's own: `upper - page_size`, `lower` and `value`,
+// in that order (gtkscrollbar.c:309-313, 322-324).
 //
 // NOT PORTED: the autoscroll a SECONDARY click in the trough starts
 // (gtkrange.c:1848-1871) is a repeating timer against the trough's edge, and a browser
@@ -89,6 +93,25 @@ const PIXELS_PER_LINE = 16;
 /** `GtkScrollType`'s six kinds, which is what a `scroll-child` names. */
 export type GtkScrollType = 'step-backward' | 'step-forward' | 'page-backward' | 'page-forward' | 'start' | 'end';
 
+/**
+ * `gtk_range_set_adjustment`'s substitute for a NULL adjustment — `gtk_adjustment_new (0.0,
+ * 0.0, 0.0, 0.0, 0.0, 0.0)` (gtkrange.c:687-688), the six numbers in `gtk_adjustment_new`'s
+ * own order (value, lower, upper, step, page, page_size).
+ *
+ * `upper == lower` is the state every scrollbar starts in and the one `upper - lower == 0`
+ * in `gtk_range_compute_slider_position` answers with the slider's own size at position 0
+ * (gtkrange.c:2779-2793). Frozen: it is the same object for every bar that has no
+ * adjustment, and nothing writes to it.
+ */
+const ZERO_ADJUSTMENT: AdwAdjustment = Object.freeze({
+    value: 0,
+    lower: 0,
+    upper: 0,
+    stepIncrement: 0,
+    pageIncrement: 0,
+    pageSize: 0,
+});
+
 export class GtkScrollbar extends HTMLElement {
     private _trough!: HTMLElement;
     private _slider!: HTMLElement;
@@ -117,21 +140,28 @@ export class GtkScrollbar extends HTMLElement {
     }
 
     /**
-     * `GtkScrollbar:adjustment` — the range this bar moves, as the portable value, and
-     * `null` for the pspec's own default.
+     * `GtkScrollbar:adjustment` — the range this bar moves, as the portable value.
+     *
+     * NEVER `null`, which is the half of this property that is easy to get wrong: GTK's
+     * pspec default is NULL, but `gtk_range_set_adjustment` answers a NULL with the ZERO
+     * adjustment (gtkrange.c:687-688) and `gtk_range_get_adjustment` creates it on demand
+     * (gtkrange.c:658-659), so a bare `GtkScrollbar` reads back a real adjustment whose
+     * `upper` is 0. A read that could return null would be a property GTK's own does not
+     * have, and the slider geometry would have to carry a second "nothing here" case.
      *
      * A string is read as the JSON the attribute carries, so the property and the
      * attribute are one write; a partial object MERGES, which is
-     * `gtk_adjustment_configure`'s own contract (gtkadjustment.c). Assigning `null`
-     * REPLACES: an adjustment the widget does not hold is not part of it, and
-     * `gtk_scrollbar_set_adjustment` assigns the property.
+     * `gtk_adjustment_configure`'s own contract (gtkadjustment.c). Assigning `null` is
+     * `gtk_scrollbar_set_adjustment (self, NULL)`: the zero adjustment again, and the
+     * property is assigned rather than merged.
      */
-    get adjustment(): AdwAdjustment | null {
-        return this._adjustment;
+    get adjustment(): AdwAdjustment {
+        return this._adjustment ?? ZERO_ADJUSTMENT;
     }
 
     set adjustment(value: AdwAdjustmentInput | string | null) {
-        const input = value === null ? null : typeof value === 'string' ? parseAdjustment(value) : value;
+        const input =
+            value === null || value === undefined ? null : typeof value === 'string' ? parseAdjustment(value) : value;
         this._adjustment = input === null ? null : normalizeAdjustment(input, this._adjustment ?? undefined);
         // A widget CONSTRUCTED writes properties without notifying (GObject has no observers
         // yet), and this element is built inside `connectedCallback`, where a parent's own
@@ -140,12 +170,12 @@ export class GtkScrollbar extends HTMLElement {
         // trough that `connectedCallback` is about to build.
         if (!this._built) return;
         this._render();
-        this._notify('adjustment', { adjustment: this._adjustment });
+        this._notify('adjustment', { adjustment: this.adjustment });
     }
 
     /** The position, which is the adjustment's own value (gtkrange.c:226-240). */
     get value(): number {
-        return this._adjustment?.value ?? 0;
+        return this.adjustment.value;
     }
 
     /**
@@ -155,6 +185,9 @@ export class GtkScrollbar extends HTMLElement {
      * CustomEvent (bubbles, detail `{ adjustment }`) stands for `GtkAdjustment`'s signal —
      * and `<gtk-scrolled-window>` is what listens, exactly as GTK reads the adjustment off
      * the scrollbar it owns (`gtk_scrolled_window_scroll_child`, gtkscrolledwindow.c:3007).
+     *
+     * Over the zero adjustment `set_value` CLAMPS to 0 and reports no change, so a bar with
+     * no adjustment of its own is inert without being a special case anywhere.
      */
     set value(value: number) {
         const adjustment = this._adjustment;
@@ -181,8 +214,8 @@ export class GtkScrollbar extends HTMLElement {
     scrollBy(options?: ScrollToOptions): void;
     scrollBy(x: number, y: number): void;
     scrollBy(kind?: GtkScrollType | ScrollToOptions | number): void {
-        const adjustment = this._adjustment;
-        if (adjustment === null || typeof kind !== 'string') return;
+        if (typeof kind !== 'string') return;
+        const adjustment = this.adjustment;
         switch (kind) {
             case 'step-forward':
                 this.value = adjustment.value + adjustment.stepIncrement;
@@ -200,15 +233,17 @@ export class GtkScrollbar extends HTMLElement {
                 this.value = adjustment.lower;
                 break;
             case 'end':
-                this.value = adjustment.upper - adjustment.pageSize;
+                // `gtk_scrolled_window_scroll_child` sets `value = upper` and lets
+                // `gtk_adjustment_set_value` clamp it (gtkscrolledwindow.c:3029-3031,
+                // gtkadjustment.c:549-555) — which for a scrollbar's range is
+                // `upper - page_size`, the position the thumb can actually reach.
+                this.value = adjustment.upper;
                 break;
         }
     }
 
     /** How far a wheel detent moves the value: `scroll_delta_to_value` on a WHEEL unit. */
     scrollByWheel(deltaY: number, deltaMode: number): void {
-        const adjustment = this._adjustment;
-        if (adjustment === null) return;
         const perDetent = deltaMode === 1 ? PIXELS_PER_LINE * LINES_PER_DETENT : 100;
         const detents = perDetent === 0 ? 0 : deltaY / perDetent;
         this.scrollBy(detents >= 0 ? 'page-forward' : 'page-backward');
@@ -270,7 +305,10 @@ export class GtkScrollbar extends HTMLElement {
      * (`gtk_range_click_gesture_pressed`, gtkrange.c:1768-1874).
      */
     private _onPointerDown = (event: PointerEvent): void => {
-        if (this._adjustment === null || !this.hasAttribute('tabindex')) return;
+        if (!this.hasAttribute('tabindex')) return;
+        // `gtk_range_click_gesture_pressed` grabs the focus first and works on whatever
+        // adjustment the range holds (gtkrange.c:2036-2037), so a bar with none is still
+        // operable — every move it makes clamps back to 0.
         this.focus();
         const coord = this._coordinate(event);
         // `gtk_range_click_gesture_pressed` treats anything outside the slider as the
@@ -299,7 +337,7 @@ export class GtkScrollbar extends HTMLElement {
      * added to where the slider WAS — so the slider keeps the offset it was grabbed at.
      */
     private _onPointerMove = (event: PointerEvent): void => {
-        if (!this._dragging || this._adjustment === null) return;
+        if (!this._dragging) return;
         // Shift anywhere in a drag is the fine adjustment (gtkrange.c:1655-1660).
         this._setZoom(event.shiftKey);
         const coord = this._coordinate(event);
@@ -326,7 +364,6 @@ export class GtkScrollbar extends HTMLElement {
 
     /** The keys `GtkScrollbar`'s own doc names: the arrow keys step, Page Up/Down page. */
     private _onKeyDown = (event: KeyboardEvent): void => {
-        if (this._adjustment === null) return;
         const vertical = this.orientation === 'vertical';
         const kind = resolveRangeKey(event, vertical);
         if (kind === null) return;
@@ -335,7 +372,6 @@ export class GtkScrollbar extends HTMLElement {
     };
 
     private _onWheel = (event: WheelEvent): void => {
-        if (this._adjustment === null) return;
         // `GtkScrollbar` is inside a scrolled window that scrolls on the wheel already, so
         // this only claims the event when the bar itself is the target — GTK's own
         // GtkScrollbar is not a scroll event target either.
@@ -353,8 +389,7 @@ export class GtkScrollbar extends HTMLElement {
 
     /** `update_slider_position`'s zoom: the trough per unit of range, or the fallback. */
     private _zoomFactor(): number {
-        const adjustment = this._adjustment;
-        if (adjustment === null) return 1;
+        const adjustment = this.adjustment;
         const range = adjustment.upper - adjustment.lower - adjustment.pageSize;
         const measured = range <= 0 ? 1 : Math.min(1, this._troughLength / range);
         return measured === 1 ? ZOOM_FALLBACK : measured;
@@ -370,34 +405,39 @@ export class GtkScrollbar extends HTMLElement {
      */
     private _render(): void {
         if (!this._built) return;
-        const adjustment = this._adjustment;
+        const adjustment = this.adjustment;
         const vertical = this.orientation === 'vertical';
         this.classList.toggle('vertical', vertical);
         this.classList.toggle('horizontal', !vertical);
         this.setAttribute('aria-orientation', this.orientation);
-        // `gtk_scrollbar_adjustment_updated` sets the WIDGET insensitive with no adjustment,
-        // which is both the ARIA state and — for a stylesheet that must not select on a role —
-        // the attribute `&[disabled]` in `_scrollbar.scss` selects on.
-        this.setAttribute('aria-disabled', String(adjustment === null));
-        this.toggleAttribute('disabled', adjustment === null);
-        if (adjustment === null) {
-            this.removeAttribute('aria-valuenow');
-            this.removeAttribute('aria-valuemin');
-            this.removeAttribute('aria-valuemax');
-            this._slider.style.removeProperty('--adw-scrollbar-size');
-            this._slider.style.removeProperty('--adw-scrollbar-position');
-            return;
-        }
+        // There is NO insensitivity to report: nothing in gtkscrollbar.c, gtkrange.c or
+        // gtkscrolledwindow.c calls `gtk_widget_set_sensitive` on a bar, so the `aria-disabled`
+        // and `disabled` this element used to set for a NULL adjustment were a state GTK never
+        // has. What the C publishes is the accessible RANGE, so that is all this writes.
+        this.removeAttribute('aria-disabled');
+        this.removeAttribute('disabled');
         const trough = this._troughLength;
         const total = adjustment.upper - adjustment.lower;
         const scrollable = total - adjustment.pageSize;
-        const size = total === 0 ? trough : Math.min(trough, trough * (adjustment.pageSize / total));
+        // `upper - lower != 0` is the condition the C guards its fraction with
+        // (gtkrange.c:2779-2782, 2814-2817); without it the slider takes its OWN measured
+        // size, which for a libadwaita slider is the `$_slider_min_length` floor its own
+        // stylesheet sets. Writing no length at all is therefore the faithful answer — the
+        // stylesheet's `max (…, $_slider_min_length)` then IS that measured size.
+        if (total === 0) {
+            this._slider.style.removeProperty('--adw-scrollbar-size');
+        } else {
+            const size = Math.min(trough, trough * (adjustment.pageSize / total));
+            this._slider.style.setProperty('--adw-scrollbar-size', `${size}px`);
+        }
+        const size = this._sliderSize();
         const free = Math.max(0, trough - size);
+        // `upper - lower - page_size != 0` is the C's own condition for the POSITION
+        // (gtkrange.c:2790-2793), so an unscrollable range puts the slider at the start.
         const position = scrollable === 0 ? 0 : free * ((adjustment.value - adjustment.lower) / scrollable);
         this.setAttribute('aria-valuemin', String(adjustment.lower));
         this.setAttribute('aria-valuemax', String(adjustment.upper - adjustment.pageSize));
         this.setAttribute('aria-valuenow', String(adjustment.value));
-        this._slider.style.setProperty('--adw-scrollbar-size', `${size}px`);
         this._slider.style.setProperty('--adw-scrollbar-position', `${position}px`);
     }
 
@@ -417,8 +457,7 @@ export class GtkScrollbar extends HTMLElement {
      * both ends and not one of them twice over.
      */
     private _coordinateValue(coord: number): number {
-        const adjustment = this._adjustment;
-        if (adjustment === null) return 0;
+        const adjustment = this.adjustment;
         const free = Math.max(1, this._troughLength - this._sliderSize());
         const frac = Math.min(1, Math.max(0, coord / free));
         return adjustment.lower + frac * (adjustment.upper - adjustment.pageSize - adjustment.lower);

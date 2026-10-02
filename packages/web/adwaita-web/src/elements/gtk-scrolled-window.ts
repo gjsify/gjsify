@@ -459,7 +459,7 @@ export class GtkScrolledWindow extends HTMLElement {
             // `setup_indicator`'s own class, which is what makes libadwaita's narrow
             // auto-hiding bar out of a permanent one.
             bar.classList.toggle('overlay-indicator', indicators);
-            (bar as HTMLElement & { adjustment: AdwAdjustment | null }).adjustment = adjustment;
+            (bar as HTMLElement & { adjustment: AdwAdjustment }).adjustment = adjustment;
             // `gtk_scrolled_window_measure`'s request for the CHILD'S size, written on the
             // scrollport that has to ask its parent for it: `propagate-natural-*` is the
             // child's NATURAL size (`max-content`), a NEVER policy is its MINIMUM one
@@ -507,7 +507,7 @@ export class GtkScrolledWindow extends HTMLElement {
         const detail = (event as CustomEvent<{ hadjustment: AdwAdjustment; vadjustment: AdwAdjustment }>).detail;
         for (const axis of AXES) {
             const adjustment = detail[axis.key];
-            (bars[axis.bar] as HTMLElement & { adjustment: AdwAdjustment | null }).adjustment = adjustment;
+            (bars[axis.bar] as HTMLElement & { adjustment: AdwAdjustment }).adjustment = adjustment;
             const max = adjustment.upper - adjustment.pageSize;
             if (adjustment.value <= adjustment.lower) this._edgeReached(axis.end);
             else if (adjustment.value >= max) this._edgeReached(axis.farEnd);
@@ -523,8 +523,8 @@ export class GtkScrolledWindow extends HTMLElement {
      */
     private _onBarValue = (event: Event): void => {
         const bar = event.currentTarget as HTMLElement;
-        const adjustment = (event as CustomEvent<{ adjustment: AdwAdjustment | null }>).detail.adjustment;
-        if (adjustment === null || bar.hidden) return;
+        const adjustment = (event as CustomEvent<{ adjustment: AdwAdjustment }>).detail.adjustment;
+        if (bar.hidden) return;
         // The scrollport's position IS the adjustment's value, so this is one clamped
         // assignment — `gtk_adjustment_set_value`'s own contract.
         this._viewport.scrollAxis(

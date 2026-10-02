@@ -124,10 +124,12 @@ gtk-scrollbar {
     }
   }
 
-  // `&:disabled { opacity: 0 }` on the slider upstream, which is how a bar with no adjustment
-  // disappears: `gtk_widget_set_sensitive` on the SCROLLBAR. The ATTRIBUTE and not
-  // `:disabled`, which matches only what can be disabled natively — a custom element carrying
-  // `disabled` is not one of that.
+  // `&:disabled { opacity: 0 }` on the slider upstream, which is what an INOPERABLE bar
+  // looks like — `gtk_widget_set_sensitive (FALSE)` reaches the slider through the widget.
+  // Nothing in GTK makes a scrollbar insensitive on its own, so nothing here sets
+  // `disabled` either: the rule stands for an author that writes it, which is what the
+  // `[disabled]` selector (and not `:disabled`) is for — a custom element carrying
+  // `disabled` is not one the UA's `:disabled` matches.
   &[disabled] {
     pointer-events: none;
 

@@ -42,23 +42,46 @@ export const GtkScrollbarTest = async () => {
             expect(el.classList.contains('horizontal')).toBe(true);
             expect(el.getAttribute('role')).toBe('scrollbar');
             expect(el.getAttribute('aria-orientation')).toBe('horizontal');
-            // `gtk_scrollbar_adjustment_updated` sets the widget INSENSITIVE with no
-            // adjustment, and that is `aria-disabled` here rather than a missing slider.
-            expect(el.getAttribute('aria-disabled')).toBe('true');
-            expect(el.hasAttribute('disabled')).toBe(true);
-            expect(el.getAttribute('aria-valuenow')).toBe(null);
+            // A NULL adjustment is not a null range: `gtk_range_set_adjustment` answers one
+            // with `gtk_adjustment_new (0, 0, 0, 0, 0, 0)` (gtkrange.c:687-688), so the
+            // property reads back a real adjustment whose `upper` is 0.
+            expect(el.adjustment.upper).toBe(0);
+            expect(el.adjustment.lower).toBe(0);
+            // `upper - lower == 0` puts the thumb at 0, and the accessible range is all zeros
+            // too — which is `upper - page_size`, `lower` and `value` (gtkscrollbar.c:309-313).
+            expect(el.getAttribute('aria-valuemin')).toBe('0');
+            expect(el.getAttribute('aria-valuemax')).toBe('0');
+            expect(el.getAttribute('aria-valuenow')).toBe('0');
+            // And NO insensitivity: nothing in gtkscrollbar.c, gtkrange.c or
+            // gtkscrolledwindow.c ever calls `gtk_widget_set_sensitive` on a bar.
+            expect(el.getAttribute('aria-disabled')).toBe(null);
+            expect(el.hasAttribute('disabled')).toBe(false);
+            host.remove();
+        });
+
+        await it('leaves the thumb at its own size when there is no range to scroll', async () => {
+            const { el, host } = mount(true);
+            const { trough, slider } = parts(el);
+            // `upper - lower != 0` is the condition the C guards its fraction with
+            // (gtkrange.c:2779-2782); without it the slider takes its OWN measured size,
+            // which is why no length is written and the stylesheet's `$_slider_min_length`
+            // floor stands in for what GTK measured.
+            expect(trough.clientHeight > 0).toBe(true);
+            expect(slider.style.getPropertyValue('--adw-scrollbar-size')).toBe('');
+            // The POSITION is 0 either way — `upper - lower - page_size != 0` is the C's
+            // own guard for it (gtkrange.c:2790-2793) — but it is always written.
+            expect(slider.style.getPropertyValue('--adw-scrollbar-position')).toBe('0px');
             host.remove();
         });
 
         await it('reads the adjustment from its JSON attribute and announces the range', async () => {
             const { el, host } = mount(true);
             el.setAttribute('adjustment', '{"upper":200,"pageSize":50,"stepIncrement":10,"pageIncrement":40}');
-            expect(el.adjustment?.upper).toBe(200);
+            expect(el.adjustment.upper).toBe(200);
             expect(el.getAttribute('aria-valuemin')).toBe('0');
             // `aria-valuemax` is `upper - page_size`, the position the bar can reach.
             expect(el.getAttribute('aria-valuemax')).toBe('150');
             expect(el.getAttribute('aria-valuenow')).toBe('0');
-            expect(el.getAttribute('aria-disabled')).toBe('false');
             expect(el.classList.contains('vertical')).toBe(true);
             host.remove();
         });
@@ -71,8 +94,8 @@ export const GtkScrollbarTest = async () => {
             expect(seen.length).toBe(1);
             el.setAttribute('adjustment', '{"upper":20}');
             // A partial write MERGES, which is `gtk_adjustment_configure`'s contract.
-            expect(el.adjustment?.upper).toBe(20);
-            expect(el.adjustment?.stepIncrement).toBe(1);
+            expect(el.adjustment.upper).toBe(20);
+            expect(el.adjustment.stepIncrement).toBe(1);
             host.remove();
         });
 
@@ -143,10 +166,15 @@ export const GtkScrollbarTest = async () => {
             host.remove();
         });
 
-        await it('does nothing at all without an adjustment', async () => {
+        await it('clamps every key back to zero without an adjustment', async () => {
             const { el, host } = mount();
             el.focus();
+            // Not because the keys are refused — `resolveRangeKey` answers and
+            // `scrollBy` runs — but because `set_value` over the zero adjustment clamps to
+            // 0 and reports no change, which is the same answer `upper - page_size` gives.
             press(el, 'End');
+            expect(el.value).toBe(0);
+            press(el, 'ArrowRight');
             expect(el.value).toBe(0);
             host.remove();
         });
