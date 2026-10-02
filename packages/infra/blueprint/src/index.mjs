@@ -47,6 +47,13 @@
 // whole on GTK and quietly partial everywhere else. A consumer that asks for this exit gets
 // the tree or the list of what it would have cost — never half a template.
 //
+// Both halves of ADR 0088's third exit are here, and so is what makes their BYTES a question:
+// `emitFormatFor` / `parseOxfmtrc` are on the surface because every caller of `emitTypedSidecar` —
+// the drift gate, `gjsify blueprint types` and the bundler plugin — has to read the PROJECT's
+// `.oxfmtrc` before it can write a sidecar that project's `gjsify format --check` accepts, and
+// none of the three may answer that differently. `oxfmt-config.mjs` records the measurement that
+// made the option a required argument instead of a constant.
+//
 // WHY A BARREL AND NOT ONE SUBPATH PER MODULE
 //
 // Every export is a promise, and a subpath promises the FILE LAYOUT on top of the names:

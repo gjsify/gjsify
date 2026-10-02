@@ -53,6 +53,23 @@ export type * from './shared-node.mjs';
 export type * from './typed-exports.mjs';
 export { deriveExports, emitTypedModule, emitTypedSidecar, sidecarPathFor } from './typed-exports.mjs';
 
+/**
+ * What a project's `.oxfmtrc` says about the bytes the two texts above are written in.
+ *
+ * THE TYPE ALONE, named explicitly rather than `export type *`. `emitFormatFor`,
+ * `parseOxfmtrc` and `emitFormatForTree` are DECLARED in `oxfmt-config.d.mts` too, and a star
+ * re-export would put their NAMES back on this barrel's surface — which `surface.conformance.mts`
+ * reads and would then hold against a runtime export that `index.mjs` deliberately does not have.
+ * The two lists are gates, so a re-export that only exists in the type world makes them disagree.
+ *
+ * Named `emitFormatFor` and `parseOxfmtrc` are VALUE exports, and they are not here because
+ * reaching the file they read touches `node:fs`, while this barrel is reachable from
+ * `@gjsify/blueprint`'s browser consumer (`adwaita-web` parses a `.blp` in the browser). They
+ * live behind the `@gjsify/blueprint/oxfmt` subpath. A `EmitFormat` is enough to CALL either
+ * emitter, which is all a barrel consumer needs.
+ */
+export type { EmitFormat } from './oxfmt-config.mjs';
+
 export { BlueprintEmitError, BlueprintSyntaxError } from './ast.mjs';
 
 /**
@@ -127,6 +144,15 @@ export declare function gtypeName(
     where: SourceLocation,
     position?: 'object' | 'reference',
 ): string;
+
+/**
+ * The GType a property holds inside a type the vocabulary knows, or `null` where it does not.
+ *
+ * A sibling of {@link enumOrFlagsTypeOf} and the same shape — `(typeName, propertyName)`, nullable —
+ * because both answer the same question about a property's VALUE, one for the enum vocabulary and
+ * one for the property table.
+ */
+export declare function propertyGType(typeName: string | null, propertyName: string): string | null;
 
 /** Which element one `accessibility { }` entry becomes. */
 export declare function accessibilityElement(name: string, where: SourceLocation): 'property' | 'relation' | 'state';

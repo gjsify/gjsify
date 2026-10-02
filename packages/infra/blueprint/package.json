@@ -14,6 +14,10 @@
             "types": "./corpus/manifest.d.mts",
             "default": "./corpus/manifest.mjs"
         },
+        "./oxfmt": {
+            "types": "./src/oxfmt-config.d.mts",
+            "default": "./src/format-node.mjs"
+        },
         "./corpus/expectations": "./corpus/expectations.mjs",
         "./corpus/real-expectations": "./corpus/real-expectations.mjs",
         "./package.json": "./package.json"

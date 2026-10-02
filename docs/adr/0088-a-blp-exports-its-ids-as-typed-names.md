@@ -123,7 +123,39 @@ wildcard, which exports only `default`, and `tsc` reports TS2614 naming each mis
 grep for `.blp` imports in the gate would be a weaker second reader of a question `gjsify run
 check` already answers exactly.
 
-### 6. The browser target is named, not built
+### 6. A sidecar is written in the CONSUMER's format, and it is a REQUIRED argument
+
+A committed sidecar lives in the consumer's tree, where the consumer's `gjsify format --check` holds
+it. So the emitter writes the bytes THAT formatter produces, and it asks rather than assumes:
+`emitTypedSidecar(file, name, format)` refuses to run without a format, and `emitFormatForTree(dir)`
+resolves one from the nearest `.oxfmtrc` — the same two names, the same order, the same 12 levels
+`gjsify format` itself walks, so the two cannot answer "which file does the formatter read"
+differently. `emitFormatForTree` reaches for `node:fs`, so it sits behind the
+`@gjsify/blueprint/oxfmt` subpath rather than the barrel: `adwaita-web` parses a `.blp` in the
+BROWSER, and a filesystem polyfill in that bundle would serve nobody.
+
+The options modelled are the ones that change an emitted byte: `tabWidth`, `useTabs`, `semi`,
+`singleQuote`, `printWidth`, `quoteProps`, `trailingComma`, `endOfLine`. They are MODELLED rather
+than handed to oxfmt's engine at run time, for three reasons in
+`packages/infra/blueprint/src/oxfmt-config.mjs` § WHY THE OPTIONS ARE MODELLED — chiefly that
+`tree-checks` installs the workspace and does not build it, so a native formatter binding is a
+dependency that job cannot load.
+
+**A repo that does not use oxfmt excludes the sidecar from its formatter, and this ADR does not
+model that formatter.** Two arrangements, both deliberate:
+
+- **Biome** (`PixelRPG/map-editor`): Biome owns `files.includes`, and its settings are not this
+  model's — MEASURED in that repo's own `biome.json`: `indentWidth: 2` and
+  `semicolons: "asNeeded"` where oxfmt's flag would say `semi`, so an oxfmt-modelled
+  sidecar is a Biome-unformatted one. A `.d.blp.ts` is not TypeScript *source* — nothing authors
+  it, nothing imports it as a module — so the repo excludes it: `"!**/*.d.blp.ts"`. Note that the
+  `"!**/*.blp"` that repo already carries does NOT cover it: a sidecar ends in `.ts`. The file is
+  still typed by `tsc`, still held by `check-blueprint-sidecars.mjs`; only the formatter stops
+  holding it.
+- **No `.oxfmtrc` anywhere**: `emitFormatForTree` answers oxfmt's OWN defaults. It does not answer
+  the last repository's values — that constant is the bug this section exists to remove.
+
+### 7. The browser target is named, not built
 
 `build()`'s signature is a `Gtk.Builder` plus typed objects, which `adwaita-web` cannot produce. The
 shape it would implement is the `?shared-tree` exit of ADR 0070 mounted and then indexed by id, and
@@ -144,6 +176,20 @@ objects keyed by id. Nothing in this ADR implements it, and no `--app browser` c
   are exported as `Gio.Menu`. A `$Name` extern type names no GIR type by construction — ADR 0053's
   `TypeRef.extern` says why — so its id is typed `GObject.Object` and narrowing it stays the
   caller's.
+- **The emitter asks the project how it formats, instead of assuming this repository's answer.**
+  That assumption is what § 6 replaces: `printWidth` was read out of `.oxfmtrc.json` into a
+  constant — with a comment saying so — and a FOUR-SPACE indent was hardcoded beside it. Both are
+  this repository's values, so every committed sidecar and every `oxfmt --check` run here agreed
+  and the emitter looked correct. MEASURED in three `tabWidth: 2` consumers (kurier, Learn6502,
+  troedler): a sidecar the formatter reflowed on sight, and `gjsify format --check` red on a file
+  nobody hand-wrote. The emitter could not find out, because the only formatter it had ever met was
+  the one its constants were copied from. The cost of asking is one required argument at four call
+  sites; the cost of assuming was a red gate in someone else's repository.
+- **A repo whose formatter is not oxfmt excludes the sidecar rather than being modelled.** The
+  model is oxfmt's option set, and a second formatter's option set would be a second model to hold
+  exact; § 6 names the Biome exclusion instead. A repo that wants its sidecar FORMATTED by Biome
+  gets that by not excluding it, and the emitter's bytes are then a suggestion Biome may reflow —
+  which the drift gate would catch on the next run.
 - **A `.blp` whose ids cannot be NAMES is refused, and that is a construct the GNOME compiler
   accepts.** Three of them: an id of `builder`, which the key `build()` returns beside the ids
   would collide with; two objects with one id, which `build()` could only return once; and two
@@ -168,5 +214,12 @@ objects keyed by id. Nothing in this ADR implements it, and no `--app browser` c
 - `packages/infra/vite-plugin-blueprint` — the named exports in the generated module, and sidecar
   writing during `load`.
 - `packages/infra/cli` — `gjsify blueprint types [paths..] [--check]`.
-- `scripts/check-blueprint-sidecars.mjs`, wired beside the other Blueprint gates in `main.yml`.
+- `packages/infra/blueprint/src/oxfmt-config.mjs` — the `.oxfmtrc` model (`emitFormatFor`,
+  `parseOxfmtrc`), and `format-node.mjs` behind the `@gjsify/blueprint/oxfmt` subpath for the walk
+  (`emitFormatForTree`), which is the only part of the contract that touches the filesystem.
+- `scripts/check-blueprint-sidecars.mjs`, wired beside the other Blueprint gates in `main.yml`, and
+  `scripts/check-blueprint-sidecar-format.mjs` beside it — the second is the other half of § 6: it
+  runs the real oxfmt engine over the emitter's output under this repository's config and fourteen
+  others (including kurier and Learn6502's `tabWidth: 2`), so a modelled rule the formatter
+  disagrees with is a red gate rather than a silent drift.
 - `showcases/gtk/adw-blueprint-layout` — migrated to the template exports.

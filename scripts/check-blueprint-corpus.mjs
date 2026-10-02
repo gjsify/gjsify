@@ -784,19 +784,26 @@ const SURFACE = '@gjsify/blueprint';
 // The WHOLE surface and not the six names this file happens to call: an export nothing here
 // reads is still a promise the flip's consumer will hold the package to, and a gate that only
 // asserts its own diet is how `BlueprintSyntaxError` disappears with every stage still green.
-// A class is a function, so one test holds them all.
+// A class is a function, so one test holds them all. ADR 0088's five names were missing here when
+// this list was last touched — the gate asserted a surface four exports short and every stage
+// stayed green, which is the failure this file exists to prevent — so the list is the WHOLE
+// `index.mjs` and nothing shorter.
 const SURFACE_NAMES = [
     'BlueprintEmitError',
     'BlueprintSyntaxError',
     'accessibilityElement',
     'accessibilityValue',
+    'deriveExports',
     'emitGtkBuilderXml',
+    'emitTypedModule',
+    'emitTypedSidecar',
     'enumOrFlagsTypeOf',
     'gtypeName',
     'parseBlueprint',
     'projectToSharedNode',
     'propertyGType',
     'resolveIdent',
+    'sidecarPathFor',
 ];
 
 /** @type {Record<string, Function> | undefined} */

@@ -260,14 +260,20 @@ export default async () => {
             const dir = mkdtempSync(join(tmpdir(), 'blp-sidecar-'));
             const source = join(dir, 'probe.blp');
             writeFileSync(source, 'using Gtk 4.0;\ntemplate $Probe: Gtk.Box {\n  Gtk.Button go-button { }\n}\n');
-
+            // THE PRODUCER'S OWN FORMAT, at the one place it is observable. This directory is a
+            // fresh temp dir, so nothing above it carries an `.oxfmtrc` and the answer is oxfmt's
+            // DEFAULTS: `tabWidth: 2` and `singleQuote: false`. That is the point of the
+            // assertion — before ADR 0088's fix the producer wrote a hardcoded FOUR-SPACE indent
+            // and single quotes, i.e. this repository's values, into a tree that asked for
+            // neither, and a `tabWidth: 2` consumer's `oxfmt --check` went red on the result
+            // (ADR 0088 § Consequences).
             await loadOf(blueprintPlugin())(source);
 
             const sidecar = join(dir, 'probe.d.blp.ts');
             const written = readFileSync(sidecar, 'utf8');
-            expect(written.includes("export declare const GTypeName: 'Probe';")).toBe(true);
+            expect(written.includes('export declare const GTypeName: "Probe";')).toBe(true);
             // The MEASURED member spelling, through the producer rather than the derivation.
-            expect(written.includes('_go_button: Gtk.Button;')).toBe(true);
+            expect(written.includes('  _go_button: Gtk.Button;')).toBe(true);
 
             // A second load must not touch the file. An identical rewrite still moves the mtime,
             // which a watcher reads as a change — the rebuild loop `writeSidecar` exists to avoid.
