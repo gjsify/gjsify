@@ -65,6 +65,11 @@
 @use 'search_entry';
 @use 'password_entry';
 @use 'separator';
+// `<gtk-text>`, `<gtk-text-view>` and `<gtk-editable-label>` — the widgets whose content is
+// text, and the two libadwaita blocks that paint a `text` node.
+@use 'text';
+// `<gtk-search-bar>`, which reads the header-bar tokens rather than the header bar's rules.
+@use 'search_bar';
 // The layout CONTAINERS GTK owns and libadwaita only styles. `_paned` draws the divider as
 // an inset box-shadow on the `separator` node a `GtkPanedHandle` carries, which is a
 // different rule from `<gtk-separator>`'s own fill — so it needs its own partial rather

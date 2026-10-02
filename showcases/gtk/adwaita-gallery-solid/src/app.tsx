@@ -390,6 +390,18 @@ const GtkOverlay = () => (
     </gtk-overlay>
 );
 
+const GtkText = () => (
+    <gtk-text
+        text="correct-horse-battery"
+        placeholderText="A single line"
+        maxLength={32}
+    />
+);
+
+const GtkEditableLabel = () => (
+    <gtk-editable-label text="Ada Lovelace" />
+);
+
 const AdwBin = () => (
     <adw-bin>
         <gtk-label
@@ -727,6 +739,8 @@ const Gallery = () => (
         <GtkSpinner />
         <GtkSeparator />
         <GtkOverlay />
+        <GtkText />
+        <GtkEditableLabel />
         <AdwBin />
         <AdwBreakpointBin />
         <AdwClamp />
@@ -938,6 +952,12 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Main child","halign":"center","valign":"center","cssClasses":["dimmed"]} },
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
             ] }
+    },
+    { widget: 'Gtk.Text', root:
+        { tag: 'gtk-text', gtype: 'GtkText', props: {"text":"correct-horse-battery","placeholderText":"A single line","maxLength":32} }
+    },
+    { widget: 'Gtk.EditableLabel', root:
+        { tag: 'gtk-editable-label', gtype: 'GtkEditableLabel', props: {"text":"Ada Lovelace"} }
     },
     { widget: 'Adw.Bin', root:
         { tag: 'adw-bin', gtype: 'AdwBin', children: [

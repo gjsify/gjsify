@@ -446,6 +446,23 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    // ------------------------------------------------------------------ gtk text
+    {
+        widget: 'Gtk.Text',
+        page: 'text',
+        // `text` is `GtkEditable`'s and `placeholder-text` / `max-length` are `GtkText`'s own,
+        // so all three are attributes here. `editable` and `visibility` are NOT: both pspecs
+        // default to TRUE, so a tree can only spell them as a value.
+        root: {
+            tag: 'gtk-text',
+            props: { text: 'correct-horse-battery', placeholderText: 'A single line', maxLength: 32 },
+        },
+    },
+    {
+        widget: 'Gtk.EditableLabel',
+        page: 'text',
+        root: { tag: 'gtk-editable-label', props: { text: 'Ada Lovelace' } },
+    },
     // ------------------------------------------------------------------ layout
     {
         widget: 'Adw.Bin',
@@ -886,6 +903,10 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'uncurated-placement: no row for GtkExpander in packages/framework/gtk-host/src/descriptors/gtk.ts, so its label and its child cannot be placed.',
     // The rest are not placement refusals: the widget cannot be written as a static
     // tree at all, in any dialect.
+    'Gtk.TextView':
+        'its text lives in a Gtk.TextBuffer set with set_buffer(), and a buffer is a GObject no attribute can carry — a static tree would render an empty view, which teaches a reader that GtkTextView is blank.',
+    'Gtk.SearchBar':
+        'its child is a widget reference (`child`), and GtkSearchBar has no curated child policy for one — the bar without its entry is an empty strip, which is what a static tree would render.',
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',
     'Adw.AlertDialog': 'its responses are add_response() calls and it is shown with present(); neither is markup.',
     'Adw.AboutDialog': 'a dialog is opened with present(), so a static tree renders nothing a reader would see.',

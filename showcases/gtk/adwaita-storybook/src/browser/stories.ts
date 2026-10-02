@@ -56,6 +56,10 @@ import { SeparatorWebStories } from './layout/separator.web.js';
 import { BreakpointBinWebStories } from './layout/breakpoint-bin.web.js';
 import { LayoutSlotWebStories } from './layout/layout-slot.web.js';
 import { MultiLayoutViewWebStories } from './layout/multi-layout-view.web.js';
+import { EditableLabelWebStories } from './text/editable-label.web.js';
+import { SearchBarWebStories } from './text/search-bar.web.js';
+import { TextViewWebStories } from './text/text-view.web.js';
+import { TextWebStories } from './text/text.web.js';
 import { ToggleButtonWebStories } from './buttons/toggle-button.web.js';
 import { ColorDialogButtonWebStories } from './buttons/color-dialog-button.web.js';
 import { FontDialogButtonWebStories } from './buttons/font-dialog-button.web.js';
@@ -143,6 +147,10 @@ export const stories: WebStoryModule[] = [
     BreakpointBinWebStories,
     LayoutSlotWebStories,
     MultiLayoutViewWebStories,
+    EditableLabelWebStories,
+    TextWebStories,
+    TextViewWebStories,
+    SearchBarWebStories,
     ToolbarViewWebStories,
     WrapBoxWebStories,
     CarouselWebStories,

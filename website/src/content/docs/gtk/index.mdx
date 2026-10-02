@@ -96,6 +96,14 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
       </div>
     </Fragment>
   </AdwGalleryCard>
+  <AdwGalleryCard title="Text" href="/gjsify/gtk/text/" description="The single-line text behind every entry, the multi-line editor, the label you edit in place and the search bar that reveals a field.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
+        <gtk-editable-label text="Ada Lovelace"></gtk-editable-label>
+        <gtk-text placeholder-text="A single line" style="width:100%;"></gtk-text>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
   <AdwGalleryCard title="Layout" href="/gjsify/gtk/layout/" description="The separator that draws a rule between two groups, or a gap when it is a spacer.">
     <Fragment slot="preview">
       <gtk-box orientation="vertical" spacing="8" style="align-items:center;width:100%;max-width:200px;">

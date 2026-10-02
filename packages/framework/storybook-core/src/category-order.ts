@@ -35,6 +35,11 @@ export const STORYBOOK_CATEGORY_ORDER: readonly string[] = [
     'Boxed Lists',
     'Controls',
     'Buttons',
+    // The widgets whose content is text: the delegate every entry is built on, the
+    // multi-line editor, the label you edit in place, and the strip that reveals a search
+    // field. It sits with the plain controls because it introduces nothing structural — no
+    // page of its own is needed for any of the four to make sense.
+    'Text',
     'Layout',
     'View Switching',
     'Navigation',

@@ -113,6 +113,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-drop-down': {
         'selected': null,
     },
+    'gtk-editable-label': {
+        'text': null,
+    },
     'gtk-expander': {
         'label': null,
     },
@@ -170,6 +173,10 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'icons': null,
         'value': null,
     },
+    'gtk-search-bar': {
+        'search-mode-enabled': 'Whether the search mode is on and the search bar shown.',
+        'show-close-button': null,
+    },
     'gtk-search-entry': {
         'search-delay': 'The delay in milliseconds from last keypress to the search changed signal.',
     },
@@ -190,6 +197,15 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-switch': {
         'active': 'Whether the `GtkSwitch` widget is in its on or off state.',
         'state': 'The backend state that is controlled by the switch.',
+    },
+    'gtk-text': {
+        'max-length': 'Maximum number of characters that are allowed.',
+        'placeholder-text': 'The text that will be displayed in the `GtkText` when it is empty and unfocused.',
+        'text': null,
+    },
+    'gtk-text-view': {
+        'justification': 'Left, right, or center justification.',
+        'wrap-mode': 'Whether to wrap lines never, at word boundaries, or at character boundaries.',
     },
     'gtk-toggle-button': {
         'active': 'If the toggle button should be pressed in.',
@@ -234,12 +250,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 116,
-    glossed: 40,
-    nameSuffices: 55,
+    set: 124,
+    glossed: 45,
+    nameSuffices: 58,
     divergent: 20,
     authored: 1,
-    commentLines: 64,
+    commentLines: 69,
 };
 
 /**

@@ -45,8 +45,10 @@ const SHIPPED = { shipped: true } as const;
 const deprecated = (replacement: string) =>
     ({ shipped: false, reason: `deprecated upstream — use ${replacement}` }) as const;
 
-/** No counterpart in this renderer (yet), with the reason. */
-const unported = (reason: string) => ({ shipped: false, reason }) as const;
+// There is no "no counterpart in this renderer YET" form any more: every class this ledger
+// documents either ships a rule or is deprecated upstream, the last of the unported ones
+// (`.inline`) becoming a rule with `<gtk-text-view>` and `<gtk-search-bar>`. An entry that
+// does need one gets its own form back, with the reason it has no rule.
 
 /**
  * Every class `style-classes.md` documents, and what this package does about it.
@@ -117,12 +119,11 @@ export const DOCUMENTED_STYLE_CLASSES: Record<string, { shipped: boolean; reason
     // Development window
     devel: SHIPPED,
     // Inline
-    inline: unported(
-        'applies to GtkSearchBar, AdwTabBar and GtkTextView. This renderer ports none of ' +
-            'the three — <adw-tab-view> is the tab CONTENT, not AdwTabBar — and upstream ' +
-            'excludes GtkSourceView, which is the one text widget here (<adw-source-view>). ' +
-            'The class ships with the first of those three widgets, not before.',
-    ),
+    // SHIPPED since `<gtk-text-view>` and `<gtk-search-bar>` arrived: upstream applies
+    // `.inline` to GtkTextView (`_views.scss:31-36`) and to GtkSearchBar
+    // (`_toolbars.scss:156-158`), and both elements carry the rule in `scss/_text.scss` and
+    // `scss/_search_bar.scss`. AdwTabBar and GtkSourceView still have no counterpart here.
+    inline: SHIPPED,
     // Undershoot indicators
     'undershoot-top': SHIPPED,
     'undershoot-bottom': SHIPPED,

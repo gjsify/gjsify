@@ -38,6 +38,10 @@ import { exportedElementClasses } from './exported-elements.js';
  */
 const NON_RENDERING = new Set([
     'input',
+    // Not a void element, but the same shape for this driver: a `<textarea>` renders its own
+    // `value` and lays out no children, so a probe appended into one measures 0 forever.
+    // `<gtk-text-view>.textarea` is the handle, the way `<gtk-entry>.input` is.
+    'textarea',
     'img',
     'br',
     'hr',

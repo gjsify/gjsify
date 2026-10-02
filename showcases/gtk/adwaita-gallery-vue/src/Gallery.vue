@@ -280,6 +280,12 @@
                 valign="end"
             />
         </gtk-overlay>
+        <gtk-text
+            text="correct-horse-battery"
+            placeholder-text="A single line"
+            :max-length="32"
+        />
+        <gtk-editable-label text="Ada Lovelace" />
         <adw-bin>
             <gtk-label
                 label="The one child of this bin."

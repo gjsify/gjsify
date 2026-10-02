@@ -176,6 +176,16 @@ export const ADWAITA_FRAMEWORK_SNIPPETS: Readonly<
         vue: "<!-- GtkOverlay.vue — mount(GtkOverlay, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-overlay\n        :width-request=\"260\"\n        :height-request=\"160\"\n    >\n        <gtk-label\n            label=\"Main child\"\n            halign=\"center\"\n            valign=\"center\"\n            :css-classes=\"['dimmed']\"\n        />\n        <gtk-label\n            slot=\"overlay\"\n            label=\"2\"\n            halign=\"end\"\n            valign=\"end\"\n        />\n    </gtk-overlay>\n</template>",
         react: "// createRoot(container).render(<GtkOverlay />) — from '@gjsify/gtk-host/react'\nconst GtkOverlay = () => (\n    <gtk-overlay\n        widthRequest={260}\n        heightRequest={160}\n    >\n        <gtk-label\n            label=\"Main child\"\n            halign=\"center\"\n            valign=\"center\"\n            cssClasses={['dimmed']}\n        />\n        <gtk-label\n            slot=\"overlay\"\n            label=\"2\"\n            halign=\"end\"\n            valign=\"end\"\n        />\n    </gtk-overlay>\n);",
     },
+    'Gtk.Text': {
+        solid: "// mount(() => <GtkText />, container) — from '@gjsify/gtk-host/solid'\nconst GtkText = () => (\n    <gtk-text\n        text=\"correct-horse-battery\"\n        placeholderText=\"A single line\"\n        maxLength={32}\n    />\n);",
+        vue: "<!-- GtkText.vue — mount(GtkText, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-text\n        text=\"correct-horse-battery\"\n        placeholder-text=\"A single line\"\n        :max-length=\"32\"\n    />\n</template>",
+        react: "// createRoot(container).render(<GtkText />) — from '@gjsify/gtk-host/react'\nconst GtkText = () => (\n    <gtk-text\n        text=\"correct-horse-battery\"\n        placeholderText=\"A single line\"\n        maxLength={32}\n    />\n);",
+    },
+    'Gtk.EditableLabel': {
+        solid: "// mount(() => <GtkEditableLabel />, container) — from '@gjsify/gtk-host/solid'\nconst GtkEditableLabel = () => (\n    <gtk-editable-label text=\"Ada Lovelace\" />\n);",
+        vue: "<!-- GtkEditableLabel.vue — mount(GtkEditableLabel, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <gtk-editable-label text=\"Ada Lovelace\" />\n</template>",
+        react: "// createRoot(container).render(<GtkEditableLabel />) — from '@gjsify/gtk-host/react'\nconst GtkEditableLabel = () => (\n    <gtk-editable-label text=\"Ada Lovelace\" />\n);",
+    },
     'Adw.Bin': {
         solid: "// mount(() => <AdwBin />, container) — from '@gjsify/gtk-host/solid'\nconst AdwBin = () => (\n    <adw-bin>\n        <gtk-label\n            label=\"The one child of this bin.\"\n            wrap\n            xalign={0}\n            cssClasses={['card']}\n        />\n    </adw-bin>\n);",
         vue: "<!-- AdwBin.vue — mount(AdwBin, container) from '@gjsify/gtk-host/vue' -->\n<template>\n    <adw-bin>\n        <gtk-label\n            label=\"The one child of this bin.\"\n            :wrap=\"true\"\n            :xalign=\"0\"\n            :css-classes=\"['card']\"\n        />\n    </adw-bin>\n</template>",
@@ -276,6 +286,8 @@ export const ADWAITA_FRAMEWORK_REFUSALS: Readonly<Record<string, string>> = {
     'Gtk.Revealer': "uncurated-placement: no row for GtkRevealer in packages/framework/gtk-host/src/descriptors/gtk.ts, so its one child cannot be placed.",
     'Gtk.Paned': "uncurated-placement: no row for GtkPaned in packages/framework/gtk-host/src/descriptors/gtk.ts, so neither of its two slots can be placed.",
     'Gtk.Expander': "uncurated-placement: no row for GtkExpander in packages/framework/gtk-host/src/descriptors/gtk.ts, so its label and its child cannot be placed.",
+    'Gtk.TextView': "its text lives in a Gtk.TextBuffer set with set_buffer(), and a buffer is a GObject no attribute can carry — a static tree would render an empty view, which teaches a reader that GtkTextView is blank.",
+    'Gtk.SearchBar': "its child is a widget reference (`child`), and GtkSearchBar has no curated child policy for one — the bar without its entry is an empty strip, which is what a static tree would render.",
     'Adw.Toast': "AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.",
     'Adw.AlertDialog': "its responses are add_response() calls and it is shown with present(); neither is markup.",
     'Adw.AboutDialog': "a dialog is opened with present(), so a static tree renders nothing a reader would see.",

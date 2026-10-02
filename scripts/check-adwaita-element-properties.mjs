@@ -244,7 +244,33 @@ const KNOWN_GAPS = {
         // `TIMEOUT_REPEAT` 50ms, `MAX_TIMER_CALLS` 5) and both update policies are ported.
         'activates-default',
     ],
-    };
+    // The two text EDITORS carry more of their pspec surface here than anything else in the
+    // table does, and every gap below is a MECHANISM a browser does not have rather than a
+    // derivation nobody wrote — the reasons are one line each in the element headers.
+    'gtk-text': [
+        'activates-default',
+        'enable-emoji-completion',
+        'im-module',
+        'invisible-char',
+        'invisible-char-set',
+        'input-hints',
+        'input-purpose',
+        'overwrite-mode',
+        'truncate-multiline',
+    ],
+    'gtk-text-view': [
+        'im-module',
+        // The Pango PARAGRAPH model: a CSS line box cannot space paragraphs apart from the
+        // lines inside them, and a `<textarea>` has no paragraphs to tell apart.
+        'indent',
+        'input-hints',
+        'input-purpose',
+        'overwrite',
+        'pixels-above-lines',
+        'pixels-below-lines',
+        'pixels-inside-wrap',
+    ],
+};
 
 /** @returns {string[]} one line per problem; empty means aligned. */
 export function propertyProblems({ byTag, tagToGtype, bodies, knownGaps }) {

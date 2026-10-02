@@ -20,7 +20,9 @@
 // `xalign : 1 − xalign` (`_labels.scss`), which is the C's `xalign * (width − text width)`
 // to the pixel, and mirrors in RTL as `gtk_label` does. `justify` maps through Pango's own
 // switch: LEFT and RIGHT are START and END of the text direction, FILL is start-aligned
-// lines with inter-word justification.
+// lines with inter-word justification. That switch is `JUSTIFY_TEXT_ALIGN`, in
+// `./justification.js`, because `Gtk.TextView:justification` is the same Pango enum through a
+// second widget.
 //
 // `ELLIPSIZE`, `WRAP-MODE`, `LINES`, `WIDTH-CHARS`, `MAX-WIDTH-CHARS` AND `YALIGN` are
 // Pango's text-layout knobs, and each reaches a REAL CSS mechanism rather than being
@@ -75,6 +77,8 @@ import {
     type LabelWrapMode,
 } from '@gjsify/adwaita-core';
 
+import { JUSTIFY_TEXT_ALIGN } from './justification.js';
+
 /** The attributes that carry a property — also the `notify::` roster. */
 const PROPERTY_ATTRIBUTES = [
     'label',
@@ -91,14 +95,6 @@ const PROPERTY_ATTRIBUTES = [
     'max-width-chars',
     'selectable',
 ] as const;
-
-/** `Gtk.Justification` as a CSS `text-align`, through Pango's switch in `gtklabel.c`. */
-const JUSTIFY_TEXT_ALIGN: Record<LabelJustification, string> = {
-    left: 'start',
-    right: 'end',
-    center: 'center',
-    fill: 'justify',
-};
 
 export class GtkLabel extends HTMLElement {
     /**

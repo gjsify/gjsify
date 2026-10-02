@@ -451,6 +451,17 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   base `AdwClamp` and the rows could stand on; the scrolling clamp needs a scrollable
   child `@nativescript/core` would have to supply; the preferences row is the title
   half of `AdwActionRow`; the tab button is a counter over `AdwTabView`'s page list.
+- **`<gtk-editable-label>`, `<gtk-text>`, `<gtk-text-view>` and `<gtk-search-bar>` on
+  NativeScript.** Four browser elements and their gallery blocks exist; the NativeScript
+  port has none of the four, so their stories are ledgered as not rendered there and
+  their XML templates refused. What each one would be is a question, not an omission:
+  `GtkEntry` is the port's single-line field and `GtkLabel` its read-only twin, so
+  `<gtk-text>` — the delegate an entry is built from — has no separate counterpart; the
+  editable label is a swap between those two plus the commit/discard keys, which no
+  `@nativescript/core` view offers; `<gtk-text-view>` needs a multi-line editor, which
+  `GtkEntry` is not, and `<gtk-search-bar>` is a revealer plus a key-capture widget, and
+  the port's theme has no Adwaita expression for either. The open decision is what the
+  Adwaita EXPRESSION of each is on a touch target, not whether a stand-in is buildable.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

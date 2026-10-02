@@ -1,0 +1,182 @@
+// _text.scss — the three GTK widgets whose content is text: `<gtk-text>`,
+// `<gtk-text-view>` and `<gtk-editable-label>`.
+//
+// ONE PARTIAL, because upstream's rules for them are three small blocks in two files that
+// are about the same two things — libadwaita paints a `text` node either as `%view`
+// (`_views.scss:1-18`, `textview > text` at :23-29) or, inside an editable label, as the
+// same view pair (`_labels.scss:94-97`) — and the entry metrics (`_entries.scss:4-11`,
+// `19-28`) that `<gtk-text>` shares with the entry it is the delegate of. Where the text
+// NODE is the thing being styled upstream and the WIDGET is the element here, the inner
+// control carries the rule and the host carries the layout.
+//
+// WHAT UPSTREAM DOES NOT STYLE, and this file does not either: a standalone `text` node has
+// no rule of its own in libadwaita — `%entry` is written for `entry`, and a `Gtk.Text` is
+// only ever seen as an entry's delegate (`gtktext.c:78-91`) — so the metrics below are the
+// ENTRY's, which is the widget this one is a delegate of, not an invention. `text[.read-only]`
+// is a selector hook with no rule behind it (`_views.scss` has none, `gtktext.c:155-167`
+// documents the node), so the class is applied and an author may style it.
+//
+// `:backdrop` and `:disabled` are the two states upstream reaches for that this port has no
+// state for, the same trade `_labels.scss` records for `<gtk-label>`.
+//
+// The font stack is `inherit` rather than a second `--font-family` declaration, so that the
+// `.monospace` CLASS — libadwaita's own (`_labels.scss:81-84`), which `<gtk-text-view>` puts
+// on its HOST — reaches the inner control through the cascade instead of a copied rule.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_views.scss:1-18,20-45
+// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss:1-11,81-84,90-97
+// Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss:1-28
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// <gtk-text> hosts an inner <input class="adw-text">; it fills its flex slot, and
+// `propagate-text-width` is the C's "grow and shrink with the content" made a layout.
+gtk-text {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+
+  // `gtk_text_set_propagate_text_width` (gtktext.c:7400-7420): the widget's width follows
+  // its text, which is the input's own `size` mechanism, so the HOST only has to stop
+  // stretching to its container.
+  &.propagate-text-width {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .adw-text {
+    box-sizing: border-box;
+    width: 100%;
+    // `%entry_basic`'s three metrics (_entries.scss:4-6).
+    min-height: 34px;
+    padding: 5px 9px;
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: var(--entry-bg-color);
+    // `%view`'s colours: `text` is a view wherever libadwaita styles it
+    // (_views.scss:1-18), and an entry is one (_entries.scss:9).
+    color: var(--view-fg-color);
+    font-family: inherit;
+    font-size: inherit;
+    caret-color: currentColor;
+
+    // `entry > text > placeholder { @extend .dimmed }` (_entries.scss:19-22).
+    &::placeholder {
+      color: var(--view-fg-color);
+      opacity: var(--dim-opacity);
+    }
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--accent-color);
+    }
+
+    @media (prefers-contrast: more) {
+      box-shadow: inset 0 0 0 1px var(--border-color);
+    }
+  }
+}
+
+// `<gtk-text-view>` hosts a <textarea>. GTK's own property doc for the margins says what a
+// text view's spacing IS — "In CSS terms, the value set here is padding, and it is applied in
+// ADDITION to the padding from the theme" (gtktextview.c:1050-1057) — so the four margin
+// attributes are four custom properties the element writes, and the padding below is the sum.
+gtk-text-view {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+
+  // `textview { caret-color: currentColor }` (_views.scss:21): the caret is the inner
+  // control's, and `cursor-visible` is what turns it off there.
+  .adw-text-view {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    // `top-margin` and friends, ADDED to the theme's own padding (gtktextview.c:1050-1057).
+    // The four are custom properties so the sum stays here and the element writes pixels.
+    --adw-text-view-margin-top: 0px;
+    --adw-text-view-margin-end: 0px;
+    --adw-text-view-margin-bottom: 0px;
+    --adw-text-view-margin-start: 0px;
+    padding-top: calc(6px + var(--adw-text-view-margin-top));
+    padding-right: calc(6px + var(--adw-text-view-margin-end));
+    padding-bottom: calc(6px + var(--adw-text-view-margin-bottom));
+    padding-left: calc(6px + var(--adw-text-view-margin-start));
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+    font-family: inherit;
+    font-size: inherit;
+    overflow: auto;
+    resize: vertical;
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--accent-color);
+    }
+
+    @media (prefers-contrast: more) {
+      box-shadow: inset 0 0 0 1px var(--border-color);
+    }
+  }
+
+  // `&.inline` (_views.scss:31-36): an inline text view has no surface of its own, which is
+  // how a text view behaves inside a row or a page of prose. An AUTHOR class, as upstream:
+  // nothing in the element sets it.
+  &.inline .adw-text-view {
+    background-color: transparent;
+    color: inherit;
+  }
+}
+
+// `<gtk-editable-label>` is `stack > { label, entry }`, one of them visible
+// (gtkeditablelabel.c:66-73): an inline row, and the entry inside it wears the view colours
+// upstream writes for that node (_labels.scss:94-97).
+gtk-editable-label {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  // Focus follows the WIDGET, not the entry, while the label is showing
+  // (gtkeditablelabel.c:377-388), so the host owns the focus ring.
+  border-radius: var(--button-radius);
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+  }
+
+  .adw-editable-label-label {
+    // A primary click starts editing (gtkeditablelabel.c:193-215), and GTK drags the
+    // label's own text out of it (gtkeditablelabel.c:272-291), so it is selectable text.
+    cursor: text;
+    user-select: text;
+  }
+
+  .adw-editable-label-entry {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 2px 4px;
+    border: none;
+    border-radius: var(--button-radius);
+    // `editablelabel > stack > text` (_labels.scss:94-97), verbatim as a pair.
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+    font-family: inherit;
+    font-size: inherit;
+    caret-color: currentColor;
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  // `GtkEditableLabel:editable` FALSE leaves the label a label — the C's actions are
+  // disabled with it (gtkeditablelabel.c:414-427), so a click does nothing.
+  &[editable='false'] .adw-editable-label-label {
+    cursor: default;
+  }
+}

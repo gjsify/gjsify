@@ -212,6 +212,12 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
             ] }
     },
+    { widget: 'Gtk.Text', root:
+        { tag: 'gtk-text', gtype: 'GtkText', props: {"text":"correct-horse-battery","placeholderText":"A single line","maxLength":32} }
+    },
+    { widget: 'Gtk.EditableLabel', root:
+        { tag: 'gtk-editable-label', gtype: 'GtkEditableLabel', props: {"text":"Ada Lovelace"} }
+    },
     { widget: 'Adw.Bin', root:
         { tag: 'adw-bin', gtype: 'AdwBin', children: [
                 { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The one child of this bin.","wrap":true,"xalign":0,"cssClasses":["card"]} }

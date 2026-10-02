@@ -74,6 +74,14 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
  * `check-storybook-widget-coverage.mjs`'s `ONE_RENDERER_ONLY`).
  */
 const NOT_ON_THIS_TARGET = {
+    'editable-label@nativescript':
+        'status/open-todos/adwaita-ports.md, "the Adwaita renderer asymmetries with no verdict yet": the port has no editable label — GtkLabel and GtkEntry are the two halves and the commit/discard keys between them are the widget.',
+    'search-bar@nativescript':
+        'status/open-todos/adwaita-ports.md, "the Adwaita renderer asymmetries with no verdict yet": the port has no search bar, so there is nothing to reveal a field with and no Adwaita expression for the strip.',
+    'text@nativescript':
+        'status/open-todos/adwaita-ports.md, "the Adwaita renderer asymmetries with no verdict yet": the port has no standalone text node — GtkEntry is the single-line field it would be the delegate of.',
+    'text-view@nativescript':
+        'status/open-todos/adwaita-ports.md, "the Adwaita renderer asymmetries with no verdict yet": the port has no multi-line editor, and GtkEntry is single-line by construction.',
     'breakpoint-bin@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-breakpoint-bin> on NativeScript": the port has no Adw.BreakpointBin view yet, so the story is rendered by the other two targets only.',
     'layout-slot@nativescript':

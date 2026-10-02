@@ -545,8 +545,16 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.TreeExpander':
         'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
         'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',
+    'Gtk.EditableLabel':
+        'The NativeScript port has no editable label: GtkLabel carries the text and GtkEntry is the only editable surface it has, and the swap between the two is the widget (status/open-todos/adwaita-ports.md).',
+    'Gtk.SearchBar':
+        'The NativeScript port has no search bar: GtkBox lays its children out unconditionally and GtkEntry has no way to be revealed, so there is no strip to put one in (status/open-todos/adwaita-ports.md).',
     'Gtk.Separator':
         'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
+    'Gtk.Text':
+        'The NativeScript port has no standalone text node: GtkEntry is the single-line field such a node would be the delegate of, and GtkLabel is its read-only twin (status/open-todos/adwaita-ports.md).',
+    'Gtk.TextView':
+        'The NativeScript port has no multi-line editor: GtkEntry is single-line by construction and @nativescript/core has no view the port themes as one (status/open-todos/adwaita-ports.md).',
     'Gtk.ToggleButton':
         'The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).',
     'Gtk.Overlay':
