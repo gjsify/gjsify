@@ -168,14 +168,22 @@ const NO_STORY_OF_ITS_OWN = {
  * renderers now" rule below deletes the row.
  */
 const ONE_RENDERER_ONLY = {
+    // TWO widgets, ONE row — and the reason they cannot be two is the join this ledger uses:
+    // `Adw.ApplicationWindow` (Layout/Application Window) and `Gtk.ApplicationWindow`
+    // (Windows/Application Window) both arrive as the BARE name `application-window`, so a
+    // second key would not be a second row. It would silently shadow this one, which is how
+    // `Adw.ApplicationWindow` and `Gtk.ApplicationWindow` each ended up with the OTHER's
+    // sentence for a moment. `window` below is the same pair, merged the same way.
     'application-window': {
         only: 'web',
         decision:
             'A window class, and NativeScript HAS no window widget: the storybook\'s `Page` carries `class="adw-window"` ' +
             '(showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` ' +
-            '(packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<gtk-application-window>` is a frame ' +
-            'with an application menubar on top of it, and a page has no place to hang a second one — so the ' +
-            '`show-menubar` half is a markup slot here and has no counterpart there.',
+            '(packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). Either window is that FRAME with an ' +
+            'application menubar on top of it, and a page has no place to hang a second one — so the ' +
+            '`show-menubar` half, the ONE property `Adw.ApplicationWindow` adds to `Adw.Window`, is a markup slot ' +
+            "here and has no counterpart there. The `window` row records the frame itself, and the port's own answer " +
+            'is `AdwToolbarView` inside that `Page`, a template on its own block.',
     },
     'window-controls': {
         only: 'web',
@@ -568,11 +576,6 @@ const ONE_RENDERER_ONLY = {
     'window-handle': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    'application-window': {
-        only: 'web',
-        decision:
-            "The page-is-the-window fact `window` above records, on the same storybook Page, plus the ONE property an application window adds: `Gtk.ApplicationWindow:show-menubar`, a menu bar a touch target has no place for. The port's answer is AdwToolbarView inside that Page, and it is a template on its own block.",
     },
 };
 
