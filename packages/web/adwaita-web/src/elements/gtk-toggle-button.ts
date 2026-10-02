@@ -180,7 +180,7 @@ export class GtkToggleButton extends GtkButton {
      */
     private _clearGroup(): void {
         const first = this._groupFirst();
-        for (let iter = first; iter !== null; iter = iter._groupNext) {
+        for (let iter: GtkToggleButton | null = first; iter !== null; iter = iter._groupNext) {
             if (iter !== this) iter.active = false;
         }
     }
