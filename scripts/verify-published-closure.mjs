@@ -149,6 +149,12 @@
  *   node scripts/verify-published-closure.mjs --registry http://127.0.0.1:5555
  *   node scripts/verify-published-closure.mjs --root <dir>   # a fixture tree
  *   node scripts/verify-published-closure.mjs --json
+ *
+ * RETRY BUDGET (why the defaults are what they are is at the declarations):
+ *   --attempts <n>           hard cap on rounds (default 12)
+ *   --retry-window-ms <n>    total retry budget (default 600000 = 10 min)
+ *   --retry-delay-ms <n>     first backoff, doubling (default 5000)
+ *   --max-retry-delay-ms <n> backoff ceiling (default 60000)
  */
 
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
@@ -180,7 +186,17 @@ const argv = process.argv.slice(2);
  * `--attempts --json` would otherwise set attempts to `Number('--json')` — NaN,
  * silently the default — and swallow the `--json` with it.
  */
-const VALUE_ARGS = ['--phase', '--root', '--registry', '--version', '--concurrency', '--attempts', '--retry-delay-ms'];
+const VALUE_ARGS = [
+    '--phase',
+    '--root',
+    '--registry',
+    '--version',
+    '--concurrency',
+    '--attempts',
+    '--retry-delay-ms',
+    '--max-retry-delay-ms',
+    '--retry-window-ms',
+];
 const BOOL_ARGS = ['--json'];
 const values = new Map();
 const argvProblems = [];
@@ -218,11 +234,86 @@ const repoRoot = resolve(flag('--root', scriptRoot));
 const registry = String(flag('--registry', DEFAULT_REGISTRY)).replace(/\/+$/, '');
 const concurrency = Math.max(1, Number(flag('--concurrency', '8')) || 8);
 // Rounds, not per-request retries: npm's CDN can serve a packument that predates
-// a publish by a few seconds, and a false red at release time costs a manual
-// re-run of a workflow that already did its job. Only names that came back
-// ABSENT are re-queried, so the retry cost is bounded by the interesting set.
-const attempts = Math.max(1, Number(flag('--attempts', '3')) || 3);
-const retryDelayMs = Math.max(0, Number(flag('--retry-delay-ms', '10000')) || 0);
+// a publish, and a false red at release time costs a manual re-run of a workflow
+// that already did its job. Only names that came back ABSENT are re-queried, so
+// the retry cost is bounded by the interesting set.
+//
+// THE BUDGET IS A WINDOW, NOT A ROUND COUNT, and both defaults below are set by
+// what was MEASURED going red twice — runs 37035854787 (0.54.0) and 37006426950
+// (0.53.0), `Verify the published dependency closure` red on names that were on
+// npm and correct the whole time (`@gjsify/adwaita-fonts@0.54.0`,
+// `@gjsify/mcp`, `@gjsify/oxlint-plugin-gjsify` all answer today). Three
+// measurements set the shape:
+//
+//   1. The check is not reading the registry seconds after the PUT — the gap
+//      between the LAST publish job completing and this job starting is 62 s
+//      (run 37035854787) and 152 s (run 37006426950), both taken from the
+//      Actions job timings. The budget has to cover the lag PLUS that gap, so
+//      starting the window at "after my first probe" is right and starting it
+//      at "after the publish" is not measurable from here.
+//   2. The lag itself has a TAIL, not an average: on run 33735989472 (0.46.0)
+//      9.5% of that release's publishes were recorded 56-252 s after their own
+//      2xx. 20 s of retrying cannot outlast a 252 s tail — it is the same
+//      order as the lag, which is why a fixed short budget is a coin flip.
+//   3. A round can be answered from the CDN's own cache: `no-cache`,
+//      `max-age=0`, `no-store` and `pragma: no-cache` all still answer
+//      `cf-cache-status: HIT` under a `max-age=300`, verified again against
+//      registry.npmjs.org while fixing this. So a re-query has to be able to
+//      land AFTER that window has expired to learn anything at all, which puts
+//      a floor of 300 s under any useful budget — the `__gjsify_readback`
+//      buster in `probe()` is what makes a later round a real read.
+//
+// Hence 600 s across doubling backoff, the same window and the same
+// `installWithRetry` shape `scripts/npm-install-published.mjs` already runs
+// with for the same registry and the same reason (RETRY_DEFAULTS there:
+// 600_000 ms / 12 attempts / 5 s..60 s). One budget, one ORACLE, two scripts —
+// a third copy with a different number is how these two drift apart again.
+//
+// WHICH KNOB ACTUALLY BINDS IS A MEASUREMENT, not the sibling script's comment:
+// driving the default against the mock registry spends 495 s over 11 rounds and
+// is cut off by `--attempts 12`, with 165 s of window still unspent. So the
+// attempt cap is what ends a default run today and the 600 s is headroom for the
+// slower tail, not the binding term. Raising the window alone would change
+// nothing until the cap is raised too — which is the drift a caller reading only
+// the window would not see.
+//
+// WHAT 600 s BUYS AND WHAT IT DOES NOT, because the two red runs are NOT the same
+// incident and only one of them is this script's to fix:
+//
+//   0.54.0 (run 37035854787) is a LAG and this budget covers it.
+//   `@gjsify/adwaita-fonts@0.54.0` took 202 at 17:01:01 and the registry recorded
+//   it at 17:56:20 — 3319 s, far past any budget here — but the verify job did
+//   not start until 17:52:49, so only **211 s** of that remained to be waited
+//   out, and the old 20 s could not cover it. It went red at 17:53:41, 159 s
+//   before npm recorded the version: the check was right about the state and too
+//   impatient about the conclusion.
+//
+//   0.53.0 (run 37006426950) is NOT a lag, and a longer budget must not paper
+//   over it. The sweep SKIPPED both names by design — `~ @gjsify/mcp@0.53.0
+//   (skipped — no Trusted Publisher on npm)` and the same for
+//   `@gjsify/oxlint-plugin-gjsify` — because npm OIDC cannot create a name. The
+//   registry recorded them at 15:36:55Z and 15:54:41Z, i.e. **6194 s and 7260 s
+//   AFTER** that run's verify job had already failed. No window covers that,
+//   because nothing was in flight to wait for: a human published them hours
+//   later. That red was the check WORKING — it named exactly the two names the
+//   sweep had skipped, which is the whole reason it exists — and it is fixed by
+//   the Trusted Publisher bootstrap, not by a retry budget. Stating this here
+//   because "two releases went red on the same job" reads as one bug with one
+//   fix, and only one of them has one.
+//
+// WHAT THIS COSTS THE OTHER CALLER, stated because the same script runs
+// `--phase pre-release` in `audit-runtimes.yml` on EVERY pull request: a genuinely
+// undeclared absence there now holds the job for the budget instead of the 20 s
+// the old default spent. That
+// is bounded to the same short list as before (only unresolved names are
+// re-queried), a DECLARED ledger absence is still excluded from retry entirely and
+// so costs nothing, and a green run — every name live on round 1 — still exits the
+// loop before the first sleep. The wait is only ever spent turning a red that was
+// going to be red into a green, which on a required check is the cheaper side.
+const attempts = Math.max(1, Number(flag('--attempts', '12')) || 12);
+let retryDelayMs = Math.max(0, Number(flag('--retry-delay-ms', '5000')) || 0);
+const maxRetryDelayMs = Math.max(retryDelayMs, Number(flag('--max-retry-delay-ms', '60000')) || 0);
+const retryWindowMs = Math.max(0, Number(flag('--retry-window-ms', '600000')) || 0);
 
 // Same convention as `verify-package-outputs.mjs` / `verify-committed-bundles.mjs`:
 // under Actions these become annotations, which is where a human looks first.
@@ -505,7 +596,16 @@ const violations = () => pinnedEdges.filter((e) => isLive(e.from) && isAbsent(e.
 /** Absences nobody declared — the ones a retry round might still turn into a `true`. */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The window starts at the FIRST probe, not at the first retry: the registry lag
+// this waits out began at the publish, and round 1 is part of the budget's cost.
+// A window that only counted sleeps would grant `--retry-window-ms 0` a free
+// round, which is the reading that made `--attempts 1` and a 0 ms window disagree.
+const retryStarted = Date.now();
 await probeAll(candidates.map((p) => p.manifest.name));
+// Rounds ACTUALLY run, which is no longer `attempts`: the window normally ends
+// the loop first, and a message claiming 12 rounds when 6 were spent sends a
+// reader looking for a re-run that would not change anything.
+let roundsRun = 1;
 for (let round = 2; round <= attempts; round++) {
     // Re-query only what came back absent or errored — a present version never
     // becomes absent, so the rest of the answer is already final. Nothing left
@@ -538,13 +638,37 @@ for (let round = 2; round <= attempts; round++) {
     // the full retry budget and can never change the answer.
     const retry = candidates.map((p) => p.manifest.name).filter((n) => state.get(n) !== true && !expectedAbsent(n));
     if (retry.length === 0) break;
+    // The WINDOW is the budget; `--attempts` is only a hard cap on rounds. Stop
+    // when the next sleep would not FIT in what is left of the window rather than
+    // starting a sleep the job's own `timeout-minutes` cannot then survive —
+    // the same `remaining <= delay` guard `installWithRetry` uses. A window of
+    // 0 therefore means "one round, no retry", which is what `--attempts 1` already
+    // meant, so both knobs keep working and neither is the other's fallback.
+    const elapsed = Date.now() - retryStarted;
+    const remaining = retryWindowMs - elapsed;
+    if (remaining <= retryDelayMs) {
+        if (!asJson) {
+            console.log(
+                `Release closure check: round ${round}/${attempts} — retry window of ${retryWindowMs}ms spent ` +
+                    `after ${elapsed}ms, ${retry.length} name(s) still unresolved.`,
+            );
+        }
+        break;
+    }
     if (!asJson) {
         console.log(
-            `Release closure check: round ${round}/${attempts} — re-querying ${retry.length} unresolved name(s) in ${retryDelayMs}ms (registry propagation).`,
+            `Release closure check: round ${round}/${attempts} — re-querying ${retry.length} unresolved name(s) ` +
+                `in ${retryDelayMs}ms (registry propagation, ${Math.round(remaining / 1000)}s of window left).`,
         );
     }
     await sleep(retryDelayMs);
     await probeAll(retry);
+    roundsRun = round;
+    // Doubling backoff, ceiling `--max-retry-delay-ms`: the early rounds are
+    // cheap enough to spend on the common few-second lag, and the late ones are
+    // sparse enough that a 252 s tail does not cost 25 round trips. The window
+    // above is what actually ends the loop.
+    retryDelayMs = Math.min(retryDelayMs * 2, maxRetryDelayMs);
 }
 
 const live = candidates.filter((p) => isLive(p.manifest.name)).map((p) => p.manifest.name);
@@ -580,7 +704,8 @@ const byBlock = (list, block) => list.filter((e) => e.block === block).length;
 const problems = [];
 if (errored.length > 0) {
     problems.push(
-        `${errored.length} registry probe(s) never produced an answer after ${attempts} round(s). A probe that could ` +
+        `${errored.length} registry probe(s) never produced an answer after ${roundsRun} round(s) over ` +
+            `${Math.round((Date.now() - retryStarted) / 1000)}s (window ${retryWindowMs}ms, attempts <= ${attempts}). A probe that could ` +
             'not be completed is not evidence of anything; re-run the job.',
     );
 }
