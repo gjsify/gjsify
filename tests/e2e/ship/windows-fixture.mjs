@@ -23,10 +23,9 @@ export const BINARY = 'ship-demo';
 /**
  * The one architecture this layout has.
  *
- * Not a fixture choice: `wingtk/gvsbuild` hardcodes `self.platform = "x64"` and
- * publishes no arm64 GTK, so there is nothing to build
- * `@gjsify/gtk-runtime-win32-arm64` out of (#1117). `Layout.arches` carries that
- * refusal and `ship-windows` drives that refusal.
+ * Not a fixture choice: `@gjsify/gtk-runtime-win32-arm64` is not built, so there is
+ * no GTK closure for a Windows/ARM artifact to load (#1117). `Layout.arches`
+ * carries that refusal and `ship-windows` drives that refusal.
  */
 export const ARCH = 'x64';
 export const TARGET = `win32-${ARCH}`;

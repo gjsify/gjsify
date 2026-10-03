@@ -148,12 +148,14 @@ function macosArch(arch: string, _archIndependent: boolean): string {
 /**
  * `process.arch` → the name Windows and everything that targets it use.
  *
- * ONE ROW, and it is not caution: `wingtk/gvsbuild` hardcodes
- * `self.platform = "x64"` and publishes no arm64 GTK, so there is nothing to build
- * `@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact
- * to load (#1117). `Layout.arches` refuses the same value one phase earlier, at
- * stage time, with that reason spelled out; this table is the second half — the
- * one that stops a stage assembled by an older gjsify from acquiring a label here.
+ * ONE ROW, and it is not caution: there is no arm64 GTK CLOSURE to put on it yet.
+ * `wingtk/gvsbuild` publishes no arm64 assets, which is why ADR 0089 builds that
+ * prefix from our `gjsify/gvsbuild` fork in CI instead — but what a Windows
+ * artifact stages is `@gjsify/gtk-runtime-*`, and the arm64 one is not built, so
+ * there is nothing for a Windows/ARM artifact to load (#1117). `Layout.arches`
+ * refuses the same value one phase earlier, at stage time, with that reason spelled
+ * out; this table is the second half — the one that stops a stage assembled by an
+ * older gjsify from acquiring a label here.
  *
  * `x64` maps to itself, and unlike the macOS table that is not a coincidence to be
  * caught later: `x64` is the spelling Node's own release archives use
@@ -773,7 +775,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     //   * there is no `Info.plist` and no metadata file at all: what a Windows
     //     installer says about an application lives in the `.msi`'s own tables
     //     (#1354 M5), which is why `Layout.metadata` answers `[]` here.
-    //   * `x64` alone, and the blocker is upstream — see `WINDOWS_ARCH`.
+    //   * `x64` alone, and the blocker is a package of ours we have not built —
+    //     see `WINDOWS_ARCH`.
     //
     // NEITHER IS SIGNED BY DEFAULT, and Windows is the softer of the two asymmetries
     // ADR 0024 § A5 records: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen

@@ -181,6 +181,14 @@ direction.
   as an ordinary widget on Windows, and no roadmap should imply otherwise until
   stage 2 has a measurement behind it.
 
+**Amendment (2026-10-03).** The first bullet named `gvsbuild` publishing no arm64 GTK as the reason
+this package is `x64` only, and ADR 0024's `--arch arm64` refusal as what forecloses the question. The
+refusal still stands and this package still inherits it — but not for that reason. ADR 0089 builds the
+arm64 GTK prefix from our `gjsify/gvsbuild` fork in CI (#1997) and #2003 gave `@gjsify/node-gi` a
+`win32-arm64` prebuild, so the missing piece is `@gjsify/gtk-runtime-win32-arm64` and this package's
+own arm64 sibling, both of which are ours and ordered in `status/open-todos/windows.md` § win32-arm64.
+When the runtime package lands, this bullet's reason changes again; the conclusion does not.
+
 ## What the spike answered
 
 Run on `windows-latest` (WebView2 Evergreen **151.0.4129.101**) on 2026-08-31, in the

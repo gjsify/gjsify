@@ -1954,3 +1954,20 @@ above are in [ADR 0040](0040-gui-launcher-and-the-macos-seal.md)'s amendment of
 **What is still open, unchanged:** `notarytool` (an Apple account), `stapler` (a ticket),
 `signtool` (a certificate), and the named-identity half of § A16. Stage 5 — a Windows
 program directory's installer — is #1354's other row and is not touched here.
+
+## Amendment, 2026-10-03 — the `win32-arm64` blocker is ours, not gvsbuild's
+
+**Amends two statements of fact, not the decision.** The § Implementation-status bullet *"`win32-x64`
+only, and the blocker is upstream"* and the *two zips say which OS they are* paragraph above both named
+`wingtk/gvsbuild`'s hardcoded `self.platform = "x64"` as the reason. That reason is no longer the one,
+and the refusal they support is still right.
+
+`wingtk/gvsbuild` still publishes x64 assets only; that is unchanged. What changed is that we stopped
+waiting for it: [ADR 0089](0089-win32-arm64-gtk-is-built-from-source-by-our-msvc-gvsbuild-fork.md)
+(#1997) builds the arm64 GTK prefix from source with our MSVC fork `gjsify/gvsbuild`, pinned by commit
+SHA, on GitHub's `windows-11-arm` runners, and #2003 added that CI leg and put `win32-arm64` in
+`@gjsify/node-gi`'s `gjsify.platforms`. So `WINDOWS_ARCH`'s single row and `Layout.arches`'
+`only: ['x64']` are no longer held open by an upstream gap: the prefix exists, and what is missing is
+`@gjsify/gtk-runtime-win32-arm64`, the closure those rows would label. It is ordered in
+`status/open-todos/windows.md` § win32-arm64 and tracked in #1117. The refusal does not lift — its
+stated cause moves from "upstream will never" to "ours, and named".

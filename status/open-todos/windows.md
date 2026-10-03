@@ -83,13 +83,17 @@ order:
    win32/x64, `:127`), the `publish-gtk-runtime-win32-x64` job in `release.yml` (`:532`),
    `GTK_RUNTIME_TARGETS` (`packages/infra/cli/src/utils/ship/app-runtime.ts:100`),
    `NODE_RUNTIME_TARGETS` (`ship/node-runtime.ts:49`), `Layout.arches` in `ship/layout.ts`
-   (`:658-670`, the "blocked upstream" refusal), `commands/showcase.ts:311`,
+   (`:658-670`, the refusal — its REASON was corrected on 2026-10-03 to name the unbuilt runtime
+   package instead of an upstream gap, so what is left there is `only: ['x64']` itself),
+   `commands/showcase.ts:311`,
    `RUNNER_DEFAULT_ARCH` (`scripts/manifest-conformance/rules/platforms-ci.mjs:47`),
    `scripts/check-shipped-runtime-packages.mjs`, the `GVSBUILD_VERSION` pin-agreement test
    (`packages/node-gi/node-gi/test/gtk-runtime-bundle-gates.test.mjs:1036` — arm64 pins a SHA,
    not a version), and the gvsbuild catalogue the gap checks read
    (`packages/node-gi/scripts/gvsbuild-catalogue.mjs`). The "blocked upstream" wording in
-   `docs/ship-formats.md:192`, ADR 0024 `:540` and the layout refusal text goes with it.
+   `docs/ship-formats.md`, ADR 0024 `:539` and `docs/adr/0035-web-view-on-win32.md` went on
+   2026-10-03 (#2016: `docs/ship-formats.md` and the live sources rewritten, ADR 0024 and ADR 0035
+   amended in place) — what ships with this step is the arm64 rows themselves.
 4. The two-pass gst-plugins-good build for `gstsoup.dll` / `souphttpsrc` on arm64 (ADR 0037).
 5. Later: webgl (`gwebgl.dll` against the arm64 prefix), gamepad, webview2.
 
