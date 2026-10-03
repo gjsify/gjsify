@@ -1,0 +1,139 @@
+// _view-switcher-sidebar.scss — adw-view-switcher-sidebar styling.
+// The web counterpart of Adw.ViewSwitcherSidebar, introduced in libadwaita 1.9.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss
+// Copyright (c) GNOME contributors (libadwaita). LGPL-2.1-or-later.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-view-switcher-sidebar {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 280px;
+  background-color: var(--sidebar-bg-color);
+  color: var(--sidebar-fg-color);
+
+  // Sidebar mode — lays out items vertically in a persistent sidebar.
+  .sidebar-mode {
+    overflow-y: auto;
+
+    .adw-view-switcher-sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-s);
+      padding: var(--spacing-s) var(--spacing-m);
+      border: none;
+      background-color: transparent;
+      color: inherit;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 10%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 15%, transparent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+      }
+
+      // Selected item.
+      &.active {
+        background-color: color-mix(in srgb, currentColor 20%, transparent);
+      }
+
+      // Section start marker.
+      &.section-start {
+        font-weight: bold;
+        border-top: 1px solid var(--divider-color);
+        padding-top: var(--spacing-s);
+      }
+
+      // Badge for unread count or needs attention.
+      .adw-view-switcher-sidebar-badge {
+        flex-shrink: 0;
+        min-width: 18px;
+        text-align: center;
+        font-size: var(--font-size-xs);
+        font-weight: bold;
+        color: var(--badge-fg-color);
+        background-color: var(--badge-bg-color);
+        border-radius: 10px;
+        padding: 0 3px;
+      }
+    }
+  }
+
+  // Page mode — lays out items horizontally like a page of boxed lists.
+  .page-mode {
+    overflow-x: auto;
+    white-space: nowrap;
+
+    .adw-view-switcher-sidebar-item {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-s);
+      padding: var(--spacing-s) var(--spacing-m);
+      border: none;
+      background-color: transparent;
+      color: inherit;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 10%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 15%, transparent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+      }
+
+      // Selected item.
+      &.active {
+        background-color: color-mix(in srgb, currentColor 20%, transparent);
+      }
+
+      // Section start marker.
+      &.section-start {
+        font-weight: bold;
+        border-top: 1px solid var(--divider-color);
+        padding-top: var(--spacing-s);
+      }
+
+      // Badge for unread count or needs attention.
+      .adw-view-switcher-sidebar-badge {
+        flex-shrink: 0;
+        min-width: 18px;
+        text-align: center;
+        font-size: var(--font-size-xs);
+        font-weight: bold;
+        color: var(--badge-fg-color);
+        background-color: var(--badge-bg-color);
+        border-radius: 10px;
+        padding: 0 3px;
+      }
+    }
+  }
+
+  // Content area showing the selected page's content.
+  .adw-view-switcher-sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-s);
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+  }
+}

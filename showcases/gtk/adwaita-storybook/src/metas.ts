@@ -43,5 +43,7 @@ export * from './rows/switch-row.meta.js';
 export * from './view-switching/carousel.meta.js';
 export * from './view-switching/inline-view-switcher.meta.js';
 export * from './view-switching/tab-view.meta.js';
+export * from './view-switching/tab-overview.meta.js';
 export * from './view-switching/view-switcher-bar.meta.js';
+export * from './view-switching/view-switcher-sidebar.meta.js';
 export * from './view-switching/view-switcher.meta.js';
