@@ -619,6 +619,142 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         }
     });
 
+    it('the DEFAULT budget is the window the incident measured', async () => {
+        // THE DEFAULT IS THE FIX, so it is asserted rather than documented: runs
+        // 37035854787 (0.54.0) and 37006426950 (0.53.0) both went red in this
+        // check on packages that were published correctly (`@gjsify/adwaita-fonts`
+        // @0.54.0, `@gjsify/mcp`, `@gjsify/oxlint-plugin-gjsify` all answer on npm),
+        // because the old default could not cover the lag.
+        //
+        // Each default is READ OFF THE ONE LINE THAT PRINTS IT rather than by
+        // waiting it out: a run that actually spent the 600 s would add eight
+        // minutes to every suite run and could still pass for the wrong reason.
+        // The round-2 line carries all three knobs — the cap, the first backoff and
+        // the window left — so one 5 s round pins the budget a release gets.
+        //
+        // Two floors are named by the incident, and the default has to clear both:
+        // the 252 s publish tail measured on run 33735989472 (9.5% of that
+        // release's publishes were recorded 56-252 s after their own 2xx), and the
+        // 300 s CDN `max-age` that answers a later round from cache.
+        const root = fixture('default-budget', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^' } },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/app', [VERSION]],
+        ]);
+        hits = new Map();
+        revealAfter = new Map([['@fix/util', 2]]);
+        try {
+            const r = await runScript(['--root', root, '--registry', registryUrl]);
+            assert.equal(r.status, 0, `a late-propagating name must pass on a later round:\n${r.out}`);
+            assert.match(r.stdout, /round 2\/12 — re-querying 1 unresolved name\(s\) in 5000ms/);
+            assert.match(r.stdout, /registry propagation, 600s of window left\)/);
+        } finally {
+            revealAfter = new Map();
+        }
+    });
+
+    it('the backoff DOUBLES per round, so a long window is not 100 round trips', async () => {
+        // What makes a 600 s budget affordable. Asserted on the printed delays
+        // rather than on elapsed time: a fixed 5 s delay would need 120 requests
+        // to fill the window, and 120 requests against registry.npmjs.org from a
+        // release job is a rate-limit problem this script would have caused.
+        const root = fixture('backoff-doubling', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^' } },
+        ]);
+        published = new Map([['@fix/app', [VERSION]]]);
+        hits = new Map();
+        broken = new Set(['@fix/util']);
+        try {
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--retry-window-ms',
+                '4000',
+                '--retry-delay-ms',
+                '100',
+            ]);
+            assert.notEqual(r.status, 0);
+            const delays = [...r.stdout.matchAll(/in (\d+)ms \(registry propagation/g)].map((m) => Number(m[1]));
+            assert.deepEqual(
+                delays,
+                [100, 200, 400, 800, 1600],
+                `each round must double the previous delay:\n${r.out}`,
+            );
+        } finally {
+            broken = new Set();
+        }
+    });
+
+    it('the retry WINDOW ends the loop and reports the rounds it actually ran', async () => {
+        // The window, not the attempt count, is the budget — so it has to be able to
+        // end the loop on its own and SAY SO. A message quoting `--attempts` after a
+        // window-bounded run names rounds that were never spent and sends the
+        // reader after a re-run that changes nothing. The probe-error half is the
+        // one that reads this number, so it is driven with a 503.
+        const root = fixture('window-bound', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^' } },
+        ]);
+        published = new Map([['@fix/app', [VERSION]]]);
+        hits = new Map();
+        // The registry does not know the answer for this name, in either direction.
+        broken = new Set(['@fix/util']);
+        try {
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                // A window far below `attempts`, so the window must bind.
+                '--retry-window-ms',
+                '2500',
+                '--retry-delay-ms',
+                '1000',
+            ]);
+            assert.notEqual(r.status, 0, `an unanswered probe must still fail the job:\n${r.out}`);
+            assert.match(r.stdout, /retry window of 2500ms spent after \d+ms/);
+            // Quoting 12 rounds here would be the lie this asserts against.
+            assert.match(
+                r.out,
+                /never produced an answer after [1-9]\d* round\(s\) over \d+s \(window 2500ms, attempts <= 12\)/,
+            );
+            assert.doesNotMatch(
+                r.out,
+                /never produced an answer after 12 round\(s\)/,
+                'the exhausted-probe message must not quote the attempt cap as rounds actually run',
+            );
+        } finally {
+            broken = new Set();
+        }
+    });
+
+    it('a 0 ms retry window means one round, the same verdict as --attempts 1', async () => {
+        // The window starts at the FIRST probe, not at the first sleep, so a 0 ms
+        // window and `--attempts 1` cannot disagree about how many rounds ran. With
+        // the clock starting at the first retry instead, `--retry-window-ms 0` would
+        // silently buy a free extra round — the same ask, answered twice.
+        const root = fixture('zero-window', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^' } },
+        ]);
+        published = new Map([['@fix/app', [VERSION]]]);
+        hits = new Map();
+        const zero = await runScript(['--root', root, '--registry', registryUrl, '--retry-window-ms', '0']);
+        const one = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+        assert.equal(zero.status, one.status, 'a 0 ms window and --attempts 1 must reach the same verdict');
+        assert.equal(
+            hits.get('@fix/util'),
+            2,
+            'each run must probe the absent name exactly once, so neither knob grants a free round',
+        );
+    });
+
     it('a version record with NO dist.tarball is not "published"', async () => {
         // #1407's shape, from the registry's side: the version key is there and
         // there is nothing to install. `gjsify publish` refuses it per package;
