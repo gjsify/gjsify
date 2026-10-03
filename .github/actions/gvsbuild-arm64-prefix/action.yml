@@ -21,7 +21,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-a1ea243bf8a3b069be5c38b33e30cb80c849d4de-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
 
     - name: Set up Python
       if: steps.cache-gtk.outputs.cache-hit != 'true'
@@ -37,7 +37,7 @@ runs:
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        python -m pip install "git+https://github.com/gjsify/gvsbuild@a1ea243bf8a3b069be5c38b33e30cb80c849d4de"
+        python -m pip install "git+https://github.com/gjsify/gvsbuild@b63cf45a87601a4c613d05a522dac0d167409aed"
         if ($LASTEXITCODE -ne 0) { throw "pip install of the gvsbuild fork exited $LASTEXITCODE" }
         # gvsbuild spells VS versions vs2022 / vs2026, not the major; same explicit
         # map as node-gi.yml's windowing bundle job, an unknown major is an error.
@@ -71,4 +71,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-a1ea243bf8a3b069be5c38b33e30cb80c849d4de-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
