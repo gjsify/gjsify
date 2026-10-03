@@ -122,22 +122,33 @@ const DARWIN: SignalTable = Object.freeze({
 });
 
 /**
- * Windows, from the MSVC CRT's `<signal.h>` — the seven signals `signal()` and
- * `raise()` support there, and all Node's `#ifdef`s find.
+ * Windows, MEASURED key for key off `os.constants.signals` of the Node on a
+ * Windows runner — eleven names, and NOT what the header predicts.
  *
- * Seven of thirty-odd is the honest answer, not a gap: Windows has no signal
- * numbers, so the CRT defines only what it can deliver. `SIGABRT` is 22 here and
- * NOT the ISO C 6, which is why a table that copied "POSIX says 6" is wrong here
- * twice over.
+ * The UCRT `<signal.h>` defines only seven (`NSIG` 23: SIGINT, SIGILL, SIGFPE,
+ * SIGSEGV, SIGTERM, SIGBREAK, SIGABRT). #2001 read the table off that header and
+ * shipped it, and the win32 leg of `signals.spec.ts` failed on the four names
+ * missing from it: SIGHUP, SIGQUIT, SIGKILL and SIGWINCH reach the build from
+ * outside the CRT header, at their POSIX numbers. `DefineSignalConstants` wraps
+ * every entry in `#ifdef SIGxxx`, so the key set is whatever the build sees — it
+ * cannot be re-derived from `<signal.h>`, and a second table read off the header
+ * would be four names short again.
+ *
+ * `SIGABRT` is 22 here and NOT the ISO C 6, which is the second thing a
+ * POSIX-derived table gets wrong on Windows.
  */
 const WIN32: SignalTable = Object.freeze({
+    SIGHUP: 1,
     SIGINT: 2,
+    SIGQUIT: 3,
     SIGILL: 4,
     SIGFPE: 8,
+    SIGKILL: 9,
     SIGSEGV: 11,
     SIGTERM: 15,
     SIGBREAK: 21,
     SIGABRT: 22,
+    SIGWINCH: 28,
 });
 
 /** The one table per operating system ADR 0018 declares as a target. */

@@ -487,7 +487,14 @@ export default async () => {
             const byNumber = new Map(Object.entries(signals).map(([name, number]) => [number as number, name]));
             expect(byNumber.get(signals.SIGKILL)).toBe('SIGKILL');
             expect(byNumber.get(signals.SIGTERM)).toBe('SIGTERM');
-            expect(byNumber.get(signals.SIGCHLD)).toBe('SIGCHLD');
+            // SIGHUP, not SIGCHLD: Windows has no child-status signal, and a
+            // table carrying one fails `signals.spec.ts` against real Node
+            // there. Not SIGABRT either — it is the one name present on all
+            // three hosts whose number MOVES (6/6/22), so it is the tempting
+            // pin, but Linux and Darwin alias it to SIGIOT at that number and
+            // this Map keeps only one of the pair. A pinned name has to be
+            // unique within its own table; the loop below covers the rest.
+            expect(byNumber.get(signals.SIGHUP)).toBe('SIGHUP');
             // Round trip: whatever name a number resolves to must map back to
             // that same number, so a duplicated or missing row cannot pass as a
             // name that merely LOOKS like a signal.

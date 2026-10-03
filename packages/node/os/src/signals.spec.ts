@@ -49,7 +49,7 @@ const LINUX_DIVERGENT: Readonly<Record<string, number>> = {
  */
 const HOST = platform === 'darwin' || platform === 'win32' ? platform : 'linux';
 
-/** XNU `bsd/sys/signal.h` / `sys/signal.h`, and MSVC's `<signal.h>`. */
+/** XNU `bsd/sys/signal.h` / `sys/signal.h`. */
 const DARWIN: Readonly<Record<string, number>> = {
     SIGHUP: 1,
     SIGINT: 2,
@@ -84,14 +84,23 @@ const DARWIN: Readonly<Record<string, number>> = {
     SIGUSR2: 31,
 };
 
+/**
+ * MEASURED off the Node 24.21.0 on the Windows runner. Eleven names, not the
+ * seven the UCRT `<signal.h>` declares — the four extras and their POSIX numbers
+ * are that runner's output, which is what corrected the table.
+ */
 const WIN32: Readonly<Record<string, number>> = {
+    SIGHUP: 1,
     SIGINT: 2,
+    SIGQUIT: 3,
     SIGILL: 4,
     SIGFPE: 8,
+    SIGKILL: 9,
     SIGSEGV: 11,
     SIGTERM: 15,
     SIGBREAK: 21,
     SIGABRT: 22,
+    SIGWINCH: 28,
 };
 
 export default async () => {
@@ -134,11 +143,11 @@ export default async () => {
     });
 
     await describe('os.constants.signals: the win32 table', async () => {
-        await it('matches the seven signals the MSVC CRT defines', async () => {
+        await it('matches the eleven signals a Node Windows build reports', async () => {
             expect(signalsFor('win32')).toStrictEqual(WIN32);
         });
 
-        // Windows has no signal numbers; the CRT defines seven, and `SIGABRT`
+        // Windows has no signal numbers; the UCRT delivers seven, and `SIGABRT`
         // is 22 there — not the ISO C 6. A table that reached for POSIX here
         // would be wrong twice over.
         await it('gives SIGABRT the CRT value, not the ISO C one', async () => {
