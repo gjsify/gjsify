@@ -20,6 +20,7 @@ import { e2eSkipReason, installedPrebuildDir, prebuildDir, MONOREPO_ROOT } from 
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
+const RESIZE_BUNDLE = resolve(__dirname, 'dist/resize-probe.gjs.mjs');
 // The per-target package, a SIBLING of the bridge since ADR 0017:
 // `@gjsify/terminal-native` ships no `prebuilds/` of its own any more, so a
 // consumer downloads only the binary their machine can load.
@@ -112,6 +113,20 @@ function runProbe(withCore, envOverrides) {
 }
 
 const prebuildsBuilt = existsSync(`${PREBUILD_DIR}/GjsifyTerminal-1.0.typelib`);
+
+function runResizeProbe() {
+    const raw = execFileSync('gjs', ['-m', RESIZE_BUNDLE], {
+        env: envWithNativeTerminal(),
+        encoding: 'utf8',
+        timeout: 10_000,
+    }).trim();
+    const jsonLine = raw
+        .split('\n')
+        .reverse()
+        .find((l) => l.trim().startsWith('{'));
+    assert.ok(jsonLine, `No JSON output found in probe output:\n${raw}`);
+    return JSON.parse(jsonLine);
+}
 
 // The core-module half needs a STAGED prebuild, which `test:e2e` does not build — the
 // reason this suite is ledgered in `scripts/e2e-unlisted-suites.mjs`. Routed through
@@ -206,6 +221,32 @@ await describe('probe environment', async () => {
             );
         },
     );
+});
+
+// Needs the staged prebuild: without the typelib there is no ResizeWatcher to measure.
+const RESIZE_SKIP = e2eSkipReason('terminal-native', [
+    ['the built probe bundle (gjsify run build in tests/e2e/terminal-native)', existsSync(RESIZE_BUNDLE)],
+    [
+        'a staged GjsifyTerminal-1.0.typelib (gjsify workspace @gjsify/terminal-native run build:prebuilds)',
+        prebuildsBuilt,
+    ],
+]);
+
+await describe('ResizeWatcher owns its SIGWINCH source', { skip: RESIZE_SKIP }, async () => {
+    // Deterministic: a started watcher is referenced by its GLib source, so
+    // stop() must drop exactly one reference. No terminal or signal is involved.
+    const r = runResizeProbe();
+    it('stop() is idempotent', () => {
+        assert.strictEqual(r.stop_idempotent, true, 'ResizeWatcher.stop() is missing or threw on a second call');
+    });
+    it('stop() releases the source reference', () => {
+        assert.strictEqual(
+            r.refs_stopped,
+            r.refs_live - 1,
+            `a stopped watcher holds ${r.refs_stopped} refs against ${r.refs_live} for a live one; ` +
+                'the SIGWINCH source still references it, so it can never be finalized',
+        );
+    });
 });
 
 await describe('terminal-native E2E', async () => {

@@ -32,6 +32,11 @@ export interface NativeResizeWatcherClass {
 export interface NativeResizeWatcher {
     /** Start watching SIGWINCH.  Idempotent. */
     start(): void;
+    /**
+     * Stop watching SIGWINCH and release the source's reference to this
+     * watcher.  Idempotent.  Without it a started watcher is immortal.
+     */
+    stop(): void;
     connect(signal: 'resized', handler: (obj: NativeResizeWatcher, rows: number, cols: number) => void): number;
     disconnect(id: number): void;
 }
