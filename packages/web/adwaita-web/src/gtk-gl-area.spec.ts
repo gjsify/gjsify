@@ -232,7 +232,7 @@ export const GtkGLAreaTest = async () => {
             canvas.getContext = ((name: string) => {
                 asked.push(name);
                 return { enable() {}, disable() {} };
-            }) as HTMLCanvasElement['getContext'];
+            }) as unknown as HTMLCanvasElement['getContext'];
             await settled();
             expect(asked).toStrictEqual(['webgl2', 'webgl']);
             expect(el.api).toBe('gles');
