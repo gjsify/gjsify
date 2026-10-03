@@ -1,5 +1,11 @@
-// Reference: Node.js lib/os.js — OS constants (errno, signals, priority)
+// Reference: Node.js lib/os.js — OS constants (errno, priority, dlopen)
 // Copied from Node.js
+//
+// `signals` is NOT here: Node builds that table out of the HOST's `<signal.h>`,
+// so it is per-OS and lives in `./signals.ts` with the selector that picks it.
+// `errno` and `dlopen` are libuv's and the dynamic linker's, and they are the
+// Linux build's on every host — the same divergence, one layer down, tracked in
+// `status/open-todos/runtime-apis.md`.
 export default {
     UV_UDP_REUSEADDR: 4,
     errno: {
@@ -82,41 +88,6 @@ export default {
         ETXTBSY: 26,
         EWOULDBLOCK: 11,
         EXDEV: 18,
-    },
-    signals: {
-        SIGHUP: 1,
-        SIGINT: 2,
-        SIGQUIT: 3,
-        SIGILL: 4,
-        SIGTRAP: 5,
-        SIGABRT: 6,
-        SIGIOT: 6,
-        SIGBUS: 7,
-        SIGFPE: 8,
-        SIGKILL: 9,
-        SIGUSR1: 10,
-        SIGSEGV: 11,
-        SIGUSR2: 12,
-        SIGPIPE: 13,
-        SIGALRM: 14,
-        SIGTERM: 15,
-        SIGCHLD: 17,
-        SIGSTKFLT: 16,
-        SIGCONT: 18,
-        SIGSTOP: 19,
-        SIGTSTP: 20,
-        SIGTTIN: 21,
-        SIGTTOU: 22,
-        SIGURG: 23,
-        SIGXCPU: 24,
-        SIGXFSZ: 25,
-        SIGVTALRM: 26,
-        SIGPROF: 27,
-        SIGWINCH: 28,
-        SIGIO: 29,
-        SIGPOLL: 29,
-        SIGPWR: 30,
-        SIGSYS: 31,
     },
     priority: {
         PRIORITY_LOW: 19,

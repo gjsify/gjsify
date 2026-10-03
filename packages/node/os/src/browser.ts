@@ -15,6 +15,7 @@
 // recent Node APIs don't trip.
 
 import osConstants from './constants.js';
+import { SIGNALS } from './signals.js';
 
 export const EOL = '\n';
 export const devNull = '/dev/null';
@@ -102,10 +103,13 @@ export const constants = {
     // — whose whole job is to flatten `os.constants` — resolved `ENOENT`,
     // `SIGINT` and friends to `undefined` in the browser build.
     //
-    // Reuse the single source of truth in `./constants.js` rather than
-    // duplicating the tables; a second copy is a table that drifts.
+    // Both tables come from the modules that own them rather than a copy here; a
+    // second copy is a table that drifts. `SIGNALS.linux` and not the selector:
+    // a tab has no `uname` to ask, and the reference shims ship these same
+    // integers — which is what makes this one table right HERE and the reason it
+    // is per-OS everywhere else (#2001).
     errno: osConstants.errno,
-    signals: osConstants.signals,
+    signals: SIGNALS.linux,
     // `dlopen` stays empty on purpose: unlike errno/signals it describes a
     // dynamic linker, which a browser genuinely does not have.
     priority: {
