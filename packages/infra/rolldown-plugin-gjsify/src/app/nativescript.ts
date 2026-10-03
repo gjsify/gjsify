@@ -56,7 +56,7 @@ import {
     nativescriptPlatformDefines,
 } from '../plugins/platform-resolve.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
-import { windowAssignPlugin } from '../plugins/window-assign.js';
+import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 
 export interface NativescriptBuildConfig {
     /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
@@ -201,7 +201,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // a NativeScript app gates on the absence of `window`, but a WRITE to it is a
         // `ReferenceError` in a strict module body, not a gate. `globalThis.window = …`
         // holds the author's intent; the guard and the absence are untouched.
-        windowAssignPlugin(),
+        implicitGlobalAssignPlugin(),
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
         // @nativescript/core; .css imports are handled by the consuming
         // @nativescript/webpack or @nativescript/vite build
