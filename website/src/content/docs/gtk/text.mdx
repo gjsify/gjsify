@@ -1,0 +1,318 @@
+---
+title: Text
+description: "GTK's text widgets: the single-line text behind every entry, the multi-line editor, the label you edit in place and the search bar that reveals a field. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Four GTK widgets, and libadwaita ships none of them: it styles the `text` and `textview`
+nodes they draw. They are **Text** (the single-line field an entry is built from), **Text
+View** (the multi-line editor), **Editable Label** (a label that becomes a field on a click)
+and the **Search Bar** that reveals a search entry. A field that belongs in a preferences
+group is an [Entry Row](/gjsify/adwaita/boxed-lists/#entry-row) instead, and the search
+entry the strip reveals is a `Gtk.SearchEntry`.
+
+<MoreInfo title="What the previews do not show">
+The previews run the browser port. Two properties are written here as VALUES rather than as
+bare attributes — `editable` and `visibility` — because both of their GTK defaults are
+`TRUE`, so a bare attribute would say exactly what leaving it off says. And the NativeScript
+tab of every block on this page says so instead of showing a template: the port has none of
+these four widgets yet
+([the open decision](/gjsify/gtk/text/#what-the-nativescript-port-has)).
+</MoreInfo>
+
+## Text
+
+`Gtk.Text` is the single-line text widget every entry is built on — `Gtk.Entry`,
+`Gtk.PasswordEntry` and `Gtk.SpinButton` each keep one inside. On its own it is a plain
+field: a **text** to seed it, a **placeholder-text** for what belongs in it while it is
+empty, and a **max-length** the field refuses to pass (counted in characters, not bytes).
+`visibility="false"` masks what is typed, and **propagate-text-width** grows the field with
+its text instead of letting it fill its container.
+
+<AdwWidget title="Gtk.Text">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <!-- max-length: Maximum number of characters that are allowed. -->
+      <gtk-text text="correct-horse-battery" max-length="24"></gtk-text>
+
+      <!-- placeholder-text: The text that will be displayed in the `GtkText` when it is empty and unfocused. -->
+      <gtk-text placeholder-text="A single line" style="min-width:180px;"></gtk-text>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const field = new Gtk.Text({
+        text: 'correct-horse-battery',
+        max_length: 24,
+        halign: Gtk.Align.CENTER,
+    });
+
+    const plain = new Gtk.Text({ placeholder_text: 'A single line' });
+    // "Password mode": typed characters are drawn as the invisible character.
+    const secret = new Gtk.Text({ visibility: false });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      spacing: 12;
+      halign: center;
+
+      Gtk.Text {
+        text: _("correct-horse-battery");
+        max-length: 24;
+      }
+
+      Gtk.Text {
+        placeholder-text: _("A single line");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const field = new Gtk.Text({
+        text: 'correct-horse-battery',
+        max_length: 24,
+        halign: Gtk.Align.CENTER,
+    });
+
+    const plain = new Gtk.Text({ placeholder_text: 'A single line' });
+    // "Password mode": typed characters are drawn as the invisible character.
+    const secret = new Gtk.Text({ visibility: false });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Text View
+
+The multi-line editor. Its text lives in a `Gtk.TextBuffer` rather than in a property of
+the view's own, which is why a static tree cannot carry it — and why the framework tabs of
+this block are refused rather than showing an empty box. **wrap-mode** is Pango's own enum
+(`none` by default, so lines do not wrap), **justification** aligns the lines with each
+other, **monospace** draws the text in a fixed-width face, and the four margins are the
+space inside the widget the text sits in — GTK's own property doc says "in CSS terms, the
+value set here is padding".
+
+`accepts-tab` defaults to TRUE, which is the opposite of a browser's: Tab inserts a tab
+character and keeps the focus in the view.
+
+<AdwWidget title="Gtk.TextView">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;justify-content:center;width:100%;">
+      <!-- wrap-mode: Whether to wrap lines never, at word boundaries, or at character boundaries. -->
+      <!-- justification: Left, right, or center justification. -->
+      <gtk-text-view wrap-mode="word" justification="left" style="width:100%;max-width:420px;min-height:120px;">A text view holds as many lines as it is given, and Tab inserts a tab character.</gtk-text-view>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The text belongs to the BUFFER, which the view is then given.
+    const buffer = new Gtk.TextBuffer({
+        text: 'A text view holds as many lines as it is given.',
+    });
+    const view = new Gtk.TextView({
+        buffer,
+        wrap_mode: Gtk.WrapMode.WORD,
+        justification: Gtk.Justification.LEFT,
+        top_margin: 6,
+    });
+    // A view scrolls, so it is normally put in a scrolled window.
+    const scroller = new Gtk.ScrolledWindow({ child: view });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ScrolledWindow {
+      hscrollbar-policy: automatic;
+      vscrollbar-policy: automatic;
+      hexpand: true;
+
+      Gtk.TextView {
+        wrap-mode: word;
+        top-margin: 6;
+
+        Gtk.TextBuffer {
+          text: _("A text view holds as many lines as it is given.");
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The text belongs to the BUFFER, which the view is then given.
+    const buffer = new Gtk.TextBuffer({
+        text: 'A text view holds as many lines as it is given.',
+    });
+    const view = new Gtk.TextView({
+        buffer,
+        wrap_mode: Gtk.WrapMode.WORD,
+        justification: Gtk.Justification.LEFT,
+        top_margin: 6,
+    });
+    // A view scrolls, so it is normally put in a scrolled window.
+    const scroller = new Gtk.ScrolledWindow({ child: view });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Editable Label
+
+A label you click and edit in place: `GtkEditableLabel` is a stack of a label and an entry,
+and **editing** says which of the two is showing. Enter starts editing, Enter in the field
+commits, Escape discards it, and `editable="false"` leaves it a plain label.
+
+Because `editing` starts the edit mode as GTK's property setter does, an attribute is all
+it takes — which is also why the preview below shows the label and leaves the mode to the
+reader.
+
+<AdwWidget title="Gtk.EditableLabel">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;justify-content:center;padding:8px 0;">
+      <gtk-editable-label text="Ada Lovelace"></gtk-editable-label>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const name = new Gtk.EditableLabel({
+        text: 'Ada Lovelace',
+        halign: Gtk.Align.CENTER,
+    });
+
+    // Setting the property starts or stops the edit mode, as `GtkEditableLabel:editing`
+    // does in C. The draft lives in the entry until it is committed.
+    name.editing = true;
+    name.editing = false;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.EditableLabel {
+      text: _("Ada Lovelace");
+      halign: center;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const name = new Gtk.EditableLabel({
+        text: 'Ada Lovelace',
+        halign: Gtk.Align.CENTER,
+    });
+
+    // Setting the property starts or stops the edit mode, as `GtkEditableLabel:editing`
+    // does in C. The draft lives in the entry until it is committed.
+    name.editing = true;
+    name.editing = false;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Search Bar
+
+`Gtk.SearchBar` reveals a search entry when a search starts. The property **search-mode
+enabled** IS the revealer's `reveal-child`, so one boolean decides both whether the strip is
+shown and whether the search is on — and hiding it clears the entry, so a dismissed search
+leaves nothing behind. **show-close-button** adds the round close button at its end; an app
+with its own search toggle should leave it off, because the two say the same thing.
+
+The bar takes any editable as its child. `Gtk.SearchEntry` is the one libadwaita styles for
+it, and the C has a branch for a plain `Gtk.Entry` too, so either works — a `Gtk.SearchEntry`
+belongs on [Controls](../controls/) when this port has one.
+
+<AdwWidget title="Gtk.SearchBar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;width:100%;">
+      <gtk-search-bar show-close-button search-mode-enabled>
+        <gtk-entry placeholder-text="Search messages…"></gtk-entry>
+      </gtk-search-bar>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const entry = new Gtk.SearchEntry({ hexpand: true });
+    const bar = new Gtk.SearchBar({ child: entry });
+
+    // A search has started: the strip reveals and the entry takes the focus.
+    bar.search_mode_enabled = true;
+    bar.show_close_button = true;
+    // Escape in the entry, or the close button, turns it off — and clears the entry.
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.SearchBar {
+      search-mode-enabled: true;
+      show-close-button: true;
+
+      Gtk.SearchEntry {
+        hexpand: true;
+        placeholder-text: _("Search messages…");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const entry = new Gtk.SearchEntry({ hexpand: true });
+    const bar = new Gtk.SearchBar({ child: entry });
+
+    // A search has started: the strip reveals and the entry takes the focus.
+    bar.search_mode_enabled = true;
+    bar.show_close_button = true;
+    // Escape in the entry, or the close button, turns it off — and clears the entry.
+    ```
+  </Fragment>
+</AdwWidget>
+
+## What the NativeScript port has
+
+None of these four. `@gjsify/adwaita-nativescript` has `GtkEntry` for a single-line field
+and `GtkLabel` for a read-only run of text, so the first three would each be an expression
+built out of what it already has — and the search bar is a revealer plus a key-capture
+widget, which the port's theme has no shape for. The XML template tab of each block above
+says so instead of showing one, and the reasons are in
+[the Adwaita ports ledger](https://github.com/gjsify/gjsify/blob/main/status/open-todos/adwaita-ports.md).
+
+## Related
+
+- [Controls](../controls/): the entry this text widget is the delegate of, and the
+  drop down.
+- [Buttons](../buttons/): the button a search bar's close button is.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in a live
+  component browser you can poke at.

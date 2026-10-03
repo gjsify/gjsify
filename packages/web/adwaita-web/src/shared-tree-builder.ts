@@ -217,10 +217,12 @@ function refuseUnheldExtensions(extended: readonly ExtendedNode[]): void {
  * purpose. An undefined element has exactly ONE destination — itself — so a placement
  * cannot land anywhere but where the tree authored it; what such a tree is really missing
  * is the WIDGET, which is a wider gap than a slot and not this refusal's claim to make.
- * (`AdwApplicationWindow` is the live case: a real `.blp` roots at one and this package has
- * no element for it.) A DEFINED element that routes no named slot is refused like any
- * other: it built a structure and chose not to route into it, so a name it does not have
- * would leave the child beside that structure.
+ * (It was `AdwApplicationWindow`, which `showcases/gtk/effect-adw-services/src/window.blp`
+ * roots at while this package had no element for it. That element now exists, so the live
+ * case is the opposite one: `<adw-window>` and `<adw-application-window>` both declare
+ * `content`, which is what that file's `content:` becomes.) A DEFINED element that routes
+ * no named slot is refused like any other: it built a structure and chose not to route
+ * into it, so a name it does not have would leave the child beside that structure.
  */
 function refuseUnknownSlots(placed: readonly PlacedChild[]): void {
     for (const { parent, child, slot } of placed) {

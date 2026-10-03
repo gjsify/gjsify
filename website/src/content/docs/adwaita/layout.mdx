@@ -1,16 +1,23 @@
 ---
 title: Layout
-description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapBox. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita's window and its layout containers: Window, Bin, Clamp, ClampScrollable, HeaderBar, ToolbarView and WrapBox, plus the adaptive trio BreakpointBin, MultiLayoutView and LayoutSlot. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 import MoreInfo from '../../../components/MoreInfo.astro';
 
-These four containers give an Adwaita window its shape. Use a **clamp** to hold
-content at a readable width, a **header bar** for the top chrome, a **toolbar
-view** to frame content between fixed bars, and a **wrap box** to let a run of
+An Adwaita window is a frame plus the containers that give it shape. The **window**
+is the frame itself; a **bin** holds one replaceable widget where a slot calls for
+it, a **clamp** holds content at a readable width (and a **scrollable clamp** when
+that content scrolls), a **header bar** is the top chrome, a **toolbar view** frames
+content between fixed bars, and a **wrap box** lets a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
+
+The last three are the **adaptive** ones. A **breakpoint bin** gives breakpoints a
+home without a window, a **multi-layout view** holds one set of children and several
+arrangements of them, and a **layout slot** is the named hole one of those
+arrangements leaves for a child.
 
 <MoreInfo title="The ports, and what they follow">
 Libadwaita is the reference, typed by
@@ -25,6 +32,91 @@ The previews run the browser port, so behaviour Libadwaita drives natively (a to
 view revealing each bar independently, a clamp's tightening threshold) can be
 simplified here.
 </MoreInfo>
+
+## Window
+
+The frame everything else goes into. It styles no chrome of its own: you give it a
+**content** widget — normally a [toolbar view](#toolbar-view) with a header bar — and
+it asks for the size `Adw.Window` asks for, 360 × 200 px, unless you set a default
+size yourself.
+
+<MoreInfo title="The preview is a window drawn in the page">
+`Adw.Window` is a toplevel. On the desktop it is a real window that the compositor
+places, maximises, tiles and closes. A browser document has no window manager, so
+`<adw-window>` is a framed box **in the page**: the frame libadwaita draws for a
+client-side-decorated window, the content property, the breakpoints and the
+open-dialog bookkeeping — and none of what a compositor owns, so no titlebar, no
+minimise button and no window placement. What you put inside it behaves the same.
+</MoreInfo>
+
+<AdwWidget title="Adw.Window" padding="flush" stage="height: 300px; width: 100%; display: flex; align-items: center; justify-content: center;">
+  <Fragment slot="preview">
+    ```html
+    <adw-window width="440" height="240">
+      <adw-toolbar-view>
+        <adw-header-bar slot="top">
+          <adw-window-title slot="title" title="Text Editor" subtitle="notes.md"></adw-window-title>
+        </adw-header-bar>
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page
+          slot="content"
+          title="Your Library"
+          description="Content sits between the toolbars and scrolls independently of them."
+        ></adw-status-page>
+      </adw-toolbar-view>
+    </adw-window>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    Adw.init();
+
+    const headerBar = new Adw.HeaderBar();
+    headerBar.set_title_widget(new Adw.WindowTitle({ title: 'Text Editor', subtitle: 'notes.md' }));
+
+    const toolbarView = new Adw.ToolbarView({ top_bar: headerBar });
+    toolbarView.content = new Adw.StatusPage({
+        title: 'Your Library',
+        description: 'Content sits between the toolbars and scrolls independently of them.',
+    });
+
+    // ONE child, and it is a property: `content` takes the widget itself, so this is
+    // never an `append()`.
+    const window = new Adw.Window({ content: toolbarView });
+
+    // The size request `adw_window_init()` makes is 360×200 (adw-window.c:344).
+    window.set_default_size(440, 240);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Window {
+      default-width: 440;
+      default-height: 240;
+
+      content: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          title-widget: Adw.WindowTitle {
+            title: _("Text Editor");
+            subtitle: _("notes.md");
+          };
+        }
+
+        content: Adw.StatusPage {
+          title: _("Your Library");
+          description: _("Content sits between the toolbars and scrolls independently of them.");
+        };
+      };
+    }
+    ```
+  </Fragment>
+</AdwWidget>
 
 <MoreInfo title="The NativeScript tabs were inflated on a device">
 [`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
@@ -59,6 +151,155 @@ because a class naming a token you have not declared throws out of the render an
 an empty window at exit 0 with nothing in the log. And such a tree is a GTK window
 rather than a phone screen, which is why it was never the NativeScript tab.
 </MoreInfo>
+
+## Application Window
+
+The [window](#window) with one thing added: the **menubar** its application
+installed. Turn **show menubar** off and the bar goes away; turn it on and the window
+draws it, which is all `Gtk.ApplicationWindow:show-menubar` decides.
+
+<MoreInfo title="A browser has no application">
+On GTK the model belongs to a `Gtk.Application`, which installs it into every
+application window it opens — a document has no application, so
+`<adw-application-window>` takes the **menu model** itself, in the same portable form
+`<gtk-menu-button>` takes, and reads it with the same parser. A menubar is a row of
+menu **links**: each one becomes a button that opens its menu, and a link's own items
+are what that menu holds.
+</MoreInfo>
+
+<AdwWidget title="Adw.ApplicationWindow" padding="flush" stage="height: 300px; width: 100%; display: flex; align-items: center; justify-content: center;">
+  <Fragment slot="preview">
+    ```html
+    <!-- show-menubar: If this property is true, the window will display a menubar unless it is shown by the desktop shell. -->
+    <adw-application-window width="440" height="240" show-menubar menu-model='[{"label":"File","submenu":[{"label":"New Window","action":"app.new-window"},{"label":"Quit","action":"app.quit"}]},{"label":"Help","submenu":[{"label":"Keyboard Shortcuts","action":"app.shortcuts"},{"label":"About","action":"app.about"}]}]'>
+      <adw-toolbar-view>
+        <adw-header-bar slot="top">
+          <adw-window-title slot="title" title="Text Editor" subtitle="notes.md"></adw-window-title>
+        </adw-header-bar>
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page
+          slot="content"
+          title="Your Library"
+          description="Content sits between the toolbars and scrolls independently of them."
+        ></adw-status-page>
+      </adw-toolbar-view>
+    </adw-application-window>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    Adw.init();
+
+    // The menubar model: a row of LINKS, which is what `Gtk.Application:menubar` is.
+    const menu = new Gio.Menu();
+    const file = new Gio.Menu();
+    file.append('New Window', 'app.new-window');
+    file.append('Quit', 'app.quit');
+    menu.append_section(null, file);
+
+    // Gtk.MenuBar is gone from GTK 4; the row is a Gtk.PopoverMenuBar. An app never
+    // adds it — `Gtk.Application` installs the model at construction — and this boolean
+    // is what decides whether the window DRAWS it.
+    const menubar = new Gtk.PopoverMenuBar({ menu_model: menu });
+
+    // The window has ONE child, its content. The menubar is the toolbar view's second
+    // top bar, which is where an application window's own menubar sits.
+    const toolbarView = new Adw.ToolbarView();
+    toolbarView.add_top_bar(new Adw.HeaderBar());
+    toolbarView.add_top_bar(menubar);
+    toolbarView.content = new Adw.StatusPage({ title: 'Your Library' });
+
+    const window = new Adw.ApplicationWindow({ content: toolbarView, show_menubar: true });
+    window.set_default_size(440, 240);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.ApplicationWindow {
+      // The menubar is the APPLICATION's, so a `.blp` cannot spell it: a section of a
+      // Gio.Menu is a `menu` object and the window takes a PopoverMenuBar, and both are
+      // installed by the code that owns the window. The flag is all markup carries.
+      show-menubar: true;
+      default-width: 440;
+      default-height: 240;
+
+      content: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          title-widget: Adw.WindowTitle {
+            title: _("Text Editor");
+            subtitle: _("notes.md");
+          };
+        }
+
+        content: Adw.StatusPage {
+          title: _("Your Library");
+          description: _("Content sits between the toolbars and scrolls independently of them.");
+        };
+      };
+    }
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Bin
+
+The smallest container libadwaita ships: a widget that holds **one child** and
+nothing else. It draws no frame of its own and hands the child its whole
+allocation, which makes it the thing to reach for when a slot needs a single
+replaceable widget. Setting a new child **replaces** the old one rather than
+stacking beside it, and a child that already has a parent is refused.
+
+<AdwWidget title="Adw.Bin">
+  <Fragment slot="preview">
+    ```html
+    <adw-bin style="width:260px;">
+      <gtk-label label="The one child of this bin."></gtk-label>
+    </adw-bin>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.Bin({ child: new Gtk.Label({ label: 'The one child of this bin.' }) });
+
+    // A second child REPLACES the first.
+    bin.child = new Gtk.Label({ label: 'The first child is gone.' });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.Bin {
+      Gtk.Label {
+        label: _("The one child of this bin.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.Bin({ child: new Gtk.Label({ label: 'The one child of this bin.' }) });
+
+    // A second child REPLACES the first.
+    bin.child = new Gtk.Label({ label: 'The first child is gone.' });
+    ```
+  </Fragment>
+</AdwWidget>
 
 ## Clamp
 
@@ -115,6 +356,73 @@ in a bare script too; inside an `Adw.Application` the call is harmless.
     const label = clamp.getViewById<Gtk.Label>('label')!;
     label.label = 'Reached by its id.';
     clamp.maximumSize = 560;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Clamp Scrollable
+
+A clamp for a child that **scrolls**. A plain clamp would cut a list or a text
+view off at its maximum width, scrollbar included; the scrollable clamp keeps
+the scrollbar at the edge of the window and holds only the content at the
+**maximum size**, with the same **tightening threshold** curve as the clamp
+above. Its child has to be a scrollable one, a list view or a text view.
+
+<AdwWidget title="Adw.ClampScrollable">
+  <Fragment slot="preview">
+    ```html
+    <!-- maximum-size: The maximum size allocated to the child. -->
+    <!-- tightening-threshold: The size above which the child is clamped. -->
+    <adw-clamp-scrollable maximum-size="320" tightening-threshold="240" style="width:100%;height:120px;">
+      <gtk-box orientation="vertical" spacing="6">
+        <gtk-label label="Line 1: held at the clamp's width."></gtk-label>
+        <gtk-label label="Line 2: while the rest scrolls."></gtk-label>
+        <gtk-label label="Line 3: and the scrollbar stays at the edge."></gtk-label>
+        <gtk-label label="Line 4: of the window."></gtk-label>
+        <gtk-label label="Line 5: not at the edge of the content."></gtk-label>
+      </gtk-box>
+    </adw-clamp-scrollable>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const text = new Gtk.TextView({ editable: false });
+    const clamp = new Adw.ClampScrollable({ maximumSize: 320, tighteningThreshold: 240, child: text });
+
+    // The scrolled window owns the scrollbars; the clamp only limits the content.
+    const scrolled = new Gtk.ScrolledWindow({ child: clamp });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.ScrolledWindow {
+      Adw.ClampScrollable {
+        maximum-size: 320;
+        tightening-threshold: 240;
+
+        Gtk.TextView {
+          editable: false;
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const text = new Gtk.TextView({ editable: false });
+    const clamp = new Adw.ClampScrollable({ maximumSize: 320, tighteningThreshold: 240, child: text });
+
+    // The scrolled window owns the scrollbars; the clamp only limits the content.
+    const scrolled = new Gtk.ScrolledWindow({ child: clamp });
     ```
   </Fragment>
 </AdwWidget>
@@ -274,10 +582,288 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   </Fragment>
 </AdwWidget>
 
+## Breakpoint Bin
+
+Give breakpoints a home without a window. The bin holds **breakpoints**, each a
+condition on its own size plus the properties to write while that condition holds,
+and on every resize it applies the **last** one that matches — not the narrowest.
+Its single child is whatever rearranges itself.
+
+The markup form is `breakpoints`, a JSON array because `Adw.Breakpoint` is a
+GObject rather than a widget and `add_breakpoint()` is the whole upstream API.
+Each setter names a **target** (a selector for a descendant), an attribute
+**property** and its **value**; the value the target held when the setter was
+registered is what leaving the breakpoint restores.
+
+<MoreInfo title="A bin with breakpoints has no minimum size">
+Adding a breakpoint makes the bin measure no minimum on either axis, and the
+`AdwBreakpointBin` docs say the stage must set `width-request` / `height-request`
+for the smallest size you support. The preview does that with inline styles, which
+is why the stage under this block is 300px wide: narrow it far enough and the
+label swaps.
+</MoreInfo>
+
+<AdwWidget title="Adw.BreakpointBin" stage="width: 300px; height: 70px;">
+  <Fragment slot="preview">
+    ```html
+    <adw-breakpoint-bin style="min-width: 150px; height: 60px;" breakpoints='[{"condition":"max-width: 200px","setters":[{"target":"#caption","property":"label","value":"Narrow"}]}]'>
+      <gtk-label id="caption" label="Wide" class="title-1"></gtk-label>
+    </adw-breakpoint-bin>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.BreakpointBin();
+    bin.set_size_request(150, 60);
+
+    const caption = new Gtk.Label({ label: 'Wide', ellipsize: Gtk.EllipsizeMode.END });
+    caption.add_css_class('title-1');
+    bin.set_child(caption);
+
+    // A breakpoint writes properties while its condition holds, and the LAST
+    // one that matches wins. Leaving it restores the values the setters
+    // captured when they were added.
+    const narrow = new Adw.Breakpoint(Adw.BreakpointCondition.parse('max-width: 200px'));
+    narrow.add_setter(caption, 'label', 'Narrow');
+    bin.add_breakpoint(narrow);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.BreakpointBin {
+      width-request: 150;
+      height-request: 60;
+
+      Gtk.Label caption {
+        label: _("Wide");
+        ellipsize: end;
+
+        styles ["title-1"]
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bin = new Adw.BreakpointBin();
+    bin.set_size_request(150, 60);
+
+    const caption = new Gtk.Label({ label: 'Wide', ellipsize: Gtk.EllipsizeMode.END });
+    caption.add_css_class('title-1');
+    bin.set_child(caption);
+
+    // A breakpoint writes properties while its condition holds, and the LAST
+    // one that matches wins. Leaving it restores the values the setters
+    // captured when they were added.
+    const narrow = new Adw.Breakpoint(Adw.BreakpointCondition.parse('max-width: 200px'));
+    narrow.add_setter(caption, 'label', 'Narrow');
+    bin.add_breakpoint(narrow);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Multi Layout View
+
+One set of children, several arrangements of them. Every child has an **id**,
+every layout has **slots** with ids, and switching layouts re-inserts each child
+into the slot of the **same id** — which is how a secondary pane becomes a
+sidebar in one arrangement and part of the content in another without the
+application moving anything. **layout-name** picks the arrangement; the first one
+declared is the one in use until you say otherwise.
+
+An `Adw.Layout` is a GObject, so there is no `Adw.Layout` tag: here a direct
+child carrying `name` **is** the layout, a direct child carrying `slot` is a
+child, and an `<adw-layout-slot>` inside a layout is where that child lands.
+
+<MoreInfo title="Why this block has no framework snippet">
+A layout is a GObject upstream and each child is paired with a slot by a method
+call, so neither half is a static tree in any of the dialects — the gallery ledger
+says so rather than publishing markup that would render nothing. The browser
+element carries both in markup, which is what the preview above shows.
+</MoreInfo>
+
+<AdwWidget title="Adw.MultiLayoutView" stage="width: 420px; height: 220px;">
+  <Fragment slot="preview">
+    ```html
+    <adw-multi-layout-view layout-name="wide" style="width: 100%; height: 100%;">
+      <adw-navigation-split-view name="wide" style="width: 100%; height: 100%;">
+        <adw-layout-slot id="secondary" slot="sidebar"></adw-layout-slot>
+        <adw-layout-slot id="primary" slot="content"></adw-layout-slot>
+      </adw-navigation-split-view>
+      <adw-navigation-split-view name="narrow" collapsed style="width: 100%; height: 100%;">
+        <adw-layout-slot id="secondary" slot="content"></adw-layout-slot>
+        <adw-layout-slot id="primary" slot="content"></adw-layout-slot>
+      </adw-navigation-split-view>
+      <adw-navigation-page slot="primary" tag="inbox" title="Inbox">
+        <gtk-label label="General — 12 unread"></gtk-label>
+      </adw-navigation-page>
+      <adw-navigation-page slot="secondary" tag="message" title="Message">
+        <gtk-label label="Resizing the window"></gtk-label>
+      </adw-navigation-page>
+    </adw-multi-layout-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    const wide = new Adw.NavigationSplitView({ minSidebarWidth: 160 });
+    wide.sidebar = new Adw.LayoutSlot('secondary');
+    wide.content = new Adw.LayoutSlot('primary');
+
+    const narrow = new Adw.NavigationSplitView({ collapsed: true, minSidebarWidth: 160 });
+    narrow.sidebar = new Adw.LayoutSlot('secondary');
+    narrow.content = new Adw.LayoutSlot('primary');
+
+    const view = new Adw.MultiLayoutView();
+    // The FIRST layout added is the one in use.
+    const first = new Adw.Layout(wide);
+    first.name = 'wide';
+    view.add_layout(first);
+    const second = new Adw.Layout(narrow);
+    second.name = 'narrow';
+    view.add_layout(second);
+
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    view.set_child('secondary', new Adw.NavigationPage({ title: 'Message', tag: 'message' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.MultiLayoutView {
+      layout-name: "wide";
+
+      Adw.NavigationSplitView {
+        min-sidebar-width: 160;
+
+        Adw.LayoutSlot {
+          id: "secondary";
+        }
+
+        Adw.LayoutSlot {
+          id: "primary";
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    const wide = new Adw.NavigationSplitView({ minSidebarWidth: 160 });
+    wide.sidebar = new Adw.LayoutSlot('secondary');
+    wide.content = new Adw.LayoutSlot('primary');
+
+    const narrow = new Adw.NavigationSplitView({ collapsed: true, minSidebarWidth: 160 });
+    narrow.sidebar = new Adw.LayoutSlot('secondary');
+    narrow.content = new Adw.LayoutSlot('primary');
+
+    const view = new Adw.MultiLayoutView();
+    // The FIRST layout added is the one in use.
+    const first = new Adw.Layout(wide);
+    first.name = 'wide';
+    view.add_layout(first);
+    const second = new Adw.Layout(narrow);
+    second.name = 'narrow';
+    view.add_layout(second);
+
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    view.set_child('secondary', new Adw.NavigationPage({ title: 'Message', tag: 'message' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Layout Slot
+
+The named hole one layout of a multi-layout view leaves for a child. It takes the
+child whose **id** matches its own, and its visibility follows that child's — so
+hiding the child takes the hole with it and nothing more. The **id** is
+construct-only upstream, which is why it is the one thing this element reads.
+
+A slot on its own is a bin, and that is what the preview shows. To see the pairing
+work, use the view above: the two slots in it are what the `secondary` and
+`primary` children land in.
+
+<MoreInfo title="Duplicate ids across layouts are the widget's own model">
+The example in the libadwaita documentation puts an `AdwLayoutSlot` with
+`id="primary"` in **both** layouts of one view — that is how a child follows a
+layout change. The element resolves slots from the layout it is currently
+mounting, never by looking an id up in the document, so two slots sharing an id
+are ordinary.
+</MoreInfo>
+
+<AdwWidget title="Adw.LayoutSlot" stage="width: 360px; height: 90px;">
+  <Fragment slot="preview">
+    ```html
+    <adw-layout-slot id="primary">
+      <gtk-label label="The child the view inserted here."></gtk-label>
+    </adw-layout-slot>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    // A slot only ever exists inside a layout, and a layout inside a view:
+    // the view is what inserts the child whose id matches the slot's.
+    const slot = new Adw.LayoutSlot('primary');
+    const layout = new Adw.Layout(slot);
+    layout.name = 'only';
+
+    const view = new Adw.MultiLayoutView();
+    view.add_layout(layout);
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.LayoutSlot {
+      id: "primary";
+
+      Gtk.Label {
+        label: _("The child the view inserted here.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    // A slot only ever exists inside a layout, and a layout inside a view:
+    // the view is what inserts the child whose id matches the slot's.
+    const slot = new Adw.LayoutSlot('primary');
+    const layout = new Adw.Layout(slot);
+    layout.name = 'only';
+
+    const view = new Adw.MultiLayoutView();
+    view.add_layout(layout);
+    view.set_child('primary', new Adw.NavigationPage({ title: 'Inbox', tag: 'inbox' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Related
 
 - [Boxed Lists](../boxed-lists/): the rows a `Clamp` keeps at a readable width.
 - [Navigation](../navigation/): split views and pages that pair with a `HeaderBar`.
+- [Feedback](../feedback/): the dialogs that present themselves over the window.
 - [Native Adwaita Apps](../../guides/native-adwaita-app/): assemble these into a
   running app.
 - [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a

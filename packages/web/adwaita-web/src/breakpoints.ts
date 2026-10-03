@@ -16,29 +16,46 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { AdwBreakpoint } from '@gjsify/adwaita-core';
+import type { BreakpointSize } from '@gjsify/adwaita-core';
 
 /**
- * Drive `breakpoints` from `element`'s own box, and return a dispose function.
+ * The SIZE SOURCE both adaptive shapes in this package share: a `ResizeObserver` on
+ * `element`, handing every delivery's BORDER box to `onSize`.
  *
- * `ResizeObserver` delivers an initial observation on `observe()`, so the breakpoints
- * settle on the correct state before first paint — no flash of the wrong layout, no
+ * Split out of {@link addBreakpoints} because a second consumer needs the box without
+ * the `AdwBreakpoint` state machine: `<adw-breakpoint-bin>` drives `BreakpointBinState`
+ * (core), which evaluates a LIST of breakpoints and answers with the writes to perform,
+ * so it cannot be handed one `AdwBreakpoint` per condition. Two readers of
+ * `borderBoxSize` would be two shapes of the fallback, and the fallback is the half that
+ * only matters on the engines that do not report `borderBoxSize` at all.
+ *
+ * `ResizeObserver` delivers an initial observation on `observe()`, so the caller
+ * settles on the correct state before first paint — no flash of the wrong layout, no
  * separate seeding pass. The size read is the BORDER box in CSS pixels, the browser's
  * counterpart to the `sp`/DIP units an Adwaita condition is written in.
  */
-export function addBreakpoints(element: Element, breakpoints: readonly AdwBreakpoint[]): () => void {
+export function observeAdaptiveSize(element: Element, onSize: (size: BreakpointSize) => void): () => void {
     const observer = new ResizeObserver((entries) => {
         const entry = entries[entries.length - 1];
         if (!entry) return;
         // borderBoxSize is the spec'd path; contentRect is the fallback for the shape older
         // engines report.
         const box = entry.borderBoxSize?.[0];
-        const size = box
-            ? { width: box.inlineSize, height: box.blockSize }
-            : { width: entry.contentRect.width, height: entry.contentRect.height };
-        for (const breakpoint of breakpoints) breakpoint.evaluate(size);
+        onSize(
+            box
+                ? { width: box.inlineSize, height: box.blockSize }
+                : { width: entry.contentRect.width, height: entry.contentRect.height },
+        );
     });
     observer.observe(element);
     return () => observer.disconnect();
+}
+
+/** Drive `breakpoints` from `element`'s own box, and return a dispose function. */
+export function addBreakpoints(element: Element, breakpoints: readonly AdwBreakpoint[]): () => void {
+    return observeAdaptiveSize(element, (size) => {
+        for (const breakpoint of breakpoints) breakpoint.evaluate(size);
+    });
 }
 
 /**

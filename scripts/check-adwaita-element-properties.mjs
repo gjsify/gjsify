@@ -135,6 +135,10 @@ const KNOWN_GAPS = {
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
     'adw-window': ['adaptive-preview'],
+    // The same debug mode `<adw-window>` records above, for the same reason: it
+    // resizes the window to a set of device sizes from GTK Inspector or Ctrl+Shift+M,
+    // and a browser has neither. This element is `<adw-window>` plus `show-menubar`.
+    'adw-application-window': ['adaptive-preview'],
     // ── Visible for the first time on 2026-09-01, when nine elements took the GIR
     // name of the widget they always were (ADR 0034 clause 1, § Amendment 5). The
     // GAPS are not new: `<adw-entry>` observed five attributes against `GtkEntry`'s
@@ -154,8 +158,26 @@ const KNOWN_GAPS = {
     // NativeScript box declares.
     'gtk-box': ['baseline-child', 'baseline-position'],
     'gtk-button': ['can-shrink', 'has-frame', 'use-underline'],
+    // `active` and `inconsistent` are the two GIR names this element DELIBERATELY does
+    // not use: it wraps a real `<input>`, so the state is `checked` and `indeterminate`
+    // — the two spellings libadwaita's own cascade selects on (`_checks.scss`). GTK
+    // raises the same state flags for them (gtkcheckbutton.c:647-691), so the divergence
+    // is in the ATTRIBUTE NAME only. `use-underline` is a mnemonic hook on a `GtkLabel`
+    // child (gtkcheckbutton.c:693-702); the label here is a plain `<span>` with no
+    // keyval, so there is nothing for it to underline.
+    // The three GStrv credit lists (`char **`). `<adw-about-dialog>` sets its own
+    // `developers` / `designers` / `artists` / `documenters` as PROPERTIES and its entry
+    // above is the ledger for them, so this element's `authors` / `documenters` / `artists`
+    // are properties too — an attribute is one string, and a credit line is a `char *` with
+    // its own `<email>` / URL syntax inside it. `parseCreditPerson` reads them.
+    'gtk-about-dialog': ['artists', 'authors', 'documenters'],
     'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
+    // `use-es` is DEPRECATED in GTK 4.12 and `allowed-apis` replaced it
+    // (gtkglarea.c:969-971, :1235-1254). The element carries the replacement, so the
+    // retired spelling is all that is left — and it cannot go on being observed without
+    // the element teaching a name GTK itself withdrew.
+    'gtk-gl-area': ['use-es'],
     'gtk-entry': [
         'activates-default',
         'enable-emoji-completion',
@@ -187,6 +209,11 @@ const KNOWN_GAPS = {
         'visibility',
     ],
     'gtk-image': ['file', 'icon-size', 'pixel-size', 'resource', 'use-fallback'],
+    // `baseline-row` aligns every row's baseline to ONE row's, so a child whose `valign` is
+    // baseline lines up across row boundaries (gtkgrid.c:474-479). A CSS grid aligns
+    // baselines WITHIN one row track and has no per-grid baseline line, so there is no value
+    // this attribute could hold that would do it.
+    'gtk-grid': ['baseline-row'],
     // `natural-wrap-mode` is a natural-SIZE-REQUEST hint over a size-negotiation protocol
     // this renderer does not run (a browser lays out once, it does not ask a widget for a
     // preferred width first); `single-line-mode` pins the height to one line's
@@ -197,9 +224,128 @@ const KNOWN_GAPS = {
     // header.
     'gtk-label': ['natural-wrap-mode', 'single-line-mode'],
     'gtk-menu-button': ['active', 'always-show-arrow', 'can-shrink', 'has-frame', 'label', 'primary', 'use-underline'],
-    'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
+    'gtk-password-entry': [
+        // `placeholder-text` is carried under its OWN spelling — `placeholder`, the one
+        // `<gtk-entry>` already observes and the one this element inherits from it. Same
+        // attribute-level rename the `gtk-entry` bullet above records; renaming the published
+        // attribute is a change of that package's surface, not this widget's.
+        'placeholder-text',
+        // "Whether to activate the default widget when Enter is pressed." A default widget
+        // is a GTK toplevel concept: it is the widget a toplevel activates, resolved through
+        // the window. A document has no such thing, so there is nothing to activate — the
+        // `activate` SIGNAL the property gates is dispatched here instead.
+        'activates-default',
+    ],
+    // `autohide` left this list when `<gtk-popover>` began honouring it: GTK's grab is what
+    // dismisses the popover on an outside click and what takes the focus when it opens
+    // (gtkpopover.c:1188, :1245-1247), so the attribute gates the document listeners the
+    // element already binds.
+    'gtk-popover': ['cascade-popdown', 'has-arrow', 'mnemonics-visible'],
+    // `flags` is `GTK_POPOVER_MENU_SLIDING` (the default) against `GTK_POPOVER_MENU_NESTED`.
+    // Only the sliding half is modelled: a nested submenu opens as a SECOND popover beside
+    // the row (gtkpopovermenu.c:817-825), which needs the arrow this package does not draw
+    // and an anchor the CSS placement cannot point at.
+    'gtk-popover-menu': ['flags'],
+    // `pulse-step` is the distance one `gtk_progress_bar_pulse()` call advances the
+    // bouncing block (gtkprogressbar.c:830-847, :655-692): a property of a per-call
+    // animation this element does not run — the indeterminate block is a CSS keyframe on
+    // a fixed period, so there is no step to configure. `ellipsize` is Pango's
+    // truncation mode on the text node, the same family `gtk-label` already carries.
     'gtk-progress-bar': ['ellipsize', 'pulse-step'],
-    'gtk-switch': ['state'],
+    'gtk-search-entry': [
+        // Carried under its OWN spelling — `placeholder`, the attribute `<gtk-entry>` already
+        // observes and the one this element inherits from it. Same attribute-level rename the
+        // `gtk-entry` bullet above records.
+        'placeholder-text',
+        // "Whether to activate the default widget when Enter is pressed." A default widget is
+        // a GTK toplevel concept, resolved through the window; a document has no such thing, so
+        // there is nothing to activate. The `activate` SIGNAL the property gates is dispatched
+        // either way.
+        'activates-default',
+        // The two INPUT-METHOD hints, which GTK hands to GDK's input method and which a text
+        // field has no way to pass on. `<gtk-entry>` carries both for the same reasons.
+        'input-hints',
+        'input-purpose',
+    ],
+    'gtk-spin-button': [
+        // Same default-widget concept `gtk-search-entry` records above. `climb-rate` and
+        // `update-policy` ARE observed: the held-arrow ramp (`TIMEOUT_INITIAL` 500ms,
+        // `TIMEOUT_REPEAT` 50ms, `MAX_TIMER_CALLS` 5) and both update policies are ported.
+        'activates-default',
+    ],
+    // The two text EDITORS carry more of their pspec surface here than anything else in the
+    // table does, and every gap below is a MECHANISM a browser does not have rather than a
+    // derivation nobody wrote — the reasons are one line each in the element headers.
+    'gtk-text': [
+        'activates-default',
+        'enable-emoji-completion',
+        'im-module',
+        'invisible-char',
+        'invisible-char-set',
+        'input-hints',
+        'input-purpose',
+        'overwrite-mode',
+        'truncate-multiline',
+    ],
+    'gtk-text-view': [
+        'im-module',
+        // The Pango PARAGRAPH model: a CSS line box cannot space paragraphs apart from the
+        // lines inside them, and a `<textarea>` has no paragraphs to tell apart.
+        'indent',
+        'input-hints',
+        'input-purpose',
+        'overwrite',
+        'pixels-above-lines',
+        'pixels-below-lines',
+        'pixels-inside-wrap',
+    ],
+    // ── The gtk/windows page (2026-10-02). Four new elements, and the gaps are the two
+    // branches of one macOS-only property plus the window facts a page has no way to ask a
+    // compositor for.
+    'gtk-header-bar': [
+        // `Gtk.HeaderBar:use-native-controls` (since 4.18) has ONE effect: it makes the bar
+        // build a `GtkWindowButtonsQuartz` instead of the three symbolic buttons
+        // (gtkheaderbar.c:639-651 creates the controls; gtkwindowcontrols.c:281-303 is the
+        // macOS branch). The GIR says so on the property itself — "On Linux, this option has
+        // no effect" — and this port is not macOS, so the attribute is observed for the
+        // property's sake and changes nothing.
+        'use-native-controls',
+    ],
+    'gtk-window-controls': [],
+    // Every one of these is a fact about a SURFACE a compositor owns, or about GTK's own
+    // input bookkeeping, and a browser document has neither. They are listed together
+    // because the reasons are one family; see `gtk-window.ts` for each one's own line.
+    'gtk-window': [
+        // Which point stays fixed while the window is resized PROGRAMMATICALLY (gtkwindow.c:1163).
+        // A browser box is laid out, never resized that way — there is no `resize()` to aim.
+        'gravity',
+        // GTK maintains it from user input and the GIR says an application must not set it (:969).
+        'focus-visible',
+        // Same, for the mnemonic underline (:956).
+        'mnemonics-visible',
+        // A DOM node has no destroy, and a page has no parent window to destroy it with.
+        'destroy-with-parent',
+        // F10 activating the menubar — `<gtk-application-window>`'s half, and it needs the
+        // `Gio.MenuModel` the bar is built from (:1150).
+        'handle-menubar-accel',
+        // Write-only, and written by the launcher that started the application (:883).
+        'startup-id',
+    ],
+    // One property of a widget whose every OTHER scalar is implemented here.
+    //
+    // `kinetic-scrolling` is the deceleration after a touch release: GTK runs its own
+    // `GtkKineticScrolling` tick against the frame clock (`gtk_scrolled_window_decelerate`,
+    // gtkscrolledwindow.c:3460-3490) and a page cannot hand a browser a curve to run. The
+    // same answer covers the wheel step `get_wheel_detent_scroll_step` computes as
+    // `pow (page_size, 2.0 / 3.0)` (gtkscrolledwindow.c:1210-1230): the platform's own
+    // scrolling is what a reader gets, and the platform owns that arithmetic too.
+    //
+    // The two `propagate-natural-*` ARE ported: they ask the child for its natural size and
+    // add it to the window's own NATURAL request (`gtk_scrolled_window_measure`,
+    // gtkscrolledwindow.c:1881-1888, :1905-1906), which a browser layout states as `min-width:
+    // max-content` on the scrollport. A NEVER policy adds the child's MINIMUM request instead
+    // (:1890-1892), which is the same line with `min-content`.
+    'gtk-scrolled-window': ['kinetic-scrolling'],
 };
 
 /** @returns {string[]} one line per problem; empty means aligned. */

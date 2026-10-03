@@ -1,0 +1,112 @@
+// _view_switcher_sidebar.scss — <adw-view-switcher-sidebar>: an <adw-sidebar> driven
+// from an <adw-view-stack>'s page list. libadwaita styles exactly ONE thing of its own —
+// the row indicator, and only the number/dot shape inside it — because the sidebar look
+// comes from `_sidebars.scss` and this element drives that widget rather than
+// reimplementing it.
+//
+// Ported from `view-switcher-sidebar .indicator` (adw-view-switcher-sidebar.c:133-181):
+//   · `background: color-mix(in srgb, currentColor 40%, transparent)`, `border-radius: 999px`
+//   · `min-width/min-height: 1.6em`, `font-weight: bold`, `font-size: smaller`
+//   · `.dot` shrinks it to 8×8 — the unread mark with no count
+//   · `> label` is white with 6px of padding each side
+//   · `.needs-attention` swaps in `--accent-bg-color`/`--accent-fg-color`
+// Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss:250-277
+// Reference: refs/libadwaita/src/adw-view-switcher-sidebar.c:104-112, :133-181, :225-249
+// Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1-or-later.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-view-switcher-sidebar {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 0;
+  color: inherit;
+}
+
+adw-view-switcher-sidebar > .view-switcher-sidebar-box {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+adw-view-switcher-sidebar > adw-sidebar {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+adw-view-switcher-sidebar > .view-switcher-sidebar-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background-color: var(--sidebar-bg-color, var(--window-bg-color));
+  color: var(--sidebar-fg-color, var(--window-fg-color));
+}
+
+adw-view-switcher-sidebar > .view-switcher-sidebar-placeholder[hidden] {
+  display: none;
+}
+
+// `&:not(.page).empty statuspage { @extend .compact }` — the empty state is compact in
+// sidebar mode and a full page in `page` mode, where it is one of several boxed pages.
+adw-view-switcher-sidebar.page > .view-switcher-sidebar-placeholder {
+  position: static;
+  margin: var(--spacing-m);
+}
+
+adw-view-switcher-sidebar > .view-switcher-sidebar-prefix,
+adw-view-switcher-sidebar > .view-switcher-sidebar-suffix {
+  flex-shrink: 0;
+}
+
+adw-view-switcher-sidebar > .view-switcher-sidebar-prefix:empty,
+adw-view-switcher-sidebar > .view-switcher-sidebar-suffix:empty,
+adw-view-switcher-sidebar > .view-switcher-sidebar-placeholder:empty {
+  display: none;
+}
+
+// --- The row indicator ----------------------------------------------------
+
+adw-view-switcher-sidebar .indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-width: 1.6em;
+  min-height: 1.6em;
+  margin-inline-start: auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 40%, transparent);
+  font-weight: bold;
+  font-size: smaller;
+  line-height: 1;
+}
+
+adw-view-switcher-sidebar .indicator[hidden] {
+  display: none;
+}
+
+adw-view-switcher-sidebar .indicator.dot {
+  min-width: 8px;
+  min-height: 8px;
+}
+
+adw-view-switcher-sidebar .indicator > label,
+adw-view-switcher-sidebar .indicator > .numeric {
+  color: white;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+adw-view-switcher-sidebar .indicator.needs-attention {
+  background: var(--accent-bg-color);
+}
+
+adw-view-switcher-sidebar .indicator.needs-attention > label,
+adw-view-switcher-sidebar .indicator.needs-attention > .numeric {
+  color: var(--accent-fg-color);
+}

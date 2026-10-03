@@ -1,0 +1,139 @@
+// _media_controls.scss — <gtk-media-controls>: a box of six pixels' spacing, two labels in
+// tabular figures, and a range input.
+//
+// libadwaita has NO `_media-controls.scss`. `GtkMediaControls` is styled only through the
+// `.osd` and `.bottom` classes `ui/gtkvideo.ui` puts on it, which is what `_video.scss` has
+// already spent itself on: the `%osd` surface (_common.scss:43-60) and the 12px padding a
+// standalone OSD toolbar takes (_toolbars.scss:96-100). So this partial is the C's layout
+// and nothing else — the six numbers below are all the template says.
+//
+// THE TEMPLATE'S `spacing` 6 IS THE ONLY LAYOUT PROPERTY THAT SURVIVES.
+// `box { spacing: 6 }` in `ui/gtkmediacontrols.ui` becomes the gap between the play button,
+// the time box and the volume button. Nothing else in the template is a spacing: the time
+// box has none of its own, and the labels sit against the scale with no gap at all, which is
+// why `gap` is applied to the OUTER box only.
+//
+// `font-variant-numeric: tabular-nums` IS BOTH LABELS' `font-features "tnum=1"`. That
+// attribute on each label (`ui/gtkmediacontrols.ui`) is the only reason the class exists, and
+// it is load-bearing rather than cosmetic: a position counting 9→10 must not change the
+// width of the string, or the seek scale beside it shifts sideways once a second. The same
+// declaration `_labels.scss` applies to the `.numeric` utility class reaches a
+// `Gtk.Label`; this widget's labels are spans of the element's own tree, so the class is
+// applied here.
+//
+// THE SEEK SCALE IS `<input type="range">` WITH GTK'S ADJUSTMENT SPELLED OUT.
+// `time_adjustment` is `upper` 10, `step-increment` 1, `page-increment` 10
+// (`ui/gtkmediacontrols.ui`), and every real duration arrives by resetting the adjustment's
+// range to the media's own — so `min` 0, `max` the duration in seconds and `step` 1 second.
+// `page-increment` 10 has no HTML equivalent: a range input's Page key moves by ten STEPS,
+// not by ten units, which is a different thing and cannot be made to agree. That is the one
+// adjustment property that does not survive, and it is worth naming rather than leaving to be
+// discovered.
+//
+// THE VOLUME SLIDE IS THE OTHER ADJUSTMENT, AND IT IS A DIFFERENT SHAPE.
+// `volume_adjustment` is `upper` 1, `step-increment` 0.1, `page-increment` 1, `value` 1 —
+// full scale in tenths — so `min` 0, `max` 1, `step` 0.1. It lives in the volume button's
+// popover because `GtkVolumeButton` IS a menu button with an adjustment popover; the
+// popover surface is `_popovers.scss`'s, reused through the `.adw-popover` class rather than
+// restated here.
+//
+// `.insensitive` IS THE TEMPLATE'S `sensitive` 0. `ui/gtkmediacontrols.ui` sets it on the
+// whole box, and `gtk_media_controls_set_sensitive` is what re-enables it — so a controls
+// bar with no stream attached is inert, which is the state the element renders by default.
+// GTK's `:disabled` opacity is `_buttons.scss`'s `$disabled-opacity`, and the same token is
+// used here for the whole bar rather than per button, because in the C the insensitivity is
+// the CONTAINER's.
+//
+// Reference: refs/gtk/gtk/ui/gtkmediacontrols.ui (the node tree and both adjustments)
+// Reference: refs/libadwaita/src/stylesheet/_common.scss:43-60 (`%osd`, applied by
+//   `_video.scss`), widgets/_toolbars.scss:96-100 (the `.osd` toolbar's 12px padding)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (`:disabled` opacity)
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-media-controls {
+  display: flex;
+  align-items: center;
+  color: var(--window-fg-color);
+
+  // `box { sensitive: 0; spacing: 6 }` (ui/gtkmediacontrols.ui).
+  gap: 6px;
+
+  // `gtk_media_controls_set_sensitive` — the container's own insensitivity, which is where
+  // the template puts it. Same token `_buttons.scss` uses for a `:disabled` button.
+  &.insensitive,
+  &:disabled {
+    opacity: var(--disabled-opacity);
+  }
+
+  .adw-media-controls-box {
+    display: flex;
+    flex: 1;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  // `play_button` is a `GtkButton` with `has-frame` 0 — a flat button — and so is the
+  // `volume_button` beside it. `.adw-flat` is this package's flat-button class; `_button.scss`
+  // owns the shape, and nothing here restates it.
+  .adw-media-controls-button {
+    flex-shrink: 0;
+  }
+
+  // `time_box` — the middle `GtkBox`, `hexpand` on the scale inside it.
+  .adw-media-controls-time-box {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+  }
+
+  // BOTH labels' `font-features "tnum=1"` (ui/gtkmediacontrols.ui). Tabular figures, so a
+  // position counting 9→10 does not resize its own string and shift the scale sideways.
+  .adw-media-controls-time-label,
+  .adw-media-controls-duration-label {
+    // `font-variant-numeric: tabular-nums` is a UTILITY class on a label in libadwaita
+    // (`_labels.scss`); it is applied here directly because these are spans of this element's
+    // own tree rather than `<gtk-label>`s a consumer styled.
+    font-variant-numeric: tabular-nums;
+    // The two labels must never be squeezed: they are the numbers the seek bar is read
+    // against, and a truncated `-1:02:03` is worse than a narrower scale.
+    flex-shrink: 0;
+    padding: 0 2px;
+  }
+
+  // `seek_scale` — the `GtkScale`, `hexpand` 1 and `restrict-to-fill-level` 0.
+  .adw-media-controls-seek-scale {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--accent-color);
+  }
+
+  // The volume button is a POSITIONING context for its own popover, which is what makes the
+  // surface sit below the button rather than beside the bar — `GtkVolumeButton` is a
+  // `GtkMenuButton`, so the surface hangs off its anchor.
+  .adw-media-controls-volume-button {
+    position: relative;
+  }
+
+  // `<gtk-popover>` is this package's ONE popover surface and `_popover.scss`'s header says
+  // why: three hand-rolled copies of the plate disagreed with libadwaita and with each
+  // other before it was lifted out. So the volume slide goes in a real one and this partial
+  // states nothing about its shape — only that it hangs from the button and does not take
+  // clicks meant for the slide.
+  .adw-media-controls-volume-popover {
+    top: calc(100% + 6px);
+    left: 50%;
+    // `_popover.scss`'s own `$popover-gap`, restated here rather than imported: the gap is
+    // the DISTANCE from anchor to surface, which is a property of the anchor's positioning
+    // and belongs to the widget that owns the anchor.
+    transform: translateX(-50%);
+  }
+
+  .adw-media-controls-volume-scale {
+    width: 120px;
+    accent-color: var(--accent-color);
+  }
+}

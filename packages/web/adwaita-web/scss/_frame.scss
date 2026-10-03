@@ -1,0 +1,41 @@
+// _frame.scss — <gtk-frame>: the 1px border, and the label that sits inside its top edge.
+//
+// libadwaita writes this rule TWICE, once for the widget node and once for the style
+// class (`widgets/_misc.scss:4-7`); the widget half is here and the class half stays in
+// `_style_classes.scss`, where every other `.frame` consumer already is. The label's
+// `margin: 4px` (`_misc.scss:12-14`) is the inset it gets inside the border, keyed on the
+// class the element puts on whatever stands in for GtkFrame's label widget — the internal
+// `<gtk-label>` `label` builds, or an author's `label-widget`.
+//
+// The BOX is GtkFrame's, not libadwaita's: the label widget takes the top line and the
+// child the rest (`gtk_frame_real_compute_child_allocation`, gtkframe.c:554-580), so the
+// host is a flex column whose children grow into whatever the pinned label leaves.
+// `overflow: hidden` is `GTK_OVERFLOW_HIDDEN` (gtkframe.c:246) — the GIR doc calls the
+// clipping out as the way to round a child's corners, at the price of its shadows.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss:4-15
+// Reference: refs/gtk/gtk/gtkframe.c:246, :519-580
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+
+  // GTK sizes the label widget itself and never grows it, so it is pinned at its own size
+  // (`flex: none`) and its `align-self` is the element's, written from `label-xalign`.
+  > .adw-frame-label {
+    flex: none;
+    margin: 4px;
+  }
+
+  // Everything else is the child, and it takes the height the label leaves.
+  > * {
+    flex: 1 1 auto;
+  }
+}

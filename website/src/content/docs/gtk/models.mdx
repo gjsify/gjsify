@@ -1,0 +1,407 @@
+---
+title: Models
+description: "GTK's model-driven views — list, grid and column — plus the tree expander, with a live preview, its markup, and the TypeScript and Blueprint code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Four widgets draw a **list model** rather than children you append: the
+**list view**, the **grid view** and the **column view**, each pairing a model
+with a factory that builds one widget per item, plus the **tree expander** a
+tree row wears in front of its contents.
+
+On GTK the model is a `Gio.ListModel` wrapped in a `Gtk.SelectionModel`, and the
+factory is a pair of callbacks. The browser port takes the **portable list** —
+the same `model` value `<gtk-drop-down>` takes — and a factory that is one
+function, and keeps the selection on the widget as `selection-mode`.
+
+<MoreInfo title="Why these four have no dialect snippets">
+A factory is a function and a selection model is an object, so neither has a
+literal form a Solid, Vue or React prop could carry: the GTK seam converts an
+authored array into a `Gtk.StringList` only where the property can hold one, and
+refuses by name where it cannot. The previews below run the browser port, and
+`@gjsify/adwaita-nativescript` has none of the four — the open question there is
+how a per-item factory is spelled against an `itemTemplate`.
+</MoreInfo>
+
+## List View
+
+One row per item, each built by the factory. **`model`** is a JSON array of
+strings (or of `{ "value", "label" }` objects); **`selection-mode`** says which
+`Gtk.SelectionModel` the view behaves as — `single`, `multiple` or `none` — and
+**`show-separators`** draws the hairline between rows. A click selects,
+<kbd>Ctrl</kbd> toggles and <kbd>Shift</kbd> extends, exactly as
+`gtk_list_base_select_item` does; a double click emits `activate`.
+
+<AdwWidget title="Gtk.ListView">
+  <Fragment slot="preview">
+    ```html
+    <gtk-list-view
+      model='["Documents","Downloads","Music","Pictures"]'
+      selection-mode="single"
+      show-separators
+    ></gtk-list-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const model = Gtk.StringList.new(['Documents', 'Downloads', 'Music', 'Pictures']);
+
+    // `setup` builds the row widget, `bind` fills it — the pair GTK keeps apart so it
+    // can recycle rows while scrolling.
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        item.child = new Gtk.Label({ xalign: 0 });
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.label = item.item.string;
+    });
+
+    const view = new Gtk.ListView({ model: Gtk.SingleSelection.new(model), factory });
+    view.showSeparators = true;
+    view.connect('activate', (_view, position) => print(`activated ${position}`));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ListView {
+      show-separators: true;
+
+      model: Gtk.SingleSelection {
+        model: Gtk.StringList {
+          strings [ "Documents", "Downloads", "Music", "Pictures" ]
+        };
+      };
+
+      factory: Gtk.BuilderListItemFactory {
+        template Gtk.ListItem {
+          child: Gtk.Label {
+            xalign: 0;
+            label: bind template.item as <Gtk.StringObject>.string;
+          };
+        }
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const model = Gtk.StringList.new(['Documents', 'Downloads', 'Music', 'Pictures']);
+
+    // `setup` builds the row widget, `bind` fills it — the pair GTK keeps apart so it
+    // can recycle rows while scrolling.
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        item.child = new Gtk.Label({ xalign: 0 });
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.label = item.item.string;
+    });
+
+    const view = new Gtk.ListView({ model: Gtk.SingleSelection.new(model), factory });
+    view.showSeparators = true;
+    view.connect('activate', (_view, position) => print(`activated ${position}`));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Grid View
+
+The same model and the same factory, reflowed into as many equal columns as the
+width fits. **`min-columns`** and **`max-columns`** bound the count — `GTK`'s
+own default maximum is seven — and the arithmetic between them is
+`gtk_grid_view_compute_n_columns`: the available width divided by one item's,
+rounding down, with the gap counted between items only.
+
+<AdwWidget title="Gtk.GridView">
+  <Fragment slot="preview">
+    ```html
+    <!-- min-columns: Minimum number of columns per row. -->
+    <!-- max-columns: Maximum number of columns per row. -->
+    <gtk-grid-view
+      model='["January","February","March","April","May","June"]'
+      min-columns="2"
+      max-columns="4"
+    ></gtk-grid-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const model = Gtk.StringList.new(['January', 'February', 'March', 'April', 'May', 'June']);
+
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        item.child = new Gtk.Label({ xalign: 0.5 });
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.label = item.item.string;
+    });
+
+    const view = new Gtk.GridView({ model: Gtk.SingleSelection.new(model), factory });
+    view.minColumns = 2;
+    view.maxColumns = 4;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.GridView {
+      min-columns: 2;
+      max-columns: 4;
+
+      model: Gtk.SingleSelection {
+        model: Gtk.StringList {
+          strings [ "January", "February", "March", "April", "May", "June" ]
+        };
+      };
+
+      factory: Gtk.BuilderListItemFactory {
+        template Gtk.ListItem {
+          child: Gtk.Label {
+            label: bind template.item as <Gtk.StringObject>.string;
+          };
+        }
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const model = Gtk.StringList.new(['January', 'February', 'March', 'April', 'May', 'June']);
+
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        item.child = new Gtk.Label({ xalign: 0.5 });
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.label = item.item.string;
+    });
+
+    const view = new Gtk.GridView({ model: Gtk.SingleSelection.new(model), factory });
+    view.minColumns = 2;
+    view.maxColumns = 4;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Column View
+
+A list view with a header and one cell per column. On GTK each column is a
+`Gtk.ColumnViewColumn` carrying a factory of its own; in the browser port
+**`columns`** is a JSON array, and a column's `key` picks which half of the
+portable item it draws — `label` or `value` — unless a per-column factory is
+set from JavaScript.
+
+Clicking a sortable header sets the sort and **inverts it on the next click**,
+which is `gtk_column_view_sorter_add_column`'s whole rule. The view reorders
+nothing by itself: it publishes the sort, and the application re-assigns the
+model — on GTK through a `Gtk.SortListModel`, here by assigning a sorted array.
+
+<AdwWidget title="Gtk.ColumnView">
+  <Fragment slot="preview">
+    ```html
+    <!-- columns: The list of columns. -->
+    <gtk-column-view
+      model='[{"value":"de","label":"German"},{"value":"fr","label":"French"}]'
+      columns='[{"key":"label","id":"name","title":"Name","expand":true,"sortable":true},{"key":"value","id":"code","title":"Code"}]'
+      show-row-separators
+    ></gtk-column-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const model = Gtk.StringList.new(['German', 'French']);
+    const view = new Gtk.ColumnView({ model: Gtk.SingleSelection.new(model) });
+    view.showRowSeparators = true;
+
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        item.child = new Gtk.Label({ xalign: 0 });
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.label = item.item.string;
+    });
+
+    view.append_column(new Gtk.ColumnViewColumn({ title: 'Name', factory, expand: true }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ColumnView {
+      show-row-separators: true;
+
+      model: Gtk.SingleSelection {
+        model: Gtk.StringList {
+          strings [ "German", "French" ]
+        };
+      };
+
+      Gtk.ColumnViewColumn {
+        title: _("Name");
+        expand: true;
+
+        factory: Gtk.BuilderListItemFactory {
+          template Gtk.ListItem {
+            child: Gtk.Label {
+              xalign: 0;
+              label: bind template.item as <Gtk.StringObject>.string;
+            };
+          }
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const model = Gtk.StringList.new(['German', 'French']);
+    const view = new Gtk.ColumnView({ model: Gtk.SingleSelection.new(model) });
+    view.showRowSeparators = true;
+
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        item.child = new Gtk.Label({ xalign: 0 });
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.label = item.item.string;
+    });
+
+    view.append_column(new Gtk.ColumnViewColumn({ title: 'Name', factory, expand: true }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Tree Expander
+
+The indent and the disclosure arrow in front of a tree row's contents. On GTK it
+watches a `Gtk.TreeListRow`, which only a `Gtk.TreeListModel` produces; in the
+browser port the three things it reads off that row — **`depth`**,
+**`expandable`** and **`expanded`** — are the attributes.
+
+A leaf takes **one more indent in place of the arrow**, so its text lines up
+with its expandable siblings'; setting `indent-for-icon` to false turns that allowance
+off, and `hide-expander` makes an expandable row take the leaf's shape.
+<kbd>+</kbd> and <kbd>*</kbd> expand, <kbd>-</kbd> and <kbd>/</kbd> collapse,
+<kbd>Ctrl</kbd>+<kbd>Space</kbd> toggles, and <kbd>Shift</kbd> with the arrow
+keys does the same in whichever direction the locale reads.
+
+<AdwWidget title="Gtk.TreeExpander">
+  <Fragment slot="preview">
+    ```html
+    <gtk-box orientation="vertical" spacing="6">
+      <gtk-tree-expander depth="0" expandable expanded>
+        <gtk-label label="Pictures"></gtk-label>
+      </gtk-tree-expander>
+      <gtk-tree-expander depth="1">
+        <gtk-label label="Holiday"></gtk-label>
+      </gtk-tree-expander>
+      <gtk-tree-expander depth="1">
+        <gtk-label label="Screenshots"></gtk-label>
+      </gtk-tree-expander>
+    </gtk-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const roots = Gtk.StringList.new(['Pictures', 'Notes']);
+    // `passthrough: false` is what makes the model hand out the Gtk.TreeListRow the
+    // expander watches.
+    const tree = Gtk.TreeListModel.new(roots, false, false, (item) =>
+        item.string === 'Pictures' ? Gtk.StringList.new(['Holiday', 'Screenshots']) : null,
+    );
+
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        // The expander owns the keyboard shortcuts, so focus belongs to it.
+        item.focusable = false;
+        const expander = new Gtk.TreeExpander();
+        expander.child = new Gtk.Label({ xalign: 0 });
+        item.child = expander;
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.listRow = item.item;
+        item.child.child.label = item.item.item.string;
+    });
+
+    const view = new Gtk.ListView({ model: Gtk.SingleSelection.new(tree), factory });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.BuilderListItemFactory {
+      template Gtk.ListItem {
+        focusable: false;
+
+        child: Gtk.TreeExpander {
+          indent-for-icon: true;
+          list-row: bind template.item as <Gtk.TreeListRow>;
+
+          child: Gtk.Label {
+            xalign: 0;
+            label: bind template.item as <Gtk.TreeListRow>.item as <Gtk.StringObject>.string;
+          };
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const roots = Gtk.StringList.new(['Pictures', 'Notes']);
+    // `passthrough: false` is what makes the model hand out the Gtk.TreeListRow the
+    // expander watches.
+    const tree = Gtk.TreeListModel.new(roots, false, false, (item) =>
+        item.string === 'Pictures' ? Gtk.StringList.new(['Holiday', 'Screenshots']) : null,
+    );
+
+    const factory = new Gtk.SignalListItemFactory();
+    factory.connect('setup', (_factory, item) => {
+        // The expander owns the keyboard shortcuts, so focus belongs to it.
+        item.focusable = false;
+        const expander = new Gtk.TreeExpander();
+        expander.child = new Gtk.Label({ xalign: 0 });
+        item.child = expander;
+    });
+    factory.connect('bind', (_factory, item) => {
+        item.child.listRow = item.item;
+        item.child.child.label = item.item.item.string;
+    });
+
+    const view = new Gtk.ListView({ model: Gtk.SingleSelection.new(tree), factory });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Controls](../controls/): the drop-down, which takes the same portable list
+  model and shows one item at a time.
+- [Layout](../layout/): the separator these views draw between their rows.
+- [Adwaita Boxed Lists](/gjsify/adwaita/boxed-lists/): `Adw.ComboRow` and the
+  row widgets a list of records is usually built from instead.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same four
+  widgets in a live component browser you can poke at.

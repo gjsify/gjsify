@@ -27,6 +27,15 @@
 @use 'labels';
 // <gtk-box>. Before every widget, which may place its own children in one.
 @use 'box';
+// The five Gtk layout containers after it, and they are here for ONE reason each: nothing
+// downstream of `box` needs to place children in one, and the frame's 1px border is the
+// only rule libadwaita writes for any of the five (`_misc.scss:4-15`) — so they belong with
+// the primitive they build on rather than in the widget run below.
+@use 'frame';
+@use 'aspect_frame';
+@use 'center_box';
+@use 'grid';
+@use 'fixed';
 // The REST of libadwaita's documented style-class surface — the widget-
 // independent half: the surfaces (`.background`, `.view`, `.frame`), `.card` and
 // the two boxed lists, `.toolbar`, `.spacer`, `.osd`, `.linked`, the app-icon
@@ -37,14 +46,32 @@
 // documented surface and fails on a class with no rule behind it.
 @use 'style_classes';
 @use 'window';
+@use 'application_window';
+// <adw-header-bar>, <gtk-header-bar> AND <gtk-window-controls>, in ONE partial because
+// upstream's `_header-bar.scss` styles `headerbar`, `windowcontrols` and `windowtitle`
+// together — and because a bar's frame buttons ARE its window controls.
 @use 'headerbar';
 @use 'action_bar';
 @use 'window_title';
 @use 'button';
+// The four button-derived nodes below, in the order of `src/elements/`: each one
+// renders a `.adw-button` of its own, so each rule comes AFTER `button` rather than
+// before it — `button.link`'s transparent background is the whole point of a link and
+// `.adw-button`'s resting fill must not win it on source order.
+@use 'link';
+@use 'scale_button';
+@use 'color_button';
+@use 'font_button';
 @use 'button_content';
 // The ONE popover surface. Emitted BEFORE the widgets that host one, so a
 // consumer's (or a widget's) own higher-specificity rule still wins over it.
 @use 'popover';
+// <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin>. All three AFTER
+// `popover`, because every surface they own is `<gtk-popover>`'s and none of them restates
+// it — they add the menubar's item rules and the bin's `.has-open-popup`, and libadwaita
+// puts both in the same file as `popover.menu` for the same reason.
+@use 'popover_menu_bar';
+@use 'popover_bin';
 @use 'split_button';
 @use 'menu_button';
 @use 'drop_down';
@@ -54,14 +81,73 @@
 // own copy of it until it was lifted out of `adw-switch-row {}`.
 @use 'switch';
 @use 'entry';
+@use 'search_entry';
+@use 'password_entry';
+@use 'separator';
+// `<gtk-text>`, `<gtk-text-view>` and `<gtk-editable-label>` — the widgets whose content is
+// text, and the two libadwaita blocks that paint a `text` node.
+@use 'text';
+// `<gtk-search-bar>`, which reads the header-bar tokens rather than the header bar's rules.
+@use 'search_bar';
+// <gtk-drawing-area>, the one widget of the gtk/drawing page that carries a rule of its
+// own. No dependency on anything above it — it styles one canvas — so the order here is
+// placement, not precedence.
+@use 'drawing';
+// The `dnd` node, which libadwaita styles once for the whole widget
+// (`_common.scss:30-32`) and which is otherwise geometry: a drag icon has no parent to lay
+// out in, because it is a GtkRoot with its own surface. No dependency on anything above it.
+@use 'drag_icon';
+// The layout CONTAINERS GTK owns and libadwaita only styles. `_paned` draws the divider as
+// an inset box-shadow on the `separator` node a `GtkPanedHandle` carries, which is a
+// different rule from `<gtk-separator>`'s own fill — so it needs its own partial rather
+// than a class the separator's rule would fight over.
+@use 'overlay';
+@use 'revealer';
+@use 'paned';
+@use 'expander';
 // The two form-control primitives, in ONE partial because upstream merges them
 // (there is no `_radio.scss` in libadwaita) — see _checks.scss.
 @use 'checks';
+@use 'spin_button';
+@use 'scale';
 @use 'progress_bar';
+// <gtk-level-bar>, next to the progress bar it is easy to confuse with. It has no
+// dependency on anything above it, so the order here is readability, not precedence.
+@use 'level_bar';
+// The three views, in dependency order: `list_view` declares the selectable-row mixin
+// and the rubber band that the other two include.
+@use 'list_view';
+@use 'grid_view';
+@use 'column_view';
+@use 'tree_expander';
+// The media group, in dependency order and nothing else: `picture` fits a replaced
+// element, `inscription` is text measured in characters and lines, `video` lays an
+// overlay out and hosts a `media_controls` inside its revealer, so `media_controls`
+// comes after `video` only in the sense that `video` NAMES it — neither partial reads
+// the other, and the order here is readability, not precedence.
+@use 'picture';
+@use 'inscription';
+@use 'video';
+@use 'media_controls';
+// The two child-holding containers. `list_box` comes first only because it reads like
+// `list_view`; nothing here is a `@use` of the other, and `flow_box` includes the selectable
+// mixin from `list_view` above for the cell's four state colours.
+@use 'list_box';
+@use 'flow_box';
+@use 'calendar';
 @use 'preferences';
+@use 'preferences_row';
 @use 'card';
 @use 'data_grid';
+@use 'bin';
 @use 'clamp';
+// <gtk-stack> AND <gtk-stack-switcher> AND <gtk-stack-sidebar>, in ONE partial: upstream
+// styles the switcher's buttons out of `_buttons.scss` and the sidebar's rows out of
+// `_sidebars.scss`, so a stack and the two things that switch over it share styles.
+@use 'stack';
+@use 'clamp_scrollable';
+// <adw-spinner> AND <gtk-spinner>, in ONE partial because upstream's
+// `_spinner.scss` styles `spinner` and `image.spinner` in the same file.
 @use 'spinner';
 // <adw-shortcut-label>'s keycaps. After `labels`, because a separator inside it
 // is an ordinary `.dimmed`.
@@ -80,24 +166,47 @@
 @use 'password_entry_row';
 @use 'toast';
 @use 'toolbar_view';
+// The scrolling trio, beside `_scrolling.scss`'s edge indicators: the scrollbar first,
+// because the scrolled window's grid places it, and the viewport before the window, because
+// the window's grid has a cell for it.
+@use 'scrollbar';
+@use 'viewport';
+@use 'scrolled_window';
+@use 'window_handle';
 @use 'scrolling';
 @use 'wrap_box';
 @use 'panes';
 @use 'overlay_split_view';
 @use 'navigation_split_view';
 @use 'carousel';
+// <adw-tab-bar> BEFORE <adw-tab-view>, and only because upstream writes both in ONE file:
+// `tabbar`, `tabbox` and `tab` (_tab-view.scss:1-95). The chip rules here and the merged
+// bar's are the same declarations against the same class names, so whichever partial is
+// emitted second would win on source order for a document that nests one bar in the other.
+@use 'tab_bar';
 @use 'tab_view';
 @use 'view_switcher';
 @use 'inline_view_switcher';
 @use 'view_stack';
 @use 'view_switcher_bar';
+@use 'tab_button';
+@use 'tab_overview';
+@use 'view_switcher_sidebar';
 @use 'navigation_view';
 @use 'bottom_sheet';
 @use 'sidebar';
+// GTK's own dialogs: the about window's layout, the emoji chooser's nodes, and the two
+// Unix print dialogs. After `popover` and `entry`, which the emoji chooser hosts.
+@use 'gtk_about_dialog';
+@use 'emoji_chooser';
+@use 'print_dialogs';
 @use 'about_dialog';
 @use 'alert_dialog';
 @use 'preferences_dialog';
 @use 'dialog';
+// After 'dialog': the shortcuts dialog IS an <adw-dialog> and adds sections and rows
+// inside its content area, so its own rules have to come after the chrome they sit in.
+@use 'shortcuts_dialog';
 // Last among the widgets: an authored `halign` / `valign` is placement the author asked
 // for, and an element rule that sets a margin must not win it back on source order.
 @use 'widget';

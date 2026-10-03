@@ -156,6 +156,13 @@ export { AdwViewSwitcherPage } from './elements/adw-view-switcher.js';
 export { AdwViewStackPage } from './elements/adw-inline-view-switcher.js';
 export { AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';
 
+// The two halves of a shortcuts dialog, and the same objection the four above state:
+// `AdwShortcutsSection` and `AdwShortcutsItem` descend from `GObject.Object` (they are
+// `add()`ed to a dialog, not packed into one), so there is no GIR name to export them
+// under. `AdwShortcutsDialog` itself IS a widget and has its namespace member.
+export { AdwShortcutsSection } from './elements/adw-shortcuts-section.js';
+export { AdwShortcutsItem } from './elements/adw-shortcuts-item.js';
+
 // Slot wrappers and a declarative response: on GTK these are `set_content()`,
 // `set_sheet()` and `add_response()` — calls, not widgets.
 export { AdwBottomSheetBottomBar, AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';

@@ -20,7 +20,9 @@
 // `xalign : 1 − xalign` (`_labels.scss`), which is the C's `xalign * (width − text width)`
 // to the pixel, and mirrors in RTL as `gtk_label` does. `justify` maps through Pango's own
 // switch: LEFT and RIGHT are START and END of the text direction, FILL is start-aligned
-// lines with inter-word justification.
+// lines with inter-word justification. That switch is `JUSTIFY_TEXT_ALIGN`, in
+// `./justification.js`, because `Gtk.TextView:justification` is the same Pango enum through a
+// second widget.
 //
 // `ELLIPSIZE`, `WRAP-MODE`, `LINES`, `WIDTH-CHARS`, `MAX-WIDTH-CHARS` AND `YALIGN` are
 // Pango's text-layout knobs, and each reaches a REAL CSS mechanism rather than being
@@ -75,6 +77,8 @@ import {
     type LabelWrapMode,
 } from '@gjsify/adwaita-core';
 
+import { JUSTIFY_TEXT_ALIGN } from './justification.js';
+
 /** The attributes that carry a property — also the `notify::` roster. */
 const PROPERTY_ATTRIBUTES = [
     'label',
@@ -92,14 +96,6 @@ const PROPERTY_ATTRIBUTES = [
     'selectable',
 ] as const;
 
-/** `Gtk.Justification` as a CSS `text-align`, through Pango's switch in `gtklabel.c`. */
-const JUSTIFY_TEXT_ALIGN: Record<LabelJustification, string> = {
-    left: 'start',
-    right: 'end',
-    center: 'center',
-    fill: 'justify',
-};
-
 export class GtkLabel extends HTMLElement {
     /**
      * The rendered text's own box — present while {@link wrap} is set (so it can be pinned
@@ -112,6 +108,10 @@ export class GtkLabel extends HTMLElement {
      */
     private _wrapSpan: HTMLSpanElement | null = null;
     private _resizes: ResizeObserver | null = null;
+
+    /** Whether `_sync` last wrote `min-width` / `max-width` itself, and so may clear them. */
+    private _wroteMinWidth = false;
+    private _wroteMaxWidth = false;
 
     static get observedAttributes() {
         return [...PROPERTY_ATTRIBUTES];
@@ -347,11 +347,19 @@ export class GtkLabel extends HTMLElement {
         // `width-chars` / `max-width-chars`, in `ch` — GTK's MINIMUM and NATURAL widths
         // (`get_default_widths`, gtklabel.c) — on the flex item itself, so wrap/ellipsize
         // resolve against that box rather than the ambient container.
+        //
+        // A REMOVAL is guarded by what this method last WROTE, because these two are the
+        // label's alone only while it holds an extent: `<gtk-aspect-frame>` writes
+        // `max-width: 100%` on the child it shapes, and an unconditional
+        // `removeProperty('max-width')` on the label's own next sync deleted the frame's
+        // constraint. The label clears what IT put there and nothing else.
         const extent = labelWidthCharsExtent(this.widthChars, this.maxWidthChars);
         if (extent.minCh !== null) this.style.minWidth = `${extent.minCh}ch`;
-        else this.style.removeProperty('min-width');
+        else if (this._wroteMinWidth) this.style.removeProperty('min-width');
         if (extent.maxCh !== null) this.style.maxWidth = `${extent.maxCh}ch`;
-        else this.style.removeProperty('max-width');
+        else if (this._wroteMaxWidth) this.style.removeProperty('max-width');
+        this._wroteMinWidth = extent.minCh !== null;
+        this._wroteMaxWidth = extent.maxCh !== null;
     }
 
     private _renderSingleLine(text: string): void {

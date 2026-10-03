@@ -23,10 +23,19 @@ import { AdwSplitViewsTest } from './split-views.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
 import { AdwActionRowsTest } from './adw-action-rows.spec.js';
 import { AdwBreakpointsTest } from './breakpoints.spec.js';
+import { AdwBreakpointBinTest } from './adw-breakpoint-bin.spec.js';
+import { AdwMultiLayoutViewTest } from './adw-multi-layout-view.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
+import { AdwWindowTest } from './adw-window.spec.js';
+import { AdwShortcutsTest } from './adw-shortcuts.spec.js';
+import { AdwApplicationWindowTest } from './adw-application-window.spec.js';
 import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
+import { GtkDragIconTest } from './gtk-drag-icon.spec.js';
+import { GtkDrawingAreaTest } from './gtk-drawing-area.spec.js';
+import { GtkGLAreaTest } from './gtk-gl-area.spec.js';
+import { GtkGraphicsOffloadTest } from './gtk-graphics-offload.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
@@ -36,9 +45,16 @@ import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
 import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
 import { GtkEntryTest } from './gtk-entry.spec.js';
 import { GtkMenuButtonTest } from './gtk-menu-button.spec.js';
+import { GtkPopoverTest } from './gtk-popover.spec.js';
+import { GtkPopoverBinTest } from './gtk-popover-bin.spec.js';
+import { GtkPopoverMenuTest } from './gtk-popover-menu.spec.js';
+import { GtkPopoverMenuBarTest } from './gtk-popover-menu-bar.spec.js';
 import { GioMenuTest } from './gio-menu.spec.js';
 import { GtkValueDoorsTest } from './gtk-value-doors.spec.js';
 import { GtkButtonTest } from './gtk-button.spec.js';
+import { GtkAboutDialogTest } from './gtk-about-dialog.spec.js';
+import { GtkEmojiChooserTest } from './gtk-emoji-chooser.spec.js';
+import { GtkPrintDialogsTest } from './gtk-print-dialogs.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { GtkImageTest } from './gtk-image.spec.js';
@@ -46,8 +62,68 @@ import { AdwIconRegistryTest } from './icon-registry.spec.js';
 import { GtkSwitchTest } from './gtk-switch.spec.js';
 import { AdwChecksTest } from './checks.spec.js';
 import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
+import { GtkLevelBarTest } from './gtk-level-bar.spec.js';
+import { GtkSpinnerTest } from './gtk-spinner.spec.js';
+import { GtkNotebookTest } from './gtk-notebook.spec.js';
+import { GtkStackTest } from './gtk-stack.spec.js';
+import { GtkStackSidebarTest } from './gtk-stack-sidebar.spec.js';
+import { GtkStackSwitcherTest } from './gtk-stack-switcher.spec.js';
+import { GtkColumnViewTest } from './gtk-column-view.spec.js';
+import { GtkGridViewTest } from './gtk-grid-view.spec.js';
+import { GtkListViewTest } from './gtk-list-view.spec.js';
+import { GtkHeaderBarTest } from './gtk-header-bar.spec.js';
+import { GtkWindowControlsTest } from './gtk-window-controls.spec.js';
+import { GtkWindowTest } from './gtk-window.spec.js';
+import { GtkApplicationWindowTest } from './gtk-application-window.spec.js';
+import { GtkActionBarTest } from './gtk-action-bar.spec.js';
+import { GtkSeparatorTest } from './gtk-separator.spec.js';
+import { GtkCalendarTest } from './gtk-calendar.spec.js';
+import { GtkFlowBoxTest } from './gtk-flow-box.spec.js';
+import { GtkListBoxTest } from './gtk-list-box.spec.js';
+import { GtkTreeExpanderTest } from './gtk-tree-expander.spec.js';
+import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
+import { GtkExpanderTest } from './gtk-expander.spec.js';
+import { GtkOverlayTest } from './gtk-overlay.spec.js';
+import { GtkPanedTest } from './gtk-paned.spec.js';
+import { GtkRevealerTest } from './gtk-revealer.spec.js';
+import { GtkScaleTest } from './gtk-scale.spec.js';
+import { GtkSpinButtonTest } from './gtk-spin-button.spec.js';
+import { GtkPasswordEntryTest } from './gtk-password-entry.spec.js';
+import { GtkSearchEntryTest } from './gtk-search-entry.spec.js';
+import { GtkLinkButtonTest } from './gtk-link-button.spec.js';
+import { GtkScaleButtonTest } from './gtk-scale-button.spec.js';
+import { GtkColorDialogButtonTest } from './gtk-color-dialog-button.spec.js';
+import { GtkFontDialogButtonTest } from './gtk-font-dialog-button.spec.js';
+import { AdwBinTest } from './adw-bin.spec.js';
+import { AdwClampScrollableTest } from './adw-clamp-scrollable.spec.js';
+import { AdwPreferencesRowTest } from './adw-preferences-row.spec.js';
+import { AdwTabBarTest } from './adw-tab-bar.spec.js';
+import { AdwTabButtonTest } from './adw-tab-button.spec.js';
+import { AdwTabOverviewTest } from './adw-tab-overview.spec.js';
+import { AdwViewSwitcherSidebarTest } from './adw-view-switcher-sidebar.spec.js';
+import { GtkEditableLabelTest } from './gtk-editable-label.spec.js';
+import { GtkSearchBarTest } from './gtk-search-bar.spec.js';
+import { GtkTextTest } from './gtk-text.spec.js';
+import { GtkTextViewTest } from './gtk-text-view.spec.js';
+import { GtkFrameTest } from './gtk-frame.spec.js';
+import { GtkAspectFrameTest } from './gtk-aspect-frame.spec.js';
+import { GtkCenterBoxTest } from './gtk-center-box.spec.js';
+import { GtkGridTest } from './gtk-grid.spec.js';
+import { GtkFixedTest } from './gtk-fixed.spec.js';
+import { GtkScrolledWindowTest } from './gtk-scrolled-window.spec.js';
+import { GtkScrollbarTest } from './gtk-scrollbar.spec.js';
+import { GtkViewportTest } from './gtk-viewport.spec.js';
+import { GtkWindowHandleTest } from './gtk-window-handle.spec.js';
 import { GtkBoxTest } from './gtk-box.spec.js';
 import { GtkLabelTest } from './gtk-label.spec.js';
+// The media group, after `GtkLabelTest` because `<gtk-media-controls>` adopts its stream from
+// the nearest ancestor `<gtk-video>` and `<gtk-inscription>` asserts the `.numeric`-shaped
+// label rules `GtkLabelTest` established — neither is order-dependent, but grouping the four
+// here is what makes the block findable.
+import { GtkPictureTest } from './gtk-picture.spec.js';
+import { GtkInscriptionTest } from './gtk-inscription.spec.js';
+import { GtkVideoTest } from './gtk-video.spec.js';
+import { GtkMediaControlsTest } from './gtk-media-controls.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
@@ -90,8 +166,68 @@ run({
     GtkSwitchTest,
     AdwChecksTest,
     GtkProgressBarTest,
+    GtkLevelBarTest,
+    GtkSpinnerTest,
+    GtkStackTest,
+    GtkStackSwitcherTest,
+    GtkStackSidebarTest,
+    GtkNotebookTest,
+    GtkColumnViewTest,
+    GtkGridViewTest,
+    GtkListViewTest,
+    GtkHeaderBarTest,
+    GtkWindowControlsTest,
+    GtkWindowTest,
+    GtkApplicationWindowTest,
+    GtkActionBarTest,
+    GtkSeparatorTest,
+    GtkCalendarTest,
+    GtkFlowBoxTest,
+    GtkListBoxTest,
+    GtkTreeExpanderTest,
+    GtkDrawingAreaTest,
+    GtkDragIconTest,
+    GtkGLAreaTest,
+    GtkGraphicsOffloadTest,
+    GtkToggleButtonTest,
+    GtkExpanderTest,
+    GtkOverlayTest,
+    GtkPanedTest,
+    GtkRevealerTest,
+    GtkScaleTest,
+    GtkSpinButtonTest,
+    GtkPasswordEntryTest,
+    GtkSearchEntryTest,
+    GtkLinkButtonTest,
+    GtkScaleButtonTest,
+    GtkColorDialogButtonTest,
+    GtkFontDialogButtonTest,
+    AdwBinTest,
+    AdwClampScrollableTest,
+    AdwPreferencesRowTest,
+    AdwTabBarTest,
+    AdwTabButtonTest,
+    AdwTabOverviewTest,
+    AdwViewSwitcherSidebarTest,
+    GtkEditableLabelTest,
+    GtkTextTest,
+    GtkTextViewTest,
+    GtkSearchBarTest,
+    GtkFrameTest,
+    GtkAspectFrameTest,
+    GtkCenterBoxTest,
+    GtkGridTest,
+    GtkFixedTest,
+    GtkScrolledWindowTest,
+    GtkScrollbarTest,
+    GtkViewportTest,
+    GtkWindowHandleTest,
     GtkBoxTest,
     GtkLabelTest,
+    GtkPictureTest,
+    GtkInscriptionTest,
+    GtkVideoTest,
+    GtkMediaControlsTest,
     AdwAvatarTest,
     AdwCarouselTest,
     AdwBottomSheetTest,
@@ -104,8 +240,13 @@ run({
     AdwButtonRowTest,
     AdwActionRowsTest,
     AdwBreakpointsTest,
+    AdwBreakpointBinTest,
+    AdwMultiLayoutViewTest,
     AdwDataGridTest,
     AdwDialogTest,
+    AdwWindowTest,
+    AdwShortcutsTest,
+    AdwApplicationWindowTest,
     GtkDropDownTest,
     AdwRowStateTest,
     AdwTabViewTest,
@@ -116,9 +257,16 @@ run({
     AdwHeaderBarTest,
     GtkEntryTest,
     GtkMenuButtonTest,
+    GtkPopoverTest,
+    GtkPopoverBinTest,
+    GtkPopoverMenuTest,
+    GtkPopoverMenuBarTest,
     GioMenuTest,
     GtkValueDoorsTest,
     GtkButtonTest,
+    GtkAboutDialogTest,
+    GtkEmojiChooserTest,
+    GtkPrintDialogsTest,
     AdwViewStackTest,
     AdwNavigationViewTest,
     AdwSidebarTest,

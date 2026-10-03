@@ -63,15 +63,26 @@ const staging = join(pkgRoot, 'tmp/icon-theme');
  * already carries that argument and its verdict.
  */
 const SUBSET = [
+    // The GtkVideo overlay's four-way choice (gtkvideo.c:626-646) and the
+    // GtkMediaControls transport. `media-eject` is the NO-STREAM arm and
+    // `media-playback-pause` the play button's playing state, so all four are
+    // named by a surface that renders on GTK and not only on the browser — which
+    // is the same reason the other rows are here.
+    ['actions', 'media-eject'],
+    ['actions', 'media-playback-pause'],
+    ['actions', 'media-playback-start'],
     ['actions', 'contact-new'],
     ['actions', 'document-edit'],
     ['actions', 'document-open'],
     ['actions', 'document-save'],
+    ['actions', 'edit-clear'],
     ['actions', 'edit-copy'],
+    ['actions', 'edit-find'],
     ['actions', 'go-down'],
     ['actions', 'go-home'],
     ['actions', 'go-next'],
     ['actions', 'go-previous'],
+    ['actions', 'go-up'],
     ['actions', 'list-add'],
     ['actions', 'list-remove'],
     ['actions', 'mail-reply-sender'],
@@ -80,6 +91,8 @@ const SUBSET = [
     ['actions', 'send-to'],
     ['actions', 'sidebar-show'],
     ['actions', 'system-search'],
+    ['actions', 'value-decrease'],
+    ['actions', 'value-increase'],
     ['actions', 'view-conceal'],
     ['actions', 'view-grid'],
     ['actions', 'view-list'],
@@ -87,9 +100,21 @@ const SUBSET = [
     ['actions', 'view-paged'],
     ['actions', 'view-refresh'],
     ['actions', 'view-reveal'],
+    ['categories', 'emoji-activities'],
+    ['categories', 'emoji-body'],
+    ['categories', 'emoji-flags'],
+    ['categories', 'emoji-food'],
+    ['categories', 'emoji-nature'],
+    ['categories', 'emoji-objects'],
+    ['categories', 'emoji-people'],
+    ['categories', 'emoji-recent'],
+    ['categories', 'emoji-symbols'],
+    ['categories', 'emoji-travel'],
     ['categories', 'preferences-system'],
     ['devices', 'camera-photo'],
     ['devices', 'network-wireless'],
+    ['devices', 'printer'],
+    ['emotes', 'face-smile'],
     ['legacy', 'emblem-system'],
     ['mimetypes', 'application-x-executable'],
     ['places', 'folder'],
@@ -97,13 +122,24 @@ const SUBSET = [
     ['places', 'folder-download'],
     ['places', 'folder-music'],
     ['places', 'user-trash'],
+    ['status', 'audio-volume-high'],
+    ['status', 'audio-volume-low'],
+    ['status', 'audio-volume-medium'],
+    ['status', 'audio-volume-muted'],
     ['status', 'avatar-default'],
+    ['status', 'dialog-error'],
+    ['status', 'dialog-warning'],
     ['status', 'image-missing'],
     ['status', 'mail-unread'],
+    ['status', 'media-playlist-repeat'],
     ['status', 'starred'],
+    ['ui', 'pan-down'],
+    ['ui', 'pan-end'],
+    ['ui', 'pan-end-rtl'],
     ['ui', 'window-close'],
     ['ui', 'window-maximize'],
     ['ui', 'window-minimize'],
+    ['ui', 'window-restore'],
 ];
 
 /**
@@ -145,6 +181,21 @@ const CONTEXT_DIR = { ui: 'actions', legacy: 'emblems' };
 
 /** `list-add` → `listAddSymbolic`, the icon generator's own rule. */
 const exportNameFor = (name) => `${name.replace(/-([a-z0-9])/g, (_a, c) => c.toUpperCase())}Symbolic`;
+
+/**
+ * The one subset name whose export AND file name do not follow from the name.
+ *
+ * `-symbolic-rtl` is GTK's SPELLING of a mirrored glyph, not the web map's: `build-scss.mjs`
+ * drops `-symbolic` and writes the web-facing key `pan-end-rtl`, and `panEndRtlSymbolic` is
+ * an export @gjsify/adwaita-icons has never had. Both halves are pinned by upstream: the
+ * icon-theme file is `pan-end-symbolic-rtl.svg` (hence the generated export
+ * `panEndSymbolicRtl`), and `icon_name_is_symbolic` (`refs/gtk/gtk/gtkicontheme.c:1986-1996`)
+ * accepts `-symbolic-rtl` as a symbolic SUFFIX — so GTK looks this glyph up under exactly
+ * that file name and `pan-end-rtl-symbolic.svg` would never be found.
+ */
+const OVERRIDES = {
+    'pan-end-rtl': { export: 'panEndSymbolicRtl', file: 'pan-end-symbolic-rtl.svg' },
+};
 
 /** The resource prefix. Namespaced to this package so no app can collide with it. */
 const PREFIX = '/eu/jumplink/gjsify/adwaita-app/icons';
@@ -190,10 +241,11 @@ const modules = new Map();
 const entries = [];
 for (const [subpath, name] of SUBSET) {
     if (!modules.has(subpath)) modules.set(subpath, await import(join(iconsPkg, `${subpath}.ts`)));
-    const glyph = modules.get(subpath)[exportNameFor(name)];
+    const exportName = OVERRIDES[name]?.export ?? exportNameFor(name);
+    const glyph = modules.get(subpath)[exportName];
     if (typeof glyph !== 'string') {
         throw new Error(
-            `build-icon-gresource: @gjsify/adwaita-icons/${subpath} exports no ${exportNameFor(name)} — ` +
+            `build-icon-gresource: @gjsify/adwaita-icons/${subpath} exports no ${exportName} — ` +
                 `the subset names a glyph the vendored theme does not have.`,
         );
     }
@@ -206,8 +258,10 @@ for (const [subpath, name] of SUBSET) {
         );
     }
     // `-symbolic` back on: the FILE name is what GTK matches the looked-up name against,
-    // and every one of these is looked up with the suffix.
-    const rel = `scalable/${dir}/${name}-symbolic.svg`;
+    // and every one of these is looked up with the suffix. An OVERRIDE names the file
+    // verbatim, because for `pan-end-rtl` the suffix order is `-symbolic-rtl`, not
+    // `-rtl-symbolic` (see {@link OVERRIDES}).
+    const rel = `scalable/${dir}/${OVERRIDES[name]?.file ?? `${name}-symbolic.svg`}`;
     mkdirSync(join(staging, `scalable/${dir}`), { recursive: true });
     writeFileSync(join(staging, rel), glyph);
     entries.push(rel);

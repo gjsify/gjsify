@@ -22,7 +22,13 @@
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 
 export class GtkEntry extends HTMLElement {
-    private _input!: HTMLInputElement;
+    /**
+     * `protected`, not `private`: `GtkPasswordEntry` and `GtkSearchEntry` subclass this
+     * element and restyle or wrap the very input it builds (the password field's Caps Lock
+     * and peek listeners, the search field's leading icon and trailing clear button), so the
+     * inner node is theirs to reach as well as this class's.
+     */
+    protected _input!: HTMLInputElement;
     private _initialized = false;
     private _maxLength = 0;
 
@@ -89,6 +95,13 @@ export class GtkEntry extends HTMLElement {
         this._input = input;
         this.replaceChildren(input);
     }
+
+    /**
+     * Declared so a subclass can override it and still reach the base: the custom-element
+     * lifecycle hooks a subclass chains (`super.disconnectedCallback()`) have to exist on
+     * the class it extends, and `GtkSearchEntry` drops its pending search timeout here.
+     */
+    disconnectedCallback() {}
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (name === 'maxlength') {

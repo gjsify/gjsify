@@ -56,6 +56,15 @@ export interface AdwSidebarItemSpec {
     visible?: boolean;
     /** Whether the row can be activated — bound to `row:sensitive`. Default true. */
     enabled?: boolean;
+    /**
+     * The row's INDICATOR — `AdwSidebarItem`'s suffix bin as `AdwViewSwitcherSidebar`
+     * drives it (`update_badge`, adw-view-switcher-sidebar.c:133-181). `libadwaita`'s own
+     * sidebar leaves the suffix alone; the switcher sidebar puts an unread dot or a badge
+     * count there, and `Adw.Sidebar` itself never does.
+     */
+    badgeNumber?: number;
+    /** Whether that indicator is drawn in the attention colour (`.needs-attention`). */
+    needsAttention?: boolean;
 }
 
 /**

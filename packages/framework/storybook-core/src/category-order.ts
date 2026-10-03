@@ -20,6 +20,12 @@
 // plain presentational widgets, then rows, then the structural widgets that need
 // a page around them to make sense. Alphabetical would put Feedback and Layout
 // ahead of the boxed lists that make up most of the set.
+//
+// `Media` sits with the CONTENT-bearing widgets rather than with `Layout`: an icon, a
+// fitted picture, an inscription and a video are things a page SHOWS, and they belong
+// beside the controls that act on them rather than beside the boxes that arrange them.
+// `GtkPicture` sizes itself in characters and lines and `GtkMediaControls` is a pure view of
+// a stream, so neither is a layout primitive even though both are measured.
 
 /**
  * The category order every storybook renders its sidebar in.
@@ -35,7 +41,18 @@ export const STORYBOOK_CATEGORY_ORDER: readonly string[] = [
     'Boxed Lists',
     'Controls',
     'Buttons',
+    // The widgets whose content is text: the delegate every entry is built on, the
+    // multi-line editor, the label you edit in place, and the strip that reveals a search
+    // field. It sits with the plain controls because it introduces nothing structural — no
+    // page of its own is needed for any of the four to make sense.
+    'Text',
+    // Beside Layout: the other category whose widgets exist to hold output that no other
+    // widget can produce. A canvas with a draw callback, a GL surface, a compositor
+    // passthrough.
+    'Drawing',
+    'Media',
     'Layout',
+    'Windows',
     'View Switching',
     'Navigation',
     'Feedback',

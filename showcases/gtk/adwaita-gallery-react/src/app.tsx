@@ -54,6 +54,15 @@ const AdwActionRow = () => (
     </adw-preferences-group>
 );
 
+const AdwPreferencesRow = () => (
+    <adw-preferences-group>
+        <adw-preferences-row
+            title="A plain preferences row"
+            useMarkup
+        />
+    </adw-preferences-group>
+);
+
 const AdwSwitchRow = () => (
     <adw-preferences-group>
         <adw-switch-row
@@ -181,6 +190,52 @@ const AdwSplitButton = () => (
     />
 );
 
+const GtkToggleButton = () => (
+    <gtk-box
+        orientation="horizontal"
+        spacing={12}
+        halign="center"
+    >
+        <gtk-toggle-button
+            label="Mute"
+            active
+        />
+        <gtk-toggle-button label="Loop" />
+    </gtk-box>
+);
+
+const GtkLinkButton = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={6}
+        halign="center"
+    >
+        <gtk-link-button
+            uri="https://gnome.org"
+            label="GNOME"
+        />
+        <gtk-link-button
+            uri="https://docs.gtk.org/gtk4/"
+            visited
+        />
+    </gtk-box>
+);
+
+const GtkScaleButton = () => (
+    <gtk-scale-button
+        icons={['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic']}
+        value={70}
+    />
+);
+
+const GtkColorDialogButton = () => (
+    <gtk-color-dialog-button />
+);
+
+const GtkFontDialogButton = () => (
+    <gtk-font-dialog-button />
+);
+
 const GtkMenuButton = () => (
     <gtk-menu-button
         iconName="open-menu-symbolic"
@@ -206,6 +261,452 @@ const GtkDropDown = () => (
         selected={0}
         halign="center"
     />
+);
+
+const GtkScale = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={12}
+    >
+        <gtk-scale
+            adjustment={{ lower: 0, upper: 100, value: 40, stepIncrement: 1, pageIncrement: 10 }}
+            digits={0}
+            drawValue
+            valuePos="top"
+            widthRequest={320}
+        />
+    </gtk-box>
+);
+
+const GtkSpinButton = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={12}
+    >
+        <gtk-spin-button
+            adjustment={{ lower: 0, upper: 10, value: 5, stepIncrement: 1, pageIncrement: 2 }}
+            digits={0}
+            numeric
+            snapToTicks
+            halign="center"
+        />
+    </gtk-box>
+);
+
+const GtkPasswordEntry = () => (
+    <gtk-password-entry
+        showPeekIcon
+        placeholderText="Password"
+    />
+);
+
+const GtkSearchEntry = () => (
+    <gtk-search-entry
+        placeholderText="Search…"
+        searchDelay={150}
+    />
+);
+
+const GtkCheckButton = () => (
+    <gtk-check-button
+        label="Enable networking"
+        active
+    />
+);
+
+const GtkSwitch = () => (
+    <gtk-switch
+        active
+        state
+        halign="center"
+    />
+);
+
+const GtkProgressBar = () => (
+    <gtk-progress-bar
+        fraction={0.4}
+        showText
+        widthRequest={320}
+        halign="center"
+    />
+);
+
+const GtkLevelBar = () => (
+    <gtk-level-bar
+        maxValue={5}
+        mode="discrete"
+        value={3}
+        widthRequest={240}
+        halign="center"
+    />
+);
+
+const GtkSpinner = () => (
+    <gtk-spinner
+        spinning
+        widthRequest={32}
+        heightRequest={32}
+    />
+);
+
+const GtkGraphicsOffload = () => (
+    <gtk-graphics-offload
+        enabled="enabled"
+        blackBackground
+        widthRequest={280}
+        heightRequest={96}
+    >
+        <gtk-label label="The child of an offloaded layer" />
+    </gtk-graphics-offload>
+);
+
+const GtkGLArea = () => (
+    <gtk-gl-area
+        autoRender
+        hasDepthBuffer={false}
+        widthRequest={240}
+        heightRequest={160}
+    />
+);
+
+const GtkDrawingArea = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={16}
+    >
+        <gtk-drawing-area
+            contentWidth={160}
+            contentHeight={120}
+        />
+        <gtk-drawing-area
+            contentWidth={160}
+            contentHeight={60}
+        />
+    </gtk-box>
+);
+
+const GtkScrolledWindow = () => (
+    <gtk-scrolled-window
+        hscrollbarPolicy="automatic"
+        vscrollbarPolicy="automatic"
+        hasFrame={false}
+    >
+        <gtk-box
+            orientation="vertical"
+            spacing={8}
+        >
+            <gtk-label label="Row 1" />
+            <gtk-label label="Row 2" />
+            <gtk-label label="Row 3" />
+        </gtk-box>
+    </gtk-scrolled-window>
+);
+
+const GtkScrollbar = () => (
+    <gtk-scrollbar
+        orientation="vertical"
+        valign="center"
+        adjustment={{ value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 }}
+    />
+);
+
+const GtkViewport = () => (
+    <gtk-viewport scrollToFocus>
+        <gtk-box
+            orientation="vertical"
+            spacing={6}
+        >
+            <gtk-label label="Row 1" />
+            <gtk-label label="Row 2" />
+            <gtk-label label="Row 3" />
+        </gtk-box>
+    </gtk-viewport>
+);
+
+const GtkWindowHandle = () => (
+    <gtk-window-handle>
+        <adw-header-bar>
+            <adw-window-title title="Notes" />
+        </adw-header-bar>
+    </gtk-window-handle>
+);
+
+const GtkImage = () => (
+    <gtk-image
+        iconName="avatar-default-symbolic"
+        iconSize="large"
+    />
+);
+
+const GtkPicture = () => (
+    <gtk-picture
+        keepAspectRatio
+        contentFit="cover"
+        alternativeText="A tangerine"
+        widthRequest={240}
+        heightRequest={160}
+    />
+);
+
+const GtkInscription = () => (
+    <gtk-inscription
+        text="A caption in a fixed box"
+        minChars={10}
+        minLines={2}
+        widthRequest={320}
+    />
+);
+
+const GtkVideo = () => (
+    <gtk-video
+        loop
+        widthRequest={320}
+        heightRequest={180}
+    />
+);
+
+const GtkMediaControls = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={12}
+    >
+        <gtk-video
+            loop
+            widthRequest={320}
+            heightRequest={180}
+        />
+        <gtk-media-controls cssClasses={['osd', 'bottom']} />
+    </gtk-box>
+);
+
+const GtkListBox = () => (
+    <gtk-list-box
+        selectionMode="single"
+        showSeparators
+        widthRequest={240}
+    >
+        <gtk-list-box-row>
+            <gtk-label label="Documents" />
+        </gtk-list-box-row>
+        <gtk-list-box-row>
+            <gtk-label label="Downloads" />
+        </gtk-list-box-row>
+        <gtk-list-box-row>
+            <gtk-label label="Pictures" />
+        </gtk-list-box-row>
+    </gtk-list-box>
+);
+
+const GtkFlowBox = () => (
+    <gtk-flow-box
+        selectionMode="multiple"
+        minChildrenPerLine={2}
+        maxChildrenPerLine={4}
+        rowSpacing={6}
+        columnSpacing={6}
+        widthRequest={320}
+    >
+        <gtk-flow-box-child>
+            <gtk-label label="Red" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Orange" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Yellow" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Green" />
+        </gtk-flow-box-child>
+        <gtk-flow-box-child>
+            <gtk-label label="Blue" />
+        </gtk-flow-box-child>
+    </gtk-flow-box>
+);
+
+const GtkCalendar = () => (
+    <gtk-calendar
+        showWeekNumbers
+        halign="center"
+    />
+);
+
+const GtkFrame = () => (
+    <gtk-frame
+        label="Details"
+        labelXalign={0}
+    >
+        <gtk-label label="A framed region: the label sits in the top edge of the border." />
+    </gtk-frame>
+);
+
+const GtkAspectFrame = () => (
+    <gtk-aspect-frame
+        ratio={2}
+        obeyChild={false}
+        xalign={0.5}
+        yalign={0.5}
+    >
+        <gtk-label label="The frame gives this child the ratio above, and puts it where xalign and yalign say." />
+    </gtk-aspect-frame>
+);
+
+const GtkSeparator = () => (
+    <gtk-box
+        orientation="vertical"
+        spacing={12}
+    >
+        <gtk-label label="Above" />
+        <gtk-separator />
+        <gtk-label label="Below" />
+        <gtk-separator
+            orientation="vertical"
+            cssClasses={['spacer']}
+        />
+    </gtk-box>
+);
+
+const GtkOverlay = () => (
+    <gtk-overlay
+        widthRequest={260}
+        heightRequest={160}
+    >
+        <gtk-label
+            label="Main child"
+            halign="center"
+            valign="center"
+            cssClasses={['dimmed']}
+        />
+        <gtk-label
+            slot="overlay"
+            label="2"
+            halign="end"
+            valign="end"
+        />
+    </gtk-overlay>
+);
+
+const GtkCenterBox = () => (
+    <gtk-center-box
+        shrinkCenterLast
+        widthRequest={320}
+        halign="center"
+    >
+        <gtk-label
+            slot="start"
+            label="Start"
+        />
+        <gtk-label
+            slot="center"
+            label="Centre"
+        />
+        <gtk-label
+            slot="end"
+            label="End"
+        />
+    </gtk-center-box>
+);
+
+const GtkRevealer = () => (
+    <gtk-revealer
+        transitionType="slide-down"
+        transitionDuration={250}
+        revealChild
+    >
+        <gtk-label
+            label="The revealed child"
+            marginTop={12}
+            marginBottom={12}
+        />
+    </gtk-revealer>
+);
+
+const GtkPaned = () => (
+    <gtk-paned
+        orientation="horizontal"
+        widthRequest={400}
+        heightRequest={120}
+        position={-1}
+    >
+        <gtk-label
+            slot="start"
+            label="First child"
+            widthRequest={100}
+        />
+        <gtk-label
+            slot="end"
+            label="Second child"
+            widthRequest={300}
+        />
+    </gtk-paned>
+);
+
+const GtkExpander = () => (
+    <gtk-expander
+        useUnderline
+        label="_More options"
+    >
+        <gtk-label
+            label="Notifications"
+            marginTop={12}
+            marginBottom={12}
+        />
+    </gtk-expander>
+);
+
+const GtkText = () => (
+    <gtk-text
+        text="correct-horse-battery"
+        placeholderText="A single line"
+        maxLength={32}
+    />
+);
+
+const GtkEditableLabel = () => (
+    <gtk-editable-label text="Ada Lovelace" />
+);
+
+const AdwWindow = () => (
+    <adw-window
+        defaultWidth={440}
+        defaultHeight={240}
+    >
+        <adw-toolbar-view>
+            <adw-header-bar slot="top">
+                <adw-window-title
+                    slot="title"
+                    title="Text Editor"
+                    subtitle="notes.md"
+                />
+            </adw-header-bar>
+            <adw-status-page
+                slot="content"
+                title="Your Library"
+                description="Content sits between the toolbars and scrolls independently of them."
+            />
+        </adw-toolbar-view>
+    </adw-window>
+);
+
+const AdwBin = () => (
+    <adw-bin>
+        <gtk-label
+            label="The one child of this bin."
+            wrap
+            xalign={0}
+            cssClasses={['card']}
+        />
+    </adw-bin>
+);
+
+const AdwBreakpointBin = () => (
+    <adw-breakpoint-bin>
+        <gtk-label
+            label="Wide"
+            ellipsize="end"
+            cssClasses={['title-1']}
+        />
+    </adw-breakpoint-bin>
 );
 
 const AdwClamp = () => (
@@ -482,10 +983,100 @@ const AdwStatusPage = () => (
     </adw-status-page>
 );
 
+const GtkPopoverMenu = () => (
+    <gtk-popover-menu menuModel={[
+            { label: 'New Window', accel: '<Control>N' },
+            { section: [
+                { label: 'Cut' },
+                { label: 'Copy' },
+                { label: 'Paste' },
+            ], label: 'Edit' },
+            { label: 'Open With', submenu: [
+                { label: 'Text Editor' },
+                { label: 'Web Browser' },
+            ] },
+        ]} />
+);
+
+const GtkPopoverMenuBar = () => (
+    <gtk-popover-menu-bar menuModel={[
+            { label: 'File', submenu: [
+                { label: 'New Window' },
+                { label: 'Open' },
+                { label: 'Quit' },
+            ] },
+            { label: 'Edit', submenu: [
+                { label: 'Undo' },
+                { label: 'Redo' },
+            ] },
+            { label: 'View', submenu: [
+                { label: 'Zoom In' },
+                { label: 'Zoom Out' },
+            ] },
+        ]} />
+);
+
+const GtkPopoverBin = () => (
+    <gtk-popover-bin
+        menuModel={[
+            { label: 'Cut' },
+            { label: 'Copy' },
+            { label: 'Paste' },
+            { label: 'Delete' },
+        ]}
+        handleInput
+    />
+);
+
 const AdwWindowTitle = () => (
     <adw-window-title
         title="Inbox"
         subtitle="3 unread messages"
+    />
+);
+
+const GtkStack = () => (
+    <gtk-stack
+        transitionType="slide-left-right"
+        transitionDuration={200}
+    />
+);
+
+const GtkHeaderBar = () => (
+    <gtk-header-bar decorationLayout="menu:minimize,maximize,close">
+        <gtk-button
+            slot="start"
+            label="Back"
+            cssClasses={['flat']}
+        />
+        <gtk-label
+            slot="title"
+            label="Mailboxes"
+        />
+        <gtk-button
+            slot="end"
+            label="Search"
+            cssClasses={['flat']}
+        />
+        <gtk-button
+            slot="end"
+            label="Menu"
+            cssClasses={['flat']}
+        />
+    </gtk-header-bar>
+);
+
+const GtkWindowControls = () => (
+    <gtk-window-controls
+        side="end"
+        decorationLayout="menu:minimize,maximize,close"
+    />
+);
+
+const GtkNotebook = () => (
+    <gtk-notebook
+        tabPos="top"
+        page={0}
     />
 );
 
@@ -494,6 +1085,7 @@ const Gallery = () => (
     <gtk-box orientation="vertical" spacing={24}>
         <AdwPreferencesGroup />
         <AdwActionRow />
+        <AdwPreferencesRow />
         <AdwSwitchRow />
         <AdwEntryRow />
         <AdwPasswordEntryRow />
@@ -504,9 +1096,51 @@ const Gallery = () => (
         <AdwButtonContent />
         <GtkButton />
         <AdwSplitButton />
+        <GtkToggleButton />
+        <GtkLinkButton />
+        <GtkScaleButton />
+        <GtkColorDialogButton />
+        <GtkFontDialogButton />
         <GtkMenuButton />
         <GtkEntry />
         <GtkDropDown />
+        <GtkScale />
+        <GtkSpinButton />
+        <GtkPasswordEntry />
+        <GtkSearchEntry />
+        <GtkCheckButton />
+        <GtkSwitch />
+        <GtkProgressBar />
+        <GtkLevelBar />
+        <GtkSpinner />
+        <GtkGraphicsOffload />
+        <GtkGLArea />
+        <GtkDrawingArea />
+        <GtkScrolledWindow />
+        <GtkScrollbar />
+        <GtkViewport />
+        <GtkWindowHandle />
+        <GtkImage />
+        <GtkPicture />
+        <GtkInscription />
+        <GtkVideo />
+        <GtkMediaControls />
+        <GtkListBox />
+        <GtkFlowBox />
+        <GtkCalendar />
+        <GtkFrame />
+        <GtkAspectFrame />
+        <GtkSeparator />
+        <GtkOverlay />
+        <GtkCenterBox />
+        <GtkRevealer />
+        <GtkPaned />
+        <GtkExpander />
+        <GtkText />
+        <GtkEditableLabel />
+        <AdwWindow />
+        <AdwBin />
+        <AdwBreakpointBin />
         <AdwClamp />
         <AdwHeaderBar />
         <AdwToolbarView />
@@ -519,7 +1153,14 @@ const Gallery = () => (
         <AdwShortcutLabel />
         <AdwSpinner />
         <AdwStatusPage />
+        <GtkPopoverMenu />
+        <GtkPopoverMenuBar />
+        <GtkPopoverBin />
         <AdwWindowTitle />
+        <GtkStack />
+        <GtkHeaderBar />
+        <GtkWindowControls />
+        <GtkNotebook />
     </gtk-box>
 );
 
@@ -581,6 +1222,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                     ] }
             ] }
     },
+    { widget: 'Adw.PreferencesRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-preferences-row', gtype: 'AdwPreferencesRow', props: {"title":"A plain preferences row","useMarkup":true} }
+            ] }
+    },
     { widget: 'Adw.SwitchRow', root:
         { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
                 { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Automatic updates","subtitle":"Download and install updates without asking","active":true} }
@@ -637,6 +1283,27 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Adw.SplitButton', root:
         { tag: 'adw-split-button', gtype: 'AdwSplitButton', props: {"label":"Save","menuModel":[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]} }
     },
+    { widget: 'Gtk.ToggleButton', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"horizontal","spacing":12,"halign":"center"}, children: [
+                { tag: 'gtk-toggle-button', gtype: 'GtkToggleButton', props: {"label":"Mute","active":true} },
+                { tag: 'gtk-toggle-button', gtype: 'GtkToggleButton', props: {"label":"Loop"} }
+            ] }
+    },
+    { widget: 'Gtk.LinkButton', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":6,"halign":"center"}, children: [
+                { tag: 'gtk-link-button', gtype: 'GtkLinkButton', props: {"uri":"https://gnome.org","label":"GNOME"} },
+                { tag: 'gtk-link-button', gtype: 'GtkLinkButton', props: {"uri":"https://docs.gtk.org/gtk4/","visited":true} }
+            ] }
+    },
+    { widget: 'Gtk.ScaleButton', root:
+        { tag: 'gtk-scale-button', gtype: 'GtkScaleButton', props: {"icons":["audio-volume-muted-symbolic","audio-volume-low-symbolic","audio-volume-high-symbolic"],"value":70} }
+    },
+    { widget: 'Gtk.ColorDialogButton', root:
+        { tag: 'gtk-color-dialog-button', gtype: 'GtkColorDialogButton', props: {} }
+    },
+    { widget: 'Gtk.FontDialogButton', root:
+        { tag: 'gtk-font-dialog-button', gtype: 'GtkFontDialogButton', props: {} }
+    },
     { widget: 'Gtk.MenuButton', root:
         { tag: 'gtk-menu-button', gtype: 'GtkMenuButton', props: {"iconName":"open-menu-symbolic","cssClasses":["flat"],"menuModel":[{"label":"Preferences","action":"app.preferences"},{"label":"Keyboard Shortcuts","action":"win.show-help-overlay"},{"label":"About","action":"app.about"}]} }
     },
@@ -645,6 +1312,205 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     },
     { widget: 'Gtk.DropDown', root:
         { tag: 'gtk-drop-down', gtype: 'GtkDropDown', props: {"model":["Automatic","Always","Never","When busy"],"selected":0,"halign":"center"} }
+    },
+    { widget: 'Gtk.Scale', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-scale', gtype: 'GtkScale', props: {"adjustment":{"lower":0,"upper":100,"value":40,"stepIncrement":1,"pageIncrement":10},"digits":0,"drawValue":true,"valuePos":"top","widthRequest":320} }
+            ] }
+    },
+    { widget: 'Gtk.SpinButton', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-spin-button', gtype: 'GtkSpinButton', props: {"adjustment":{"lower":0,"upper":10,"value":5,"stepIncrement":1,"pageIncrement":2},"digits":0,"numeric":true,"snapToTicks":true,"halign":"center"} }
+            ] }
+    },
+    { widget: 'Gtk.PasswordEntry', root:
+        { tag: 'gtk-password-entry', gtype: 'GtkPasswordEntry', props: {"showPeekIcon":true,"placeholderText":"Password"} }
+    },
+    { widget: 'Gtk.SearchEntry', root:
+        { tag: 'gtk-search-entry', gtype: 'GtkSearchEntry', props: {"placeholderText":"Search…","searchDelay":150} }
+    },
+    { widget: 'Gtk.CheckButton', root:
+        { tag: 'gtk-check-button', gtype: 'GtkCheckButton', props: {"label":"Enable networking","active":true} }
+    },
+    { widget: 'Gtk.Switch', root:
+        { tag: 'gtk-switch', gtype: 'GtkSwitch', props: {"active":true,"state":true,"halign":"center"} }
+    },
+    { widget: 'Gtk.ProgressBar', root:
+        { tag: 'gtk-progress-bar', gtype: 'GtkProgressBar', props: {"fraction":0.4,"showText":true,"widthRequest":320,"halign":"center"} }
+    },
+    { widget: 'Gtk.LevelBar', root:
+        { tag: 'gtk-level-bar', gtype: 'GtkLevelBar', props: {"maxValue":5,"mode":"discrete","value":3,"widthRequest":240,"halign":"center"} }
+    },
+    { widget: 'Gtk.Spinner', root:
+        { tag: 'gtk-spinner', gtype: 'GtkSpinner', props: {"spinning":true,"widthRequest":32,"heightRequest":32} }
+    },
+    { widget: 'Gtk.GraphicsOffload', root:
+        { tag: 'gtk-graphics-offload', gtype: 'GtkGraphicsOffload', props: {"enabled":"enabled","blackBackground":true,"widthRequest":280,"heightRequest":96}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The child of an offloaded layer"} }
+            ] }
+    },
+    { widget: 'Gtk.GLArea', root:
+        { tag: 'gtk-gl-area', gtype: 'GtkGLArea', props: {"autoRender":true,"hasDepthBuffer":false,"widthRequest":240,"heightRequest":160} }
+    },
+    { widget: 'Gtk.DrawingArea', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":16}, children: [
+                { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":120} },
+                { tag: 'gtk-drawing-area', gtype: 'GtkDrawingArea', props: {"contentWidth":160,"contentHeight":60} }
+            ] }
+    },
+    { widget: 'Gtk.ScrolledWindow', root:
+        { tag: 'gtk-scrolled-window', gtype: 'GtkScrolledWindow', props: {"hscrollbarPolicy":"automatic","vscrollbarPolicy":"automatic","hasFrame":false}, children: [
+                { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":8}, children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 1"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 2"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 3"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Scrollbar', root:
+        { tag: 'gtk-scrollbar', gtype: 'GtkScrollbar', props: {"orientation":"vertical","valign":"center","adjustment":{"value":80,"lower":0,"upper":400,"stepIncrement":10,"pageIncrement":80,"pageSize":120}} }
+    },
+    { widget: 'Gtk.Viewport', root:
+        { tag: 'gtk-viewport', gtype: 'GtkViewport', props: {"scrollToFocus":true}, children: [
+                { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":6}, children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 1"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 2"} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Row 3"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.WindowHandle', root:
+        { tag: 'gtk-window-handle', gtype: 'GtkWindowHandle', children: [
+                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', children: [
+                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Notes"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Image', root:
+        { tag: 'gtk-image', gtype: 'GtkImage', props: {"iconName":"avatar-default-symbolic","iconSize":"large"} }
+    },
+    { widget: 'Gtk.Picture', root:
+        { tag: 'gtk-picture', gtype: 'GtkPicture', props: {"keepAspectRatio":true,"contentFit":"cover","alternativeText":"A tangerine","widthRequest":240,"heightRequest":160} }
+    },
+    { widget: 'Gtk.Inscription', root:
+        { tag: 'gtk-inscription', gtype: 'GtkInscription', props: {"text":"A caption in a fixed box","minChars":10,"minLines":2,"widthRequest":320} }
+    },
+    { widget: 'Gtk.Video', root:
+        { tag: 'gtk-video', gtype: 'GtkVideo', props: {"loop":true,"widthRequest":320,"heightRequest":180} }
+    },
+    { widget: 'Gtk.MediaControls', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-video', gtype: 'GtkVideo', props: {"loop":true,"widthRequest":320,"heightRequest":180} },
+                { tag: 'gtk-media-controls', gtype: 'GtkMediaControls', props: {"cssClasses":["osd","bottom"]} }
+            ] }
+    },
+    { widget: 'Gtk.ListBox', root:
+        { tag: 'gtk-list-box', gtype: 'GtkListBox', props: {"selectionMode":"single","showSeparators":true,"widthRequest":240}, children: [
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Documents"} }
+                    ] },
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Downloads"} }
+                    ] },
+                { tag: 'gtk-list-box-row', gtype: 'GtkListBoxRow', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Pictures"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.FlowBox', root:
+        { tag: 'gtk-flow-box', gtype: 'GtkFlowBox', props: {"selectionMode":"multiple","minChildrenPerLine":2,"maxChildrenPerLine":4,"rowSpacing":6,"columnSpacing":6,"widthRequest":320}, children: [
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Red"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Orange"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Yellow"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Green"} }
+                    ] },
+                { tag: 'gtk-flow-box-child', gtype: 'GtkFlowBoxChild', children: [
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Blue"} }
+                    ] }
+            ] }
+    },
+    { widget: 'Gtk.Calendar', root:
+        { tag: 'gtk-calendar', gtype: 'GtkCalendar', props: {"showWeekNumbers":true,"halign":"center"} }
+    },
+    { widget: 'Gtk.Frame', root:
+        { tag: 'gtk-frame', gtype: 'GtkFrame', props: {"label":"Details","labelXalign":0}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A framed region: the label sits in the top edge of the border."} }
+            ] }
+    },
+    { widget: 'Gtk.AspectFrame', root:
+        { tag: 'gtk-aspect-frame', gtype: 'GtkAspectFrame', props: {"ratio":2,"obeyChild":false,"xalign":0.5,"yalign":0.5}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The frame gives this child the ratio above, and puts it where xalign and yalign say."} }
+            ] }
+    },
+    { widget: 'Gtk.Separator', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"vertical","spacing":12}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Above"} },
+                { tag: 'gtk-separator', gtype: 'GtkSeparator' },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Below"} },
+                { tag: 'gtk-separator', gtype: 'GtkSeparator', props: {"orientation":"vertical","cssClasses":["spacer"]} }
+            ] }
+    },
+    { widget: 'Gtk.Overlay', root:
+        { tag: 'gtk-overlay', gtype: 'GtkOverlay', props: {"widthRequest":260,"heightRequest":160}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Main child","halign":"center","valign":"center","cssClasses":["dimmed"]} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'overlay', props: {"label":"2","halign":"end","valign":"end"} }
+            ] }
+    },
+    { widget: 'Gtk.CenterBox', root:
+        { tag: 'gtk-center-box', gtype: 'GtkCenterBox', props: {"shrinkCenterLast":true,"widthRequest":320,"halign":"center"}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'start', props: {"label":"Start"} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'center', props: {"label":"Centre"} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'end', props: {"label":"End"} }
+            ] }
+    },
+    { widget: 'Gtk.Revealer', root:
+        { tag: 'gtk-revealer', gtype: 'GtkRevealer', props: {"transitionType":"slide-down","transitionDuration":250,"revealChild":true}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The revealed child","marginTop":12,"marginBottom":12} }
+            ] }
+    },
+    { widget: 'Gtk.Paned', root:
+        { tag: 'gtk-paned', gtype: 'GtkPaned', props: {"orientation":"horizontal","widthRequest":400,"heightRequest":120,"position":-1}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'start', props: {"label":"First child","widthRequest":100} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'end', props: {"label":"Second child","widthRequest":300} }
+            ] }
+    },
+    { widget: 'Gtk.Expander', root:
+        { tag: 'gtk-expander', gtype: 'GtkExpander', props: {"useUnderline":true,"label":"_More options"}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Notifications","marginTop":12,"marginBottom":12} }
+            ] }
+    },
+    { widget: 'Gtk.Text', root:
+        { tag: 'gtk-text', gtype: 'GtkText', props: {"text":"correct-horse-battery","placeholderText":"A single line","maxLength":32} }
+    },
+    { widget: 'Gtk.EditableLabel', root:
+        { tag: 'gtk-editable-label', gtype: 'GtkEditableLabel', props: {"text":"Ada Lovelace"} }
+    },
+    { widget: 'Adw.Window', root:
+        { tag: 'adw-window', gtype: 'AdwWindow', props: {"defaultWidth":440,"defaultHeight":240}, children: [
+                { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Text Editor","subtitle":"notes.md"} }
+                            ] },
+                        { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"title":"Your Library","description":"Content sits between the toolbars and scrolls independently of them."} }
+                    ] }
+            ] }
+    },
+    { widget: 'Adw.Bin', root:
+        { tag: 'adw-bin', gtype: 'AdwBin', children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"The one child of this bin.","wrap":true,"xalign":0,"cssClasses":["card"]} }
+            ] }
+    },
+    { widget: 'Adw.BreakpointBin', root:
+        { tag: 'adw-breakpoint-bin', gtype: 'AdwBreakpointBin', children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Wide","ellipsize":"end","cssClasses":["title-1"]} }
+            ] }
     },
     { widget: 'Adw.Clamp', root:
         { tag: 'adw-clamp', gtype: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
@@ -757,8 +1623,34 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"New Document","cssClasses":["pill","suggested-action"],"halign":"center"} }
             ] }
     },
+    { widget: 'Gtk.PopoverMenu', root:
+        { tag: 'gtk-popover-menu', gtype: 'GtkPopoverMenu', props: {"menuModel":[{"label":"New Window","accel":"<Control>N"},{"section":[{"label":"Cut"},{"label":"Copy"},{"label":"Paste"}],"label":"Edit"},{"label":"Open With","submenu":[{"label":"Text Editor"},{"label":"Web Browser"}]}]} }
+    },
+    { widget: 'Gtk.PopoverMenuBar', root:
+        { tag: 'gtk-popover-menu-bar', gtype: 'GtkPopoverMenuBar', props: {"menuModel":[{"label":"File","submenu":[{"label":"New Window"},{"label":"Open"},{"label":"Quit"}]},{"label":"Edit","submenu":[{"label":"Undo"},{"label":"Redo"}]},{"label":"View","submenu":[{"label":"Zoom In"},{"label":"Zoom Out"}]}]} }
+    },
+    { widget: 'Gtk.PopoverBin', root:
+        { tag: 'gtk-popover-bin', gtype: 'GtkPopoverBin', props: {"menuModel":[{"label":"Cut"},{"label":"Copy"},{"label":"Paste"},{"label":"Delete"}],"handleInput":true} }
+    },
     { widget: 'Adw.WindowTitle', root:
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
+    },
+    { widget: 'Gtk.Stack', root:
+        { tag: 'gtk-stack', gtype: 'GtkStack', props: {"transitionType":"slide-left-right","transitionDuration":200} }
+    },
+    { widget: 'Gtk.HeaderBar', root:
+        { tag: 'gtk-header-bar', gtype: 'GtkHeaderBar', props: {"decorationLayout":"menu:minimize,maximize,close"}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'start', props: {"label":"Back","cssClasses":["flat"]} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', slot: 'title', props: {"label":"Mailboxes"} },
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'end', props: {"label":"Search","cssClasses":["flat"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'end', props: {"label":"Menu","cssClasses":["flat"]} }
+            ] }
+    },
+    { widget: 'Gtk.WindowControls', root:
+        { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
+    },
+    { widget: 'Gtk.Notebook', root:
+        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top","page":0} }
     },
 ];
 

@@ -1,0 +1,55 @@
+// _drag_icon.scss — <gtk-drag-icon>: the one widget whose CSS node libadwaita styles for
+// the WHOLE widget rather than for one state.
+//
+// `gtk_widget_class_set_css_name (widget_class, "dnd")` (gtkdragicon.c:383) is the whole
+// of the widget's styling, and libadwaita's only rule on that node is a foreground colour
+// (`_common.scss:30-32`). The second rule naming it — `dnd tab` in `_tab-view.scss` — is a
+// `GtkTabView` tab being dragged out of a tab view, which is that widget's node to style,
+// not a property of this one.
+//
+// EVERYTHING ELSE HERE IS GEOMETRY, and each value says which part of the C it stands in
+// for. The box is FIXED-POSITIONED because a drag icon has no parent to lay out in: it is
+// a `GtkRoot` with its own surface (:106-108), and `gtk_drag_icon_move_resize` (:138-150)
+// does the one thing a layout would have done — put the icon where the pointer is, at the
+// child's preferred size (`:180-188`).
+//
+// Reference: refs/gtk/gtk/gtkdragicon.c:106-108,138-150,180-188,380,386-390
+// Reference: refs/libadwaita/src/stylesheet/_common.scss:30-32
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-drag-icon {
+  // `dnd { color: var(--window-fg-color) }` — the whole of libadwaita's rule, and the
+  // reason a drag icon's LABEL is the window foreground rather than its own.
+  color: var(--window-fg-color);
+  // `gtk_widget_set_can_target (self, FALSE)` (:386-390) has no CSS of its own, but this
+  // is the layer it describes: an icon that is pointed at takes no pointer event.
+  pointer-events: none;
+  // The drag surface is a root of its own (:106-108), so it is placed against the
+  // VIEWPORT rather than a parent box. The element writes the position itself, on every
+  // `dragover` — which is `gtk_drag_icon_move_resize` (:138-150) on the surface.
+  position: fixed;
+  left: 0;
+  top: 0;
+  // Above the window chrome and below the toasts, which is where a drag image belongs: it
+  // is over the window it was dragged out of, and under a toast that arrived after it.
+  z-index: 5000;
+  // `surface_compute_size` (:180-188) sizes the surface to the child's PREFERRED size, so
+  // the icon is exactly as big as what it carries: `max-content` is the one CSS length that
+  // measures content rather than a box.
+  width: max-content;
+  height: max-content;
+
+  // The `GtkColorSwatch` `createWidgetForValue` builds for a `GdkRGBA`
+  // (gtkdragicon.c:544-553), which is a square of the colour it carries — nothing else,
+  // because `set_can_drag`/`set_can_drop` are FALSE and the two states are the only thing
+  // a swatch has that this one does not need. The large size is `ICON_SIZE_LARGE`, which
+  // is the 32px `.large-icons` sets (_common.scss:38-41).
+  .adw-drag-icon-swatch {
+    display: block;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+  }
+}

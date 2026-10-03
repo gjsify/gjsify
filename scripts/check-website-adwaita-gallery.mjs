@@ -163,7 +163,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ADWAITA_STORY_SRC, adwaitaStoryMetas } from './adwaita-elements.mjs';
+import { ADWAITA_STORY_SRC, adwaitaStoryMetas, classTag } from './adwaita-elements.mjs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 const args = process.argv.slice(2);
@@ -214,9 +214,12 @@ const NOT_IN_THE_GALLERY = {
  * `Adw.Entry` — a fact this repo previously got wrong in a citation).
  */
 const bareName = (title) => {
-    const match = /^(?:Adw|Gtk)\.([A-Za-z][A-Za-z0-9]*)$/.exec(title);
+    const match = /^(Adw|Gtk)\.([A-Za-z][A-Za-z0-9]*)$/.exec(title);
     if (!match) return null;
-    return match[1].replaceAll(/(?<!^)([A-Z])/g, '-$1').toLowerCase();
+    // `classTag` is the INVERSE of the `tagClass` the rest of the tree derives classes
+    // with, and it is the only one of the two that knows an acronym: a hand-rolled
+    // `kebab` here spelled `Gtk.GLArea` `g-l-area`, which is a widget nothing ships.
+    return classTag(`${match[1]}${match[2]}`).replace(/^[a-z]+-/, '');
 };
 
 /**
@@ -229,6 +232,35 @@ const TITLED_AFTER = {
     'button-styles': {
         title: 'Gtk.Button',
         reason: 'the story renders the plain button beside .pill/.circular/.suggested-action/.destructive-action/.flat, and its `component` is `Gtk.Button.$gtype`. Same reason check-storybook-widget-coverage.mjs ledgers `button` against it.',
+    },
+    // `Gtk.Spinner` and `Adw.Spinner` are two widgets whose BARE name is the same, and
+    // the derivation here is by bare name — so this is the shape it cannot cover. The
+    // meta file is `gtk-spinner.meta.ts` (the storybook keys every meta on its file
+    // name, so a second `spinner.meta.ts` would silently displace one of the two), and
+    // this row is what lets it carry a block titled after the GTK one.
+    // `Gtk.AboutDialog` and `Adw.AboutDialog` are two DIFFERENT widgets whose BARE name is
+    // the same, and this file joins on the bare name — which is why the GTK one needs a meta
+    // of its own name (`gtk-about-dialog.meta.ts`) AND a row to carry a block titled after
+    // it. Same shape as `gtk-spinner` below, and for the same reason.
+    'gtk-about-dialog': {
+        title: 'Gtk.AboutDialog',
+        reason: "Gtk.AboutDialog shares its bare name with Adw.AboutDialog, which holds `Feedback/About Dialog`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/dialogs/. Not a style-class story — GTK's is a GtkWindow with a stack switcher over Credits, License and System pages, and libadwaita's is an AdwDialog with a navigation view and preference rows, so the two render differently in every respect a reader can see.",
+    },
+    'gtk-header-bar': {
+        title: 'Gtk.HeaderBar',
+        reason: 'the Adwaita half of the same widget already holds `Layout/Header Bar`, and this meta is the GTK one of the two. Same reason `gtk-spinner` below carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — `Adw.HeaderBar` centres an `AdwWindowTitle` with a subtitle, `Gtk.HeaderBar` centres a derived `GtkLabel` with none.',
+    },
+    'gtk-application-window': {
+        title: 'Gtk.ApplicationWindow',
+        reason: "Gtk.ApplicationWindow shares its bare name with Adw.ApplicationWindow, which holds `Layout/Application Window`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/windows/. Same reason `gtk-spinner` carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — libadwaita's adds `Gtk.ApplicationWindow:show-menubar`, a menubar built from a GMenuModel the GtkApplication installs, which is a DATA model no story control can carry.",
+    },
+    'gtk-spinner': {
+        title: 'Gtk.Spinner',
+        reason: 'Gtk.Spinner shares its bare name with Adw.Spinner, which holds `Presentation/Spinner`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/indicators/. Not a style-class story — the two spinners are different widgets (a quarter arc on a faint ring vs. a breathing arc), which is why the file is named apart.',
+    },
+    'gtk-window': {
+        title: 'Gtk.Window',
+        reason: "Gtk.Window shares its bare name with Adw.Window, which holds `Layout/Window`; this meta is the GTK widget of the two and its block sits on /gjsify/gtk/windows/. Same reason `gtk-spinner` carries: two widgets whose BARE name is the same, so the meta file is named apart and this row is what lets it carry a block titled after the GTK one. Not a style-class story — GTK's decides its frame through `decorated`, `deletable`, `resizable`, `maximized` and `hide-on-close`, none of which Adw.Window has.",
     },
 };
 
@@ -427,6 +459,12 @@ function filesSectionsInMenu(root) {
  * that only where the widget cannot be expressed as markup at all.
  */
 const MARKUP_OVERRIDE_LEDGER = {
+    'Gtk.GLArea':
+        'The same reason as `Gtk.DrawingArea`, one widget further: a GL area paints nothing without `::render` and `::resize`, and the preview fence mounts an element whose canvas is empty for exactly that reason. The `web` tab carries the markup that draws, including the order the two signals must arrive in.',
+    'Gtk.DragIcon':
+        'A drag icon is not a declared child of anything: `gtk_drag_icon_get_for_drag` creates one for a drag operation and GTK destroys it when the drag ends, and the live preview cannot hold a pointer down to start one. So the preview depicts the declarable half — the draggable row and the icon element — and the `web` tab carries the `dragstart` handler that calls `get_for_drag`, which is the whole API.',
+    'Gtk.DrawingArea':
+        '`set_draw_func` is a CALLBACK, and a markup fence cannot install one — the live preview mounts the element exactly as the fence shows it, which is a blank area of the requested size, because with no function installed the widget paints nothing (gtkdrawingarea.c:251-252). So the preview depicts what is declarable and the `web` tab carries the markup that actually paints, script and all.',
     'Adw.Toast':
         "`<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole API — so the markup that PAINTS a toast in a static preview is the overlay's own internal DOM (`.adw-toast.visible` and friends), which is the one thing a reader must not copy. The preview depicts the result; the tab teaches the call.",
 };
@@ -685,9 +723,14 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.ViewSwitcher':
         'property: the port has no Adw.ViewStack page API behind the switcher — setViews() takes title, icon ' +
         'and content together, where GTK adds each page to the stack and binds the switcher to it.',
+    'Adw.TabBar':
+        'property: the port draws its chips inside AdwTabView, so it ships no Adw.TabBar view — and this ' +
+        "block's bar is bound to the view by an id reference where the pane above passes the element.",
     'Adw.TabView':
-        'property: the port has no Adw.TabBar and no Adw.TabPage, so setViews() carries the chips and the ' +
-        'pages together and there is no page object to set a title on.',
+        'property: the port has no Adw.TabPage, so setViews() carries the chips and the pages together and ' +
+        'there is no page object to set a title on; and it ships no Adw.TabBar view either, so the bar this ' +
+        "pane builds over the view is not a view there — <adw-tab-bar> is the browser's, and it binds " +
+        'through an id where this pane passes the element.',
     'Adw.InlineViewSwitcher':
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
@@ -698,6 +741,23 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port has no Gtk.PropertyExpression, no Gtk.StringObject and no search field, so the ' +
         'expression line and enableSearch have no counterpart. The model is a Gtk.StringList on both sides ' +
         'now, and the construction is one text.',
+    'Gtk.Overlay':
+        'property: halign and valign are GTK alignment requests on the child an overlay places, and the port ' +
+        'has no layout surface to put them on — nor a Gtk.Overlay to place a child in at all, which is the ' +
+        'refusal in ADWAITA_GALLERY_NS_REFUSALS. The width and height requests on the overlay itself are ' +
+        'left in place because the whole construction is a class the port cannot resolve.',
+    'Gtk.Revealer':
+        'property: margin_top and margin_bottom are GTK margin requests and the port has no layout surface ' +
+        "to put them on; the transition type, duration and reveal flag are the widget's own and would be " +
+        'there if the port had a Gtk.Revealer to set them on.',
+    'Gtk.Paned':
+        'property: width_request is a GTK size request and the port has no layout surface to put it on, so ' +
+        'the two panes are told apart by their labels instead. The orientation and the position are the ' +
+        "widget's own and would be there if the port had a Gtk.Paned.",
+    'Gtk.Expander':
+        'property: margin_top and margin_bottom are GTK margin requests and the port has no layout surface ' +
+        "to put them on. The label, the underline flag and the disclosure are the widget's own and would be " +
+        'there if the port had a Gtk.Expander — which is the refusal in ADWAITA_GALLERY_NS_REFUSALS.',
 };
 
 /**

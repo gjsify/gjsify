@@ -1,0 +1,113 @@
+// _expander.scss — <gtk-expander>: the disclosure title, its arrow, and the row beneath.
+//
+// libadwaita's `_expanders.scss` is TWO selectors — the `expander` node and
+// `expander-widget` — and the element has to keep them apart, because they are different
+// nodes: `expander` is the ARROW and `expander-widget` is the widget. So the arrow is the
+// `.adw-expander-arrow` box and the widget is the tag.
+//
+// THE ARROW is upstream's whole rule, with `-gtk-icon-source` as a mask swap:
+//
+//   min-width/min-height 16px   `.adw-icon`'s own size, so this repeats it only to say the
+//                              node has no intrinsic size of its own;
+//   pan-end-symbolic           the closed glyph;
+//   pan-end-symbolic-rtl       `:dir(rtl)`, as upstream's second `-gtk-icon-source`;
+//   pan-down-symbolic           `:checked`, which this stylesheet spells `.checked` — and
+//                              `gtk_expander_set_expanded` sets the pseudoclass on the
+//                              arrow, not on the widget (gtkexpander.c:897-900);
+//   disabled                   `Opacity(var(--disabled-opacity))`.
+//
+// The `:disabled` line has nothing to bite on here, because a custom element is never
+// `:disabled` — the widget is a plain GtkWidget with no insensitive state of its own, and
+// upstream's rule exists for the `expander` node when a `Gtk.TreeView` row disables it.
+// It is written against `[disabled]` so an author who puts the attribute there gets
+// upstream's dimming rather than nothing.
+//
+// THE TITLE is `expander-widget > box > title` (`_expanders.scss:13-28`): a 6px radius, the
+// focus ring, and the arrow at 70% until the title is hovered or pressed. The box between
+// them is `.adw-expander-box`, so the selector chain is the node tree rather than a
+// coincidence.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_expanders.scss
+// Reference: refs/libadwaita/src/stylesheet/_drawing.scss (the focus-ring mixin: a 2px
+//   outline at offset -2px, which is what `outline` below spells out)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-expander {
+  display: block;
+
+  > .adw-expander-box {
+    display: flex;
+    flex-direction: column;
+  }
+
+  > .adw-expander-box > .adw-expander-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s);
+    min-height: 30px;
+    padding: var(--spacing-xs) var(--spacing-m);
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--button-bg-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    // `focus-ring ("> box > title")` with its default `$width: 2px` and `$offset: -$width`.
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
+
+    .adw-expander-arrow {
+      opacity: 0.7;
+    }
+
+    &:hover .adw-expander-arrow,
+    &:active .adw-expander-arrow {
+      opacity: 1;
+    }
+  }
+
+  > .adw-expander-box > .adw-expander-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
+.adw-expander-arrow {
+  min-width: 16px;
+  min-height: 16px;
+  flex-shrink: 0;
+  // `expander { -gtk-icon-source: -gtk-icontheme('pan-end-symbolic') }`. The element sets
+  // `icon-name="pan-end"`, so the `.checked` and `:dir(rtl)` rules below are the two
+  // `-gtk-icon-source` overrides — same three glyphs, same two conditions.
+  mask-image: var(--icon-pan-end);
+  -webkit-mask-image: var(--icon-pan-end);
+
+  &[disabled] {
+    opacity: var(--disabled-opacity);
+  }
+
+  // `&:checked { -gtk-icon-source: -gtk-icontheme('pan-down-symbolic') }`
+  &.checked {
+    mask-image: var(--icon-pan-down);
+    -webkit-mask-image: var(--icon-pan-down);
+  }
+}
+
+:dir(rtl) .adw-expander-arrow:not(.checked) {
+  // `&:dir(rtl) { -gtk-icon-source: -gtk-icontheme('pan-end-symbolic-rtl') }` — upstream
+  // states the RTL glyph on its own line, BEFORE the `:checked` one, so `:checked` wins for
+  // an RTL expander that is open. The `:not(.checked)` keeps that order without relying on
+  // it.
+  mask-image: var(--icon-pan-end-rtl);
+  -webkit-mask-image: var(--icon-pan-end-rtl);
+}

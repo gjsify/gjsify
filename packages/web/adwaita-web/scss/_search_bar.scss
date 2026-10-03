@@ -1,0 +1,118 @@
+// _search_bar.scss — `<gtk-search-bar>`, the strip that reveals a search entry.
+//
+// The whole of libadwaita's rule is `searchbar > revealer > box` plus a `.close` button
+// (_toolbars.scss:113-159): the box is a HEADER BAR surface — the same `--headerbar-bg-color`
+// pair and the same 1px shade along its bottom edge as `adw-header-bar` draws
+// (`_header-bar.scss`) — and the strip sits at the bottom of a window, so that edge is the
+// one that separates it from the content.
+//
+// THE REVEALER IS THE STATE. `search-mode-enabled` IS `reveal-child` (gtksearchbar.c:183-205,
+// 512-517), so the strip animates its own height and the element drives nothing else. One
+// grid row that goes `0fr` → `1fr` is the one CSS mechanism that animates to a height the
+// CONTENT decides; `max-height` would be a guess at that height, and `display: none` would
+// not animate at all.
+//
+// TWO RULES ARE DELIBERATELY ABSENT. `:backdrop` — the dimmed variant libadwaita draws when
+// the window is unfocused (_toolbars.scss:125-133) — has no state here: this port has no
+// toplevel whose focus it could follow. And `%toolbar`'s reset rules (_toolbars.scss:5-66)
+// only classify the BUTTON classes inside a toolbar, which `<gtk-button>` already owns
+// (`_button.scss`).
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss:109-185 (searchbar)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-search-bar {
+  display: grid;
+  // THE REVEALER (`reveal-child`). `0fr` clips the box to nothing without taking it out of
+  // the layout, which is what a GTK revealer does; `1fr` gives the box its own height.
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+
+  &.revealed {
+    grid-template-rows: 1fr;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  .adw-search-bar-box {
+    // The clip the `0fr` row needs, and the header-bar surface libadwaita puts on it
+    // (_toolbars.scss:115-122).
+    overflow: hidden;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 6px 7px 6px;
+    background-color: var(--headerbar-bg-color);
+    color: var(--headerbar-fg-color);
+    box-shadow: inset 0 -1px var(--headerbar-shade-color);
+
+    @media (prefers-contrast: more) {
+      box-shadow: inset 0 -1px var(--separator-color);
+    }
+  }
+
+  // The `GtkCenterBox` the C wraps the child in (gtksearchbar.c:378-386): the entry takes
+  // the free space, the close button sits at its end.
+  .adw-search-bar-center {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  // `button.close` (_toolbars.scss:137-153): a 18px round flat button, with the 10px/4px
+  // ltr margins upstream writes and the 4px/10px rtl mirror.
+  .adw-search-bar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    min-height: 18px;
+    margin-left: 10px;
+    margin-right: 4px;
+    padding: 4px;
+    border: none;
+    border-radius: 50%;
+    background-color: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 150ms ease-in-out;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // `&:dir(rtl)` (_toolbars.scss:150-153) — the margins swap sides, not the order.
+  &:dir(rtl) .adw-search-bar-close {
+    margin-left: 4px;
+    margin-right: 10px;
+  }
+
+  // `searchbar.inline` (_toolbars.scss:156-158) drops the header-bar surface, which is what
+  // an author adds when the strip sits inside a page rather than at a window's edge.
+  &.inline .adw-search-bar-box {
+    background-color: transparent;
+    color: inherit;
+    box-shadow: none;
+    padding-bottom: 6px;
+  }
+}

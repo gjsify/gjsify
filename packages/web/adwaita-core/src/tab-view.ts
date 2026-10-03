@@ -52,6 +52,12 @@ export interface AdwTabPageSpec<T = unknown> {
     title?: string | null;
     /** Tooltip; falls back to the title when empty ({@link tabTooltip}). */
     tooltip?: string | null;
+    /**
+     * `AdwTabPage:keyword` — the string the tab overview's SEARCH matches on besides the
+     * title and the tooltip ("Use keywords to search in e.g. page URLs in a web browser",
+     * adw-tab-overview.c:1646-1648).
+     */
+    keyword?: string | null;
     /** GTK icon name shown in the tab, or `null` for none. */
     icon?: string | null;
     /** Icon shown in the indicator slot (`AdwTabPage:indicator-icon`), or `null`. */
@@ -75,6 +81,8 @@ export interface AdwTabPageState<T = unknown> {
     readonly title: string;
     /** Tooltip, already coerced from `null` to `''`. Empty means "use the title". */
     readonly tooltip: string;
+    /** `AdwTabPage:keyword` — the search term beside the title and tooltip ({@link tabSearchMatches}). */
+    readonly keyword: string;
     /** GTK icon name, or `null` when the page has none. */
     readonly icon: string | null;
     readonly indicatorIcon: string | null;
@@ -96,6 +104,7 @@ interface PageRecord<T> {
     id: string;
     title: string;
     tooltip: string;
+    keyword: string;
     icon: string | null;
     indicatorIcon: string | null;
     loading: boolean;
@@ -290,6 +299,37 @@ export function tabTooltip(page: Pick<AdwTabPageState, 'tooltip' | 'title'>): st
  */
 export function tabTooltipIsMarkup(page: Pick<AdwTabPageState, 'tooltip'>): boolean {
     return page.tooltip !== '';
+}
+
+/**
+ * Whether a page SURVIVES the tab overview's search terms — the predicate behind
+ * `AdwTabGrid`'s three `GtkStringFilter`s (adw-tab-grid.c:3532-3539: a property
+ * expression over `title`, `tooltip` and `keyword`, combined with a `GtkMultiFilter`,
+ * which is a logical AND of the three).
+ *
+ * `GtkStringFilter`'s defaults decide the rest (gtkstringfilter.c:276,297): match mode
+ * SUBSTRING and case folding ON, with both sides run through `g_utf8_normalize` first.
+ * An EMPTY property never matches — `gtk_string_filter_prepare` returns NULL for it
+ * (:76-77) — which is why a page with no tooltip does not match every term, and an
+ * EMPTY term set matches everything (`has_search`, :93-98).
+ *
+ * The DOM has neither `g_utf8_normalize` nor full case folding. `String.normalize('NFKC')`
+ * is the same normalisation step and `toLocaleLowerCase()` the case folding for the
+ * scripts this gallery ships; the search therefore matches the C rule, not a locale's.
+ */
+export function tabSearchMatches(page: Pick<AdwTabPageState, 'title' | 'tooltip' | 'keyword'>, terms: string): boolean {
+    if (terms === '') return true;
+    const needle = foldForSearch(terms);
+    return [page.title, page.tooltip, page.keyword].some((property) => {
+        // `gtk_string_filter_prepare`: an empty (or absent) property cannot match.
+        if (property === '') return false;
+        return foldForSearch(property).includes(needle);
+    });
+}
+
+/** `g_utf8_normalize(s, -1, G_NORMALIZE_ALL)` + `g_utf8_casefold`, in that order. */
+function foldForSearch(value: string): string {
+    return value.normalize('NFKC').toLocaleLowerCase();
 }
 
 /**
@@ -593,7 +633,10 @@ export class TabViewState<T = unknown> {
             }
             return this.setSelectedPage(page.id, interactive);
         }
-        const id = page;
+        // The `typeof` check is spelled out rather than left to the guard above: under a
+        // consumer's non-strict settings the guard's fall-through still admits
+        // `AdwTabPageState<T>`, so the id would not narrow to `string` on its own.
+        const id = typeof page === 'string' ? page : null;
         if (id === null) {
             if (this.nPages > 0) {
                 this._diagnostics.push(
@@ -819,6 +862,7 @@ export class TabViewState<T = unknown> {
             id: spec.id,
             title: spec.title ?? '',
             tooltip: spec.tooltip ?? '',
+            keyword: spec.keyword ?? '',
             icon: spec.icon ?? null,
             indicatorIcon: spec.indicatorIcon ?? null,
             loading: spec.loading ?? false,
@@ -1133,6 +1177,16 @@ export class TabViewState<T = unknown> {
             const next = tooltip ?? '';
             if (record.tooltip === next) return false;
             record.tooltip = next;
+            return true;
+        });
+    }
+
+    /** Set a page's search keyword; `null` becomes `''` (`adw_tab_page_set_keyword`). */
+    setPageKeyword(id: string, keyword: string | null): boolean {
+        return this._update(id, (record) => {
+            const next = keyword ?? '';
+            if (record.keyword === next) return false;
+            record.keyword = next;
             return true;
         });
     }

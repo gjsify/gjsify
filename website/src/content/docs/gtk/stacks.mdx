@@ -1,0 +1,484 @@
+---
+title: Stacks
+description: "GTK's page containers: the stack that shows one child at a time, the switcher and sidebar that switch over it, and the notebook of draggable tabs. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Three widgets keep a set of pages and show **one of them at a time**. The
+**stack** is the container itself; the **switcher** and the **sidebar** are two
+different controls that switch over a stack; the **notebook** is the older
+container that brings its own tab bar with it.
+
+<MoreInfo title="A `GtkStackPage` is not a widget">
+`Gtk.StackPage` is a GObject, not a widget (`gtkstack.c:212-233`), so it has no
+element of its own. Its six properties live on the page element as attributes —
+`title`, `icon-name`, `needs-attention`, `use-underline` — and `name` is the id
+`visible-child-name` speaks. The browser port follows that mapping rather than
+inventing a wrapper element GTK does not have.
+</MoreInfo>
+
+## Stack
+
+One visible child out of many. **`transition-type`** picks the animation —
+`crossfade`, the four `slide-…`, the eight `over-…` / `under-…` and the rotates —
+and **`transition-duration`** its length; a two-way nick such as
+`slide-left-right` resolves to one of the one-directional types by which page you
+came from, exactly as `get_simple_transition_type` does.
+
+**hhomogeneous** and **vhomogeneous** say whether every page is allocated the
+same width and height; both are on by default, and the measure pass then looks
+at the visible page alone. **`interpolate-size`** lets the stack's own box resize
+smoothly during the change.
+
+<AdwWidget title="Gtk.Stack">
+  <Fragment slot="preview">
+    ```html
+    <!-- transition-duration: The animation duration, in milliseconds. -->
+    <gtk-stack transition-type="slide-left-right" transition-duration="200" style="height:220px;">
+      <div name="overview" title="Overview">Three pages, one visible at a time.</div>
+      <div name="activity" title="Activity">Switching is animated by transition-type.</div>
+      <div name="settings" title="Settings" needs-attention>This page wants your attention.</div>
+    </gtk-stack>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Gtk.Stack({
+        transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
+        transitionDuration: 200,
+    });
+
+    // `add_titled` is the three-argument form: the child, its name and its title. The
+    // returned `GtkStackPage` is a GObject, not a widget — `needs_attention` and
+    // `use_underline` are set on it, and a switcher reads them to draw its button.
+    const settings = stack.add_titled(new Gtk.Label({ label: 'This page wants your attention.' }), 'settings', 'Settings');
+    settings.needs_attention = true;
+    settings.use_underline = true;
+
+    // Selecting by name is what a switcher, a sidebar and the property itself all do.
+    stack.visible_child_name = 'activity';
+
+    // Hidden pages are skipped entirely: setting the name of a hidden page changes
+    // nothing, and hiding the visible one falls back to the first visible page.
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Stack {
+      // The Blueprint spelling of an enum member is underscored; the GIR nick
+      // (`slide-left-right`) is what the property carries at runtime.
+      transition-type: slide_left_right;
+      transition-duration: 200;
+
+      // A GtkStackPage is a GObject, so a `.blp` names the type explicitly where the
+      // child widget would otherwise carry the page's properties.
+      Gtk.StackPage {
+        name: "overview";
+        title: "Overview";
+
+        child: Gtk.Label {
+          label: "Three pages, one visible at a time.";
+        };
+      }
+
+      Gtk.StackPage {
+        name: "activity";
+        title: "Activity";
+
+        child: Gtk.Label {
+          label: "Switching is animated by transition-type.";
+        };
+      }
+
+      Gtk.StackPage {
+        name: "settings";
+        title: "Settings";
+        needs-attention: true;
+
+        child: Gtk.Label {
+          label: "This page wants your attention.";
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Gtk.Stack({
+        transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
+        transitionDuration: 200,
+    });
+
+    // `add_titled` is the three-argument form: the child, its name and its title. The
+    // returned `GtkStackPage` is a GObject, not a widget — `needs_attention` and
+    // `use_underline` are set on it, and a switcher reads them to draw its button.
+    const settings = stack.add_titled(new Gtk.Label({ label: 'This page wants your attention.' }), 'settings', 'Settings');
+    settings.needs_attention = true;
+    settings.use_underline = true;
+
+    // Selecting by name is what a switcher, a sidebar and the property itself all do.
+    stack.visible_child_name = 'activity';
+
+    // Hidden pages are skipped entirely: setting the name of a hidden page changes
+    // nothing, and hiding the visible one falls back to the first visible page.
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="What the NativeScript port has">
+`@nativescript/core`'s `TabView` owns its own tab strip, so there is no
+content-only stack there to drive a separate switcher with, and the
+`transition-type` vocabulary — the 23 members of `GtkStackTransitionType`, the
+two-way nick resolved by page order, the reduced-motion swap to a crossfade — is
+GTK's own animation vocabulary, which a NativeScript page transition does not
+expose. The XML template tab of every block on this page says so instead of
+showing one.
+</MoreInfo>
+## StackSwitcher
+
+A linked row of toggle buttons, one per page of a stack. **`stack`** names the
+stack by id and the row follows it in both directions: clicking a button makes
+its page visible, and a page change anywhere else re-marks the buttons. You
+cannot deselect the current page by clicking its own button — GTK undoes the
+deactivation from the stack itself.
+
+What each button shows follows the page. A **title** gives a label button; an
+**icon-name** gives an icon button and puts the title on the switcher as a
+tooltip; a page with **both** shows both; and a page with **neither** is left out
+of the row entirely. **`needs-attention`** on a page puts a dot on its button.
+**orientation** turns the row vertical.
+
+<AdwWidget title="Gtk.StackSwitcher">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:420px;">
+      <gtk-stack-switcher stack="switcher-stack"></gtk-stack-switcher>
+      <gtk-stack id="switcher-stack" style="height:120px;">
+        <div name="inbox" title="Inbox" icon-name="mail-unread-symbolic">Three unread conversations.</div>
+        <div name="drafts" icon-name="document-edit-symbolic" needs-attention>One draft needs your attention.</div>
+      </gtk-stack>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+
+    // A title alone is a text button; an icon alone is an icon button whose tooltip is
+    // the title; a page with NEITHER is skipped by the row (gtkstackswitcher.c:200).
+    stack.add_titled(page('Older conversations kept for reference.'), 'archive', 'Archive');
+    const drafts = stack.add_titled_with_icon(page('One draft needs your attention.'), 'drafts', '', 'document-edit-symbolic');
+    drafts.needs_attention = true;
+
+    // `stack` is a widget property in C, so it is set through the setter; the row builds
+    // itself from the stack's pages and follows it from then on.
+    const switcher = new Gtk.StackSwitcher({ stack });
+    switcher.orientation = Gtk.Orientation.VERTICAL;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.StackSwitcher switcher {
+        stack: stack;
+      }
+
+      Gtk.Stack stack {
+        transition-type: slide_left_right;
+
+        Gtk.StackPage {
+          name: "inbox";
+          title: "Inbox";
+          icon-name: "mail-unread-symbolic";
+
+          child: Gtk.Label {
+            label: "Three unread conversations.";
+          };
+        }
+
+        Gtk.StackPage {
+          name: "drafts";
+          icon-name: "document-edit-symbolic";
+          needs-attention: true;
+
+          child: Gtk.Label {
+            label: "One draft needs your attention.";
+          };
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+
+    // A title alone is a text button; an icon alone is an icon button whose tooltip is
+    // the title; a page with NEITHER is skipped by the row (gtkstackswitcher.c:200).
+    stack.add_titled(page('Older conversations kept for reference.'), 'archive', 'Archive');
+    const drafts = stack.add_titled_with_icon(page('One draft needs your attention.'), 'drafts', '', 'document-edit-symbolic');
+    drafts.needs_attention = true;
+
+    // `stack` is a widget property in C, so it is set through the setter; the row builds
+    // itself from the stack's pages and follows it from then on.
+    const switcher = new Gtk.StackSwitcher({ stack });
+    switcher.orientation = Gtk.Orientation.VERTICAL;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## StackSidebar
+
+The same binding as the switcher, in a vertical list down the side of your window.
+**`stack`** names the stack by id and the rows follow it in both directions.
+
+A row is made of the page's **title** alone. That is the one rule where this and
+the switcher disagree: the switcher falls back to an icon when there is no title,
+the sidebar does not, so a page carrying only an icon gets **no row at all**.
+**`needs-attention`** puts a dot in front of the label.
+
+<AdwWidget title="Gtk.StackSidebar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:12px;width:460px;height:160px;">
+      <gtk-stack-sidebar stack="sidebar-stack" style="width:180px;"></gtk-stack-sidebar>
+      <gtk-stack id="sidebar-stack" style="flex:1;">
+        <div name="inbox" title="Inbox" icon-name="mail-unread-symbolic">Three unread conversations.</div>
+        <div name="drafts" title="Drafts" needs-attention>One draft needs your attention.</div>
+      </gtk-stack>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+    const drafts = stack.add_titled(page('One draft needs your attention.'), 'drafts', 'Drafts');
+    drafts.needs_attention = true;
+
+    // A page with an icon and NO title gets no row: `update_row` reads title,
+    // needs-attention and visible, and never icon-name (gtkstacksidebar.c:178-186).
+    stack.add_titled_with_icon(page('No row for this page.'), 'settings', '', 'preferences-system-symbolic');
+
+    const sidebar = new Gtk.StackSidebar({ stack });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Paned {
+      orientation: horizontal;
+
+      start-child: Gtk.StackSidebar sidebar {
+        stack: stack;
+      };
+
+      end-child: Gtk.Stack stack {
+        transition-type: slide_left_right;
+
+        Gtk.StackPage {
+          name: "inbox";
+          title: "Inbox";
+          icon-name: "mail-unread-symbolic";
+
+          child: Gtk.Label {
+            label: "Three unread conversations.";
+          };
+        }
+
+        Gtk.StackPage {
+          name: "drafts";
+          title: "Drafts";
+          needs-attention: true;
+
+          child: Gtk.Label {
+            label: "One draft needs your attention.";
+          };
+        }
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
+    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+    const drafts = stack.add_titled(page('One draft needs your attention.'), 'drafts', 'Drafts');
+    drafts.needs_attention = true;
+
+    // A page with an icon and NO title gets no row: `update_row` reads title,
+    // needs-attention and visible, and never icon-name (gtkstacksidebar.c:178-186).
+    stack.add_titled_with_icon(page('No row for this page.'), 'settings', '', 'preferences-system-symbolic');
+
+    const sidebar = new Gtk.StackSidebar({ stack });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Notebook
+
+The older page container, and **a stack that brings its own tab bar**. In C it holds a
+`GtkStack` for the pages and a header widget beside it, which is why **`page`** is an
+**index** rather than a name: the stack speaks names, the notebook speaks positions.
+
+**`tab-pos`** says which edge the strip is on — `top`, `bottom`, `left`, `right` — and
+**`show-tabs`** takes it away entirely. **`show-border`** is the bevel around the pages:
+in C it is a CSS *class* (`gtk_notebook_set_show_border` adds `.frame`), and its own
+docs say it only shows once the tabs are not. **`enable-popup`** puts the pages in a
+right-click menu.
+
+A `GtkNotebookPage` is a GObject too, so **`tab-label`**, **`menu-label`**, **`tab-fill`**,
+**`tab-expand`** and **`reorderable`** live on the page element. A page with no
+`tab-label` is not left out of the strip — it is numbered, **"Page 3"**, counting the
+visible pages from one.
+
+Three guards are C's, not ours: a **negative** `page` means the *last* page rather than
+"none", an **out-of-range** `page` does nothing at all, and a page whose element is
+**`hidden`** cannot be switched to.
+
+<AdwWidget title="Gtk.Notebook">
+  <Fragment slot="preview">
+    ```html
+    <!-- tab-pos: Which side of the notebook holds the tabs. -->
+    <gtk-notebook tab-pos="top" style="width:420px;height:150px;">
+      <div tab-label="Overview" menu-label="Overview">A notebook brings its own tab strip.</div>
+      <div tab-label="Activity" menu-label="Activity">tab-pos says which edge the strip is on.</div>
+      <div menu-label="Notes">No tab-label, so the tab reads "Page 3".</div>
+    </gtk-notebook>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const notebook = new Gtk.Notebook({ tabPos: Gtk.PositionType.TOP });
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const tab = (text: string) => new Gtk.Label({ label: text });
+
+    // `append_page_menu`, because a GtkNotebookPage carries a tab-label AND a menu-label:
+    // two properties, and only the `_menu` form takes both (gtknotebook.c:5871-5884).
+    notebook.append_page_menu(
+        page('A notebook brings its own tab strip.'),
+        tab('Overview'),
+        tab('Overview'),
+        -1,
+    );
+    notebook.append_page_menu(
+        page('tab-pos says which edge the strip is on.'),
+        tab('Activity'),
+        tab('Activity'),
+        -1,
+    );
+
+    // The LAST page passes NO tab label, which is what makes C number it "Page 3" rather
+    // than draw no tab at all (`gtk_notebook_update_labels`, gtknotebook.c:4353-4373).
+    notebook.append_page(page('No tab-label, so the tab reads "Page 3".'), -1);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Notebook {
+      tab-pos: top;
+
+      // A GtkNotebookPage is a GObject, so a `.blp` names the type explicitly where the
+      // child widget would otherwise carry the page's properties — the same seam
+      // `Gtk.StackPage` has on the stack above.
+      Gtk.NotebookPage {
+        tab-label: "Overview";
+        menu-label: "Overview";
+
+        child: Gtk.Label {
+          label: "A notebook brings its own tab strip.";
+        };
+      }
+
+      Gtk.NotebookPage {
+        tab-label: "Activity";
+        menu-label: "Activity";
+
+        child: Gtk.Label {
+          label: "tab-pos says which edge the strip is on.";
+        };
+      }
+
+      // No tab-label: this is the page C numbers for us.
+      Gtk.NotebookPage {
+        menu-label: "Notes";
+
+        child: Gtk.Label {
+          label: "No tab-label, so the tab reads \"Page 3\".";
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const notebook = new Gtk.Notebook({ tabPos: Gtk.PositionType.TOP });
+
+    const page = (text: string) => new Gtk.Label({ label: text });
+    const tab = (text: string) => new Gtk.Label({ label: text });
+
+    // `append_page_menu`, because a GtkNotebookPage carries a tab-label AND a menu-label:
+    // two properties, and only the `_menu` form takes both (gtknotebook.c:5871-5884).
+    notebook.append_page_menu(
+        page('A notebook brings its own tab strip.'),
+        tab('Overview'),
+        tab('Overview'),
+        -1,
+    );
+    notebook.append_page_menu(
+        page('tab-pos says which edge the strip is on.'),
+        tab('Activity'),
+        tab('Activity'),
+        -1,
+    );
+
+    // The LAST page passes NO tab label, which is what makes C number it "Page 3" rather
+    // than draw no tab at all (`gtk_notebook_update_labels`, gtknotebook.c:4353-4373).
+    notebook.append_page(page('No tab-label, so the tab reads "Page 3".'), -1);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Layout](../layout/): the containers a page inside a stack is built from.
+- [Buttons](../buttons/): the toggle button a switcher's row is made of.
+- [Adwaita View Switching](/gjsify/adwaita/view-switching/): `Adw.ViewStack` and
+  the three switchers, libadwaita's own answer to the same job.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

@@ -38,6 +38,10 @@ import { exportedElementClasses } from './exported-elements.js';
  */
 const NON_RENDERING = new Set([
     'input',
+    // Not a void element, but the same shape for this driver: a `<textarea>` renders its own
+    // `value` and lays out no children, so a probe appended into one measures 0 forever.
+    // `<gtk-text-view>.textarea` is the handle, the way `<gtk-entry>.input` is.
+    'textarea',
     'img',
     'br',
     'hr',
@@ -72,6 +76,14 @@ function reveal(el: HTMLElement): void {
     if (typeof dialog.present === 'function') dialog.present();
     // `<adw-expander-row>.contentSection` is merely COLLAPSED — it is the disclosure.
     if (el.localName === 'adw-expander-row') el.setAttribute('expanded', '');
+    // `<adw-application-window>.menubar` is merely EMPTY: GTK draws no menubar for an
+    // application that installed none, so the strip stays hidden until BOTH the flag and
+    // a model are there. Keyed by tag for the same reason the expander is — the pair is
+    // its own idea, and no other widget in this package has it.
+    if (el.localName === 'adw-application-window') {
+        el.setAttribute('show-menubar', '');
+        el.setAttribute('menu-model', '[{"label":"File","submenu":[{"label":"Quit"}]}]');
+    }
 }
 
 /**

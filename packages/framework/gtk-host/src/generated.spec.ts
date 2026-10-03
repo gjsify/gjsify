@@ -409,18 +409,25 @@ export default async () => {
                 // which encoded a curated figure that had itself drifted to 26 in the
                 // generated header; `tableProvenance()` is the live answer.)
                 //
-                // `GtkExpander` really does hold one child, so this is what a user
+                // `GtkLinkButton` really does hold one child, so this is what a user
                 // hits first; `add`, `append` and `set_child` all exist somewhere in
-                // GTK and calling the wrong one is a warning at exit 0.
-                const expander = createElement('gtk-expander');
-                materialize(expander);
-                expect(lookupWidget('GtkExpander').children.kind).toBe('uncurated');
-                expect(() => insert(createElement('gtk-label'), expander)).toThrow(/GENERATED table/);
+                // GTK and calling the wrong one is a warning at exit 0. The one child
+                // is `GtkButton`'s `child` property rather than a slot this class
+                // declares, which is the same one-child shape a tree means by it.
+                // MEASURED on gtk 4.22.5, since that is what carries it: a fresh
+                // instance's `set_child` adopts a label, and `label` reads back what
+                // was written into it.
+                const link = createElement('gtk-link-button');
+                materialize(link);
+                expect(lookupWidget('GtkLinkButton').children.kind).toBe('uncurated');
+                expect(() => insert(createElement('gtk-label'), link)).toThrow(/GENERATED table/);
                 // And it is a REFUSAL, not a ban: the row is creatable, settable and
-                // handler-bearing — which is the whole content of "uncurated".
-                setProp(expander, 'label', 'Details');
-                setEventHandler(expander, 'onActivate', () => {});
-                expect((materialize(expander) as unknown as Gtk.Expander).label).toBe('Details');
+                // handler-bearing — which is the whole content of "uncurated". The
+                // `label` and the `activate` are `GtkButton`'s too, on a row the
+                // curated table never mentions.
+                setProp(link, 'label', 'Details');
+                setEventHandler(link, 'onActivate', () => {});
+                expect((materialize(link) as unknown as Gtk.LinkButton).label).toBe('Details');
                 // The curated twin of the same one-child shape takes the child.
                 const frame = createElement('gtk-frame');
                 materialize(frame);

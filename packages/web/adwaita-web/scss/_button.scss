@@ -177,6 +177,51 @@ gtk-button {
       background-color: color-mix(in srgb, black calc(0.75 * 65%), currentColor calc(0.25 * 65%));
     }
   }
+
+  // Checked — `<gtk-toggle-button>`'s pressed state, libadwaita's `:checked`
+  // (_buttons.scss:44-56, 136-140, 169-177, 199-210). Last in the block so it outranks the
+  // hover/active/`.raised` rules of equal specificity above, which is also why the flat,
+  // suggested and destructive variants restate their own checked colours: upstream
+  // resolves them by the same source order.
+  &.checked {
+    background-color: color-mix(in srgb, currentColor 30%, transparent);
+
+    &:hover {
+      background-color: color-mix(in srgb, currentColor 35%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 40%, transparent);
+    }
+  }
+
+  &.flat.checked {
+    background-color: color-mix(in srgb, currentColor 10%, transparent);
+
+    &:hover {
+      background-color: color-mix(in srgb, currentColor 13%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 19%, transparent);
+    }
+  }
+
+  &.suggested-action.checked {
+    background-color: var(--accent-bg-color);
+  }
+
+  &.destructive-action.checked {
+    background-color: color-mix(in srgb, currentColor 35%, transparent);
+
+    &:hover {
+      background-color: color-mix(in srgb, currentColor 40%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 45%, transparent);
+    }
+  }
 }
 
 // The symbolic icon (`.adw-icon`) used to be declared here, because the first

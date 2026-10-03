@@ -1,0 +1,218 @@
+// _scale.scss — <gtk-scale>: the trough, its highlighted part, the fill level's second
+// bar, the knob and the value text.
+//
+// WHAT CAME FROM WHERE, and the one thing that did not come from anywhere:
+//
+//   The trough and highlight are libadwaita's `%scale_trough` / `%scale_highlight`
+//   (_scale.scss:1-17) with GTK's own `GTK_CSS` colour values inlined —
+//   `_colors.scss:280-289` gives `$trough_color` 15% of `currentColor`,
+//   `$trough_color_hc` 30%, `$trough_hover_color` 20%, `$trough_hover_color_hc` 40%, and
+//   `$slider_color` as `color-mix (white 80%, var (--view-bg-color))`, the same two the
+//   package's `_progress_bar.scss` already inlines for the same reason.
+//
+//   The ONE NUMBER WITH NO CITABLE LINE is the trough's 4px thickness: `%scale_trough`
+//   sets only the radius and the colour, because in GTK that thickness comes from the
+//   TOOLKIT's Adwaita theme — `gtk-adwaita-theme`, a repository beside `refs/gtk`, not
+//   inside it. It is a thickness; nothing else in this partial or in the element's
+//   behaviour depends on it.
+//
+// NOT PORTED, each because nothing here can select it — the same reasoning
+// `_progress_bar.scss` records for `progressbar.vertical`:
+//   · the `> marks` blocks and `.marks-before` / `.marks-after` (:98-111, :114-124,
+//     :152-170, :212-226). Those style classes are added ONLY by `gtk_scale_add_mark()` /
+//     `clear_marks()` (gtkscale.c:1638, :1696-1721), which have been deprecated since
+//     GTK 4.10; a scale without marks has no marks node and no class.
+//   · the `.fine-tune` blocks (:137-150, :197-210). `.fine-tune` is a `GtkRange` style
+//     class it adds for the duration of a Shift-held drag (gtkrange.c:1799-1801), and
+//     `<gtk-scale>`'s pointer handling does not run that zoom state.
+//   · the `.color` variant (:229-250), which `Gtk.ScaleButton` adds to ITSELF; the
+//     standalone `Gtk.Scale` node never carries it.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss:1-251
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:280-289
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// `> value` @extends `.dimmed` and `.numeric` exactly as the scale's value node does.
+@use 'labels';
+
+gtk-scale {
+  display: flex;
+  flex: 1;
+  min-width: 10px;
+  min-height: 10px;
+  padding: 12px;
+
+  &.horizontal {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  &.vertical {
+    flex-direction: row-reverse;
+    align-items: center;
+  }
+
+  .adw-scale-trough {
+    // %scale_trough (_scale.scss:1-10)
+    position: relative;
+    display: flex;
+    border-radius: 99px;
+    background-color: color-mix(in srgb, currentColor 15%, transparent);
+    transition:
+      background 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      box-shadow 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+    @media (prefers-contrast: more) {
+      background-color: color-mix(in srgb, currentColor 30%, transparent);
+    }
+  }
+
+  // %scale_highlight (_scale.scss:12-17) — the coloured part of the backing bit.
+  .adw-scale-highlight {
+    position: absolute;
+    border-radius: 99px;
+    background-color: var(--accent-bg-color);
+    color: var(--accent-fg-color);
+    transition:
+      background 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      box-shadow 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  // `> fill` (:43-47): a SECOND trough-styled bar for a media player's buffered range,
+  // which is why it is not the highlight the `has-origin` block owns.
+  .adw-scale-fill {
+    position: absolute;
+    border-radius: 99px;
+    background-color: color-mix(in srgb, currentColor 15%, transparent);
+
+    @media (prefers-contrast: more) {
+      background-color: color-mix(in srgb, currentColor 30%, transparent);
+    }
+  }
+
+  // `> slider` (:49-59). The negative margin is upstream's own comment: "the slider is
+  // inside the trough, so to make it bigger there's a negative margin".
+  .adw-scale-slider {
+    position: absolute;
+    min-width: 20px;
+    min-height: 20px;
+    margin: -8px;
+    border-radius: 100%;
+    background-color: color-mix(in srgb, white 80%, var(--view-bg-color));
+    box-shadow:
+      0 0 0 1px rgb(0 0 6 / 10%),
+      0 2px 4px rgb(0 0 6 / 20%);
+    transition: background 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  // The element positions the knob by its CENTRE (`gtk_scale_init` fixes the slider size,
+  // so `coord_to_value` divides the trough alone by it), hence the translate on both axes
+  // and the fact that only ONE of `left` / `bottom` is ever written.
+  &.horizontal {
+    .adw-scale-trough {
+      height: 4px;
+      min-height: 4px;
+    }
+
+    .adw-scale-highlight,
+    .adw-scale-fill {
+      top: 0;
+      bottom: 0;
+    }
+
+    .adw-scale-slider {
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+  }
+
+  &.vertical {
+    .adw-scale-trough {
+      width: 4px;
+      min-width: 4px;
+    }
+
+    .adw-scale-highlight,
+    .adw-scale-fill {
+      right: 0;
+      left: 0;
+    }
+
+    .adw-scale-slider {
+      left: 50%;
+      transform: translate(-50%, 50%);
+    }
+  }
+
+  // `&:hover, &:active { > trough { … } }` (:62-78). `currentColor` on the highlight is
+  // the accent FOREGROUND, which is why upstream's 10% wash lands as a light film.
+  &:hover,
+  &:active {
+    .adw-scale-trough {
+      background-color: color-mix(in srgb, currentColor 20%, transparent);
+
+      @media (prefers-contrast: more) {
+        background-color: color-mix(in srgb, currentColor 40%, transparent);
+      }
+    }
+
+    .adw-scale-highlight {
+      background-image: image(color-mix(in srgb, currentColor 10%, transparent));
+    }
+
+    .adw-scale-slider {
+      background-color: white;
+    }
+  }
+
+  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:80-91)
+  &[disabled] {
+    opacity: var(--disabled-opacity);
+
+    .adw-scale-slider {
+      box-shadow:
+        0 0 0 1px rgb(0 0 6 / 10%),
+        0 2px 4px transparent;
+    }
+  }
+
+  // `> value { @extend .dimmed; @extend .numeric; }` (:93-96) — literally upstream's two
+  // lines, now that `.dimmed` and `.numeric` exist here as the same utility classes.
+  .adw-scale-value {
+    @extend .dimmed;
+    @extend .numeric;
+
+    // `> value.top { margin-bottom: $_marks_size }` / `.bottom { margin-top: … }` /
+    // `.left { margin-right: 9px }` / `.right { margin-left: 9px }` (:126-135). The marks
+    // they were sized against are not ported; the offsets themselves still decide where the
+    // value sits beside the trough.
+    &.top {
+      margin-bottom: 12px;
+    }
+
+    &.bottom {
+      margin-top: 12px;
+    }
+
+    &.left {
+      margin-right: 9px;
+    }
+
+    &.right {
+      margin-left: 9px;
+    }
+  }
+
+  // A keyboard-focused scale draws the ring on the KNOB, as `@include focus-ring("> trough >
+  // slider", $offset: 0)` does upstream (:29). The host is the focusable node, so its
+  // `:focus-visible` is what stands in for the slider's.
+  &:focus-visible {
+    outline: none;
+
+    .adw-scale-slider {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 0;
+    }
+  }
+}

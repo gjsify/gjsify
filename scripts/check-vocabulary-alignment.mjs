@@ -353,6 +353,20 @@ const WEB_ELEMENT_ALIGNMENT = {
     // A libadwaita GObject that is not a GtkWidget, so it has no tag here.
     'adw-sidebar-item': { webOnly: 'AdwSidebarItem descends from GObject.Object, not GtkWidget' },
     'adw-sidebar-section': { webOnly: 'AdwSidebarSection descends from GObject.Object, not GtkWidget' },
+    // The two halves of a shortcuts dialog, and the same shape as the two above: both are
+    // `G_DEFINE_FINAL_TYPE…G_TYPE_OBJECT` (adw-shortcuts-item.c:39,
+    // adw-shortcuts-section.c:44 — the section implementing GtkBuildable and
+    // Gio.ListModel), and a GObject has no row in a table of concrete widgets. A tag
+    // anyway, because `AdwShortcutsDialog`'s only method is `add(section)` and its
+    // GtkBuildable form is "add it as a child", which is the only route a document has.
+    'adw-shortcuts-item': {
+        webOnly:
+            'AdwShortcutsItem descends from GObject.Object, not GtkWidget (adw-shortcuts-item.c:39); it is one row of a section, drawn by AdwShortcutsDialog',
+    },
+    'adw-shortcuts-section': {
+        webOnly:
+            'AdwShortcutsSection descends from GObject.Object, not GtkWidget (adw-shortcuts-section.c:44); it is a group of shortcut rows added with AdwShortcutsDialog.add()',
+    },
     'adw-tab-page': { webOnly: 'AdwTabPage descends from GObject.Object, not GtkWidget' },
     // `adw-toggle` USED to be here, with the same reason. It left when the generated
     // table stopped meaning "concrete GtkWidget descendant" (ADR 0028 § Amendment,
@@ -1239,13 +1253,23 @@ const NAMESPACE_PREFIXES = ['adw', 'gtk'];
  * The prefix of a tag in the generated table IS the library that owns the GType — the
  * generator derives it from there — so clause 1 is a string split here rather than a
  * mapping this file would otherwise have to invent and then keep.
+ *
+ * THE MEMBER IS `tagClass(tag)` WITH THE NAMESPACE CUT OFF, not a second derivation of the
+ * same tail. `gtk-gl-area` is why: the GIR spells the class `GtkGLArea`, the naive split of
+ * the tag spells it `GlArea`, and the two answers disagree about a name a reader types.
+ * `tagClass` carries that exception with its reason; deriving the member here would be a
+ * second copy of the same list, and a second copy is what this gate exists to prevent.
  */
 function namespacePlace(tag) {
     const [prefix, ...rest] = tag.split('-');
     if (!NAMESPACE_PREFIXES.includes(prefix) || rest.length === 0) return null;
+    const namespace = prefix[0].toUpperCase() + prefix.slice(1);
+    const klass = tagClass(tag);
     return {
-        namespace: prefix[0].toUpperCase() + prefix.slice(1),
-        member: rest.map((part) => part[0].toUpperCase() + part.slice(1)).join(''),
+        namespace,
+        member: klass.startsWith(namespace)
+            ? klass.slice(namespace.length)
+            : rest.map((part) => part[0].toUpperCase() + part.slice(1)).join(''),
     };
 }
 

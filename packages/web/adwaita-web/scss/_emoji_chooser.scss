@@ -1,0 +1,213 @@
+// _emoji_chooser.scss — <gtk-emoji-chooser> styling, mirroring libadwaita's
+// `_emoji-chooser.scss` node for node.
+//
+// The upstream partial is short because GTK does the work: `popover.emoji-picker > contents`
+// gets no padding, the two boxes get theirs, and the section buttons are circular flat
+// image buttons. What it does NOT style is the list itself — GTK's `.view` scrolled
+// window and `GtkFlowBox` do that — so the flow box, the headings and the empty page are
+// spelled out here from the `.ui` instead (6px margins and spacing, a heading label per
+// section, and the `edit-find` glyph at 72px over "No Results Found").
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_emoji-chooser.scss:1-57
+//   (`popover.emoji-picker > contents`, `.emoji-searchbar`, `.emoji-toolbar`,
+//   `button.emoji-section.image-button` as a 32px circular flat button,
+//   `popover.emoji-picker emoji` at `font-size: x-large` with 6px padding and
+//   `$button_radius` corners, hover/active fills and a high-contrast outline,
+//   `scrolledwindow.view` with undershoot shading)
+// Reference: refs/gtk/gtk/ui/gtkemojichooser.ui (6px margins and spacing, the headings,
+//   the empty page's 72px glyph, `max-content-height: 320`)
+// Copyright (c) 2021-2024 The GTK authors. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-emoji-chooser {
+  // `popover.emoji-picker > contents { padding: 0 }` — the surface carries no padding
+  // of its own; the searchbar and the toolbar bring theirs.
+  padding: 0;
+
+  .emoji-picker-root {
+    display: flex;
+    flex-direction: column;
+    min-width: 260px;
+  }
+
+  .emoji-searchbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .emoji-search-icon {
+    flex: 0 0 auto;
+  }
+
+  .emoji-search-entry {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 8px;
+    font: inherit;
+    color: inherit;
+    background-color: var(--entry-bg-color);
+    border: 1px solid var(--entry-border-color);
+    border-radius: 9px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
+  }
+
+  .emoji-stack {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  // `scrolledwindow.view` (`max-content-height: 320`) with the undershoot shading the
+  // upstream rule draws at the two ends the scroll position is not at.
+  .emoji-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 6px;
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+  }
+
+  .emoji-heading {
+    font-weight: 500;
+    text-align: start;
+    padding: 2px 0;
+  }
+
+  // `GtkFlowBox` with `homogeneous: 1`: every emoji the same width, wrapping by row.
+  .emoji-flowbox {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  // `popover.emoji-picker emoji` — `font-size: x-large`, 6px padding, the button radius.
+  .emoji {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 6px;
+    font-size: 1.5em;
+    line-height: 1;
+    border-radius: var(--button-radius);
+    border: none;
+    background-color: transparent;
+    color: inherit;
+
+    &:focus,
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    @media (prefers-contrast: more) {
+      &:focus,
+      &:hover,
+      &:active {
+        box-shadow: inset 0 0 0 1px var(--border-color);
+      }
+    }
+  }
+
+  .emoji-recent-box {
+    margin-bottom: 2px;
+  }
+
+  // The `empty` stack page: `dim-label` throughout, the glyph at 72px.
+  .emoji-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 12px;
+    color: var(--dim-label-color, var(--window-fg-color));
+    opacity: 0.6;
+  }
+
+  .emoji-empty-icon {
+    width: 72px;
+    height: 72px;
+  }
+
+  .emoji-empty-title {
+    font-weight: bold;
+    font-size: 1.4em;
+  }
+
+  .emoji-empty-hint {
+    font-size: 0.95em;
+  }
+
+  // `emoji-toolbar`: 3px of padding, because the flow box children already carry 3px.
+  .emoji-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 3px;
+    border-top: 1px solid var(--separator-color);
+  }
+
+  // `button.emoji-section.image-button` — circular, flat, 32x32, unchecked by default and
+  // checked for the section the list is scrolled into.
+  .emoji-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background-color: transparent;
+    color: inherit;
+
+    &:hover:not(:disabled) {
+      background-color: var(--button-hover-color);
+    }
+
+    &:checked,
+    &.checked {
+      background-color: var(--button-active-color);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+    }
+  }
+
+  .emoji-section-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  // `show_variations` (:508-548): a `view`-backed box beside the emoji holding the six
+  // variants, so the second click on an emoji with skin tones lands somewhere.
+  .emoji-variations {
+    position: absolute;
+    z-index: 1;
+    padding: 6px;
+    border-radius: var(--button-radius);
+    background-color: var(--popover-bg-color);
+    color: var(--popover-fg-color);
+    box-shadow:
+      0 1px 4px rgba(0, 0, 6, 0.2),
+      0 2px 8px rgba(0, 0, 6, 0.12);
+  }
+
+  .emoji-variations-row {
+    display: flex;
+    gap: 2px;
+  }
+}

@@ -1,0 +1,270 @@
+---
+title: Indicators
+description: "GTK's three ways of saying how far along something is: the progress bar, the level bar and the spinner. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Three GTK widgets answer one question — how is it going? The **progress bar** for
+work with a measurable amount left, the **level bar** for a quantity that sits in a
+range rather than heading for 100 %, and the **spinner** for work whose size nobody
+knows. Libadwaita styles all three and adds one of its own,
+[Spinner](/gjsify/adwaita/presentation/#spinner), which is the one to reach for in
+an app of your own.
+
+<MoreInfo title="What the NativeScript port has">
+None of the three, and the reasons are not the same for each: `@nativescript/core`
+ships a determinate progress bar and an indeterminate activity indicator, but the
+port has no Adwaita expression for either, and no segmented level bar at all. The
+XML template tab of every block here says so instead of showing one.
+</MoreInfo>
+
+## Progress Bar
+
+A bar that fills as a long operation advances. **fraction** is 0…1 and is clamped
+there. Set **pulsing** instead when the work is real but its size is not — that is
+GTK's "activity mode", where a block bounces across the trough. **show-text** adds a
+label, which is the percentage unless you set **text**, and the `.osd` style class
+turns the whole thing into the 2 px hairline that belongs under a header bar.
+
+<AdwWidget title="Gtk.ProgressBar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:320px;margin:0 auto;">
+      <!-- fraction: The fraction of total work that has been completed. -->
+      <!-- show-text: Sets whether the progress bar will show a text in addition to the bar itself. -->
+      <gtk-progress-bar fraction="0.4" show-text></gtk-progress-bar>
+      <!-- show-text: Sets whether the progress bar will show a text in addition to the bar itself. -->
+      <gtk-progress-bar pulsing show-text></gtk-progress-bar>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gtk.ProgressBar({
+        fraction: 0.4, // clamped to 0…1
+        showText: true, // the label is the percentage unless `text` is set
+    });
+    bar.widthRequest = 320;
+
+    // Work whose size nobody knows: `pulse()` enters GTK's activity mode, and
+    // `fraction` leaves it again.
+    const busy = new Gtk.ProgressBar({ showText: true });
+    busy.pulse();
+
+    // Under a header bar, libadwaita's `.osd` is a 2px hairline with no trough.
+    const osd = new Gtk.ProgressBar({ fraction: 0.4 });
+    osd.add_css_class('osd');
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.ProgressBar {
+        fraction: 0.4;
+        show-text: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gtk.ProgressBar({
+        fraction: 0.4, // clamped to 0…1
+        showText: true, // the label is the percentage unless `text` is set
+    });
+    bar.widthRequest = 320;
+
+    // Work whose size nobody knows: `pulse()` enters GTK's activity mode, and
+    // `fraction` leaves it again.
+    const busy = new Gtk.ProgressBar({ showText: true });
+    busy.pulse();
+
+    // Under a header bar, libadwaita's `.osd` is a 2px hairline with no trough.
+    const osd = new Gtk.ProgressBar({ fraction: 0.4 });
+    osd.add_css_class('osd');
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="pulsing is a method, and a `.blp` cannot call one">
+GTK has no `pulsing` property: the way into activity mode is `pulse()`, a method
+that puts the *progress node* — not the bar — into a state libadwaita never styles.
+Blueprint cannot call a method, so the Blueprint pane above shows the determinate
+bar only; the browser element exposes the state as an attribute so a page can
+declare it, which is what the preview and the two code panes do.
+</MoreInfo>
+
+## Level Bar
+
+How full a bounded range is — a password strength meter, a battery. The difference
+from a progress bar is that the value can go **down**, and it is drawn in proportion
+to an interval you set with **min-value** and **max-value**, not to 0…1: `value` 15
+over 10…20 is the same bar as 0.5 over 0…1.
+
+**mode** decides the shape. `continuous` is one filled level; `discrete` draws one
+block per unit of the interval, which is the battery look. **inverted** fills from
+the far end, and **orientation** turns the bar on its side.
+
+The colour is not a property either. GTK keeps a sorted list of *offsets* — `low`
+at 0.25, `high` at 0.75 and `full` at 1 before your code runs — and the filled block
+takes a class named after the nearest one, so `block.filled.low` is what libadwaita
+paints as a warning. Add your own offset and your own colour follows the same road.
+
+<AdwWidget title="Gtk.LevelBar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:16px;width:240px;margin:0 auto;">
+      <!-- value: Determines the currently filled value of the level bar. -->
+      <gtk-level-bar value="0.4"></gtk-level-bar>
+      <!-- mode: Determines the way `GtkLevelBar` interprets the value properties to draw the level fill area. -->
+      <!-- max-value: Determines the maximum value of the interval that can be displayed by the bar. -->
+      <!-- value: Determines the currently filled value of the level bar. -->
+      <gtk-level-bar mode="discrete" max-value="5" value="3"></gtk-level-bar>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // A battery: five blocks, three of them filled.
+    const battery = new Gtk.LevelBar({
+        maxValue: 5,
+        value: 3,
+        mode: Gtk.LevelBarMode.DISCRETE,
+    });
+    battery.widthRequest = 240;
+
+    // A password meter over an interval that is not 0…1.
+    const password = new Gtk.LevelBar({ minValue: 10, maxValue: 20, value: 15 });
+
+    // Offsets are a RUNTIME list, and the filled block wears the nearest one's name as
+    // a class — which is how libadwaita colours it and how you add a colour of your own.
+    password.add_offset_value('excellent', 0.9);
+    // CSS: `levelbar block.excellent { background-color: magenta; }`
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 16;
+
+      Gtk.LevelBar {
+        value: 0.4;
+      }
+
+      Gtk.LevelBar {
+        mode: discrete;
+        max-value: 5;
+        value: 3;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // A battery: five blocks, three of them filled.
+    const battery = new Gtk.LevelBar({
+        maxValue: 5,
+        value: 3,
+        mode: Gtk.LevelBarMode.DISCRETE,
+    });
+    battery.widthRequest = 240;
+
+    // A password meter over an interval that is not 0…1.
+    const password = new Gtk.LevelBar({ minValue: 10, maxValue: 20, value: 15 });
+
+    // Offsets are a RUNTIME list, and the filled block wears the nearest one's name as
+    // a class — which is how libadwaita colours it and how you add a colour of your own.
+    password.add_offset_value('excellent', 0.9);
+    // CSS: `levelbar block.excellent { background-color: magenta; }`
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Setting an endpoint moves the value">
+Raise `min-value` above the value and the value goes with it; lower `max-value` below
+it and it comes down, and every offset is clamped into the new interval as well. Both
+are GObject setters, so a caller watching `value` sees the move — it is not a
+redrawing detail.
+</MoreInfo>
+
+## Spinner
+
+GTK's own busy indicator: a faint ring with a quarter arc turning around it. It has
+exactly one property, **spinning**, and takes its size from its allocation, so a size
+request is how you make it bigger.
+
+libadwaita replaced it with [Adw.Spinner](/gjsify/adwaita/presentation/#spinner),
+which breathes a variable-length arc and deliberately keeps animating when the system
+asks for less motion. `Gtk.Spinner` does the opposite — under reduced motion it swaps
+the arc for a static hourglass — so the two are not interchangeable when motion is a
+concern.
+
+<AdwWidget title="Gtk.Spinner">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;gap:24px;align-items:center;justify-content:center;">
+      <gtk-spinner spinning style="width:32px;height:32px;"></gtk-spinner>
+      <gtk-spinner style="width:32px;height:32px;"></gtk-spinner>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const spinner = new Gtk.Spinner({
+        widthRequest: 32,
+        heightRequest: 32, // the widget has no size property of its own
+    });
+    spinner.start(); // `start()` also raises the accessible busy state; `stop()` clears it
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Spinner {
+      width-request: 32;
+      height-request: 32;
+      spinning: true;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const spinner = new Gtk.Spinner({
+        widthRequest: 32,
+        heightRequest: 32, // the widget has no size property of its own
+    });
+    spinner.start(); // `start()` also raises the accessible busy state; `stop()` clears it
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Controls](../controls/): the entry, the drop down, the checkbox and the switch.
+- [Adwaita Presentation](/gjsify/adwaita/presentation/): `Adw.Spinner`, the spinner to
+  write in a new app.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

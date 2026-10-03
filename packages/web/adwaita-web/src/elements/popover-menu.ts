@@ -124,6 +124,30 @@ export class PopoverMenuView {
     }
 
     /**
+     * The path of the page showing; `[]` is the root.
+     *
+     * Public because `GtkPopoverMenu:visible-submenu` IS this: GTK's value is the
+     * `GtkStack` child's name (gtkpopovermenu.c:755-757), and the stack child's identity
+     * here is the path that leads to it. Reading it is how the element answers the
+     * property without keeping a second copy of the open page beside this one.
+     */
+    get page(): AdwMenuPath {
+        return this._page;
+    }
+
+    /**
+     * Point the view at `path` without rendering — {@link render} does that, and doing it
+     * here as well would rebuild the rows twice per change.
+     *
+     * Distinct from {@link reset} because it NAMES the destination: a popover menu can be
+     * opened straight into a submenu, and a caller that had to open the parent first and
+     * then click into it would be reporting the reader's journey as the widget's state.
+     */
+    showPage(path: AdwMenuPath): void {
+        this._page = [...path];
+    }
+
+    /**
      * The rows a key can actually REACH, which is the only list worth focusing into.
      *
      * A hidden row is not rendered and a DISABLED one cannot take focus, so
