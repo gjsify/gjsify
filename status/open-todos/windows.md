@@ -68,7 +68,9 @@ the CI leg producing it; otherwise `audit-runtimes --check` fails, correctly. Re
 order:
 
 1. ~~Merge gjsify/gvsbuild#1 and pin its commit SHA~~ — done: pinned at `e6d37672568a` (the
-   merge commit on the fork's `main`).
+   merge commit on the fork's `main`), then moved to the fork fix that installs gettext from
+   nmake's real output directory (VS 2026 had silently dropped `intl.dll`, so glib built against
+   proxy-libintl and `bindtextdomain` answered `/dummy`).
 2. ~~A `windows-11-arm` leg~~ — **done in the PR that adds `win32-arm64` to node-gi's
    `gjsify.platforms`** (refs #1117). `node-gi.yml` `windows-arm64` builds the prefix through
    `.github/actions/gvsbuild-arm64-prefix` (the one SHA pin + cache key), builds the addon with

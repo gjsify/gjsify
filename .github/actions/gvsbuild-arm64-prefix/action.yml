@@ -21,7 +21,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-e6d37672568aab4919c71452f509291464980108-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
 
     - name: Set up Python
       if: steps.cache-gtk.outputs.cache-hit != 'true'
@@ -37,7 +37,7 @@ runs:
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
-        python -m pip install "git+https://github.com/gjsify/gvsbuild@e6d37672568aab4919c71452f509291464980108"
+        python -m pip install "git+https://github.com/gjsify/gvsbuild@b63cf45a87601a4c613d05a522dac0d167409aed"
         if ($LASTEXITCODE -ne 0) { throw "pip install of the gvsbuild fork exited $LASTEXITCODE" }
         # gvsbuild spells VS versions vs2022 / vs2026, not the major; same explicit
         # map as node-gi.yml's windowing bundle job, an unknown major is an error.
@@ -57,9 +57,11 @@ runs:
       run: |
         $ErrorActionPreference = 'Stop'
         $p = 'C:\gtk-build\gtk\ARM64\release'
-        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h')) {
+        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h', 'bin\intl.dll')) {
           if (-not (Test-Path "$p\$f")) { Write-Host "MISSING $p\$f"; exit 1 }
         }
+        # Without GNU gettext's intl.dll, glib silently falls back to proxy-libintl (intl-8.dll),
+        # whose bindtextdomain answers "/dummy" and never translates.
         Write-Host "arm64 prefix present (cache hit: ${{ steps.cache-gtk.outputs.cache-hit }})"
 
     # Saved HERE, not by actions/cache's post step: that one only runs when the whole job
@@ -69,4 +71,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-e6d37672568aab4919c71452f509291464980108-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
