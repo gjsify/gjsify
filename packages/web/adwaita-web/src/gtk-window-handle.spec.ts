@@ -112,7 +112,10 @@ export const GtkWindowHandleTest = async () => {
             click(el, { button: 1 });
             expect(seen.get('titlebar-action')?.length).toBe(1);
             expect(seen.get('window.menu')?.length).toBe(0);
-            expect((seen.get('titlebar-action')?.[0] as { gesture: string }).gesture).toBe('middle-click');
+            // Taken apart before the property is read: `(x?.[0] as T).gesture` would throw
+            // a TypeError instead of failing the assertion if the array were empty.
+            const middle = seen.get('titlebar-action')?.[0] as { gesture: string } | undefined;
+            expect(middle?.gesture).toBe('middle-click');
             el.setAttribute('right-click-action', 'none');
             const right = record(el, 'titlebar-action', 'window.menu');
             click(el, { button: 2 });

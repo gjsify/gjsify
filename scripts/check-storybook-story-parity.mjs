@@ -202,17 +202,6 @@ const NOT_ON_THIS_TARGET = {
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Paned widget yet, so the story is rendered by the other two targets only.',
     'revealer@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Revealer widget yet, so the story is rendered by the other two targets only.',
-    'bin@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwBin widget yet, so the story is rendered by the other two targets only.',
-    'clamp-scrollable@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwClampScrollable widget yet, so the story is rendered by the other two targets only.',
-    'preferences-row@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwPreferencesRow widget yet, so the story is rendered by the other two targets only.',
-    'tab-button@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwTabButton widget yet, so the story is rendered by the other two targets only.',
-    'tab-overview@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwTabOverview widget yet, so the story is rendered by the other two targets only.',
-
     'toggle-button@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
     'link-button@nativescript':
