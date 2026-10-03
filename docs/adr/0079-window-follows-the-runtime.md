@@ -69,6 +69,27 @@ project that has the DOM package installed and references `document`.
 - Further browser-only calls in such a branch (`localStorage`, `location`) are separate gaps.
   They surface as named `ReferenceError`s.
 
+## Addendum: strict-mode assignments to an undeclared `window`
+
+Dropping the define exposed code that was only green because the define supplied `window`.
+Excalibur 0.32.0 guards with `typeof window === "undefined"` and then writes
+`window = { audioContext() {} }`. An ES module body is strict, so the assignment to an
+undeclared binding throws a `ReferenceError`; the branch has never been able to run. On GJS and
+in a browser the guard is false and nobody notices, on Node the import dies (PixelRPG/map-editor#300).
+
+`window` still follows the runtime, and no register defines it: a default `window` on Node, Bun
+or Deno flips every `typeof window` guard, which is the @mtcute/web failure above on every server
+runtime. `--globals auto` cannot decide it either, because the analysis bundle keeps each
+isomorphic guard as a free `window` identifier, indistinguishable from a use.
+
+Instead, every `--app` target rewrites a bare assignment to an undeclared `window` into
+`globalThis.window = …`, so the author's "no window, make one" intent holds on any runtime. The
+guard is untouched. On GJS and in a browser the branch stays unreachable at runtime, but it was
+not harmless in the bundle: the `window: 'globalThis'` define rewrote the assignment TARGET, so
+the bundle carried `globalThis = {…}`. The transform prevents that.
+It only reaches bundled builds; a bare `import('excalibur')` under Node still needs the upstream
+fix.
+
 ## Alternatives considered
 
 - **Drop the define on GJS too and inject `window` from a register.** It cannot change the

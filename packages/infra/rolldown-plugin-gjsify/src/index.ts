@@ -36,6 +36,13 @@ export {
 } from './plugins/console-assign.js';
 export type { GiSystemProbe } from './plugins/gi-runtime-paths.js';
 export type { ProcessStubPluginOptions } from './plugins/process-stub.js';
+export {
+    findWindowAssignments,
+    rewriteWindowAssignments,
+    windowAssignPlugin,
+    WINDOW_ASSIGN_PLUGIN,
+} from './plugins/window-assign.js';
+export type { WindowAssignment } from './plugins/window-assign.js';
 export { cssAsStringPlugin } from './plugins/css-as-string.js';
 export { textLoaderPlugin } from './plugins/text-loader.js';
 export type { TextLoaderPluginOptions, LoaderKind } from './plugins/text-loader.js';
