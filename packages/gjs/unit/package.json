@@ -12,8 +12,15 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./gl": {
+            "types": "./lib/types/gl.d.ts",
+            "default": "./lib/esm/gl.js"
         }
     },
+    "sideEffects": [
+        "./lib/esm/gl.js"
+    ],
     "scripts": {
         "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs",
         "check": "gjsify tsc --noEmit",
