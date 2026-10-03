@@ -16,6 +16,9 @@ import { POPOVER_MENU_ITEMS, popoverMenuMeta } from './popover-menu.meta.js';
  * nested form is the `flags` argument of `new_from_model_full` and is left at the default on
  * purpose, so both renderings show the same shape.
  */
+/** A detailed action name GIO parses: a label's spaces would make `g_menu_item_set_detailed_action` abort. */
+const actionOf = (label: string): string => `app.${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
 export class PopoverMenuStory extends StoryWidget {
     private _anchor: Gtk.Button | null = null;
     private _popover: Gtk.PopoverMenu | null = null;
@@ -60,13 +63,13 @@ export class PopoverMenuStory extends StoryWidget {
         for (const entry of POPOVER_MENU_ITEMS) {
             if ('submenu' in entry) {
                 const submenu = new Gio.Menu();
-                for (const item of entry.submenu) submenu.append(item.label, `app.${item.label}`);
+                for (const item of entry.submenu) submenu.append(item.label, actionOf(item.label));
                 menu.append_submenu(entry.label, submenu);
                 continue;
             }
             if ('section' in entry) {
                 const section = new Gio.Menu();
-                for (const item of entry.section) section.append(item.label, `app.${item.label}`);
+                for (const item of entry.section) section.append(item.label, actionOf(item.label));
                 menu.append_section('Edit', section);
                 continue;
             }
@@ -77,10 +80,10 @@ export class PopoverMenuStory extends StoryWidget {
         // loose items are appended one by one, so the menu reads the same without one.
         if (title.length > 0) {
             const section = new Gio.Menu();
-            for (const label of loose) section.append(label, `app.${label}`);
+            for (const label of loose) section.append(label, actionOf(label));
             menu.append_section(title, section);
         } else {
-            for (const label of loose) menu.append(label, `app.${label}`);
+            for (const label of loose) menu.append(label, actionOf(label));
         }
         return menu;
     }
