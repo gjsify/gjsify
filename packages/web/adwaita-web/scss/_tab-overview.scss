@@ -1,0 +1,316 @@
+// _tab-overview.scss — adw-tab-overview styling (grid of tab thumbnails over an <adw-tab-view>).
+// The web counterpart of Adw.TabOverview.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-overview.scss
+// Reference: refs/adwaita-web/adwaita-web/scss/_tabs.scss
+// Copyright (c) 2020-2022 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) 2025 csm (adwaita-web). MIT License.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-tab-overview {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+
+  // --- Header bar (title + buttons) ---
+  .adw-tab-overview-header-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-s);
+    padding: var(--spacing-s);
+    background-color: var(--headerbar-bg-color);
+    color: var(--headerbar-fg-color);
+    box-shadow: inset 0 -1px var(--headerbar-shade-color);
+
+    .adw-tab-overview-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin: 0;
+    }
+
+    // New tab button — shows when [property@TabOverview:enable-new-tab] is TRUE.
+    .adw-tab-overview-new-tab {
+      box-sizing: border-box;
+      padding: var(--spacing-xxs) var(--spacing-s);
+      background-color: transparent;
+      color: inherit;
+      border: none;
+      border-radius: var(--button-radius);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 7%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 16%, transparent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+      }
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    // Search button — shows when search is active.
+    .adw-tab-overview-search-button {
+      box-sizing: border-box;
+      padding: var(--spacing-xxs) var(--spacing-s);
+      background-color: transparent;
+      color: inherit;
+      border: none;
+      border-radius: var(--button-radius);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 7%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 16%, transparent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+      }
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    // Search bar — appears when search is active.
+    .adw-tab-overview-search-bar {
+      flex: 1;
+      display: flex;
+      align-items: center;
+
+      &[hidden] {
+        display: none;
+      }
+
+      .adw-tab-overview-search-entry {
+        flex: 1;
+        box-sizing: border-box;
+        padding: var(--spacing-xxs) var(--spacing-s);
+        border: 1px solid var(--input-border-color);
+        border-radius: var(--input-radius);
+        background-color: var(--input-bg-color);
+        color: var(--input-fg-color);
+        font-size: var(--font-size-sm);
+        outline: none;
+
+        &:focus {
+          outline: 2px solid var(--accent-color);
+          outline-offset: -1px;
+        }
+
+        &::placeholder {
+          color: var(--placeholder-color);
+        }
+      }
+    }
+
+    // Secondary menu button — shows when [property@TabOverview:secondary-menu] is set.
+    .adw-tab-overview-secondary-menu {
+      box-sizing: border-box;
+      padding: var(--spacing-xxs) var(--spacing-s);
+      background-color: transparent;
+      color: inherit;
+      border: none;
+      border-radius: var(--button-radius);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 7%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 16%, transparent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+      }
+
+      &[hidden] {
+        display: none;
+      }
+    }
+  }
+
+  // --- Grid of tab thumbnails ---
+  .adw-tab-overview-grid {
+    display: grid;
+    gap: var(--spacing-s);
+    padding: var(--spacing-s);
+    overflow: auto;
+
+    // Desktop: 3 columns, phone: 1 column (adaptive via media query).
+    // Layout is handled by the host application's CSS.
+
+    .adw-tab-overview-tab {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-xxs);
+      padding: var(--spacing-s);
+      background-color: var(--tab-bg-color);
+      color: var(--tab-fg-color);
+      border-radius: var(--button-radius);
+      min-width: 80px;
+      min-height: 80px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 13%, transparent);
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, currentColor 19%, transparent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+      }
+
+      // Pinned tab styling — smaller card without full thumbnail.
+      &.pinned {
+        min-width: 60px;
+        min-height: 60px;
+        padding: var(--spacing-xxs);
+
+        .adw-tab-overview-thumbnail {
+          width: 32px;
+          height: 32px;
+        }
+
+        .adw-tab-overview-title {
+          display: none;
+        }
+      }
+
+      // Needs attention — accent underline.
+      &.needs-attention::after {
+        content: '';
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        width: 12px;
+        height: 2px;
+        transform: translateX(-50%);
+        border-radius: 1px;
+        background-color: var(--accent-bg-color);
+      }
+
+      // Close affordance — × button on each tab chip.
+      .adw-tab-overview-close {
+        box-sizing: border-box;
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
+        margin: 0;
+        padding: 0;
+        border: none;
+        border-radius: 9999px;
+        background-color: transparent;
+        color: inherit;
+        cursor: pointer;
+        opacity: 0.7;
+        transition:
+          background-color 150ms ease-in-out,
+          opacity 150ms ease-in-out;
+
+        &:hover {
+          opacity: 1;
+          background-color: var(--button-hover-color);
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--accent-color);
+          outline-offset: 1px;
+        }
+
+        &::before,
+        &::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 7px;
+          height: 1.5px;
+          background-color: currentColor;
+          border-radius: 1px;
+        }
+
+        &::before {
+          transform: translate(-50%, -50%) rotate(45deg);
+        }
+
+        &::after {
+          transform: translate(-50%, -50%) rotate(-45deg);
+        }
+
+        &[hidden] {
+          display: none;
+        }
+      }
+    }
+
+    // Thumbnail image inside each tab chip.
+    .adw-tab-overview-thumbnail {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: var(--button-radius);
+      background-color: var(--tab-thumbnail-bg-color);
+    }
+
+    // Title label inside each tab chip.
+    .adw-tab-overview-title {
+      font-size: var(--font-size-sm);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+  }
+
+  // --- Page panel (the visible page content) ---
+  .adw-tab-overview-page-panel {
+    flex: 1 1 auto;
+    padding: var(--spacing-s);
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+    overflow: auto;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+}

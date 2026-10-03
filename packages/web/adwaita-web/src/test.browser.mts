@@ -18,6 +18,7 @@ import { AdwChromeTest } from './chrome.spec.js';
 import { AdwPreferencesTest } from './preferences.spec.js';
 import { AdwTabViewConformanceTest } from './tab-view.spec.js';
 import { AdwViewSwitcherTest } from './view-switcher.spec.js';
+import { AdwViewSwitcherSidebarTest } from './adw-view-switcher-sidebar.spec.js';
 import { AdwAvatarTest } from './adw-avatar.spec.js';
 import { AdwSplitViewsTest } from './split-views.spec.js';
 import { AdwButtonRowTest } from './adw-button-row.spec.js';
@@ -29,6 +30,7 @@ import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
+import { AdwTabOverviewTest } from './adw-tab-overview.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
 import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
 import { AdwStyleIsolationTest } from './style-isolation.spec.js';
@@ -99,6 +101,7 @@ run({
     AdwPreferencesTest,
     AdwTabViewConformanceTest,
     AdwViewSwitcherTest,
+    AdwViewSwitcherSidebarTest,
 
     AdwSplitViewsTest,
     AdwButtonRowTest,
@@ -109,6 +112,7 @@ run({
     GtkDropDownTest,
     AdwRowStateTest,
     AdwTabViewTest,
+    AdwTabOverviewTest,
     AdwToastOverlayTest,
     AdwViewSwitcherBarTest,
     AdwStyleIsolationTest,

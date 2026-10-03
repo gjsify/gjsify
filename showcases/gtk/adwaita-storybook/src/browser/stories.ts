@@ -46,7 +46,9 @@ import { WrapBoxWebStories } from './layout/wrap-box.web.js';
 import { CarouselWebStories } from './view-switching/carousel.web.js';
 import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
 import { TabViewWebStories } from './view-switching/tab-view.web.js';
+import { TabOverviewWebStories } from './view-switching/tab-overview.web.js';
 import { ViewSwitcherWebStories } from './view-switching/view-switcher.web.js';
+import { ViewSwitcherSidebarWebStories } from './view-switching/view-switcher-sidebar.web.js';
 import { ViewSwitcherBarWebStories } from './view-switching/view-switcher-bar.web.js';
 import { BottomSheetWebStories } from './navigation/bottom-sheet.web.js';
 import { NavigationSplitViewWebStories } from './navigation/navigation-split-view.web.js';
@@ -89,7 +91,9 @@ export const stories: WebStoryModule[] = [
     CarouselWebStories,
     InlineViewSwitcherWebStories,
     TabViewWebStories,
+    TabOverviewWebStories,
     ViewSwitcherWebStories,
+    ViewSwitcherSidebarWebStories,
     ViewSwitcherBarWebStories,
     BottomSheetWebStories,
     NavigationSplitViewWebStories,
