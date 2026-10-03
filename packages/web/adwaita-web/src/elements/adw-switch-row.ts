@@ -85,7 +85,11 @@ export class AdwSwitchRow extends HTMLElement {
         // The prefix stays LIVE, as on every other slotted row: an icon appended with
         // `slot="prefix"` after connect has to land where the declared one does.
         // `src/slotted-children.ts` carries the incident.
-        bindSlottedChildren(this, [{ name: 'prefix', into: this._prefixEl }]).install(this._prefixEl, text, this._switchEl);
+        bindSlottedChildren(this, [{ name: 'prefix', into: this._prefixEl }]).install(
+            this._prefixEl,
+            text,
+            this._switchEl,
+        );
         // Same reason as the action row's: an icon appended into `prefixSection` is a
         // childList change no attribute callback hears, so the section would stay hidden
         // and the icon measure 0x0. AFTER the routing — it derives once synchronously.
