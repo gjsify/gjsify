@@ -35,7 +35,7 @@ import { platformResolvePlugin, browserSuffixChain, BROWSER_REFUSED_SUFFIXES } f
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
-import { windowAssignPlugin } from '../plugins/window-assign.js';
+import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 
 export interface BrowserBuildConfig {
     /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
@@ -169,7 +169,7 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         // readily as a read, so `window = {…}` would emit `globalThis = {…}` — code that
         // replaces the whole global object. This transform runs first and leaves the define
         // nothing to rewrite; the guarded branch stays unreachable on a page either way.
-        windowAssignPlugin(),
+        implicitGlobalAssignPlugin(),
         cssAsStringPlugin(),
         // `order: 'post'` — see app/gjs.ts. The browser target's whole job is to
         // replace Node builtins with their `@gjsify/*` browser entries; when one

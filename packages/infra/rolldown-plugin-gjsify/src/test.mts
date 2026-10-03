@@ -4,7 +4,7 @@ import addonResolveSuite from './shims/addon-resolve.spec.js';
 import rnRouteManifestSuite from './plugins/rn-route-manifest.spec.js';
 import cssAsStringSuite from './plugins/css-as-string.spec.js';
 import giOptionalSuite from './plugins/gi-optional.spec.js';
-import windowAssignSuite from './plugins/window-assign.spec.js';
+import implicitGlobalAssignSuite from './plugins/implicit-global-assign.spec.js';
 import zipPathSuite from './utils/zip-path.spec.js';
 import autoGlobalsSuite from './utils/auto-globals.spec.js';
 
@@ -13,7 +13,7 @@ run({
     autoGlobalsSuite,
     cssAsStringSuite,
     giOptionalSuite,
+    implicitGlobalAssignSuite,
     rnRouteManifestSuite,
-    windowAssignSuite,
     zipPathSuite,
 });
