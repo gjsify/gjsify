@@ -2,7 +2,7 @@
 // Reference: Node.js lib/sqlite.js
 // Reimplemented for GJS using Gda-6.0
 
-import Gda from '@girs/gda-6.0';
+import type Gda from '@girs/gda-6.0';
 import Gio from '@girs/gio-2.0';
 import { executeStatement, integerColumns } from './execution.ts';
 import { parseSql } from './parse-sql.ts';
