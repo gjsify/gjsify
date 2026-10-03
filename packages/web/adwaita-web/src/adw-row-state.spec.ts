@@ -550,6 +550,72 @@ export const AdwRowStateTest = async () => {
             expect(group.active).toBe(1);
             host.remove();
         });
+
+        await it('carries a toggle tooltip onto its button (adw-toggle-group.c:215)', async () => {
+            // `update_button` sets the tooltip before it looks at anything else, so it
+            // holds for a labelled toggle and an icon-only one alike.
+            const { el: group, host } = parse<AdwToggleGroup>(
+                `<adw-toggle-group>
+                    <adw-toggle label="Picture" tooltip="Picture Mode"></adw-toggle>
+                    <adw-toggle icon-name="camera-photo" tooltip="Take a photo"></adw-toggle>
+                </adw-toggle-group>`,
+                'adw-toggle-group',
+            );
+            const buttons = Array.from(group.querySelectorAll('button.adw-toggle')) as HTMLButtonElement[];
+
+            expect(buttons.map((btn) => btn.title)).toStrictEqual(['Picture Mode', 'Take a photo']);
+            host.remove();
+        });
+
+        await it('names an icon-only toggle by its tooltip, not by its icon name', async () => {
+            // The fall-through in `update_button` (:226-282): a label names the toggle,
+            // otherwise the TOOLTIP does, and the symbolic icon name is the last resort.
+            // Naming it `camera-photo` — which is what this element did before — announces
+            // an identifier rather than words.
+            const { el: group, host } = parse<AdwToggleGroup>(
+                `<adw-toggle-group>
+                    <adw-toggle icon-name="camera-photo" tooltip="Take a photo"></adw-toggle>
+                    <adw-toggle icon-name="camera-photo"></adw-toggle>
+                </adw-toggle-group>`,
+                'adw-toggle-group',
+            );
+            const buttons = Array.from(group.querySelectorAll('button.adw-toggle')) as HTMLButtonElement[];
+
+            expect(buttons[0].getAttribute('aria-label')).toBe('Take a photo');
+            // No tooltip, so the icon name still names it rather than leaving it blank.
+            expect(buttons[1].getAttribute('aria-label')).toBe('camera-photo');
+            host.remove();
+        });
+
+        await it('leaves a labelled toggle named by its label, not by its tooltip', async () => {
+            // The label is the visible text and names the button; the tooltip becomes the
+            // DESCRIPTION in GTK. Setting `aria-label` here would override the text a
+            // reader already sees on the control.
+            const { el: group, host } = parse<AdwToggleGroup>(
+                `<adw-toggle-group>
+                    <adw-toggle label="Picture" tooltip="Picture Mode"></adw-toggle>
+                </adw-toggle-group>`,
+                'adw-toggle-group',
+            );
+            const button = group.querySelector('button.adw-toggle') as HTMLButtonElement;
+
+            expect(button.getAttribute('aria-label')).toBe(null);
+            host.remove();
+        });
+
+        await it('leaves an unlabelled, untooltipped toggle unnamed rather than blank-named', async () => {
+            const { el: group, host } = parse<AdwToggleGroup>(
+                `<adw-toggle-group>
+                    <adw-toggle></adw-toggle>
+                </adw-toggle-group>`,
+                'adw-toggle-group',
+            );
+            const button = group.querySelector('button.adw-toggle') as HTMLButtonElement;
+
+            expect(button.getAttribute('aria-label')).toBe(null);
+            expect(button.title).toBe('');
+            host.remove();
+        });
     });
 
     await describe('adw-expander-row (ExpanderState)', async () => {

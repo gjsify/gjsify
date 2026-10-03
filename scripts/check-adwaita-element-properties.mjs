@@ -125,10 +125,12 @@ const KNOWN_GAPS = {
         // adding the roving-focus filter in the same change, and
         // `keyboard-operable.spec.ts` pins `observedAttributes` so that commit fails
         // until someone reads the entry.
+        //
+        // `tooltip` LEFT this list with #1823. It was the accessible NAME for an
+        // icon-only toggle, which is the one case that had no other text at all.
         'description',
         'enabled',
         'name',
-        'tooltip',
         'use-underline',
     ],
     'adw-toggle-group': ['can-shrink', 'homogeneous'],

@@ -633,7 +633,10 @@ export const AdwKeyboardOperableTest = async () => {
             // disabled toggle is otherwise a `focus()` the browser refuses, with nothing
             // in the walk to step over it. Grow this list and add the filter and its spec
             // in the same change (status/open-todos/README.md, `<adw-toggle>` has no `enabled`).
-            expect([...AdwToggle.observedAttributes]).toStrictEqual(['label', 'icon-name']);
+            //
+            // `tooltip` joined the list and is NOT a counterexample: it sets `title` and
+            // `aria-label`, which change neither reachability nor rendering.
+            expect([...AdwToggle.observedAttributes]).toStrictEqual(['label', 'icon-name', 'tooltip']);
         });
 
         await it('adw-toggle-group notifies once per arrow, through the click path', async () => {
