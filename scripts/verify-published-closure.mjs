@@ -268,12 +268,43 @@ const concurrency = Math.max(1, Number(flag('--concurrency', '8')) || 8);
 // with for the same registry and the same reason (RETRY_DEFAULTS there:
 // 600_000 ms / 12 attempts / 5 s..60 s). One budget, one ORACLE, two scripts —
 // a third copy with a different number is how these two drift apart again.
-// `--attempts` stays a hard cap and the WINDOW usually binds first, exactly as
-// that script documents.
+//
+// WHICH KNOB ACTUALLY BINDS IS A MEASUREMENT, not the sibling script's comment:
+// driving the default against the mock registry spends 495 s over 11 rounds and
+// is cut off by `--attempts 12`, with 165 s of window still unspent. So the
+// attempt cap is what ends a default run today and the 600 s is headroom for the
+// slower tail, not the binding term. Raising the window alone would change
+// nothing until the cap is raised too — which is the drift a caller reading only
+// the window would not see.
+//
+// WHAT 600 s BUYS AND WHAT IT DOES NOT, because the two red runs are NOT the same
+// incident and only one of them is this script's to fix:
+//
+//   0.54.0 (run 37035854787) is a LAG and this budget covers it.
+//   `@gjsify/adwaita-fonts@0.54.0` took 202 at 17:01:01 and the registry recorded
+//   it at 17:56:20 — 3319 s, far past any budget here — but the verify job did
+//   not start until 17:52:49, so only **211 s** of that remained to be waited
+//   out, and the old 20 s could not cover it. It went red at 17:53:41, 159 s
+//   before npm recorded the version: the check was right about the state and too
+//   impatient about the conclusion.
+//
+//   0.53.0 (run 37006426950) is NOT a lag, and a longer budget must not paper
+//   over it. The sweep SKIPPED both names by design — `~ @gjsify/mcp@0.53.0
+//   (skipped — no Trusted Publisher on npm)` and the same for
+//   `@gjsify/oxlint-plugin-gjsify` — because npm OIDC cannot create a name. The
+//   registry recorded them at 15:36:55Z and 15:54:41Z, i.e. **6194 s and 7260 s
+//   AFTER** that run's verify job had already failed. No window covers that,
+//   because nothing was in flight to wait for: a human published them hours
+//   later. That red was the check WORKING — it named exactly the two names the
+//   sweep had skipped, which is the whole reason it exists — and it is fixed by
+//   the Trusted Publisher bootstrap, not by a retry budget. Stating this here
+//   because "two releases went red on the same job" reads as one bug with one
+//   fix, and only one of them has one.
 //
 // WHAT THIS COSTS THE OTHER CALLER, stated because the same script runs
 // `--phase pre-release` in `audit-runtimes.yml` on EVERY pull request: a genuinely
-// undeclared absence there now holds the job for the window instead of 20 s. That
+// undeclared absence there now holds the job for the budget instead of the 20 s
+// the old default spent. That
 // is bounded to the same short list as before (only unresolved names are
 // re-queried), a DECLARED ledger absence is still excluded from retry entirely and
 // so costs nothing, and a green run — every name live on round 1 — still exits the

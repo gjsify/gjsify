@@ -620,11 +620,14 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
     });
 
     it('the DEFAULT budget is the window the incident measured', async () => {
-        // THE DEFAULT IS THE FIX, so it is asserted rather than documented: runs
-        // 37035854787 (0.54.0) and 37006426950 (0.53.0) both went red in this
-        // check on packages that were published correctly (`@gjsify/adwaita-fonts`
-        // @0.54.0, `@gjsify/mcp`, `@gjsify/oxlint-plugin-gjsify` all answer on npm),
-        // because the old default could not cover the lag.
+        // THE DEFAULT IS THE FIX, so it is asserted rather than documented. Run
+        // 37035854787 (0.54.0) went red here on `@gjsify/adwaita-fonts@0.54.0`,
+        // which npm took 202 for at 17:01:01 and recorded at 17:56:20 — the job
+        // started at 17:52:49, so 211 s of lag was still outstanding and the old
+        // 20 s default could not cover it. (The 0.53.0 red on this job is a
+        // DIFFERENT incident and not a lag: the sweep skipped both names for a
+        // missing Trusted Publisher and a human published them hours later, so
+        // that red was this check working. See the script header.)
         //
         // Each default is READ OFF THE ONE LINE THAT PRINTS IT rather than by
         // waiting it out: a run that actually spent the 600 s would add eight
