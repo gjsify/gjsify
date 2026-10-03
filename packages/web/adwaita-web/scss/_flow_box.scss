@@ -57,16 +57,35 @@ gtk-flow-box-child {
   padding: 3px;
   border-radius: var(--button-radius);
   // The line share. A browser lays the children out, so this is where GTK's
-  // `min`/`max-children-per-line` and `homogeneous` are honoured.
-  max-width: calc(100% / var(--adw-flow-box-max-children-per-line, 7));
-  min-width: calc(100% / var(--adw-flow-box-min-children-per-line, 1));
+  // `min`/`max-children-per-line` and `homogeneous` are honoured — and the share has to
+  // LEAVE ROOM FOR THE SPACING. `100% / N` alone does not: N children then need N shares
+  // PLUS the (N-1) gaps between them, so the row overflows by the gaps and the browser
+  // breaks it one child early. Measured on the gallery's flow box — `min-children-per-line`
+  // 2, `max` 4, a 6px spacing in a 320px box — the share came out at 50% (160px), two
+  // children plus one gap came to 326px, and the box showed ONE child per line where
+  // libadwaita packs four. The share is therefore (100% - (N-1) × spacing) / N.
+  max-width: calc(
+    (100% - (var(--adw-flow-box-max-children-per-line, 7) - 1) *
+      var(--adw-flow-box-column-spacing, 0px)) / var(--adw-flow-box-max-children-per-line, 7)
+  );
+  min-width: calc(
+    (100% - (var(--adw-flow-box-min-children-per-line, 1) - 1) *
+      var(--adw-flow-box-column-spacing, 0px)) / var(--adw-flow-box-min-children-per-line, 1)
+  );
   cursor: pointer;
 }
 
 gtk-flow-box.vertical > gtk-flow-box-child {
-  max-height: calc(100% / var(--adw-flow-box-max-children-per-line, 7));
+  // The same arithmetic down the other axis, against the ROW spacing.
+  max-height: calc(
+    (100% - (var(--adw-flow-box-max-children-per-line, 7) - 1) *
+      var(--adw-flow-box-row-spacing, 0px)) / var(--adw-flow-box-max-children-per-line, 7)
+  );
   max-width: none;
-  min-height: calc(100% / var(--adw-flow-box-min-children-per-line, 1));
+  min-height: calc(
+    (100% - (var(--adw-flow-box-min-children-per-line, 1) - 1) *
+      var(--adw-flow-box-row-spacing, 0px)) / var(--adw-flow-box-min-children-per-line, 1)
+  );
   min-width: 0;
 }
 
