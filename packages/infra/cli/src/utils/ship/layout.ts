@@ -267,9 +267,10 @@ export interface Layout {
      *
      *  * a REASON. `archName` answers "no Windows architecture is known for
      *    `process.arch` \"arm64\"", which reads as a gap in our table. The truth is
-     *    that gvsbuild publishes no arm64 GTK, the blocker is upstream, and #1117
-     *    is where it is tracked — and the difference between "unsupported" and
-     *    "here is what would have to change" is the whole value of the message.
+     *    a package this project has not built yet — ordered in
+     *    `status/open-todos/windows.md` and tracked in #1117 — and the difference
+     *    between "unsupported" and "here is what would have to change" is the whole
+     *    value of the message.
      *  * a STAGE-TIME warning at the flag that caused it (`commands/ship.ts`), for
      *    a phase that deliberately does not refuse — `tests/e2e/ship-layout`
      *    assembles all three layouts from ONE payload on purpose, and that
@@ -652,20 +653,23 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
                   ]
                 : [];
         },
-        // ONE, and the blocker is a project we do not own. `wingtk/gvsbuild`
-        // hardcodes `self.platform = "x64"` in `utils/base_project.py` and its last
-        // five releases publish exactly two assets each, both x64 — so there is no
-        // arm64 GTK to build `@gjsify/gtk-runtime-win32-arm64` OUT OF, and on
-        // Windows that bundle is the only GTK there is. `@gjsify/node-gi` declares
-        // `win32-x64` only for the same reason. Tracked in #1117, which also
-        // records why an exploratory arm64 leg must NOT be added: its first step
-        // downloads a ZIP that does not exist, so it would be red by construction.
+        // ONE, and the blocker is OURS now. `wingtk/gvsbuild` hardcodes
+        // `self.platform = "x64"` and publishes x64 assets only — but we stopped
+        // waiting for it: ADR 0089 builds the arm64 GTK prefix from
+        // `gjsify/gvsbuild` in our own CI and `@gjsify/node-gi` declares
+        // `win32-arm64` against it (#2003). What is missing is
+        // `@gjsify/gtk-runtime-win32-arm64`, the closure this layout stages and on
+        // Windows the only GTK there is, so a Windows/ARM artifact still has
+        // nothing to load. Adding arm64 to `only` is the PR that builds that
+        // package, not this one.
         arches: {
             only: ['x64'],
             why:
-                'gvsbuild publishes no arm64 GTK (it hardcodes `self.platform = "x64"`), so there is nothing ' +
-                'to build `@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact to ' +
-                'load — the blocker is upstream and is tracked in gjsify/gjsify#1117',
+                'the arm64 GTK closure `@gjsify/gtk-runtime-win32-arm64` does not exist yet — the prefix it ' +
+                'would be built from is no longer missing, because ADR 0089 builds it from our `gjsify/gvsbuild` ' +
+                'fork in CI and `@gjsify/node-gi` ships a win32-arm64 prebuild against it — so what is left is ' +
+                'the runtime package this layout would stage, ordered in `status/open-todos/windows.md` and ' +
+                'tracked in gjsify/gjsify#1117',
         },
     },
 };
@@ -792,9 +796,9 @@ export function hostLayout(platform: string = process.platform): Layout {
  * AT STAGE TIME, which is the whole point — see {@link Layout.arches}. The
  * message carries the row's own `why` rather than a generic "unsupported", because
  * the two refusals a reader can act on are different jobs: `x64` is what a Windows
- * artifact is built for TODAY, and `win32-arm64` is blocked in a repository we do
- * not own. Telling an author "unknown architecture" for the second one would send
- * them to look for a flag.
+ * artifact is built for TODAY, and `win32-arm64` waits on a package of ours that
+ * does not exist yet. Telling an author "unknown architecture" for the second one
+ * would send them to look for a flag.
  *
  * `process.arch` spelling on both sides, so the value quoted back is the one the
  * user typed after `--arch`.

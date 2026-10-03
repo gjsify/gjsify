@@ -225,7 +225,7 @@ something else:
 - **`allow-file-access-from-file-urls` is not offered as a setting**, because the
   equivalent is a process-wide switch rather than a per-view one. An absent property warns
   at the call; a present one that quietly did nothing would not.
-- **x64 only.** There is no arm64 GTK for Windows to build against.
+- **x64 only.** There is no arm64 GTK runtime for Windows to load yet.
 
 ### What else has to be on the machine
 

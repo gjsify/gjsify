@@ -190,8 +190,10 @@ and a lie:
   per-handler shim would run *after* a bootstrap script that uses it — which is
   the whole `@gjsify/iframe` bridge. The host warns once per unknown channel,
   naming it, rather than discarding the message in silence.
-- **`x64` only.** `gvsbuild` publishes no arm64 GTK, so ADR 0024's `--arch arm64`
-  refusal on Windows already forecloses the question.
+- **`x64` only.** `@gjsify/gtk-runtime-win32-arm64` is not built yet, so ADR 0024's
+  `--arch arm64` refusal on Windows forecloses the question and this package
+  inherits it rather than restating it. (The prefix is not the obstacle: ADR 0089
+  builds it from our `gjsify/gvsbuild` fork in CI.)
 
 ## The runtime closure is bigger than the tarball
 
