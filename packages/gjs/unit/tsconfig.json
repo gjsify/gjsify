@@ -19,7 +19,8 @@
     "skipLibCheck": true
   },
   "files": [
-    "src/index.ts"
+    "src/index.ts",
+    "src/gl.ts"
   ],
   "include": [
     "@girs/gjs"
