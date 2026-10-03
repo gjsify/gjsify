@@ -168,9 +168,10 @@ convention. `windows-dir-zip` was written to `macos-app-zip`'s pattern —
 `<binary>-<version>-<release>.<arch>.zip`, the second row copied from the first — and what kept the
 two apart in one `ship/out/` was a coincidence between two unrelated arch tables: `MACOS_ARCH` maps
 `x64` to `x86_64`, `WINDOWS_ARCH` maps it to `x64`. That is not a separation, it is a gap that had
-not closed yet: `WINDOWS_ARCH` has a single row only because gvsbuild publishes no arm64 GTK
-([#1117](https://github.com/gjsify/gjsify/issues/1117)), so the day a Windows/arm64 row lands both
-formats write `…-1.arm64.zip` to the same directory and the second overwrites the first at exit 0.
+not closed yet: `WINDOWS_ARCH` has a single row only because `@gjsify/gtk-runtime-win32-arm64` is not
+built ([#1117](https://github.com/gjsify/gjsify/issues/1117)) — the arm64 GTK prefix is no longer the
+obstacle, ADR 0089 builds it from our `gjsify/gvsbuild` fork — so the day a Windows/arm64 row lands
+both formats write `…-1.arm64.zip` to the same directory and the second overwrites the first at exit 0.
 It was already costing something before that: a lone `My App-0.7.0-1.arm64.zip` on a GitHub release
 page beside a Windows zip does not say which operating system it is for, and the name is the only
 thing a user has to choose by.
@@ -188,12 +189,13 @@ the latent Windows/arm64 collision observable today, years before the blocker li
 copying its neighbour reds there.
 
 `windows-dir` is also the row where `archName` is one value: `wingtk/gvsbuild` hardcodes
-`self.platform = "x64"` and publishes no arm64 GTK, so there is nothing to build
-`@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact to load
-([#1117](https://github.com/gjsify/gjsify/issues/1117)). `Layout.arches` carries the same refusal
-one phase earlier, with the blocker named; `--stage` warns instead of refusing, because assembling a
-foreign-arch layout is what `tests/e2e/ship-layout` does on purpose — it proves the layout MAP over
-one payload, and that payload's native file has an architecture.
+`self.platform = "x64"` and publishes no arm64 GTK, and the prefix that would stand in for it is built
+by our own MSVC fork in CI (ADR 0089) rather than downloaded — so what is missing is not the prefix but
+`@gjsify/gtk-runtime-win32-arm64`, the package `windows-dir` would have to stage for there to be a GTK
+to load ([#1117](https://github.com/gjsify/gjsify/issues/1117)). `Layout.arches` carries the same
+refusal one phase earlier, with the blocker named; `--stage` warns instead of refusing, because
+assembling a foreign-arch layout is what `tests/e2e/ship-layout` does on purpose — it proves the layout
+MAP over one payload, and that payload's native file has an architecture.
 
 Their oracles are `python3` and `zipinfo`, and each was chosen against a plausible alternative that
 measures nothing — the reason this field is a required one rather than prose:

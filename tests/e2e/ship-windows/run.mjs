@@ -441,11 +441,11 @@ describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, 
         assert.deepEqual(manifest.formats, [], 'a stage nothing can pack must record that, not a format it cannot use');
     });
 
-    it('refuses to PACK an architecture no Windows GTK exists for, naming the blocker', () => {
-        // #1117, and it is upstream: `wingtk/gvsbuild` hardcodes
-        // `self.platform = "x64"` and its releases publish two assets each, both
-        // x64. So there is nothing to build `@gjsify/gtk-runtime-win32-arm64` out
-        // of, and on Windows that bundle is the only GTK there is.
+    it('refuses to PACK an architecture no Windows GTK closure exists for, naming the blocker', () => {
+        // #1117, and the blocker is OURS: `@gjsify/gtk-runtime-win32-arm64` is not
+        // built, and on Windows that bundle is the only GTK there is. The arm64
+        // prefix it would be built from is not the obstacle — ADR 0089 builds it
+        // from `gjsify/gvsbuild` in CI.
         const bare = scaffoldNodeApp(join(tmpDir, 'arm64'));
         const refusal = shipExpectingFailure(['ship', 'windows', '--skip-build', '--arch', 'arm64'], bare);
         assert.match(refusal, /the windows layout is not assemblable for `--arch arm64`/);

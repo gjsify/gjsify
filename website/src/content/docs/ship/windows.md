@@ -21,9 +21,9 @@ The program directory is what an installer lays down and a user browses to. The
 zip is what a user downloads, so its filename carries the version and the
 architecture.
 
-`x64` is the only architecture. `gvsbuild`, the project that builds GTK for
-Windows, publishes no arm64 binaries, so there is no GTK for a Windows on ARM
-artifact to load. `--arch arm64` is refused by name rather than producing a
+`x64` is the only architecture. `gjsify`, the project that builds GTK for
+Windows, publishes no arm64 runtime bundle yet, so there is no GTK for a Windows
+on ARM artifact to load. `--arch arm64` is refused by name rather than producing a
 directory that cannot start.
 
 ## The runtime it carries
