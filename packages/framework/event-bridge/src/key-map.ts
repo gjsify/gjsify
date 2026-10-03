@@ -4,6 +4,28 @@
 
 import Gdk from 'gi://Gdk?version=4.0';
 
+/** What UI Events mandates for a key Gdk could not identify. `code` gets `''`, not this. */
+const UNIDENTIFIED = 'Unidentified';
+
+/**
+ * Gdk's spelling of a keyval it has no name for is NUMERIC: `GDK_KEY_VoidSymbol` reads as
+ * `"0xffffff"` on the GTK 4.24 macOS backend, and a key no keymap entry produced lands in the
+ * `0x01000000` private range and reads as `"U+0010"`.
+ *
+ * Publishing either verbatim invents a DOM key value. It is worse than useless where it is
+ * reached: EVERY unnamed key spells the same string, so a consumer keying held keys by `code`
+ * (Excalibur's `Keyboard` does, `if (this._keys.indexOf(code) === -1)`) folds the second
+ * unidentified key press into the first as a duplicate and the first release clears them all.
+ */
+function isNumericGdkName(name: string): boolean {
+    return /^0x[0-9a-f]+$/.test(name) || /^U\+[0-9a-f]{4,6}$/.test(name);
+}
+
+/** Gdk names a key it could not translate at all, by either spelling. */
+function isUnidentifiedKeyval(keyval: number, name: string | null): boolean {
+    return keyval === Gdk.KEY_VoidSymbol || name === null || isNumericGdkName(name);
+}
+
 // Special key name → DOM key string
 const SPECIAL_KEYS: Record<string, string> = {
     Return: 'Enter',
@@ -155,19 +177,81 @@ const SPECIAL_CODES: Record<string, string> = {
 };
 
 /**
+ * The unshifted keyval's Gdk name for each shifted one.
+ *
+ * `code` is the key's physical position and must not move when a modifier does, but Gdk names
+ * a shifted keyval after the shifted CHARACTER — Shift+Comma is `less`, Shift+1 is `exclam`.
+ * Both used to answer a different `code` than the same key without Shift, which put two
+ * entries in a consumer's held-key list for one key. `Gdk.keyval_to_lower` cannot bridge this:
+ * measured, it folds letters only and returns `less`/`exclam` unchanged.
+ *
+ * The pairs are the US layout's. Gdk carries no physical key in a keyval, so on another layout
+ * a shifted character that sits on a different key answers that US key's `code` — no worse than
+ * the Gdk name this used to hand out as a `code`, which matched no consumer either.
+ */
+const SHIFTED_KEY_BASENAME: Record<string, string> = {
+    exclam: '1',
+    at: '2',
+    numbersign: '3',
+    dollar: '4',
+    percent: '5',
+    asciicircum: '6',
+    ampersand: '7',
+    asterisk: '8',
+    parenleft: '9',
+    parenright: '0',
+    underscore: 'minus',
+    plus: 'equal',
+    braceleft: 'bracketleft',
+    bar: 'backslash',
+    braceright: 'bracketright',
+    colon: 'semicolon',
+    quotedbl: 'apostrophe',
+    less: 'comma',
+    greater: 'period',
+    question: 'slash',
+    asciitilde: 'grave',
+};
+
+/** Gdk's own name for a key → the DOM `code` of the key's PHYSICAL position. */
+const PUNCTUATION_CODES: Record<string, string> = {
+    minus: 'Minus',
+    equal: 'Equal',
+    bracketleft: 'BracketLeft',
+    bracketright: 'BracketRight',
+    backslash: 'Backslash',
+    semicolon: 'Semicolon',
+    apostrophe: 'Quote',
+    grave: 'Backquote',
+    comma: 'Comma',
+    period: 'Period',
+    slash: 'Slash',
+};
+
+/** A Gdk key name → the DOM `code` of its physical position, or null when the DOM has none. */
+function codeFromGdkName(name: string): string | null {
+    if (SPECIAL_CODES[name]) return SPECIAL_CODES[name];
+    if (name.length === 1 && name >= 'a' && name <= 'z') return `Key${name.toUpperCase()}`;
+    if (name.length === 1 && name >= '0' && name <= '9') return `Digit${name}`;
+    if (PUNCTUATION_CODES[name]) return PUNCTUATION_CODES[name];
+    const base = SHIFTED_KEY_BASENAME[name];
+    return base ? codeFromGdkName(base) : null;
+}
+
+/**
  * Convert a Gdk keyval to a DOM `key` string.
  * Uses special-key lookup table, falls back to Gdk.keyval_to_unicode for printable chars.
  */
 export function gdkKeyvalToKey(keyval: number): string {
     const name = Gdk.keyval_name(keyval);
+    if (isUnidentifiedKeyval(keyval, name)) return UNIDENTIFIED;
     if (name && SPECIAL_KEYS[name]) return SPECIAL_KEYS[name];
 
     // Printable character via Unicode
     const unicode = Gdk.keyval_to_unicode(keyval);
     if (unicode > 0) return String.fromCodePoint(unicode);
 
-    // Fallback: use the Gdk name as-is
-    return name ?? 'Unidentified';
+    return name as string;
 }
 
 /**
@@ -175,35 +259,23 @@ export function gdkKeyvalToKey(keyval: number): string {
  */
 export function gdkKeyvalToCode(keyval: number): string {
     const name = Gdk.keyval_name(keyval);
-    if (name && SPECIAL_CODES[name]) return SPECIAL_CODES[name];
+    if (isUnidentifiedKeyval(keyval, name)) return '';
 
-    // Letters: a-z → KeyA-KeyZ
-    const unicode = Gdk.keyval_to_unicode(keyval);
-    if (unicode >= 0x61 && unicode <= 0x7a) return 'Key' + String.fromCodePoint(unicode - 32);
-    if (unicode >= 0x41 && unicode <= 0x5a) return 'Key' + String.fromCodePoint(unicode);
+    const code = codeFromGdkName(name as string);
+    if (code) return code;
 
-    // Digits: 0-9 → Digit0-Digit9
-    if (unicode >= 0x30 && unicode <= 0x39) return 'Digit' + String.fromCodePoint(unicode);
-
-    // Punctuation and others: best-effort from Gdk name
-    if (name) {
-        const punct: Record<string, string> = {
-            minus: 'Minus',
-            equal: 'Equal',
-            bracketleft: 'BracketLeft',
-            bracketright: 'BracketRight',
-            backslash: 'Backslash',
-            semicolon: 'Semicolon',
-            apostrophe: 'Quote',
-            grave: 'Backquote',
-            comma: 'Comma',
-            period: 'Period',
-            slash: 'Slash',
-        };
-        if (punct[name]) return punct[name];
+    // An upper-case letter is the one case Gdk keeps out of reach of the tables above, and
+    // `keyval_to_lower` does fold letters (measured: A → a), so it answers the position.
+    const lower = Gdk.keyval_to_lower(keyval);
+    if (lower !== keyval) {
+        const lowerName = Gdk.keyval_name(lower);
+        const lowerCode = lowerName === null ? null : codeFromGdkName(lowerName);
+        if (lowerCode) return lowerCode;
     }
 
-    return name ?? 'Unidentified';
+    // Gdk has a name for keys the DOM has no `code` for (a JIS key, a dead key). Handing that
+    // name out as a `code` invents one no consumer can match; UI Events answers `''`.
+    return '';
 }
 
 /**

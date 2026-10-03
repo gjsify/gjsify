@@ -40,6 +40,30 @@ event stream because `EventControllerMotion` never fires for a finger, and touch
 events carry every field a consumer needs to reconstruct pan and pinch, and `@gjsify/dom-events` has no
 `TouchEvent`.
 
+### Keyboard mapping (`key-map.ts`)
+
+Three rules, each from a defect the plain mapping got wrong:
+
+- **A keyval Gdk could not name becomes `key: 'Unidentified'`, `code: ''`** — never Gdk's spelling of it. Gdk answers
+  `"0xffffff"` for `GDK_KEY_VoidSymbol` (macOS) and `"U+0010"` for the `0x01000000` private range. Publishing either
+  invents a DOM key value, and because *every* unnamed key spells the same string it also folds distinct unidentifiable
+  keys into one entry for a consumer that keys held keys by `code` — Excalibur's `Keyboard` does, so a second one is
+  swallowed as a duplicate and the first release clears them all.
+- **`code` is the physical position and does not move with a modifier.** Gdk names a shifted keyval after the shifted
+  character, so `SHIFTED_KEY_BASENAME` routes `less`→`comma`, `exclam`→`1`, `question`→`slash` and the rest; without it
+  Shift+Comma and Comma were two different codes for one key. `Gdk.keyval_to_lower` cannot bridge this — measured, it
+  folds letters only and returns `less`/`exclam` unchanged — so it is used only for the one case the tables miss, an
+  upper-case letter.
+- **`key`/`location`** come from Gdk's own name table, with printable characters from `keyval_to_unicode`.
+
+**macOS: the arrow and navigation keys never reach the bridge.** Measured on macOS / darwin-arm64 / Homebrew GTK 4.24.0
+(`gdk_macos`), gjs 1.88.1: a `Gtk.EventControllerKey` on a `PropagationPhase.CAPTURE` controller of the window — the
+earliest point inside GTK — records **zero** events for ←/→/↑/↓ and Home/End/PageUp/PageDown, while `a`, `space`,
+`Return`, `Escape` and every keypad key arrive with correct keyvals. Where an event does appear for an untranslated key
+it carries `keyval = GDK_KEY_VoidSymbol` **and `keycode = 0`**, so nothing survives to translate it from. Letter keys
+work in Firefox on the same machine, so this is the GDK backend, not macOS and not the application. Recorded in
+`status/upstream-patch-candidates.md`.
+
 ## Design
 
 Two pointer sources, deliberately kept apart. Measured on a OnePlus 6T (postmarketOS, GTK 4.22, mutter 48) with
