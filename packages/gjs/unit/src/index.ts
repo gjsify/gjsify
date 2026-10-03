@@ -1080,16 +1080,22 @@ const displayEnv = (): DisplayEnv => ({ DISPLAY: envVar('DISPLAY'), WAYLAND_DISP
 const hasDisplay = (): boolean => canRealizeSurface(hostOs(), displayEnv());
 
 /**
- * The slice of GTK/GDK the GL probe calls — typed at the call surface rather than
- * importing the GTK typings into a runner that must load without GTK.
+ * The GTK/GDK-reaching half of `on('Gl', …)`, filled in by `@gjsify/unit/gl` — never imported
+ * here. A bare `gi://Gtk`/`gi://Gdk` specifier in THIS module would land in every consumer's test
+ * bundle verbatim (externalized text, not tree-shaken away — see `@gjsify/unit/gl`'s own comment
+ * for the mechanism), so a suite that never uses `on('Gl', …)` would still ship a bundle a
+ * headless-bundle guard flags for a GUI typelib it never runs. `undefined` means "no suite in this
+ * process imported `@gjsify/unit/gl`", which `hasGl` below treats as a plain "no".
  */
-interface GlProbeGi {
-    Gtk: { init_check(): boolean };
-    Gdk: {
-        Display: { get_default(): { create_gl_context(): { realize(): boolean } } | null };
-        GLContext: { clear_current(): void };
-    };
-}
+let glProber: (() => Promise<{ ok: boolean; failure: string }>) | undefined;
+
+/**
+ * `@gjsify/unit/gl`'s one call into this module: hands over the GTK/GDK probe so `on('Gl', …)`
+ * can use it without `index.ts` ever naming a GUI typelib itself.
+ */
+export const registerGlProbe = (prober: () => Promise<{ ok: boolean; failure: string }>): void => {
+    glProber = prober;
+};
 
 /** The GL probe's answer, once per process: a context's realizability does not change mid-run. */
 let glProbe: boolean | undefined;
@@ -1097,51 +1103,31 @@ let glProbe: boolean | undefined;
 let glProbeFailure = '';
 
 /**
- * Load GTK/GDK the portable way: `gi://`, which GJS resolves natively and the node target
- * rewrites to a LAZY `@gjsify/node-gi` proxy (resolved on first access, so a node bundle without
- * node-gi throws HERE, inside the probe, and answers no), and a browser build maps to an empty
- * module (no `default`, answers no). NOT `globalThis.imports.gi`: that object is the GJS host, and
- * on node it exists only when a build predicted the bundle needed it (see
- * docs/code-anti-patterns.md). Dynamic, so a run that never asks about GL never loads GTK.
- */
-const loadGlProbeGi = async (): Promise<GlProbeGi> => {
-    const [gtk, gdk] = await Promise.all([
-        import('gi://Gtk?version=4.0' as string) as Promise<{ default?: GlProbeGi['Gtk'] }>,
-        import('gi://Gdk?version=4.0' as string) as Promise<{ default?: GlProbeGi['Gdk'] }>,
-    ]);
-    if (!gtk.default || !gdk.default) throw new Error('no GTK 4 reachable from this runtime');
-    return { Gtk: gtk.default, Gdk: gdk.default };
-};
-
-/**
- * Realize a GL context through GDK, and report whether that worked.
+ * Realize a GL context through GDK (via the registered prober), and report whether that worked.
  *
  * The question `on('Gl')` asks, asked directly: every WebGL spec behind it gets its context from
- * a `Gtk.GLArea`, i.e. from exactly this GDK call chain.
+ * a `Gtk.GLArea`, i.e. from exactly the GDK call chain `@gjsify/unit/gl` registers.
  *
- * A failure is the ANSWER, not an error to hide: `create_gl_context()` and `realize()` report a
- * host without GL by throwing a GError — measured on a win32 VM with no OpenGL ICD, "No GL
- * implementation is available" (#1097). Only ever reached behind `canRealizeSurface`, so it never
- * tries to open a display on a host that has none. A "no" on a host that HAS a surface is
+ * A failure is the ANSWER, not an error to hide — measured on a win32 VM with no OpenGL ICD, "No
+ * GL implementation is available" (#1097). Only ever reached behind `canRealizeSurface`, so it
+ * never tries to open a display on a host that has none. A "no" on a host that HAS a surface is
  * recorded as a warning with the driver's reason, because it turns every GL suite on that leg into
  * a skip, and a skip nobody sees is how the darwin GL suites stayed dark. A leg that must not skip
- * says so with `GJSIFY_TEST_EXPECT_AXES=Gl` (see `failUnmetExpectedAxes`).
+ * says so with `GJSIFY_TEST_EXPECT_AXES=Gl` (see `failUnmetExpectedAxes`). No prober registered
+ * (no suite imported `@gjsify/unit/gl`) is the same "no" as a probe that ran and failed — the
+ * axis simply was not asked about.
  */
 const realizeGlContext = async (): Promise<boolean> => {
     if (glProbe !== undefined) return glProbe;
-    try {
-        const { Gtk, Gdk } = await loadGlProbeGi();
-        if (!Gtk.init_check()) throw new Error('Gtk.init_check() could not open the display');
-        const display = Gdk.Display.get_default();
-        if (!display) throw new Error('GDK has no default display');
-        display.create_gl_context().realize();
-        Gdk.GLContext.clear_current();
-        glProbe = true;
-    } catch (error) {
+    if (!glProber) {
         glProbe = false;
-        glProbeFailure = errorMessage(error);
-        noteWarning(`on('Gl') skipped: a display exists but no GL context realizes — ${glProbeFailure}`);
+        glProbeFailure = "no on('Gl') prober registered — import '@gjsify/unit/gl' to use this axis";
+        return glProbe;
     }
+    const { ok, failure } = await glProber();
+    glProbe = ok;
+    glProbeFailure = failure;
+    if (!ok) noteWarning(`on('Gl') skipped: a display exists but no GL context realizes — ${failure}`);
     return glProbe;
 };
 
