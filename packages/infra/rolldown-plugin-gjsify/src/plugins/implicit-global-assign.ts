@@ -93,6 +93,22 @@ export const IMPLICIT_GLOBAL_ASSIGN_PLUGIN = 'gjsify-implicit-global-assign';
  * listed because a name this pass must not rewrite should not depend on that. `globalThis`
  * IS a writable global property on every runtime, so `globalThis = x` already works — and
  * rewriting it would write the property through itself.
+ *
+ * The CommonJS WRAPPER bindings are here for a measured reason, and it is the incident that
+ * put them in the set rather than a rule of thumb: `exports`, `module`, `require`,
+ * `__filename` and `__dirname` are parameters of the function the bundler wraps a
+ * CommonJS module in, so `exports = module.exports = require('./lib/_stream_readable.js')`
+ * — `readable-stream/readable.js`, the polyfill behind `node:stream` — is a LOCAL write. The
+ * descent cannot see the wrapper, because it parses with `sourceType: 'module'`, so the pass
+ * rewrote it to `globalThis.exports = …`: `module.exports` was still set, but every
+ * `exports.Writable = require('./lib/_stream_writable.js')` beside it landed on the wrapper's
+ * original object, which nothing returns. Measured on a bundle of `readable-stream` with and
+ * without the plugin: `Writable`, `Duplex`, `Transform`, `PassThrough` and `Readable` went
+ * from `function` to `undefined` with no error anywhere — and a consumer that inherits from
+ * one of them is what throws next, as `util.inherits(Child, undefined)`. The same line
+ * appears in every bundled copy of `semver`, whose default import is what a Babel-based
+ * plugin bundle then calls. Refusing them unconditionally costs one rewrite that no build
+ * can use: in an ES module these names resolve to nothing at all.
  */
 const NEVER_IMPLICIT_GLOBAL: ReadonlySet<string> = new Set([
     'undefined',
@@ -101,6 +117,12 @@ const NEVER_IMPLICIT_GLOBAL: ReadonlySet<string> = new Set([
     'arguments',
     'eval',
     'globalThis',
+    // The CommonJS wrapper parameters — a local write in the module that has them.
+    'exports',
+    'module',
+    'require',
+    '__filename',
+    '__dirname',
 ]);
 
 /** Where the write lands: the global object, on every runtime there is one (ADR 0079). */

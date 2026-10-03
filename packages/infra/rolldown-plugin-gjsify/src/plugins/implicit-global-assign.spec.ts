@@ -191,6 +191,16 @@ export default async () => {
             expect(rewriteImplicitGlobalAssignments('Infinity = 1;', '/pkg/a.js')).toBeNull();
             // `globalThis` is a writable global property: the write already works.
             expect(rewriteImplicitGlobalAssignments('globalThis = x;', '/pkg/a.js')).toBeNull();
+            // The CommonJS wrapper parameters are LOCAL bindings the descent cannot see —
+            // it parses `sourceType: 'module'`. Rewriting one detaches the module's own
+            // exports object, which is how `readable-stream`'s Writable/Duplex/Transform
+            // became `undefined` without a single error.
+            expect(rewriteImplicitGlobalAssignments('exports = module.exports = {};', '/pkg/a.js')).toBeNull();
+            expect(rewriteImplicitGlobalAssignments('exports.foo = 1;', '/pkg/a.js')).toBeNull();
+            expect(rewriteImplicitGlobalAssignments('module.exports = 1;', '/pkg/a.js')).toBeNull();
+            expect(rewriteImplicitGlobalAssignments('require = noop;', '/pkg/a.js')).toBeNull();
+            expect(rewriteImplicitGlobalAssignments('__dirname = "/x";', '/pkg/a.js')).toBeNull();
+            expect(rewriteImplicitGlobalAssignments('__filename = "/x/y";', '/pkg/a.js')).toBeNull();
         });
 
         await it('refuses a module whose bindings are dynamic', () => {
