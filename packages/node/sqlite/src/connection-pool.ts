@@ -78,9 +78,9 @@ function keyOf(key: PoolKey): string {
 function fileIdentity(path: string): string | null {
     const file = Gio.File.new_for_path(path);
     try {
-        return file.query_info(Gio.FILE_ATTRIBUTE_ID_FILE, Gio.FileQueryInfoFlags.NONE, null).get_attribute_string(
-            Gio.FILE_ATTRIBUTE_ID_FILE,
-        );
+        return file
+            .query_info(Gio.FILE_ATTRIBUTE_ID_FILE, Gio.FileQueryInfoFlags.NONE, null)
+            .get_attribute_string(Gio.FILE_ATTRIBUTE_ID_FILE);
     } catch {
         // query_info is `throws="1"` and raises G_IO_ERROR_NOT_FOUND for a path that is
         // not there — the normal case for a database about to be created.
