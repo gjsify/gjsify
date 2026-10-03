@@ -229,8 +229,13 @@ export const GtkGLAreaTest = async () => {
             const { el, host } = mount({}, 'canvas');
             const asked: string[] = [];
             const canvas = el.querySelector('canvas') as HTMLCanvasElement;
+            // `null` for `webgl2` on purpose: the element stops at the FIRST name the
+            // browser answers, so a stub that answered both would record `webgl2` alone
+            // and the order would be untested. Refusing the newer name is what puts the
+            // fallback — and with it the order — in front of the assertion.
             canvas.getContext = ((name: string) => {
                 asked.push(name);
+                if (name === 'webgl2') return null;
                 return { enable() {}, disable() {} };
             }) as unknown as HTMLCanvasElement['getContext'];
             await settled();

@@ -7,17 +7,27 @@ import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { gtkHeaderBarMeta } from './gtk-header-bar.meta.js';
 
-/** Story: a Gtk.HeaderBar inside a Gtk.Window, with args driving layout and decorations. */
-export class HeaderBarStory extends StoryWidget {
+/**
+ * Story: a Gtk.HeaderBar inside a Gtk.Window, with args driving layout and decorations.
+ *
+ * Named `GtkHeaderBarStory`, not `HeaderBarStory`, and the GType carries the same `Gtk`
+ * infix: GType names share ONE process-wide namespace, and
+ * `layout/header-bar.story.ts` (the Adw.HeaderBar) already owns `AdwStorybookHeaderBar`.
+ * Registering it twice throws `a GType named 'AdwStorybookHeaderBar' is already
+ * registered` the moment both story modules load — the storybook smoke proof, not a type
+ * error. Every sibling in this directory prefixes the same way (`GtkWindowStory`,
+ * `GtkApplicationWindowStory`).
+ */
+export class GtkHeaderBarStory extends StoryWidget {
     private _bar: Gtk.HeaderBar | null = null;
     private _titleLabel: Gtk.Label | null = null;
 
     static {
-        GObject.registerClass({ GTypeName: 'AdwStorybookHeaderBar' }, HeaderBarStory);
+        GObject.registerClass({ GTypeName: 'AdwStorybookGtkHeaderBar' }, GtkHeaderBarStory);
     }
 
     constructor() {
-        super(StoryWidget.fromMeta(HeaderBarStory.getMetadata(), 'Default'));
+        super(StoryWidget.fromMeta(GtkHeaderBarStory.getMetadata(), 'Default'));
     }
 
     static getMetadata(): StoryMeta {
@@ -61,6 +71,6 @@ export class HeaderBarStory extends StoryWidget {
     }
 }
 
-GObject.type_ensure(HeaderBarStory.$gtype);
+GObject.type_ensure(GtkHeaderBarStory.$gtype);
 
-export const HeaderBarStories: StoryModule = { stories: [HeaderBarStory] };
+export const GtkHeaderBarStories: StoryModule = { stories: [GtkHeaderBarStory] };
