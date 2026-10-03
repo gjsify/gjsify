@@ -472,6 +472,38 @@ export default async () => {
             expect(os.constants.signals.SIGINT).toBe(2);
         });
 
+        // The three above are safe on every OS because the numbers are; the rest
+        // of the table is not, and `signals.spec.ts` is where that is checked
+        // against Node on the host's own numbering (#2001). What belongs here is
+        // the contract these numbers exist to serve: a caller turning a shell's
+        // `128 + n` exit status or a raw signal into a NAME, which is where the
+        // wrong table silently produced a plausible wrong answer.
+        await it('maps a raw signal number back to a name', async () => {
+            // The inverse of the fix: code holding a signal number — or a shell's
+            // `128 + n` exit status, which is what a signal death becomes by the
+            // time anyone reads it — looks the name up here. With one Linux table
+            // served to every OS this returned a plausible wrong name on darwin.
+            const { signals } = os.constants;
+            const byNumber = new Map(Object.entries(signals).map(([name, number]) => [number as number, name]));
+            expect(byNumber.get(signals.SIGKILL)).toBe('SIGKILL');
+            expect(byNumber.get(signals.SIGTERM)).toBe('SIGTERM');
+            // SIGHUP, not SIGCHLD: Windows has no child-status signal, and a
+            // table carrying one fails `signals.spec.ts` against real Node
+            // there. Not SIGABRT either — it is the one name present on all
+            // three hosts whose number MOVES (6/6/22), so it is the tempting
+            // pin, but Linux and Darwin alias it to SIGIOT at that number and
+            // this Map keeps only one of the pair. A pinned name has to be
+            // unique within its own table; the loop below covers the rest.
+            expect(byNumber.get(signals.SIGHUP)).toBe('SIGHUP');
+            // Round trip: whatever name a number resolves to must map back to
+            // that same number, so a duplicated or missing row cannot pass as a
+            // name that merely LOOKS like a signal.
+            for (const number of new Set(Object.values(signals))) {
+                const name = byNumber.get(number) as string;
+                expect(`${number}:${signals[name]}`).toBe(`${number}:${number}`);
+            }
+        });
+
         await it('errno.ENOENT should be a number', async () => {
             expect(typeof os.constants.errno.ENOENT).toBe('number');
         });

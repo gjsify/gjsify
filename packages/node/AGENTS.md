@@ -30,7 +30,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | inspector | — | Stub | Session stub |
 | module | Gio, GLib | Full | builtinModules, isBuiltin, createRequire. browser:`partial` — `createRequire` returns an always-throwing require (no sync CJS loader in a browser ESM bundle) |
 | net | Gio | Full | Socket(Gio.SocketClient), Server(Gio.SocketService). Never close an fd a Gio op still polls (darwin GLib `select(2)` fails the whole iteration with EBADF): `destroy()` waits for in-flight ops; why in `socket.ts`/`server.ts` |
-| os | GLib | Full | homedir, hostname, cpus |
+| os | GLib | Full | homedir, hostname, cpus. `constants.signals` per-OS since #2001; `errno`/`dlopen` still glibc's — [doc](../../docs/node-os-constants.md) |
 | path | — | Full | POSIX + Win32 |
 | perf_hooks | — | Full | performance (Web API / GLib fallback) |
 | polyfills | — | Meta | `@gjsify/node-polyfills` — dep-only umbrella pulling every Node polyfill (create-app templates + CLI scaffolds). No runtime code |
@@ -95,7 +95,11 @@ re-measured: a change here kept being green everywhere its author could see and 
 darwin, 0x100 on win32; `O_APPEND` is 0o2000 vs 0x8; `EEXIST` is errno -17 vs
 libuv -4075. Take flags from `fs.constants`, assert an errno's `code`.
 `scripts/check-spec-posix-literals.mjs` gates the spellings it can see
-statically — it is a floor, not a proof.
+statically — it is a floor, not a proof. A Node constant TABLE is the same trap
+one level up: `os.constants.signals` is built from `#ifdef SIGxxx` (33 names on
+Linux, 31 on darwin, 7 on win32; `SIGUSR1` is 10 on one host and 30 on the
+next), so one table for all three gives each a plausible WRONG number and nothing
+reports it (#2001): [docs/node-os-constants.md](../../docs/node-os-constants.md).
 |**Before merging a change to a semantics spec here, ASK the OS legs** — they
 have `workflow_dispatch`: `gh workflow run "macOS suites" --ref <branch>` and
 the same for `"Windows suites"`. Two dispatches beat eight hours of red `main`.

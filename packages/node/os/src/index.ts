@@ -35,13 +35,34 @@ const getPid = () => {
     return _pid;
 };
 
-export { constants };
-
 import * as linux from './linux.js';
 import * as darwin from './darwin.js';
 import GLib from '@girs/glib-2.0';
+import { isTargetOs } from '@gjsify/utils/core';
 
-import constants from './constants.js';
+import osConstants from './constants.js';
+import { signalsFor, type SignalTable } from './signals.js';
+
+/**
+ * `os.constants`, with `signals` the HOST's table rather than one build's.
+ *
+ * A getter, not a value chosen at module scope: `getOs()` shells out to `uname`,
+ * and a module-scope read would spend a subprocess on every GJS bundle that
+ * imports this module without ever asking for a signal number. Node answers the
+ * same question at its BUILD time and hands out one frozen table, so the getter
+ * still returns the same frozen object on every call.
+ *
+ * `ObjectFreeze(constants.signals)` is Node's (`lib/os.js`), so the tables in
+ * `./signals.ts` are frozen; a bare assignment in a consumer's strict-mode ESM
+ * throws `TypeError` exactly as it does on Node.
+ */
+export const constants = {
+    ...osConstants,
+    get signals(): SignalTable {
+        const platform = getOs();
+        return signalsFor(isTargetOs(platform) ? platform : undefined);
+    },
+};
 
 export const EOL = getPathSeparator() === '/' ? '\n' : '\r\n';
 
