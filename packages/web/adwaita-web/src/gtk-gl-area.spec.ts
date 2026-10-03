@@ -2,28 +2,85 @@
 // snapshot runs in and the two flags it clears — a GL application that gets `::render`
 // before the first `::resize` draws into a viewport nobody told it about, and a flag
 // cleared too early loses the frame `queue_render()` asked for from inside `::render`.
+//
+// Every signal the C emits needs a context (`gtkglarea.c:781-782` returns before
+// `::resize` without one), so these tests bring their own through `::create-context`.
+// Whether the BROWSER can hand out WebGL is a property of the machine — headless
+// Firefox says no — and a test that rests on it reports the machine, not the element.
+// See `stubContext`.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { GtkGLArea } from './elements/gtk-gl-area.js';
 
-function mount(attrs: Record<string, string> = {}): { el: GtkGLArea; host: HTMLElement } {
+/**
+ * A context that remembers what was switched on, because that is the whole surface the
+ * element touches (`attachBuffers` and the snapshot call `enable`/`disable`; `isEnabled`
+ * is how a test reads the result back) plus the two capability names it passes them.
+ *
+ * WHY A STUB AND NOT THE BROWSER'S OWN: `gtk_gl_area_render` returns at
+ * `if (priv->context == NULL)` BEFORE it emits `::resize` (gtkglarea.c:781-782), so
+ * every signal below depends on a context existing. Chromium hands one out from
+ * software GL on a headless runner; Firefox does not, and then every test that waits
+ * for a signal waits forever and reports an empty list. That is a fact about the
+ * machine, not about the element — so a test may not rest on it. `::create-context`
+ * is the documented way in (gtkglarea.c:1086-1109; the element reads `detail.context`
+ * and asks the canvas only when nobody supplied one), which is what this uses.
+ */
+function stubContext(): WebGLRenderingContext {
+    const enabled = new Set<number>();
+    return {
+        DEPTH_TEST: 0x0b71,
+        STENCIL_TEST: 0x0b90,
+        enable: (capability: number) => void enabled.add(capability),
+        disable: (capability: number) => void enabled.delete(capability),
+        isEnabled: (capability: number) => enabled.has(capability),
+    } as unknown as WebGLRenderingContext;
+}
+
+/**
+ * `context: 'stub'` (the default) gives the element a context of its own, so a test
+ * measures the element. `'canvas'` leaves the browser to answer — only the test that is
+ * ABOUT the canvas path uses it, and it asks through a recording stub. `'none'` is for
+ * the tests that bring their own `create-context` handler.
+ */
+function mount(
+    attrs: Record<string, string> = {},
+    context: 'stub' | 'canvas' | 'none' = 'stub',
+): { el: GtkGLArea; host: HTMLElement } {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const el = document.createElement('gtk-gl-area') as GtkGLArea;
     el.style.width = '120px';
     el.style.height = '90px';
     for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+    // Before the element is in the tree: the handler is read on the first draw, and the
+    // first draw needs an observer record, so it must not be attached after insertion.
+    if (context === 'stub') {
+        el.addEventListener('create-context', (event) => {
+            (event as CustomEvent).detail['context'] = stubContext();
+        });
+    }
     host.appendChild(el);
     return { el, host };
 }
 
 /**
- * Two frames, not one: the platform delivers a ResizeObserver's first observation AFTER
- * the animation-frame callbacks of the frame it belongs to, and the first allocation is
- * what realizes the area.
+ * Three frames, and the order is the reason: the element draws in an animation frame
+ * that a `ResizeObserver` record schedules, and the platform delivers that record
+ * AFTER the animation-frame callbacks of the frame it belongs to — so the draw lands in
+ * the frame after the one that observed. Two is what Chromium happens to need, and the
+ * count is not a property of the element.
  */
 function settled(): Promise<void> {
-    return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    return new Promise((resolve) => {
+        let frames = 0;
+        const tick = (): void => {
+            frames += 1;
+            if (frames >= 3) resolve();
+            else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
 }
 
 export const GtkGLAreaTest = async () => {
@@ -162,11 +219,22 @@ export const GtkGLAreaTest = async () => {
     });
 
     await describe('<gtk-gl-area> the context', async () => {
-        await it('is created from the canvas, and the browser has none desktop', async () => {
-            const { el, host } = mount();
+        await it('is created from the canvas, newest API first, and never desktop GL', async () => {
+            // The subject is WHERE the context comes from and in what order the element
+            // asks for it. It is not whether this browser implements GL: a real
+            // `getContext('webgl2')` on the headless Firefox runner returns null, which
+            // would say nothing about the element. So the canvas answers through a
+            // recording stub, and the two facts the old assertion could not check — the
+            // order, and that `gl` is never asked for — come out with it.
+            const { el, host } = mount({}, 'canvas');
+            const asked: string[] = [];
+            const canvas = el.querySelector('canvas') as HTMLCanvasElement;
+            canvas.getContext = ((name: string) => {
+                asked.push(name);
+                return { enable() {}, disable() {} };
+            }) as HTMLCanvasElement['getContext'];
             await settled();
-            expect(el.context).not.toBe(null);
-            // WebGL and WebGL2 are both ES, whatever `allowed-apis` said.
+            expect(asked).toStrictEqual(['webgl2', 'webgl']);
             expect(el.api).toBe('gles');
             host.remove();
         });
@@ -187,7 +255,7 @@ export const GtkGLAreaTest = async () => {
         await it('takes the context a create-context handler supplied', async () => {
             // gtkglarea.c:1086-1109 — a handler RETURNS the context; a browser event has
             // no return channel, so the detail object carries it (see the header).
-            const { el, host } = mount();
+            const { el, host } = mount({}, 'none');
             const spare = {
                 DEPTH_TEST: 1,
                 STENCIL_TEST: 2,
