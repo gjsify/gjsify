@@ -5,6 +5,7 @@
 import Gda from '@girs/gda-6.0';
 // `/core` — the pure half, so this stays independent of whether Gio is reachable.
 import { lastPathSeparatorIndex } from '@gjsify/utils/core';
+import { acquire, type PoolKey, release } from './connection-pool.ts';
 import {
     ConstructCallRequiredError,
     InvalidArgTypeError,
@@ -178,34 +179,44 @@ export class DatabaseSync {
         }
 
         try {
-            if (this.#isMemory) {
-                // Gda.Connection.new_from_string + open() works; open_from_string has a bug
-                this.#connection = Gda.Connection.new_from_string(
-                    'SQLite',
-                    'DB_DIR=;DB_NAME=:memory:',
-                    null,
-                    Gda.ConnectionOptions.NONE,
-                );
-            } else {
-                // The separator question goes to `@gjsify/utils/core`, which answers it from
-                // the path's SHAPE: `lastIndexOf('/')` found nothing in `C:\data\app.db`, so
-                // DB_DIR became `.` and DB_NAME kept the drive letter and the backslashes —
-                // the database was created in the CWD under a fabricated name, and
-                // `existsSync(path)` was false for the path the caller had just opened (#1143).
-                const lastSeparator = lastPathSeparatorIndex(this.#path);
-                const dir = lastSeparator >= 0 ? this.#path.substring(0, lastSeparator) : '.';
-                const name = lastSeparator >= 0 ? this.#path.substring(lastSeparator + 1) : this.#path;
-                // libgda's SQLite provider always stores the database as `<DB_DIR>/<DB_NAME>.db`, so
-                // strip a trailing `.db` from DB_NAME: node:sqlite uses the given path verbatim, and
-                // passing `foo.db` as DB_NAME would land the file at `foo.db.db` — making the real
-                // file disagree with the requested path (existsSync(path) false, location() wrong).
-                const dbName = name.endsWith('.db') ? name.slice(0, -3) : name;
-                const cncString = `DB_DIR=${dir};DB_NAME=${dbName}`;
-                const connOpts = this.#options.readOnly ? Gda.ConnectionOptions.READ_ONLY : Gda.ConnectionOptions.NONE;
+            // Every connection comes from the pool, which OWNS it for the life of the
+            // process: libgda's SQLite provider leaves a dangling GWeakRef on the
+            // session-wide provider for every connection ever released, and the third one
+            // of those aborts the process. See connection-pool.ts.
+            this.#connection = acquire(this.#poolKey(), () => {
+                let connection: Gda.Connection;
+                if (this.#isMemory) {
+                    // Gda.Connection.new_from_string + open() works; open_from_string has a bug
+                    connection = Gda.Connection.new_from_string(
+                        'SQLite',
+                        'DB_DIR=;DB_NAME=:memory:',
+                        null,
+                        Gda.ConnectionOptions.NONE,
+                    );
+                } else {
+                    // The separator question goes to `@gjsify/utils/core`, which answers it from
+                    // the path's SHAPE: `lastIndexOf('/')` found nothing in `C:\data\app.db`, so
+                    // DB_DIR became `.` and DB_NAME kept the drive letter and the backslashes —
+                    // the database was created in the CWD under a fabricated name, and
+                    // `existsSync(path)` was false for the path the caller had just opened (#1143).
+                    const lastSeparator = lastPathSeparatorIndex(this.#path);
+                    const dir = lastSeparator >= 0 ? this.#path.substring(0, lastSeparator) : '.';
+                    const name = lastSeparator >= 0 ? this.#path.substring(lastSeparator + 1) : this.#path;
+                    // libgda's SQLite provider always stores the database as `<DB_DIR>/<DB_NAME>.db`, so
+                    // strip a trailing `.db` from DB_NAME: node:sqlite uses the given path verbatim, and
+                    // passing `foo.db` as DB_NAME would land the file at `foo.db.db` — making the real
+                    // file disagree with the requested path (existsSync(path) false, location() wrong).
+                    const dbName = name.endsWith('.db') ? name.slice(0, -3) : name;
+                    const cncString = `DB_DIR=${dir};DB_NAME=${dbName}`;
+                    const connOpts = this.#options.readOnly
+                        ? Gda.ConnectionOptions.READ_ONLY
+                        : Gda.ConnectionOptions.NONE;
 
-                this.#connection = Gda.Connection.new_from_string('SQLite', cncString, null, connOpts);
-            }
-            this.#connection!.open();
+                    connection = Gda.Connection.new_from_string('SQLite', cncString, null, connOpts);
+                }
+                connection.open();
+                return connection;
+            });
         } catch (e: unknown) {
             this.#connection = null;
             throw new SqliteError(sqliteErrorMessage(e));
@@ -224,7 +235,12 @@ export class DatabaseSync {
         if (!this.isOpen) {
             throw new InvalidStateError('database is not open');
         }
-        this.#connection!.close();
+        // NOT `Gda.Connection.close()`: that frees the provider data whose GWeakRef on the
+        // session-wide SQLite provider libgda never clears, and the next connection then
+        // aborts the process. The pool keeps it open and alive instead — see
+        // connection-pool.ts. This object is closed either way: it drops its reference, so
+        // every method raises "database is not open" from here on.
+        release(this.#poolKey(), this.#connection!);
         this.#connection = null;
         this.#inTransaction = false;
         return undefined;
@@ -315,6 +331,14 @@ export class DatabaseSync {
         if (!this.isOpen) {
             throw new InvalidStateError('database is not open');
         }
+    }
+
+    /**
+     * What the pool matches a parked connection against: a connection opened READ_ONLY
+     * cannot serve a writable request, and the path is the database it is attached to.
+     */
+    #poolKey(): PoolKey {
+        return { path: this.#path, isMemory: this.#isMemory, readOnly: this.#options.readOnly ?? false };
     }
 
     #parseSql(sql: string): [Gda.Statement, Gda.Set | null] {
