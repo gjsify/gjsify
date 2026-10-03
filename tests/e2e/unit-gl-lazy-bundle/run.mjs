@@ -34,31 +34,35 @@ function build(name) {
     return outfile;
 }
 
-describe('@gjsify/unit — the Gl probe stays out of a bundle that never asks for it', { timeout: 10 * 60 * 1000 }, () => {
-    before(() => {
-        outDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-unit-gl-lazy-'));
-    });
+describe(
+    '@gjsify/unit — the Gl probe stays out of a bundle that never asks for it',
+    { timeout: 10 * 60 * 1000 },
+    () => {
+        before(() => {
+            outDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-unit-gl-lazy-'));
+        });
 
-    after(() => {
-        rmSync(outDir, { recursive: true, force: true });
-    });
+        after(() => {
+            rmSync(outDir, { recursive: true, force: true });
+        });
 
-    it('carries no gi://Gtk / gi://Gdk specifier when no suite imports @gjsify/unit/gl', () => {
-        const bundle = readFileSync(build('no-gl'), 'utf-8');
-        assert.doesNotMatch(bundle, /gi:\/\/Gtk/, 'a headless suite bundle must not reach for Gtk');
-        assert.doesNotMatch(bundle, /gi:\/\/Gdk/, 'a headless suite bundle must not reach for Gdk');
-    });
+        it('carries no gi://Gtk / gi://Gdk specifier when no suite imports @gjsify/unit/gl', () => {
+            const bundle = readFileSync(build('no-gl'), 'utf-8');
+            assert.doesNotMatch(bundle, /gi:\/\/Gtk/, 'a headless suite bundle must not reach for Gtk');
+            assert.doesNotMatch(bundle, /gi:\/\/Gdk/, 'a headless suite bundle must not reach for Gdk');
+        });
 
-    it('still carries gi://Gtk / gi://Gdk, and the Gl axis still works, when a suite imports @gjsify/unit/gl', () => {
-        const outfile = build('with-gl');
-        const bundle = readFileSync(outfile, 'utf-8');
-        assert.match(bundle, /gi:\/\/Gtk/);
-        assert.match(bundle, /gi:\/\/Gdk/);
+        it('still carries gi://Gtk / gi://Gdk, and the Gl axis still works, when a suite imports @gjsify/unit/gl', () => {
+            const outfile = build('with-gl');
+            const bundle = readFileSync(outfile, 'utf-8');
+            assert.match(bundle, /gi:\/\/Gtk/);
+            assert.match(bundle, /gi:\/\/Gdk/);
 
-        const { status, output } = (() => {
-            const r = execFileSync('gjs', ['-m', outfile], { encoding: 'utf-8' });
-            return { status: 0, output: r };
-        })();
-        assert.equal(status, 0, `expected a clean exit:\n${output}`);
-    });
-});
+            const { status, output } = (() => {
+                const r = execFileSync('gjs', ['-m', outfile], { encoding: 'utf-8' });
+                return { status: 0, output: r };
+            })();
+            assert.equal(status, 0, `expected a clean exit:\n${output}`);
+        });
+    },
+);
