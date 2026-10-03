@@ -32,6 +32,7 @@ import { processStubPlugin } from '../plugins/process-stub.js';
 import type { GiSystemProbe } from '../plugins/gi-runtime-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { consoleAssignPlugin } from '../plugins/console-assign.js';
+import { windowAssignPlugin } from '../plugins/window-assign.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
@@ -253,6 +254,14 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // A module assigning the global `console` gets a local binding, or the inject
         // below turns its assignment into `ASSIGN_TO_IMPORT` and fails the build.
         ...(consoleShimPath ? [consoleAssignPlugin()] : []),
+        // ADR 0079's addendum: a bare `window = …` reaches a module body that is strict
+        // once bundled, so it is a `ReferenceError` rather than the "this runtime has no
+        // window, make one" its `typeof` guard asked for. Here the guarded branch is dead
+        // anyway — the host has a `window` — but WITHOUT this transform the `window`
+        // define in `transform.define` replaces the assignment TARGET, emitting
+        // `globalThis = {…}`, i.e. code that would replace the whole global object if the
+        // branch ever ran. Measured; the plugin header carries the artifact diff.
+        windowAssignPlugin(),
         // `gi://Ns?version=X&optional` → a guarded import (ADR 0087), claimed `pre`
         // so the externals policy never sees the flagged specifier.
         giOptionalPlugin('gjs'),
