@@ -27,10 +27,13 @@ gtk-list-box {
   background-color: var(--view-bg-color);
   background-clip: padding-box;
 
-  // `listview, list { border-color: $border_color }` (_lists.scss:10) is the four one-pixel
-  // edges libadwaita's rows sit inside; the row padding below needs the inset to draw against.
-  border: 1px solid var(--border-color);
-  border-radius: var(--window-radius);
+  // `listview, list { border-color: $border_color }` (_lists.scss:10) — the upstream rule
+  // names a COLOUR and nothing else, because GTK draws a border only where a width or a
+  // style is set alongside it. So a bare list has no frame, and that is what this is: the
+  // frame used to sit here unconditionally, which made every list read as a card where
+  // libadwaita draws one only for `list.boxed-list` (_lists.scss:520) — `Adw.PreferencesGroup`
+  // carries that one, through `%card` (_preferences.scss:83), so nothing needed it here.
+  border-color: var(--border-color);
 
   &.view:disabled {
     color: var(--view-fg-color);
