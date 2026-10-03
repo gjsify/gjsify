@@ -246,6 +246,82 @@ export const AdwActionRowsTest = async () => {
         }
     });
 
+    await describe('<adw-switch-row> prefix slot (inherited add_prefix)', async () => {
+        // Routing a live child and then deriving the box's emptiness are TWO observers in
+        // a chain: `slotted-children` moves the node into the box, and only that move is
+        // what `bindEmptySections` observes. One checkpoint sees the routing, two see the
+        // derivation.
+        const settleSlot = async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+        };
+        await it('routes a DECLARED slot="prefix" child into the prefix box', () => {
+            // Adw.SwitchRow IS an AdwActionRow (adw-switch-row.c:50), so `add_prefix`
+            // and the box that carries it are inherited, not a web-only addition.
+            // The child is authored BEFORE the row reaches the document, which is the
+            // install pass rather than the observer.
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const row = document.createElement('adw-switch-row') as AdwSwitchRow;
+            const icon = document.createElement('span');
+            icon.id = 'lead';
+            icon.setAttribute('slot', 'prefix');
+            row.appendChild(icon);
+            host.appendChild(row);
+
+            expect(icon.parentElement?.className).toBe('adw-switch-row-prefix');
+            host.remove();
+        });
+
+        await it('hides the box while it is empty', () => {
+            const { el: row, host } = mount<AdwSwitchRow>('adw-switch-row');
+            const box = row.querySelector('.adw-switch-row-prefix') as HTMLElement;
+            expect(box.hidden).toBe(true);
+            host.remove();
+        });
+
+        await it('routes a prefix appended AFTER connect, and un-hides the box', async () => {
+            // The live half: a renderer mounts the row and then appends the icon, which
+            // is a MutationObserver callback rather than the install pass — the incident
+            // `src/slotted-children.ts` records for 42 elements that snapshotted instead.
+            const { el: row, host } = mount<AdwSwitchRow>('adw-switch-row');
+            const box = row.querySelector('.adw-switch-row-prefix') as HTMLElement;
+
+            const icon = document.createElement('span');
+            icon.setAttribute('slot', 'prefix');
+            row.appendChild(icon);
+            await settleSlot();
+
+            expect(icon.parentElement).toBe(box);
+            expect(box.hidden).toBe(false);
+            host.remove();
+        });
+
+        await it('shows it again when the last prefix child leaves', async () => {
+            const { el: row, host } = mount<AdwSwitchRow>('adw-switch-row');
+            const icon = document.createElement('span');
+            icon.setAttribute('slot', 'prefix');
+            row.appendChild(icon);
+            await settleSlot();
+            const box = row.querySelector('.adw-switch-row-prefix') as HTMLElement;
+
+            expect(box.hidden).toBe(false);
+            icon.remove();
+            await Promise.resolve();
+            expect(box.hidden).toBe(true);
+            host.remove();
+        });
+
+        await it('exposes the box as prefixSection for the imperative spelling', () => {
+            const { el: row, host } = mount<AdwSwitchRow>('adw-switch-row');
+            const icon = document.createElement('span');
+            row.prefixSection.appendChild(icon);
+
+            expect(icon.parentElement).toBe(row.prefixSection);
+            host.remove();
+        });
+    });
+
     await describe('<adw-button-row> (libadwaita conformance vectors)', async () => {
         for (const vector of BUTTON_ROW_ICON_VECTORS) {
             await it(`${JSON.stringify([vector.startIconName, vector.endIconName])} — ${vector.rule}`, () => {

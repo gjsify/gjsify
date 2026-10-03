@@ -10,6 +10,10 @@
 //   - clicking the ROW toggles: `adw_switch_row_init` points the activatable-widget at the
 //     slider, so the title is part of the control, not just the handle.
 //
+// Slots: `slot="prefix"` holds a leading icon/widget, exactly as on
+// `<adw-action-row>` — libadwaita's AdwSwitchRow IS an AdwActionRow
+// (adw-switch-row.c:50), so `add_prefix` is inherited, not invented here.
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -17,6 +21,9 @@
 //   composed from @gjsify/adwaita-core; the toggle markup from <gtk-switch>.
 
 import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
+
+import { bindEmptySections } from '../empty-sections.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `gtk-switch` is defined before this module's `customElements.define` can upgrade a
@@ -30,6 +37,7 @@ import type { GtkSwitch } from './gtk-switch.js';
 
 export class AdwSwitchRow extends HTMLElement {
     private _switchEl!: GtkSwitch;
+    private _prefixEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless active flag + its notify rule (ADR 0004). */
@@ -38,6 +46,11 @@ export class AdwSwitchRow extends HTMLElement {
 
     static get observedAttributes() {
         return ['title', 'subtitle', 'active'];
+    }
+
+    /** The start (prefix) section — append icons/widgets here imperatively. */
+    get prefixSection(): HTMLDivElement {
+        return this._prefixEl;
     }
 
     get active(): boolean {
@@ -62,11 +75,25 @@ export class AdwSwitchRow extends HTMLElement {
         this._subtitleEl.className = 'adw-row-subtitle';
         text.append(this._titleEl, this._subtitleEl);
 
+        this._prefixEl = document.createElement('div');
+        this._prefixEl.className = 'adw-switch-row-prefix';
+
         this._switchEl = document.createElement('gtk-switch') as GtkSwitch;
         // adw-switch-row.c:159 — the slider is not a focus target; the ROW is.
         this._switchEl.unfocusable = true;
 
-        this.replaceChildren(text, this._switchEl);
+        // The prefix stays LIVE, as on every other slotted row: an icon appended with
+        // `slot="prefix"` after connect has to land where the declared one does.
+        // `src/slotted-children.ts` carries the incident.
+        bindSlottedChildren(this, [{ name: 'prefix', into: this._prefixEl }]).install(
+            this._prefixEl,
+            text,
+            this._switchEl,
+        );
+        // Same reason as the action row's: an icon appended into `prefixSection` is a
+        // childList change no attribute callback hears, so the section would stay hidden
+        // and the icon measure 0x0. AFTER the routing — it derives once synchronously.
+        bindEmptySections(this._prefixEl);
 
         this._state.setActive(this.hasAttribute('active'));
         this._switchEl.active = this._state.active;
