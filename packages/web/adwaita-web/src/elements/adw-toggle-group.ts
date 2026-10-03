@@ -1,7 +1,8 @@
 // <adw-toggle-group> — the web counterpart of Adw.ToggleGroup: a linked set of toggle
 // buttons where exactly one is active. Toggles are `<adw-toggle>` children carrying
-// `label` and/or `icon-name` and an optional `name`, which the group's `active-name`
-// selects by (read at connect, like the rest). The `flat` / `round` attributes mirror the upstream
+// `label` and/or `icon-name`, an optional `tooltip`, and an optional `name`, which the
+// group's `active-name` selects by (read at connect, like the rest). The `flat` / `round`
+// attributes mirror the upstream
 // `.flat` / `.round` style classes. `notify::active` (CustomEvent, bubbles, detail
 // `{ active }`) mirrors the `active` GObject property.
 //
@@ -62,8 +63,12 @@ import { attachRovingFocus } from './roving-focus.js';
 
 /** A single toggle. Children of <adw-toggle-group>; consumed at connect time. */
 export class AdwToggle extends HTMLElement {
+    // `tooltip` joins because `AdwToggle:tooltip` exists upstream (:467) and an
+    // icon-only toggle has no other text — `tooltip` is what NAMES it, so it is not a
+    // decoration. It produces no disabled or hidden button, which is the invariant
+    // `keyboard-operable.spec.ts` pins this list for.
     static get observedAttributes() {
-        return ['label', 'icon-name'];
+        return ['label', 'icon-name', 'tooltip'];
     }
 }
 
@@ -162,11 +167,21 @@ export class AdwToggleGroup extends HTMLElement {
 
             const label = toggle.getAttribute('label') ?? '';
             const icon = toggle.getAttribute('icon-name') ?? '';
+            const tooltip = toggle.getAttribute('tooltip') ?? '';
             if (icon) btn.appendChild(createGtkImage(icon));
             if (label) btn.appendChild(document.createTextNode(label));
 
-            // An icon-only toggle has no text — give it an accessible name.
-            if (icon && !label) btn.setAttribute('aria-label', icon);
+            // `update_button` (adw-toggle-group.c:215) sets the tooltip FIRST and
+            // unconditionally, so it is a property of the button whatever else it holds.
+            btn.title = tooltip;
+
+            // The accessible NAME falls through in upstream's order (:226-282): a label
+            // names the toggle and the tooltip is then GTK's automatic DESCRIPTION; with
+            // no label, the TOOLTIP becomes the name. The icon name is the last resort —
+            // it is a symbolic identifier, not words, which is exactly why an icon-only
+            // toggle was undiscoverable without this.
+            if (!label && tooltip) btn.setAttribute('aria-label', tooltip);
+            else if (icon && !label) btn.setAttribute('aria-label', icon);
 
             btn.addEventListener('click', () => this._selectIndex(index));
             return btn;
