@@ -46,7 +46,8 @@ export class PopoverMenuBarStory extends StoryWidget {
         const entries = this.args.showLast === false ? POPOVER_MENU_BAR_ITEMS.slice(0, 3) : POPOVER_MENU_BAR_ITEMS;
         for (const entry of entries) {
             const submenu = new Gio.Menu();
-            for (const item of entry.submenu) submenu.append(item.label, `app.${item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+            for (const item of entry.submenu)
+                submenu.append(item.label, `app.${item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
             menu.append_submenu(entry.label, submenu);
         }
         return menu;
