@@ -29,8 +29,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { withSignals } from './signals.js';
 
-/** Default status-page icon size (DIPs) — Adw.StatusPage shows a large glyph. */
-const DEFAULT_STATUS_ICON_SIZE = 96;
+/** Default status-page icon size (DIPs) — `-gtk-icon-size: 128px` (_misc.scss, statuspage). */
+const DEFAULT_STATUS_ICON_SIZE = 128;
 /** Default dim icon colour — Adw.StatusPage dims the empty-state icon. */
 const DEFAULT_STATUS_ICON_COLOR = '#9b9b9b';
 

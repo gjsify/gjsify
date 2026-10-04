@@ -447,8 +447,17 @@ export default async () => {
         });
 
         await it('reads a fill out of style=, where the icon generator never reached', () => {
-            const [path] = extractIconPaths(svg('<path style="fill:#2e3436;stroke:none" d="M1 1"/>'));
-            expect(path!.fill).toBe('#2e3436');
+            const [path] = extractIconPaths(svg('<path style="fill:#ed333b;stroke:none" d="M1 1"/>'));
+            expect(path!.fill).toBe('#ed333b');
+        });
+
+        await it('treats the neutral Adwaita greys as the caller colour, in either spelling', () => {
+            // An app's own symbolics skip the generator that rewrites these to
+            // `currentColor`; pinning them drew a #222 glyph on a dark page.
+            for (const grey of ['#2e3436', '#2e3434', '#474747', '#222222', '#222', '#2D3336']) {
+                expect(extractIconPaths(svg(`<path fill="${grey}" d="M1 1"/>`))[0]!.fill).toBe(null);
+                expect(extractIconPaths(svg(`<path style="fill:${grey}" d="M1 1"/>`))[0]!.fill).toBe(null);
+            }
         });
 
         await it('lets style= win over the attribute, as CSS does', () => {
