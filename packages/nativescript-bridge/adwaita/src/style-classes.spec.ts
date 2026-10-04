@@ -20,7 +20,13 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './widgets/style-classes.js';
+import {
+    classNameWith,
+    normalizeStyleClasses,
+    StyleClassList,
+    withCssClass,
+    withoutCssClass,
+} from './widgets/style-classes.js';
 
 /** What `GtkButton`'s setter does, minus the NativeScript base class it cannot import. */
 function classNameFor(base: string, value: string | null | undefined): string {
@@ -143,6 +149,52 @@ export default async () => {
             withCssClass(held, 'flat');
             withoutCssClass(held, 'pill');
             expect(held).toStrictEqual(['pill']);
+        });
+    });
+
+    // The list a pass-through container (`Adw.Bin`, `Gtk.Stack`, …) keeps, so five verbs are
+    // not written five more times.
+    await describe('StyleClassList (the five css-classes verbs over one list)', async () => {
+        await it('a fresh list is empty and a transparent widget writes no class at all', () => {
+            const list = new StyleClassList();
+            expect(list.classes).toStrictEqual([]);
+            expect(list.className).toBe('');
+        });
+
+        await it('replace is the string door and REPLACES; replaceAll is gtk_widget_set_css_classes', () => {
+            const list = new StyleClassList();
+            list.replace('card  boxed-list');
+            expect(list.classes).toStrictEqual(['card', 'boxed-list']);
+            list.replaceAll(['a', 'b', 'a']);
+            expect(list.classes).toStrictEqual(['a', 'b']);
+            list.replace(null);
+            expect(list.classes).toStrictEqual([]);
+        });
+
+        await it('add is a no-op for a held class, remove for an absent one, has trims', () => {
+            const list = new StyleClassList();
+            list.add('card');
+            list.add('card');
+            list.add('flat');
+            list.remove('missing');
+            expect(list.classes).toStrictEqual(['card', 'flat']);
+            expect(list.has(' flat ')).toBe(true);
+            list.remove('card');
+            expect(list.has('card')).toBe(false);
+        });
+
+        await it('className joins the base and the list, and skips an empty base', () => {
+            const list = new StyleClassList('adw-button');
+            list.add('pill');
+            expect(list.className).toBe('adw-button pill');
+            expect(new StyleClassList().className).toBe('');
+        });
+
+        await it('classes is a copy: writing to it does not reach the list', () => {
+            const list = new StyleClassList();
+            list.add('card');
+            list.classes.push('hacked');
+            expect(list.classes).toStrictEqual(['card']);
         });
     });
 };

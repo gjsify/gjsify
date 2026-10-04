@@ -680,6 +680,65 @@ if (iconSizeSource !== null && iconSizeNicks !== null) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 8. the enum lists of the pass-through containers, position for typelib constant
+// ---------------------------------------------------------------------------
+
+/**
+ * `transition-type.ts` and `scrolled-window-policy.ts` take a GIR enum as a nick list whose
+ * POSITION is the constant a GJS snippet writes (`Gtk.PolicyType.NEVER` is 2), so a number
+ * resolves by index. That is legitimate only for an enum with no alias; the typelib-read
+ * table is what says so, the same premise arm 7 checks for `Gtk.IconSize`.
+ */
+const ENUM_LISTS = [
+    {
+        file: `${NS_WIDGETS_DIR}/transition-type.ts`,
+        array: 'GTK_REVEALER_TRANSITIONS',
+        gtype: 'GtkRevealerTransitionType',
+    },
+    { file: `${NS_WIDGETS_DIR}/transition-type.ts`, array: 'GTK_STACK_TRANSITIONS', gtype: 'GtkStackTransitionType' },
+    { file: `${NS_WIDGETS_DIR}/scrolled-window-policy.ts`, array: 'GTK_POLICY_TYPES', gtype: 'GtkPolicyType' },
+];
+let enumListMembers = 0;
+let allEnumValues = null;
+try {
+    allEnumValues = readFileSync(join(ROOT, GTK_HOST_ENUM_VALUES), 'utf8');
+} catch {
+    failures.push(`${GTK_HOST_ENUM_VALUES} is not readable — arm 8 has nothing to hold the enum lists against.`);
+}
+for (const { file, array, gtype } of ENUM_LISTS) {
+    if (allEnumValues === null) break;
+    let list = null;
+    try {
+        list = readStringArray(readFileSync(join(ROOT, file), 'utf8'), array);
+    } catch {
+        failures.push(`${file} is not readable — ${array} would be held by nothing.`);
+        continue;
+    }
+    const values = readEnumValues(allEnumValues, gtype);
+    if (list === null || list.length === 0 || values.size === 0) {
+        failures.push(
+            `${file}: ${array} (or ${gtype} in ${GTK_HOST_ENUM_VALUES}) could not be read — a clean bill for nothing.`,
+        );
+        continue;
+    }
+    if (values.size !== list.length) {
+        failures.push(
+            `${array} has ${list.length} member(s) where ${gtype} in ${GTK_HOST_ENUM_VALUES} has ${values.size}.`,
+        );
+    }
+    for (const [index, nick] of list.entries()) {
+        if (values.get(nick) !== index) {
+            failures.push(
+                `${array} puts '${nick}' at position ${index} but the typelib registers ${gtype}.${nick} as ` +
+                    `${values.get(nick)}. A number from a GJS snippet resolves by position here.`,
+            );
+        }
+    }
+    enumListMembers += list.length;
+}
+notes.push(`${enumListMembers} GIR enum member(s) of ${ENUM_LISTS.length} lists held position for typelib constant`);
+
 for (const note of notes) console.log(`check-nativescript-xml-doors: ${note}`);
 
 if (failures.length > 0) {
