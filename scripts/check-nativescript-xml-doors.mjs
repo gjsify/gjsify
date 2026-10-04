@@ -685,7 +685,7 @@ if (iconSizeSource !== null && iconSizeNicks !== null) {
 // ---------------------------------------------------------------------------
 
 /**
- * `transition-type.ts` and `scrolled-window-policy.ts` take a GIR enum as a nick list whose
+ * `transition-type.ts`, `scrolled-window-policy.ts`, `window-state.ts` and `list-box-state.ts` take a GIR enum as a nick list whose
  * POSITION is the constant a GJS snippet writes (`Gtk.PolicyType.NEVER` is 2), so a number
  * resolves by index. That is legitimate only for an enum with no alias; the typelib-read
  * table is what says so, the same premise arm 7 checks for `Gtk.IconSize`.
@@ -698,6 +698,12 @@ const ENUM_LISTS = [
     },
     { file: `${NS_WIDGETS_DIR}/transition-type.ts`, array: 'GTK_STACK_TRANSITIONS', gtype: 'GtkStackTransitionType' },
     { file: `${NS_WIDGETS_DIR}/scrolled-window-policy.ts`, array: 'GTK_POLICY_TYPES', gtype: 'GtkPolicyType' },
+    {
+        file: `${NS_WIDGETS_DIR}/window-state.ts`,
+        array: 'ADW_DIALOG_PRESENTATION_MODES',
+        gtype: 'AdwDialogPresentationMode',
+    },
+    { file: `${NS_WIDGETS_DIR}/list-box-state.ts`, array: 'GTK_SELECTION_MODES', gtype: 'GtkSelectionMode' },
 ];
 let enumListMembers = 0;
 let allEnumValues = null;

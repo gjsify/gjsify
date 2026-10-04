@@ -181,6 +181,21 @@ declare module '@nativescript/core' {
          */
         isEnabled: boolean;
         /**
+         * Where a `GridLayout` parent places this view — `ui/layouts/grid-layout/
+         * grid-layout-common.ts` registers `row`, `col`, `rowSpan` and `colSpan` on `View`
+         * with defaults `0`, `0`, `1`, `1`, and defines `column` / `columnSpan` as accessors
+         * over `col` / `colSpan`, so the GTK spellings (`GtkGridLayoutChild:column`,
+         * `column-span`) are the platform's own and a plain write reaches them. A change
+         * emits `rowChange` / `colChange` / `rowSpanChange` / `colSpanChange` and tells the
+         * parent grid itself.
+         */
+        row: number;
+        col: number;
+        column: number;
+        rowSpan: number;
+        colSpan: number;
+        columnSpan: number;
+        /**
          * The smallest size the layout gives the view. Always present, and NOT a number until
          * written: `minWidthProperty` registers `defaultValue: zeroLength` (`{ value: 0, unit:
          * 'px' }`, `ui/styling/style-properties.ts`), so an unwritten read answers that object.
@@ -336,6 +351,10 @@ declare module '@nativescript/core' {
          *  row index exceeds the declared rows is clamped into the last one, so
          *  a shrinking grid has to drop the rows it no longer fills. */
         removeRows(): void;
+        static getColumn(view: View): number;
+        static getRow(view: View): number;
+        static getColumnSpan(view: View): number;
+        static getRowSpan(view: View): number;
         static setColumn(view: View, value: number): void;
         static setRow(view: View, value: number): void;
         static setColumnSpan(view: View, value: number): void;

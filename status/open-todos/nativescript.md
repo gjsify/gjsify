@@ -16,21 +16,23 @@ elsewhere is GTK's rule exactly — and the same change would answer the `homoge
 `gtk-box` coverage row declares.
 
 
-### The NativeScript `xmlns` barrels cannot spell a window, so no shipped `.blp` builds there
+### The NativeScript `xmlns` barrels still cannot spell seven tags Learn6502's templates use
 
-Measured 2026-09-22 at `95198adaf6`: among the shipped templates whose projection declares no
-loss, **not one** has every tag in `packages/nativescript-bridge/adwaita/src/namespace/{adw,gtk}.ts`.
-They root at `AdwApplicationWindow` ×6, `AdwBin` ×2 and `GtkApplicationWindow` ×1, and the
-barrels have a member for none of the three; the rest of the gap is `GtkScrolledWindow` ×2,
-`GtkSeparator` ×1 and `GtkActionBar` ×1. ADR 0070 § How the numbers here were obtained carries
-the denominator, dated — it is nine files now, not six, because ADR 0068 carried the style
-classes and three more files went lossless. `elementFor` refuses a missing member by design, so
-this is a clean refusal and not a wrong widget.
+Measured 2026-10-04 against the 24 shared templates in `easy6502/packages/app-gnome/src`: the
+window roots (`Adw.ApplicationWindow`, `Adw.Window`), the dialog (`Adw.Dialog`), `Adw.Bin`, the
+six containers of ADR 0034 § Amendment 21, `Gtk.Grid` and `Gtk.ListBox` now have a member in
+`packages/nativescript-bridge/adwaita/src/namespace/{adw,gtk}.ts`. Still without one:
+`Gtk.CheckButton` (21 uses, the commonest), `Gtk.Frame`, `Gtk.Separator`, `Gtk.TextView`,
+`Gtk.DrawingArea`, `GtkSource.View` and `Adw.Breakpoint` (a class exists, `widgets/breakpoint.ts`,
+but no `[breakpoint]` slot or barrel member reaches it). `elementFor` refuses a missing member by
+design, so each is a clean refusal and not a wrong widget.
 
-ADR 0070 wired `blueprintPlugin()` onto the `nativescript` target and retired the
-"Blueprint is a GTK-specific UI DSL" comment, so the BUILD no longer stands between that port and
-a `.blp`. What is left is widget coverage in the port, which is ADR 0034's ledger — the window
-class first.
+Two further things stand between those templates and a build, and neither is widget coverage:
+the template classes themselves (`template $Foo : Adw.Bin`, `$QuickHelpView {}`) and Blueprint's
+`bind` and signal handlers, which `?shared-tree` projects as losses. And one projection loss is
+specific to the grid: `layout { row: 0; column: 1; }` stays a named loss (ADR 0072's table), so a
+`Gtk.Grid` child's placement reaches the port from code, XML (`row` / `column` / `rowSpan` /
+`columnSpan` are the platform's own names) and `attach()`, but not yet from a `.blp`.
 
 
 ### `withSignals` shadows nothing in `@nativescript/core` today, and nothing holds "today"

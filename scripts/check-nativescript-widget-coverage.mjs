@@ -283,6 +283,22 @@ const KNOWN_GAPS = {
         ],
         why: "The port wraps a NativeScript `ScrollView` (gtk-scrolled-window.ts), which owns its own physics, scrollbar and sizing: kinetic and overlay scrolling are the platform's behaviour with no switch, and `window-placement` moves a scrollbar the port does not draw. The four content-size bounds and the two propagate-natural flags size the scrolled window from its child, which needs the size-negotiation protocol a `GridLayout` cell does not have — the same absence the `gtk-box` row declares for `homogeneous`. `has-frame` is held and read back but draws no frame, so it is set here and not listed.",
     },
+    'adw-window': {
+        gaps: ['adaptivePreview'],
+        why: "`adaptive-preview` is libadwaita's inspector toggle that resizes the window to preview an adaptive layout; a NativeScript `Page` is the screen and has no resizable surface to preview in (window-state.ts says why this class is a container and not a window).",
+    },
+    'adw-application-window': {
+        gaps: ['adaptivePreview'],
+        why: "The same as `adw-window`: `adaptive-preview` previews a layout by resizing a window, and the platform's window is the screen.",
+    },
+    'gtk-grid': {
+        gaps: ['baselineRow'],
+        why: "`baseline-row` picks the row whose text baseline the grid aligns to; nothing in @nativescript/core measures a text baseline (the absence `gtk-align.ts` declares for `Gtk.Align`'s baseline members), so there is no allocation for it to change.",
+    },
+    'gtk-list-box': {
+        gaps: ['tabBehavior'],
+        why: '`tab-behavior` decides where Tab moves focus inside the list; the platform has no keyboard focus chain a view can steer (the absence the keyboard-contract notes elsewhere), so there is no traversal for it to change.',
+    },
     'gtk-box': {
         gaps: ['baselineChild', 'baselinePosition', 'homogeneous'],
         why: "The box extends the real NativeScript `StackLayout` and adds the two things the platform has no word for — the gap, which comes out of the children's margins because `Style` carries no `columnGap`/`rowGap`, and GTK's child verbs (gtk-box.ts). The two baseline properties are the same absence `gtk-align.ts` already declares for `Gtk.Align`'s three baseline members: nothing in @nativescript/core measures a text baseline, so there is no allocation for a baseline child or a baseline position to change. `homogeneous` asks every child for the widest child's size, and a `StackLayout` measures each child at its natural size with no equal-share mode — the same missing size-negotiation protocol `adw-inline-view-switcher` declares one entry over.",

@@ -565,11 +565,11 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-button.styleClasses': {
         own: "`GtkWidget:css-classes` is the slot and `cssClasses` is the name, but on this surface that name is TAKEN and taking it is fatal: `@nativescript/core`'s `ViewBase` declares `readonly cssClasses: Set<string>` (ui/core/view-base/index.d.ts:366), assigns it in its constructor (index.js:226), and `classNameProperty.valueChanged` clears and repopulates that Set on every `className` write (index.js:1140-1154). A subclass accessor SHADOWS the constructor's assignment, so the Set never exists and the first `className` write — the one in the widget's own constructor — dies on `cssClasses.has is not a function`; measured against 9.1.0-alpha.11 by running those two bodies verbatim. `styleClasses` is libadwaita's own word for the same thing and is free in the whole of `@nativescript/core`. Declared and left: the divergence is the PLATFORM's, and `ns-core.d.ts` now declares the member so `gjsify tsc` answers TS2611 to anyone who reaches for the convergent spelling again.",
     },
-    'gtk-box.styleClasses': {
-        own: 'The same slot on the same surface as `gtk-button.styleClasses` above, and the same platform-owned collision: `GtkWidget:css-classes` is the key, `cssClasses` is the name, and `ViewBase` already owns that name as a live `Set<string>` the CSS engine rebuilds on every `className` write. The box needs the string door because an XML attribute is the only way markup can give it a `.card`; the GIR METHODS are there beside it (`add_css_class` and its four siblings), so a caller ported off GJS never has to reach for this spelling.',
-    },
     'gtk-stack.styleClasses': {
         own: 'The same slot, the same collision as `gtk-button.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>` the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: [...]` or `styles [...]` on a stack reaches this door; the five GIR verbs sit beside it.',
+    },
+    'gtk-box.styleClasses': {
+        own: 'The same slot on the same surface as `gtk-button.styleClasses` above, and the same platform-owned collision: `GtkWidget:css-classes` is the key, `cssClasses` is the name, and `ViewBase` already owns that name as a live `Set<string>` the CSS engine rebuilds on every `className` write. The box needs the string door because an XML attribute is the only way markup can give it a `.card`; the GIR METHODS are there beside it (`add_css_class` and its four siblings), so a caller ported off GJS never has to reach for this spelling.',
     },
     'gtk-label.styleClasses': {
         own: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
@@ -765,6 +765,18 @@ const PREFERENCES_SEARCH =
  *
  * ONE SURFACE, DELIBERATELY, for the reason the property ledger gives.
  */
+/**
+ * `LayoutBase`'s three child doors, which a multi-child container overrides so every path a
+ * child can arrive by (`append`, the XML builder, a direct NativeScript call) ends in one place.
+ * The GIR verb is offered beside them in each class.
+ */
+const CHILD_DOOR_ADD =
+    "`addChild` is `LayoutBase`'s, NativeScript's own entry point for a child — the XML builder calls it, and so does any NativeScript caller. The container overrides it so every path a child can arrive by ends in one place and the tracks, numbering or gaps are derived there; the GIR verb (`attach`, `append`) is offered beside it. A name the platform owns and the port cannot not have.";
+const CHILD_DOOR_INSERT =
+    "`insertChild` is `LayoutBase`'s positional sibling of `addChild`, and a child can arrive by it as well; the container overrides it for the same reason, so the derived tracks cannot be skipped. The GIR spelling (`prepend`, `insert`, `insert_child_after`) is offered beside it.";
+const CHILD_DOOR_REMOVE =
+    "`removeChild` is `LayoutBase`'s way out, and the GIR `remove` is offered beside it. The container overrides it so a removed child gives back what it was handed (a gap, a listener, a selection) and the tracks are re-derived.";
+
 const NS_METHOD_ALIGNMENT = {
     // ── A property of a type the port flattens. ───────────────────────────────────────
     'adw-tab-view.setPageTitle': { own: TAB_PAGE_PROPERTY },
@@ -884,6 +896,24 @@ const NS_METHOD_ALIGNMENT = {
     },
     'gtk-box.addChild': {
         own: "`addChild` is `LayoutBase`'s, NativeScript's own entry point for a child — the XML builder calls it, and so does any NativeScript caller. The box overrides it so that every path a child can arrive by ends in one place and the gap is re-applied there (gtk-box.ts), which is the incident `adw-wrap-box.addChild` below records. `append` is the GIR verb, offered beside it.",
+    },
+    'gtk-grid.addChild': {
+        own: CHILD_DOOR_ADD,
+    },
+    'gtk-grid.insertChild': {
+        own: CHILD_DOOR_INSERT,
+    },
+    'gtk-grid.removeChild': {
+        own: CHILD_DOOR_REMOVE,
+    },
+    'gtk-list-box.addChild': {
+        own: CHILD_DOOR_ADD,
+    },
+    'gtk-list-box.insertChild': {
+        own: CHILD_DOOR_INSERT,
+    },
+    'gtk-list-box.removeChild': {
+        own: CHILD_DOOR_REMOVE,
     },
     'adw-wrap-box.addChild': {
         own: "`addChild` is `LayoutBase`'s, NativeScript's own entry point for a child — the builder calls it, and so does any NativeScript caller. The port overrides it so every path lands in the flex row (adw-wrap-box.ts) and offers `append`, the GIR verb, beside it. A name the platform owns and the port cannot not have.",

@@ -67,6 +67,32 @@ export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-but
 export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
+export { GtkGrid } from './gtk-grid.js';
+export { gridChildAt, gridGap, gridSpacing, gridTrackCounts } from './grid-state.js';
+export type { GridPlacement } from './grid-state.js';
+export { GtkListBox, LIST_BOX_ROW_ACTIVATED, LIST_BOX_ROW_SELECTED, LIST_ROW_SELECTED_CLASS } from './gtk-list-box.js';
+export type { ListBoxRowEventData } from './gtk-list-box.js';
+export {
+    DEFAULT_LIST_SELECTION_MODE,
+    GTK_SELECTION_MODES,
+    selectionAfterModeChange,
+    selectionAfterTap,
+    selectionMode,
+} from './list-box-state.js';
+export type { GtkSelectionModeNick } from './list-box-state.js';
+// The window roots a shared tree builds into, and the dialog overlay presented over them.
+export { AdwWindow } from './adw-window.js';
+export { AdwApplicationWindow } from './adw-application-window.js';
+export { AdwWindowBase, ADW_WINDOW_CLASS } from './window-base.js';
+export { AdwDialog, ADW_DIALOG_CLASS, ADW_DIALOG_CLOSED, ADW_DIALOG_CLOSE_ATTEMPT } from './adw-dialog.js';
+export {
+    ADW_DIALOG_PRESENTATION_MODES,
+    DEFAULT_DIALOG_PRESENTATION_MODE,
+    dialogPresentationMode,
+    findDialogHost,
+    surfaceSize,
+} from './window-state.js';
+export type { AdwDialogPresentationNick, DialogHost } from './window-state.js';
 export { NOTIFY_HEXPAND, NOTIFY_VEXPAND } from './widget-layout.js';
 export { lengthValue } from './ns-length.js';
 export type { NsLength } from './ns-length.js';
@@ -391,6 +417,11 @@ import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
 import { GtkBox } from './gtk-box.js';
+import { GtkGrid } from './gtk-grid.js';
+import { GtkListBox } from './gtk-list-box.js';
+import { AdwWindow } from './adw-window.js';
+import { AdwApplicationWindow } from './adw-application-window.js';
+import { AdwDialog } from './adw-dialog.js';
 import { GtkActionBar } from './gtk-action-bar.js';
 import { AdwBin } from './adw-bin.js';
 import { GtkOverlay } from './gtk-overlay.js';
@@ -451,6 +482,11 @@ const ELEMENTS = {
     AdwExpanderRow,
     GtkButton,
     GtkBox,
+    GtkGrid,
+    GtkListBox,
+    AdwWindow,
+    AdwApplicationWindow,
+    AdwDialog,
     GtkActionBar,
     AdwBin,
     GtkOverlay,

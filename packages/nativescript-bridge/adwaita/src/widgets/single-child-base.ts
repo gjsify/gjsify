@@ -4,8 +4,9 @@
 // A BASE AND NOT FOUR COPIES, because the second copy is where the drift starts: a
 // `GridLayout` with one star cell, a `child` that replaces its predecessor,
 // `_addChildFromBuilder` making every XML child THE child (the inherited `addChild` leaves
-// `child` null — the measured `AdwClamp` incident) and the five `css-classes` verbs are the
-// same in all four. What differs is where the child goes (`_adopt` / `_release`) and what the
+// `child` null — the measured `AdwClamp` incident) are the same in all four, and the
+// `css-classes` verbs come from `AdwStyledLayoutBase`, which the multi-child containers share.
+// What differs is where the child goes (`_adopt` / `_release`) and what the
 // widget does with it, so those are the two hooks.
 //
 // TRANSPARENT, AS GTK'S ARE. `bin`, `revealer`, `overlay` and `scrolledwindow` are CSS
@@ -27,12 +28,10 @@
 
 import { GridLayout, ItemSpec, type View } from '@nativescript/core';
 
-import { type AdwStyleClassesInput, StyleClassList } from './style-classes.js';
-import { withSignals } from './signals.js';
+import { AdwStyledLayoutBase } from './styled-layout-base.js';
 
-export abstract class AdwSingleChildBase extends withSignals(GridLayout) {
+export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
     private _child: View | null = null;
-    private readonly _style = new StyleClassList();
 
     constructor() {
         super();
@@ -90,52 +89,5 @@ export abstract class AdwSingleChildBase extends withSignals(GridLayout) {
     /** Take the child back out of wherever {@link _adopt} put it. */
     protected _release(view: View): void {
         this.removeChild(view);
-    }
-
-    // --- style classes ---
-
-    /**
-     * `GtkWidget:css-classes`, spelled `styleClasses` — `cssClasses` is the platform's own
-     * live `Set` (`style-classes.ts`). From XML it is a space-separated list.
-     */
-    get styleClasses(): string[] {
-        return this._style.classes;
-    }
-
-    set styleClasses(value: AdwStyleClassesInput) {
-        this._style.replace(value);
-        this._restyle();
-    }
-
-    /** `gtk_widget_add_css_class`. */
-    add_css_class(name: string): void {
-        this._style.add(name);
-        this._restyle();
-    }
-
-    /** `gtk_widget_remove_css_class`. */
-    remove_css_class(name: string): void {
-        this._style.remove(name);
-        this._restyle();
-    }
-
-    /** `gtk_widget_has_css_class`. */
-    has_css_class(name: string): boolean {
-        return this._style.has(name);
-    }
-
-    /** `gtk_widget_get_css_classes`. */
-    get_css_classes(): string[] {
-        return this._style.classes;
-    }
-
-    /** `gtk_widget_set_css_classes` — REPLACES the list. */
-    set_css_classes(names: readonly string[]): void {
-        this._style.replaceAll(names);
-        this._restyle();
-    }
-
-    private _restyle(): void {
-        this.className = this._style.className;
     }
 }

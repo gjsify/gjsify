@@ -18,6 +18,8 @@ import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
+import { GtkGridNsTest } from './gtk-grid.spec.js';
+import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
 import { GtkStackNsTest } from './gtk-stack.spec.js';
 import { GtkToggleButtonNsTest } from './gtk-toggle-button.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
@@ -25,13 +27,17 @@ import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 import { AdwWidgetBaseNsTest } from './widget-base.spec.js';
+import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 
 run({
     AdwSharedTreesNsTest,
     AdwClampClasslessChildNsTest,
     AdwContainersNsTest,
+    GtkGridNsTest,
+    GtkListBoxNsTest,
     GtkStackNsTest,
     AdwWidgetBaseNsTest,
+    AdwWindowRootsNsTest,
     GtkToggleButtonNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
