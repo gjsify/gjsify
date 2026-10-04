@@ -202,6 +202,14 @@ Page.adw-window {
     color: #3584e4;
 }
 
+/* NativeScript's `color` tints the thumb in BOTH states, so an off switch kept its
+ * accent thumb. `AdwSwitchRow` adds `.off` while unchecked: the slider goes neutral
+ * and only the on state carries the accent. A white thumb vanished against the white
+ * row (the Android thumb overhangs the track), so it is a mid grey. */
+.adw-switch.off {
+    color: #9a9996;
+}
+
 /* ===== Preferences page (ScrollView wrapper) ===== */
 
 .adw-preferences-page {
@@ -1871,6 +1879,10 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-switch {
     color: #78aeed;
+}
+
+.ns-dark .adw-switch.off {
+    color: #9a9996;
 }
 
 /* ===== Dark: preferences page ===== */
