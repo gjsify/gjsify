@@ -23,7 +23,10 @@ function measure() {
     const stopped = new watcherClass();
     stopped.start();
 
-    // Before the fix `stop` is undefined and this throws a TypeError.
+    // `stop_idempotent: false` is NOT by itself a broken `stop()`: against a
+    // prebuild committed before the method existed it means the LIBRARY is older
+    // than this tree, which run.mjs reports as `available` + a named skip rather
+    // than as a failed assertion.
     let stopIdempotent = false;
     try {
         stopped.stop();
