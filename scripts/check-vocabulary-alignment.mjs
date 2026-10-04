@@ -568,6 +568,9 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-stack.styleClasses': {
         own: 'The same slot, the same collision as `gtk-button.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>` the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: [...]` or `styles [...]` on a stack reaches this door; the five GIR verbs sit beside it.',
     },
+    'gtk-text-view.text': {
+        own: "`Gtk.TextView` edits a `Gtk.TextBuffer` (`buffer`, tags, iters, marks) and has no `text` key; the platform's `TextView` edits a string, so the whole text is the port's stand-in for the buffer. Converging means modelling `Gtk.TextBuffer` as a constructible value (`get_text` / `set_text` / `changed`), which this widget does not do — recorded in ADR 0034 § Amendment 23.",
+    },
     'gtk-label.styleClasses': {
         own: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
     },
@@ -788,6 +791,9 @@ const NS_METHOD_ALIGNMENT = {
     },
     'gtk-stack.setPageVisible': {
         own: '`visible` is `Gtk.StackPage:visible`, a property of the PAGE object `gtk_stack_get_page` returns. The port keeps the page as a headless record keyed on its name (view-stack-state.ts) and has no page GObject to put a setter on once a stack has adopted it, so the stack takes the name and the flag — the same answer as `adw-view-stack.setPageVisible` above.',
+    },
+    'adw-view-stack.pageIcons': {
+        own: "libadwaita reads a page's `icon-name` off the `AdwViewStackPage` object a switcher holds. The port's page is a headless record whose icon the core normalises to a GTK NAME (an SVG document becomes `''`), so the stack keeps the SVG sources it was handed and offers them, in page order, to the bound switchers — the one thing the record cannot carry.",
     },
     'adw-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
     'adw-inline-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },

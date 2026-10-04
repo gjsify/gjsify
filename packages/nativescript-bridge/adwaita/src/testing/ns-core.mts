@@ -596,6 +596,23 @@ export class TextField extends View {
     }
 }
 
+export class TextView extends View {
+    private _text = '';
+    hint = '';
+    editable = true;
+
+    get text(): string {
+        return this._text;
+    }
+
+    /** `textChange` for a programmatic write too — same reasoning as `TextField.text`. */
+    set text(value: string) {
+        if (this._text === value) return;
+        this._text = value;
+        this.notify({ eventName: 'textChange', object: this, value });
+    }
+}
+
 export class Button extends View {
     text = '';
 }

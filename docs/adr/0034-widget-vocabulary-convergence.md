@@ -3343,3 +3343,42 @@ and has no `attach_next_to`, `insert_row` or `baseline-row`; `Gtk.ListBox` has n
 header function, `activate-on-single-click` is held, and `Adw.Breakpoint` is not a window child yet.
 No window, dialog, grid or list was run on a device: every claim above is measured against the
 platform double, which has no layout pass, so what is verified is the track list and the tree.
+
+## Amendment 23, 2026-10-04 — five more primitives, and one that is refused by name
+
+Learn6502's shared templates also place `Gtk.CheckButton`, `Gtk.Separator`, `Gtk.Frame`,
+`Gtk.TextView` and `Gtk.DrawingArea`. Each is a real NativeScript view named after its GIR GType
+(clause 1) and exported through the Gtk barrel (clause 2), with the construct-props bag, the
+`withSignals` seam and the base properties of § Amendment 22.
+
+- **`Gtk.CheckButton`** is a tappable two-column `GridLayout` — the indicator (a rounded square
+  that fills with the accent and shows a checkmark, or a dash when `inconsistent`) and the
+  content (`label`, or a `child` that replaces it). It is NOT a `Gtk.ToggleButton`; it owns
+  `active`, `inconsistent`, `use-underline`, `toggled` and `notify::active`, and wears `checked` /
+  `inconsistent` as STATE classes the style list never reports. A tap toggles, clears
+  `inconsistent` and emits `activate`. `group` (radio exclusivity) is not implemented.
+- **`Gtk.Separator`** is an empty layout whose `orientation` (default `horizontal`) is a class;
+  the theme makes it a one-DIP line.
+- **`Gtk.Frame`** is a two-row layout: the `label` (or `label-widget`) above the bordered `child`.
+  `label-xalign` is a declared gap.
+- **`Gtk.TextView`** is a box around the platform `TextView`, as `Gtk.Entry` is around a
+  `TextField`. The platform edits a string, not a `Gtk.TextBuffer`, so the text is the
+  widget's own `text` property (ledgered `own` in `check-vocabulary-alignment.mjs`); tags, the
+  buffer, margins and indent are declared gaps. `wrap-mode` is held and read back and changes
+  nothing: the platform view always wraps.
+- **`Gtk.DrawingArea` is refused where it cannot work.** NativeScript core has no 2D surface and
+  no cairo context to hand a draw function, so the widget CONSTRUCTS (a template that places
+  one still builds; `content-width` / `content-height` become the minimum size) and
+  `set_draw_func` THROWS, naming itself, rather than leaving a blank rectangle. `queue_draw` is a
+  no-op.
+
+**What holds it.** `gtk-controls.spec.ts` on the trees entry; the gaps in `KNOWN_GAPS`; the
+browser asymmetry in `ONE_RENDERER_ONLY` with its open-todos anchor (`gtk-check-button` left that
+ledger — the browser already ships it — and joined `NO_STORY_OF_ITS_OWN`, as `box` and `label`
+are). The check indicator's fill is in the accent table. No widget was run on a device.
+
+**Same change, not new widgets.** The stack kept no SVG-source icon (the core normalises a page
+icon to a NAME and empties a document), so a bound switcher drew `image-missing` for every page an
+app gave source for; `AdwViewStack.pageIcons()` now returns what each page was added with. The
+icon renderer treats Adwaita's neutral symbolic greys as the caller's colour, as the icon
+generator does, so an app's own symbolics no longer draw `#222` on a dark page.

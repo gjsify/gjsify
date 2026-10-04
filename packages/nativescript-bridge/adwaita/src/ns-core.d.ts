@@ -411,6 +411,15 @@ declare module '@nativescript/core' {
         editable: boolean;
     }
 
+    /** A multi-line text input — `<TextView>`. Fires `'textChange'` as it is edited. */
+    export class TextView extends View {
+        text: string;
+        /** Placeholder text shown when empty. */
+        hint: string;
+        /** Whether the view accepts edits. */
+        editable: boolean;
+    }
+
     /** A push button — `<Button>`. */
     export class Button extends View {
         text: string;

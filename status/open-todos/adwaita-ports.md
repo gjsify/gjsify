@@ -375,6 +375,13 @@ exactly why they must not be written as decisions.
   `Gtk.ListBox` (rows, `selection-mode`, `row-activated`) because Learn6502's debugger and
   learn templates need them through `?shared-tree`; the browser has no element for either.
   The same scheduled-work verdict as the six containers above.
+- **`adw-separator`, `adw-frame`, `adw-text-view` and `adw-drawing-area` in the browser.**
+  The join keys of `gtk-separator`, `gtk-frame`, `gtk-text-view` and `gtk-drawing-area`.
+  NativeScript ships all four (`Gtk.Separator`, `Gtk.Frame`, `Gtk.TextView`,
+  `Gtk.DrawingArea`; ADR 0034 § Amendment 23) so Learn6502's shared templates build there;
+  the browser has no element for any of them. Scheduled work, not a decision against — except
+  that `Gtk.DrawingArea` has no counterpart on NativeScript either: it is a constructible
+  stub whose `set_draw_func` throws, and a browser element would have `<canvas>` to draw on.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
