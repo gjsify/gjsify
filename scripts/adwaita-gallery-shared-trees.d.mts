@@ -66,7 +66,11 @@ export interface SharedNode {
     /** The simple binds, keyed by target property — ADR 0093. */
     bindings?: Record<
         string,
-        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[] }
+        {
+            source: string;
+            property: string;
+            flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[];
+        }
     >;
     children?: SharedNode[];
 }

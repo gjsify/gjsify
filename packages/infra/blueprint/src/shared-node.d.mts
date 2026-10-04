@@ -117,7 +117,11 @@ export interface SharedNode {
      */
     bindings?: Record<
         string,
-        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[] }
+        {
+            source: string;
+            property: string;
+            flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[];
+        }
     >;
     children?: SharedNode[];
 }
