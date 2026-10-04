@@ -304,17 +304,47 @@ function bindBreakpoints(
     if (!(view instanceof View)) {
         throw new Error(`<${element.xmlName}> is not a view, so it has no size for a breakpoint to read.`);
     }
-    const definitions = (node.breakpoints ?? []).map((breakpoint) => {
+    wireBreakpoints(element.xmlName, view, node.breakpoints ?? [], context.ids, context.observeSize);
+}
+
+/**
+ * The breakpoints of a view the application built itself, for a shell that is not (yet) a tree:
+ * the same data `breakpoints` carries, wired the same way. `ids` names the views the setters
+ * address; `host` is the view whose size decides (the window's, when it is the root).
+ */
+export function applyBreakpoints(
+    host: View,
+    breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
+    ids: Readonly<Record<string, View>>,
+    options: Pick<BuildOptions, 'observeSize'> = {},
+): void {
+    wireBreakpoints(
+        host.constructor.name,
+        host,
+        breakpoints,
+        new Map(Object.entries(ids)),
+        options.observeSize ?? observeViewSize,
+    );
+}
+
+function wireBreakpoints(
+    owner: string,
+    view: View,
+    breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
+    ids: ReadonlyMap<string, View>,
+    observeSize: SizeSource,
+): void {
+    const definitions = breakpoints.map((breakpoint) => {
         if (parseBreakpointCondition(breakpoint.condition) === null) {
             throw new Error(
-                `<${element.xmlName}> \`condition ("${breakpoint.condition}")\` is not an Adwaita breakpoint condition.`,
+                `<${owner}> \`condition ("${breakpoint.condition}")\` is not an Adwaita breakpoint condition.`,
             );
         }
         return {
             condition: breakpoint.condition,
             setters: breakpoint.setters.map((setter) => {
-                const object = context.ids.get(setter.object);
-                const where = `<${element.xmlName}> breakpoint setter \`${setter.object}.${setter.property}\``;
+                const object = ids.get(setter.object);
+                const where = `<${owner}> breakpoint setter \`${setter.object}.${setter.property}\``;
                 if (object === undefined) {
                     throw new Error(`${where} names no object: nothing in this tree has the id '${setter.object}'.`);
                 }
@@ -335,7 +365,7 @@ function bindBreakpoints(
                 'authored' in slot ? String(slot.authored) : slot.original;
         },
     });
-    context.observeSize(view, (size) => driver.evaluate(size));
+    observeSize(view, (size) => driver.evaluate(size));
 }
 
 /**
