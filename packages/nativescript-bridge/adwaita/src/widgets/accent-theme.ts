@@ -68,6 +68,7 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-slider', property: 'color', role: 'fill' },
     { selector: '.adw-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.adw-button.suggested-action:highlighted', property: 'background-color', role: 'shade' },
+    { selector: '.adw-button.suggested-action.checked', property: 'background-color', role: 'shade' },
     { selector: '.adw-banner-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.adw-avatar', property: 'background-color', role: 'fill' },
     {
@@ -85,6 +86,7 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-image-button.adw-entry-apply:highlighted', property: 'background-color', role: 'shade' },
     { selector: '.ns-dark .adw-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.ns-dark .adw-button.suggested-action:highlighted', property: 'background-color', role: 'shade' },
+    { selector: '.ns-dark .adw-button.suggested-action.checked', property: 'background-color', role: 'shade' },
     { selector: '.ns-dark .adw-avatar', property: 'background-color', role: 'shade' },
     { selector: '.ns-dark .adw-image-button.adw-entry-apply:highlighted', property: 'background-color', role: 'shade' },
     // Accent TEXT on a dark page — the standalone role, lightened rather than

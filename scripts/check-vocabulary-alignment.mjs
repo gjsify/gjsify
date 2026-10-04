@@ -568,6 +568,9 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-box.styleClasses': {
         own: 'The same slot on the same surface as `gtk-button.styleClasses` above, and the same platform-owned collision: `GtkWidget:css-classes` is the key, `cssClasses` is the name, and `ViewBase` already owns that name as a live `Set<string>` the CSS engine rebuilds on every `className` write. The box needs the string door because an XML attribute is the only way markup can give it a `.card`; the GIR METHODS are there beside it (`add_css_class` and its four siblings), so a caller ported off GJS never has to reach for this spelling.',
     },
+    'gtk-stack.styleClasses': {
+        own: 'The same slot, the same collision as `gtk-button.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>` the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: [...]` or `styles [...]` on a stack reaches this door; the five GIR verbs sit beside it.',
+    },
     'gtk-label.styleClasses': {
         own: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
     },
@@ -773,6 +776,9 @@ const NS_METHOD_ALIGNMENT = {
     'adw-navigation-view.setPageCanPop': { own: NAVIGATION_PAGE_PROPERTY },
     'adw-view-stack.setPageVisible': {
         own: '`visible` is `Adw.ViewStackPage:visible`, a property of the PAGE object `adw_view_stack_add` returns. The port keeps the page as a headless record keyed on its name (view-stack-state.ts) and has no page GObject to put a setter on, so the stack takes the name and the flag.',
+    },
+    'gtk-stack.setPageVisible': {
+        own: '`visible` is `Gtk.StackPage:visible`, a property of the PAGE object `gtk_stack_get_page` returns. The port keeps the page as a headless record keyed on its name (view-stack-state.ts) and has no page GObject to put a setter on once a stack has adopted it, so the stack takes the name and the flag — the same answer as `adw-view-stack.setPageVisible` above.',
     },
     'adw-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
     'adw-inline-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },

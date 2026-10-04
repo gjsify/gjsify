@@ -198,6 +198,30 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    bin: {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    overlay: {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    revealer: {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'scrolled-window': {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    stack: {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'toggle-button': {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'image-button': {
         only: 'nativescript',
         decision:
@@ -274,6 +298,9 @@ const MIN_REASON = 40;
 /** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
 const GAP_ISSUE = /^#\d+$/;
 const GAP_TODO = /^open-todos: (\S.*)$/;
+
+/** Where those anchors are read from, named in the failures that point at one. */
+const OPEN_TODOS = 'status/open-todos/';
 
 /**
  * The open-TODO sections a `gap` may point at, via `generate-status.mjs`'s OWN resolver

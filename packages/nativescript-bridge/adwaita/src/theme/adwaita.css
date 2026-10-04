@@ -582,6 +582,21 @@ Page.adw-window {
     background-color: rgba(224, 27, 36, 0.24);
 }
 
+/* `Gtk.ToggleButton:active` — `button:checked` takes the pressed shade
+ * (`$button_active_color`, _buttons.scss). `checked` is a STATE class the widget wears
+ * (`GtkToggleButton`), never a member of `styleClasses`. */
+.adw-button.checked {
+    background-color: rgba(0, 0, 0, 0.19);
+}
+
+.adw-button.suggested-action.checked {
+    background-color: #1c71d8;
+}
+
+.adw-button.destructive-action.checked {
+    background-color: rgba(224, 27, 36, 0.24);
+}
+
 /* Activatable boxed-list rows (button row / combo row) darken on press, like
  * Adwaita's `row.activatable:active` (`$view_active_color` = currentColor 8%).
  * The rows are transparent at rest, so the press is a true rgba overlay over the
@@ -1891,6 +1906,10 @@ Page.ns-dark.adw-window {
     background-color: rgba(255, 255, 255, 0.22);
 }
 
+.ns-dark .adw-button.checked {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
 .ns-dark .adw-button.flat:highlighted {
     background-color: rgba(255, 255, 255, 0.22);
 }
@@ -1908,6 +1927,14 @@ Page.ns-dark.adw-window {
 }
 
 .ns-dark .adw-button.destructive-action:highlighted {
+    background-color: rgba(192, 28, 40, 0.3);
+}
+
+.ns-dark .adw-button.suggested-action.checked {
+    background-color: #1c71d8;
+}
+
+.ns-dark .adw-button.destructive-action.checked {
     background-color: rgba(192, 28, 40, 0.3);
 }
 
