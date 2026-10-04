@@ -56,6 +56,15 @@ export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = [])
                 `${Object.keys(node.extensions).join(' and ')} (ADR 0072); load the .blp through Gtk.Builder instead.`,
         );
     }
+    // ADR 0090: `layout` is a property of the child's layout-manager child object, which this
+    // host's `createElement`/`insert` have no door for. Refused rather than dropped, since a grid
+    // child with no cell collapses onto the first one at exit 0.
+    if (node.layout !== undefined) {
+        throw new Error(
+            `gtk-host's shared-tree builder has no door for \`${node.tag}\`'s layout ` +
+                `(${Object.keys(node.layout).join(', ')}; ADR 0090); load the .blp through Gtk.Builder instead.`,
+        );
+    }
     const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
     built.push(el);
     // Before the children: `insert` parents a REALISED widget, and a construct-only
