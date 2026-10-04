@@ -454,6 +454,14 @@ export interface ExpectNode {
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    /** The signal handlers the node binds, as names — ADR 0093. */
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: ExpectNode[];
 }
 

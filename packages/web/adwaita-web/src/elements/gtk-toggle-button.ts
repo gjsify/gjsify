@@ -46,6 +46,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import type { DispatchedSignals } from '../signals.js';
 import { GtkButton } from './gtk-button.js';
 
 /**
@@ -55,6 +56,12 @@ import { GtkButton } from './gtk-button.js';
 const GROUP_WALK_LIMIT = 1024;
 
 export class GtkToggleButton extends GtkButton {
+    static override readonly signals: DispatchedSignals = {
+        ...GtkButton.signals,
+        toggled: 'toggled',
+        'notify::active': 'notify::active',
+    };
+
     private _wired = false;
     /** The other end of the group link, both halves of `GtkToggleButtonPrivate`. */
     private _groupNext: GtkToggleButton | null = null;

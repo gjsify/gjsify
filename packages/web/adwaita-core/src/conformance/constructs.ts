@@ -21,7 +21,7 @@ import type { SharedTreeNode } from './shared-trees.js';
 import { authoredNodes } from './shared-trees.js';
 
 /** The construct kinds, in the order the tables list them. */
-export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page', 'extern'] as const;
+export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page', 'extern', 'signal'] as const;
 
 export type ConstructKind = (typeof CONSTRUCT_KINDS)[number];
 
@@ -47,6 +47,7 @@ export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
         if (node.extensions?.responses !== undefined) found.push({ kind: 'responses', path });
         if (node.page !== undefined) found.push({ kind: 'page', path });
         if (node.extern === true) found.push({ kind: 'extern', path });
+        node.signals?.forEach(() => found.push({ kind: 'signal', path }));
     }
     return found;
 }
@@ -168,6 +169,15 @@ export const CONSTRUCT_VECTORS: readonly ConstructVector[] = [
             children: [{ tag: 'CorpusExtern', id: 'registered', extern: true }],
         },
         shows: [{ id: 'registered', builtByRegisteredClass: true }],
+    },
+    {
+        kind: 'signal',
+        rule: 'a handler bound with `clicked => $onClicked()` runs, from the scope the builder was handed, once per emission (ADR 0093)',
+        tree: {
+            tag: 'GtkBox',
+            children: [{ tag: 'GtkButton', id: 'pressed', signals: [{ name: 'clicked', handler: 'onClicked' }] }],
+        },
+        shows: [{ handler: 'onClicked', calls: 1 }],
     },
 ];
 

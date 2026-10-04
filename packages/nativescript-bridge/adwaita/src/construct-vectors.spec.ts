@@ -6,12 +6,14 @@ import {
     EXTERN_VECTOR_CLASS,
     driveConstructVectors,
     type ConstructVector,
+    type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { build, buildDialog, registerTemplateClass } from './builder/index.js';
 import { capabilities } from './capabilities.js';
 import { GtkBox } from './widgets/gtk-box.js';
+import type { GtkButton } from './widgets/gtk-button.js';
 import type { AdwAlertDialog } from './widgets/adw-alert-dialog.js';
 import type { AdwComboRow } from './widgets/adw-combo-row.js';
 
@@ -35,6 +37,18 @@ function observe(vector: ConstructVector): unknown {
             return (buildDialog(vector.tree) as unknown as AdwAlertDialog).responses.map(
                 ({ id, label, appearance, enabled }) => ({ id, label, appearance, enabled }),
             );
+        case 'signal': {
+            let calls = 0;
+            const root = build(vector.tree, {
+                scope: {
+                    onClicked: () => {
+                        calls++;
+                    },
+                },
+            }) as unknown as { getViewById(id: string): GtkButton };
+            root.getViewById('pressed').notify({ eventName: 'clicked', object: root.getViewById('pressed') });
+            return [{ handler: 'onClicked', calls }];
+        }
         case 'extern': {
             const root = build(vector.tree) as unknown as { getViewById(id: string): object | undefined };
             return [
@@ -62,6 +76,22 @@ export const AdwConstructVectorsNsTest = async () => {
         await it('refuses a second class under a registered name', () => {
             expect(() => registerTemplateClass(EXTERN_VECTOR_CLASS, class extends GtkBox {})).toThrow(
                 'already registered',
+            );
+        });
+        await it('refuses a signal handler the scope lacks, naming it', () => {
+            const tree = CONSTRUCT_VECTORS.find((each) => each.kind === 'signal')!.tree;
+            expect(() => build(tree)).toThrow("'onClicked'");
+            expect(() => build(tree, { scope: {} })).toThrow('has no such function');
+        });
+        await it('refuses a signal the class does not emit, and the forms it has not verified', () => {
+            const on = (signal: NonNullable<SharedTreeNode['signals']>[number]): SharedTreeNode => ({
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkButton', signals: [signal] }],
+            });
+            const scope = { onX: () => {} };
+            expect(() => build(on({ name: 'map', handler: 'onX' }), { scope })).toThrow("no signal 'map'");
+            expect(() => build(on({ name: 'clicked', handler: 'onX', flags: ['swapped'] }), { scope })).toThrow(
+                'plain handlers only',
             );
         });
         await it('builds the registered class with its own props and children, as for any widget', () => {

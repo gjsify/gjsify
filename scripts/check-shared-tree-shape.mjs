@@ -95,6 +95,9 @@ const STYLES = '- styleClasses?: string[]';
 const PAGE = '- page?: { label?: string; name?: string }';
 const LAYOUT = '- layout?: Record<string, string | number | boolean>';
 const EXTERN = '- extern?: true';
+const SIGNALS =
+    "- signals?: { name: string; detail?: string; handler: string; object?: string; flags?: ('swapped' | " +
+    "'after' | 'not-swapped')[]; }[]";
 const EXTENSIONS =
     '- extensions?: { strings?: { value: string; translatable?: { context?: string } }[]; responses?: ' +
     "{ id: string; label: string; translatable?: { context?: string }; appearance?: 'suggested' | " +
@@ -163,6 +166,7 @@ const FAMILY = [
             `${EXTENSIONS}`,
             `${LAYOUT}`,
             `${EXTERN}`,
+            `${SIGNALS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -191,6 +195,7 @@ const FAMILY = [
             `${EXTENSIONS}`,
             `${LAYOUT}`,
             `${EXTERN}`,
+            `${SIGNALS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -217,6 +222,7 @@ const FAMILY = [
             `${EXTENSIONS}`,
             `${LAYOUT}`,
             `${EXTERN}`,
+            `${SIGNALS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -457,6 +463,13 @@ export interface SharedTreeNode {
         }[];
     };
     layout?: Readonly<Record<string, string | number | boolean>>;
+    signals?: readonly {
+        readonly name: string;
+        readonly detail?: string;
+        readonly handler: string;
+        readonly object?: string;
+        readonly flags?: readonly ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -485,6 +498,13 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -513,6 +533,13 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -538,6 +565,7 @@ const VECTORS = [
             `${EXTENSIONS}`,
             `${LAYOUT}`,
             `${EXTERN}`,
+            `${SIGNALS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -563,6 +591,13 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: Lossy[];
 }`,
         'Lossy',
@@ -592,6 +627,13 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -620,6 +662,13 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: (Widened | string)[];
 }`,
         'Widened',

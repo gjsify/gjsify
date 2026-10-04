@@ -17,12 +17,16 @@
 import { buttonStyleClasses } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import type { DispatchedSignals } from '../signals.js';
 import { createGtkImage } from './gtk-image.js';
 
 /** The boolean attributes that select a style class; the mapping lives in the core. */
 const STYLE_ATTRIBUTES = ['flat', 'suggested', 'destructive', 'circular', 'pill'] as const;
 
 export class GtkButton extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { clicked: 'click' };
+
     private _button!: HTMLButtonElement;
     private _label = '';
     private _initialized = false;

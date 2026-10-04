@@ -233,18 +233,22 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkBox',
             children: [
                 { tag: 'GtkLabel', id: 'labelOne' },
-                { tag: 'GtkButton', props: { label: 'press' } },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'press' },
+                    signals: [
+                        { name: 'clicked', handler: 'onClicked' },
+                        { name: 'activate', handler: 'onActivate', flags: ['swapped'] },
+                        { name: 'map', handler: 'onMap', flags: ['after'] },
+                        { name: 'realize', handler: 'onRealize', object: 'labelOne' },
+                        { name: 'unrealize', handler: 'onUnrealize', object: 'labelOne', flags: ['not-swapped'] },
+                        { name: 'notify', detail: 'sensitive', handler: 'onSensitive' },
+                    ],
+                },
             ],
         },
-        lost: [
-            { kind: 'signal', line: 9, detail: 'the bare handler binding `clicked => $onClicked()`' },
-            { kind: 'signal', line: 10, detail: '`swapped`' },
-            { kind: 'signal', line: 11, detail: '`after`' },
-            { kind: 'signal', line: 12, detail: 'a handler with an object, `$onRealize(labelOne)`' },
-            { kind: 'signal', line: 13, detail: 'an object and `not-swapped`' },
-            { kind: 'signal', line: 14, detail: 'a detailed signal, `notify::sensitive`' },
-        ],
-        note: 'Six spellings of one construct and one loss kind: `SharedNode` has no signal, so the flags, the object and the detail are dropped with the handler. The XML tells them apart — the flags are Python booleans, `swapped="True"` and `swapped="False"`, and `after` appears only when set — which is what `11-signal.ui` pins.',
+        lost: [],
+        note: 'Six spellings of one construct, all carried since ADR 0093: the flags, the object and the detail travel with the handler name. The XML tells them apart — the flags are Python booleans, `swapped="True"` and `swapped="False"`, and `after` appears only when set — which is what `11-signal.ui` pins.',
     },
     {
         file: '12-menu.blp',
@@ -485,6 +489,7 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkButton',
             props: { label: 'on one line', 'margin-top': 4, 'margin-bottom': 4 },
             styleClasses: ['flat'],
+            signals: [{ name: 'clicked', handler: 'onClicked' }],
             children: [{ tag: 'GtkLabel' }],
         },
         lost: [
@@ -493,13 +498,8 @@ export const RULE_EXPECTATIONS = [
                 line: 3,
                 detail: 'the whole `menu oneLineMenu { }`, whose submenu writes an item and an attribute on one line',
             },
-            {
-                kind: 'signal',
-                line: 10,
-                detail: 'the handler binding `clicked => $onClicked()`, which shares its line with the property beside it',
-            },
         ],
-        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no signal and no menu, so the projection still sees only a fraction of what this file pins — but the style block on line 12 now lands in `styleClasses`, which is what makes the one-line `styles ["flat"] margin-bottom: 4;` a case the projection reads rather than skips.',
+        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no menu, so the projection still sees only a fraction of what this file pins — but the style block on line 12 now lands in `styleClasses`, which is what makes the one-line `styles ["flat"] margin-bottom: 4;` a case the projection reads rather than skips.',
     },
     {
         file: '27-property-flags.blp',
@@ -539,16 +539,18 @@ export const RULE_EXPECTATIONS = [
                 {
                     tag: 'GtkBox',
                     slot: 'child',
-                    children: [{ tag: 'GtkLabel', props: { 'mnemonic-widget': 'template' } }, { tag: 'GtkButton' }],
+                    children: [
+                        { tag: 'GtkLabel', props: { 'mnemonic-widget': 'template' } },
+                        { tag: 'GtkButton', signals: [{ name: 'clicked', handler: 'onClicked', object: 'template' }] },
+                    ],
                 },
             ],
         },
         lost: [
             { kind: 'binding', line: 11, detail: '`bind template.sensitive`' },
-            { kind: 'signal', line: 15, detail: '`$onClicked(template)`' },
             { kind: 'breakpoint', line: 20, detail: 'the whole `[breakpoint]` child, whose setter targets `template`' },
         ],
-        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other three references go with the constructs that carry them.',
+        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other two references go with the constructs that carry them.',
     },
     {
         file: '31-responses.blp',
@@ -995,15 +997,15 @@ export const RULE_EXPECTATIONS = [
                     props: { orientation: 'vertical' },
                     styleClasses: ['palette', 'dim-label'],
                     layout: { column: 1, row: 2 },
+                    signals: [
+                        { name: 'clicked', handler: 'onExternClicked' },
+                        { name: 'notify', detail: 'active', handler: 'onExternNotify', flags: ['swapped'] },
+                    ],
                 },
                 { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
             ],
         },
-        lost: [
-            { kind: 'signal', line: 19, detail: '`clicked`' },
-            { kind: 'signal', line: 20, detail: '`notify::active`, and that it is `swapped`' },
-            { kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' },
-        ],
+        lost: [{ kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' }],
         note: 'What this exit shows and the golden does not: `styleClasses` and `props` survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1`. The losses are the ones their own rule files take (`11-signal`, `20-accessibility`; `19-layout` is carried since ADR 0092) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one. The `extern` loss sits at the OBJECT and the other four at their blocks, so a reader can tell which is the tag and which is the content.',
     },
     {

@@ -16,4 +16,5 @@ export const capabilities: ConstructCapabilities = {
             'adwaita-nativescript builds no pages: there is no NS widget yet for Gtk.Notebook, and Gtk.StackPage is not on this branch',
     },
     extern: 'implemented',
+    signal: 'implemented',
 };
