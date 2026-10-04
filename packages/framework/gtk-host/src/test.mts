@@ -20,6 +20,7 @@ import placementSuite from './placement.spec.js';
 import probeSuite from './probe.spec.js';
 import propsSuite from './props.spec.js';
 import uiFontSuite from './ui-font.spec.js';
+import constructVectorsSuite from './construct-vectors.spec.js';
 import sharedTreesSuite from './shared-trees.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
 import gtkPropsSuite from './style/gtk-props.spec.js';
@@ -62,6 +63,7 @@ run({
     adjustmentSuite,
     conformanceSuite,
     sharedTreesSuite,
+    constructVectorsSuite,
     generatorSuite,
     generatedSuite,
     listSuite,

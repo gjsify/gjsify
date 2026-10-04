@@ -40,7 +40,7 @@
 // before comparing rather than teaching this file to invent it.
 
 /** @import { BlueprintFile, ObjectBody, ObjectNode, SourceLocation, TemplateNode, TypeRef, Value } from './ast.d.mts' */
-/** @import { ProjectedLoss, SharedNode, SharedNodeProjection } from './shared-node.d.mts' */
+/** @import { ProjectedLoss, ProjectedUse, SharedNode, SharedNodeProjection } from './shared-node.d.mts' */
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -471,6 +471,44 @@ const lossesOf = (file, tag) => {
 };
 
 /**
+ * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
+ *
+ * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
+ * `strings` and `responses`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * question goes to the reader the projection itself fills the field with, so a construct the
+ * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
+ *
+ * @param {BlueprintFile} file @param {(type: TypeRef, position?: 'object' | 'reference') => string} tag
+ * @returns {ProjectedUse[]}
+ */
+const usesOf = (file, tag) => {
+    /** @type {ProjectedUse[]} */
+    const uses = [];
+
+    /** @param {ObjectBody} body */
+    const walkBody = (body) => {
+        for (const property of body.properties) {
+            if (property.value.kind === 'list' && stringsOf(property) !== undefined) {
+                uses.push({ kind: 'strings', line: property.line });
+            } else if (property.value.kind === 'object') walkBody(property.value.object.body);
+        }
+        for (const extension of body.extensions) {
+            if (extension.name === 'layout' && layoutOf(extension, tag) !== undefined) {
+                uses.push({ kind: 'layout', line: extension.line });
+            }
+            if (extension.name === 'responses') uses.push({ kind: 'responses', line: extension.line });
+        }
+        for (const child of body.children) {
+            if (!isBreakpoint(child.object)) walkBody(child.object.body);
+        }
+    };
+
+    const root = file.roots.find((candidate) => candidate.kind !== 'menu');
+    if (root !== undefined) walkBody(root.body);
+    return uses;
+};
+
+/**
  * Project a parsed `.blp` into the node shape ADR 0051's renderers consume.
  *
  * @param {BlueprintFile} file @param {ProjectOptions} [options]
@@ -520,7 +558,12 @@ export function projectToSharedNode(file, options) {
                 ...projectBody(template.body, tag),
             },
             lost: lossesOf(file, tag),
+            uses: usesOf(file, tag),
         };
     }
-    return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file, tag) };
+    return {
+        node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag),
+        lost: lossesOf(file, tag),
+        uses: usesOf(file, tag),
+    };
 }

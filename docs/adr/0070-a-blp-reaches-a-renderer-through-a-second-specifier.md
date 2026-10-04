@@ -3,6 +3,7 @@
 - Status: **Accepted** (2026-09-22)
 - Date: 2026-09-22
 - Deciders: Pascal Garber
+- Note: § 2 stops being a global rule under [ADR 0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md): a renderer's `./capabilities` table narrows it, and `?shared-tree&for=<renderer>` checks a tree at the import site. A non-empty `lost` is still a build failure.
 - Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md),
   [ADR 0033 (declarative templates preferred)](0033-declarative-templates-preferred.md),
   [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md),

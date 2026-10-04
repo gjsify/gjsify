@@ -3,6 +3,7 @@
 - Status: **Proposed**
 - Date: 2026-09-14
 - Deciders: Pascal Garber
+- Note: § 6 is superseded by [ADR 0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md): the remaining constructs are carried and each renderer declares in `./capabilities` what it builds or refuses. § 2's "a field lands WITH its reader" is revised there for the refused-everywhere kinds.
 - Related: [ADR 0033 (declarative templates preferred)](0033-declarative-templates-preferred.md),
   [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md) § 8,
   [ADR 0042 (portable menu model)](0042-portable-menu-model.md),
