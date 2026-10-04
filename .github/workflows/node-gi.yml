@@ -986,7 +986,14 @@ jobs:
           # glib provides libgirepository-2.0 + girepository-2.0.pc (the merged API);
           # gobject-introspection provides the GLib/GObject/Gio typelibs (Homebrew
           # builds them there to break the glib<->g-i circular dep) + g-ir tools.
-          brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme
+          #
+          # Latest Homebrew, in step with release.yml: this addon and the runtime bundle
+          # must come from one GTK, and a frozen index here would drift from the release.
+          formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme)
+          brew update
+          brew install "${formulae[@]}"
+          brew upgrade "${formulae[@]}"
+          brew list --versions gtk4 libadwaita glib pango
           BREW_PREFIX="$(brew --prefix)"
           # brew symlinks each keg's lib/ — incl. girepository-1.0/*.typelib and
           # pkgconfig/*.pc — into $BREW_PREFIX/lib, so one dir covers every formula.
@@ -1398,8 +1405,15 @@ jobs:
     steps:
       # Build-time closure SOURCE only — these libraries are collected + relocated
       # into a self-contained bundle, they are NOT what the conformance job runs on.
+      # Latest Homebrew, like release.yml's bundle job, so this conformance run sees the
+      # GTK a release would ship rather than the runner image's frozen index.
       - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
-        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config libgda
+        run: |
+          formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config libgda)
+          brew update
+          brew install "${formulae[@]}"
+          brew upgrade "${formulae[@]}"
+          brew list --versions gtk4 libadwaita glib pango
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4

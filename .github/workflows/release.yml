@@ -359,8 +359,18 @@ jobs:
       # ships as its `tls-backend` data set, without which souphttpsrc resolves and then
       # fails on every https URL. A transitive dep is a fact about today's formula; this
       # is the one the builder asserts.
+      # The bundle ships whatever Homebrew has TODAY: `brew update` refreshes the runner
+      # image's formula index (HOMEBREW_NO_AUTO_UPDATE would freeze it at image-build
+      # time) and `brew upgrade` lifts a formula the image already carries, which
+      # `brew install` leaves alone. GTK 4.24.0 lost the arrow keys on macOS and 4.24.1
+      # fixed it; a frozen index is how 4.24.0 would have shipped past that fix.
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking libgda
+        run: |
+          formulae=(gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking libgda)
+          brew update
+          brew install "${formulae[@]}"
+          brew upgrade "${formulae[@]}"
+          brew list --versions gtk4 libadwaita glib pango
 
       # Node 24 runs build-gtk-runtime-darwin.mjs (node:child_process/fs) and the publish.
       # No `registry-url` here — setting it makes actions/setup-node inject a
@@ -1266,7 +1276,14 @@ jobs:
           # glib provides libgirepository-2.0 + girepository-2.0.pc (the merged API);
           # gobject-introspection provides the GLib/GObject/Gio typelibs (Homebrew
           # builds them there to break the glib<->g-i circular dep) + g-ir tools.
-          brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme
+          #
+          # Latest Homebrew, in step with the runtime bundle job above: this addon and
+          # that bundle must come from one GTK (#910), so neither may keep a frozen index.
+          formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme)
+          brew update
+          brew install "${formulae[@]}"
+          brew upgrade "${formulae[@]}"
+          brew list --versions gtk4 libadwaita glib pango
           BREW_PREFIX="$(brew --prefix)"
           # brew symlinks each keg's lib/ — incl. girepository-1.0/*.typelib and
           # pkgconfig/*.pc — into $BREW_PREFIX/lib, so one dir covers every formula.
