@@ -159,6 +159,7 @@ export {
     AdwBreakpoint,
     addBreakpoints,
     evaluateBreakpointCondition,
+    observeViewSize,
     parseBreakpointCondition,
     registerAdwaitaElements,
 } from './widgets/index.js';

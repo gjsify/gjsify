@@ -41,17 +41,14 @@ function measureView(view: View): BreakpointSize | null {
 }
 
 /**
- * Bind breakpoints to a view so they re-evaluate on every layout pass (the NS
- * stand-in for Adwaita's window-size signal): the view's `layoutChanged` event
- * drives {@link AdwBreakpoint.evaluate} with the post-layout DIP size, and a
- * `loaded` seed evaluates once the first size is known. Each breakpoint is
- * evaluated independently. Returns a dispose function that detaches the listeners.
+ * The SIZE SOURCE both shapes share: the view's `layoutChanged` event reports its post-layout DIP
+ * size to `onSize`, with a `loaded` seed and an immediate read if the view is already laid out.
+ * Returns a dispose function that detaches the listeners.
  */
-export function addBreakpoints(view: View, breakpoints: AdwBreakpoint[]): () => void {
+export function observeViewSize(view: View, onSize: (size: BreakpointSize) => void): () => void {
     const recompute = (): void => {
         const size = measureView(view);
-        if (!size) return;
-        for (const bp of breakpoints) bp.evaluate(size);
+        if (size) onSize(size);
     };
     view.addEventListener('layoutChanged', recompute);
     view.addEventListener('loaded', recompute);
@@ -61,4 +58,17 @@ export function addBreakpoints(view: View, breakpoints: AdwBreakpoint[]): () => 
         view.removeEventListener('layoutChanged', recompute);
         view.removeEventListener('loaded', recompute);
     };
+}
+
+/**
+ * Bind breakpoints to a view so they re-evaluate on every layout pass (the NS
+ * stand-in for Adwaita's window-size signal): the view's `layoutChanged` event
+ * drives {@link AdwBreakpoint.evaluate} with the post-layout DIP size, and a
+ * `loaded` seed evaluates once the first size is known. Each breakpoint is
+ * evaluated independently. Returns a dispose function that detaches the listeners.
+ */
+export function addBreakpoints(view: View, breakpoints: AdwBreakpoint[]): () => void {
+    return observeViewSize(view, (size) => {
+        for (const bp of breakpoints) bp.evaluate(size);
+    });
 }

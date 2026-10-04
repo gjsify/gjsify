@@ -18,7 +18,5 @@ export const capabilities: ConstructCapabilities = {
     extern: 'implemented',
     signal: 'implemented',
     bind: 'implemented',
-    breakpoint: {
-        refused: 'the builder does not wire a breakpoint yet; the next commit does (ADR 0093 step 5)',
-    },
+    breakpoint: 'implemented',
 };

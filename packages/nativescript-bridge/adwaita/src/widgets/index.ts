@@ -405,7 +405,13 @@ export type { AdwColorScheme } from './color-scheme.js';
 // Libadwaita-style `Adw.Breakpoint`: flip a layout (collapse a split view, hide
 // chrome) as the bound view crosses a width/height threshold — the adaptive
 // primitive that gives a wide (tablet / desktop) screen its multi-pane layout.
-export { AdwBreakpoint, addBreakpoints, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';
+export {
+    AdwBreakpoint,
+    addBreakpoints,
+    evaluateBreakpointCondition,
+    observeViewSize,
+    parseBreakpointCondition,
+} from './breakpoint.js';
 export type {
     AdwBreakpointHandlers,
     BreakpointBound,

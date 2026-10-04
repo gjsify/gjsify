@@ -2,6 +2,7 @@
 // tree builder. On the TREES entry for the reason `grid-layout.spec.ts` gives.
 
 import {
+    BREAKPOINT_VECTOR_SIZES,
     CONSTRUCT_VECTORS,
     EXTERN_VECTOR_CLASS,
     driveConstructVectors,
@@ -58,6 +59,19 @@ function observe(vector: ConstructVector): unknown {
             const afterBuild = target.active;
             source.active = true;
             return { afterBuild, afterSourceOn: target.active };
+        }
+        case 'breakpoint': {
+            let feed: ((size: { width: number; height: number }) => void) | undefined;
+            const root = build(vector.tree, {
+                observeSize: (_view, onSize) => {
+                    feed = onSize;
+                    return () => {};
+                },
+            }) as unknown as { getViewById(id: string): { label: string } };
+            return BREAKPOINT_VECTOR_SIZES.map((size) => {
+                feed!(size);
+                return root.getViewById('caption').label;
+            });
         }
         case 'extern': {
             const root = build(vector.tree) as unknown as { getViewById(id: string): object | undefined };
@@ -121,6 +135,18 @@ export const AdwConstructVectorsNsTest = async () => {
             expect(() => build(bound({ source: 'source', property: 'active', flags: ['inverted'] }))).toThrow(
                 'plain form only',
             );
+        });
+        await it('refuses a breakpoint setter that names no object or no property, and a condition nobody can read', () => {
+            const withBreakpoint = (object: string, property = 'label', condition = 'max-width: 400px') =>
+                ({
+                    tag: 'GtkBox',
+                    children: [{ tag: 'GtkLabel', id: 'caption' }],
+                    breakpoints: [{ condition, setters: [{ object, property, value: 'x' }] }],
+                }) as SharedTreeNode;
+            expect(() => build(withBreakpoint('nobody'))).toThrow("id 'nobody'");
+            expect(() => build(withBreakpoint('template'))).toThrow("id 'template'");
+            expect(() => build(withBreakpoint('caption', 'no-such-property'))).toThrow("declares no 'noSuchProperty'");
+            expect(() => build(withBreakpoint('caption', 'label', 'wide please'))).toThrow('breakpoint condition');
         });
         await it('builds the registered class with its own props and children, as for any widget', () => {
             const root = build({
