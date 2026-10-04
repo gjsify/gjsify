@@ -75,6 +75,15 @@ export interface SlotAttribute {
 }
 
 /**
+ * What this child tells its parent's layout, read by `setProp()` at placement: a grid cell's
+ * `row` and `column`, a stack page's `name` and `title`, a notebook page's `tabLabel`. The keys
+ * belong to the PARENT's child policy, so the record is open here.
+ */
+export interface LayoutAttribute {
+    layout?: Record<string, unknown> | null;
+}
+
+/**
  * GTK's ARIA surface, on every element of every dialect. Read by `setAccessibility()`.
  *
  * ONE OBJECT, not 53 flat `aria*` props, and the four reasons are in `setAccessibility`'s own
@@ -112,7 +121,7 @@ export interface RawSignalAttributes {
  * `T` is the widget's own instance type, so `ref={(el) => …}` infers `el` as
  * `Gtk.Box` rather than the `unknown` a DOM renderer settles for.
  */
-export interface JsxAttributes<T> extends AccessibilityAttribute, SlotAttribute, RawSignalAttributes {
+export interface JsxAttributes<T> extends AccessibilityAttribute, SlotAttribute, LayoutAttribute, RawSignalAttributes {
     children?: ElementChild;
     ref?: T | ((el: T) => void) | undefined;
 }
@@ -124,7 +133,7 @@ export interface JsxAttributes<T> extends AccessibilityAttribute, SlotAttribute,
  * every registered component's props are intersected with. Declaring our own `ref` would intersect
  * two different `ref` types and could leave the property unusable.
  */
-export interface VueAttributes extends AccessibilityAttribute, SlotAttribute, RawSignalAttributes {}
+export interface VueAttributes extends AccessibilityAttribute, SlotAttribute, LayoutAttribute, RawSignalAttributes {}
 
 /**
  * The properties whose GObject type is a `GMenuModel`, in both spellings.

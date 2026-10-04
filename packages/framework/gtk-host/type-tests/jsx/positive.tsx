@@ -174,3 +174,6 @@ export const accessible = (
 
 /** `null` clears one slot, as it removes any other property on this host. */
 export const accessibleCleared = <gtk-label accessibility={{ label: null }} />;
+
+/** `layout` is a child prop on the Solid/JSX dialect: a notebook page's tab label. */
+export const notebookPage = <gtk-label label="One" layout={{ tabLabel: 'One' }} />;
