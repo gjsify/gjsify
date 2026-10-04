@@ -3,19 +3,6 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### NativeScript `Gtk.Box` grants no spare space to an expanding child
-
-`hexpand` / `vexpand` reach every NativeScript widget under GTK's names (`widget-layout.ts`,
-ADR 0034 § Amendment 20) and are held and read back, but no parent in the port allocates by
-them. The case a gallery Blueprint writes is a vertical `Gtk.Box` holding a `vexpand` stack or
-tab view: GTK hands the box's spare height to that child, and the port's `GtkBox` is a
-`StackLayout`, which measures every child at its natural size. The web grows it
-(`gtk-box[orientation='vertical'] > [vexpand] { flex-grow: 1 }`). Closing it means a box that
-can divide spare space — a `GridLayout` with a `*` track per expanding child and `auto`
-elsewhere is GTK's rule exactly — and the same change would answer the `homogeneous` gap the
-`gtk-box` coverage row declares.
-
-
 ### The NativeScript `xmlns` barrels still cannot spell seven tags Learn6502's templates use
 
 Measured 2026-10-04 against the 24 shared templates in `easy6502/packages/app-gnome/src`: the

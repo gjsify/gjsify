@@ -300,8 +300,8 @@ const KNOWN_GAPS = {
         why: '`tab-behavior` decides where Tab moves focus inside the list; the platform has no keyboard focus chain a view can steer (the absence the keyboard-contract notes elsewhere), so there is no traversal for it to change.',
     },
     'gtk-box': {
-        gaps: ['baselineChild', 'baselinePosition', 'homogeneous'],
-        why: "The box extends the real NativeScript `StackLayout` and adds the two things the platform has no word for — the gap, which comes out of the children's margins because `Style` carries no `columnGap`/`rowGap`, and GTK's child verbs (gtk-box.ts). The two baseline properties are the same absence `gtk-align.ts` already declares for `Gtk.Align`'s three baseline members: nothing in @nativescript/core measures a text baseline, so there is no allocation for a baseline child or a baseline position to change. `homogeneous` asks every child for the widest child's size, and a `StackLayout` measures each child at its natural size with no equal-share mode — the same missing size-negotiation protocol `adw-inline-view-switcher` declares one entry over.",
+        gaps: ['baselineChild', 'baselinePosition'],
+        why: "The box is a one-axis `GridLayout` (gtk-box.ts, box-layout.ts) and adds what the platform has no word for — the gap, a `pixel` track between children because `Style` carries no `columnGap`/`rowGap`, the spare space an expanding child is handed (`*` tracks), and GTK's child verbs. The two baseline properties are the same absence `gtk-align.ts` already declares for `Gtk.Align`'s three baseline members: nothing in @nativescript/core measures a text baseline, so there is no allocation for a baseline child or a baseline position to change. `homogeneous` is set as equal `*` tracks, which is equal but not minimal (GTK gives every child the largest child's size); that approximation is declared in box-layout.ts, not listed here.",
     },
     'gtk-label': {
         gaps: [

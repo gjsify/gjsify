@@ -130,7 +130,7 @@ export {
     GTK_TOGGLE_BUTTON_TOGGLED,
     NOTIFY_TOGGLE_ACTIVE,
 } from './gtk-toggle-button.js';
-export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
+export { boxChildTrack, boxSpacingChanges, boxTrackPlan, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
 // The text reduction is headless (`@gjsify/adwaita-core`, ADR 0004) — the web label draws
