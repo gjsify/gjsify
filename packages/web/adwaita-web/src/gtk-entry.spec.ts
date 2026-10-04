@@ -70,4 +70,27 @@ export const GtkEntryTest = async () => {
             unmountAll();
         });
     });
+
+    await describe('<gtk-entry> GTK property spellings', async () => {
+        await it('reads placeholder-text, the Gtk.Entry property, and the older placeholder', () => {
+            expect(mountEntry({ 'placeholder-text': 'Search' }).input.placeholder).toBe('Search');
+            expect(mountEntry({ placeholder: 'Old' }).input.placeholder).toBe('Old');
+            expect(mountEntry({ 'placeholder-text': 'New', placeholder: 'Old' }).input.placeholder).toBe('New');
+            unmountAll();
+        });
+
+        await it('follows placeholder-text when it changes', () => {
+            const entry = mountEntry({ 'placeholder-text': 'a' });
+            entry.setAttribute('placeholder-text', 'b');
+            expect(entry.input.placeholder).toBe('b');
+            unmountAll();
+        });
+
+        await it('width-request is a minimum width; -1 and nonsense leave it natural', () => {
+            expect(mountEntry({ 'width-request': '280' }).style.minWidth).toBe('280px');
+            expect(mountEntry({ 'width-request': '-1' }).style.minWidth).toBe('');
+            expect(mountEntry({ 'width-request': 'x' }).style.minWidth).toBe('');
+            unmountAll();
+        });
+    });
 };
