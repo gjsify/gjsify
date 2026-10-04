@@ -132,7 +132,6 @@ const LOSS_KINDS = new Set([
     // is object references — and where an ident inside any of those lists leaves too, since the
     // reference compiler refuses that construct and there is no oracle for it. `translation-domain` stayed because
     // it is a fact about the FILE and this shape is a tree, ADR 0067 § 4.
-    'signal',
     'binding',
     'breakpoint',
     'menu',
@@ -165,6 +164,7 @@ const NODE_FIELDS = new Set([
     'styleClasses',
     'extensions',
     'layout',
+    'signals',
     'children',
 ]);
 
@@ -1339,6 +1339,7 @@ const USE_ELEMENTS = {
     layout: /<layout>/g,
     strings: /class="GtkStringList"[^>]*>\s*<items>/g,
     responses: /<responses>/g,
+    signal: /<signal /g,
 };
 const checkUses = (job, result) => {
     if (!existsSync(job.golden)) return; // stage A said so
@@ -1377,6 +1378,37 @@ const checkUses = (job, result) => {
                 `${job.key}: \`${node.tag}\` is flagged \`extern\` and the oracle wrote no class or template parent of that name.`,
             );
         }
+    }
+    // ADR 0093's `signals`: the oracle's `<signal>` attributes against what the tree carries, as an
+    // unordered set because the golden nests a signal where the element puts it and the tree carries it
+    // beside its node. `swapped` is a Python boolean there, and `not-swapped` is its explicit `False`.
+    const goldenSignals = [...golden.matchAll(/<signal ([^>]*?)\/>/g)].map((match) => {
+        const attrs = Object.fromEntries([...match[1].matchAll(/(\w+)="([^"]*)"/g)].map((attr) => [attr[1], attr[2]]));
+        return [attrs.name, attrs.handler, attrs.swapped ?? '', attrs.after ?? '', attrs.object ?? ''].join('|');
+    });
+    const treeSignals = [];
+    const gather = (node) => {
+        for (const signal of node.signals ?? []) {
+            const flags = signal.flags ?? [];
+            treeSignals.push(
+                [
+                    signal.detail === undefined ? signal.name : `${signal.name}::${signal.detail}`,
+                    signal.handler,
+                    flags.includes('swapped') ? 'True' : flags.includes('not-swapped') ? 'False' : '',
+                    flags.includes('after') ? 'True' : '',
+                    // The oracle names the template's class where the source says `template`.
+                    (signal.object === 'template' ? result.node.template : signal.object) ?? '',
+                ].join('|'),
+            );
+        }
+        for (const child of node.children ?? []) gather(child);
+    };
+    gather(result.node);
+    if (goldenSignals.sort().join('\n') !== treeSignals.sort().join('\n')) {
+        problems.push(
+            `${job.key}: the golden and the projection disagree about the signal handlers — ` +
+                `golden [${goldenSignals.join(', ')}], projection [${treeSignals.join(', ')}].`,
+        );
     }
     const lines = result.uses.map((use) => use.line);
     if (lines.some((line) => !Number.isInteger(line) || line < 1)) {

@@ -38,6 +38,7 @@ import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/
 import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
 import { capabilities } from './capabilities.mjs';
+import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
 import { templateTagFor } from './template-classes.js';
 
@@ -58,6 +59,8 @@ interface ExtendedNode {
 interface BuildRecord {
     placed: PlacedChild[];
     extended: ExtendedNode[];
+    /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
+    scope?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -133,6 +136,7 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) el.classList.add(...node.styleClasses);
     writeExtensions(el, node);
+    bindSignals(el, node, record);
     if (node.extensions !== undefined) record.extended.push({ el, node });
     for (const child of node.children ?? []) {
         const childEl = buildNode(child, record);
@@ -144,6 +148,43 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
         el.append(childEl);
     }
     return el;
+}
+
+/**
+ * ADR 0093's `signals`: each handler NAME is looked up on the scope the builder was handed and
+ * listened for as the DOM event the element declares for that GTK signal.
+ *
+ * Refused by name, never dropped: a missing scope or handler (as `Gtk.Builder` refuses one), a
+ * signal the element does not declare, and the `swapped`, `after` and `object` forms, which this
+ * first slice has not verified against GTK's argument order and emission phase.
+ */
+function bindSignals(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): void {
+    const declared = dispatchedSignalsOf(el);
+    for (const signal of node.signals ?? []) {
+        const name = signal.detail === undefined ? signal.name : `${signal.name}::${signal.detail}`;
+        const event = declared[name];
+        if (event === undefined) {
+            throw new Error(
+                `<${el.localName}> declares no signal '${name}', so the handler '${signal.handler}' would never ` +
+                    `run. It dispatches: ${Object.keys(declared).join(', ') || 'none'}.`,
+            );
+        }
+        if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {
+            throw new Error(
+                `the handler '${signal.handler}' for '${name}' uses ${signal.object === undefined ? '' : 'an object '}` +
+                    `${(signal.flags ?? []).join(', ')}: adwaita-web binds plain handlers only until each of those ` +
+                    'is verified against GTK.',
+            );
+        }
+        const handler = record.scope?.[signal.handler];
+        if (typeof handler !== 'function') {
+            throw new Error(
+                `the tree binds the handler '${signal.handler}' for '${name}', and the scope ` +
+                    `${record.scope === undefined ? 'was not given (pass `scope`)' : 'has no such function'}.`,
+            );
+        }
+        el.addEventListener(event, (domEvent) => handler.call(record.scope, domEvent));
+    }
 }
 
 /**
@@ -262,9 +303,16 @@ export interface MountedSharedTree {
  * instantiation half a caller reading the corpus's elements normally wants; a bare
  * `buildSharedTree` is for a caller that already has somewhere of its own to attach it.
  */
-export function mountSharedTree(node: SharedTreeNode): MountedSharedTree {
+export function mountSharedTree(
+    node: SharedTreeNode,
+    options: { scope?: Readonly<Record<string, unknown>> } = {},
+): MountedSharedTree {
     const host = document.createElement('div');
-    const record: BuildRecord = { placed: [], extended: [] };
+    const record: BuildRecord = {
+        placed: [],
+        extended: [],
+        ...(options.scope === undefined ? {} : { scope: options.scope }),
+    };
     host.append(buildSharedTree(node, record));
     document.body.append(host);
     // After the append, because that is what upgrades the elements and runs the binds the

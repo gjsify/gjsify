@@ -72,6 +72,9 @@ export const GTK_BUTTON_CLICKED = 'clicked';
 export const GTK_BUTTON_LABEL_CLASS = 'adw-button-label';
 
 export class GtkButton extends withSignals(GridLayout) {
+    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
+    static readonly emittedSignals: readonly string[] = [GTK_BUTTON_CLICKED];
+
     /**
      * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
      * `Gtk.Button:child` is the property a `.blp` writes as `child: Adw.ButtonContent { … }`,

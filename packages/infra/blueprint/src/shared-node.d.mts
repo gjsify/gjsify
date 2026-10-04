@@ -99,6 +99,18 @@ export interface SharedNode {
      * them (ADR 0092). Never typed against the widget, so an identifier stays its spelling.
      */
     layout?: Record<string, string | number | boolean>;
+    /**
+     * The signal handlers (`clicked => $onClicked()`), in source order and as the source wrote
+     * them (ADR 0093). `handler` is a NAME the renderer resolves against a scope object, never
+     * code; `name` and `detail` are the two halves of `notify::sensitive`.
+     */
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: SharedNode[];
 }
 

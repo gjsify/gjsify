@@ -25,4 +25,8 @@ export const capabilities: ConstructCapabilities = {
         refused:
             "gtk-host's host resolves a tag against its built-in widget descriptors and has no registry for an application class; load the .blp through Gtk.Builder instead",
     },
+    signal: {
+        refused:
+            "gtk-host's tree builder resolves no handler names; a GTK app connects signals in code, or loads the .blp through Gtk.Builder with a scope",
+    },
 };

@@ -132,6 +132,13 @@ interface PendingReference {
 interface BuildContext {
     ids: Map<string, View>;
     pending: PendingReference[];
+    scope: Readonly<Record<string, unknown>> | undefined;
+}
+
+/** What a caller hands {@link build} beside the tree. */
+export interface BuildOptions {
+    /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
+    scope?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -160,8 +167,8 @@ interface BuildContext {
  *
  * The root is always a widget: a tree whose root is a value object has nothing to show.
  */
-export function build(node: SharedTreeNode): View {
-    const built = buildTree(node);
+export function build(node: SharedTreeNode, options: BuildOptions = {}): View {
+    const built = buildTree(node, options);
     if (!(built instanceof View)) {
         throw new Error(`\`${node.tag}\` is not a widget, so a tree cannot root at it: there is nothing to show.`);
     }
@@ -181,8 +188,8 @@ export interface PresentableRoot {
  * refusal intact for every other value object, and admits a root by the one method a dialog
  * is for rather than by a class list.
  */
-export function buildDialog(node: SharedTreeNode): PresentableRoot {
-    const built = buildTree(node);
+export function buildDialog(node: SharedTreeNode, options: BuildOptions = {}): PresentableRoot {
+    const built = buildTree(node, options);
     if (built instanceof View || typeof (built as Partial<PresentableRoot>).present !== 'function') {
         throw new Error(`\`${node.tag}\` is not a dialog: it has no \`present()\`, so use \`build\` for it.`);
     }
@@ -190,10 +197,10 @@ export function buildDialog(node: SharedTreeNode): PresentableRoot {
 }
 
 /** Every node, then every held-back object reference resolved against the ids the tree built. */
-function buildTree(node: SharedTreeNode): View | object {
+function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
     // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
     assertTreeConstructs('adwaita-nativescript', capabilities, node);
-    const context: BuildContext = { ids: new Map(), pending: [] };
+    const context: BuildContext = { ids: new Map(), pending: [], scope: options.scope };
     const root = buildNode(node, context);
     for (const { view, element, prop, id } of context.pending) {
         const target = context.ids.get(id);
@@ -230,6 +237,7 @@ function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
     const element = elementOf(node);
     const probe = new element.ctor();
     const built = probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe);
+    bindSignals(built, element, node, context);
     for (const child of node.children ?? []) {
         const parent = built as Partial<BuilderParent>;
         if (typeof parent._addChildFromBuilder !== 'function') {
@@ -243,6 +251,44 @@ function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
         parent._addChildFromBuilder(builderNameFor(element, node.tag, child), childBuilt);
     }
     return built;
+}
+
+/**
+ * ADR 0093's `signals`: each handler NAME is looked up on the scope and connected through the
+ * widget's GJS-shaped `connect`, which hands the callback `(self, data)`.
+ *
+ * Refused by name, never dropped: a value object (no `connect`), a signal the class does not
+ * declare in `emittedSignals`, a missing scope or handler (as `Gtk.Builder` refuses one), and the
+ * `swapped`, `after` and `object` forms, which this first slice has not verified.
+ */
+function bindSignals(built: object, element: Element, node: SharedTreeNode, context: BuildContext): void {
+    if (node.signals === undefined) return;
+    const emitted = (element.ctor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const connectable = built as Partial<{ connect(name: string, callback: (...args: unknown[]) => void): number }>;
+    for (const signal of node.signals) {
+        const name = signal.detail === undefined ? signal.name : `${signal.name}::${signal.detail}`;
+        if (typeof connectable.connect !== 'function' || !emitted.includes(name)) {
+            throw new Error(
+                `<${element.xmlName}> declares no signal '${name}', so the handler '${signal.handler}' would never ` +
+                    `run. It emits: ${emitted.join(', ') || 'none'}.`,
+            );
+        }
+        if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {
+            throw new Error(
+                `the handler '${signal.handler}' for '${name}' uses ${signal.object === undefined ? '' : 'an object '}` +
+                    `${(signal.flags ?? []).join(', ')}: adwaita-nativescript binds plain handlers only until each ` +
+                    'of those is verified against GTK.',
+            );
+        }
+        const handler = context.scope?.[signal.handler];
+        if (typeof handler !== 'function') {
+            throw new Error(
+                `the tree binds the handler '${signal.handler}' for '${name}', and the scope ` +
+                    `${context.scope === undefined ? 'was not given (pass `scope`)' : 'has no such function'}.`,
+            );
+        }
+        connectable.connect(name, (...args) => handler.apply(context.scope, args));
+    }
 }
 
 /** The `GtkGridLayoutChild` properties `layout { }` may carry, and the NativeScript member each is. */

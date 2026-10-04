@@ -3,46 +3,43 @@
 // such a class, and this registry is where the shared-tree builder looks it up.
 //
 // The registry lives here and not in `@gjsify/adwaita-core` because the stored thing is the
-// renderer's own: a custom-element class, together with the tag it is defined under. A name
-// like `Display` is not a valid custom-element name and no case rule can invent one, so the
-// caller says which tag the class answers to.
+// renderer's own: the tag of a custom element the application defines. A name like `Display`
+// is not a valid custom-element name and no case rule can invent one, so the caller says which
+// tag the class answers to. The application defines the element itself
+// (through the custom element registry), which keeps this package's element set the one it ships.
 
-interface TemplateClass {
-    ctor: CustomElementConstructor;
-    tag: string;
-}
-
-const registry = new Map<string, TemplateClass>();
+const registry = new Map<string, string>();
 
 /**
- * Registers `ctor` as the class a `.blp` means by `$name` (the name as the file spells it:
- * `SourceView` for `$SourceView`), defined as the custom element `tag`.
+ * Registers the custom element `tag` as the class a `.blp` means by `$name`, spelled as the
+ * file spells it (`SourceView` for `$SourceView`). The element builds its own internals,
+ * typically from its own `.blp?shared-tree`, and must be defined by the time a tree uses it.
  *
- * Registering the same class again is a no-op; a different class under the same name, or a
- * tag already defined as another class, is refused as `Gtk.Builder` refuses a type twice.
+ * Registering the same pair again is a no-op; a different tag under the same name is refused,
+ * as `Gtk.Builder` refuses a type registered twice.
  */
-export function registerTemplateClass(name: string, ctor: CustomElementConstructor, tag: string): void {
+export function registerTemplateClass(name: string, tag: string): void {
     const known = registry.get(name);
-    if (known !== undefined) {
-        if (known.ctor === ctor && known.tag === tag) return;
-        throw new Error(`the template class '${name}' is already registered as <${known.tag}>.`);
+    if (known !== undefined && known !== tag) {
+        throw new Error(`the template class '${name}' is already registered as <${known}>.`);
     }
-    const defined = customElements.get(tag);
-    if (defined === undefined) customElements.define(tag, ctor);
-    else if (defined !== ctor) {
-        throw new Error(`<${tag}> is already defined as another class, so '${name}' cannot be registered under it.`);
-    }
-    registry.set(name, { ctor, tag });
+    registry.set(name, tag);
 }
 
-/** The tag `name` was registered under, or a refusal that names it. */
+/** The tag `name` was registered under, or a refusal that names what is missing. */
 export function templateTagFor(name: string): string {
-    const found = registry.get(name);
-    if (found === undefined) {
+    const tag = registry.get(name);
+    if (tag === undefined) {
         throw new Error(
             `the tree uses the class '$${name}', which no registerTemplateClass() call registered: ` +
                 'adwaita-web cannot build a class it does not know.',
         );
     }
-    return found.tag;
+    if (customElements.get(tag) === undefined) {
+        throw new Error(
+            `the class '$${name}' is registered as <${tag}>, which nothing has defined in the custom element registry, so ` +
+                'the element would stay an empty unknown tag.',
+        );
+    }
+    return tag;
 }

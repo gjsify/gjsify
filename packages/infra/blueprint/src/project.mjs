@@ -236,6 +236,25 @@ const layoutOf = (extension, tag) => {
 };
 
 /**
+ * The signal handlers of a body as `SharedNode.signals` holds them (ADR 0093): the handler is a
+ * NAME, never code, and `object` and the flags are spelled as the source wrote them. A body with
+ * none yields `undefined` so the field is absent rather than empty.
+ *
+ * @param {ObjectBody} body
+ * @returns {SharedNode['signals']}
+ */
+const signalsOf = (body) => {
+    if (body.signals.length === 0) return undefined;
+    return body.signals.map((signal) => ({
+        name: signal.name,
+        ...(signal.detail === undefined ? {} : { detail: signal.detail }),
+        handler: signal.handler,
+        ...(signal.object === undefined ? {} : { object: signal.object }),
+        ...(signal.flags.length === 0 ? {} : { flags: [...signal.flags] }),
+    }));
+};
+
+/**
  * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
  * @returns {Omit<SharedNode, 'tag' | 'id' | 'template' | 'slot'>}
  */
@@ -316,6 +335,7 @@ const projectBody = (body, tag) => {
     const children = placed
         .filter((entry) => !isBreakpoint(entry.object))
         .map((entry) => projectObject(entry.object, entry.slot, tag));
+    const signals = signalsOf(body);
 
     return {
         ...(Object.keys(props).length > 0 ? { props } : {}),
@@ -323,6 +343,7 @@ const projectBody = (body, tag) => {
         ...(styleClasses.length > 0 ? { styleClasses } : {}),
         ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
         ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
+        ...(signals === undefined ? {} : { signals }),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -381,7 +402,6 @@ const lossesOf = (file, tag) => {
                 lost.push({ kind: 'menu', line: property.line });
             } else if (value.kind === 'object') walkObject(value.object);
         }
-        for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
         // `responses` is carried in `extensions` (ADR 0072) and a scalar `layout` in `layout`
         // (ADR 0092); every other block is still lost.
         for (const extension of body.extensions) {
@@ -460,7 +480,7 @@ const lossesOf = (file, tag) => {
  * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
  *
  * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
- * `strings`, `responses` and `extern`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * `strings`, `responses`, `extern` and `signal`. A `page` has no Blueprint spelling that reaches this exit. Each
  * question goes to the reader the projection itself fills the field with, so a construct the
  * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
  *
@@ -484,6 +504,8 @@ const usesOf = (file, tag) => {
             }
             if (extension.name === 'responses') uses.push({ kind: 'responses', line: extension.line });
         }
+        // The handler bindings, one use each (ADR 0093).
+        for (const signal of body.signals) uses.push({ kind: 'signal', line: signal.line });
         for (const child of body.children) {
             if (!isBreakpoint(child.object)) walkObject(child.object);
         }

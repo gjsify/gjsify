@@ -970,6 +970,7 @@ export const REAL_EXPECTATIONS = [
                                                     id: 'sidebar_list',
                                                     props: { 'selection-mode': 'single' },
                                                     styleClasses: ['navigation-sidebar'],
+                                                    signals: [{ name: 'row-selected', handler: '_onRowSelected' }],
                                                 },
                                             ],
                                         },
@@ -1006,6 +1007,7 @@ export const REAL_EXPECTATIONS = [
                                                         'tooltip-text': 'Toggle Controls',
                                                         active: true,
                                                     },
+                                                    signals: [{ name: 'toggled', handler: '_onToggleControls' }],
                                                 },
                                                 {
                                                     tag: 'GtkButton',
@@ -1014,6 +1016,7 @@ export const REAL_EXPECTATIONS = [
                                                         'icon-name': 'applications-graphics-symbolic',
                                                         'tooltip-text': 'Appearance',
                                                     },
+                                                    signals: [{ name: 'clicked', handler: '_onAppearanceClicked' }],
                                                 },
                                             ],
                                         },
@@ -1075,13 +1078,6 @@ export const REAL_EXPECTATIONS = [
                 line: 4,
                 detail: '17 comment lines across seven blocks, none reaching either exit',
             },
-            {
-                kind: 'signal',
-                line: 46,
-                detail: 'the bare handler binding `row-selected => $_onRowSelected()`',
-            },
-            { kind: 'signal', line: 76, detail: 'the bare handler binding `toggled => $_onToggleControls()`' },
-            { kind: 'signal', line: 86, detail: 'the bare handler binding `clicked => $_onAppearanceClicked()`' },
             {
                 kind: 'breakpoint',
                 line: 134,

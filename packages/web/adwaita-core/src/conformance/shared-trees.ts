@@ -190,6 +190,23 @@ export interface SharedTreeNode {
      * them (ADR 0092). Never typed against the widget, so an identifier stays its spelling.
      */
     layout?: Readonly<Record<string, string | number | boolean>>;
+    /**
+     * The signal handlers this node binds (`clicked => $onClicked()`), in source order and spelled
+     * as the `.blp` wrote them (ADR 0093).
+     *
+     * `handler` is a NAME, never code: the builder resolves it against a scope object it is
+     * handed, as `Gtk.BuilderScope` does, and a missing handler is a refusal. `name` and `detail`
+     * are the two halves of `notify::sensitive`. `object` is the `(obj)` the handler is swapped
+     * with. A renderer that has not verified `swapped`, `after`, `not-swapped` or `object` refuses
+     * them by name rather than binding a handler that fires differently from GTK's.
+     */
+    signals?: readonly {
+        readonly name: string;
+        readonly detail?: string;
+        readonly handler: string;
+        readonly object?: string;
+        readonly flags?: readonly ('swapped' | 'after' | 'not-swapped')[];
+    }[];
     children?: readonly SharedTreeNode[];
 }
 
