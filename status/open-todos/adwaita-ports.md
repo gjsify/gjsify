@@ -366,6 +366,16 @@ exactly why they must not be written as decisions.
   a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
   card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
   open decision.
+- **`adw-bin`, `adw-overlay`, `adw-revealer`, `adw-scrolled-window`, `adw-stack` and
+  `adw-toggle-button` in the browser.** These are the ledger's join keys; the GTK tags
+  are `gtk-overlay`, `gtk-revealer`, `gtk-scrolled-window`, `gtk-stack` and
+  `gtk-toggle-button`, and `adw-bin` keeps its own. NativeScript ships all six
+  (`Adw.Bin`, `Gtk.Overlay`, `Gtk.Revealer`, `Gtk.ScrolledWindow`, `Gtk.Stack` with
+  `Gtk.StackPage`, `Gtk.ToggleButton`) because Learn6502's shared `.blp` templates need
+  them through `?shared-tree` (ADR 0070); the browser has no element for any of them, so
+  the same templates do not build there. This one is scheduled work rather than a
+  product question: the NativeScript classes are the behaviour to match, and the
+  browser half is unwritten, not decided against.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

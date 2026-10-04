@@ -68,6 +68,39 @@ export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
 export { GtkActionBar } from './gtk-action-bar.js';
+// The pass-through containers: one child, no look of their own. `AdwSingleChildBase` is
+// the base the first four share; the pure halves are free of `@nativescript/core`.
+export { AdwBin } from './adw-bin.js';
+export { GtkOverlay } from './gtk-overlay.js';
+export { GtkRevealer, NOTIFY_REVEAL_CHILD } from './gtk-revealer.js';
+export { revealerChildVisibility } from './revealer-state.js';
+export type { RevealerChildVisibility } from './revealer-state.js';
+export { GtkScrolledWindow } from './gtk-scrolled-window.js';
+export {
+    DEFAULT_SCROLLBAR_POLICY,
+    GTK_POLICY_TYPES,
+    normalizePolicy,
+    policyScrolls,
+    scrollOrientationFor,
+} from './scrolled-window-policy.js';
+export type { GtkPolicyNick } from './scrolled-window-policy.js';
+export { GtkStack, NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME } from './gtk-stack.js';
+export type { NotifyStackVisibleChildEventData } from './gtk-stack.js';
+export { GtkStackPage } from './stack-page.js';
+export {
+    DEFAULT_REVEALER_TRANSITION_DURATION,
+    DEFAULT_STACK_TRANSITION_DURATION,
+    GTK_REVEALER_TRANSITIONS,
+    GTK_STACK_TRANSITIONS,
+    transitionNick,
+} from './transition-type.js';
+export type { GtkRevealerTransitionNick, GtkStackTransitionNick } from './transition-type.js';
+export {
+    GtkToggleButton,
+    GTK_TOGGLE_BUTTON_CHECKED_CLASS,
+    GTK_TOGGLE_BUTTON_TOGGLED,
+    NOTIFY_TOGGLE_ACTIVE,
+} from './gtk-toggle-button.js';
 export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
@@ -356,6 +389,12 @@ import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
 import { GtkBox } from './gtk-box.js';
 import { GtkActionBar } from './gtk-action-bar.js';
+import { AdwBin } from './adw-bin.js';
+import { GtkOverlay } from './gtk-overlay.js';
+import { GtkRevealer } from './gtk-revealer.js';
+import { GtkScrolledWindow } from './gtk-scrolled-window.js';
+import { GtkStack } from './gtk-stack.js';
+import { GtkToggleButton } from './gtk-toggle-button.js';
 import { GtkLabel } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
@@ -410,6 +449,12 @@ const ELEMENTS = {
     GtkButton,
     GtkBox,
     GtkActionBar,
+    AdwBin,
+    GtkOverlay,
+    GtkRevealer,
+    GtkScrolledWindow,
+    GtkStack,
+    GtkToggleButton,
     GtkLabel,
     AdwImageButton,
     GtkMenuButton,
