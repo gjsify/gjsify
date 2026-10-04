@@ -72,6 +72,15 @@ export interface SharedNode {
             flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[];
         }
     >;
+    breakpoints?: {
+        condition: string;
+        setters: {
+            object: string;
+            property: string;
+            value: string | number | boolean;
+            translatable?: { context?: string };
+        }[];
+    }[];
     children?: SharedNode[];
 }
 

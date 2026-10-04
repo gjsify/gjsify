@@ -21,6 +21,7 @@ import avatarTestSuite from './avatar.spec.js';
 import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
 import breakpointBinTestSuite from './breakpoint-bin.spec.js';
+import breakpointDriverTestSuite from './breakpoint-driver.spec.js';
 import accentTestSuite from './accent.spec.js';
 import appleAccentTestSuite from './apple-accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
@@ -67,6 +68,7 @@ run({
     checksTestSuite,
     breakpointTestSuite,
     breakpointBinTestSuite,
+    breakpointDriverTestSuite,
     accentTestSuite,
     appleAccentTestSuite,
     colorSchemeTestSuite,

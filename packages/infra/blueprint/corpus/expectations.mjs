@@ -292,18 +292,23 @@ export const RULE_EXPECTATIONS = [
         file: '14-breakpoint.blp',
         node: {
             tag: 'AdwWindow',
+            breakpoints: [
+                {
+                    condition: 'max-width: 400px',
+                    setters: [
+                        { object: 'boxOne', property: 'visible', value: false },
+                        { object: 'boxOne', property: 'opacity', value: 0.5 },
+                        { object: 'boxOne', property: 'orientation', value: 'vertical' },
+                        { object: 'labelOne', property: 'label', value: 'narrow', translatable: {} },
+                    ],
+                },
+            ],
             children: [
                 { tag: 'GtkBox', id: 'boxOne', slot: 'content', children: [{ tag: 'GtkLabel', id: 'labelOne' }] },
             ],
         },
-        lost: [
-            {
-                kind: 'breakpoint',
-                line: 10,
-                detail: 'the whole `Adw.Breakpoint` child: its `condition ("max-width: 400px")` and four setters — a bool, a number, an enum member and a translatable string',
-            },
-        ],
-        note: 'The enum setter is the one worth having: it resolves against the object the setter POINTS AT (`boxOne`, a GtkBox) and not the breakpoint it is written in, and the XML carries `1`. The `_()` setter carries `translatable="yes"` on the `<setter>` element itself. Neither is visible from here — the whole breakpoint is one loss.',
+        lost: [],
+        note: 'The enum setter is the one worth having: it resolves against the object the setter POINTS AT (`boxOne`, a GtkBox) and not the breakpoint it is written in, and the XML carries `1`. The `_()` setter carries `translatable="yes"` on the `<setter>` element itself. The setters are carried since ADR 0093 with the value as the source spells it (`vertical`, not the `1` the XML carries) and the `_()` marking beside the string, so the golden is where the resolved values show.',
     },
     {
         file: '15-comments.blp',
@@ -476,16 +481,13 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'AdwBreakpointBin',
             props: { 'width-request': 200, 'height-request': 200 },
+            breakpoints: [
+                { condition: 'max-width: 400px', setters: [{ object: 'labelOne', property: 'visible', value: false }] },
+            ],
             children: [{ tag: 'GtkLabel', id: 'labelOne' }],
         },
-        lost: [
-            {
-                kind: 'breakpoint',
-                line: 12,
-                detail: 'the whole `[breakpoint]` child, named on its object line and not on the bracket above it',
-            },
-        ],
-        note: 'Written to settle a case `14-breakpoint.blp` leaves open: a bracket and a refused construct on the same child. The bracket wins nothing — the child goes, and its slot goes with it.',
+        lost: [],
+        note: 'Written to settle a case `14-breakpoint.blp` leaves open: a bracket and a refused construct on the same child. The bracket wins nothing: the breakpoint is carried on the PARENT as `breakpoints` (ADR 0093), never as a child, so it has no slot to keep.',
     },
     {
         file: '26-one-line-members.blp',
@@ -539,6 +541,9 @@ export const RULE_EXPECTATIONS = [
             tag: 'AdwBreakpointBin',
             template: 'CorpusSelf',
             props: { 'width-request': 200, 'height-request': 200 },
+            breakpoints: [
+                { condition: 'max-width: 400px', setters: [{ object: 'template', property: 'opacity', value: 0.5 }] },
+            ],
             children: [
                 {
                     tag: 'GtkBox',
@@ -554,10 +559,8 @@ export const RULE_EXPECTATIONS = [
                 },
             ],
         },
-        lost: [
-            { kind: 'breakpoint', line: 20, detail: 'the whole `[breakpoint]` child, whose setter targets `template`' },
-        ],
-        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other two references go with the constructs that carry them.',
+        lost: [],
+        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other references go with the constructs that carry them. The breakpoint is carried and its one setter targets the object `template`, which a renderer resolves against the component itself.',
     },
     {
         file: '31-responses.blp',
@@ -600,6 +603,15 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'AdwBreakpointBin',
             props: { 'width-request': 100, 'height-request': 100 },
+            breakpoints: [
+                {
+                    condition: 'max-width: 400px',
+                    setters: [
+                        { object: 'lookalike', property: 'orientation', value: 'vertical' },
+                        { object: 'genuine', property: 'orientation', value: 'vertical' },
+                    ],
+                },
+            ],
             children: [
                 {
                     tag: 'GtkBox',
@@ -611,7 +623,7 @@ export const RULE_EXPECTATIONS = [
                 },
             ],
         },
-        lost: [{ kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' }],
+        lost: [],
         note: 'All three `orientation` props project as the string `vertical`, because an enum member keeps its source spelling on this exit whatever it sits on — so the projection is where this file says NOTHING and the `.ui` golden is where it bites: two of those three lines emit `1` and the extern one emits `vertical`.',
     },
     {
