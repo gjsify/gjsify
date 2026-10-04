@@ -111,6 +111,14 @@ export interface SharedNode {
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    /**
+     * The simple `bind`s, keyed by the target property (ADR 0093): one source, one property, the
+     * flags as written. `source` is an object id, or `template` for the component itself.
+     */
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: SharedNode[];
 }
 

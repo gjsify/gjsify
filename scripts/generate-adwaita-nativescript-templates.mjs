@@ -462,6 +462,11 @@ export interface ExpectNode {
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    /** The simple binds, keyed by target property — ADR 0093. */
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: ExpectNode[];
 }
 

@@ -49,6 +49,16 @@ function observe(vector: ConstructVector): unknown {
             root.getViewById('pressed').notify({ eventName: 'clicked', object: root.getViewById('pressed') });
             return [{ handler: 'onClicked', calls }];
         }
+        case 'bind': {
+            const root = build(vector.tree) as unknown as {
+                getViewById(id: string): { active: boolean };
+            };
+            const source = root.getViewById('source');
+            const target = root.getViewById('target');
+            const afterBuild = target.active;
+            source.active = true;
+            return { afterBuild, afterSourceOn: target.active };
+        }
         case 'extern': {
             const root = build(vector.tree) as unknown as { getViewById(id: string): object | undefined };
             return [
@@ -92,6 +102,24 @@ export const AdwConstructVectorsNsTest = async () => {
             expect(() => build(on({ name: 'map', handler: 'onX' }), { scope })).toThrow("no signal 'map'");
             expect(() => build(on({ name: 'clicked', handler: 'onX', flags: ['swapped'] }), { scope })).toThrow(
                 'plain handlers only',
+            );
+        });
+        await it('refuses a bind to an id nothing has, to a source that emits no notify, and the flags', () => {
+            const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
+                ({
+                    tag: 'GtkBox',
+                    children: [
+                        { tag: sourceTag, id: 'source' },
+                        { tag: 'GtkToggleButton', bindings: { active: binding } },
+                    ],
+                }) as SharedTreeNode;
+            expect(() => build(bound({ source: 'nobody', property: 'active' }))).toThrow("id 'nobody'");
+            expect(() => build(bound({ source: 'template', property: 'active' }))).toThrow("id 'template'");
+            expect(() => build(bound({ source: 'source', property: 'active' }, 'GtkLabel'))).toThrow(
+                "does not emit 'notify::active'",
+            );
+            expect(() => build(bound({ source: 'source', property: 'active', flags: ['inverted'] }))).toThrow(
+                'plain form only',
             );
         });
         await it('builds the registered class with its own props and children, as for any widget', () => {

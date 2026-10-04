@@ -17,4 +17,5 @@ export const capabilities: ConstructCapabilities = {
     },
     extern: 'implemented',
     signal: 'implemented',
+    bind: 'implemented',
 };
