@@ -3247,3 +3247,41 @@ parent in the port allocates spare space by them yet: `Gtk.Box` is a `StackLayou
 missing size negotiation `homogeneous` is ledgered for (`status/open-todos/README.md`). On the web the
 same names are attributes: `_widget.scss` places a child by auto margins and grows it along a
 `gtk-box`'s own axis, and the shared-tree builder writes the margins as inline style.
+
+## Amendment 21, 2026-10-04 — six containers a shared `.blp` needs, and what each one does not do
+
+Learn6502's 24 shared templates open with `Adw.Bin` and nest `Gtk.Revealer`, `Gtk.Overlay`,
+`Gtk.ScrolledWindow`, `Gtk.Stack` and `Gtk.ToggleButton`. The NativeScript port had none of
+them, so `.blp?shared-tree` could not build a single one of those files there.
+
+**The decision.** Each is a real NativeScript view named after its GIR GType (clause 1) and
+exported through the two namespace barrels (clause 2): `Adw.Bin`, `Gtk.Revealer`, `Gtk.Overlay`,
+`Gtk.ScrolledWindow`, `Gtk.Stack`, `Gtk.ToggleButton`. `Gtk.StackPage` is a constructible VALUE,
+as `Adw.ViewStackPage` is (§ Amendment 19): `GObject.Object`, not a widget, read by its stack
+when it adopts it. Four of the six share one abstract base, `AdwSingleChildBase`
+(`widgets/single-child-base.ts`, named like its sibling `AdwSplitViewBase` so the gates that
+read widget classes by prefix see it), because the one-cell grid, the replace-the-child rule
+and the five `css-classes` verbs are identical in all four. `Gtk.ToggleButton` extends the
+port's `Gtk.Button`, as GTK's does, and wears `checked` as a STATE class that `styleClasses`
+never reports.
+
+**What each declares it does not do.**
+
+- `Gtk.Revealer` and `Gtk.Stack` accept, validate and hold `transition-type` and
+  `transition-duration` and render neither: the CSS subset has no transform or animation, so a
+  swap is instant, as for `Adw.ViewStack`. A word that is not a member of the GIR enum is
+  refused, not swallowed; Blueprint's `slide_up` and the nick `slide-up` are one member.
+- `Gtk.ScrolledWindow` folds its two policies onto the ONE axis a `ScrollView` scrolls on
+  (`widgets/scrolled-window-policy.ts`): a window that scrolls both ways scrolls vertically.
+  `has-frame` is held and draws nothing; the nine properties that need a size-negotiation
+  protocol or a scrollbar the port does not draw are in `KNOWN_GAPS`.
+- `Gtk.Overlay` stacks in one grid cell and lets each overlay's own `halign` / `valign` place
+  it; `measure`, `clip-overlay` and `get-child-position` have no counterpart.
+- `Gtk.ToggleButton:group` (radio exclusivity) is not implemented.
+- `Gtk.Stack:visible-child-name` written BEFORE its pages is a no-op, which is what
+  `Gtk.Builder` does too (measured on GTK 4.22.5: `Child name 'b' not found in GtkStack`).
+
+**What holds it.** The two enum lists carry the GIR constant as their position, held against
+`generated/enum-values.mts` by arm 8 of `check-nativescript-xml-doors.mjs` (mutating one
+position fails it). The browser has no element for any of the six; the storybook coverage gate
+records that as an open gap in `status/open-todos/adwaita-ports.md`.
