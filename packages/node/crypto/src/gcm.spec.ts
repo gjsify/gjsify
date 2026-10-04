@@ -136,5 +136,19 @@ export default async () => {
 
             expect(enc1.toString('hex')).not.toBe(enc2.toString('hex'));
         });
+
+        await it('should carry the block counter past 255 (ciphertext beyond 4064 bytes)', async () => {
+            // Known answer computed with Node's OpenSSL. Block 254 uses counter 256, which needs
+            // a carry from the last counter byte into the one before it.
+            const key = Buffer.alloc(32, 7);
+            const iv = Buffer.alloc(12, 1);
+            const plaintext = Buffer.from(Array.from({ length: 4300 }, (_, i) => i % 251));
+            const cipher = createCipheriv('aes-256-gcm', key, iv);
+            const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+            expect(ciphertext.subarray(4056, 4088).toString('hex')).toBe(
+                '0f653b51025b57e8221041114cfc82638ce3e16ac74f4e5a3b89330f79a0c3cd',
+            );
+            expect(cipher.getAuthTag().toString('hex')).toBe('db8820f968fc16628f4b13db40e04219');
+        });
     });
 };

@@ -324,4 +324,20 @@ export default async () => {
             expect(decrypted).toBe('Base64 test');
         });
     });
+
+    await describe('AES-256-CTR counter carry', async () => {
+        await it('should propagate the carry across counter bytes', async () => {
+            // Known answer computed with Node's OpenSSL: the counter starts at 0x00fffe and crosses
+            // 0xffff after two blocks, so the carry has to reach the third byte from the end.
+            const key = Buffer.alloc(32, 7);
+            const iv = Buffer.alloc(16, 0);
+            iv[14] = 0xff;
+            iv[15] = 0xfe;
+            const cipher = createCipheriv('aes-256-ctr', key, iv);
+            const keystream = Buffer.concat([cipher.update(Buffer.alloc(80, 0)), cipher.final()]);
+            expect(keystream.toString('hex')).toBe(
+                '45c2097867de0a1419003d78fc22e98c6a309cc28dbf8b1b7c52063318f8c7d7af781f24ba1a04a432f9ebcab381b734218470ed9fb235995d16ca1e663ae2695854335b7310ff5e0d2ec45004c1e7f8',
+            );
+        });
+    });
 };

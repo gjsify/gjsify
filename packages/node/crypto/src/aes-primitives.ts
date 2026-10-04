@@ -243,8 +243,11 @@ export function aesDecryptBlock(block: Uint8Array, roundKeys: Uint8Array[]): Uin
 // ---- Counter increment for CTR mode ----
 
 export function incrementCounter(counter: Uint8Array): void {
+    // `++counter[i]` evaluates to the incremented number (256), not the byte stored back (0),
+    // so test the stored byte or the carry never propagates.
     for (let i = 15; i >= 0; i--) {
-        if (++counter[i] !== 0) break;
+        counter[i] = (counter[i] + 1) & 0xff;
+        if (counter[i] !== 0) break;
     }
 }
 
@@ -252,7 +255,8 @@ export function incrementCounter(counter: Uint8Array): void {
 
 export function gcmIncrementCounter(counter: Uint8Array): void {
     for (let i = 15; i >= 12; i--) {
-        if (++counter[i] !== 0) break;
+        counter[i] = (counter[i] + 1) & 0xff;
+        if (counter[i] !== 0) break;
     }
 }
 
