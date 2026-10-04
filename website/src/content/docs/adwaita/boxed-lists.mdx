@@ -1,6 +1,6 @@
 ---
 title: Boxed Lists
-description: "Adwaita boxed-list rows: preferences group, action, switch, entry, combo, spin, expander and button. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita boxed-list rows: preferences group, preferences row, action, switch, entry, combo, spin, expander and button. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -48,6 +48,59 @@ page.
     const group = Builder.load({ path: '~/views', name: 'preferences-group' }) as Adw.PreferencesGroup;
     const signOut = group.getViewById<Gtk.Button>('sign_out')!;
     signOut.connect('clicked', () => console.log('Sign out'));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Preferences Row
+
+The base every row in a boxed list grows from: a list row with a **title** and
+nothing more. The title is the text the preferences dialog searches, so give a
+row one even when you draw the rest yourself. It takes Pango markup unless
+**use-markup** is off, an underscore marks a mnemonic with **use-underline**, and
+**title-selectable** lets the user copy it. The action, switch and entry rows
+all add their own controls on top of this one.
+
+<AdwWidget title="Adw.PreferencesRow">
+  <Fragment slot="preview">
+    ```html
+    <adw-preferences-group>
+      <!-- use-markup: Whether to use Pango markup for the title label. -->
+      <adw-preferences-row title="A plain preferences row" use-markup></adw-preferences-row>
+    </adw-preferences-group>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    const row = new Adw.PreferencesRow({ title: 'A plain preferences row', useMarkup: true });
+
+    const group = new Adw.PreferencesGroup();
+    group.add(row);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.PreferencesGroup {
+      Adw.PreferencesRow {
+        title: _("A plain preferences row");
+        use-markup: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    const row = new Adw.PreferencesRow({ title: 'A plain preferences row', useMarkup: true });
+
+    const group = new Adw.PreferencesGroup();
+    group.add(row);
     ```
   </Fragment>
 </AdwWidget>

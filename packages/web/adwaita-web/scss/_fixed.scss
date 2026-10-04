@@ -1,0 +1,29 @@
+// _fixed.scss — <gtk-fixed>: children at pixel positions, and a box around all of them.
+//
+// `gtk_fixed_init` sets `GTK_OVERFLOW_HIDDEN` (gtkfixed.c:189-195), so the fixed clips a
+// child that reaches past its own bounds — and the element sizes those bounds from the
+// union of the children (`gtk_fixed_layout_measure`, gtkfixedlayout.c:224-300), which is
+// what makes `overflow: hidden` a clipping rule rather than a layout one.
+//
+// The children are out of flow, which is what a position means: `position: absolute` against
+// the fixed's own padding box, which `gtk_fixed_layout_allocate` does by handing each child
+// its measured size at (x, y). `left` / `top` DEFAULT TO ZERO and not to CSS's `auto`
+// because `gtk_fixed_buildable_add_child` puts an unpositioned child at 0, 0
+// (gtkfixed.c:171-177), and `auto` would resolve it to its STATIC position instead.
+//
+// Reference: refs/gtk/gtk/gtkfixed.c:171-177, :189-195
+// Reference: refs/gtk/gtk/gtkfixedlayout.c:224-300
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-fixed {
+  display: block;
+  position: relative;
+  overflow: hidden;
+
+  > * {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+}

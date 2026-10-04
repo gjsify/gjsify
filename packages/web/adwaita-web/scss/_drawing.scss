@@ -1,0 +1,85 @@
+// _drawing.scss — <gtk-drawing-area>, and the page's other hand-drawn surfaces.
+//
+// THERE IS NO UPSTREAM FILE TO PORT. `GtkDrawingArea` sets no CSS name of its own, so
+// its node is the default `widget` node (gtkwidget.c:1982), and libadwaita's stylesheet
+// has no rule for it — nor for `glarea`, which sets no name either, nor for
+// `graphicsoffload`, whose only rule is the widget-node layout GTK gives a bin. So this
+// partial is GEOMETRY, and every value in it is transcribed from a measure function in
+// the C rather than from a stylesheet upstream does not have. Saying that is the point:
+// the rules below are not a re-skin, they are the measurement written out.
+//
+// CONTENT-WIDTH IS A FLOOR, NOT A SIZE. `gtk_drawing_area_measure` returns
+// `content_width` as the minimum AND the natural width (gtkdrawingarea.c:210-231), so a
+// parent may hand the area MORE than it asked for — which is what `width: <length>`
+// means for a block box — and cannot hand it less, which is `min-width`. The zero default
+// is "no intrinsic size", and `auto` is the block box's own answer to that.
+//
+// Reference: refs/gtk/gtk/gtkdrawingarea.c:210-231,240-267
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-drawing-area {
+  display: block;
+  // The natural half: a parent with room to spare gives the area more, and a parent
+  // without gives it exactly the floor below.
+  width: var(--adw-drawing-width, auto);
+  height: var(--adw-drawing-height, auto);
+  // The minimum half — the same number, which is why both read one custom property.
+  min-width: var(--adw-drawing-width, 0);
+  min-height: var(--adw-drawing-height, 0);
+
+  // The cairo region GTK hands the draw function is the whole allocation
+  // (gtkdrawingarea.c:248-262), so the canvas is the whole box rather than a scaled
+  // child of it.
+  .adw-drawing-area-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// <gtk-gl-area> — `GtkGLArea` sets no CSS name (no `gtk_widget_class_set_css_name` in
+// gtkglarea.c), so its node is the generic `widget` node and libadwaita has no rule for
+// it. It also has NO measure function, which is the rule that shapes what follows: the
+// area reports no intrinsic size on either axis, so a parent gives it one.
+gtk-gl-area {
+  display: block;
+  position: relative;
+
+  .adw-gl-area-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  // `gtk_gl_area_draw_error_screen` (:701-723): the error message laid out across the
+  // widget's width and centred vertically — `pango_layout_set_width (width *
+  // PANGO_SCALE)` and `PANGO_ALIGN_CENTER`, at `(height - layout_height) / 2`. The
+  // canvas stays behind it, as GTK's snapshot replaces a frame's contents rather than
+  // the widget's node.
+  .adw-gl-area-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 12px;
+  }
+}
+// <gtk-graphics-offload> — `GTK_TYPE_BIN_LAYOUT` (gtkgraphicsoffload.c:290) gives the
+// child the whole allocation, and the black rectangle `black_background` paints over that
+// allocation BEFORE the child (:222-229) is a BACKGROUND rather than a layer: what the
+// letterbox bars need is the wrapper black exactly where the child does not cover it.
+gtk-graphics-offload {
+  display: block;
+  position: relative;
+  // No `overflow: hidden` here: GTK's subsurface is rectangular and a rounded corner or a
+  // clip is one of the things that PROHIBITS offload (:66-68), so clipping this box would
+  // be the very condition the widget exists to avoid. It does not clip.
+  .adw-graphics-offload-child {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}

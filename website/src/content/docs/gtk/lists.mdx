@@ -1,0 +1,327 @@
+---
+title: Lists
+description: "GTK's child-holding containers — the list box, the flow box and the calendar — with a live preview, its markup, and the TypeScript and Blueprint code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Three widgets that hold **children you append** rather than a model: the
+**list box**, one row per child, the **flow box**, the same rows reflowed into
+as many per line as the width fits, and the **calendar**, a month grid you
+navigate with four arrows.
+
+On GTK the rows of the first two are widgets you wrap yourself —
+`gtk_list_box_insert()` puts a `GtkListBoxRow` around whatever you hand it —
+and here a `<gtk-list-box-row>` is that wrapper in markup. All three take
+`selection-mode`, and all four values of `Gtk.SelectionMode` answer on this
+port: `single`, `multiple`, `browse` and `none`.
+
+<MoreInfo title="Why these two have no NativeScript snippet">
+The selection rules are portable and renderer-neutral — they are
+`gtk_list_box_update_selection_full`, and the flow box's function is that one
+with the word `row` spelled `child`. What a NativeScript container has no room
+for is the **row**: the port has `GtkBox` and `AdwWrapBox`, and neither holds a
+selectable child. `@gjsify/adwaita-nativescript` therefore has neither of the
+two, and the question of whether a touch target should carry four selection
+modes at all is still open.
+</MoreInfo>
+
+## List Box
+
+One row per child. **`selection-mode`** is `single` by default and takes all
+four values; **`show-separators`** draws the hairline between rows. A click
+selects, <kbd>Ctrl</kbd> toggles and <kbd>Shift</kbd> extends from the row the
+previous <kbd>Shift</kbd>-click kept as its anchor, exactly as
+`gtk_list_box_update_selection_full` does. Activation is a **single click**
+unless you set **`activate-on-single-click="false"`**.
+
+<kbd>Enter</kbd> activates the focused row and <kbd>Ctrl</kbd>+<kbd>Space</kbd>
+toggles it. **`tab-behavior="item"`** turns the whole box into one tab stop
+whose arrow keys move the cursor; the default, `all`, gives every activatable
+row its own.
+
+<AdwWidget title="Gtk.ListBox">
+  <Fragment slot="preview">
+    ```html
+    <gtk-list-box selection-mode="single" show-separators style="width:100%;max-width:240px;">
+      <gtk-list-box-row>
+        <gtk-label label="Documents"></gtk-label>
+      </gtk-list-box-row>
+      <gtk-list-box-row>
+        <gtk-label label="Downloads"></gtk-label>
+      </gtk-list-box-row>
+      <gtk-list-box-row>
+        <gtk-label label="Pictures"></gtk-label>
+      </gtk-list-box-row>
+    </gtk-list-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const box = new Gtk.ListBox({ selectionMode: Gtk.SelectionMode.SINGLE });
+    box.showSeparators = true;
+    // `gtk_list_box_insert()` WRAPS whatever you hand it in a GtkListBoxRow, so the row
+    // is built here rather than declared — the one thing the markup form has to spell.
+    for (const title of ['Documents', 'Downloads', 'Pictures']) {
+        const row = new Gtk.ListBoxRow({ child: new Gtk.Label({ label: title, xalign: 0 }) });
+        box.append(row);
+    }
+    box.connect('row-activated', (_box, row) => print(`activated ${(row.child as Gtk.Label).label}`));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ListBox {
+      selection-mode: single;
+      show-separators: true;
+
+      Gtk.ListBoxRow {
+        child: Gtk.Label {
+          xalign: 0;
+          label: _("Documents");
+        };
+      }
+
+      Gtk.ListBoxRow {
+        child: Gtk.Label {
+          xalign: 0;
+          label: _("Downloads");
+        };
+      }
+
+      Gtk.ListBoxRow {
+        child: Gtk.Label {
+          xalign: 0;
+          label: _("Pictures");
+        };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const box = new Gtk.ListBox({ selectionMode: Gtk.SelectionMode.SINGLE });
+    box.showSeparators = true;
+    // `gtk_list_box_insert()` WRAPS whatever you hand it in a GtkListBoxRow, so the row
+    // is built here rather than declared — the one thing the markup form has to spell.
+    for (const title of ['Documents', 'Downloads', 'Pictures']) {
+        const row = new Gtk.ListBoxRow({ child: new Gtk.Label({ label: title, xalign: 0 }) });
+        box.append(row);
+    }
+    box.connect('row-activated', (_box, row) => print(`activated ${(row.child as Gtk.Label).label}`));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Flow Box
+
+The same rows, reflowed. It fills **lines along `orientation`** — horizontal,
+which is the default here and the opposite of every GTK list — and starts a new
+line when the next child will not fit. **`min-children-per-line`** and
+**`max-children-per-line`** bound the count; GTK's own default maximum is
+seven, and **`row-spacing`** and **`column-spacing`** are the gaps.
+**`homogeneous`** gives every child the same size.
+
+The arrows move by **visual position**, not by index: from the last cell of a
+full line, <kbd>Left</kbd> is the first cell of the next one and
+<kbd>↑</kbd> is one line up in the same column — the same distinction GTK draws
+between `GTK_MOVEMENT_VISUAL_POSITIONS` and `GTK_MOVEMENT_DISPLAY_LINES`.
+
+<AdwWidget title="Gtk.FlowBox">
+  <Fragment slot="preview">
+    ```html
+    <!-- min-children-per-line: The minimum number of children to allocate consecutively in the given orientation. -->
+    <!-- max-children-per-line: The maximum amount of children to request space for consecutively in the given orientation. -->
+    <gtk-flow-box
+      selection-mode="multiple"
+      min-children-per-line="2"
+      max-children-per-line="4"
+      row-spacing="6"
+      column-spacing="6"
+      style="width:100%;max-width:320px;"
+    >
+      <gtk-flow-box-child>
+        <gtk-label label="Red"></gtk-label>
+      </gtk-flow-box-child>
+      <gtk-flow-box-child>
+        <gtk-label label="Orange"></gtk-label>
+      </gtk-flow-box-child>
+      <gtk-flow-box-child>
+        <gtk-label label="Yellow"></gtk-label>
+      </gtk-flow-box-child>
+      <gtk-flow-box-child>
+        <gtk-label label="Green"></gtk-label>
+      </gtk-flow-box-child>
+      <gtk-flow-box-child>
+        <gtk-label label="Blue"></gtk-label>
+      </gtk-flow-box-child>
+    </gtk-flow-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const box = new Gtk.FlowBox({
+        selectionMode: Gtk.SelectionMode.MULTIPLE,
+        minChildrenPerLine: 2,
+        maxChildrenPerLine: 4,
+        rowSpacing: 6,
+        columnSpacing: 6,
+        homogeneous: true,
+    });
+    // `GtkFlowBoxChild` is a Bin, so the wrapped child is `set_child()` — the wrapper the
+    // markup form writes as `<gtk-flow-box-child>`.
+    for (const name of ['Red', 'Orange', 'Yellow', 'Green', 'Blue']) {
+        box.append(new Gtk.FlowBoxChild({ child: new Gtk.Label({ label: name }) }));
+    }
+    box.connect('child-activated', (_box, child) => print(`activated ${(child.child as Gtk.Label).label}`));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.FlowBox {
+      selection-mode: multiple;
+      min-children-per-line: 2;
+      max-children-per-line: 4;
+      row-spacing: 6;
+      column-spacing: 6;
+      homogeneous: true;
+
+      Gtk.FlowBoxChild {
+        child: Gtk.Label { label: _("Red"); };
+      }
+
+      Gtk.FlowBoxChild {
+        child: Gtk.Label { label: _("Orange"); };
+      }
+
+      Gtk.FlowBoxChild {
+        child: Gtk.Label { label: _("Yellow"); };
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const box = new Gtk.FlowBox({
+        selectionMode: Gtk.SelectionMode.MULTIPLE,
+        minChildrenPerLine: 2,
+        maxChildrenPerLine: 4,
+        rowSpacing: 6,
+        columnSpacing: 6,
+        homogeneous: true,
+    });
+    // `GtkFlowBoxChild` is a Bin, so the wrapped child is `set_child()` — the wrapper the
+    // markup form writes as `<gtk-flow-box-child>`.
+    for (const name of ['Red', 'Orange', 'Yellow', 'Green', 'Blue']) {
+        box.append(new Gtk.FlowBoxChild({ child: new Gtk.Label({ label: name }) }));
+    }
+    box.connect('child-activated', (_box, child) => print(`activated ${(child.child as Gtk.Label).label}`));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Calendar
+
+A month grid with a heading and four arrows. **`date`** is the selected day as
+`YYYY-MM-DD`, the form `GDateTime` serialises to, and it starts at **today** —
+which is what `gtk_calendar_init` seeds the widget with. **`show-heading`** and
+**`show-day-names`** are both on by default and **`show-week-numbers`** is off
+until you ask, because the week numbers are a real grid *column* and turning
+them on narrows the days.
+
+The grid is always six rows of seven: GTK allocates `day_number_labels[6][7]`
+whatever the month needs, so a five-row month still paints six and the height
+does not jump. The arrows clamp the way `g_date_time_add_months` does — from the
+31st you land on the **28th** (or 29th), never on 3 March. A day belonging to
+the next or previous month is clickable and pages with you; `markDay()` puts a
+tint on a day of this month, and a mark survives a month that has no such day.
+
+<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> move the cursor,
+<kbd>Space</kbd> selects the day it is on, and with <kbd>Ctrl</kbd> the same four
+keys are the month and year arrows. The `year`, `month` and `day` properties
+still work and are the 0-11 numbering the GIR uses for `month` — all three are
+deprecated since GTK 4.20 in favour of `date`.
+
+<AdwWidget title="Gtk.Calendar">
+  <Fragment slot="preview">
+    ```html
+    <gtk-calendar date="2026-10-02" show-week-numbers></gtk-calendar>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const calendar = new Gtk.Calendar();
+    calendar.showWeekNumbers = true;
+    // `GtkCalendar:date` holds a GDateTime; the year/month/day halves are the deprecated
+    // spelling of the same write and go through the same select_day_internal.
+    calendar.date = new Gio.DateTime({ year: 2026, month: 10, day: 2 });
+    // `mark_day()` takes a day NUMBER of the shown month, so it survives paging.
+    calendar.mark_day(14);
+    calendar.connect('day-selected', () => {
+        const [year, month, day] = calendar.getDate().get_ymd();
+        print(`${year}-${month}-${day}`);
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Calendar {
+      show-week-numbers: true;
+
+      // `date` takes a GDateTime, which a .blp cannot construct from literals, so the
+      // deprecated halves say the same thing a template can spell.
+      year: 2026;
+      month: 9;
+      day: 2;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const calendar = new Gtk.Calendar();
+    calendar.showWeekNumbers = true;
+    // `GtkCalendar:date` holds a GDateTime; the year/month/day halves are the deprecated
+    // spelling of the same write and go through the same select_day_internal.
+    calendar.date = new Gio.DateTime({ year: 2026, month: 10, day: 2 });
+    // `mark_day()` takes a day NUMBER of the shown month, so it survives paging.
+    calendar.mark_day(14);
+    calendar.connect('day-selected', () => {
+        const [year, month, day] = calendar.getDate().get_ymd();
+        print(`${year}-${month}-${day}`);
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Models](../models/): the four views that draw a list **model** through a
+  factory, where the rows come from the items rather than from your markup.
+- [Boxed Lists](/gjsify/adwaita/boxed-lists/): `Adw.ActionRow` and friends are
+  `GtkListBoxRow` subclasses, so a preferences group is a list box wearing
+  Adwaita.
+- [Controls](../controls/): the drop-down, which is a list box with an inline
+  popover instead of visible rows.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same three
+  widgets in a live component browser you can poke at.

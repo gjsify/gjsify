@@ -124,13 +124,16 @@ export const AdwStorybookPreviewScrollTest = async () => {
             }
         });
 
-        await it('lets the toolbar view, not this sheet, fill the story-list column', () => {
+        await it('lets the toolbar view, not this sheet, fill the story-list column', async () => {
             // This sheet used to carry its own `.sb-sidebar-scroll { flex: 1 1 auto }`,
             // which held the column up here while every other Adw.ToolbarView content
             // widget in the project still stopped at its last row. The declaration is
             // gone and `adw-toolbar-view` fills its content widget instead, so this
             // asserts the widget rule from the consumer that used to hide its absence.
             const { host } = mountTall();
+            // The breakpoint observer settles after the first layout flush; measuring
+            // before then reads a collapsed (display: none) pane as zero height.
+            await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
             try {
                 const scroll = host.querySelector('.sb-sidebar-scroll') as HTMLElement;
                 const area = scroll.parentElement as HTMLElement;

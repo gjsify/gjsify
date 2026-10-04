@@ -126,12 +126,36 @@ function committedNames() {
     return [...block[1].matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
 }
 
+/**
+ * The builder's `OVERRIDES`: `<name>`, the export it really resolves to, and the file name
+ * it is written under. Read from the builder rather than restated here, so an override
+ * cannot drift from the generator that applies it — and it is checked, not trusted: the
+ * export still has to exist in the subpath the SUBSET entry names.
+ */
+function gtkOverrides() {
+    const source = readFileSync(GTK_MAP, 'utf8');
+    const open = source.indexOf('const OVERRIDES = {');
+    if (open === -1) return new Map();
+    const start = source.indexOf('{', open);
+    let depth = 0;
+    let end = start;
+    for (; end < source.length; end++) {
+        if (source[end] === '{') depth++;
+        else if (source[end] === '}' && --depth === 0) break;
+    }
+    const body = stripComments(source.slice(start, end));
+    return new Map(
+        [...body.matchAll(/^ {4}'([a-z0-9-]+)':\s*\{\s*export:\s*'([A-Za-z0-9_]+)'/gm)].map((m) => [m[1], m[2]]),
+    );
+}
+
 const rel = (p) => toPosixPath(relative(ROOT, p));
 const exportNameFor = (name) => `${name.replace(/-([a-z0-9])/g, (_a, c) => c.toUpperCase())}Symbolic`;
 
 const web = objectKeys(WEB_MAP, 'const ICONS = {');
 const gtk = gtkSubset();
 const vendored = vendoredGlyphs();
+const overrides = gtkOverrides();
 const excluded = new Set(Object.keys(GTK_EXCLUSIONS));
 
 const failures = [];
@@ -153,7 +177,7 @@ for (const [name, subpath] of [...gtk].sort()) {
                 `drop it here.`,
         );
     }
-    const exportName = exportNameFor(name);
+    const exportName = overrides.get(name) ?? exportNameFor(name);
     const home = vendored.get(exportName);
     if (home === undefined) {
         failures.push(`${name} names ${exportName}, which @gjsify/adwaita-icons does not export.`);
@@ -177,6 +201,17 @@ if (committed !== null) {
                 `${extra.length > 0 ? ` — carries ${extra.join(', ')} that SUBSET does not` : ''}. ` +
                 `Regenerate it: gjsify workspace @gjsify/adwaita-app run build:icons (needs ` +
                 `glib-compile-resources), and commit the result.`,
+        );
+    }
+}
+
+// An override for a name the bundle no longer carries is dead weight that reads as a live
+// exception, so it fails the same way a stale exclusion does.
+for (const name of [...overrides.keys()].sort()) {
+    if (!gtk.has(name)) {
+        failures.push(
+            `${name} has an OVERRIDES entry in ${rel(GTK_MAP)} but is not in SUBSET — the override is dead. ` +
+                `Drop it, or add the name back to SUBSET.`,
         );
     }
 }

@@ -301,6 +301,10 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
         ]);
         const window_ = h('adw-window', { class: 'sb-window' }, [this._navSplit]);
         this._container.replaceChildren(window_);
+        // `<adw-window>` writes its 360x200 size request as inline style on connect, which
+        // outranks `.sb-window`; the storybook fills its host, so it states that after connect.
+        window_.style.width = '100%';
+        window_.style.height = '100%';
     }
 
     private _exposeGlobal(): void {

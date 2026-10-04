@@ -1,0 +1,53 @@
+// _popover_bin.scss — <gtk-popover-bin>: the container around a widget that owns a popover.
+//
+// libadwaita has NO `popoverbin` rule — the node is new in GTK 4.22
+// (`gtk_widget_class_set_css_name (widget_class, "popoverbin")`, gtkpopoverbin.c:382) and
+// libadwaita 1.10 never styles it. So this partial is small on purpose, and the claim it
+// makes is exactly what GTK does with the class GTK ITSELF puts on the child:
+//
+//   `on_popover_map` / `on_popover_unmap` (gtkpopoverbin.c:117-126) add and remove
+//   `.has-open-popup` on the bin's CHILD, and libadwaita's `_lists.scss:57` comments that
+//   class as "indicathing which row generated a popover" — a list row and a sidebar row
+//   (`:132`) both keep their selected tint while their popup is up.
+//
+// The rules below are therefore the two libadwaita ALREADY ships, restated against this
+// package's tokens, because this package spells a row as a custom element rather than as
+// GTK's `row` node. Both values are libadwaita's own:
+//
+//   row.activatable.has-open-popup        background-color: $view_hover_color;
+//   row.activatable:selected.has-open-popup  $view_selected_hover_color;
+//
+// A bin whose child is a `<gtk-list-box-row>` or a `<gtk-button>` therefore stays highlighted
+// while its menu is open, which is the whole reason the class exists and the reason this
+// element toggles it rather than merely mirroring GTK's signal wiring.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss:57, :64 (`row.has-open-popup`)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss:132 (the sidebar row)
+// Reference: refs/gtk/gtk/gtkpopoverbin.c:117-126 (`.has-open-popup` on the child)
+// Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+
+// Modifications: Adapted for the @gjsify/adwaita-web light-DOM custom elements.
+
+// The bin itself draws nothing: it is a bin layout holding one child and the popover, and
+// `gtk_popover_bin_compute_expand` (gtkpopoverbin.c:289-306) simply forwards the child's
+// expand to the bin. A `display: inline-flex` here would be an invented box, and the one
+// thing it must not do is take the popover out of flow — `_popover.scss` already positions
+// it absolutely against this element.
+.adw-popover-bin {
+  position: relative;
+}
+
+// `row.activatable.has-open-popup { background-color: $view_hover_color }`
+// (_lists.scss:57). `view-hover-color` is the token `_lists.scss` uses for an activatable
+// row under the pointer, which is the closest thing this package has to a row that is
+// "activated" by a popup it did not ask for.
+.adw-popover-bin > .has-open-popup {
+  background-color: var(--view-hover-color, var(--button-hover-color));
+}
+
+// `_lists.scss:64` — the same, for a row that is ALSO selected: libadwaita darkens to
+// `$view_selected_hover_color` rather than repeating the plain hover colour, which is what
+// keeps a selected row readable while its popup covers the list.
+.adw-popover-bin > .has-open-popup[aria-selected='true'],
+.adw-popover-bin > .has-open-popup.selected {
+  background-color: var(--view-selected-hover-color, var(--button-hover-color));
+}

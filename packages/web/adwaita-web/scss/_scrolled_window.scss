@@ -1,0 +1,131 @@
+// _scrolled_window.scss — <gtk-scrolled-window>: the allocation GTK's
+// `gtk_scrolled_window_allocate_child` / `allocate_scrollbar` pair performs.
+//
+// THE PLACEMENT IS A GRID of two cells and one corner, because that is what
+// `gtk_scrolled_window_allocate_scrollbar` (gtkscrolledwindow.c:3227-3305) computes: the
+// content takes what is left after each bar has taken its edge, and which edge that is comes
+// from two booleans the C derives from `window-placement`.
+//
+//   · `is_top` — `window-placement` is `top-left` or `top-right` — decides whether the
+//     HORIZONTAL bar is on the far (bottom) row or the near (top) one.
+//   · `is_left = ltr != is_start` — `is_start` being the same corner's left half — decides
+//     whether the VERTICAL bar is on the end edge or the start one. The direction half is
+//     `:dir(rtl)` here rather than a class, because C reads it off the widget and CSS reads it
+//     off the document.
+//
+// The third corner cell is `junction`, the node GTK draws where two bars meet
+// (gtkscrolledwindow.c:134-135); libadwaita paints nothing there, and neither does this — an
+// empty grid cell is the same absence with no node to hold it.
+//
+// AN OVERLAY INDICATOR IS LAID OUT INSIDE THE CONTENT, not beside it. That is
+// `priv->use_indicators` in the same function (gtkscrolledwindow.c:3255-3300): the bar's
+// allocation starts at the content's far edge MINUS the bar's own thickness, so it lies over
+// the content instead of shrinking it. Hence the second template — positioned against the
+// window, which is `position: relative` here for the reason GTK's is a child of the
+// scrolledwindow node.
+//
+// `.frame` is `GtkScrolledWindow:has-frame`, which its own CSS-node documentation spells out:
+// "It gets a .frame style class added when `has-frame` is TRUE" (gtkscrolledwindow.c:122-124).
+// The rule behind the class is libadwaita's `_misc.scss:4-7`, which `_style_classes.scss`
+// already carries, so no selector for it is repeated here.
+
+gtk-scrolled-window {
+  position: relative;
+  display: grid;
+  // GTK asks its parent for as little as it can: `gtk_scrolled_window_measure` reports the
+  // child's minimum only under `POLICY_NEVER` (gtkscrolledwindow.c:1846-1895) and the bars'
+  // own thickness otherwise. `minmax(0, 1fr)` is that request — a track that may collapse to
+  // nothing rather than one that demands its content's height, which is what
+  // `gtk_widget_set_size_request` lets an author override afterwards.
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  // GTK GIVES THIS WIDGET AN ALLOCATION from its parent and never decides its own size:
+  // `gtk_scrolled_window_measure` reports the child's MINIMUM and the bars' own thickness
+  // (gtkscrolledwindow.c:1846-1895), and `size_allocate` fills whatever it is
+  // given. A browser scrolled window needs the same from its author — a height, a
+  // `flex-basis`, a parent track — because an auto-height box grows with its content and then
+  // has nothing to scroll. `flex: 1 1 0%` is that allocation for the ordinary case of a
+  // window in a column, and it is 0 in an auto-height column, so an author who wants the
+  // natural size writes one.
+  flex: 1 1 0%;
+  overflow: hidden;
+
+  > gtk-viewport {
+    grid-area: 1 / 1;
+  }
+
+  // The vertical bar spans BOTH rows, which is `gtk_widget_size_allocate` giving it the
+  // whole content height (gtkscrolledwindow.c:3295-3305) minus whatever the horizontal bar
+  // takes when that one is a layout neighbour rather than an overlay.
+  > gtk-scrollbar.vertical {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  > gtk-scrollbar.horizontal {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    align-self: end;
+  }
+
+  // `is_top` false: the horizontal bar takes the NEAR row, and the content is what is left.
+  &.bottom-left,
+  &.bottom-right {
+    grid-template-rows: auto minmax(0, 1fr);
+
+    > gtk-scrollbar.horizontal {
+      grid-row: 1;
+      align-self: start;
+    }
+  }
+
+  // `is_left` true: the vertical bar takes the START column.
+  &.top-right,
+  &.bottom-right {
+    grid-template-columns: auto minmax(0, 1fr);
+
+    > gtk-scrollbar.vertical {
+      grid-column: 1;
+      justify-self: start;
+    }
+  }
+
+  // The direction half of `is_left = ltr != is_start`: everything the C inverts under RTL.
+  &:dir(rtl) {
+    grid-template-columns: auto minmax(0, 1fr);
+
+    > gtk-scrollbar.vertical {
+      grid-column: 1;
+      justify-self: start;
+    }
+
+    &.top-right,
+    &.bottom-right {
+      grid-template-columns: minmax(0, 1fr) auto;
+
+      > gtk-scrollbar.vertical {
+        grid-column: 2;
+        justify-self: end;
+      }
+    }
+  }
+
+  // The overlay case, which is the whole of what `use_indicators` changes in the allocation:
+  // both bars leave the grid and lie over the content.
+  &.overlay-scrolling > gtk-scrollbar.overlay-indicator {
+    position: absolute;
+
+    &.vertical {
+      inset-block: 0;
+      right: 0;
+    }
+
+    &.horizontal {
+      inset-inline: 0;
+      bottom: 0;
+    }
+  }
+}

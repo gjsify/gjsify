@@ -4,19 +4,28 @@
 // The styles are the UNSCOPED `scss/_switch.scss`, so `.adw-switch` exists outside a
 // switch row and `<adw-expander-row>` can reuse it instead of copying the block.
 //
-// NO CORE STATE MACHINE. The state is one boolean with no derivation, no ordering and no
-// notify subtlety beyond "on change" — ADR 0004 is explicit that trivial behaviour gets
-// no core class, and the `active` ATTRIBUTE is the state (`toggleAttribute` is idempotent,
-// so "notify only on a real change" needs no guard). `GtkSwitch` does carry a two-phase
-// `active`/`state` pair for async toggles, but `refs/gtk` is an uninitialized submodule
-// here so that is unverifiable, and neither this port nor
-// `@gjsify/adwaita-nativescript` models it. The notify rule that IS derived from C lives
-// in the ROW's `SwitchRowState`.
+// NO CORE STATE MACHINE. The state is two booleans with no derivation, no ordering and
+// no notify subtlety beyond "on change" — ADR 0004 is explicit that trivial behaviour
+// gets no core class — and each is the ATTRIBUTE, `toggleAttribute` being idempotent, so
+// "notify only on a real change" needs no guard. The notify rule that IS derived from C
+// lives in the ROW's `SwitchRowState`.
 //
-// `notify::active` (CustomEvent, bubbles, detail `{ active }`) fires on every change,
-// programmatic included. A widget that COMPOSES this one and publishes its own
-// `notify::active` (`<adw-switch-row>`) stops this one at the switch, so the row stays
-// the single public event surface.
+// THE TWO BOOLEANS ARE NOT THE SAME THING, and that is the whole of `GtkSwitch`:
+// `active` is where the USER put the switch, `state` is what the thing being switched
+// currently IS (gtkswitch.c:39-43). `set_active` emits `::state-set` with the new value
+// and the DEFAULT HANDLER sets `state` to it (:800, :558), so by default the two track
+// each other — that is why a declarative `active` still paints the trough. An
+// application that changes the backend separately connects to `::state-set`, returns
+// TRUE to stop the default handler and calls `set_state` when the real change lands
+// (:637-654); then `active` moves and `state` does not, which is exactly the delayed
+// case. So the handler is not modelled as a cancellable signal — it is modelled as its
+// DEFAULT, plus the attribute an application writes, which is the one half a custom
+// element can express.
+//
+// WHICH ONE IS PAINTED: libadwaita's `switch:checked` (refs/libadwaita/src/stylesheet/
+// widgets/_switch.scss:41-55), and GTK sets that state flag from `state`, not from
+// `active` (gtkswitch.c:853-856). So the trough colour follows `state` and the knob
+// position follows `active`, which is the two-phase picture the C describes.
 //
 // A11Y: the checkbox is left bare — no `role="switch"` — because the widgets that host
 // one claim that role themselves (`adw_switch_row_init` sets
@@ -25,6 +34,7 @@
 //
 // Reference: refs/adwaita-web/adwaita-web/scss/_switch.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_switch.scss
+// Reference: refs/gtk/gtk/gtkswitch.c:26-72,558,637-654,779-810,840-859
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
@@ -35,7 +45,7 @@ export class GtkSwitch extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['active', 'disabled', 'unfocusable'];
+        return ['active', 'state', 'disabled', 'unfocusable'];
     }
 
     /**
@@ -54,17 +64,26 @@ export class GtkSwitch extends HTMLElement {
         this.toggleAttribute('unfocusable', !!value);
     }
 
-    /** Whether the switch is on. */
+    /** Whether the user put the switch ON. Drives the knob. */
     get active(): boolean {
         return this.hasAttribute('active');
     }
 
     set active(value: boolean) {
-        // `toggleAttribute` with a force flag is a no-op when the attribute already holds
-        // the wanted state, so re-setting the current value never runs
-        // `attributeChangedCallback` and never notifies. That idempotence is what a state
-        // class would otherwise hold.
+        // `gtk_switch_set_active` emits `::state-set` and the DEFAULT handler runs
+        // `set_state` (gtkswitch.c:800, :558), so writing one writes the other. That is
+        // what keeps a declarative `active` painting the accent trough.
         this.toggleAttribute('active', !!value);
+        this.state = this.active;
+    }
+
+    /** `Gtk.Switch:state` — what the switched thing currently is. Drives the trough. */
+    get state(): boolean {
+        return this.hasAttribute('state');
+    }
+
+    set state(value: boolean) {
+        this.toggleAttribute('state', !!value);
     }
 
     /** Whether the switch is inert. */
@@ -77,7 +96,10 @@ export class GtkSwitch extends HTMLElement {
     }
 
     connectedCallback() {
-        if (this._initialized) return;
+        if (this._initialized) {
+            this._render();
+            return;
+        }
         this._initialized = true;
 
         this.classList.add('adw-switch');
@@ -87,6 +109,12 @@ export class GtkSwitch extends HTMLElement {
         this._slider = document.createElement('span');
         this._slider.className = 'adw-switch-slider';
         this.replaceChildren(this._input, this._slider);
+
+        // An `active` written before the element was connected is the same write GTK
+        // sees at construction time, so the default `::state-set` handler has already
+        // run by the time anyone looks: catch `state` up here (gtkswitch.c:682-757 gives
+        // `state` and `is_active` the same FALSE default and no attribute to reconcile).
+        if (this.active) this.state = true;
 
         // Keyboard (Space on the focused checkbox) and a programmatic `input.click()` both
         // arrive here; the attribute is the state, so this writes it and lets
@@ -112,6 +140,8 @@ export class GtkSwitch extends HTMLElement {
         this._render();
         if (name === 'active') {
             this.dispatchEvent(new CustomEvent('notify::active', { bubbles: true, detail: { active: this.active } }));
+        } else if (name === 'state') {
+            this.dispatchEvent(new CustomEvent('notify::state', { bubbles: true, detail: { state: this.state } }));
         }
     }
 
@@ -121,6 +151,9 @@ export class GtkSwitch extends HTMLElement {
         this._input.disabled = disabled;
         if (this.unfocusable) this._input.tabIndex = -1;
         else this._input.removeAttribute('tabindex');
+        // The `:checked` state flag GTK raises from `state` (gtkswitch.c:853-856), which
+        // is the selector libadwaita paints the accent trough from.
+        this.classList.toggle('checked', this.state);
         this.classList.toggle('disabled', disabled);
     }
 }

@@ -1,0 +1,190 @@
+// _level_bar.scss — <gtk-level-bar>: the trough, the block, and the four colours the
+// offset classes select.
+//
+// THE GEOMETRY IS libadwaita's, VERBATIM, because this widget has no other styling
+// anywhere: refs/libadwaita/src/stylesheet/widgets/_level-bar.scss is the only
+// stylesheet that touches a `levelbar` node, and it is entirely radii, sizes and
+// block colours.
+//
+// WHAT C SUPPLIES INSTEAD. `levelbar > trough > block` is GTK's node tree
+// (gtklevelbar.c:99-116) — the element writes `.adw-level-bar-trough` and
+// `.adw-level-bar-block` with `.filled` / `.empty` plus the offset's class, because the
+// offsets are a RUNTIME list (`gtk_level_bar_add_offset_value`, gtklevelbar.c:1395-1411)
+// and no stylesheet can enumerate what an application adds. The four colours below are
+// therefore written for the classes GTK itself installs: `low`, `high`, `full`
+// (:1058-1060), and an application's own offset reaches them the same way.
+//
+// CONTINUOUS IS TWO NODES, NOT ONE. GTK allocates the empty level full size and paints
+// the filled one over it (gtklevelbar.c:344-362, :424-461), and the filled node is NOT
+// allocated at all when the value is 0 (:429-430) — which is why this partial positions
+// both absolutely inside the trough instead of flowing them, and why `overflow: hidden`
+// stands in for GTK's rounded clip.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_level-bar.scss:1-93
+// Reference: refs/gtk/gtk/gtklevelbar.c:99-116,285-303,344-362,424-461,467-524
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// $_levelbar_size (level-bar.scss:1)
+$levelbar-size: 8px;
+// $_levelbar_border_radius (level-bar.scss:2)
+$levelbar-radius: 99px;
+
+gtk-level-bar {
+  display: flex;
+
+  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:5-7).
+  &[disabled] {
+    opacity: var(--disabled-opacity);
+  }
+
+  .adw-level-bar-trough {
+    // `> trough { padding: 0 }` (:67-68) — the trough is the whole box, not a padded
+    // container around a smaller trough.
+    padding: 0;
+    position: relative;
+    display: flex;
+    // The rounded clip `gtk_snapshot_push_rounded_clip` puts on a progress node
+    // (gtkprogressbar.c:462-465), and the reason a value past `max-value` is cut off
+    // here rather than drawn beyond the end.
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .adw-level-bar-block {
+    position: absolute;
+    border-radius: $levelbar-radius;
+  }
+
+  // The unfilled level, which is what `block.empty` paints ($trough_color,
+  // level-bar.scss:85-92) — the same 15%-of-currentColor mix the scale trough uses
+  // (_scale.scss:1-10) and the 30% one under high contrast.
+  .adw-level-bar-block.empty {
+    inset: 0;
+    background-color: color-mix(in srgb, currentColor 15%, transparent);
+
+    @media (prefers-contrast: more) {
+      background-color: color-mix(in srgb, currentColor 30%, transparent);
+      box-shadow: inset 0 0 0 1px var(--border-color);
+    }
+  }
+
+  // The block colours (`> trough > block`, :71-93). `&:not(.empty)` is upstream's own
+  // selector, kept as written: it is what lets an offset an application invents paint in
+  // the accent without a rule of its own.
+  .adw-level-bar-block {
+    &.low {
+      background-color: var(--warning-bg-color);
+    }
+
+    &:not(.empty) {
+      background-color: var(--accent-bg-color);
+    }
+
+    &.full {
+      background-color: var(--success-bg-color);
+    }
+
+    &.high {
+      background-color: var(--accent-bg-color);
+    }
+  }
+
+  // `&.horizontal` (:9-35): 8px tall, one filled level in proportion to the interval.
+  &.horizontal {
+    .adw-level-bar-trough {
+      height: $levelbar-size;
+    }
+
+    .adw-level-bar-block {
+      min-height: $levelbar-size;
+    }
+
+    .adw-level-bar-block.filled {
+      inset-block: 0;
+      inset-inline-start: 0;
+      // `(cur_value - min_value) / (max_value - min_value)` (gtklevelbar.c:434-435).
+      width: calc(var(--level-fraction, 0) * 100%);
+    }
+
+    // `if (inverted) block_area.x += width - block_area.width` (:447-448).
+    &[inverted] .adw-level-bar-block.filled {
+      inset-inline-start: auto;
+      inset-inline-end: 0;
+    }
+  }
+
+  // `&.vertical` (:38-64): the same bar across the other axis.
+  &.vertical {
+    .adw-level-bar-trough {
+      height: 100%;
+    }
+
+    .adw-level-bar-block {
+      min-width: $levelbar-size;
+    }
+
+    .adw-level-bar-block.filled {
+      inset-inline: 0;
+      inset-block-start: 0;
+      height: calc(var(--level-fraction, 0) * 100%);
+    }
+
+    // `if (inverted) block_area.y += height - block_area.height` (:455-456).
+    &[inverted] .adw-level-bar-block.filled {
+      inset-block-start: auto;
+      inset-block-end: 0;
+    }
+  }
+
+  // DISCRETE IS FLOW, NOT ABSOLUTE. GTK lays the blocks out in one run and divides the
+  // trough between them (gtklevelbar.c:467-524); libadwaita puts a 2px gap between them
+  // and a 26px minimum (:20-35 horizontal, :50-64 vertical), with the outer corners
+  // rounded and the inner ones square.
+  &.discrete {
+    .adw-level-bar-block {
+      position: relative;
+      inset: auto;
+      flex: 1 1 0;
+      border-radius: 0;
+    }
+
+    &.horizontal {
+      .adw-level-bar-trough {
+        gap: 2px;
+      }
+
+      .adw-level-bar-block {
+        min-width: 26px;
+
+        &:first-child {
+          border-radius: $levelbar-radius 0 0 $levelbar-radius;
+        }
+
+        &:last-child {
+          border-radius: 0 $levelbar-radius $levelbar-radius 0;
+        }
+      }
+    }
+
+    &.vertical {
+      .adw-level-bar-trough {
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .adw-level-bar-block {
+        min-height: 26px;
+
+        &:first-child {
+          border-radius: $levelbar-radius $levelbar-radius 0 0;
+        }
+
+        &:last-child {
+          border-radius: 0 0 $levelbar-radius $levelbar-radius;
+        }
+      }
+    }
+  }
+}

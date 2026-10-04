@@ -1,0 +1,715 @@
+// _stack.scss — <gtk-stack>: one visible child out of many, with the animated
+// change between them.
+//
+// Upstream libadwaita styles the stack itself NOT AT ALL: `stack` appears in exactly
+// two rules of the whole stylesheet — `notebook > stack:not(:only-child)` for the
+// background (refs/libadwaita/src/stylesheet/widgets/_notebook.scss:213-215) and the
+// `stackswitcher`/`placessidebar` drop-target carve-out
+// (refs/libadwaita/src/stylesheet/_common.scss:81-89). Everything visible about a stack
+// is GTK's own node contract, which C declares: the `stack` css name and the GROUP
+// accessible role (gtkstack.c:1067-1068), the child that is laid out at all
+// (:2778-2831), the overlapping pair a transition paints (:1509-1519, :2662-2700) and
+// the measured size (:2833-2945). What follows is that contract written as CSS, with the
+// two libadwaita rules that reach a stack carried over verbatim where they apply.
+//
+// `<gtk-stack-switcher>` and `<gtk-stack-sidebar>` extend this same partial: libadwaita
+// styles their internals out of `_buttons.scss` and `_sidebars.scss` respectively, so the
+// three widgets share one stylesheet the way upstream shares three files.
+//
+// Reference: refs/gtk/gtk/gtkstack.c
+// Reference: refs/libadwaita/src/stylesheet/widgets/_notebook.scss:213-215
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-stack {
+    display: flex;
+    box-sizing: border-box;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+
+    // GTK allocates every child the stack's own size and lays out only the visible one
+    // (gtkstack.c:2778-2831), so a page is a stretched box: `flex: 1 1 auto` plus the
+    // cross-axis stretch `align-items: stretch` already gives. A page with a size
+    // request of its own keeps it — `flex-basis: auto` is what makes the basis the
+    // content rather than 0.
+    > .adw-stack-page {
+        box-sizing: border-box;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+
+        &:not(.visible-page) {
+            display: none;
+        }
+
+        // An animated page is positioned, because two pages overlap for its duration
+        // (gtkstack.c:1509-1519 keeps `last_visible_child` alive until the tracker is
+        // AFTER, and the snapshot node paints both, :2662-2700).
+        &.transitioning-in,
+        &.transitioning-out {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+        }
+    }
+
+    // `hhomogeneous` is TRUE by default (gtkstack.c:981-987), and the measure pass then
+    // looks at the VISIBLE child alone on that axis (gtkstack.c:2899-2905) — the stack is
+    // as big as the current page. Turned off, the stack is as big as the LARGEST page,
+    // which is `max-content` on the cross axis and `flex: 1 1 auto` along the main one.
+    &:not([hhomogeneous]) > .adw-stack-page {
+        flex: 0 1 auto;
+        width: max-content;
+        max-width: 100%;
+    }
+
+    &:not([vhomogeneous]) > .adw-stack-page {
+        height: max-content;
+        max-height: 100%;
+    }
+
+    // `interpolate-size` (gtkstack.c:2148-2172) smooths the SIZE change too, by
+    // interpolating the measured min/natural between the two pages (gtkstack.c:2847-2859,
+    // :2935-2943). A browser negotiates one layout, so the analogue is a CSS transition
+    // on the stack's own box for the duration of the page change — which is the same
+    // promise, reached through the mechanism this renderer actually has.
+    &[interpolate-size] {
+        transition-property: width, height;
+        transition-duration: var(--stack-transition-duration, 200ms);
+        transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
+}
+
+// ── Transitions ────────────────────────────────────────────────────────────
+// `transition-duration` is the progress tracker's length (gtkstack.c:1408-1411) and
+// `transition-running` is the flag the tick callback sets and clears
+// (gtkstack.c:1283-1286, :1313-1315). Every animation below is therefore written for
+// the FORWARD direction and mirrored by `animation-direction: reverse` for a backward
+// one — which is what `get_simple_transition_type` decides in C (gtkstack.c:1539-1556),
+// the incoming page sitting after the outgoing one meaning forward.
+// The mixins take the property/value PAIRS as a map and interpolate whole declarations,
+// because a declaration list cannot be interpolated into a `from { … }` block: `@content`
+// would be the way to accept declarations, but the keyframe names then cannot vary.
+@mixin stack-transition($name, $in-from, $in-to, $out-from, $out-to) {
+    &[data-transition-type='#{$name}'] > .adw-stack-page.transitioning-in {
+        animation-name: stack-in-#{$name};
+        animation-duration: var(--stack-transition-duration, 200ms);
+        animation-fill-mode: both;
+    }
+
+    &[data-transition-type='#{$name}'] > .adw-stack-page.transitioning-out {
+        animation-name: stack-out-#{$name};
+        animation-duration: var(--stack-transition-duration, 200ms);
+        animation-fill-mode: both;
+    }
+
+    @keyframes stack-in-#{$name} {
+        from {
+            @each $prop, $value in $in-from {
+                #{$prop}: $value;
+            }
+        }
+
+        to {
+            @each $prop, $value in $in-to {
+                #{$prop}: $value;
+            }
+        }
+    }
+
+    @keyframes stack-out-#{$name} {
+        from {
+            @each $prop, $value in $out-from {
+                #{$prop}: $value;
+            }
+        }
+
+        to {
+            @each $prop, $value in $out-to {
+                #{$prop}: $value;
+            }
+        }
+    }
+}
+
+@mixin stack-transition-in-only($name, $in-from, $in-to) {
+    &[data-transition-type='#{$name}'] > .adw-stack-page.transitioning-in {
+        animation-name: stack-in-#{$name};
+        animation-duration: var(--stack-transition-duration, 200ms);
+        animation-fill-mode: both;
+    }
+
+    @keyframes stack-in-#{$name} {
+        from {
+            @each $prop, $value in $in-from {
+                #{$prop}: $value;
+            }
+        }
+
+        to {
+            @each $prop, $value in $in-to {
+                #{$prop}: $value;
+            }
+        }
+    }
+}
+
+// CROSSFADE — GTK_STACK_TRANSITION_TYPE_CROSSFADE (gtkstack.c:98): both pages are on
+// screen at once and their opacity is interpolated (gtkstack.c:2432-2454).
+@include stack-transition(crossfade, (opacity: 0), (opacity: 1), (opacity: 1), (opacity: 0));
+
+// SLIDE — `slide-right` … `slide-down` (gtkstack.c:99-102). The outgoing page LEAVES in
+// the named direction and the incoming one arrives from the opposite side, which is why
+// one pair of keyframes covers both (gtkstack.c:2597-2660).
+@include stack-transition(
+    slide-right,
+    (transform: translateX(-100%)),
+    (transform: translateX(0)),
+    (transform: translateX(0)),
+    (transform: translateX(100%))
+);
+@include stack-transition(
+    slide-left,
+    (transform: translateX(100%)),
+    (transform: translateX(0)),
+    (transform: translateX(0)),
+    (transform: translateX(-100%))
+);
+@include stack-transition(
+    slide-up,
+    (transform: translateY(100%)),
+    (transform: translateY(0)),
+    (transform: translateY(0)),
+    (transform: translateY(-100%))
+);
+@include stack-transition(
+    slide-down,
+    (transform: translateY(-100%)),
+    (transform: translateY(0)),
+    (transform: translateY(0)),
+    (transform: translateY(100%))
+);
+
+// THE TWO-WAY TYPES HAVE NO RULES OF THEIR OWN. `slide-left-right`, `slide-up-down`,
+// the four `over-*-*` pairs and `rotate-left-right` (gtkstack.c:103-106, :118) are
+// resolved by `get_simple_transition_type` into ONE of the one-directional types above,
+// before the animation starts (gtkstack.c:1546-1561, :1162-1200) — so the element
+// writes `slide-left` or `slide-right` into `data-transition-type` and never the
+// two-way nick. That is C's own arrangement, and it is why this partial has no
+// direction attribute to key on.
+
+// OVER-… — the incoming page slides IN OVER the outgoing one, which stays put
+// (gtk_stack_snapshot_over, gtkstack.c:2456-2513).
+@include stack-transition-in-only(over-up, (transform: translateY(100%)), (transform: translateY(0)));
+@include stack-transition-in-only(over-down, (transform: translateY(-100%)), (transform: translateY(0)));
+@include stack-transition-in-only(over-left, (transform: translateX(100%)), (transform: translateX(0)));
+@include stack-transition-in-only(over-right, (transform: translateX(-100%)), (transform: translateX(0)));
+
+// UNDER-… — the incoming page slides in UNDERNEATH the outgoing one, which therefore
+// gets the z-index it does not have for OVER (gtkstack.c:2456-2513).
+@include stack-transition-in-only(under-up, (transform: translateY(100%)), (transform: translateY(0)));
+@include stack-transition-in-only(under-down, (transform: translateY(-100%)), (transform: translateY(0)));
+@include stack-transition-in-only(under-left, (transform: translateX(100%)), (transform: translateX(0)));
+@include stack-transition-in-only(under-right, (transform: translateX(-100%)), (transform: translateX(0)));
+
+// The stacking order is the whole difference between OVER and UNDER, and it is a single
+// declaration: the outgoing page stays above the incoming one for UNDER, and below it
+// for OVER.
+gtk-stack[data-transition-type^='over-'] > .adw-stack-page.transitioning-in {
+    z-index: 1;
+}
+
+gtk-stack[data-transition-type^='under-'] > .adw-stack-page.transitioning-out {
+    z-index: 1;
+}
+
+// ROTATE — `rotate-left` / `rotate-right` / `rotate-left-right` (gtkstack.c:116-118):
+// a Y-axis rotation of the crossfade, `perspective` standing in for GTK's 3D context.
+@include stack-transition-in-only(
+    rotate-left,
+    (transform: perspective(800px) rotateY(90deg)),
+    (transform: perspective(800px) rotateY(0deg))
+);
+@include stack-transition-in-only(
+    rotate-right,
+    (transform: perspective(800px) rotateY(-90deg)),
+    (transform: perspective(800px) rotateY(0deg))
+);
+
+// CUBE (gtkstack.c:107) and the transition's `NONE`: no animation, so nothing to write.
+// `gtk_stack_start_transition` skips the whole tracker when the effective type is NONE
+// or the duration is 0 (gtkstack.c:1400-1403), which is what the element does too — the
+// `transition-running` attribute is simply never set.
+// ── Gtk.StackSwitcher ──────────────────────────────────────────────────────
+// A linked row of toggle buttons, one per page (gtkstackswitcher.c:277-300), and C puts
+// the `.linked` class on the switcher itself (gtkstackswitcher.c:49-57) so the buttons
+// share one rounded group instead of being individually rounded.
+gtk-stack-switcher {
+    display: flex;
+    box-sizing: border-box;
+    min-width: 0;
+
+    > .adw-stack-switcher-button {
+        display: inline-flex;
+        flex: 1 1 0;
+        min-width: 0;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 3px 12px;
+        min-height: 30px;
+        border: 1px solid var(--border-color, var(--separator-color));
+        background-color: var(--button-bg-color);
+        color: var(--window-fg-color);
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+
+        // `.linked` (gtkstackswitcher.c:49-57): the inner corners lose their radius and
+        // the neighbours' borders collapse, so the row reads as one control. This is the
+        // same shape `_linked.scss` builds for `.linked > button` in libadwaita.
+        &:first-child {
+            border-start-start-radius: var(--button-radius);
+            border-end-start-radius: var(--button-radius);
+        }
+
+        &:last-child {
+            border-start-end-radius: var(--button-radius);
+            border-end-end-radius: var(--button-radius);
+        }
+
+        &:not(:first-child) {
+            border-inline-start-width: 0;
+        }
+
+        &:not(:last-child) {
+            border-inline-end-width: 0;
+        }
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+
+        // The active button is the SELECTED page: `on_button_toggled` drives the stack's
+        // selection from the toggle (gtkstackswitcher.c:117-133), so the checked styling
+        // has to sit on the same state. `_buttons.scss` gives the checked button the
+        // `--button-active-color` fill, and the switcher's own padding is widened by
+        // 6px on each side for the needs-attention dot (_buttons.scss:282-292).
+        &.active {
+            background-color: var(--button-active-color);
+            color: var(--window-fg-color);
+        }
+
+        &:disabled {
+            opacity: var(--strong-disabled-opacity, 0.45);
+
+            > * {
+                opacity: 1;
+            }
+        }
+
+        .adw-stack-switcher-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .adw-stack-switcher-icon {
+            flex: none;
+            width: 16px;
+            height: 16px;
+        }
+
+        // `%needs_attention` (_buttons.scss:294-300, _sidebars.scss:101-105): a 6px dot
+        // behind the label, drawn rather than themed, because a custom SVG mask has no
+        // libadwaita counterpart to borrow.
+        &.needs-attention::after {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            margin-inline-start: 6px;
+            border-radius: 50%;
+            background-color: var(--accent-bg-color);
+        }
+    }
+
+    // `icon-button` vs `text-button` (gtkstackswitcher.c:158-176): an icon-only button
+    // gets a square min-width, a titled one a 100px floor (`&.text-button { min-width:
+    // 100px }`, _buttons.scss:296).
+    &[data-button-mode='icon'] > .adw-stack-switcher-button {
+        min-width: 34px;
+    }
+
+    &[data-button-mode='text'] > .adw-stack-switcher-button {
+        min-width: 100px;
+    }
+
+    // `GtkStackSwitcher` is a `GtkOrientable` (gtkstackswitcher.c:47), so the row can be
+    // vertical — the C installs a GtkBoxLayout whose orientation follows the property
+    // (:500-513).
+    &[orientation='vertical'] {
+        flex-direction: column;
+
+        > .adw-stack-switcher-button {
+            flex: 0 1 auto;
+
+            &:not(:first-child) {
+                border-inline-start-width: 1px;
+                border-inline-end-width: 1px;
+                border-top-width: 0;
+            }
+
+            &:not(:last-child) {
+                border-bottom-width: 0;
+            }
+        }
+    }
+}
+
+// ── Gtk.StackSidebar ───────────────────────────────────────────────────────
+// `stacksidebar row` — a vertical list of the stack's pages
+// (refs/libadwaita/src/stylesheet/widgets/_sidebars.scss:95-108): 10px 4px padding, a
+// label inset by 6px, and the same `.needs-attention` treatment. The rows live in a
+// `.navigation-sidebar` list (gtkstacksidebar.c:155), which is the list libadwaita
+// already styles — so the list's own background comes from there and this partial only
+// gives the ROW its metrics.
+gtk-stack-sidebar {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow-y: auto;
+
+    > .adw-stack-sidebar-list {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    > .adw-stack-sidebar-list > .adw-stack-sidebar-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        padding: 10px 4px;
+        min-height: 36px;
+        border: none;
+        background: none;
+        color: inherit;
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        text-align: start;
+        cursor: pointer;
+        transition: background-color 150ms ease-in-out;
+
+        &:hover {
+            background-color: var(--button-hover-color);
+        }
+
+        &:active {
+            background-color: var(--button-active-color);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+
+        // The row carries the selection, exactly as a `GtkListBoxRow` does
+        // (gtkstacksidebar.c:317-338 selects and unselects rows).
+        &.selected {
+            background-color: var(--button-active-color);
+            color: var(--window-fg-color);
+        }
+
+        .adw-stack-sidebar-title {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            // `> label { padding-left: 6px; padding-right: 6px }`
+            // (_sidebars.scss:97-100), here as padding so the ellipsis measures right.
+            padding: 0 6px;
+        }
+
+        // `%needs_attention` (_sidebars.scss:101-105): a 6px dot in front of the label,
+        // drawn as a gradient because a custom SVG mask has no libadwaita counterpart
+        // to borrow.
+        &.needs-attention .adw-stack-sidebar-title {
+            background-image: radial-gradient(circle, var(--accent-bg-color) 6px, transparent 6px);
+            background-size: 6px 6px;
+            background-repeat: no-repeat;
+            background-position: left center;
+        }
+    }
+}
+
+// ── Gtk.Notebook ───────────────────────────────────────────────────────────
+// A stack with its own tab bar on one edge — which libadwaita styles in full, in
+// ONE file, because the tab strip is styled as part of the notebook rather than as a
+// widget of its own: refs/libadwaita/src/stylesheet/widgets/_notebook.scss.
+//
+// The node tree is C's and libadwaita's: `notebook > header > tabs > tab` for the strip
+// and `notebook > stack:not(:only-child)` for the page area (_notebook.scss:4-10,
+// :213-215). The `:not(:only-child)` on the page area is there for a "hidden" notebook
+// whose header is the stack's only sibling — the element reproduces the intent directly,
+// by giving the page area its background only when the header is there too.
+//
+// `show-border` IS a CSS CLASS in C and not a branch of this rule: `gtk_notebook_set_show_border`
+// adds `.frame` and clearing the property removes it (gtknotebook.c:6134-6146), and this
+// stylesheet carries libadwaita's rule for that class already — `frame, .frame { border: 1px
+// solid $border_color }` (widgets/_misc.scss:4-7), ported whole into `_style_classes.scss` — so
+// the element toggles the class and nothing here restates it. Its own docs say the bevel only
+// shows when the TABS are not (gtknotebook.c:6125-6131), which is what the header's border below
+// does to it.
+@each $pos, $edge, $shadow in (
+    ('top', 'bottom', 'inset 0 -4px'),
+    ('bottom', 'top', 'inset 0 4px'),
+    ('left', 'right', 'inset -4px 0'),
+    ('right', 'left', 'inset 4px 0'),
+) {
+    // The header's border is on the edge FACING the pages — `&.top { border-bottom-style:
+    // solid }` and its three siblings (_notebook.scss:12-58) — and the tab strip is pulled
+    // onto it by the negative margin just below, so the tab's own inset shadow lands ON the
+    // border line. Written as four rules rather than nested under `&`, because the edge is a
+    // property of the NOTEBOOK and a tab is three levels down from it.
+    gtk-notebook[data-tab-pos='#{$pos}'] > .adw-notebook-header {
+        border-#{$edge}-style: solid;
+    }
+
+    // `:hover` and `:checked` each get the same inset, in the border colour and in the
+    // accent respectively (_notebook.scss:17-19 and its three siblings). The shadow is a
+    // whole `box-shadow` value rather than a bare inset, so it is interpolated whole.
+    gtk-notebook[data-tab-pos='#{$pos}'] > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab:hover {
+        box-shadow: #{$shadow} var(--border-color, var(--separator-color));
+    }
+
+    gtk-notebook[data-tab-pos='#{$pos}'] > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab.active {
+        box-shadow: #{$shadow} var(--accent-bg-color);
+    }
+}
+
+gtk-notebook {
+    display: flex;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+
+    // `tab-pos` decides the EDGE, not the document order, so the two directions are one
+    // `flex-direction` each rather than a re-ordering of the children — and RTL swaps left
+    // and right (`get_effective_tab_pos`, gtknotebook.c:1741-1756), which is what the
+    // `data-tab-pos` the element reflects is for.
+    &[data-tab-pos='top'] {
+        flex-direction: column;
+    }
+
+    &[data-tab-pos='bottom'] {
+        flex-direction: column-reverse;
+    }
+
+    &[data-tab-pos='left'] {
+        flex-direction: row;
+    }
+
+    &[data-tab-pos='right'] {
+        flex-direction: row-reverse;
+    }
+
+    > .adw-notebook-header {
+        flex: none;
+        box-sizing: border-box;
+        padding: 1px;
+
+        // `border-width: 1px` with no style, so that only the edge `@each` above turns
+        // solid is drawn: a GTK border is `none` until something says otherwise
+        // (_notebook.scss:6-9).
+        border-width: 1px;
+        border-style: none;
+        border-color: var(--border-color, var(--separator-color));
+        background-clip: padding-box;
+
+        // `gtk_widget_set_visible (header_widget, show_tabs)` (gtknotebook.c:5467).
+        &[hidden] {
+            display: none;
+        }
+    }
+
+    // `> tabs { margin: -1px }` (_notebook.scss:11) plus the four-pixel inner padding
+    // `_notebook.scss:165-207`, which keep the strip off the header's own padding and off
+    // the border `@each` drew on the facing edge.
+    > .adw-notebook-header > .adw-notebook-tabs {
+        display: flex;
+        align-items: stretch;
+        margin: -1px;
+        padding: 0 4px;
+
+        // `scrollable`'s arrows are not ported (gtknotebook.c:1139-1148), so the strip
+        // overflows and scrolls instead of the two arrow buttons GTK scrolls with.
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
+    }
+
+    // The two vertical edges turn the strip: the padding and the margin that were
+    // horizontal become vertical, and so does the overflow (_notebook.scss:188-207).
+    &[data-tab-pos='left'] > .adw-notebook-header > .adw-notebook-tabs,
+    &[data-tab-pos='right'] > .adw-notebook-header > .adw-notebook-tabs {
+        flex-direction: column;
+        padding: 4px 0;
+        overflow-x: visible;
+        overflow-y: auto;
+    }
+
+    // …and the four-pixel gap between two tabs, which was `margin-left/right: 4px` on the
+    // horizontal edges and is `margin-top/bottom: 4px` on the vertical ones
+    // (_notebook.scss:181-183, mirrored at :197-199).
+    &[data-tab-pos='left'] > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab,
+    &[data-tab-pos='right'] > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab {
+        margin: 4px 0;
+    }
+
+    > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+
+        // `min-height: 30px; min-width: 30px; padding: 3px 12px; font-weight: normal`
+        // (_notebook.scss:117-124) and the four-pixel gap `margin-left/right: 4px`
+        // (_notebook.scss:181-183, mirrored at :197-199).
+        min-width: 30px;
+        min-height: 30px;
+        margin: 0 4px;
+        padding: 3px 12px;
+        border: none;
+        border-radius: var(--button-radius);
+        background: none;
+        color: inherit;
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        font-weight: normal;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: background-color 150ms ease-in-out, box-shadow 150ms ease-in-out;
+
+        // `tab-fill` (TRUE by default, gtknotebook.c:672-681) makes the tab take the
+        // space it is given; `tab-expand` is the one that asks for more.
+        &.fill {
+            flex: 1 1 auto;
+        }
+
+        &.expand {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        &:not(.fill) {
+            flex: 0 0 auto;
+        }
+
+        // `$hover_color` (color-mix in srgb currentColor 7%, transparent), the pair
+        // `&:hover, &:active` sets (_notebook.scss:126-128, _colors.scss:268).
+        &:hover,
+        &:active {
+            background-color: color-mix(in srgb, currentColor 7%, transparent);
+        }
+
+        // `:checked` on the tab, which C sets when the page becomes current
+        // (gtknotebook.c:5466) — `$selected_color` behind it (_colors.scss:270) and the
+        // accent underline of `_notebook.scss:19` in front of it.
+        &.active {
+            background-color: color-mix(in srgb, currentColor 10%, transparent);
+        }
+
+        // The focus ring, `focus-ring("> header > tabs > tab:checked", $offset: -2px)`
+        // (_notebook.scss:3).
+        &:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: -2px;
+        }
+
+        // A page whose child is hidden takes its tab with it
+        // (`gtk_widget_set_visible (page->tab_label, … && gtk_widget_get_visible
+        // (page->child))`, gtknotebook.c:4117-4118), which is what `tab.hidden` reflects.
+        &[hidden] {
+            display: none;
+        }
+    }
+
+    // The page area, which is a GtkStack inside the C (`gtk_stack_set_visible_child` at
+    // gtknotebook.c:5476) and so is one visible child here. `notebook > stack:not(:only-
+    // child)` gives it the view background (_notebook.scss:213-215).
+    > .adw-notebook-page {
+        box-sizing: border-box;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+
+        &:not(.visible-page) {
+            display: none;
+        }
+    }
+
+    // `enable-popup`'s menu (gtknotebook.c:6420-6462 builds it, :2684-2692 pops it up),
+    // as a DOM listbox over the page.
+    > .adw-notebook-menu {
+        position: absolute;
+        z-index: 20;
+        box-sizing: border-box;
+        min-width: 160px;
+        padding: var(--spacing-xs) 0;
+        border-radius: var(--window-radius);
+        background-color: var(--window-bg-color);
+        color: var(--window-fg-color);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 2px 8px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    > .adw-notebook-menu > .adw-notebook-menu-item {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 30px;
+        margin: 0 var(--spacing-xs) 2px;
+        padding: 3px 14px;
+        border: none;
+        border-radius: var(--button-radius);
+        background: none;
+        color: inherit;
+        font-family: var(--font-family);
+        font-size: var(--font-size-base);
+        text-align: start;
+        cursor: pointer;
+
+        &:hover,
+        &[aria-selected='true'] {
+            background-color: var(--button-active-color);
+        }
+    }
+}

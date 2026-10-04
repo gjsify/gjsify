@@ -1,0 +1,176 @@
+// _calendar.scss — <gtk-calendar>: the `calendar` node, its header, and the grid of
+// `day-name` / `week-number` / `day-number` labels.
+//
+// libadwaita's block is 58 lines and almost all of it is state: `:checked` for a MARKED day,
+// `:selected` for the SELECTED one, `.today` for today's, `.other-month` for the spill. The
+// port spells those as four classes off one element — `gtk-calendar.ts` raises the same four
+// widget state flags `calendar_update_day_labels` does (gtkcalendar.c:1015-1046) — and the
+// selectors below are the same four, in the same specificity order, so the cascade resolves
+// the way the C's stylesheet resolves it.
+//
+// THE CASCADE ORDER MATTERS and it is why the rules are not merged: `label.today` sets an
+// inset box-shadow and then CANCELS it under `:selected` (_calendar.scss:24-30), and
+// `.day-number:checked` sets a 30% accent tint that `:selected` then replaces with the solid
+// accent (_calendar.scss:37-51). A merged rule that applied `:checked` last would tint the
+// selected day, which is exactly what upstream avoids.
+//
+// `font-variant-numeric: tabular-nums` is the load-bearing line for a grid of day numbers: the
+// column widths come from the widest number, and proportional digits would make 1 narrower than
+// 8 and the whole grid breathe as the month changes.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_calendar.scss:1-58
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-calendar {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  color: var(--view-fg-color);
+  background-color: var(--view-bg-color);
+  background-clip: padding-box;
+  // `calendar { border: 1px solid $border_color }` (_calendar.scss:4).
+  border: 1px solid var(--border-color);
+  border-radius: var(--window-radius);
+  font-variant-numeric: tabular-nums;
+
+  &.view:disabled {
+    color: var(--view-fg-color);
+  }
+}
+
+.adw-calendar-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  // `> header { border-bottom: 1px solid $border_color }` (_calendar.scss:12).
+  border-bottom: 1px solid var(--border-color);
+}
+
+.adw-calendar-month {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adw-calendar-year {
+  // The C measures the year label once and adds 10px so "changing the year does not increase
+  // the calendar width" (gtkcalendar.c:853-858) — a fixed slot is the same promise.
+  flex: 0 0 auto;
+  font-weight: bold;
+}
+
+.adw-calendar-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  // `@extend %button_basic_flat` with `border-radius: 0` (_calendar.scss:15-16).
+  border-radius: 0;
+
+  &[disabled] {
+    opacity: var(--disabled-opacity);
+  }
+}
+
+.adw-calendar-grid {
+  display: grid;
+  // Column 0 is the week-number column upstream (gtkcalendar.c:786-790), and it exists whether
+  // or not the numbers are shown, so the day names and the days line up under it either way.
+  grid-template-columns: auto repeat(7, 1fr);
+  // `> grid { padding-left: 3px; padding-bottom: 3px }` (_calendar.scss:21-22).
+  padding: 3px 0 3px 3px;
+}
+
+.adw-calendar-day-name,
+.adw-calendar-week-number,
+.adw-calendar-week-spacer {
+  // `margin-top: 3px; margin-right: 3px` (_calendar.scss:34-35), applied to the labels.
+  margin-top: 3px;
+  margin-right: 3px;
+  font-size: var(--font-size-small);
+  opacity: var(--dim-opacity);
+  text-align: center;
+}
+
+.adw-calendar-week-number,
+.adw-calendar-week-spacer {
+  // The week-number column is the day names' share of a cell: a number is narrower than a name,
+  // and letting it size itself would make the grid jitter between a wide and a narrow month.
+  max-width: 2.5em;
+}
+
+.adw-calendar-cell {
+  // `> label { margin-top: 3px; margin-right: 3px }` and `.day-number { padding: 3px }`
+  // (_calendar.scss:32-38).
+  margin-top: 3px;
+  margin-right: 3px;
+  padding: 3px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: inherit;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+
+  &:hover {
+    background-color: color-mix(in srgb, currentColor 6%, transparent);
+  }
+
+  &:active {
+    background-color: color-mix(in srgb, currentColor 12%, transparent);
+  }
+
+  &:focus-visible,
+  &.focused {
+    // `@include focus-ring($focus-state: ':focus')` (_calendar.scss:33) — the C focuses the
+    // LABEL rather than the grid, which is what `.focused` is on this port.
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+  }
+
+  // `:checked` — `background-color: color-mix(… var(--accent-bg-color) 30%, transparent)`
+  // (_calendar.scss:39-43), the MARKED day.
+  &.marked {
+    border-radius: var(--button-radius);
+    background-color: color-mix(in srgb, var(--accent-bg-color) 30%, transparent);
+  }
+
+  // `:selected { background-color: var(--accent-bg-color); color: var(--accent-fg-color) }`
+  // (_calendar.scss:45-50), and it comes AFTER `:checked` so the selected day is not tinted.
+  &.selected {
+    border-radius: var(--button-radius);
+    background-color: var(--accent-bg-color);
+    color: var(--accent-fg-color);
+  }
+
+  // `.other-month { color: color-mix(in srgb, currentColor 30%, transparent) }`
+  // (_calendar.scss:53-55), the leading and trailing spill.
+  &.other-month {
+    color: color-mix(in srgb, currentColor 30%, transparent);
+  }
+
+  // `label.today { box-shadow: inset 0 0 0 -2px $border_color }` (_calendar.scss:24-25) — an
+  // inset rule, not a border, so it does not change the cell's size.
+  &.today {
+    box-shadow: inset 0 -2px var(--border-color);
+  }
+
+  // `label.today:selected { box-shadow: none }` (_calendar.scss:27-29): the selected day's
+  // accent fill IS the emphasis, so today's underline steps aside rather than doubling up.
+  &.today.selected {
+    box-shadow: none;
+  }
+
+  &[disabled] {
+    // `lower_limit_reached` / `upper_limit_reached` blank those cells and make them
+    // insensitive (gtkcalendar.c:1004-1015), so there is nothing to dim — just nothing.
+    background: none;
+    cursor: default;
+  }
+}

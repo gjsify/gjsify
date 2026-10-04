@@ -81,8 +81,29 @@ const CONTRACT_SPECS = [`${ADWAITA_WEB_SRC}/keyboard-operable.spec.ts`, 'tests/b
  */
 const ROVING_LEDGER = {
     'packages/web/adwaita-web/src/elements/gtk-drop-down.ts': 'own keydown listener',
+    // `tab-behavior: item`/`cell` is `GtkListTabBehavior` — the list is ONE tab stop and
+    // the arrows move inside it, which is the roving tabindex in GTK's own vocabulary. The
+    // arrows come from `attachRovingFocus`; the per-row listener this reader sees is the
+    // Enter/Space half the shared helper deliberately leaves to the widget, and it
+    // discharges the obligation on its own. `<gtk-grid-view>` and `<gtk-column-view>`
+    // inherit both and hand out no tabindex of their own, so neither is in scope.
+    'packages/web/adwaita-web/src/elements/gtk-list-view.ts': 'own keydown listener',
+    // `<gtk-list-box>` hands out a roving tabindex under `tab-behavior: item`/`cell` — the
+    // GTK vocabulary is `GTK_LIST_TAB_ITEM`, which is what `adw-sidebar` already sets on a
+    // GtkListBox (refs/libadwaita/src/adw-sidebar.c:2168) — so the list is ONE tab stop from
+    // outside and the arrows move inside it. The arrows come from `attachRovingFocus`; the
+    // keydown listener this reader sees is the `Ctrl`+Space `toggle-cursor-row` half
+    // (gtklistbox.c:753-755), which the shared helper deliberately leaves to the widget, and
+    // it discharges the obligation on its own. `<gtk-flow-box>` is NOT roving — every
+    // `GtkFlowBoxChild` is its own tab stop (gtkflowbox.c:578-580) — so it is out of scope.
+    'packages/web/adwaita-web/src/elements/gtk-list-box.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-inline-view-switcher.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-sidebar.ts': 'via ./roving-focus.js',
+    // The two grids are ONE tab stop each and the arrows move inside them, which is
+    // `adw_tab_overview_focus` (adw-tab-overview.c:1343-1405) written out: ArrowDown
+    // out of the search entry lands on the first thumbnail, ArrowUp off the new-tab
+    // button on the last one. The spec is `src/adw-tab-overview.spec.ts`.
+    'packages/web/adwaita-web/src/elements/adw-tab-overview.ts': 'own keydown listener',
     // `<gtk-menu-button>` and `<adw-split-button>` were both here, each `via
     // <gtk-popover>`, and both LEFT scope when ADR 0042 moved their row building into
     // the popup they share. The roving tabindex moved with it, so the obligation moved
@@ -90,6 +111,11 @@ const ROVING_LEDGER = {
     // their surface to `PopoverMenuView` and hand out no tabindex of their own.
     'packages/web/adwaita-web/src/elements/popover-menu.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-tab-view.ts': 'own keydown listener',
+    // `<adw-tab-bar>` is the same widget over a view it does not own, and it answers the
+    // arrow keys itself (`adw-tab-bar.c` connects the same moves the view does). Its chips
+    // come from `src/tab-chip.js`, which sets no tabindex of its own — the roving
+    // obligation moved with the file that registers the keys, which is the ledger working.
+    'packages/web/adwaita-web/src/elements/adw-tab-bar.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-toggle-group.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher-bar.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher.ts': 'via ./roving-focus.js',

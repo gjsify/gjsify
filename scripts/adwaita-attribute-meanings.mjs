@@ -27,13 +27,36 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'body': null,
         'heading': null,
     },
+    'adw-application-window': {
+        'show-menubar': 'If this property is true, the window will display a menubar unless it is shown by the desktop shell.',
+    },
+    'adw-clamp-scrollable': {
+        'maximum-size': 'The maximum size allocated to the child.',
+        'tightening-threshold': 'The size above which the child is clamped.',
+    },
     'adw-combo-row': {
         'model': 'The model that provides the displayed items.',
-        'selected': 'The position of the selected item.',
+        'selected': null,
+        'title': null,
+    },
+    'adw-dialog': {
         'title': null,
     },
     'adw-inline-view-switcher': {
         'display-mode': null,
+    },
+    'adw-layout-slot': {
+        'id': null,
+    },
+    'adw-multi-layout-view': {
+        'layout-name': null,
+    },
+    'adw-navigation-page': {
+        'tag': null,
+        'title': null,
+    },
+    'adw-navigation-split-view': {
+        'collapsed': null,
     },
     'adw-preferences-dialog': {
         'title': null,
@@ -45,6 +68,22 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'adw-preferences-page': {
         'icon-name': null,
         'title': null,
+    },
+    'adw-preferences-row': {
+        'title': null,
+        'use-markup': 'Whether to use Pango markup for the title label.',
+    },
+    'adw-shortcuts-dialog': {
+        'title': null,
+    },
+    'adw-shortcuts-item': {
+        'accelerator': null,
+        'action-name': 'Fully qualified action name to get the accelerator from.',
+        'direction': null,
+        'title': null,
+    },
+    'adw-shortcuts-section': {
+        'title': 'The title of the section, can be `NULL`.',
     },
     'adw-spin-row': {
         'adjustment': 'The adjustment that holds the value of the spin row.',
@@ -60,18 +99,295 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
         'subtitle': null,
         'title': null,
     },
+    'adw-tab-bar': {
+        'view': 'The tab view the tab bar controls.',
+    },
+    'adw-tab-button': {
+        'view': null,
+    },
+    'adw-tab-overview': {
+        'enable-new-tab': null,
+        'open': null,
+    },
     'adw-tab-page': {
+        'pinned': null,
         'title': null,
     },
     'adw-view-stack-page': {
+        'badge-number': null,
         'icon-name': null,
+        'name': null,
+        'needs-attention': 'Whether the page requires the user attention.',
         'title': null,
     },
     'adw-view-switcher': {
-        'policy': 'The policy to determine which mode to use.',
+        'policy': null,
+    },
+    'adw-window-title': {
+        'subtitle': null,
+        'title': null,
+    },
+    'gtk-about-dialog': {
+        'comments': null,
+        'copyright': null,
+        'license-type': null,
+        'logo-icon-name': 'A named icon to use as the logo for the about box.',
+        'program-name': null,
+        'system-information': 'Information about the system on which the program is running.',
+        'version': null,
+        'website': 'The URL for the link to the website of the program.',
+        'website-label': 'The label for the link to the website of the program.',
+    },
+    'gtk-action-bar': {
+        'revealed': 'Controls whether the action bar shows its contents.',
+    },
+    'gtk-application-window': {
+        'default-height': null,
+        'default-width': null,
+        'show-menubar': 'If this property is true, the window will display a menubar unless it is shown by the desktop shell.',
+        'title': null,
+    },
+    'gtk-aspect-frame': {
+        'obey-child': 'Whether the `GtkAspectFrame` should use the aspect ratio of its child.',
+        'ratio': 'The aspect ratio to be used by the `GtkAspectFrame`.',
+        'xalign': null,
+        'yalign': null,
+    },
+    'gtk-box': {
+        'orientation': null,
+        'spacing': null,
+    },
+    'gtk-button': {
+        'label': null,
+    },
+    'gtk-calendar': {
+        'date': null,
+        'show-week-numbers': null,
+    },
+    'gtk-check-button': {
+        'label': null,
+    },
+    'gtk-color-dialog-button': {
+        'dialog': 'The `GtkColorDialog` that contains parameters for the color chooser dialog.',
+        'rgba': null,
+    },
+    'gtk-column-view': {
+        'columns': 'The list of columns.',
+        'model': null,
+        'show-row-separators': null,
+    },
+    'gtk-drawing-area': {
+        'content-height': null,
+        'content-width': null,
     },
     'gtk-drop-down': {
-        'selected': 'The position of the selected item.',
+        'selected': null,
+    },
+    'gtk-editable-label': {
+        'text': null,
+    },
+    'gtk-emoji-chooser': {
+        'position': 'How to place the popover, relative to its parent.',
+    },
+    'gtk-expander': {
+        'label': null,
+    },
+    'gtk-flow-box': {
+        'column-spacing': null,
+        'max-children-per-line': 'The maximum amount of children to request space for consecutively in the given orientation.',
+        'min-children-per-line': 'The minimum number of children to allocate consecutively in the given orientation.',
+        'row-spacing': null,
+        'selection-mode': null,
+    },
+    'gtk-font-dialog-button': {
+        'dialog': 'The `GtkFontDialog` that contains parameters for the font chooser dialog.',
+        'font-desc': null,
+        'use-font': 'Whether the buttons label will be drawn in the selected font.',
+        'use-size': null,
+    },
+    'gtk-frame': {
+        'label': null,
+        'label-xalign': null,
+    },
+    'gtk-graphics-offload': {
+        'black-background': 'Whether to draw a black background.',
+        'enabled': null,
+    },
+    'gtk-grid': {
+        'column-spacing': 'The amount of space between two consecutive columns.',
+        'row-spacing': 'The amount of space between two consecutive rows.',
+    },
+    'gtk-grid-view': {
+        'max-columns': 'Maximum number of columns per row.',
+        'min-columns': 'Minimum number of columns per row.',
+        'model': null,
+    },
+    'gtk-header-bar': {
+        'show-title-buttons': 'Whether to show title buttons like close, minimize, maximize.',
+    },
+    'gtk-image': {
+        'icon-name': 'The name of the icon in the icon theme.',
+    },
+    'gtk-inscription': {
+        'min-chars': null,
+        'min-lines': null,
+        'nat-chars': 'The number of characters that should ideally fit into the inscription.',
+        'text': null,
+    },
+    'gtk-label': {
+        'label': null,
+    },
+    'gtk-level-bar': {
+        'max-value': 'Determines the maximum value of the interval that can be displayed by the bar.',
+        'mode': 'Determines the way `GtkLevelBar` interprets the value properties to draw the level fill area.',
+        'value': 'Determines the currently filled value of the level bar.',
+    },
+    'gtk-link-button': {
+        'label': null,
+        'uri': 'The URI bound to this button.',
+        'visited': 'The \'visited\' state of this button.',
+    },
+    'gtk-list-box': {
+        'selection-mode': null,
+        'show-separators': null,
+    },
+    'gtk-list-view': {
+        'model': null,
+        'show-separators': null,
+    },
+    'gtk-notebook': {
+        'tab-pos': 'Which side of the notebook holds the tabs.',
+    },
+    'gtk-page-setup-unix-dialog': {
+        'title': null,
+    },
+    'gtk-paned': {
+        'orientation': null,
+    },
+    'gtk-password-entry': {
+        'show-peek-icon': 'Whether to show an icon for revealing the content.',
+    },
+    'gtk-picture': {
+        'alternative-text': 'The alternative textual description for the picture.',
+        'can-shrink': 'If the `GtkPicture` can be made smaller than the natural size of its contents.',
+        'content-fit': 'How the content should be resized to fit inside the `GtkPicture`.',
+    },
+    'gtk-popover': {
+        'autohide': 'Whether to dismiss the popover on outside clicks.',
+        'position': 'How to place the popover, relative to its parent.',
+    },
+    'gtk-popover-bin': {
+        'handle-input': 'Whether the popover bin will handle input to trigger the popup.',
+        'menu-model': 'The `GMenuModel` from which the popup will be created.',
+    },
+    'gtk-popover-menu': {
+        'autohide': 'Whether to dismiss the popover on outside clicks.',
+        'menu-model': 'The model from which the menu is made.',
+        'position': 'How to place the popover, relative to its parent.',
+    },
+    'gtk-popover-menu-bar': {
+        'menu-model': 'The `GMenuModel` from which the menu bar is created.',
+    },
+    'gtk-print-unix-dialog': {
+        'current-page': 'The current page in the document.',
+        'manual-capabilities': 'Capabilities the application can handle.',
+        'support-selection': null,
+        'title': null,
+    },
+    'gtk-progress-bar': {
+        'fraction': 'The fraction of total work that has been completed.',
+        'show-text': 'Sets whether the progress bar will show a text in addition to the bar itself.',
+    },
+    'gtk-revealer': {
+        'reveal-child': null,
+        'transition-duration': 'The animation duration, in milliseconds.',
+        'transition-type': null,
+    },
+    'gtk-scale': {
+        'adjustment': 'The adjustment that is controlled by the range.',
+        'digits': 'The number of decimal places that are displayed in the value.',
+        'draw-value': 'Whether the current value is displayed as a string next to the slider.',
+        'inverted': 'If TRUE, the direction in which the slider moves is inverted.',
+        'value-pos': null,
+    },
+    'gtk-scale-button': {
+        'icons': null,
+        'value': null,
+    },
+    'gtk-scrollbar': {
+        'adjustment': 'The `GtkAdjustment` controlled by this scrollbar.',
+        'orientation': null,
+    },
+    'gtk-scrolled-window': {
+        'hscrollbar-policy': 'When the horizontal scrollbar is displayed.',
+        'overlay-scrolling': 'Whether overlay scrolling is enabled or not.',
+        'vscrollbar-policy': 'When the vertical scrollbar is displayed.',
+    },
+    'gtk-search-bar': {
+        'search-mode-enabled': null,
+        'show-close-button': null,
+    },
+    'gtk-search-entry': {
+        'search-delay': 'The delay in milliseconds from last keypress to the search changed signal.',
+    },
+    'gtk-separator': {
+        'orientation': null,
+    },
+    'gtk-spin-button': {
+        'adjustment': 'The adjustment that holds the value of the spin button.',
+        'digits': 'The number of decimal places to display.',
+        'numeric': 'Whether non-numeric characters should be ignored.',
+        'orientation': null,
+        'snap-to-ticks': 'Whether erroneous values are automatically changed to the spin buttons nearest step increment.',
+        'wrap': 'Whether a spin button should wrap upon reaching its limits.',
+    },
+    'gtk-spinner': {
+        'spinning': null,
+    },
+    'gtk-stack': {
+        'transition-duration': 'The animation duration, in milliseconds.',
+        'transition-type': null,
+    },
+    'gtk-stack-sidebar': {
+        'stack': null,
+    },
+    'gtk-stack-switcher': {
+        'stack': null,
+    },
+    'gtk-switch': {
+        'active': 'Whether the `GtkSwitch` widget is in its on or off state.',
+        'state': 'The backend state that is controlled by the switch.',
+    },
+    'gtk-text': {
+        'max-length': 'Maximum number of characters that are allowed.',
+        'placeholder-text': 'The text that will be displayed in the `GtkText` when it is empty and unfocused.',
+        'text': null,
+    },
+    'gtk-text-view': {
+        'justification': 'Left, right, or center justification.',
+        'wrap-mode': 'Whether to wrap lines never, at word boundaries, or at character boundaries.',
+    },
+    'gtk-toggle-button': {
+        'active': 'If the toggle button should be pressed in.',
+        'group': 'The toggle button whose group this widget belongs to.',
+        'label': null,
+    },
+    'gtk-video': {
+        'autoplay': 'If the video should automatically begin playing.',
+        'loop': 'If new media files should be set to loop.',
+    },
+    'gtk-viewport': {
+        'scroll-to-focus': 'Whether to scroll when the focus changes.',
+    },
+    'gtk-window': {
+        'default-height': null,
+        'default-width': null,
+        'deletable': 'Whether the window frame should have a close button.',
+        'resizable': 'If true, users can resize the window.',
+        'title': null,
+    },
+    'gtk-window-controls': {
+        'side': 'Whether the widget shows start or end side of the decoration layout.',
     },
 };
 
@@ -86,12 +402,40 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'adw-alert-dialog open': 'declarative-state',
     'adw-alert-response appearance': 'not-a-widget',
     'adw-alert-response id': 'not-a-widget',
+    'adw-application-window height': 'renamed',
+    'adw-application-window menu-model': 'port-only',
+    'adw-application-window width': 'renamed',
+    'adw-breakpoint-bin breakpoints': 'port-only',
+    'adw-dialog open': 'declarative-state',
     'adw-preferences-dialog open': 'declarative-state',
+    'adw-shortcuts-dialog open': 'declarative-state',
     'adw-spinner size': 'port-only',
     'adw-status-page icon': 'renamed',
+    'adw-window height': 'renamed',
+    'adw-window width': 'renamed',
+    'gtk-about-dialog open': 'declarative-state',
+    'gtk-button flat': 'style-class',
+    'gtk-check-button checked': 'renamed',
+    'gtk-check-button indeterminate': 'renamed',
+    'gtk-emoji-chooser align': 'port-only',
     'gtk-entry disabled': 'inverted',
     'gtk-entry placeholder': 'renamed',
     'gtk-entry value': 'renamed',
+    'gtk-image size': 'port-only',
+    'gtk-list-view selection-mode': 'port-only',
+    'gtk-page-setup-unix-dialog open': 'declarative-state',
+    'gtk-password-entry placeholder': 'renamed',
+    'gtk-popover align': 'port-only',
+    'gtk-popover open': 'declarative-state',
+    'gtk-popover-menu align': 'port-only',
+    'gtk-popover-menu open': 'declarative-state',
+    'gtk-print-unix-dialog open': 'declarative-state',
+    'gtk-progress-bar pulsing': 'declarative-state',
+    'gtk-search-entry placeholder': 'renamed',
+    'gtk-tree-expander depth': 'port-only',
+    'gtk-tree-expander expandable': 'port-only',
+    'gtk-tree-expander expanded': 'port-only',
+    'gtk-window-handle double-click-action': 'port-only',
 };
 
 /** Attributes whose gloss is AUTHORED on the page, because the GIR's is not true of the markup. */
@@ -101,12 +445,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 43,
-    glossed: 8,
-    nameSuffices: 24,
-    divergent: 10,
+    set: 237,
+    glossed: 88,
+    nameSuffices: 110,
+    divergent: 38,
     authored: 1,
-    commentLines: 17,
+    commentLines: 126,
 };
 
 /**

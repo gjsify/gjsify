@@ -4,25 +4,38 @@
 // NO CORE STATE MACHINE: the whole behaviour is `CLAMP(fraction, 0, 1)` plus a pulsing
 // flag, and ADR 0004 is explicit that trivial behaviour gets no core class. The clamp
 // is still shared — `glibClamp` (GLib's CLAMP, high bound tested FIRST) comes from
-// `@gjsify/adwaita-core`.
+// `@gjsify/adwaita-core` — and it is GTK's own: `gtk_progress_bar_set_fraction` stores
+// `CLAMP (fraction, 0.0, 1.0)` (gtkprogressbar.c:783).
 //
-// `gtk_progress_bar_pulse()`'s step semantics (the `pulse-step` default, how the block
-// reflects at the ends, whether it resets `fraction`) are NOT reproduced: GtkProgressBar
-// is a GTK widget, `refs/gtk` is an uninitialized submodule here and libadwaita vendors
-// no `gtk-progress-bar.c`, so none of it is verifiable. What ships instead is the
-// vendored port's web idiom — a CSS keyframe animation that runs while `pulsing` is set
-// — so {@link GtkProgressBar.pulse} ENTERS that state and is idempotent afterwards. The
-// default `show-text` label `NN%` is likewise this port's, not GTK's format string.
+// WHAT THE PULSE ACTUALLY IS, FROM THE C. `gtk_progress_bar_pulse` ENTERS "activity
+// mode", and a frame-clock tick advances the block by `pulse-step` (default 0.1) per
+// call, reversing at 0 and 1 and repeating until three periods pass without a pulse
+// (gtkprogressbar.c:830-847, :655-692, :217-221, :473). Setting `fraction` LEAVES it
+// (:791). That per-call stepping is not what ships: the indeterminate block here is the
+// vendored port's CSS keyframe animation, which runs on a fixed period and is entered by
+// `pulsing` — so {@link GtkProgressBar.pulse} enters that state and is idempotent
+// afterwards, and `pulse-step` is a measured gap rather than a missing widget (see
+// KNOWN_GAPS in `scripts/check-adwaita-element-properties.mjs`). The `:left` / `:right`
+// / `:top` / `:bottom` classes GTK adds as the block touches an end
+// (gtkprogressbar.c:74-89, :307-330) go with it; libadwaita never styles them.
+//
+// THE `NN%` LABEL IS GTK'S OWN FORMAT. `get_current_text` returns the `text` property
+// when there is one and otherwise `C_("progress bar label", "%.0f %%")` of
+// `fraction * 100` (gtkprogressbar.c:628-634) — so an explicit `text` wins and the
+// percentage is the fallback, which is what {@link GtkProgressBar.text} returns.
 //
 // `osd` is libadwaita's `.osd` STYLE CLASS: a 2px troughless bar for under a header bar.
 //
 // A11Y: `role="progressbar"`, `aria-valuemin`/`aria-valuemax` fixed at 0/1,
-// `aria-valuenow` carrying the clamped fraction. While pulsing `aria-valuenow` is
-// REMOVED — that is how ARIA spells "indeterminate", and a stale value there would be
-// announced as real progress.
+// `aria-valuenow` carrying the clamped fraction — the `GTK_ACCESSIBLE_PROPERTY_VALUE_*`
+// trio `gtk_progress_bar_set_fraction` updates (gtkprogressbar.c:91-95, :795-799).
+// While pulsing `aria-valuenow` is REMOVED — that is how ARIA spells "indeterminate",
+// and a stale value there would be announced as real progress.
 //
+// Reference: refs/gtk/gtk/gtkprogressbar.c:43-96,217-221,628-634,655-692,776-799,830-847
 // Reference: refs/libadwaita/src/stylesheet/widgets/_progress-bar.scss
 // Reference: refs/adwaita-web/adwaita-web/scss/_progressbar.scss (the indeterminate animation only)
+// Copyright (c) The GTK Team. LGPLv2.1+.
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.

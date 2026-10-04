@@ -1,0 +1,68 @@
+// _overlay.scss — <gtk-overlay>: a main child, and siblings stacked on top of it.
+//
+// libadwaita has NO `_overlay.scss`: `grep` over `src/stylesheet/widgets/` finds no
+// `overlay` node rule, because an overlay draws nothing of its own — GTK's whole CSS
+// node contract for it is the `overlay` name plus the `.left` / `.right` / `.top` /
+// `.bottom` classes an edge-aligned child is given (gtkoverlay.c:66-71). So this partial
+// is LAYOUT, not a look, and the geometry it encodes is `gtk_overlay_get_child_position`
+// (gtkoverlay.c:130-196) rather than a style.
+//
+//   · `.adw-overlay-child` is `display: contents` so the main child is laid out as a
+//     DIRECT child of the host and the overlay takes its size — which is exactly
+//     gtk_overlay_compute_expand and the "sizes are those of its main child" rule
+//     (gtkoverlay.c:56-58, :291-308). A wrapper that generated a box would put a
+//     layout node between the overlay and the child, and the child's own `hexpand`
+//     would have to be re-implemented here.
+//   · `.adw-overlay-layer` is the box an overlay child is placed in. `inset: 0` over
+//     the whole host is the C's `graphene_rect_init (&bounds, 0, 0, width, height)`
+//     (gtkoverlay.c:214-216), and `display: flex` is what lets a child's own
+//     `[halign]` / `[valign]` auto-margin rules place it — `gtk_overlay_get_child_position`
+//     reads nothing but those two properties.
+//   · `align-items: stretch` is `GTK_ALIGN_FILL` on the cross axis, the default for
+//     `GtkWidget:valign`. A child that names a `valign` carries an auto cross margin,
+//     and a flex item with an auto cross margin does NOT stretch (CSS Flexbox § 9.4),
+//     which is precisely the branch the C takes for START, CENTER and END.
+//   · `pointer-events: none`, re-enabled per child: GTK hands an event to the widget
+//     whose allocation contains it, so an overlay child that is smaller than the overlay
+//     must not make the main child unreachable underneath it.
+//
+// The `:not([halign])` guard on the main axis is the whole of `GTK_ALIGN_FILL` there —
+// `flex-grow` WITHOUT it would be cancelled by the auto margin `_widget.scss` gives a
+// child that names an alignment, since free space is handed to flex-grow first and only
+// the remainder reaches an auto margin. Specificity has to beat `_widget.scss`'s
+// `[halign='start']` (0,1,0), which `:not([halign])` lifts this rule to.
+//
+// Reference: refs/gtk/gtk/gtkoverlay.c (get_child_position, the `overlay` CSS node)
+// Reference: refs/gtk/gtk/gtkoverlaylayout.c (gtk_overlay_child_allocate, clip bounds)
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-overlay {
+  display: block;
+  position: relative;
+}
+
+.adw-overlay-child {
+  // The main child, in the host's own flow — see the header.
+  display: contents;
+}
+
+.adw-overlay-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  pointer-events: none;
+
+  > * {
+    // GTK delivers an event to the widget whose ALLOCATION it lands in (gtkoverlay.c:150-193),
+    // so only the overlay child's own box takes input.
+    pointer-events: auto;
+  }
+
+  // GTK_ALIGN_FILL on the main axis: the child grows to the overlay's whole allocation.
+  > *:not([halign]) {
+    flex: 1 1 auto;
+  }
+}

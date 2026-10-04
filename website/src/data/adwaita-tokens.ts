@@ -210,7 +210,7 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
         tokens: [
             {
                 name: '--entry-bg-color',
-                value: '#ffffff',
+                value: 'rgba(0, 0, 6, 0.1)',
             },
             {
                 name: '--entry-border-color',

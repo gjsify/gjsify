@@ -1,0 +1,328 @@
+// _print_dialogs.scss — the two Unix print dialogs: <gtk-page-setup-unix-dialog> and
+// <gtk-print-unix-dialog>.
+//
+// Neither has a stylesheet of its own upstream: libadwaita restyles exactly three things
+// under `window.print` and one under `window.pagesetup`, and everything else is GTK
+// defaults — the `.dialog-action-area` spacing, the notebook, the grid, the frame. What is
+// below is therefore the `.ui` layout in CSS (the grid the page-setup dialog is, the
+// notebook the print dialog is) plus the four libadwaita rules that DO apply.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss:6-13
+//   (`.dialog-action-area { margin: 6px; border-spacing: 6px }`)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss:15-34
+//   (`window.print:not(.ssd-frame)`: `drawing` colour and no background or padding,
+//   `paper` WHITE with `background-clip: padding-box` and a 1px `$border_color` border,
+//   a FLAT titlebar and a `.view` `.dialog-action-box`)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss:38-42
+//   (`window.pagesetup:not(.ssd-frame)`: a FLAT titlebar)
+// Reference: refs/gtk/gtk/print/ui/gtkpagesetupunixdialog.ui (6px row / 12px column
+//   spacing, 5px margins)
+// Reference: refs/gtk/gtk/print/ui/gtkprintunixdialog.ui (18px page margins and spacing,
+//   12px inside a group, the bold group headings, the framed printer list)
+// Copyright (c) 2006-2024 Red Hat, Inc. / The GTK authors. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// ---------------------------------------------------------------------------
+// GtkPageSetupUnixDialog — one grid, four rows.
+// ---------------------------------------------------------------------------
+
+gtk-page-setup-unix-dialog {
+  .adw-page-setup-grid {
+    display: grid;
+    // The `.ui`'s own spacing: 6px between rows, 12px between columns, 5px of margin.
+    grid-template-columns: max-content 1fr 1fr;
+    gap: 6px 12px;
+    padding: 5px;
+    align-items: center;
+  }
+
+  .adw-page-setup-label {
+    // `halign: 1`, `valign: 3` — right-aligned against its control, centred on it.
+    text-align: end;
+    align-self: center;
+  }
+
+  // `printer_combo` and `paper_size_combo` are `column-span 3` on a 4-column grid, so
+  // they fill the three remaining tracks.
+  .adw-page-setup-printer,
+  .adw-page-setup-paper {
+    grid-column: 2 / span 3;
+  }
+
+  // `paper_size_label` is the row that REPORTS the choice, and it sits under the combo.
+  .adw-page-setup-size-label {
+    grid-column: 2 / span 3;
+    padding: 2px 0;
+    font-weight: 500;
+  }
+
+  .adw-page-setup-orientation {
+    grid-column: auto;
+  }
+
+  // The `.dialog-action-area`: margin 6px, border-spacing 6px, and the Apply button is
+  // the dialog's default response.
+  .adw-page-setup-actions {
+    display: flex;
+    gap: 6px;
+    margin: 6px;
+    padding: 0;
+  }
+
+  .adw-page-setup-apply {
+    margin-left: auto;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GtkPrintUnixDialog — a notebook over a frame, with the action area below.
+// ---------------------------------------------------------------------------
+
+gtk-print-unix-dialog {
+  .adw-print-root {
+    display: flex;
+    flex-direction: column;
+    min-width: 480px;
+  }
+
+  // The notebook's tab row, drawn as a switcher: a flat button per page.
+  .adw-print-switcher {
+    display: flex;
+    gap: 2px;
+    padding: 4px 4px 0;
+  }
+
+  .adw-print-switcher-item {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 999px;
+    background-color: transparent;
+    color: inherit;
+    font-weight: 500;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:checked,
+    &.checked {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  .adw-print-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px;
+    overflow: auto;
+    // `window.print`'s `.dialog-action-box` is a `.view`, and so is the page the notebook
+    // shows around its controls.
+    background-color: var(--view-bg-color);
+    color: var(--view-fg-color);
+  }
+
+  // General and Page Setup put two groups side by side; the rest are one column.
+  .adw-print-columns {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+  }
+
+  .adw-print-column {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  // One `frame_templateN`: a bold heading over a grid.
+  .adw-print-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .adw-print-group-title {
+    font-weight: bold;
+  }
+
+  .adw-print-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 12px;
+  }
+
+  .adw-print-grid-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .adw-print-label {
+    text-align: end;
+  }
+
+  // The printer list: a framed, scrolled column of rows, each an icon and two lines.
+  .adw-print-printer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 220px;
+    max-height: 220px;
+    overflow: auto;
+  }
+
+  .adw-print-printer-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: transparent;
+    color: inherit;
+    text-align: start;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &.checked {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  .adw-print-printer-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .adw-print-printer-name {
+    font-weight: bold;
+  }
+
+  .adw-print-printer-location {
+    font-size: 0.9em;
+    opacity: 0.7;
+  }
+
+  // `scrolledwindow` with `has-frame` around the printer list.
+  .adw-print-frame {
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    background-color: var(--view-bg-color);
+    padding: 6px;
+  }
+
+  // The collate / reverse page-order preview: four 32x40 thumbnails in two columns.
+  .adw-print-collate-preview {
+    display: grid;
+    grid-template-columns: repeat(2, 32px);
+    gap: 4px;
+
+    &[data-second-column='false'] > :nth-child(n + 3) {
+      display: none;
+    }
+  }
+
+  // `page_layout_preview`: the `drawing` node — no background, no padding, the
+  // foreground colour only — with the `paper` inside it.
+  .adw-print-sheet-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--window-fg-color);
+  }
+
+  .adw-print-paper {
+    // `paper { background-color: white; color: RGB(0 0 6 / 80%);
+    //   background-clip: padding-box; border: 1px solid $border_color }` — white paper in
+    //   a dark dialog is the point of the preview.
+    width: 110px;
+    max-width: 100%;
+    display: flex;
+    background-color: white;
+    color: rgba(0, 0, 6, 0.8);
+    background-clip: padding-box;
+    border: 1px solid var(--border-color);
+  }
+
+  .adw-print-number-up {
+    display: grid;
+    grid-template-columns: repeat(var(--adw-print-number-up-columns, 1), 1fr);
+    grid-template-rows: repeat(var(--adw-print-number-up-rows, 1), 1fr);
+    width: 100%;
+    height: 100%;
+
+    > span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+  }
+
+  .adw-print-sheet-caption {
+    font-size: 0.85em;
+    opacity: 0.8;
+  }
+
+  // The four option pages: the empty grids the backend's option widgets go into.
+  .adw-print-options-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 12px;
+    padding: 12px;
+
+    &[data-empty='true'] {
+      // Nothing to show, and saying so beats an empty frame: the reader has to be able to
+      // tell "this page has no options" from "this page failed to render".
+      min-height: 64px;
+      opacity: 0.6;
+      font-style: italic;
+    }
+  }
+
+  // `conflicts_widget` — an action bar, hidden until `mark_conflicts` raises it.
+  .adw-print-conflicts {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 12px;
+    padding: 6px 12px;
+    border-radius: 9px;
+    background-color: var(--warning-bg-color);
+    color: var(--warning-color);
+  }
+
+  // `.dialog-action-area`: Preview / Cancel / Print, with Print as the default.
+  .adw-print-actions {
+    display: flex;
+    gap: 6px;
+    margin: 6px;
+    padding: 0;
+  }
+
+  .adw-print-print {
+    margin-left: auto;
+  }
+
+  // The pseudo-disabled rows the C reaches with `gtk_widget_set_sensitive (…, FALSE)`:
+  // a GTK-insensitive widget is still focusable-ish and still legible, so it dims rather
+  // than disappearing.
+  .insensitive {
+    opacity: 0.45;
+  }
+
+  input:disabled,
+  gtk-drop-down[disabled] {
+    opacity: 0.45;
+  }
+}

@@ -163,6 +163,11 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // preference for a declarative template is what this is.
     'adw-about-dialog open': { kind: 'declarative-state' },
     'adw-alert-dialog open': { kind: 'declarative-state' },
+    'adw-dialog open': { kind: 'declarative-state' },
+    // The INHERITED one: `AdwShortcutsDialog` is a final `Adw.Dialog`, so `open` is its
+    // parent's declarative state reached through the subclass — the same entry for the
+    // same reason as the three above it.
+    'adw-shortcuts-dialog open': { kind: 'declarative-state' },
     'adw-preferences-dialog open': { kind: 'declarative-state' },
 
     // `<adw-alert-response>` is not a widget at all: it is the markup form of
@@ -183,10 +188,135 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     'gtk-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
     'gtk-entry disabled': { kind: 'inverted', girProperty: 'sensitive' },
 
+    // The same rename, inherited rather than re-declared: `<gtk-password-entry>` and
+    // `<gtk-search-entry>` extend `<gtk-entry>` for the `<input>` it owns, so they carry the
+    // attributes it observes. `Gtk.PasswordEntry` and `Gtk.SearchEntry` each declare
+    // `placeholder-text` themselves, and the element's attribute is the parent's spelling of
+    // it — the same attribute-level divergence the three above record, on the two widgets
+    // whose C property is spelled `placeholder-text` and nothing else.
+    'gtk-password-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
+    'gtk-search-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
+
+    // The selection a GTK view spells by WRAPPING its model — `Gtk.SingleSelection`,
+    // `Gtk.MultiSelection`, `Gtk.NoSelection` — so `GtkListView:model` is a
+    // `Gtk.SelectionModel` and there is no property for the choice. ADR 0046 declined a
+    // portable selection model twice, and ADR 0089 keeps the declination: what crosses is
+    // the choice, as a nick on the widget.
+    'gtk-list-view selection-mode': { kind: 'port-only' },
+
+    // The three facts `gtk_tree_expander_update_for_list_row` reads off the
+    // `Gtk.TreeListRow` it watches. They are that object's, not the expander's — the
+    // expander's own property is `list-row`, which holds the object — and a row is
+    // produced only by a `Gtk.TreeListModel`'s create-model callback, which no markup
+    // spells. ADR 0089 ports the three numbers rather than the object.
+    'gtk-tree-expander depth': { kind: 'port-only' },
+    'gtk-tree-expander expandable': { kind: 'port-only' },
+    'gtk-tree-expander expanded': { kind: 'port-only' },
+
     // Port-added and CSS-backed: `resolveSpinnerSize` turns the attribute into a
     // pixel box, and `AdwSpinner` has no size property — a GTK spinner takes its
     // size from its allocation.
     'adw-spinner size': { kind: 'port-only' },
+
+    // The same shape for the adaptive bin: `AdwBreakpointBin` has no `breakpoints`
+    // property, and `AdwBreakpoint` is a GObject with no tag, so the conditions and
+    // their setters need a markup spelling. The bin's own two properties are
+    // `child` and `current-breakpoint`, and both are objects.
+    'adw-breakpoint-bin breakpoints': { kind: 'port-only' },
+    // The same shape, on the GTK image. `GtkImage:icon-size`
+    // is an ENUM of NAMED sizes and libadwaita carries those in `_common.scss`'s
+    // `.normal-icons` / `.large-icons` rather than in the widget, so there is no pixel
+    // property for the fence to name — the element's `size` is its own, and the stylesheet
+    // is what turns it into an edge length.
+    'gtk-image size': { kind: 'port-only' },
+
+    // `<gtk-check-button>` names its two states the way HTML and the stylesheet do.
+    // GTK's are `active` and `inconsistent` (gtkcheckbutton.c:647-691) and GTK raises
+    // the same state flags for them, so this is the ATTRIBUTE NAME that moved — the two
+    // the element observes are the ones libadwaita's `_checks.scss` selects on.
+    'gtk-check-button checked': { kind: 'renamed', girProperty: 'active' },
+    'gtk-check-button indeterminate': { kind: 'renamed', girProperty: 'inconsistent' },
+
+    // `open` is the whole libadwaita dialog API — `present()` / `close()` — and the GTK
+    // dialogs are opened the same way (`gtk_window_present`). The elements expose the state
+    // as an attribute so a page can DECLARE a dialog open, which is what ADR 0033 prefers
+    // over an imperative call in a template. None of the three has a GIR property for it:
+    // `Gtk.Dialog` inherits `visible` from `Gtk.Widget`, and `open` is this port's spelling.
+    'gtk-about-dialog open': { kind: 'declarative-state' },
+    'gtk-page-setup-unix-dialog open': { kind: 'declarative-state' },
+    'gtk-print-unix-dialog open': { kind: 'declarative-state' },
+
+    // `align` is a PORT-ONLY attribute of `<gtk-popover>` and the chooser inherits it with
+    // the surface: `GtkPopover` has `position` as a property (which decides which SIDE the
+    // surface sits on) but no property for which EDGE it lines up with — the upstream value
+    // lives in the `align` CSS, and this renderer mirrors that in an attribute.
+    'gtk-emoji-chooser align': { kind: 'port-only' },
+
+    // `pulsing` is GTK's ACTIVITY MODE, which is a method (`gtk_progress_bar_pulse()`,
+    // gtkprogressbar.c:830-847) and a class on the progress NODE — there is no property
+    // for it, because a bar is pulsed or it is not. The element exposes the state as an
+    // attribute so a page can declare it, which is what the fence below does; a `.blp`
+    // cannot call a method and says so instead.
+    'gtk-progress-bar pulsing': { kind: 'declarative-state' },
+
+    // The popover's visible state, which is a METHOD PAIR in GTK (`gtk_popover_popup()`
+    // and `gtk_popover_popdown()`, gtkpopover.c:2433-2451) rather than a property:
+    // declarative markup cannot call a method, so the element reflects the state the two
+    // methods set as an attribute — ADR 0033's preference for a declarative template.
+    'gtk-popover open': { kind: 'declarative-state' },
+    'gtk-popover-menu open': { kind: 'declarative-state' },
+
+    // `GtkPopover` has NO align property: `gtk_popover_set_position` picks the SIDE
+    // (gtkpopover.c:1955-1976) and the edge comes from the anchor widget's own `halign`,
+    // because the anchor is the popover's PARENT and a parent owns its own alignment. A
+    // popover placed with CSS has no parent to inherit from, so the web port spells the
+    // edge itself rather than leaving half of GTK's placement unstated.
+    'gtk-popover align': { kind: 'port-only' },
+    'gtk-popover-menu align': { kind: 'port-only' },
+
+    // `flat` is a GtkWidget STYLE CLASS (GTK_CSS_NAME "flat"), not a property:
+    // `gtk_widget_get_style_class` reads a string list off the node, so there is no
+    // ParamSpec for a fence to name. The elements honour it as a bare attribute because a
+    // `.blp`'s `styles ["flat"]` becomes exactly that, and libadwaita's own rules select it —
+    // it is the borderless look every window-frame slot above depends on.
+    'gtk-button flat': { kind: 'style-class' },
+    // The TITLEBAR SETTINGS, as attributes. `GtkWindowHandle` has one GIR property and it is
+    // `child`; the gesture behaviour comes from `Gtk.Settings` (`gtk-titlebar-double-click`
+    // and its two siblings), resolved by the compositor first and unreachable from a widget
+    // — let alone from a document (gtkwindowhandle.c:305-333). The port spells the same three
+    // as attributes and raises the same action names as events, which is the only door a
+    // page has. Only the DOUBLE CLICK one is in a fence: it is the gesture the block shows,
+    // and an entry for a fence that sets nothing would be one the ratchet would call stale.
+    'gtk-window-handle double-click-action': { kind: 'port-only' },
+    // NOTHING FOR `GtkCalendar:show-heading` / `:show-day-names`, `GtkListBoxRow:activatable`
+    // / `:selectable` or either `activate-on-single-click`, though all SIX are read as
+    // `="false"` because their GIR default is TRUE. They need no `inverted` entry — that kind
+    // exists for an attribute whose NAME MOVES (`gtk-entry placeholder` is
+    // `placeholder-text`), and these six keep their own names, so the join finds the real
+    // property and generates its own sentence. The inversion is real and lives where a
+    // reader of the element will find it: the six elements' headers, which each say why a
+    // bare attribute means the opposite of what it reads like.
+
+    // The window's size request, under the attribute name libadwaita's own
+    // `adw_window_init()` uses to set it (adw-window.c:344) instead of GtkWindow's
+    // `default-width`/`default-height`. Both are the size the window asks for, so the
+    // pair is a rename and not a port addition — the element sets it on the host the way
+    // `gtk_widget_set_size_request()` does, and the same two words name the CSS box.
+    'adw-window width': { kind: 'renamed', girProperty: 'default-width' },
+    'adw-window height': { kind: 'renamed', girProperty: 'default-height' },
+
+    // The application's menu model, which on GTK lives on `Gtk.Application` — the
+    // GObject that OWNS the window and installs the model at construction, so a
+    // document has no property for it to mirror. It is the portable menu value ADR 0042
+    // gave `<gtk-menu-button menu-model>`, on the same parser, deliberately and visibly.
+    'adw-application-window menu-model': { kind: 'port-only' },
+
+    // The SAME two as `<adw-window>` above, inherited rather than re-declared: the
+    // application window extends it and keeps the attributes it observes, so its list
+    // is `[...AdwWindow.observedAttributes, …]` and this pair is in it. The ledger is
+    // keyed on the TAG, so an entry for the base does not cover the subclass.
+    'adw-application-window width': { kind: 'renamed', girProperty: 'default-width' },
+    'adw-application-window height': { kind: 'renamed', girProperty: 'default-height' },
 };
 
 /** The kinds an entry may carry, and which of them owe a `girProperty`. */
@@ -277,8 +407,19 @@ const FUNCTION_WORDS = stemmed(
  * Every word here is checked back: one that is the residue of no attribute in the
  * corpus is stale and fails, so the list cannot quietly grow into a place where a
  * comment is suppressed by hand.
+ *
+ * `display` LEFT this list on 2026-10-02, and the check is what said so: it was the
+ * residue of three of the gallery's attribute docs, and the gtk/windows page added a
+ * fourth (`Gtk.ApplicationWindow:show-menubar` — "the window will display a menubar").
+ * That is {@link SHARED_VOCABULARY_MIN_DOCS} exactly, so the frequency floor now
+ * accounts for it and a hand-written entry suppressing the same word is the copy this
+ * file exists to delete. The other three are still under the floor.
+ *
+ * `current` LEFT it the same way, when the gtk/dialogs page added
+ * `Gtk.PrintUnixDialog:current-page` ("The current page in the document.") to the two docs
+ * already spending it.
  */
-const PRESENTATION_WORDS = stemmed('display current information below url');
+const PRESENTATION_WORDS = stemmed('information below url');
 
 /**
  * How many of the corpus's docs a word must appear in before it stops distinguishing

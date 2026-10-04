@@ -28,7 +28,7 @@
 // Usage: node scripts/check-vue-program.mjs [<package-dir>] [--project <tsconfig>] [--help]
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative, resolve } from 'node:path';
 import process from 'node:process';
@@ -51,7 +51,13 @@ if (argv.includes('--help') || argv.includes('-h')) {
 }
 
 const projectFlag = argv.indexOf('--project');
-const positional = argv.filter((arg, index) => !arg.startsWith('--') && index !== projectFlag + 1);
+// `projectFlag + 1` is the index of `--project`'s VALUE, but only when the flag is there at
+// all: with no `--project` the index is 0, and this filter dropped the PACKAGE DIRECTORY —
+// every bare `check-vue-program.mjs <dir>` silently checked the CWD instead, and then died
+// on whatever `<cwd>/tsconfig.json` was rather than on the package it was pointed at.
+const positional = argv.filter(
+    (arg, index) => !arg.startsWith('--') && !(projectFlag !== -1 && index === projectFlag + 1),
+);
 const PKG = resolve(positional[0] ?? '.');
 const PROJECT = projectFlag === -1 ? join(PKG, 'tsconfig.json') : resolve(PKG, argv[projectFlag + 1]);
 const WHERE = relative(process.cwd(), PKG) || '.';
@@ -89,7 +95,17 @@ function resolveOrFail(specifier, label) {
 // TypeScript's own JSONC parser, not a regex: a comment stripper that mis-lexes a string
 // literal reads a different config than the compiler does.
 const tsPath = resolveOrFail('typescript', 'typescript');
-if (tsPath !== null) {
+if (!existsSync(PROJECT)) {
+    // A missing config is a HARNESS failure, not a config complaint: this script is
+    // per-PACKAGE (`<package-dir>`, or run from inside one), so a bare invocation at a
+    // root that has no `tsconfig.json` has nothing to read. `readFileSync` threw a raw
+    // ENOENT stack instead, which reported the same non-green state without saying which
+    // path was wanted or that the caller is the one that has to pass a directory.
+    harness.push(
+        `no tsconfig at ${PROJECT}. This check is per-PACKAGE: pass the package directory ` +
+            '(`node scripts/check-vue-program.mjs showcases/gtk/vue-host-counter`) or run it from inside the package.',
+    );
+} else if (tsPath !== null) {
     const ts = require(tsPath);
     const parsed = ts.parseConfigFileTextToJson(PROJECT, readFileSync(PROJECT, 'utf8'));
     if (parsed.error !== undefined) {

@@ -11,15 +11,20 @@ import {
     documentEditSymbolic,
     documentOpenSymbolic,
     documentSaveSymbolic,
+    editClearSymbolic,
     editCopySymbolic,
     goDownSymbolic,
     goHomeSymbolic,
     goNextSymbolic,
     goPreviousSymbolic,
+    goUpSymbolic,
     listAddSymbolic,
     listRemoveSymbolic,
     mailReplySenderSymbolic,
     mailSendSymbolic,
+    mediaEjectSymbolic,
+    mediaPlaybackPauseSymbolic,
+    mediaPlaybackStartSymbolic,
     openMenuSymbolic,
     sendToSymbolic,
     sidebarShowSymbolic,
@@ -29,10 +34,12 @@ import {
     viewListSymbolic,
     viewMoreSymbolic,
     viewPagedSymbolic,
+    valueDecreaseSymbolic,
+    valueIncreaseSymbolic,
     viewRefreshSymbolic,
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
-import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
+import { cameraPhotoSymbolic, networkWirelessSymbolic, printerSymbolic } from '@gjsify/adwaita-icons/devices';
 import {
     folderDocumentsSymbolic,
     folderDownloadSymbolic,
@@ -41,15 +48,44 @@ import {
     userTrashSymbolic,
 } from '@gjsify/adwaita-icons/places';
 import {
+    audioVolumeHighSymbolic,
+    audioVolumeLowSymbolic,
+    audioVolumeMediumSymbolic,
+    audioVolumeMutedSymbolic,
     avatarDefaultSymbolic,
+    dialogErrorSymbolic,
     imageMissingSymbolic,
     mailUnreadSymbolic,
+    mediaPlaylistRepeatSymbolic,
     starredSymbolic,
 } from '@gjsify/adwaita-icons/status';
+import { dialogWarningSymbolic } from '@gjsify/adwaita-icons/status';
+import {
+    emojiActivitiesSymbolic,
+    emojiBodySymbolic,
+    emojiFlagsSymbolic,
+    emojiFoodSymbolic,
+    emojiNatureSymbolic,
+    emojiObjectsSymbolic,
+    emojiPeopleSymbolic,
+    emojiRecentSymbolic,
+    emojiSymbolsSymbolic,
+    emojiTravelSymbolic,
+} from '@gjsify/adwaita-icons/categories';
+import { editFindSymbolic } from '@gjsify/adwaita-icons/actions';
+import { faceSmileSymbolic } from '@gjsify/adwaita-icons/emotes';
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
-import { windowCloseSymbolic, windowMaximizeSymbolic, windowMinimizeSymbolic } from '@gjsify/adwaita-icons/ui';
+import {
+    panDownSymbolic,
+    panEndSymbolic,
+    panEndSymbolicRtl,
+    windowCloseSymbolic,
+    windowMaximizeSymbolic,
+    windowMinimizeSymbolic,
+    windowRestoreSymbolic,
+} from '@gjsify/adwaita-icons/ui';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 // view-columns-symbolic is in NO icon theme — not the vendored one @gjsify/adwaita-icons
@@ -97,6 +133,11 @@ const ICONS = {
     'sidebar-show': sidebarShowSymbolic,
     'go-previous': goPreviousSymbolic,
     'go-next': goNextSymbolic,
+    // `Gtk.Calendar`'s year arrows are `pan-start-symbolic`/`pan-end-symbolic`
+    // (gtkcalendar.c:604-616) and its month arrows the same pair again; this port spells all
+    // four with the `go-*` family, which needs the UP glyph the other two callers never
+    // asked for.
+    'go-up': goUpSymbolic,
     'view-refresh': viewRefreshSymbolic,
     'open-menu': openMenuSymbolic,
     'go-home': goHomeSymbolic,
@@ -108,10 +149,31 @@ const ICONS = {
     'contact-new': contactNewSymbolic,
     'mail-unread': mailUnreadSymbolic,
     'avatar-default': avatarDefaultSymbolic,
+    // The GtkVideo overlay's four-way choice (gtkvideo.c:626-646) and the GtkMediaControls
+    // transport. `media-eject` and `media-playback-pause` are the other two arms: eject is
+    // the NO-STREAM arm and pause is the play button's playing state.
+    'media-playback-start': mediaPlaybackStartSymbolic,
+    'media-playback-pause': mediaPlaybackPauseSymbolic,
+    'media-eject': mediaEjectSymbolic,
+    'media-playlist-repeat': mediaPlaylistRepeatSymbolic,
+    'dialog-error': dialogErrorSymbolic,
+    // `volumeIconFor`'s four names — GtkVolumeButton derives its icon from the level.
+    'audio-volume-muted': audioVolumeMutedSymbolic,
+    'audio-volume-low': audioVolumeLowSymbolic,
+    'audio-volume-medium': audioVolumeMediumSymbolic,
+    'audio-volume-high': audioVolumeHighSymbolic,
     'camera-photo': cameraPhotoSymbolic,
     'user-trash': userTrashSymbolic,
     'view-reveal': viewRevealSymbolic,
     'view-conceal': viewConcealSymbolic,
+    // Gtk.SpinButton's two arrows, named as `gtk_spin_button_init` names them
+    // (gtkspinbutton.c:1103, :1122). Adw.SpinRow draws its own glyphs, so these two exist
+    // for the standalone spin button and nothing else.
+    'value-increase': valueIncreaseSymbolic,
+    'value-decrease': valueDecreaseSymbolic,
+    // Gtk.SearchEntry's trailing clear button, named as `gtk_search_entry_init` names it
+    // (gtksearchentry.c:867).
+    'edit-clear': editClearSymbolic,
     'document-edit': documentEditSymbolic,
     'document-open': documentOpenSymbolic,
     'document-save': documentSaveSymbolic,
@@ -133,14 +195,44 @@ const ICONS = {
     'application-x-executable': applicationXExecutableSymbolic,
     // GtkWindowControls' glyphs — needed by anything that draws an Adwaita window
     // frame in the browser, where there is no window manager to draw it. All
-    // three, because the set a window shows is the PLATFORM's decoration layout:
-    // close alone on GNOME, minimize/maximize/close on Windows.
+    // four, because the set a window shows is the PLATFORM's decoration layout:
+    // close alone on GNOME, minimize/maximize/close on Windows — and the maximize
+    // button swaps to `window-restore` while the window is maximized
+    // (gtkwindowcontrols.c:347-350).
     'window-close': windowCloseSymbolic,
     'window-minimize': windowMinimizeSymbolic,
     'window-maximize': windowMaximizeSymbolic,
+    'window-restore': windowRestoreSymbolic,
     // The libadwaita fallback for a NULL/empty icon-name: every view switcher substitutes
     // it, so it has to resolve to a real glyph rather than to an empty mask.
     'image-missing': imageMissingSymbolic,
+    // `<gtk-emoji-chooser>`'s ten section buttons and its two `edit-find` glyphs (the
+    // search entry's leading icon and the empty page's 72px one). The categories are the
+    // `.ui`'s own icon names, one per section, and a section toolbar with nine identical
+    // squares would be a worse replica than the ~15 KB of stylesheet these cost.
+    'emoji-recent': emojiRecentSymbolic,
+    'emoji-people': emojiPeopleSymbolic,
+    'emoji-body': emojiBodySymbolic,
+    'emoji-nature': emojiNatureSymbolic,
+    'emoji-food': emojiFoodSymbolic,
+    'emoji-travel': emojiTravelSymbolic,
+    'emoji-activities': emojiActivitiesSymbolic,
+    'emoji-objects': emojiObjectsSymbolic,
+    'emoji-symbols': emojiSymbolsSymbolic,
+    'emoji-flags': emojiFlagsSymbolic,
+    'edit-find': editFindSymbolic,
+    // `<gtk-print-unix-dialog>`'s printer-list icon column and its conflicts action bar.
+    printer: printerSymbolic,
+    // The emoji story's "insert an emoji" button, which is the same face GTK puts on its
+    // own entry prefix.
+    'face-smile': faceSmileSymbolic,
+    'dialog-warning': dialogWarningSymbolic,
+    // `<gtk-expander>`'s disclosure arrow — all THREE of `_expanders.scss`'s
+    // `-gtk-icon-source` values, because the stylesheet swaps between them on `:checked`
+    // and on `:dir(rtl)` and the web partial swaps the mask instead.
+    'pan-end': panEndSymbolic,
+    'pan-end-rtl': panEndSymbolicRtl,
+    'pan-down': panDownSymbolic,
 };
 
 const iconVars = Object.entries(ICONS)

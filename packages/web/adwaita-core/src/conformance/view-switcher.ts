@@ -1451,3 +1451,66 @@ export function createViewSwitcherClock(): ViewSwitcherClock {
         },
     };
 }
+
+/** One `viewSwitcherSidebarSections` row: a page list in, section titles out. */
+export interface ViewSwitcherSidebarSectionVector {
+    /** Page names, comma-joined, in stack order. */
+    pages: string;
+    /** Page names that open a section, comma-joined. */
+    starts: string;
+    /** One `title` per resulting section, comma-joined (`-` for an empty heading). */
+    sections: string;
+    /** Page names per resulting section, groups separated by `/`. */
+    groups: string;
+    rule: string;
+}
+
+/**
+ * `populate_sidebar` (adw-view-switcher-sidebar.c:225-243): the grouping that makes
+ * `AdwViewSwitcherSidebar` different from every other Adw switcher.
+ *
+ * The rule a hand-written copy gets wrong is the FIRST page: C's condition is
+ * `if (!section || adw_view_stack_page_get_starts_section (page))`, so the first page
+ * opens a section whatever its `starts-section` says — a stack of four pages where only
+ * the last one starts a section yields TWO sections, not one section of four.
+ *
+ * Reference: refs/libadwaita/src/adw-view-switcher-sidebar.c:225-243
+ * Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1-or-later.
+ */
+export const VIEW_SWITCHER_SIDEBAR_SECTION_VECTORS: ReadonlyArray<ViewSwitcherSidebarSectionVector> = [
+    {
+        pages: 'inbox,drafts,sent',
+        starts: '',
+        sections: '-',
+        groups: 'inbox,drafts,sent',
+        rule: 'no page starts a section and the FIRST one opens it anyway — C tests `!section` before `starts_section`',
+    },
+    {
+        pages: 'inbox,drafts,sent',
+        starts: 'sent',
+        sections: 'Mail,-',
+        groups: 'inbox,drafts/sent',
+        rule: 'a page that starts a section FLUSHES the one before it, and its own `section-title` names the new one',
+    },
+    {
+        pages: 'inbox,drafts,sent',
+        starts: 'inbox,sent',
+        sections: 'Mail,Archive',
+        groups: 'inbox,drafts/sent',
+        rule: 'consecutive `starts-section` pages each get their own section, however short',
+    },
+    {
+        pages: 'inbox,drafts,sent',
+        starts: 'inbox,sent',
+        sections: ',Archive',
+        groups: 'inbox,drafts/sent',
+        rule: 'a section opened WITHOUT a title carries an empty heading, which AdwSidebar draws as a separator',
+    },
+    {
+        pages: '',
+        starts: '',
+        sections: '',
+        groups: '',
+        rule: 'an empty stack yields no section at all — C only appends the section it filled',
+    },
+];

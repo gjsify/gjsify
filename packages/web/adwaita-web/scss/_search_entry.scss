@@ -1,0 +1,86 @@
+// _search_entry.scss — <gtk-search-entry>: the same `entry` box with a magnifying glass
+// leading and a clear button trailing.
+//
+// libadwaita has no `entry.search` rule at all: `Gtk.SearchEntry`'s CSS node is `entry`
+// carrying the `.search` STYLE CLASS (gtksearchentry.c:884), and every rule that reaches it
+// is one `_entries.scss` already states for `entry` (:1-96) — the box, the focus ring, the
+// icons at 70%, and their `&.right { margin-left: 6px }`. So this partial is those same
+// rules applied to the two extra nodes this widget has, and it deliberately adds nothing of
+// its own: a rule that could select `entry.search` but does not is a rule that rots, which
+// is the reasoning `_progress_bar.scss` records for `progressbar.vertical`.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss:1-96
+// Reference: refs/gtk/gtk/gtksearchentry.c:884 (the `.search` style class, and the CSS node name `entry`)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-search-entry {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: var(--button-radius);
+  background-color: var(--button-bg-color);
+  background-clip: padding-box;
+  caret-color: currentColor;
+
+  @media (prefers-contrast: more) {
+    box-shadow: inset 0 0 0 1px var(--border-color);
+  }
+
+  // `@include focus-ring($focus-state: ':focus-within')` (_entries.scss:17). The host is the
+  // focusable node here rather than a wrapping box, so it is the host's own focus that
+  // paints the ring — which is the same ring `:focus-within` draws, one node further out.
+  &:focus-within {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+  }
+
+  .adw-entry {
+    flex: 1;
+    min-width: 0;
+    min-height: auto;
+    padding: 0 6px;
+    background-color: transparent;
+    box-shadow: none;
+
+    &:focus,
+    &:focus-visible {
+      box-shadow: none;
+    }
+  }
+
+  // `> image { opacity: 70%; &.left { margin-right: 6px } }` (_entries.scss:42-61)
+  .adw-search-entry-icon {
+    flex: none;
+    margin-right: 6px;
+    opacity: 70%;
+    color: inherit;
+
+    @media (prefers-contrast: more) {
+      opacity: 85%;
+    }
+  }
+
+  .adw-search-entry-clear {
+    flex: none;
+    margin-left: 6px;
+    opacity: 70%;
+    color: inherit;
+
+    @media (prefers-contrast: more) {
+      opacity: 85%;
+    }
+
+    &:hover {
+      opacity: 100%;
+    }
+
+    &:active {
+      opacity: 80%;
+    }
+  }
+}

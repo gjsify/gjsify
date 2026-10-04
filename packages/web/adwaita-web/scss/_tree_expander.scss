@@ -1,0 +1,62 @@
+// _tree_expander.scss — <gtk-tree-expander>: the indents and the disclosure arrow in
+// front of a tree row's contents.
+//
+// libadwaita gives the widget itself ONE declaration — `treeexpander { border-spacing:
+// 4px }` (_column-view.scss:128-130), which is the gap between the indents, the expander
+// and the child — and styles the arrow through the generic `expander` node: a 16×16 box
+// drawn with `pan-end-symbolic`, turning to `pan-down-symbolic` when `:checked`
+// (_expanders.scss:1-10).
+//
+// An INDENT has no rule upstream at all: `GtkBuiltinIcon` with css-name `indent` draws
+// nothing and occupies the icon's own 16px. That is why the indent below is a fixed box
+// rather than a margin on the child — the child keeps its own box, and an expandable row
+// and its leaf sibling line up because they have the SAME number of boxes in front of
+// them, which is the whole point of `indent-for-icon`.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_column-view.scss:128-130
+// Reference: refs/libadwaita/src/stylesheet/widgets/_expanders.scss:1-10
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-tree-expander {
+  display: flex;
+  align-items: center;
+  // `border-spacing: 4px` between every node the widget holds.
+  gap: 4px;
+  box-sizing: border-box;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+    border-radius: var(--button-radius);
+  }
+
+  .adw-tree-expander-indent {
+    flex: none;
+    display: block;
+    // The `indent` node is an icon-sized box that draws nothing.
+    width: 16px;
+    height: 16px;
+  }
+
+  .adw-tree-expander-icon {
+    flex: none;
+    opacity: 0.7;
+    transform: rotate(0deg);
+    transition: transform 0.2s ease-out;
+    cursor: pointer;
+
+    // `:checked` turns pan-end into pan-down; one quarter turn is the same picture.
+    &.expanded {
+      transform: rotate(90deg);
+    }
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &[aria-disabled='true'] .adw-tree-expander-icon {
+    filter: opacity(var(--disabled-opacity));
+  }
+}

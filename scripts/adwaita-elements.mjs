@@ -192,6 +192,24 @@ const pascalCase = (name) =>
         .map((part) => part[0].toUpperCase() + part.slice(1))
         .join('');
 
+/**
+ * The tags whose GIR class name is NOT the derivation below, with the class the GIR
+ * actually spells.
+ *
+ * WHY ONE IS NEEDED. `tagOf` in `packages/framework/gtk-host/src/tags.ts` runs the other
+ * way and handles an acronym run explicitly — it says so, because without the rule
+ * `GtkGLArea` becomes `gtk-g-l-area`. Deriving the class from that tag cannot recover
+ * the acronym: `gl-area` and `glarea` are the same string's two readings, and the
+ * derivation has to choose one. It chose `GtkGlArea`, which is not a GTK type, so a class
+ * named after the GIR would have been refused by the check that exists to catch exactly
+ * this. The list is the answer for the tags where the GIR's own spelling wins, and it is
+ * a list rather than a rule because a rule would have to be a guess.
+ */
+const TAG_CLASS_EXCEPTIONS = {
+    // `Gtk.GLArea` — the one GTK type in the gallery with an acronym in its tail.
+    'gtk-gl-area': 'GtkGLArea',
+};
+
 /** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
 export const widgetClass = (name) => `Adw${pascalCase(name)}`;
 
@@ -213,7 +231,34 @@ export const widgetClass = (name) => `Adw${pascalCase(name)}`;
  * derivation independently and neither could see the other. Two names for one rule read
  * as two rules the next time somebody changes one of them.
  */
-export const tagClass = (tag) => `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
+export const tagClass = (tag) => {
+    const exception = TAG_CLASS_EXCEPTIONS[tag];
+    if (exception !== undefined) return exception;
+    return `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
+};
+
+/**
+ * `GtkGLArea` → `gtk-gl-area`: the tag a class name answers to, the INVERSE of
+ * {@link tagClass} and exactly as lossy — except for the tags listed above, which it
+ * knows, so the two functions agree in both directions on every name in the tree.
+ *
+ * Written down because three gates need the class↔tag join and a third derivation of the
+ * acronym rule is how `Gtk.GLArea` became three different widgets: `tagClass` said
+ * `GtkGlArea`, the gallery's own `bareName` said `g-l-area`, and the file names said
+ * `gl-area`. One list, both directions.
+ */
+export const classTag = (klass) => {
+    const known = Object.entries(TAG_CLASS_EXCEPTIONS).find(([, value]) => value === klass);
+    if (known !== undefined) return known[0];
+    const prefix = /^[A-Z][a-z]*/.exec(klass)?.[0] ?? '';
+    if (prefix === '') return '';
+    // `(?<!^)` so the tail's OWN first capital does not open with a dash.
+    const tail = klass
+        .slice(prefix.length)
+        .replaceAll(/(?<!^)([A-Z])/g, '-$1')
+        .toLowerCase();
+    return `${prefix.toLowerCase()}-${tail}`;
+};
 
 /** The shared headless behaviour both renderers are meant to delegate to. */
 const CORE_PACKAGE = '@gjsify/adwaita-core';

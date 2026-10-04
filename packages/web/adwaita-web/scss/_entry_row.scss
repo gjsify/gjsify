@@ -10,7 +10,7 @@ adw-entry-row {
   align-items: center;
   gap: var(--spacing-m);
   min-height: 50px;
-  padding: var(--spacing-xs) var(--spacing-m);
+  padding: 0 var(--spacing-m);
   border-bottom: 1px solid var(--card-shade-color);
 
   &:last-child {

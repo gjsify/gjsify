@@ -96,6 +96,20 @@ export interface AdwUndershootEdges {
 }
 
 /**
+ * What a caller can ask to hear about, which is `GtkScrolledWindow::edge-overshot`'s own
+ * argument: the SIGNED distance past the edge, negative at the near one and positive at the
+ * far one, and `0` when the position is back inside the range.
+ *
+ * The alternative is a second copy of the overshoot accumulation in the caller, which is
+ * the duplication this module exists to prevent — the unclamped position is a value only
+ * the wheel bookkeeping here has.
+ */
+export interface AdwScrollShadingOptions {
+    /** Called whenever a wheel pushes a scroller's position past one of its edges. */
+    onOvershoot?: (distance: number) => void;
+}
+
+/**
  * Keeps every scroller under a root marked with its live edge indicators.
  *
  * One instance per toolbar view. Scroll and wheel are listened for in the CAPTURE
@@ -114,9 +128,11 @@ export class AdwScrollShading {
     private _shaded = new Set<HTMLElement>();
     private _pendingScan = 0;
     private _undershootEdges: AdwUndershootEdges = { top: true, bottom: true };
+    private _onOvershoot: ((distance: number) => void) | null;
 
-    constructor(root: HTMLElement) {
+    constructor(root: HTMLElement, options: AdwScrollShadingOptions = {}) {
         this._root = root;
+        this._onOvershoot = options.onOvershoot ?? null;
     }
 
     /**
@@ -242,6 +258,7 @@ export class AdwScrollShading {
         el.classList.toggle('overshoot-bottom', distance > 0);
         if (distance === 0) el.style.removeProperty(OVERSHOOT_PROPERTY);
         else el.style.setProperty(OVERSHOOT_PROPERTY, `${Math.abs(distance)}px`);
+        this._onOvershoot?.(distance);
     }
 
     /** The nearest shaded scroller at or above a wheel target, root included. */

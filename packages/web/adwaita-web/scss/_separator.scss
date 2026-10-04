@@ -1,0 +1,44 @@
+// _separator.scss — <gtk-separator>: a one-pixel rule, and the `.spacer` variant that draws
+// nothing and only keeps its distance.
+//
+// libadwaita's whole rule is `separator { background: $border_color; min-width: 1px;
+// min-height: 1px }` plus `.spacer` (_misc.scss:21-31). GTK gives the widget its extent from
+// the orientation: a horizontal separator is 1px tall and as wide as it is given, a vertical
+// one the reverse. A flex or block parent hands that width through `align-self: stretch`,
+// which is why the cross-axis size is `auto` rather than a number.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss:21-31
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-separator {
+  display: block;
+  flex: none;
+  align-self: stretch;
+  background: var(--border-color);
+  min-width: 1px;
+  min-height: 1px;
+
+  &.horizontal {
+    height: 1px;
+  }
+
+  &.vertical {
+    width: 1px;
+  }
+
+  &.spacer {
+    background: none;
+
+    &.horizontal {
+      min-width: 12px;
+    }
+
+    // The generic `.spacer` in `_style_classes.scss` also floors the WIDTH at 12px for an
+    // element with no orientation; a vertical separator's width is its 1px, so say so.
+    &.vertical {
+      min-width: 1px;
+      min-height: 12px;
+    }
+  }
+}

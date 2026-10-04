@@ -1,0 +1,96 @@
+// _list_view.scss — <gtk-list-view>, and the ROW rules its two relatives reuse.
+//
+// UNSCOPED on purpose: `gridview > child` and `columnview > listview > row` are the same
+// selectable, activatable surface as `listview > row`, and upstream writes them as one
+// set of colours in `_lists.scss` and `_views.scss`. The shared half is the
+// `adw-list-selectable` MIXIN below, which `_grid_view.scss` and `_column_view.scss`
+// include rather than restate — the hover/active/selected quartet is four colours per
+// state and a drifted copy is four wrong ones. A mixin and not a `%placeholder`: a
+// placeholder extended across a `@use` boundary emits into the module that DECLARED it,
+// which would put the grid's and the column view's selectors inside this file's output.
+//
+// The colour tokens are libadwaita's own, spelled with this package's variables:
+// `$view_hover_color` is `currentColor 4%`, `$view_active_color` `currentColor 8%` and
+// `$view_selected_color` `var(--accent-bg-color) 25%` (_colors.scss:274-276).
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss:5-45, 74-95 (listview, row)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_views.scss:47-50 (rubberband)
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:263-276 (the four tokens)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+// The hover / active / selected quartet every item surface in the three views wears.
+@mixin adw-list-selectable {
+  background-clip: padding-box;
+
+  &:hover {
+    background-color: color-mix(in srgb, currentColor 4%, transparent);
+  }
+
+  &:active {
+    background-color: color-mix(in srgb, currentColor 8%, transparent);
+  }
+
+  &.selected {
+    background-color: color-mix(in srgb, var(--accent-bg-color) 25%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+  }
+}
+
+// The band is positioned against the row container, which is why every view's row
+// container is a containing block.
+.adw-rubberband {
+  position: absolute;
+  border: 1px solid var(--accent-color);
+  background-color: color-mix(in srgb, var(--accent-color) 20%, transparent);
+  pointer-events: none;
+}
+
+// The node a factory's label lands in, in all three views.
+.adw-list-item-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+gtk-list-view {
+  display: block;
+  box-sizing: border-box;
+  color: var(--view-fg-color);
+  background-color: var(--view-bg-color);
+  background-clip: padding-box;
+
+  .adw-list-view-rows {
+    // `position: relative` is the rubber band's containing block, not decoration.
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &.horizontal .adw-list-view-rows {
+    flex-direction: row;
+  }
+
+  .adw-list-view-row {
+    @include adw-list-selectable;
+
+    // `listview > row { padding: 2px }` (_lists.scss:16-19).
+    padding: 2px;
+    box-sizing: border-box;
+  }
+
+  // `.separators` is the class GTK adds for `show-separators`; upstream draws the rule on
+  // the BOTTOM of every row but the separator itself, and on the LEFT when horizontal.
+  &.separators:not(.horizontal) .adw-list-view-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  &.separators.horizontal .adw-list-view-row:not(:last-child) {
+    border-right: 1px solid var(--border-color);
+  }
+}

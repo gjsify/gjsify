@@ -1,0 +1,130 @@
+// _paned.scss — <gtk-paned>: two panes, and the hairline between them.
+//
+// This is libadwaita's `_paned.scss` transposed onto the element. Upstream styles the CSS
+// NODE TREE `paned > separator[.wide]` (gtkpaned.c:88-98) rather than a tag, so the selector
+// here is the element and the handle class it carries:
+//
+//   · the rule draws NOTHING with a background — `background: none` upstream — and paints
+//     the rule as an INSET BOX SHADOW on the leading edge, `inset 1px 0 $border_color` for a
+//     horizontal paned in an LTR row and the mirrored `-1px` under RTL. `<gtk-separator>`'s
+//     own partial fills its background instead, which is why the handle is a plain box with
+//     the `separator` class rather than a `<gtk-separator>`: upstream's two selectors can
+//     then mean different things, as they do in GTK.
+//   · `.wide` is `gtk_paned_set_wide_handle` adding the class to the handle node
+//     (gtkpaned.c:2566), and upstream widens the node itself to 5px rather than fattening a
+//     1px rule — so the rule's shadow moves to BOTH edges.
+//
+// The HIT AREA is the part upstream has no CSS for: `gtk_paned_handle_contains` insets the
+// node's border rect by `- HANDLE_EXTRA_SIZE` (6px) on every side unless the handle is wide
+// (gtkpanedhandle.c:49, :60-73), and `initiates_touch_drag` adds 50px more for a touch
+// sequence (gtkpaned.c:862-884). A `::before` with negative insets is the same rectangle
+// without moving the rule, and a pseudo-element is not itself an event target, so the events
+// land on the handle.
+//
+// `.adw-paned-child` is a flex column and its adopted child fills it, which is the pattern
+// `adw-navigation-view` / `adw-navigation-split-view` already use for the pane bins they
+// build themselves. `min-height: 0` / `min-width: 0` on the child is what lets a pane's
+// scroll container shrink inside the divider instead of pushing it.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_paned.scss
+// Reference: refs/gtk/gtk/gtkpanedhandle.c (HANDLE_EXTRA_SIZE, gtk_paned_handle_contains)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-paned {
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  min-width: 0;
+
+  &.vertical {
+    flex-direction: column;
+  }
+}
+
+gtk-paned > .adw-paned-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+
+  > * {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
+gtk-paned > .adw-paned-handle {
+  position: relative;
+  flex: none;
+  // The 1px (or 5px) node `gtk_paned_handle_new` measures with
+  // `gtk_widget_measure (handle_widget, orientation, -1, NULL, &handle_size, …)`.
+  min-width: 1px;
+  min-height: 1px;
+  // Upstream's `background: none` — the rule below is an inset shadow, not a fill, which is
+  // what leaves the two separators (this one and `<gtk-separator>`) free to differ.
+  background: none;
+
+  &.wide {
+    min-width: 5px;
+    min-height: 5px;
+  }
+
+  // `graphene_rect_inset (&area, -HANDLE_EXTRA_SIZE, -HANDLE_EXTRA_SIZE)`.
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+  }
+}
+
+gtk-paned.horizontal > .adw-paned-handle {
+  &:dir(ltr) {
+    box-shadow: inset 1px 0 var(--border-color);
+  }
+
+  &:dir(rtl) {
+    box-shadow: inset -1px 0 var(--border-color);
+  }
+
+  &.wide {
+    &:dir(ltr) {
+      box-shadow:
+        inset 1px 0 var(--border-color),
+        inset -1px 0 var(--border-color);
+    }
+
+    &:dir(rtl) {
+      box-shadow:
+        inset -1px 0 var(--border-color),
+        inset 1px 0 var(--border-color);
+    }
+  }
+}
+
+gtk-paned.vertical > .adw-paned-handle {
+  box-shadow: inset 0 1px var(--border-color);
+
+  &.wide {
+    box-shadow:
+      inset 0 1px var(--border-color),
+      inset 0 -1px var(--border-color);
+  }
+}
+
+// `gtk_widget_set_cursor_from_name (handle_widget, "col-resize")` (gtkpaned.c:1527) — the
+// C picks it from the handle node's own orientation, which the classes carry.
+gtk-paned.horizontal > .adw-paned-handle {
+  cursor: col-resize;
+}
+
+gtk-paned.vertical > .adw-paned-handle {
+  cursor: row-resize;
+}

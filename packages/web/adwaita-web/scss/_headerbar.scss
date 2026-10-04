@@ -128,3 +128,135 @@ adw-window.devel adw-header-bar {
       transparent 32px 64px
     );
 }
+
+/*********************
+ * Gtk.HeaderBar    *
+ *********************/
+
+// GTK's own bar, in the SAME file upstream styles `Adw.HeaderBar` in: libadwaita keys
+// `headerbar`, `windowhandle > box` and `box.start`/`box.end` off the GtkHeaderBar CSS tree
+// (refs/gtk/gtk/gtkheaderbar.c:99-116), and the element builds that tree here — so the
+// selectors are the same ones and the two bars sit on the same surface.
+//
+// `order` on the three children rather than their DOM order: the title widget is ADOPTED
+// into the centre `box` after the two side boxes are already in it, and a flex row lays out
+// in DOM order. The centring itself is the `flex: 1` centre track, which is
+// `gtk_center_layout_distribute`'s rule that the centre is clamped to
+// `size - (start.natural + end.natural)` (gtkcenterlayout.c:155-157) — the two ends keep
+// their natural width and the title takes what is left.
+//
+// The `.title` label is the derived one, and `min-width: 5ch` is `width-chars = 5`
+// (MIN_TITLE_CHARS, gtkheaderbar.c:117, :287) as CSS: a bar with a short title must not
+// collapse its centre to nothing and drop the ends on each other.
+gtk-header-bar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 47px;
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+  box-shadow: inset 0 -1px var(--headerbar-shade-color);
+
+  > .adw-gtk-header-bar-handle > .adw-gtk-header-bar-box {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    // `_header-bar.scss:20-26` — the padding around the bar's whole content, and the 6px
+    // spacing between the packed children at either side.
+    padding: 6px 7px 7px 7px;
+
+    > .adw-gtk-header-bar-start {
+      order: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      // `:29-37` — the gap libadwaita puts between the centre and a side.
+      margin-right: 6px;
+    }
+
+    > .adw-gtk-header-bar-end {
+      order: 2;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 6px;
+    }
+
+    > :not(.adw-gtk-header-bar-start):not(.adw-gtk-header-bar-end) {
+      order: 1;
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  // The derived `GtkLabel` (gtkheaderbar.c:274-290): no wrap, `single-line-mode`,
+  // `ellipsize = END`, `width-chars = 5`, and the `title` style class on top — which
+  // `_header-bar.scss:213-219` gives 12px of padding either side and a bold weight.
+  > .adw-gtk-header-bar-handle > .adw-gtk-header-bar-box > .adw-gtk-header-bar-title {
+    min-width: 5ch;
+    padding: 0 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/************************
+ * Gtk.WindowControls  *
+ ************************/
+
+// The three frame buttons, off libadwaita's own `windowcontrols > button > image`
+// (refs/libadwaita/src/stylesheet/widgets/_header-bar.scss:175-207). A button is a 24px
+// square with 5px of padding; the IMAGE carries the whole hover/active affordance — a
+// circular `$button_color` disc that grows darker — which is why the disc and not the button
+// is what has a background here.
+gtk-window-controls {
+  display: flex;
+  align-items: center;
+  // `:176` — the gap between two controls.
+  gap: 3px;
+
+  > .adw-window-controls-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 5px;
+    border: none;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+
+    > .adw-icon {
+      // `:189-199` — the disc, its radius and its transitions.
+      background-color: var(--button-bg-color);
+      border-radius: 100%;
+      padding: 4px;
+      transition:
+        background-color 150ms ease-out,
+        box-shadow 150ms ease-out;
+
+      @media (prefers-contrast: more) {
+        box-shadow: inset 0 0 0 1px var(--border-color);
+      }
+    }
+
+    &:hover > .adw-icon {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active > .adw-icon {
+      background-color: var(--button-active-color);
+    }
+
+    // `:204-206` — the window icon is not a button, so it takes a margin, not a padding.
+    > .icon {
+      margin: 9px;
+    }
+  }
+}

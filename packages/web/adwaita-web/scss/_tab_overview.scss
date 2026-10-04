@@ -1,0 +1,483 @@
+// _tab_overview.scss — <adw-tab-overview>: the grid of tab thumbnails that covers an
+// <adw-tab-view>. Closed, the element is just the view; open, a toolbar-view surface
+// sits on top with a header bar, a search strip, the two grids and the empty states.
+//
+// The rules are libadwaita's own, ported node for node:
+//   · `tabthumbnail { border-radius: $card_radius + 4px; > box { margin: 6px } }`
+//   · the `.needs-attention` gizmo: 12px accent dot, `border-radius: 8px`, `margin: 3px`,
+//     offset `translate(8px, -8px)` from the leading top corner
+//   · the `.card > picture` outline (`$window_outline_color`, offset -1px, card radius)
+//   · a PINNED thumbnail paints the card with `--thumbnail-bg-color`/`-fg-color`
+//   · the close/indicator buttons: no plate at rest, a 24px `--thumbnail-bg-color` disc
+//     behind the 24px symbolic, tinted further toward `currentColor` on hover and active
+//   · `taboverview > .overview`: the overview colours, and `.new-tab-button { margin: 18px }`
+// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-view.scss:187-300
+// Reference: refs/libadwaita/src/adw-tab-overview.ui (the node tree this mirrors)
+// Copyright (c) 2021-2022 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components. `adw-tab-unpin-symbolic`
+// and `adw-tab-new-symbolic` are libadwaita-BUNDLED glyphs with no mask class, so the
+// unpin mark is drawn here and the new-tab button uses the theme's `list-add`.
+
+adw-tab-overview {
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+}
+
+adw-tab-overview > .adw-tab-overview-child {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+adw-tab-overview > .adw-tab-overview-child.background {
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+}
+
+adw-tab-overview > .adw-tab-overview-toolbar[hidden] {
+  display: none;
+}
+
+adw-tab-overview > .adw-tab-overview-toolbar {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  // `taboverview > .overview`
+  color: var(--overview-fg-color);
+  background-color: var(--overview-bg-color);
+  animation: adw-tab-overview-in 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+@keyframes adw-tab-overview-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+adw-tab-overview .overview-header-bar {
+  flex-shrink: 0;
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+  box-shadow: inset 0 -1px var(--headerbar-shade-color);
+}
+
+adw-tab-overview .overview-header-bar[hidden] {
+  display: none;
+}
+
+adw-tab-overview .overview-title-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-height: 24px;
+}
+
+adw-tab-overview .overview-title-buttons.start {
+  margin-inline-end: auto;
+}
+
+adw-tab-overview .overview-title-buttons.end {
+  margin-inline-start: auto;
+}
+
+adw-tab-overview .overview-title-buttons[hidden] {
+  display: none;
+}
+
+adw-tab-overview .overview-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: bold;
+  text-align: center;
+}
+
+adw-tab-overview .search-button,
+adw-tab-overview .secondary-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+adw-tab-overview .search-button[hidden],
+adw-tab-overview .secondary-menu-button[hidden] {
+  display: none;
+}
+
+// The GtkSearchBar's revealer (`searchbar > revealer > box`, _toolbars.scss:113-185):
+// seven pixels of vertical padding around the entry.
+adw-tab-overview .overview-search-bar {
+  flex-shrink: 0;
+  padding: 7px 0;
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+  box-shadow: inset 0 -1px var(--headerbar-shade-color);
+}
+
+adw-tab-overview .overview-search-bar[hidden] {
+  display: none;
+}
+
+adw-tab-overview .overview-search-clamp {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  margin-inline: auto;
+  padding-inline: var(--spacing-m);
+}
+
+adw-tab-overview .overview-search-entry {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+adw-tab-overview .adw-tab-overview-content {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+adw-tab-overview .adw-tab-overview-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-l);
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--spacing-l);
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+adw-tab-overview .adw-tab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-l);
+  align-content: start;
+}
+
+adw-tab-overview .adw-tab-grid[hidden] {
+  display: none;
+}
+
+adw-tab-overview .adw-tab-grid:focus-visible {
+  outline: none;
+}
+
+adw-tab-overview .overview-empty-state,
+adw-tab-overview .overview-search-empty-state {
+  position: absolute;
+  inset: 0;
+  background-color: var(--overview-bg-color);
+  color: var(--overview-fg-color);
+}
+
+adw-tab-overview .overview-empty-state[hidden],
+adw-tab-overview .overview-search-empty-state[hidden] {
+  display: none;
+}
+
+adw-tab-overview .new-tab-button {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  // `.new-tab-button { margin: 18px }`
+  margin: 18px;
+  padding: 6px 18px;
+  box-sizing: border-box;
+}
+
+adw-tab-overview .new-tab-button[hidden] {
+  display: none;
+}
+
+adw-tab-overview .new-tab-button-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+// --- The thumbnail (adw-tab-thumbnail.ui) ---------------------------------
+
+adw-tab-overview .adw-tab-thumbnail {
+  // `tabthumbnail { border-radius: $card_radius + 4px }`
+  border-radius: calc(var(--card-radius, 12px) + 4px);
+}
+
+adw-tab-overview .adw-tab-thumbnail > .contents {
+  // `> box { margin: 6px }` — the 6px gap a GtkBox's vertical spacing also produces.
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px;
+}
+
+adw-tab-overview .adw-tab-thumbnail:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+adw-tab-overview .adw-tab-thumbnail .thumbnail {
+  position: relative;
+  box-sizing: border-box;
+}
+
+adw-tab-overview .adw-tab-thumbnail .card {
+  position: relative;
+  display: flex;
+  aspect-ratio: 16 / 10;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: var(--card-radius, 12px);
+  background-color: var(--thumbnail-bg-color);
+  color: var(--thumbnail-fg-color);
+  transition: box-shadow 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+adw-tab-overview .adw-tab-thumbnail:not(.selected) .card {
+  box-shadow: 0 1px 2px rgb(0 0 6 / 8%);
+}
+
+adw-tab-overview .adw-tab-thumbnail.selected .card {
+  box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+// `.card > picture { outline: 1px solid $window_outline_color; outline-offset: -1px }`
+adw-tab-overview .adw-tab-thumbnail .picture {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: var(--spacing-m);
+  outline: 1px solid var(--window-outline-color, rgb(0 0 6 / 50%));
+  outline-offset: -1px;
+  border-radius: var(--card-radius, 12px);
+}
+
+// The stand-in for `GtkPicture`'s `GdkPaintable`: GTK paints the page widget into a
+// texture (`adw_tab_page_get_paintable`), which no browser can do. The title is drawn
+// where the portrait was, in the thumbnail's own dimmed colour.
+adw-tab-overview .adw-tab-thumbnail .picture-portrait {
+  font-weight: 800;
+  font-size: 1.05em;
+  line-height: 1.2;
+  text-align: center;
+  opacity: 0.55;
+  overflow-wrap: anywhere;
+}
+
+// `&.pinned .card { background-color: var(--thumbnail-bg-color); color: … }`
+adw-tab-overview .adw-tab-thumbnail .card {
+  background-color: transparent;
+  color: inherit;
+}
+
+adw-tab-overview .adw-tab-thumbnail .needs-attention {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  // `&:dir(ltr) { transform: translate(8px, -8px) }`
+  transform: translate(calc(var(--spacing-xs) * -1), calc(var(--spacing-xs) * -1));
+  pointer-events: none;
+}
+
+adw-tab-overview .adw-tab-thumbnail .needs-attention[hidden] {
+  display: none;
+}
+
+adw-tab-overview .adw-tab-thumbnail .needs-attention > .gizmo {
+  display: block;
+  background-color: var(--accent-color);
+  min-width: 12px;
+  min-height: 12px;
+  border-radius: 8px;
+  margin: 3px;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent-color) 40%, transparent);
+}
+
+adw-tab-overview .adw-tab-thumbnail .icon-title-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-icon[hidden] {
+  display: none;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-spinner {
+  flex: none;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// `> image { margin: 6px; min-width/min-height: 24px; border-radius: 9999px;
+//   background-color: color-mix(in srgb, var(--thumbnail-bg-color) 75%, transparent) }`
+adw-tab-overview .adw-tab-thumbnail .tab-close-button,
+adw-tab-overview .adw-tab-thumbnail .tab-indicator {
+  position: absolute;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 99px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-close-button {
+  inset-inline-end: 0;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-indicator {
+  inset-inline-start: 0;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-close-button[hidden],
+adw-tab-overview .adw-tab-thumbnail .tab-indicator[hidden],
+adw-tab-overview .adw-tab-thumbnail .tab-unpin-icon[hidden] {
+  display: none;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-close-icon,
+adw-tab-overview .adw-tab-thumbnail .tab-indicator-icon {
+  width: 24px;
+  height: 24px;
+  margin: 6px;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--thumbnail-bg-color, currentColor) 75%, transparent);
+  transition: background-color 150ms ease-in-out;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-close-button:hover .tab-close-icon,
+adw-tab-overview .adw-tab-thumbnail .tab-indicator:hover .tab-indicator-icon {
+  background-color: color-mix(
+    in srgb,
+    var(--thumbnail-bg-color, currentColor) calc(0.9 * 75%),
+    currentColor calc(0.1 * 75%)
+  );
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-close-button:active .tab-close-icon,
+adw-tab-overview .adw-tab-thumbnail .tab-indicator:active .tab-indicator-icon {
+  background-color: color-mix(
+    in srgb,
+    var(--thumbnail-bg-color, currentColor) calc(0.8 * 75%),
+    currentColor calc(0.2 * 75%)
+  );
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-close-icon[hidden],
+adw-tab-overview .adw-tab-thumbnail .tab-indicator-icon[hidden] {
+  display: none;
+}
+
+// `adw-tab-unpin-symbolic`: a libadwaita-bundled glyph with no mask class. The pin is a
+// filled wedge with a stem, drawn here so the thumbnail says what C's says.
+adw-tab-overview .adw-tab-thumbnail .tab-unpin-icon {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-unpin-icon::before {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 6px;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--thumbnail-bg-color, currentColor) 75%, transparent);
+}
+
+adw-tab-overview .adw-tab-thumbnail .tab-unpin-icon::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  inset-inline-end: 15px;
+  width: 10px;
+  height: 8px;
+  background-color: currentColor;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+// `inverted` puts the close/unpin button at the START and the indicator at the END
+// (adw-tab-overview.c:1626-1634).
+adw-tab-overview .adw-tab-thumbnail.inverted .tab-close-button,
+adw-tab-overview .adw-tab-thumbnail.inverted .tab-unpin-icon {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+}
+
+adw-tab-overview .adw-tab-thumbnail.inverted .tab-indicator {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+@media (prefers-contrast: more) {
+  adw-tab-overview .adw-tab-thumbnail .picture {
+    outline-color: var(--window-outline-color-hc, rgb(0 0 6 / 75%));
+  }
+
+  adw-tab-overview .adw-tab-thumbnail .card {
+    box-shadow: 0 0 0 1px rgb(0 0 6 / 50%);
+  }
+
+  adw-tab-overview .adw-tab-thumbnail .tab-close-icon,
+  adw-tab-overview .adw-tab-thumbnail .tab-indicator-icon,
+  adw-tab-overview .adw-tab-thumbnail .tab-unpin-icon::before {
+    box-shadow: 0 0 0 1px currentColor;
+  }
+}

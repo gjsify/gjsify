@@ -22,16 +22,17 @@ gtk-entry {
   color: var(--view-fg-color);
   font-family: var(--font-family);
   font-size: var(--font-size-base);
-  box-shadow: inset 0 0 0 1px var(--entry-border-color);
+  // NO FRAME. `%entry_basic` (_entries.scss:1-11) draws a fill and a radius and
+  // nothing else: the one-pixel border appears ONLY under `prefers-contrast: more`
+  // (:13-15). The frame sat here unconditionally, so every entry — entry, search entry,
+  // password entry, the text view — read as an outlined box where libadwaita draws a
+  // flat grey one. Confirmed against the native reference: a focused entry carries the
+  // accent ring, an unfocused one carries no edge at all.
   transition: box-shadow 0.1s ease;
 
   &::placeholder {
     color: var(--view-fg-color);
     opacity: var(--dim-opacity);
-  }
-
-  &:hover {
-    box-shadow: inset 0 0 0 1px var(--entry-border-hover-color);
   }
 
   &:focus,
@@ -44,6 +45,13 @@ gtk-entry {
   &:disabled {
     opacity: 0.45;
     cursor: default;
+  }
+
+  @media (prefers-contrast: more) {
     box-shadow: inset 0 0 0 1px var(--entry-border-color);
+
+    &:hover {
+      box-shadow: inset 0 0 0 1px var(--entry-border-hover-color);
+    }
   }
 }

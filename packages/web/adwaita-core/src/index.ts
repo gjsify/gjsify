@@ -268,6 +268,86 @@ export type {
     AdwListModelInput,
 } from './list.js';
 
+// --- The view half of that model: factory, selection rules, columns (ADR 0089) ---
+export {
+    ADW_COLUMN_VIEW_NO_FIXED_WIDTH,
+    ADW_GRID_VIEW_MAX_COLUMNS,
+    ADW_GRID_VIEW_MIN_COLUMNS,
+    columnViewSort,
+    columnViewTracks,
+    gridViewColumns,
+    listItemField,
+    listViewSelect,
+    listViewSelectAll,
+    ListViewState,
+    normalizeColumnViewColumns,
+    normalizeListSelectionMode,
+    parseColumnViewColumns,
+} from './list-view.js';
+export type {
+    AdwColumnViewColumn,
+    AdwColumnViewSort,
+    AdwListItemContext,
+    AdwListItemFactory,
+    AdwListItemField,
+    AdwListSelectStep,
+    AdwListSelection,
+    AdwListSelectionMode,
+    AdwListSelectResult,
+    ListViewItemsListener,
+    ListViewSelectionChange,
+    ListViewSelectionListener,
+} from './list-view.js';
+
+// --- Gtk.TreeExpander's node arithmetic and shortcuts (ADR 0089) ---
+export { treeExpanderAction, treeExpanderExpanded, treeExpanderLayout } from './tree-expander.js';
+export type {
+    AdwTreeExpanderAction,
+    AdwTreeExpanderIcon,
+    AdwTreeExpanderKeyState,
+    AdwTreeExpanderLayout,
+    AdwTreeExpanderOptions,
+    AdwTreeExpanderRow,
+} from './tree-expander.js';
+
+// --- The selection rules of the two child-holding containers (Gtk.ListBox / Gtk.FlowBox) ---
+export {
+    listBoxSelect,
+    listBoxSelectAll,
+    listBoxSelectRow,
+    listBoxUnselectAll,
+    listBoxUnselectRow,
+    normalizeBoxSelectionMode,
+} from './box-selection.js';
+export type { AdwBoxSelectResult, AdwBoxSelection, AdwBoxSelectionMode, AdwBoxSelectStep } from './box-selection.js';
+
+// --- Gtk.Calendar's date arithmetic (the 6x7 grid, ISO weeks, the clamped steps) ---
+export {
+    CALENDAR_MARK_MAX,
+    CALENDAR_MARK_MIN,
+    CALENDAR_YEAR_MAX,
+    CALENDAR_YEAR_MIN,
+    calendarClearMarks,
+    calendarDayIsMarked,
+    calendarDays,
+    calendarDaysInMonth,
+    calendarIsLeapYear,
+    calendarMarkDay,
+    calendarNavigationButtons,
+    calendarSelectDay,
+    calendarStep,
+    calendarWeekNumber,
+    calendarWeekStart,
+} from './calendar.js';
+export type {
+    AdwCalendarCell,
+    AdwCalendarCellMonth,
+    AdwCalendarDate,
+    AdwCalendarNavigation,
+    AdwCalendarSelectResult,
+    AdwCalendarStep,
+} from './calendar.js';
+
 // --- The portable adjustment (Gtk.Adjustment's six numbers + its two signals — ADR 0047) ---
 export {
     ADW_ADJUSTMENT_DEFAULTS,
@@ -612,6 +692,7 @@ export {
     viewSwitcherLabel,
     viewSwitcherPageFromStackPage,
     viewSwitcherPagesFromStack,
+    viewSwitcherSidebarSections,
 } from './view-switcher.js';
 export type {
     AdwInlineViewSwitcherDisplayMode,
@@ -625,6 +706,7 @@ export type {
     ViewSwitcherButtonModel,
     ViewSwitcherDragSwitchOptions,
     ViewSwitcherScheduler,
+    ViewSwitcherSidebarSection,
     ViewSwitcherStateChange,
     ViewSwitcherStateListener,
     ViewSwitcherStateOptions,
@@ -639,6 +721,7 @@ export {
     successorAfterClose,
     tabCloseVisible,
     tabIconState,
+    tabSearchMatches,
     tabTooltip,
     tabTooltipIsMarkup,
     tabViewItemsChanged,

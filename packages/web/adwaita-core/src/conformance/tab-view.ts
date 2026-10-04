@@ -1676,3 +1676,99 @@ export const TAB_PAGE_DESCRIPTOR_VECTORS: ReadonlyArray<TabPageDescriptorVector>
         needsAttention: true,
     },
 ];
+
+/** One `tabSearchMatches` expectation. */
+export interface TabSearchVector {
+    /** `AdwTabPage:title`. */
+    title: string;
+    /** `AdwTabPage:tooltip`. */
+    tooltip: string;
+    /** `AdwTabPage:keyword`. */
+    keyword: string;
+    /** What `AdwTabGrid`'s search entry holds. */
+    terms: string;
+    matches: boolean;
+    rule: string;
+}
+
+/**
+ * `AdwTabGrid`'s search: three `GtkStringFilter`s over the page's `title`,
+ * `tooltip` and `keyword`, ANDed by a `GtkMultiFilter`
+ * (adw-tab-grid.c:3532-3547), each with the `GtkStringFilter` defaults —
+ * SUBSTRING match, case folding, `G_NORMALIZE_ALL` on both sides
+ * (gtkstringfilter.c:276,297).
+ *
+ * The rule that a hand-written copy gets wrong is the EMPTY property: matching it
+ * would make every page with no tooltip match every term, because "no tooltip" is
+ * not a substring of anything.
+ *
+ * Reference: refs/libadwaita/src/adw-tab-grid.c:3532-3547 (the three filters)
+ * Reference: refs/gtk/gtk/gtkstringfilter.c:70-138 (prepare, has_search, match)
+ * Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+ */
+export const TAB_SEARCH_VECTORS: ReadonlyArray<TabSearchVector> = [
+    {
+        title: 'Inbox',
+        tooltip: '',
+        keyword: 'https://example.org/inbox',
+        terms: '',
+        matches: true,
+        rule: 'an EMPTY term set matches everything — gtk_string_filter_has_search short-circuits before any property is read',
+    },
+    {
+        title: 'Inbox',
+        tooltip: '',
+        keyword: '',
+        terms: 'in',
+        matches: true,
+        rule: 'the default SUBSTRING match, and the empty keyword does not become a wildcard',
+    },
+    {
+        title: 'Inbox',
+        tooltip: '',
+        keyword: '',
+        terms: 'INB',
+        matches: true,
+        rule: 'case folding is on, so the needle is folded too',
+    },
+    {
+        title: 'Inbox',
+        tooltip: '',
+        keyword: '',
+        terms: 'box',
+        matches: true,
+        rule: 'a SUBSTRING match is not a prefix match — "Inbox" ends with the needle',
+    },
+    {
+        title: 'Inbox',
+        tooltip: '',
+        keyword: 'https://example.org/inbox',
+        terms: 'example.org',
+        matches: true,
+        rule: 'the keyword is searched beside the title and the tooltip — the documented "page URLs" case',
+    },
+    {
+        title: 'Inbox',
+        tooltip: '',
+        keyword: '',
+        terms: 'example.org',
+        matches: false,
+        rule: 'a page whose title, tooltip and keyword are all empty or miss the needle is HIDDEN',
+    },
+    {
+        title: '',
+        tooltip: '',
+        keyword: 'Rechnungen',
+        terms: 'rechnungen',
+        matches: true,
+        rule: 'non-ASCII folds on both sides, so an umlaut-bearing keyword still matches',
+    },
+    {
+        title: 'Notes',
+        tooltip: 'scratch pad',
+        keyword: '',
+        terms: 'scratch',
+        matches: true,
+        rule: 'the tooltip is the third property, not a fallback for the title',
+    },
+];
