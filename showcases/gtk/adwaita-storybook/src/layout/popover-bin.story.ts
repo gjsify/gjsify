@@ -47,7 +47,8 @@ export class PopoverBinStory extends StoryWidget {
 
     private _buildMenu(): Gio.Menu {
         const menu = new Gio.Menu();
-        for (const item of POPOVER_BIN_ITEMS) menu.append(item.label, `app.${item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+        for (const item of POPOVER_BIN_ITEMS)
+            menu.append(item.label, `app.${item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
         return menu;
     }
 
