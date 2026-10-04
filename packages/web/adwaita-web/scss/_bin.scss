@@ -1,0 +1,26 @@
+// _bin.scss — <adw-bin>, the one-child container.
+//
+// libadwaita has NO `bin` node: `adw_bin_class_init` sets no CSS name and the
+// stylesheet never mentions one (the widget's whole rule is the layout manager, and
+// `GtkBinLayout` gives the child the widget's entire allocation). So the only rule here
+// is the block box that allocation needs, and the one cross-axis stretch that says
+// "the child fills the bin" — a `GtkBinLayout` gives its child the bin's height too,
+// which a block child would otherwise size to its own content.
+//
+// Reference: refs/libadwaita/src/adw-bin.c:123 (GtkBinLayout)
+// Reference: refs/gtk/gtk/gtkbinlayout.c:81 (`gtk_bin_layout_allocate` hands the child the
+//   allocation on both axes)
+// Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+adw-bin {
+  display: block;
+
+  // One child, and it fills — `gtk_bin_layout_allocate` allocates the whole widget to
+  // its single child. `:only-child` rather than `> *` because a bin keeps ONE
+  // (`adw_bin_set_child` unparents the one it replaces), so the case where the selector
+  // could match two is one the element has already refused.
+  > :only-child {
+    block-size: 100%;
+  }
+}

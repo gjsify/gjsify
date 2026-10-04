@@ -97,6 +97,14 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        widget: 'Adw.PreferencesRow',
+        page: 'boxed-lists',
+        root: {
+            tag: 'adw-preferences-group',
+            children: [{ tag: 'adw-preferences-row', props: { title: 'A plain preferences row', useMarkup: true } }],
+        },
+    },
     gtkHostTree('Adw.SwitchRow'),
     gtkHostTree('Adw.EntryRow'),
     {
@@ -219,6 +227,60 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     {
+        widget: 'Gtk.ToggleButton',
+        page: 'buttons',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'horizontal', spacing: 12, halign: 'center' },
+            children: [
+                { tag: 'gtk-toggle-button', props: { label: 'Mute', active: true } },
+                { tag: 'gtk-toggle-button', props: { label: 'Loop' } },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.LinkButton',
+        page: 'buttons',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 6, halign: 'center' },
+            children: [
+                { tag: 'gtk-link-button', props: { uri: 'https://gnome.org', label: 'GNOME' } },
+                { tag: 'gtk-link-button', props: { uri: 'https://docs.gtk.org/gtk4/', visited: true } },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.ScaleButton',
+        page: 'buttons',
+        // The icon list is GtkScaleButton:icons, a boxed G_TYPE_STRV — a list of strings,
+        // which ADR 0046's portable form is, and `value` rides the adjustment beside it.
+        // The DOCK is a popover the element builds itself; a tree has no slot for it, which
+        // is why the block's `gjs` tab shows the press rather than the tree.
+        root: {
+            tag: 'gtk-scale-button',
+            props: {
+                icons: ['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic'],
+                value: 70,
+            },
+        },
+    },
+    {
+        widget: 'Gtk.ColorDialogButton',
+        page: 'buttons',
+        // `rgba` is a GdkRGBA boxed property and `dialog` a GtkColorDialog GObject: neither is
+        // a value a tree can spell, and a placeholder object does not typecheck against the
+        // GTK property, so the tree sets neither and the dialects show the default button.
+        root: { tag: 'gtk-color-dialog-button', props: {} },
+    },
+    {
+        widget: 'Gtk.FontDialogButton',
+        page: 'buttons',
+        // `font-desc` is a PangoFontDescription and `language` a PangoLanguage: boxed
+        // properties a tree cannot spell, so the dialects show the default button.
+        root: { tag: 'gtk-font-dialog-button', props: {} },
+    },
+    {
         widget: 'Gtk.MenuButton',
         page: 'buttons',
         root: {
@@ -253,7 +315,563 @@ export const ADWAITA_GALLERY_TREES = [
             props: { model: ['Automatic', 'Always', 'Never', 'When busy'], selected: 0, halign: 'center' },
         },
     },
+    // ------------------------------------------------------------------ gtk controls
+    {
+        widget: 'Gtk.Scale',
+        page: 'controls',
+        // The range is the PORTABLE ADJUSTMENT (ADR 0047), so `value` lives INSIDE it —
+        // the same shape `Adw.SpinRow` above has, and the reason `coerce` builds the real
+        // `Gtk.Adjustment` at the same seam. `digits: 0` is what the block's preview shows:
+        // a volume slider with one decimal reads `0.5`, one with none reads `0`.
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                {
+                    tag: 'gtk-scale',
+                    props: {
+                        adjustment: { lower: 0, upper: 100, value: 40, stepIncrement: 1, pageIncrement: 10 },
+                        digits: 0,
+                        drawValue: true,
+                        valuePos: 'top',
+                        widthRequest: 320,
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.SpinButton',
+        page: 'controls',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                {
+                    tag: 'gtk-spin-button',
+                    props: {
+                        adjustment: { lower: 0, upper: 10, value: 5, stepIncrement: 1, pageIncrement: 2 },
+                        digits: 0,
+                        numeric: true,
+                        snapToTicks: true,
+                        halign: 'center',
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.PasswordEntry',
+        page: 'controls',
+        root: { tag: 'gtk-password-entry', props: { showPeekIcon: true, placeholderText: 'Password' } },
+    },
+    {
+        widget: 'Gtk.SearchEntry',
+        page: 'controls',
+        root: { tag: 'gtk-search-entry', props: { placeholderText: 'Search…', searchDelay: 150 } },
+    },
+    {
+        widget: 'Gtk.CheckButton',
+        page: 'controls',
+        // `label` and `inconsistent`, in the GIR's own spelling: this tree is the
+        // gtk-host vocabulary, not the browser element's, where the two states are
+        // `checked` and `indeterminate`.
+        root: { tag: 'gtk-check-button', props: { label: 'Enable networking', active: true } },
+    },
+    {
+        widget: 'Gtk.Switch',
+        page: 'controls',
+        // `active` BEFORE `state`, which is the order the delayed change needs: setting
+        // `active` runs the default `::state-set` handler, which sets `state`
+        // (gtkswitch.c:800, :558), so a `state` written afterwards is the application's.
+        root: { tag: 'gtk-switch', props: { active: true, state: true, halign: 'center' } },
+    },
+    // ------------------------------------------------------------- gtk indicators
+    {
+        widget: 'Gtk.ProgressBar',
+        page: 'indicators',
+        // `showText` and no `text`: `get_current_text` falls back to `%.0f %%` of the
+        // fraction (gtkprogressbar.c:628-634), so the label needs no authored string.
+        root: {
+            tag: 'gtk-progress-bar',
+            props: { fraction: 0.4, showText: true, widthRequest: 320, halign: 'center' },
+        },
+    },
+    {
+        widget: 'Gtk.LevelBar',
+        page: 'indicators',
+        // `maxValue` before `value`, because a new maximum drags the value down with it
+        // (gtklevelbar.c:1229-1230) — the order that makes the pair mean what it reads.
+        root: {
+            tag: 'gtk-level-bar',
+            props: { maxValue: 5, mode: 'discrete', value: 3, widthRequest: 240, halign: 'center' },
+        },
+    },
+    {
+        widget: 'Gtk.Spinner',
+        page: 'indicators',
+        // `spinning` and a size REQUEST, because `GtkSpinner` has one property and takes
+        // its size from its allocation (gtkspinner.c:97, :110-123).
+        root: { tag: 'gtk-spinner', props: { spinning: true, widthRequest: 32, heightRequest: 32 } },
+    },
+    // ----------------------------------------------------------------- gtk drawing
+    {
+        widget: 'Gtk.GraphicsOffload',
+        page: 'drawing',
+        // `enabled` and `black-background`, the two properties the wrapper has of its own
+        // (`child` is a slot, so it is the box's content here). `enabled` FIRST: it is the
+        // one that syncs the subsurface before anything is drawn
+        // (gtkgraphicsoffload.c:366-380, :423-437).
+        root: {
+            tag: 'gtk-graphics-offload',
+            props: { enabled: 'enabled', blackBackground: true, widthRequest: 280, heightRequest: 96 },
+            children: [{ tag: 'gtk-label', props: { label: 'The child of an offloaded layer' } }],
+        },
+    },
+    {
+        widget: 'Gtk.GLArea',
+        page: 'drawing',
+        // A GL area has NO measure function (no `widget_class->measure` in gtkglarea.c), so
+        // the size REQUESTS are what it needs in a tree — the allocation is the parent's
+        // to give. `auto-render` first: it is the property the `render` signal is gated on,
+        // and a tree is read in order.
+        root: {
+            tag: 'gtk-gl-area',
+            props: { autoRender: true, hasDepthBuffer: false, widthRequest: 240, heightRequest: 160 },
+        },
+    },
+    {
+        widget: 'Gtk.DrawingArea',
+        page: 'drawing',
+        // The two content properties and nothing else: a draw function is a CALLBACK, and a
+        // tree can only carry a widget's PROPERTIES. This is also what the live preview
+        // shows, which is honest — with no function installed the area paints nothing
+        // (gtkdrawingarea.c:251-252) — and it is why the `web` tab of that block, not the
+        // tree, is where `set_draw_func` is taught.
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 16 },
+            children: [
+                { tag: 'gtk-drawing-area', props: { contentWidth: 160, contentHeight: 120 } },
+                { tag: 'gtk-drawing-area', props: { contentWidth: 160, contentHeight: 60 } },
+            ],
+        },
+    },
+    // ------------------------------------------------------------- gtk scrolling
+    {
+        widget: 'Gtk.ScrolledWindow',
+        page: 'scrolling',
+        // `GtkScrolledWindow` has a curated `single`/`set_child` policy, so the child below
+        // it is real — and it is a CHILD POLICY, not a decoration: `gtk_scrolled_window_set_property`
+        // wraps a non-scrollable child in a Gtk.Viewport itself (gtkscrolledwindow.c:785-793).
+        // No size on the window: `gtk_scrolled_window_measure` asks its parent, and the three
+        // dialects have no common way to say "fill what you are given" in one property.
+        root: {
+            tag: 'gtk-scrolled-window',
+            props: { hscrollbarPolicy: 'automatic', vscrollbarPolicy: 'automatic', hasFrame: false },
+            children: [
+                {
+                    tag: 'gtk-box',
+                    props: { orientation: 'vertical', spacing: 8 },
+                    children: [
+                        { tag: 'gtk-label', props: { label: 'Row 1' } },
+                        { tag: 'gtk-label', props: { label: 'Row 2' } },
+                        { tag: 'gtk-label', props: { label: 'Row 3' } },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.Scrollbar',
+        page: 'scrolling',
+        // The adjustment is a portable value (ADR 0047), so it is written as one object —
+        // the same spelling every other renderer takes, and the reason this block can have a
+        // tree where a bare scrollbar would teach nothing.
+        root: {
+            tag: 'gtk-scrollbar',
+            props: {
+                orientation: 'vertical',
+                valign: 'center',
+                adjustment: { value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 },
+            },
+        },
+    },
+    {
+        widget: 'Gtk.Viewport',
+        page: 'scrolling',
+        // A `GtkViewport` holds exactly ONE child, so the column below is the whole widget —
+        // and the child policy is `single`/`set_child` in the descriptor table, which is what
+        // `GtkScrolledWindow`'s own row added above. A block showing a childless viewport
+        // would teach nothing about the one thing the widget is for: a window onto content
+        // too large to show whole.
+        root: {
+            tag: 'gtk-viewport',
+            props: { scrollToFocus: true },
+            children: [
+                {
+                    tag: 'gtk-box',
+                    props: { orientation: 'vertical', spacing: 6 },
+                    children: [
+                        { tag: 'gtk-label', props: { label: 'Row 1' } },
+                        { tag: 'gtk-label', props: { label: 'Row 2' } },
+                        { tag: 'gtk-label', props: { label: 'Row 3' } },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.WindowHandle',
+        page: 'scrolling',
+        // `GtkWindowHandle` is a `GtkBinLayout` with one child, so the header bar below it is
+        // the whole widget — which is what a titlebar is.
+        root: {
+            tag: 'gtk-window-handle',
+            children: [
+                {
+                    tag: 'adw-header-bar',
+                    children: [{ tag: 'adw-window-title', props: { title: 'Notes' } }],
+                },
+            ],
+        },
+    },
+    // ------------------------------------------------------------------- gtk media
+    {
+        widget: 'Gtk.Image',
+        page: 'media',
+        // `iconSize` and NO `size` in pixels: the widget's measurement comes from the icon
+        // size enum's own minimum and natural (gtkspinner.c:110-123 is the same shape).
+        // GTK 4's `GtkIconSize` is inherit / normal / large — `dialog` was GTK 3's.
+        root: { tag: 'gtk-image', props: { iconName: 'avatar-default-symbolic', iconSize: 'large' } },
+    },
+    {
+        widget: 'Gtk.Picture',
+        page: 'media',
+        // `keepAspectRatio` FIRST, and it is there at all because it is a MAPPING onto
+        // `contentFit` (gtkpicture.c:1017-1021): a `contentFit` written afterwards is the
+        // application's, which is what the cover in this block is.
+        root: {
+            tag: 'gtk-picture',
+            props: {
+                keepAspectRatio: true,
+                contentFit: 'cover',
+                alternativeText: 'A tangerine',
+                widthRequest: 240,
+                heightRequest: 160,
+            },
+        },
+    },
+    {
+        widget: 'Gtk.Inscription',
+        page: 'media',
+        // `minChars` BEFORE `natChars` because the natural is `MAX (min_chars, nat_chars)`
+        // (gtkinscription.c:348): the pair only means what it reads in that order. A size
+        // REQUEST is given because a tree has no parent box to grow inside — the point of
+        // the four counters is only visible against a fixed frame.
+        root: {
+            tag: 'gtk-inscription',
+            props: { text: 'A caption in a fixed box', minChars: 10, minLines: 2, widthRequest: 320 },
+        },
+    },
+    {
+        widget: 'Gtk.Video',
+        page: 'media',
+        // No `mediaStream` prop, because it is an OBJECT and a static tree cannot hold one —
+        // which is exactly why the browser replica drives a real `<video>` and why this block
+        // shows the NO-STREAM arm (the eject glyph) on both renderers.
+        root: { tag: 'gtk-video', props: { loop: true, widthRequest: 320, heightRequest: 180 } },
+    },
+    {
+        widget: 'Gtk.MediaControls',
+        page: 'media',
+        // A `GtkBox` root because the bar has no `media-stream` to attach, so what a tree
+        // CAN show is the state every bar starts in: the template ships the whole box
+        // `sensitive` 0 (ui/gtkmediacontrols.ui), which is why nothing here presses anything.
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                { tag: 'gtk-video', props: { loop: true, widthRequest: 320, heightRequest: 180 } },
+                { tag: 'gtk-media-controls', props: { cssClasses: ['osd', 'bottom'] } },
+            ],
+        },
+    },
+    // ------------------------------------------------------------------ gtk lists
+    //
+    // The two CHILD-HOLDING containers and the month grid. Unlike the four model-driven views
+    // below these are plain TREE widgets: no `Gio.ListModel`, no factory, nothing the ParamSpec
+    // seam has no branch for — `GtkListBox` and `GtkFlowBox` are declared with an INDEXED
+    // child policy that wraps every child in a row/child of its own
+    // (`packages/framework/gtk-host/src/descriptors/gtk.ts:220-247`), so the rows a caller
+    // writes are the rows GTK wraps.
+    {
+        widget: 'Gtk.ListBox',
+        page: 'lists',
+        // No `activatable` on any row, because a row is activatable and selectable by default
+        // (gtklistbox.c:3961-3962); `showSeparators` is the class GTK adds for the hairline
+        // (:4127-4134).
+        root: {
+            tag: 'gtk-list-box',
+            props: { selectionMode: 'single', showSeparators: true, widthRequest: 240 },
+            children: [
+                { tag: 'gtk-list-box-row', children: [{ tag: 'gtk-label', props: { label: 'Documents' } }] },
+                { tag: 'gtk-list-box-row', children: [{ tag: 'gtk-label', props: { label: 'Downloads' } }] },
+                { tag: 'gtk-list-box-row', children: [{ tag: 'gtk-label', props: { label: 'Pictures' } }] },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.FlowBox',
+        page: 'lists',
+        // `maxChildrenPerLine` is load-bearing twice over: it is the layout cap AND the
+        // `perLineCap` the descriptor holds a line to (descriptors/gtk.ts:236-243). The
+        // omission of `orientation` is deliberate — `GtkFlowBox` defaults HORIZONTAL
+        // (gtkflowbox.c:3981), which is the opposite of every `GtkListBase`.
+        root: {
+            tag: 'gtk-flow-box',
+            props: {
+                selectionMode: 'multiple',
+                minChildrenPerLine: 2,
+                maxChildrenPerLine: 4,
+                rowSpacing: 6,
+                columnSpacing: 6,
+                widthRequest: 320,
+            },
+            children: [
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Red' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Orange' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Yellow' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Green' } }] },
+                { tag: 'gtk-flow-box-child', children: [{ tag: 'gtk-label', props: { label: 'Blue' } }] },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.Calendar',
+        page: 'lists',
+        // `showWeekNumbers` — FALSE by default (gtkcalendar.c:458-460) and the one flag that
+        // adds a grid COLUMN. No `date`: it is a `GDateTime` boxed property, not a string.
+        root: {
+            tag: 'gtk-calendar',
+            props: { showWeekNumbers: true, halign: 'center' },
+        },
+    },
+    // ------------------------------------------------------------------ gtk layout
+    {
+        widget: 'Gtk.Frame',
+        page: 'layout',
+        root: {
+            tag: 'gtk-frame',
+            props: { label: 'Details', labelXalign: 0 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: { label: 'A framed region: the label sits in the top edge of the border.' },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.AspectFrame',
+        page: 'layout',
+        root: {
+            tag: 'gtk-aspect-frame',
+            // `obey-child` FALSE, because at its TRUE default the declared ratio is inert
+            // and the frame takes the shape of its child — which is what the descriptor
+            // table's own note on `GtkAspectFrame` says.
+            props: { ratio: 2, obeyChild: false, xalign: 0.5, yalign: 0.5 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: {
+                        label: 'The frame gives this child the ratio above, and puts it where xalign and yalign say.',
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.Separator',
+        page: 'layout',
+        root: {
+            tag: 'gtk-box',
+            props: { orientation: 'vertical', spacing: 12 },
+            children: [
+                { tag: 'gtk-label', props: { label: 'Above' } },
+                { tag: 'gtk-separator' },
+                { tag: 'gtk-label', props: { label: 'Below' } },
+                { tag: 'gtk-separator', props: { orientation: 'vertical', cssClasses: ['spacer'] } },
+            ],
+        },
+    },
+    {
+        widget: 'Gtk.Overlay',
+        page: 'layout',
+        root: {
+            tag: 'gtk-overlay',
+            props: { widthRequest: 260, heightRequest: 160 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: { label: 'Main child', halign: 'center', valign: 'center', cssClasses: ['dimmed'] },
+                },
+                // The overlay child carries its placement, which is the whole of
+                // `gtk_overlay_get_child_position`: it reads nothing else.
+                { tag: 'gtk-label', slot: 'overlay', props: { label: '2', halign: 'end', valign: 'end' } },
+            ],
+        },
+    },
+    {
+        // THREE NAMED SLOTS — `start`, `center` and `end`, the three type names
+        // GtkCenterBox's buildable reads (gtkcenterbox.c:113-135) — and one property of the
+        // widget's own: `shrink-center-last`, which is a flag and not a placement. The width
+        // REQUEST is what gives the block a size to show; the three children are its whole
+        // content.
+        widget: 'Gtk.CenterBox',
+        page: 'layout',
+        root: {
+            tag: 'gtk-center-box',
+            props: { shrinkCenterLast: true, widthRequest: 320, halign: 'center' },
+            children: [
+                { tag: 'gtk-label', slot: 'start', props: { label: 'Start' } },
+                { tag: 'gtk-label', slot: 'center', props: { label: 'Centre' } },
+                { tag: 'gtk-label', slot: 'end', props: { label: 'End' } },
+            ],
+        },
+    },
+    {
+        // `single`, so the child needs no slot. The three properties are the widget's own
+        // — `transition-type`, `transition-duration`, `reveal-child` (gtkrevealer.c:707-736)
+        // — and the margins are on the CHILD, because a revealer has no padding of its own.
+        widget: 'Gtk.Revealer',
+        page: 'layout',
+        root: {
+            tag: 'gtk-revealer',
+            props: { transitionType: 'slide-down', transitionDuration: 250, revealChild: true },
+            children: [{ tag: 'gtk-label', props: { label: 'The revealed child', marginTop: 12, marginBottom: 12 } }],
+        },
+    },
+    {
+        // TWO NAMED SLOTS, and BOTH are written out: the descriptor's `defaultSlot` is
+        // `start`, so an unslotted second child would land in `start` a second time and
+        // REPLACE the first at exit 0 (gtkpaned.c:814-822 is the branch that fills `end`
+        // for the second untyped child — one `defaultSlot` cannot spell that). The two
+        // width REQUESTs are what divide the panes, because `position: -1` hands the
+        // divider back to them.
+        widget: 'Gtk.Paned',
+        page: 'layout',
+        root: {
+            tag: 'gtk-paned',
+            props: { orientation: 'horizontal', widthRequest: 400, heightRequest: 120, position: -1 },
+            children: [
+                { tag: 'gtk-label', slot: 'start', props: { label: 'First child', widthRequest: 100 } },
+                { tag: 'gtk-label', slot: 'end', props: { label: 'Second child', widthRequest: 300 } },
+            ],
+        },
+    },
+    {
+        // `useUnderline` BEFORE `label`, the order the widget needs: `gtk_expander_set_label`
+        // builds a `GtkLabel` and forwards the underline flag to it, so a `label` written
+        // first would take a label that then never learns about the mnemonic.
+        //
+        // The `label-widget` SLOT is deliberately not used here, and that is the one thing
+        // this block does not show: `label` is a STRING property and `slot="label"` is the
+        // OTHER placement — the widget that replaces that label outright, which is a
+        // different widget from the child below. A tree that used both at once would read
+        // as though it did.
+        widget: 'Gtk.Expander',
+        page: 'layout',
+        root: {
+            tag: 'gtk-expander',
+            props: { useUnderline: true, label: '_More options' },
+            children: [{ tag: 'gtk-label', props: { label: 'Notifications', marginTop: 12, marginBottom: 12 } }],
+        },
+    },
+    // ------------------------------------------------------------------ gtk text
+    {
+        widget: 'Gtk.Text',
+        page: 'text',
+        // `text` is `GtkEditable`'s and `placeholder-text` / `max-length` are `GtkText`'s own,
+        // so all three are attributes here. `editable` and `visibility` are NOT: both pspecs
+        // default to TRUE, so a tree can only spell them as a value.
+        root: {
+            tag: 'gtk-text',
+            props: { text: 'correct-horse-battery', placeholderText: 'A single line', maxLength: 32 },
+        },
+    },
+    {
+        widget: 'Gtk.EditableLabel',
+        page: 'text',
+        root: { tag: 'gtk-editable-label', props: { text: 'Ada Lovelace' } },
+    },
     // ------------------------------------------------------------------ layout
+    {
+        widget: 'Adw.Window',
+        page: 'layout',
+        // The TOPLEVEL, and the one container here whose child is the window's own
+        // property: `AdwWindow`'s descriptor is `children: { kind: 'single', set:
+        // 'set_content' }` with the TOPLEVEL placement, so the child below is placed
+        // (ADR 0054) and needs no slot name. `defaultWidth`/`defaultHeight` are
+        // GtkWindow's own size request, which is what `adw_window_init()` sets to
+        // 360×200 (adw-window.c:344).
+        root: {
+            tag: 'adw-window',
+            props: { defaultWidth: 440, defaultHeight: 240 },
+            children: [
+                {
+                    tag: 'adw-toolbar-view',
+                    children: [
+                        {
+                            tag: 'adw-header-bar',
+                            slot: 'top',
+                            children: [
+                                {
+                                    tag: 'adw-window-title',
+                                    slot: 'title',
+                                    props: { title: 'Text Editor', subtitle: 'notes.md' },
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'adw-status-page',
+                            slot: 'content',
+                            props: {
+                                title: 'Your Library',
+                                description: 'Content sits between the toolbars and scrolls independently of them.',
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.Bin',
+        page: 'layout',
+        root: {
+            tag: 'adw-bin',
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: { label: 'The one child of this bin.', wrap: true, xalign: 0, cssClasses: ['card'] },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.BreakpointBin',
+        page: 'layout',
+        // A bin, so the whole tree is the one child: `AdwBreakpointBin`'s descriptor is
+        // `single` / `set_child` (packages/framework/gtk-host/src/descriptors/adw.ts:331)
+        // and the BREAKPOINTS are imperative in every dialect — `add_breakpoint` takes an
+        // `Adw.Breakpoint` GObject that has no tag. Hence the label below is the tree and
+        // the block's prose is where the condition lives.
+        root: {
+            tag: 'adw-breakpoint-bin',
+            children: [{ tag: 'gtk-label', props: { label: 'Wide', ellipsize: 'end', cssClasses: ['title-1'] } }],
+        },
+    },
     {
         widget: 'Adw.Clamp',
         page: 'layout',
@@ -570,7 +1188,122 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    // ----------------------------------------------------------------- gtk popovers
+    //
+    // Three of the four are trees because their CONTENT IS A MODEL: ADR 0042 gave a menu a
+    // portable value form and `coerce` turns one into a real `Gio.Menu` at the ParamSpec
+    // seam, so `menuModel` is authorable here exactly as it is for `Adw.SplitButton` and
+    // `Gtk.MenuButton`. `Gtk.Popover` is the odd one out and is a refusal below — it has no
+    // model at all, only a `child`.
+    {
+        widget: 'Gtk.PopoverMenu',
+        page: 'popovers',
+        // No `children`: `GtkPopoverMenu` builds its own `GtkStack` of sections
+        // (gtkpopovermenu.c:707-717), so a child placed inside it would be a second content
+        // source fighting the model for the same surface.
+        root: {
+            tag: 'gtk-popover-menu',
+            props: {
+                menuModel: [
+                    { label: 'New Window', accel: '<Control>N' },
+                    {
+                        section: [{ label: 'Cut' }, { label: 'Copy' }, { label: 'Paste' }],
+                        label: 'Edit',
+                    },
+                    {
+                        label: 'Open With',
+                        submenu: [{ label: 'Text Editor' }, { label: 'Web Browser' }],
+                    },
+                ],
+            },
+        },
+    },
+    {
+        widget: 'Gtk.PopoverMenuBar',
+        page: 'popovers',
+        // TOPLEVEL SUBMENUS ONLY — `tracker_insert` builds one item per submenu link and
+        // warns "Don't know how to handle this item" for anything else
+        // (gtkpopovermenubar.c:422-468), so a bare item here would be a row that opens
+        // nothing.
+        root: {
+            tag: 'gtk-popover-menu-bar',
+            props: {
+                menuModel: [
+                    {
+                        label: 'File',
+                        submenu: [{ label: 'New Window' }, { label: 'Open' }, { label: 'Quit' }],
+                    },
+                    { label: 'Edit', submenu: [{ label: 'Undo' }, { label: 'Redo' }] },
+                    { label: 'View', submenu: [{ label: 'Zoom In' }, { label: 'Zoom Out' }] },
+                ],
+            },
+        },
+    },
+    {
+        widget: 'Gtk.PopoverBin',
+        page: 'popovers',
+        // The `child` is a SLOT here and a `popover` is built from the model
+        // (gtkpopoverbin.c:474-500), so the tree is the menu alone; `handle-input` is what
+        // makes a right click or a long press open it (gtkpopoverbin.c:624-655).
+        root: {
+            tag: 'gtk-popover-bin',
+            props: {
+                menuModel: [{ label: 'Cut' }, { label: 'Copy' }, { label: 'Paste' }, { label: 'Delete' }],
+                handleInput: true,
+            },
+        },
+    },
     gtkHostTree('Adw.WindowTitle'),
+    // ------------------------------------------------------------------- gtk stacks
+    {
+        widget: 'Gtk.Stack',
+        page: 'stacks',
+        // The pages are CHILDREN here, and the page metadata is not a property of the
+        // child widget but of the `GtkStackPage` GObject that wraps it
+        // (gtkstack.c:212-233) — which has no tag in the descriptor table. So the two
+        // properties a page would carry (`title`, `needs-attention`) have nowhere to
+        // live in a static tree, and the block's fences build the pages imperatively.
+        root: { tag: 'gtk-stack', props: { transitionType: 'slide-left-right', transitionDuration: 200 } },
+    },
+    // --------------------------------------------------------------- gtk/windows
+    {
+        widget: 'Gtk.HeaderBar',
+        page: 'windows',
+        root: {
+            tag: 'gtk-header-bar',
+            props: { decorationLayout: 'menu:minimize,maximize,close' },
+            children: [
+                { tag: 'gtk-button', slot: 'start', props: { label: 'Back', cssClasses: ['flat'] } },
+                // `title`, not `center`: the buildable child type of a GtkHeaderBar's centre
+                // is `title` (gtkheaderbar.c:683-686), and `title-widget` is the
+                // DEPRECATED spelling the property position uses.
+                { tag: 'gtk-label', slot: 'title', props: { label: 'Mailboxes' } },
+                { tag: 'gtk-button', slot: 'end', props: { label: 'Search', cssClasses: ['flat'] } },
+                { tag: 'gtk-button', slot: 'end', props: { label: 'Menu', cssClasses: ['flat'] } },
+            ],
+        },
+    },
+    {
+        // `side` and `decoration-layout` are the whole widget's surface, and a
+        // GtkWindowControls builds its OWN buttons — there is nothing to place in it, which
+        // is why the tree is childless and `Gtk.ActionBar` beside it is a refusal.
+        widget: 'Gtk.WindowControls',
+        page: 'windows',
+        root: {
+            tag: 'gtk-window-controls',
+            props: { side: 'end', decorationLayout: 'menu:minimize,maximize,close' },
+        },
+    },
+    {
+        widget: 'Gtk.Notebook',
+        page: 'stacks',
+        // The same seam as the stack above: the pages are CHILDREN here and their metadata
+        // belongs to the `GtkNotebookPage` GObject that wraps one
+        // (G_DEFINE_TYPE (…, G_TYPE_OBJECT), gtknotebook.c:423), which has no tag in the
+        // descriptor table — so `tab-label` has nowhere to live in a static tree and the
+        // block's fences build the pages with it.
+        root: { tag: 'gtk-notebook', props: { tabPos: 'top', page: 0 } },
+    },
 ];
 
 /**
@@ -586,6 +1319,18 @@ export const ADWAITA_GALLERY_TREES = [
  * does.
  */
 export const ADWAITA_GALLERY_REFUSALS = {
+    // NOT HERE, and deliberately: `Gtk.Range` is CONCRETE — `gtk_range_get_type()` is
+    // registered with a bare `G_DEFINE_TYPE_WITH_CODE` (gtkrange.c:267), with no
+    // `G_TYPE_FLAG_ABSTRACT` anywhere in it — and GTK only ever builds one as the BASE of
+    // `Gtk.Scale` and `Gtk.Scrollbar`, so its whole surface is documented on those two
+    // blocks (the adjustment and the value are `Gtk.Scale`'s to show). There is no gallery
+    // block and no tree for it, and therefore NO ENTRY in this list, in
+    // `ADWAITA_GALLERY_NS_REFUSALS` or in `NOT_IN_THE_GALLERY`: every one of the three is
+    // keyed on a block or a story meta that `check-generated-website-data.mjs` and
+    // `check-website-adwaita-gallery.mjs` hold against the pages, and an entry naming a
+    // widget no page carries fails in both directions. It is said out loud in the
+    // `Gtk.Scale` section of website/src/content/docs/gtk/controls.mdx instead, and in the
+    // header of packages/web/adwaita-web/src/elements/gtk-scale.ts.
     // Measured by `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`: the host
     // raises `uncurated-placement` BY NAME when the child is materialised — for
     // every entry in this group, and the probe fails if any starts being accepted.
@@ -594,11 +1339,11 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // hand-kept number beside this list went stale. The list is the count.
     //
     // COUNT THE GROUP, not the probe. This note read "13 of 13", and the probe has
-    // driven ELEVEN placements since it landed in #1376 — never thirteen. Two of the
-    // eleven are not entries here at all: a split view that raises `rejected-child`
-    // rather than `uncurated-placement`, and a `gtk-action-bar` that is no gallery
-    // block. Thirteen is the count from before two placements turned out to be
-    // ACCEPTED and left the list, restated beside a list that was already shorter —
+    // driven ELEVEN placements since it landed in #1376 — never thirteen. One of the
+    // eleven is not an entry here at all: a split view that raises `rejected-child`
+    // rather than `uncurated-placement`, which `PLACEMENTS_NOT_IN_THE_GALLERY` in the
+    // probe ledgered. Thirteen is the count from before two placements turned out to
+    // be ACCEPTED and left the list, restated beside a list that was already shorter —
     // a number kept by hand next to the thing it counts.
     //
     // THE ARM THIS NOTE ASKED FOR EXISTS: arm 5b of
@@ -609,6 +1354,18 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // entry here nor ledgered in the probe, and a ledgered parent nothing probes. It
     // is what caught `Adw.WrapBox` the moment its descriptor landed, before the
     // gallery could ship a refusal that had stopped being true.
+    // The two adaptive containers are HERE for the layout half, not for the placement:
+    // `AdwLayout` is a GObject (`G_DEFINE_TYPE… G_TYPE_OBJECT`, adw-layout.c:37), so it has
+    // no tag in a table of concrete widgets and each layout is the element that carries
+    // the `name` — and each child is paired with a slot by
+    // `adw_multi_layout_view_set_child(id, widget)` (:656). A static tree can spell
+    // neither half, and the browser element carries them as markup instead.
+    'Adw.MultiLayoutView':
+        'its layouts are AdwLayout GObjects, which have no tag, and every child is paired with a slot by set_child(id, widget); neither half is a static tree.',
+    'Adw.LayoutSlot':
+        'a slot is identified by its construct-only `id` rather than by a parent slot name, and it only ever appears inside an AdwLayout inside an Adw.MultiLayoutView — neither of which is markup here.',
+    // gallery could ship a refusal that had stopped being true, and it is what turned
+    // `Gtk.ActionBar` from "probed, not a gallery block" into a refusal of its own.
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',
     'Adw.Carousel': 'uncurated-placement: AdwCarousel has no child policy.',
@@ -617,12 +1374,115 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.ToggleGroup': 'uncurated-placement — and its toggles are AdwToggle GObjects, which have no tag either.',
     'Adw.ViewSwitcher':
         'uncurated-placement — and its `stack` is a widget REFERENCE, where the three dialects diverge.',
+    // ----------------------------------------------------------------- gtk popovers
+    'Gtk.Popover':
+        'uncurated-placement — its content is the `GtkPopover:child` PROPERTY, a widget a tree ' +
+        'cannot spell, and `GtkPopover` has no curated child policy in the descriptor table, so a ' +
+        'child placed inside it is refused by name.',
+    // ---------------------------------------------------------------- gtk/windows
+    'Gtk.ActionBar':
+        'uncurated-placement: GtkActionBar has no child policy in the descriptor table, so a child ' +
+        'placed into it — the START/CENTER/END packing every other bar on this page shows — is refused ' +
+        'by name. Its own `revealed` property is a scalar the tree could carry; the three PACKED ' +
+        'WIDGETS are not, and a bar with none of them teaches nothing.',
+    // The two windows are refused for the OTHER reason, and it is not placement: both take their
+    // content through a WIDGET-typed PROPERTY whose value is another widget. `titlebar` is the
+    // one that decides it — it is what makes a Gtk.Window a window (Gtk.HeaderBar's whole reason
+    // for existing, gtkheaderbar.c:36-60) — and no dialect spells a widget REFERENCE as an
+    // attribute. `Gtk.ApplicationWindow` adds `menubar`, which is worse: it is built from a
+    // `GMenuModel` on the GtkApplication (gtkapplicationwindow.c:337-348), a DATA model that has
+    // no markup spelling in any of the three.
+    'Gtk.Window':
+        'a Gtk.Window is its `titlebar` and its `child`, and `titlebar` is a widget-typed PROPERTY: ' +
+        'a reference is spelled differently in all three dialects, and dropping it would leave a window ' +
+        'with no titlebar, which is the one thing it is not.',
+    'Gtk.ApplicationWindow':
+        "its menubar is built by `gtk_popover_menu_bar_new_from_model` over the GtkApplication's " +
+        'GMenuModel (gtkapplicationwindow.c:337-348, :408-412) — a DATA model no attribute carries — ' +
+        'and its `titlebar` is the same widget reference that refuses Gtk.Window above.',
+    // ------------------------------------------------------------------ the model views
+    //
+    // ADR 0046 § "Deliberately left open", restated by its Amendment: the three views keep
+    // their `Gtk.SelectionModel`-typed `model` UN-WIDENED, because a portable SELECTION
+    // model is the layering that ADR declined twice. The seam's branch is keyed on the
+    // ParamSpec and asks whether the property can hold the list it built; for these three
+    // it cannot, and it refuses by name (`list-model-mismatch`) rather than writing a NULL
+    // the diagnostics gate would not see. The browser elements take the portable list
+    // directly, which is why their blocks have a preview and a replica and no dialect tab.
+    'Gtk.StackSwitcher':
+        'its `stack` is a widget REFERENCE (gtk_stack_switcher_set_stack), and a ref is spelled differently in ' +
+        'all three dialects — so the switcher and the stack it drives cannot both be written in one tree.',
+    'Gtk.StackSidebar':
+        'its `stack` is a widget REFERENCE (gtk_stack_sidebar_set_stack), and a ref is spelled differently in ' +
+        'all three dialects — so the sidebar and the stack it drives cannot both be written in one tree.',
+    'Gtk.ListView':
+        'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and its rows come ' +
+        'from a Gtk.SignalListItemFactory — a pair of callbacks no dialect spells.',
+    'Gtk.GridView':
+        'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and its cells come ' +
+        'from a Gtk.SignalListItemFactory — a pair of callbacks no dialect spells.',
+    'Gtk.ColumnView':
+        'its model is a Gtk.SelectionModel, which the ParamSpec seam has no branch for, and each column is a ' +
+        'Gtk.ColumnViewColumn GObject carrying a factory of its own.',
+    'Gtk.TreeExpander':
+        'it watches a Gtk.TreeListRow, which only a Gtk.TreeListModel produces from a create-model CALLBACK: ' +
+        'a function, and the ParamSpec seam has no branch for either type.',
+    // `Gtk.Revealer`, `Gtk.Paned`, `Gtk.Expander` and `Gtk.CenterBox` WERE HERE, and every
+    // one of them said the same thing: "no row for <GType> in
+    // packages/framework/gtk-host/src/descriptors/gtk.ts". Curating those four rows is what
+    // makes this group disappear rather than shrink — the three placements of a
+    // `GtkCenterBox` and the two of a `Gtk.Paned` are ordinary NAMED slots, and the
+    // descriptor table now says so (`slots: { start, center, end }` and `slots: { start,
+    // end }`), which is the same decision `Gtk.Overlay` already carried. The blocks are
+    // trees above. The four probe pairs that measured the refusals moved to
+    // `PLACEMENTS_NOT_IN_THE_GALLERY` in `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`
+    // in the same commit, which is what arm 5b demands in the other direction.
+    //
     // The rest are not placement refusals: the widget cannot be written as a static
     // tree at all, in any dialect.
+    'Gtk.TextView':
+        'its text lives in a Gtk.TextBuffer set with set_buffer(), and a buffer is a GObject no attribute can carry — a static tree would render an empty view, which teaches a reader that GtkTextView is blank.',
+    'Gtk.SearchBar':
+        'its child is a widget reference (`child`), and GtkSearchBar has no curated child policy for one — the bar without its entry is an empty strip, which is what a static tree would render.',
+    'Gtk.Fixed':
+        "Gtk.Fixed places each child with gtk_fixed_put(child, x, y), and a tree carries no position: every child would be written at 0, 0, which is exactly what GtkBuilder's own buildable does (gtkfixed.c:171-177) and what no reader would copy.",
+    'Gtk.Grid':
+        'A cell position is DATA on the child — `layout: { column, row }`, which the host reads for a `coords` parent (policies.ts:787-793) — and `SharedTreeNode` declares no field for it, so every cell in a tree is attached at 0, 0 and the four labels would render on top of each other.',
+    'Gtk.DragIcon':
+        'a GtkRoot that nothing parents: gtk-host refuses it at the insert as `unparentable-child` ' +
+        'because it has no `present()`, `close()` or `destroy()` (measured — it is the one ' +
+        'GtkDragIcon-shaped name in `placement.spec.ts:469`), and GTK creates one FOR a drag rather than ' +
+        'building it. Its child is set by a GtkDragSource at drag time, which no tree can carry.',
     'Adw.Toast': 'AdwToast is a GObject, not a GtkWidget: it has no tag in a table of concrete widgets.',
     'Adw.AlertDialog': 'its responses are add_response() calls and it is shown with present(); neither is markup.',
     'Adw.AboutDialog': 'a dialog is opened with present(), so a static tree renders nothing a reader would see.',
+    'Adw.ClampScrollable':
+        'its child must be scrollable (a list view, a text view) and those are built from a model in code, so a static tree has no honest child to give it.',
+    'Adw.TabButton': 'its `view` is a widget reference, and a ref is spelled differently in all three dialects.',
+    'Adw.TabBar':
+        'its `view` is a widget reference, the same shape as `Adw.TabButton` above, and the bar is nothing without one: a tree would name a view that no dialect can spell.',
+    'Adw.TabOverview':
+        'its `view` is a widget reference and its `child` is the tab view itself, and both are spelled differently in all three dialects.',
+    // The three GTK dialogs are refusals for Adw.AboutDialog's reason, one clause further:
+    // each needs `present()` AND a backend the host has no more than GTK does — the
+    // element renders the same thing the GTK one does, which is a dialog over whatever the
+    // caller gave it.
+    'Gtk.AboutDialog': 'a dialog is opened with present(), so a static tree renders nothing a reader would see.',
+    'Gtk.PageSetupUnixDialog':
+        'a dialog is opened with present(), and its paper list comes from a print backend (gtk_print_backend_load_modules) that a tree cannot reach.',
+    'Gtk.PrintUnixDialog':
+        'a dialog is opened with present(), and its printer list, options and capabilities come from a print backend a tree cannot reach.',
+    'Gtk.EmojiChooser':
+        'a GtkPopover is shown by popping it up from an anchor WIDGET, so a tree has nothing to attach the popover to — `parentElement` is the default anchor and a top-level tree element has none.',
+    'Adw.Dialog':
+        'a dialog is opened with present() — the same shape Adw.AboutDialog above is refused for, and for the same reason: what a static tree can spell is the child, and the child is invisible without the portal.',
+    'Adw.ApplicationWindow':
+        "the menubar is not this widget's to spell: the model is installed by the GtkApplication that owns the window, at construction, and `show-menubar` only decides whether the window DRAYS the bar it was given. A static tree is a tree of widgets with properties, and there is no property here to hold a menu, so the one row that block shows would be a window with no menu bar and a comment claiming it had one.",
+    'Adw.ShortcutsDialog':
+        "a dialog is opened with present(), AND its content is AdwShortcutsSection objects — GObjects, not widgets, with no tag in a table of concrete widgets — so the row a static tree could spell would be a dialog with no portal and no sections. Its own descriptor says the same: `children: { kind: 'uncurated' }` (packages/framework/gtk-host/src/descriptors/adw.ts:69-74).",
     'Adw.ViewSwitcherBar': 'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
+    'Adw.ViewSwitcherSidebar':
+        "its `stack` is a widget reference AND every row is derived from that stack's page list, so a static tree would have to re-state the binding a second time.",
     'Adw.InlineViewSwitcher':
         'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
     // `Adw.SplitButton` and `Gtk.MenuButton` USED TO BE HERE — "its menu is a

@@ -1,0 +1,675 @@
+---
+title: Windows
+description: "GTK's window chrome: the header bar and the window-frame buttons at its ends, the bottom bar, and the two window classes a GTK app is built around. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+A GTK application is a set of `Gtk.Window`s, and everything on this page is either the
+chrome around one or the window itself. The **header bar** is the titlebar: children
+packed at the start and at the end, the window's title in the middle, and the
+minimize, maximize and close buttons GTK would otherwise have to ask the window
+manager for. The **window controls** are those buttons on their own — one side of
+them — and the **action bar** is the bottom bar, which libadwaita styles but does not
+own.
+
+The two window classes come last, and both are the same shape: a **window** with a
+titlebar and a child, and an **application window**, which is a window that also knows
+about a `GtkApplication` and can show its menubar.
+
+<MoreInfo title="A Gtk.Window in a browser is a frame, not a window">
+The previews run the browser port, and a browser document has no toplevel, no
+compositor and no window manager to ask. So `<gtk-window>` draws what a window
+*looks* like and honours the properties that decide what that chrome shows —
+`deletable`, `resizable`, `maximized`, `decorated`, `hide-on-close` — while
+`move()`, `resize()` and a real `is-active` have no counterpart. It is an in-page
+frame, and it says so in the DOM: the close button emits `close-request`, which is
+GTK's own signal and which an application cancels when it wants to keep the window.
+</MoreInfo>
+
+## Header Bar
+
+GTK's titlebar widget. **start** packs from the start and **end** from the end — and
+packing from the end PREPENDS, so the first end child sits nearest the edge and each
+later one lands in front of it. A child with no placement packs from the start.
+
+The middle is the window's title, and it is a plain label rather than a window-title
+widget: `Gtk.HeaderBar` has no `title` property at all, it derives the label from the
+window it is in, and a `title` child replaces it. `show-title-buttons` CREATES the two
+window-control groups and REMOVES them again, so `show-title-buttons="false"` is a
+different bar, not a hidden one.
+
+<AdwWidget title="Gtk.HeaderBar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:420px;margin:0 auto;">
+      <gtk-header-bar>
+        <gtk-button slot="start" label="Back" flat></gtk-button>
+        <span slot="title">Mailboxes</span>
+        <gtk-button slot="end" label="Search" flat></gtk-button>
+        <gtk-button slot="end" label="Menu" flat></gtk-button>
+      </gtk-header-bar>
+      <!-- show-title-buttons: Whether to show title buttons like close, minimize, maximize. -->
+      <gtk-header-bar show-title-buttons="false">
+        <gtk-label slot="start" label="No frame buttons at all"></gtk-label>
+      </gtk-header-bar>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gtk.HeaderBar();
+
+    // `pack_end` PREPENDS (gtkheaderbar.c:843-861), so the button added LAST sits
+    // nearest the edge and this is the order a user reads them in.
+    const menu = new Gtk.Button({ label: 'Menu' });
+    menu.add_css_class('flat');
+    bar.pack_end(menu);
+    const search = new Gtk.Button({ label: 'Search' });
+    search.add_css_class('flat');
+    bar.pack_end(search);
+
+    const back = new Gtk.Button({ label: 'Back' });
+    back.add_css_class('flat');
+    bar.pack_start(back);
+
+    // `set_title_widget` empties the centre for the widget and hands the derived
+    // label back on NULL — so this is the whole of `Gtk.HeaderBar:title-widget`.
+    const title = new Gtk.Label({ label: 'Mailboxes' });
+    title.add_css_class('title');
+    bar.title_widget = title;
+
+    // The frame buttons, and the layout that decides which of them there are. The
+    // layout is the PLATFORM's: `:minimize,maximize,close` on GNOME,
+    // `icon,minimize,close` on Windows, and a leading `menu:` section is the
+    // application menu.
+    bar.decoration_layout = 'menu:minimize,maximize,close';
+    bar.show_title_buttons = true;
+
+    window.set_titlebar(bar);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.HeaderBar {
+      decoration-layout: "menu:minimize,maximize,close";
+      show-title-buttons: true;
+
+      [start]
+      Gtk.Button {
+        label: _("Back");
+        styles ["flat"]
+      }
+
+      [title]
+      Gtk.Label {
+        label: _("Mailboxes");
+        styles ["title"]
+      }
+
+      [end]
+      Gtk.Button {
+        label: _("Search");
+        styles ["flat"]
+      }
+
+      [end]
+      Gtk.Button {
+        label: _("Menu");
+        styles ["flat"]
+      }
+    }
+
+    Gtk.HeaderBar {
+      show-title-buttons: false;
+
+      [start]
+      Gtk.Label {
+        label: _("No frame buttons at all");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gtk.HeaderBar();
+
+    // `pack_end` PREPENDS (gtkheaderbar.c:843-861), so the button added LAST sits
+    // nearest the edge and this is the order a user reads them in.
+    const menu = new Gtk.Button({ label: 'Menu' });
+    menu.add_css_class('flat');
+    bar.pack_end(menu);
+    const search = new Gtk.Button({ label: 'Search' });
+    search.add_css_class('flat');
+    bar.pack_end(search);
+
+    const back = new Gtk.Button({ label: 'Back' });
+    back.add_css_class('flat');
+    bar.pack_start(back);
+
+    // `set_title_widget` empties the centre for the widget and hands the derived
+    // label back on NULL — so this is the whole of `Gtk.HeaderBar:title-widget`.
+    const title = new Gtk.Label({ label: 'Mailboxes' });
+    title.add_css_class('title');
+    bar.title_widget = title;
+
+    // The frame buttons, and the layout that decides which of them there are. The
+    // layout is the PLATFORM's: `:minimize,maximize,close` on GNOME,
+    // `icon,minimize,close` on Windows, and a leading `menu:` section is the
+    // application menu.
+    bar.decoration_layout = 'menu:minimize,maximize,close';
+    bar.show_title_buttons = true;
+
+    window.set_titlebar(bar);
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="The derived title is a label, and it is not `Adw.WindowTitle`">
+`Adw.HeaderBar` builds an `<adw-window-title>` in its centre, with a title and a
+subtitle. `Gtk.HeaderBar` builds a plain `GtkLabel` with the `title` style class
+(`gtkheaderbar.c:274-290`) and takes its text from the window it sits in — which is
+what the browser preview shows above, where the `span` in the `title` slot is the
+same child the `title` buildable type means. Libadwaita styles both:
+[`Adw.WindowTitle`](/gjsify/adwaita/presentation/#window-title) is the richer one,
+and it is a different widget with its own slot name.
+</MoreInfo>
+
+## Window Controls
+
+One side of the frame buttons, and the whole decision table behind them. The
+decoration layout is split on the first colon, `side` picks a half, and each token of
+that half builds one button — or none:
+
+| token | built when |
+| --- | --- |
+| `icon` | the window is sovereign: neither modal nor `transient-for`, and it has an icon |
+| `minimize` | the window is sovereign |
+| `maximize` | the window is sovereign and `resizable` — and it shows the restore glyph while `maximized` |
+| `close` | the window is `deletable` |
+
+A controls bar outside a window draws **nothing**: that is GTK
+(`gtkwindowcontrols.c:257-264`), not this port, which is why the preview wraps each one
+in a window.
+
+<AdwWidget title="Gtk.WindowControls">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:420px;margin:0 auto;">
+      <gtk-window title="Documents" default-width="420" default-height="140">
+        <!-- side: Whether the widget shows start or end side of the decoration layout. -->
+        <gtk-window-controls slot="titlebar" side="end"></gtk-window-controls>
+        <span>A window with one controls group as its whole titlebar.</span>
+      </gtk-window>
+      <gtk-window title="Documents" default-width="420" default-height="140" resizable="false" deletable="false">
+        <!-- side: Whether the widget shows start or end side of the decoration layout. -->
+        <gtk-window-controls slot="titlebar" side="end"></gtk-window-controls>
+        <span>Not resizable and not deletable: only the minimize button is left.</span>
+      </gtk-window>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const window = new Gtk.Window({ default_width: 420, default_height: 140 });
+    window.set_child(new Gtk.Label({ label: 'Content' }));
+
+    // A window with no titlebar of its own, so the controls really are the titlebar —
+    // which is the shape `update_window_buttons` reads its four window properties for.
+    const controls = new Gtk.WindowControls();
+    window.set_titlebar(controls);
+
+    // Which half of the layout to build, and what the buttons do.
+    controls.side = Gtk.PackType.END;
+    controls.decoration_layout = 'menu:minimize,maximize,close';
+
+    // The four properties each token reads (gtkwindowcontrols.c:270-274): they decide
+    // whether there IS an icon, a minimize, a maximize and a close.
+    window.icon_name = 'utilities-terminal';
+    window.resizable = true;
+    window.maximized = false;
+    window.deletable = true;
+
+    // `empty` is the property that says none of them did — and a header bar binds it to
+    // `visible`, which is why a bar with no buttons for its side shows nothing at all.
+    console.log(controls.empty);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Window {
+      default-width: 420;
+      default-height: 140;
+
+      titlebar: Gtk.WindowControls {
+        side: end;
+        decoration-layout: "menu:minimize,maximize,close";
+      };
+
+      Gtk.Label {
+        label: _("Content");
+      }
+    }
+
+    Gtk.Window {
+      default-width: 420;
+      default-height: 140;
+      resizable: false;
+      deletable: false;
+
+      titlebar: Gtk.WindowControls {
+        side: end;
+      };
+
+      Gtk.Label {
+        label: _("Only the minimize button is left.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const window = new Gtk.Window({ default_width: 420, default_height: 140 });
+    window.set_child(new Gtk.Label({ label: 'Content' }));
+
+    // A window with no titlebar of its own, so the controls really are the titlebar —
+    // which is the shape `update_window_buttons` reads its four window properties for.
+    const controls = new Gtk.WindowControls();
+    window.set_titlebar(controls);
+
+    // Which half of the layout to build, and what the buttons do.
+    controls.side = Gtk.PackType.END;
+    controls.decoration_layout = 'menu:minimize,maximize,close';
+
+    // The four properties each token reads (gtkwindowcontrols.c:270-274): they decide
+    // whether there IS an icon, a minimize, a maximize and a close.
+    window.icon_name = 'utilities-terminal';
+    window.resizable = true;
+    window.maximized = false;
+    window.deletable = true;
+
+    // `empty` is the property that says none of them did — and a header bar binds it to
+    // `visible`, which is why a bar with no buttons for its side shows nothing at all.
+    console.log(controls.empty);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Action Bar
+
+GTK's bottom bar, and the one libadwaita styles without owning: its rules are
+`actionbar > revealer > box`, which is a bar with two packed ends and a centre.
+`start` appends, `end` prepends, and `center` is a real placement with no property
+behind it — GTK has `set_center_widget` but no `center-widget` property, so
+`Gtk.Builder` refuses a `.blp` that writes one.
+
+`revealed` is the one property, and it defaults to true.
+
+<AdwWidget title="Gtk.ActionBar">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:420px;margin:0 auto;">
+      <gtk-action-bar>
+        <gtk-button slot="start" label="Print" flat></gtk-button>
+        <span slot="center">notes.md</span>
+        <gtk-button slot="end" label="Open…" flat></gtk-button>
+        <gtk-button slot="end" label="Save" flat></gtk-button>
+      </gtk-action-bar>
+      <!-- revealed: Controls whether the action bar shows its contents. -->
+      <gtk-action-bar revealed="false">
+        <span slot="center">Slid away</span>
+      </gtk-action-bar>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gtk.ActionBar();
+
+    // `pack_end` PREPENDS (gtkactionbar.c:262-277), so the button added LAST sits
+    // nearest the edge.
+    const save = new Gtk.Button({ label: 'Save' });
+    save.add_css_class('flat');
+    bar.pack_end(save);
+    const open = new Gtk.Button({ label: 'Open…' });
+    open.add_css_class('flat');
+    bar.pack_end(open);
+    const print = new Gtk.Button({ label: 'Print' });
+    print.add_css_class('flat');
+    bar.pack_start(print);
+
+    // A widget or NULL — and NULL clears the centre rather than replacing it with an
+    // empty label.
+    bar.set_center_widget(new Gtk.Label({ label: 'notes.md' }));
+
+    // The one property, and it defaults to TRUE: only `false` hides the bar.
+    bar.revealed = true;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ActionBar {
+      revealed: true;
+
+      [start]
+      Gtk.Button {
+        label: _("Print");
+        styles ["flat"]
+      }
+
+      [center]
+      Gtk.Label {
+        label: _("notes.md");
+      }
+
+      [end]
+      Gtk.Button {
+        label: _("Open…");
+        styles ["flat"]
+      }
+
+      [end]
+      Gtk.Button {
+        label: _("Save");
+        styles ["flat"]
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const bar = new Gtk.ActionBar();
+
+    // `pack_end` PREPENDS (gtkactionbar.c:262-277), so the button added LAST sits
+    // nearest the edge.
+    const save = new Gtk.Button({ label: 'Save' });
+    save.add_css_class('flat');
+    bar.pack_end(save);
+    const open = new Gtk.Button({ label: 'Open…' });
+    open.add_css_class('flat');
+    bar.pack_end(open);
+    const print = new Gtk.Button({ label: 'Print' });
+    print.add_css_class('flat');
+    bar.pack_start(print);
+
+    // A widget or NULL — and NULL clears the centre rather than replacing it with an
+    // empty label.
+    bar.set_center_widget(new Gtk.Label({ label: 'notes.md' }));
+
+    // The one property, and it defaults to TRUE: only `false` hides the bar.
+    bar.revealed = true;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Window
+
+A toplevel: a `child`, a `titlebar` since GTK 4.6, and the properties that decide what
+its chrome shows. Close emits **`close-request`** first, and only acts on it if nothing
+handled it — hiding the window when `hide-on-close` is set and destroying it otherwise.
+
+<AdwWidget title="Gtk.Window">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:440px;margin:0 auto;">
+      <gtk-window title="Documents" default-width="440" default-height="200">
+        <span>No titlebar child, so the window draws the frame buttons and the title itself.</span>
+      </gtk-window>
+      <!-- deletable: Whether the window frame should have a close button. -->
+      <!-- resizable: If true, users can resize the window. -->
+      <gtk-window title="Documents" default-width="440" default-height="160" deletable="false" resizable="false">
+        <gtk-header-bar slot="titlebar">
+          <span slot="title">Documents</span>
+        </gtk-header-bar>
+        <span>A titlebar child takes the whole strip, decorations and all.</span>
+      </gtk-window>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const window = new Gtk.Window({ default_width: 440, default_height: 200 });
+
+    // The titlebar. A `Gtk.HeaderBar` brings its own frame buttons with it, which is
+    // the point of it (gtkheaderbar.c:36-60).
+    window.set_titlebar(new Gtk.HeaderBar());
+
+    // The one child.
+    window.set_child(new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 }));
+
+    // The frame. `decorated: false` DROPS the titlebar outright rather than hiding it.
+    window.decorated = true;
+    window.deletable = true;
+    window.resizable = true;
+
+    // `maximize()`/`unmaximize()` are ASYNCHRONOUS (the GIR says so at gtkwindow.c:1044),
+    // so the property is what a caller watches.
+    window.maximize();
+
+    // Close emits `close-request` first and acts only if nothing handled it. An
+    // application that wants to keep the window stops the default handler:
+    window.connect('close-request', () => {
+        window.hide();
+        return true; // handled — the default destroy does not run
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Window {
+      default-width: 440;
+      default-height: 200;
+
+      titlebar: Gtk.HeaderBar {};
+
+      decorated: true;
+      deletable: true;
+      resizable: true;
+
+      Gtk.Box {
+        orientation: vertical;
+        spacing: 12;
+      }
+    }
+
+    Gtk.Window {
+      default-width: 440;
+      default-height: 160;
+      deletable: false;
+      resizable: false;
+
+      titlebar: Gtk.HeaderBar {
+        [title]
+        Gtk.Label {
+          label: _("Documents");
+        }
+      };
+
+      Gtk.Label {
+        label: _("A titlebar child takes the whole strip, decorations and all.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const window = new Gtk.Window({ default_width: 440, default_height: 200 });
+
+    // The titlebar. A `Gtk.HeaderBar` brings its own frame buttons with it, which is
+    // the point of it (gtkheaderbar.c:36-60).
+    window.set_titlebar(new Gtk.HeaderBar());
+
+    // The one child.
+    window.set_child(new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 }));
+
+    // The frame. `decorated: false` DROPS the titlebar outright rather than hiding it.
+    window.decorated = true;
+    window.deletable = true;
+    window.resizable = true;
+
+    // `maximize()`/`unmaximize()` are ASYNCHRONOUS (the GIR says so at gtkwindow.c:1044),
+    // so the property is what a caller watches.
+    window.maximize();
+
+    // Close emits `close-request` first and acts only if nothing handled it. An
+    // application that wants to keep the window stops the default handler:
+    window.connect('close-request', () => {
+        window.hide();
+        return true; // handled — the default destroy does not run
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Why the framework tabs are absent for both windows">
+A window is its `titlebar` and its `child`, and `titlebar` is a widget-typed
+property: a reference to another widget, which the Solid, Vue and React dialects each
+spell in their own way and none of them as an attribute. A tree without one would be a
+window with no titlebar, which is the one thing a window is not. Both refusals are in
+`ADWAITA_GALLERY_REFUSALS` with that reason.
+</MoreInfo>
+
+## Application Window
+
+A `Gtk.Window` that integrates with a `GtkApplication`. Window-specific actions are
+exported under `win.` and application-wide ones under `app.`, and any `GtkActionable`
+inside the window can activate either — so a button in this window can drive the whole
+application, not just itself.
+
+The one property of its own is **show-menubar**, and the bar comes from the
+*application*'s menu model, not from the window. GTK shows it only when the property is
+set **and** the model has at least one item.
+
+<AdwWidget title="Gtk.ApplicationWindow">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;width:440px;margin:0 auto;">
+      <!-- show-menubar: If this property is true, the window will display a menubar unless it is shown by the desktop shell. -->
+      <gtk-application-window title="Editor" default-width="440" default-height="180" show-menubar>
+        <gtk-header-bar slot="titlebar">
+          <span slot="title">Editor</span>
+        </gtk-header-bar>
+        <div slot="menubar" style="display:flex;gap:6px;">
+          <gtk-button label="File" flat></gtk-button>
+          <gtk-button label="Edit" flat></gtk-button>
+        </div>
+        <span>The menubar is a slot: GTK builds it from the application's menu model, and no attribute carries one.</span>
+      </gtk-application-window>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const app = new Gtk.Application({ application_id: 'org.example.Editor' });
+
+    // The menubar is the APPLICATION's model (gtkapplicationwindow.c:337-348), so the
+    // window only ever says whether it may show it.
+    const menu = new Gio.Menu();
+    const file = new Gio.Menu();
+    file.append('_New', 'win.new');
+    file.append('_Open…', 'win.open');
+    menu.append_section(null, file);
+    app.set_menubar(menu);
+
+    const window = new Gtk.ApplicationWindow({ application: app, default_width: 440, default_height: 180 });
+    window.set_titlebar(new Gtk.HeaderBar());
+    window.set_child(new Gtk.Box());
+
+    // BOTH halves, or nothing shows: `update_menubar` asks whether the section has any
+    // items at all before it builds the bar (gtkapplicationwindow.c:400-402).
+    window.show_menubar = true;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.ApplicationWindow {
+      default-width: 440;
+      default-height: 180;
+      show-menubar: true;
+
+      titlebar: Gtk.HeaderBar {
+        [title]
+        Gtk.Label {
+          label: _("Editor");
+        }
+      };
+
+      Gtk.Box {
+        orientation: vertical;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const app = new Gtk.Application({ application_id: 'org.example.Editor' });
+
+    // The menubar is the APPLICATION's model (gtkapplicationwindow.c:337-348), so the
+    // window only ever says whether it may show it.
+    const menu = new Gio.Menu();
+    const file = new Gio.Menu();
+    file.append('_New', 'win.new');
+    file.append('_Open…', 'win.open');
+    menu.append_section(null, file);
+    app.set_menubar(menu);
+
+    const window = new Gtk.ApplicationWindow({ application: app, default_width: 440, default_height: 180 });
+    window.set_titlebar(new Gtk.HeaderBar());
+    window.set_child(new Gtk.Box());
+
+    // BOTH halves, or nothing shows: `update_menubar` asks whether the section has any
+    // items at all before it builds the bar (gtkapplicationwindow.c:400-402).
+    window.show_menubar = true;
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="The `win.` and `app.` prefixes, and where the menu comes from">
+An action name in this window's menu can be `win.copy` — an action the window exports,
+prefixed so it cannot collide with the application's — or `app.quit`, which every window
+sees. Both are resolved through the `Gtk.Application`, which is why the menu model lives
+on the application in the TypeScript pane above and never on the window.
+</MoreInfo>
+
+## Related
+
+- [Layout](../layout/): the boxes and the separators that fill a window's content.
+- [Adwaita Layout](/gjsify/adwaita/layout/): `Adw.HeaderBar`, `Adw.ToolbarView` and
+  `Adw.WindowTitle` — the Adwaita half of the same chrome, and the ones to write in a
+  new app.
+- [Buttons](../buttons/): the `flat` buttons the frame slots above are built from.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

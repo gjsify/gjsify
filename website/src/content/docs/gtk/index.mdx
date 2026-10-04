@@ -60,22 +60,139 @@ Both ports export `Gtk` beside `Adw` and a `Gio` namespace that holds
 ## Browse the widgets
 
 <div class="adw-gallery-grid">
-  <AdwGalleryCard title="Controls" href="/gjsify/gtk/controls/" description="The standalone entry and drop down, whose row twins are in the Adwaita boxed lists.">
+  <AdwGalleryCard title="Controls" href="/gjsify/gtk/controls/" description="The standalone entry and drop down, the checkbox with its half-made state and the light switch, whose row twins are in the Adwaita boxed lists.">
     <Fragment slot="preview">
       <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
         <gtk-entry placeholder="Search files…" style="width:100%;"></gtk-entry>
         <gtk-drop-down model='["Automatic","Always","Never"]' selected="0"></gtk-drop-down>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <gtk-check-button label="Enable networking" checked></gtk-check-button>
+          <gtk-switch active state></gtk-switch>
+        </div>
       </div>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button, the style classes that shape it, and the menu button that opens a popover.">
+  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button and the style classes that shape it, then the ones that add a state or a target: the toggle button, the link button, the scale button, the colour and font dialog buttons, and the menu button that opens a popover.">
     <Fragment slot="preview">
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
         <gtk-button label="Suggested" suggested></gtk-button>
         <gtk-button label="Delete" destructive></gtk-button>
         <gtk-button icon="list-add" circular></gtk-button>
+        <gtk-toggle-button label="Mute" active></gtk-toggle-button>
+        <gtk-link-button label="GNOME" uri="https://gnome.org"></gtk-link-button>
+        <gtk-scale-button icons='["audio-volume-muted-symbolic","audio-volume-low-symbolic","audio-volume-high-symbolic"]' value="70"></gtk-scale-button>
+        <gtk-color-dialog-button dialog rgba="#3584e4"></gtk-color-dialog-button>
+        <gtk-font-dialog-button dialog font-desc="Sans Bold 12"></gtk-font-dialog-button>
         <gtk-menu-button icon-name="open-menu" menu-title="Document" menu-model='[{"label":"Save as…"},{"label":"Export"}]'></gtk-menu-button>
       </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Dialogs" href="/gjsify/gtk/dialogs/" description="GTK's about window with its stack switcher, the emoji chooser a text widget opens, and the page setup and print dialogs Unix has instead of native ones.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:12px;align-items:center;width:100%;max-width:280px;">
+        <gtk-about-dialog
+          open
+          program-name="Calculator"
+          version="48.1"
+          logo-icon-name="application-x-executable"
+          license-type="gpl-3-0"
+        ></gtk-about-dialog>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Drawing" href="/gjsify/gtk/drawing/" description="The blank canvas you paint yourself, the GL surface behind it, the child handed straight to the compositor, and the icon that follows the pointer during a drag.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;">
+        <gtk-drawing-area content-width="160" content-height="80" style="outline:1px dashed var(--window-fg-color);outline-offset:2px;"></gtk-drawing-area>
+        <gtk-graphics-offload enabled="disabled" style="width:160px;height:32px;outline:1px dashed var(--window-fg-color);outline-offset:2px;">
+          <gtk-label label="Offloaded child"></gtk-label>
+        </gtk-graphics-offload>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Scrolling" href="/gjsify/gtk/scrolling/" description="The scrolled window with the scrollbars it draws itself, the viewport underneath it, and the titlebar handle.">
+    <Fragment slot="preview">
+      <gtk-scrolled-window style="width:100%;max-width:220px;height:120px;">
+        <gtk-box orientation="vertical" spacing="6">
+          <gtk-label label="Row 1"></gtk-label>
+          <gtk-label label="Row 2"></gtk-label>
+          <gtk-label label="Row 3"></gtk-label>
+          <gtk-label label="Row 4"></gtk-label>
+          <gtk-label label="Row 5"></gtk-label>
+        </gtk-box>
+      </gtk-scrolled-window>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Indicators" href="/gjsify/gtk/indicators/" description="The progress bar for work with a measurable amount left, the level bar for a quantity in a range, and GTK's own busy spinner.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:200px;">
+        <gtk-progress-bar fraction="0.4" style="width:100%;"></gtk-progress-bar>
+        <gtk-level-bar mode="discrete" max-value="5" value="3" style="width:100%;"></gtk-level-bar>
+        <gtk-spinner spinning style="width:24px;height:24px;"></gtk-spinner>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Text" href="/gjsify/gtk/text/" description="The single-line text behind every entry, the multi-line editor, the label you edit in place and the search bar that reveals a field.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
+        <gtk-editable-label text="Ada Lovelace"></gtk-editable-label>
+        <gtk-text placeholder-text="A single line" style="width:100%;"></gtk-text>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Media" href="/gjsify/gtk/media/" description="The symbolic icon, an image fitted to its box, text held to a size in characters and lines, and a video with its transport.">
+    <Fragment slot="preview">
+      <div style="display:flex;gap:12px;align-items:center;width:100%;max-width:220px;">
+        <gtk-image icon-name="avatar-default-symbolic" size="40"></gtk-image>
+        <gtk-picture content-fit="cover" style="width:80px;height:60px;">
+          <svg viewBox="0 0 320 180" width="320" height="180" xmlns="http://www.w3.org/2000/svg">
+            <rect width="320" height="180" fill="rgb(144 192 160)"></rect>
+          </svg>
+        </gtk-picture>
+        <gtk-inscription min-chars="6" min-lines="2" text="Chars"></gtk-inscription>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Layout" href="/gjsify/gtk/layout/" description="The separator that draws a rule between two groups, or a gap when it is a spacer.">
+    <Fragment slot="preview">
+      <gtk-box orientation="vertical" spacing="8" style="align-items:center;width:100%;max-width:200px;">
+        <gtk-label label="Above"></gtk-label>
+        <gtk-separator style="width:100%;"></gtk-separator>
+        <gtk-label label="Below"></gtk-label>
+      </gtk-box>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Lists" href="/gjsify/gtk/lists/" description="The containers that hold children you append — the list box, the flow box that reflows it, and the month grid.">
+    <Fragment slot="preview">
+      <gtk-list-box selection-mode="single" show-separators style="width:100%;max-width:200px;">
+        <gtk-list-box-row><gtk-label label="Documents"></gtk-label></gtk-list-box-row>
+        <gtk-list-box-row><gtk-label label="Downloads"></gtk-label></gtk-list-box-row>
+      </gtk-list-box>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Models" href="/gjsify/gtk/models/" description="The views that draw a list model through a factory — list, grid and column — and the tree expander in front of a tree row.">
+    <Fragment slot="preview">
+      <gtk-list-view model='["Documents","Downloads","Music"]' show-separators style="width:100%;max-width:200px;"></gtk-list-view>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Stacks" href="/gjsify/gtk/stacks/" description="The stack that shows one child at a time, the switcher and sidebar that switch over it, and the notebook of draggable tabs.">
+    <Fragment slot="preview">
+      <gtk-stack transition-type="slide-left-right" style="width:100%;max-width:200px;height:80px;">
+        <div name="first" title="First" style="display:flex;align-items:center;justify-content:center;">One visible child of many.</div>
+        <div name="second" title="Second" style="display:flex;align-items:center;justify-content:center;">The switch makes the other one visible.</div>
+      </gtk-stack>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Popovers" href="/gjsify/gtk/popovers/" description="The surface itself, the menu-model popover, a menu bar of them, and the container that turns a right click into one.">
+    <Fragment slot="preview">
+      <gtk-popover-menu-bar menu-model='[{"label":"File","submenu":[{"label":"New Window"},{"label":"Quit"}]},{"label":"Edit","submenu":[{"label":"Undo"}]}]' style="width:100%;"></gtk-popover-menu-bar>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Windows" href="/gjsify/gtk/windows/" description="The window chrome: the header bar and the frame buttons at its ends, the bottom bar, and the two window classes a GTK app is built around.">
+    <Fragment slot="preview">
+      <gtk-window title="Documents" default-width="320" default-height="120" style="width:100%;">
+        <span>Content</span>
+      </gtk-window>
     </Fragment>
   </AdwGalleryCard>
 </div>

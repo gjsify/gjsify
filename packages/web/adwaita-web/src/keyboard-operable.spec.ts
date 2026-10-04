@@ -898,6 +898,35 @@ export const AdwKeyboardOperableTest = async () => {
             host.remove();
         });
 
+        // `<gtk-editable-label>` is the one GTK widget here whose focus moves WITH its
+        // state: the label is focusable and `editing` hands the focus to the entry
+        // (gtkeditablelabel.c:614,652), so the tab stop has to move with it or a Tab would
+        // reach a control the user cannot see.
+        await it('gtk-editable-label moves its tab stop with its state', () => {
+            const host = mount('<gtk-editable-label id="k-ed" text="Ada"></gtk-editable-label>');
+            const el = document.getElementById('k-ed') as HTMLElement & {
+                entry: HTMLInputElement;
+                startEditing: () => void;
+                stopEditing: (commit?: boolean) => void;
+            };
+
+            expect(el.getAttribute('tabindex')).toBe('0');
+            expect(el.entry.tabIndex).toBe(-1);
+            el.focus();
+            expect(document.activeElement).toBe(el);
+
+            el.startEditing();
+            expect(el.hasAttribute('tabindex')).toBe(false);
+            expect(document.activeElement).toBe(el.entry);
+
+            // …and back: the widget owns the focus once the edit is over, so the next Tab
+            // starts from the label rather than from inside a collapsed edit mode.
+            el.stopEditing(true);
+            expect(el.getAttribute('tabindex')).toBe('0');
+            expect(document.activeElement).toBe(el);
+            host.remove();
+        });
+
         await it('activates on Enter and Space, and lets a child keep its own keys', () => {
             const host = mount(
                 '<adw-action-row id="k-keys" title="Keys" activatable></adw-action-row>' +

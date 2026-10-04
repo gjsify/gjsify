@@ -97,11 +97,15 @@ const NO_STORY_OF_ITS_OWN = {
         'Feedback/Preferences Dialog renders it — the story builds an `Adw.PreferencesPage`, fills it with a group of rows and adds it to the dialog. A page only ever appears inside a preferences dialog, so the story is named after the thing the reader is looking for.',
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
-    image: 'There is no Adwaita or GTK icon WIDGET to demonstrate: GTK draws a `Gtk.Image` inline, as the navigation stories do, and the browser element exists because CSS needs a box to hang a symbolic on — so a story would show a GTK primitive rather than an Adwaita widget. This is the exemption the two retired one-renderer rows said the pair would inherit on the day it converged (2026-09-05), which is what it did: `AdwIcon` became `GtkImage`, both renderers now spell it `image`, and one row replaces the pair plus its `sameWidgetAs` bridge.',
-    box: "GTK's layout primitive, not an Adwaita widget — libadwaita styles what a caller puts IN one — and every story's preview is already built in one: nine story files construct a `Gtk.Box`, so a reader looking for it finds it around every other widget. The browser element exists for the same reason the NativeScript class does, as a TARGET: an authored tree (a `.blp` mounted through `mountSharedTree`) names `Gtk.Box`, and without an element that tag realised as an unknown inline node. A story of its own would show a GTK primitive, the verdict `image` gets above.",
-    label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive, the verdict `image` gets above.",
-    'action-bar':
-        "GTK's bottom-bar primitive, not an Adwaita widget — libadwaita only styles it (`actionbar > revealer > box`, _toolbars.scss) — and like `box` and `label` both ports exist as TARGETS of an authored tree: a `.blp` built through `mountSharedTree` or the NativeScript builder names `Gtk.ActionBar`, and without the element or class that tag had nothing to realise. A story of its own would show a GTK primitive, the verdict `image` gets above.",
+    // `image` used to sit here — "there is no Adwaita or GTK icon WIDGET to demonstrate", an
+    // exemption the two retired one-renderer rows said the pair would inherit on the day
+    // `AdwIcon` converged on `GtkImage` (2026-09-05). It no longer holds, and the reason is
+    // one fact rather than a decision: Media/Image now renders it on GTK and on the browser,
+    // so there is a story and this row would be a stale exemption that also outlives its own
+    // argument. What stays true is the neighbouring reasoning below — a story of its own
+    // would show a GTK primitive — and it now rests on each row instead.
+    box: "GTK's layout primitive, not an Adwaita widget — libadwaita styles what a caller puts IN one — and every story's preview is already built in one: nine story files construct a `Gtk.Box`, so a reader looking for it finds it around every other widget. The browser element exists for the same reason the NativeScript class does, as a TARGET: an authored tree (a `.blp` mounted through `mountSharedTree`) names `Gtk.Box`, and without an element that tag realised as an unknown inline node. A story of its own would show a GTK primitive rather than an Adwaita widget, which is the same verdict every row around it gives.",
+    label: "GTK's text primitive, not an Adwaita widget — libadwaita's label looks are style classes over it (`.title-1`…, `.dimmed`, `_labels.scss`), and the stories that show those classes build `Gtk.Label`s to show them on. Both ports exist as TARGETS of an authored tree and share one answer to `use-markup` (`labelDisplayText` in adwaita-core: markup reduced to its text, never rendered). A story of its own would show a GTK primitive rather than an Adwaita widget, which is the same verdict every row around it gives.",
     'carousel-indicator-dots':
         'View Switching/Carousel renders it: the carousel stories come as a pair, Dots and Lines, one per indicator, and each builds the carousel the indicator binds to — an indicator alone marks no pages.',
     'carousel-indicator-lines':
@@ -164,10 +168,40 @@ const NO_STORY_OF_ITS_OWN = {
  * renderers now" rule below deletes the row.
  */
 const ONE_RENDERER_ONLY = {
+    // TWO widgets, ONE row — and the reason they cannot be two is the join this ledger uses:
+    // `Adw.ApplicationWindow` (Layout/Application Window) and `Gtk.ApplicationWindow`
+    // (Windows/Application Window) both arrive as the BARE name `application-window`, so a
+    // second key would not be a second row. It would silently shadow this one, which is how
+    // `Adw.ApplicationWindow` and `Gtk.ApplicationWindow` each ended up with the OTHER's
+    // sentence for a moment. `window` below is the same pair, merged the same way.
+    'application-window': {
+        only: 'web',
+        decision:
+            'A window class, and NativeScript HAS no window widget: the storybook\'s `Page` carries `class="adw-window"` ' +
+            '(showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` ' +
+            '(packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). Either window is that FRAME with an ' +
+            'application menubar on top of it, and a page has no place to hang a second one — so the ' +
+            '`show-menubar` half, the ONE property `Adw.ApplicationWindow` adds to `Adw.Window`, is a markup slot ' +
+            "here and has no counterpart there. The `window` row records the frame itself, and the port's own answer " +
+            'is `AdwToolbarView` inside that `Page`, a template on its own block.',
+    },
+    'window-controls': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     'alert-response': {
         only: 'web',
         decision:
             'No `AdwAlertResponse` type upstream — a response is an id passed to `adw_alert_dialog_add_response()`, whose MARKUP form is a GtkBuildable `<response>` child, which is what this element mirrors. NativeScript calls the method against the same `AdwAlertResponses` in adwaita-core, so only the browser needs a tag to declare one in.',
+    },
+    'aspect-frame': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'breakpoint-bin': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+        vectors: ['BREAKPOINT_PICK_VECTORS', 'BREAKPOINT_TRANSITION_VECTORS'],
     },
     'bottom-sheet-bottom-bar': {
         only: 'web',
@@ -184,17 +218,85 @@ const ONE_RENDERER_ONLY = {
         decision:
             '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="sheet">`, which leaves nothing in the tree. It is the markup form, not the only route: the element binds a plain `slot="sheet"` child too, through `bindSlottedChildren` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts).',
     },
+    bin: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     card: {
         only: 'web',
         decision:
             "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK was a separate gap and is closed: `.card, .adw-card` is now a rule in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, both spellings on one selector the way `.boxed-list` already carries the same surface. It rendered NOTHING until then, and scripts/check-nativescript-theme-classes.mjs could not see it either — that reader saw only the package's own widget sources, never an app's.",
+    },
+    'center-box': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'check-button': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
     },
+    // The four Gtk buttons of page gtk/buttons that libadwaita ships NO type behind, so
+    // this is one bullet in the open-todos section above covering all four; the reasons
+    // below say what each NativeScript substitute would have to BE, which is the whole of
+    // what is still open.
+    'color-dialog-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'font-dialog-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'link-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'scale-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'clamp-scrollable': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
     dialog: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'drag-icon': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'drawing-area': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'gl-area': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'editable-label': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    expander: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    fixed: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    frame: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'graphics-offload': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    grid: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -203,11 +305,77 @@ const ONE_RENDERER_ONLY = {
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
     },
+    inscription: {
+        only: 'web',
+        decision:
+            "`GtkInscription` sizes itself in CHARACTERS and LINES (gtkinscription.c:338-349, :370-391) and its defaults are the opposite of GtkLabel's — `min-chars` 3, `xalign` 0, `wrap-mode` WORD_CHAR (gtkinscription.c:59-69, :738-740). `@nativescript/core` ships no such widget, and neither of the port's two text primitives measures in those units: a NativeScript `Label` asks its content for a size, which is GtkLabel's half of the pair and not this one.",
+    },
+    'level-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    stack: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    notebook: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'stack-sidebar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'stack-switcher': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    // The GTK dialogs. `AdwAboutDialog` and the three GTK ones are DIFFERENT widgets that
+    // share a bare name once the namespace is dropped, which is why `<gtk-about-dialog>`
+    // needs no entry here and the other three do.
+    'emoji-chooser': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'page-setup-unix-dialog': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'print-unix-dialog': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    overlay: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    paned: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'password-entry': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'media-controls': {
+        only: 'web',
+        decision:
+            "`GtkMediaControls` holds exactly ONE property and it is an OBJECT — `media-stream` (gtkmediacontrols.c:296-306) — so there is no scalar surface for a port to mirror; the widget is a pure view of a stream the backend owns. `@nativescript/core` has `Video` and no transport bar, and the port's `Video` is the play surface itself rather than a bar drawn over it, so the widget has nowhere to live there.",
+    },
+    picture: {
+        only: 'web',
+        decision:
+            "`GtkPicture` draws a `GdkPaintable` fitted by `content-fit`, and the four enum members ARE the four CSS `object-fit` values including `scale-down` (gtkpicture.c:146-205, :520-531) — an exact mapping rather than an approximation. `@nativescript/core` has an `Image` with its own `stretch` modes, which are that widget's property and not this one: fitting an image is the port's existing job, and there is no second widget to hold the fit.",
+    },
     popover: {
         only: 'web',
         decision:
             'Recorded in packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21 — the NativeScript file, not the browser one of the same name: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `GtkMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
         vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
+    },
+    'preferences-row': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'progress-bar': {
         only: 'web',
@@ -217,6 +385,92 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
+    },
+    calendar: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'column-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'flow-box': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'flow-box-child': {
+        only: 'web',
+        decision:
+            '`AdwWrapBox.addChild` takes a plain view and `AdwWrapBox.orientation` picks the wrap axis, so the NativeScript port HAS a wrapping container and nothing a cell could be selected BY. The browser element exists because a `GtkFlowBox` wraps every child in one upstream (gtkflowbox.c:571-572) and an authored tree has to name it — the same target role `action-bar` and `label` get below, and for the same reason. It has no story of ITS own either: Presentation/Flow Box builds the box around eight of them, since a cell carries one property and no state of its own (gtkflowbox.c:542-543).',
+    },
+    'list-box-row': {
+        only: 'web',
+        decision:
+            'The NativeScript port has `GtkBox`, whose `addChild` appends eagerly, and no row that can be selected inside it: `AdwSwitchRow` extends `AdwActionRow` and installs a title and a boolean. The browser element exists because a `GtkListBox` wraps every child in one upstream (gtklistbox.c:3954) and an authored tree has to name it — the same target role `action-bar` and `label` get below, and for the same reason. It has no story of ITS own either: Presentation/List Box builds the box around three of them, since a row alone is a label with an `activatable` flag and no list to belong to.',
+    },
+    'grid-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'list-box': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'list-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'popover-bin': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'popover-menu': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'popover-menu-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    revealer: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    separator: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    scale: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'search-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'search-entry': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'layout-slot': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'multi-layout-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    scrollbar: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'scrolled-window': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    viewport: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'sidebar-item': {
         only: 'web',
@@ -241,12 +495,48 @@ const ONE_RENDERER_ONLY = {
     switch: {
         only: 'web',
         decision:
-            'Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly; the browser has no such control, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one. Its own header records there is no behaviour to port either — "the state is one boolean with no derivation" (gtk-switch.ts:7-8).',
+            "Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly — one boolean with no second phase, so the `active`/`state` pair a delayed change needs (gtkswitch.c:39-43, :637-654) has nowhere to live there. The browser has no such control at all, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one, and it carries both properties: the knob on `active`, libadwaita's `switch:checked` trough on `state`.",
+    },
+    'spin-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'tab-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'tab-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'tab-overview': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'view-switcher-sidebar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'tab-page': {
         only: 'web',
         decision:
             '`AdwTabPage` is declared against GObject, not GtkWidget (adw-tab-view.h) — it is DATA, held on NativeScript by `TabViewState` and projected through tab-view-state.ts. The browser element is that descriptor in markup, and doubles as the page panel the tab reveals.',
+    },
+    text: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'text-view': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'toggle-button': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'tree-expander': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'view-stack-page': {
         only: 'web',
@@ -258,10 +548,34 @@ const ONE_RENDERER_ONLY = {
         decision:
             "There is no AdwViewSwitcherPage upstream at all: a view switcher takes an AdwViewStack and reads its AdwViewStackPages. This element is this port's markup form of that same page descriptor, and NativeScript passes the descriptors to `AdwViewSwitcherBase.setViews`.",
     },
+    video: {
+        only: 'web',
+        decision:
+            '`GtkVideo` is a play SURFACE with a `GtkMediaStream` behind it and no transport of its own (gtkvideo.c:400-445, ui/gtkvideo.ui) — the three overlay nodes over the frames are the whole widget. `@nativescript/core` ships a `Video`, but it is the frames alone: there is no widget for the overlay icon and the self-hiding controls bar, and the port has no `GtkMediaStream` to drive one from. The browser element takes a real `<video>` for exactly that reason.',
+    },
     window: {
         only: 'web',
         decision:
-            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on.',
+            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on, and `<gtk-window>` for the same reason plus the frame PROPERTIES: `deletable`, `resizable`, `maximized`, `decorated` and `hide-on-close` decide which frame buttons a page draws and there is nothing on a `Page` for them to decide.',
+    },
+    'shortcuts-dialog': {
+        only: 'web',
+        decision:
+            "The generic-dialog half is the `dialog` entry's, and the shortcuts half is a platform fact rather than an unwritten port: a touch target has no keyboard, so there is no accelerator to list. `AdwShortcutsDialog` is libadwaita 1.8 and its sections are AdwShortcutsSection GObjects added with `add()`, which no markup spells — the port's whole shortcut surface is `AdwShortcutLabel`, one keycap.",
+    },
+    'shortcuts-section': {
+        only: 'web',
+        decision:
+            'A libadwaita GObject that is not a GtkWidget (adw-shortcuts-section.c:44), so it has no row in a table of concrete widgets and the port has no view to build: `AdwShortcutLabel` is one keycap and this is a group of rows. Its tag is the markup form of `AdwShortcutsDialog.add()` — the same objection `<adw-sidebar-section>` answers for above.',
+    },
+    'shortcuts-item': {
+        only: 'web',
+        decision:
+            "A libadwaita GObject that is not a GtkWidget (adw-shortcuts-item.c:39) — one row of a section, not a widget. The port's nearest thing is `AdwShortcutLabel`, and that is the accelerator ALONE: the title, the subtitle and the text-direction rule have no counterpart on a keycap.",
+    },
+    'window-handle': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
 };
 
@@ -273,6 +587,8 @@ const MIN_REASON = 40;
 
 /** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
 const GAP_ISSUE = /^#\d+$/;
+/** What the messages call the place a `gap` anchors into. */
+const OPEN_TODOS = 'status/open-todos/';
 const GAP_TODO = /^open-todos: (\S.*)$/;
 
 /**

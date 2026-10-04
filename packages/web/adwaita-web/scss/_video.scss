@@ -1,0 +1,146 @@
+// _video.scss — <gtk-video>: the overlay, the big circular play glyph, and the controls
+// bar that reveals itself for three seconds.
+//
+// libadwaita styles `GtkVideo` in ONE place, and it is three lines
+// (refs/libadwaita/src/stylesheet/widgets/_misc.scss:74-81):
+//
+//   video {
+//     & image.osd {
+//       min-width: 64px;
+//       min-height: 64px;
+//       border-radius: 32px;
+//     }
+//   }
+//
+// Those three values are kept VERBATIM below, and the reason they are interesting is that
+// they are a `.circular` button at a LARGER size: libadwaita's own circular button is 34px
+// with a 9999px radius (refs/libadwaita/src/stylesheet/widgets/_buttons.scss:311-319), and
+// the video's icon is 64px with a 32px radius — half its own width, which for a circle is
+// the same shape at twice the size. So the radius here is `min-width / 2` and not the 9999px
+// the button uses, and that difference is upstream's, not a porting shortcut.
+//
+// The `.osd` HALF is `%osd` (refs/libadwaita/src/stylesheet/_common.scss:43-60): the
+// on-screen-display surface — a translucent dark plate, a near-white foreground and the
+// accent colours recomputed to sit on it. `_style_classes.scss` already owns `.osd` for every
+// widget, so the icon here gets it for free and nothing in this partial restates it.
+//
+// The controls bar wears `.osd` AND `.bottom` (refs/gtk/gtk/ui/gtkvideo.ui). `.osd` is the
+// half with a rule — the same `%osd` surface — and `.bottom` is a PLACEMENT class with no
+// libadwaita rule anywhere: `grep` over `refs/libadwaita/src/stylesheet/` finds `bottom`
+// only on `bottom-sheet`, `bottom-bar`, `notebook.bottom` and `colorchooser.bottom`, none of
+// which is a video. It is GTK's own hint from the template and it is honoured here as the
+// vertical placement it plainly is — the bar sits at the end of the cross axis — with the
+// padding the `.osd` toolbar takes (12px, refs/libadwaita/src/stylesheet/widgets/
+// _toolbars.scss:96-100).
+//
+// THE REVEALER IS A TRANSITION, NOT A TOGGLE WITH A DELAY. `gtk_video_reveal_controls`
+// (gtkvideo.c:125-133) reveals a `GtkRevealer` and arms a 3 s timeout that hides it again,
+// and the motion controller re-arms on every movement — so the bar is out after three
+// seconds of stillness, not three seconds after the first movement, and the element's
+// `revealControls()` re-arms for the same reason. The `transition` below is the revealer's
+// own cross-fade, and `.revealed` is the only state selector: there is no `hidden` to fight
+// because the revealer never leaves the layout.
+//
+// `graphics-offload` HAS NO RULE, AND SAYS SO. `GtkGraphicsOffload` moves a subtree into a
+// shared GL texture so it and its neighbours composite on the GPU; CSS has no such
+// mechanism, so the class the element sets is deliberately UNSTYLED. A page may target it,
+// nothing in this package does, and the property is observed rather than listed as a gap in
+// `check-adwaita-element-properties.mjs` — the property is read and written faithfully, what
+// it does not buy is a faster composite.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss:74-81 (the whole GtkVideo
+//   block), _common.scss:43-60 (`%osd`), _buttons.scss:311-319 (`.circular`),
+//   _toolbars.scss:96-100 (`.toolbar.osd`)
+// Reference: refs/gtk/gtk/ui/gtkvideo.ui (the `.osd .circular` icon, the `.osd .bottom`
+//   controls, the 3 s reveal), gtkvideo.c:125-133
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-video {
+  position: relative;
+  display: block;
+  overflow: hidden;
+
+  // The overlay of ui/gtkvideo.ui: the media underneath, the icon over it, the revealer
+  // over that.
+  .adw-video-surface {
+    position: relative;
+    display: flex;
+
+    > video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  // `ui/gtkvideo.ui`'s `overlay_icon`: `halign`/`valign` 3, i.e. FILL, which is what makes
+  // it centred in an overlay on both axes — GTK's own `GTK_ALIGN_FILL` on an overlay child
+  // stretches it, and this is the web's answer for "fill the overlay and centre inside it".
+  .adw-video-overlay-icon {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+
+    // `min-width: 64px; min-height: 64px; border-radius: 32px` — libadwaita's own three
+    // lines for `video image.osd` (_misc.scss:76-80). The radius is half the width, which is
+    // the same shape `.circular` gives at 34px (_buttons.scss:311-319) at twice the size.
+    min-width: 64px;
+    min-height: 64px;
+    border-radius: 32px;
+
+    // `GtkImage`'s icon inside the button, and `icon-size` 2 in the template
+    // (ui/gtkvideo.ui) is GTK's dialog-scale — which is the 64px above.
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    // A GtkImage with `has-frame` unset inside an OSD plate: the plate IS the surface, so
+    // the button adds no background of its own.
+    background: none;
+    color: inherit;
+    cursor: pointer;
+
+    // `gtk_video_update_playing` (gtkvideo.c:665) sets the icon's VISIBILITY to
+    // `!playing`, so this is `visibility` rather than `display`: the icon keeps its box and
+    // the OSD plate under it is unaffected either way, which is what `[hidden]` would also
+    // give — but `hidden` is the UA rule and this one is the C's.
+    &[hidden] {
+      visibility: hidden;
+    }
+  }
+
+  // `ui/gtkvideo.ui`'s `controls_revealer`: a `GtkRevealer` with `valign` 2 (END) and
+  // `transition-type` 1 (CROSS-FADE), and `measure` 1 so the bar is allocated even while
+  // hidden — which is why this is an opacity transition and not `display: none`.
+  .adw-video-controls-revealer {
+    position: absolute;
+    inset: auto 0 0 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease-out;
+
+    &.revealed {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    // `.osd .bottom` (ui/gtkvideo.ui). The bar is `osd` — the `%osd` surface from
+    // `_common.scss:43-60` — with the padding a standalone OSD toolbar takes: 12px against
+    // the 6px of a plain one (_toolbars.scss:91-102).
+    gtk-media-controls {
+      padding: 12px;
+    }
+  }
+
+  // Playing hides the overlay icon and shows nothing over the frames. Declared as a class so
+  // a page can see the state without reading the icon's `hidden`, and because GTK's own state
+  // is a widget VISIBILITY (gtkvideo.c:665) rather than a style class.
+  &.playing .adw-video-overlay-icon {
+    pointer-events: none;
+  }
+
+  // `GtkVideo:graphics-offload` — deliberately UNSTYLED. See the header.
+}

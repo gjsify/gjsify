@@ -123,6 +123,13 @@ export interface AdwViewSwitcherPage {
     badgeNumber: number;
     /** `AdwViewStackPage:needs-attention` — default `false`, i.e. no dot. */
     needsAttention: boolean;
+    /**
+     * `AdwViewStackPage:starts-section` — default `false`. Only
+     * {@link viewSwitcherSidebarSections} reads it; every other switcher is flat.
+     */
+    startsSection: boolean;
+    /** `AdwViewStackPage:section-title` — the heading of the section the page opens. */
+    sectionTitle: string | null;
 }
 
 /** What a caller has to supply for a page: the name, plus whatever it knows. */
@@ -146,6 +153,8 @@ export function createViewSwitcherPage(init: AdwViewSwitcherPageInit): AdwViewSw
         useUnderline: init.useUnderline ?? false,
         badgeNumber: normalizeBadgeNumber(init.badgeNumber),
         needsAttention: init.needsAttention ?? false,
+        startsSection: init.startsSection ?? false,
+        sectionTitle: init.sectionTitle ?? null,
     };
 }
 
@@ -166,12 +175,45 @@ export function viewSwitcherPageFromStackPage(page: AdwViewStackPageInfo): AdwVi
         badgeNumber: page.badgeNumber,
         needsAttention: page.needsAttention,
         useUnderline: page.useUnderline,
+        startsSection: page.startsSection,
+        sectionTitle: page.sectionTitle,
     });
 }
 
 /** {@link viewSwitcherPageFromStackPage} over a whole page list. */
 export function viewSwitcherPagesFromStack(pages: readonly AdwViewStackPageInfo[]): AdwViewSwitcherPage[] {
     return pages.map((page) => viewSwitcherPageFromStackPage(page));
+}
+
+/** One section of a {@link viewSwitcherSidebarSections} grouping. */
+export interface ViewSwitcherSidebarSection {
+    /** `AdwViewStackPage:section-title` of the page that OPENED the section. */
+    readonly title: string;
+    /** The pages in it, in stack order. Never empty — C only appends a section it filled. */
+    readonly pages: readonly AdwViewSwitcherPage[];
+}
+
+/**
+ * `populate_sidebar` (adw-view-switcher-sidebar.c:225-243), which is the ONE thing that
+ * makes `AdwViewSwitcherSidebar` a switcher: every other Adw switcher is one flat row of
+ * buttons, and this one groups a stack's pages into `AdwSidebarSection`s.
+ *
+ * Two rules, both of them C:
+ *   · a page with `starts-section` OPENS a section; the page BEFORE it is flushed first,
+ *     and the FIRST page opens one whatever it says — the `!section` test is C's own
+ *     (`if (!section || adw_view_stack_page_get_starts_section (page))`, :232);
+ *   · the heading is the opening page's `section-title`, bound with `G_BINDING_SYNC_CREATE`
+ *     (:237), so a page that opens a section WITHOUT a title gets the separator header —
+ *     the same empty-title rule `AdwSidebar`'s own sections follow.
+ */
+export function viewSwitcherSidebarSections(pages: readonly AdwViewSwitcherPage[]): ViewSwitcherSidebarSection[] {
+    const sections: { title: string; pages: AdwViewSwitcherPage[] }[] = [];
+    for (const page of pages) {
+        const starts = sections.length === 0 || page.startsSection === true;
+        if (starts) sections.push({ title: page.sectionTitle ?? '', pages: [page] });
+        else (sections[sections.length - 1] as { title: string; pages: AdwViewSwitcherPage[] }).pages.push(page);
+    }
+    return sections;
 }
 
 /**

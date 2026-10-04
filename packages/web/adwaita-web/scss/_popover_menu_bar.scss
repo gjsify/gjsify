@@ -1,0 +1,104 @@
+// _popover_menu_bar.scss — <gtk-popover-menu-bar>: a horizontal bar of items that pop up
+// a menu when clicked.
+//
+// libadwaita styles `menubar` in ONE place — the tail of `_menus.scss:244-269`, beside the
+// `popover.menu` rules rather than in a file of its own — so this partial holds that block
+// and nothing else. The values are libadwaita's:
+//
+//   menubar                  box-shadow: inset 0 -1px $border_color; padding-bottom: 1px;
+//   menubar > item           min-height: 16px; padding: 4px 8px;
+//                            border-radius: $button_radius (9px, `_common.scss:8`);
+//   menubar > item:selected  background-color: $selected_color, plus the
+//                            `prefers-contrast: more` inset hairline.
+//
+// `:selected` is GTK's keyboard-highlight pseudo-class, which has no DOM counterpart: it is
+// the SELECTED item (`set_active_item` sets and unsets `GTK_STATE_FLAG_SELECTED`,
+// gtkpopovermenubar.c:145-152), and this package spells it `.selected` for the same reason
+// `.checked` stands in for `:checked` elsewhere. The hover and focus states are this
+// element's own addition, not libadwaita's: the upstream rule keys only on `:selected`
+// (with the comment "seems like it :hover even with keyboard focus"), and a DOM item takes
+// real focus where a GTK item is merely highlighted, so without them a keyboard reader would
+// see nothing move at all.
+//
+// NOTHING ELSE IS HERE, and the omissions are load-bearing. Each item's popover is a
+// `<gtk-popover-menu>`, so its surface, its 15px radius and its item rows are
+// `_popover.scss`'s — which is the point of this partial being small. The NESTED SUBMENU
+// rules libadwaita adds under `> item` (`popover.menu popover.menu` drops its top radius,
+// _menus.scss:257-263) are NOT ported: they exist to flatten the seam where two popovers
+// OVERLAP, and this port's surfaces never do — placement is the `position`/`align` pair
+// with a 6px gap, so there is no seam to flatten.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss:244-269 (`menubar`)
+// Reference: refs/libadwaita/src/stylesheet/_common.scss:8 ($button_radius)
+// Reference: refs/gtk/gtk/gtkpopovermenubar.c:38-51 (the node tree and `.active`)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+
+// Modifications: Adapted for the @gjsify/adwaita-web light-DOM custom elements —
+//   `menubar > item` becomes `.adw-popover-menu-bar-item`, whose BUTTON is the `item`, and
+//   `:selected` becomes `.selected`.
+
+.adw-popover-menu-bar {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  box-shadow: inset 0 -1px var(--separator-color, rgba(0, 0, 0, 0.15));
+  padding-bottom: 1px;
+
+  // The wrapper carries GTK's `item` NODE, which is the positioning context the popover
+  // hangs off — `<gtk-popover>` places itself against `parentElement`, and this is it.
+  .adw-popover-menu-bar-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .adw-popover-menu-bar-button {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    min-height: 16px;
+    padding: 4px 8px;
+    margin: 0;
+    border: none;
+    border-radius: var(--button-radius);
+    background-color: transparent;
+    color: inherit;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+
+    // The two states libadwaita and the DOM each contribute: `.selected` for GTK's
+    // `:selected`, `:hover`/`:focus` because a DOM item takes focus where a GTK item is
+    // merely highlighted.
+    &.selected,
+    &:hover,
+    &:focus {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+
+    @media (prefers-contrast: more) {
+      &.selected,
+      &:hover,
+      &:focus,
+      &:active {
+        box-shadow: inset 0 0 0 1px var(--separator-color);
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+  }
+
+  // `.active` is the item whose POPOVER IS OPEN, not the selected one
+  // (gtkpopovermenubar.c:50-51), so hovering the bar selects without lighting anything and
+  // the bar looks lit exactly while its menu is up.
+  .adw-popover-menu-bar-item.active > .adw-popover-menu-bar-button {
+    background-color: var(--button-active-color);
+  }
+}

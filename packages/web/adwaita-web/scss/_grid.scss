@@ -1,0 +1,19 @@
+// _grid.scss — <gtk-grid>: a table of cells, sized by what is in them.
+//
+// libadwaita styles the `grid` node nowhere — the grid has no node of its own beyond what
+// GtkGridLayout builds — so this partial is `display: grid` and the one default worth
+// stating: a child written without a position is attached along the columns, which is
+// `grid-auto-flow: row` (`gtk_grid_buildable_add_child`, gtkgrid.c:493-507).
+//
+// Everything else is per-instance and inline, because a selector cannot key on a number:
+// the two spacings, the two `homogeneous` flags and the orientation all go on the element
+// as `row-gap` / `column-gap` / `grid-auto-rows` / `grid-auto-columns` / `grid-auto-flow`.
+//
+// Reference: refs/gtk/gtk/gtkgrid.c:493-507
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-grid {
+  display: grid;
+  grid-auto-flow: row;
+}

@@ -1,0 +1,80 @@
+// _picture.scss — <gtk-picture>: the fit box, and the isolation boundary.
+//
+// libadwaita has NO `_picture.scss` of its own. Its only `picture` rule is a conditional
+// inside a card's selector (`refs/libadwaita/src/stylesheet/widgets/_tab-view.scss:216`,
+// `&.card > picture`), because a picture needs no styling of its own until a card asks for
+// rounded corners. So everything structural below comes from the C, and the header of
+// `gtk-picture.ts` says which C.
+//
+// WHY `object-fit` GOES ON THE CHILD AND NOT HERE. The four `GtkContentFit` members ARE
+// the four CSS `object-fit` values, including `scale-down` (gtkpicture.c:162-167), so the
+// mapping is exact rather than approximate — but `object-fit` applies to a REPLACED element's
+// content box, and `<gtk-picture>` is a `<div>` with no content of its own. The element
+// therefore writes `--gtk-picture-content-fit` and this rule hands it down with the explicit
+// `inherit` keyword, which takes the parent's computed value whether or not the property is
+// an inherited one.
+//
+// `can-shrink` IS THE MEASURE, AND `min-content` IS ITS OPPOSITE. A picture that may shrink
+// reports a minimum of ZERO on both axes whatever the paintable is (gtkpicture.c:245-248);
+// a picture that may not asks the paintable for a CONCRETE minimum — its own minimum at the
+// style's icon size (gtkpicture.c:249-254) — which is what `min-content` is for a replaced
+// element with an intrinsic size. The class is set from the NORMALIZED property, so a
+// `can-shrink="false"` attribute and `canShrink = false` agree, and an absent attribute is
+// TRUE (the C's own default, gtkpicture.c:554) rather than falling into the `min-content`
+// branch by accident.
+//
+// `isolation: isolate` IS `gtk_snapshot_push_isolation`. The property brackets the snapshot
+// (gtkpicture.c:148-149, :203-204), which stops the paintable's alpha compositing against
+// whatever is behind the widget WITHOUT changing how the widget is positioned or sized —
+// `contain: paint` would also establish a boundary and would additionally make the element a
+// containing block for fixed and absolutely positioned descendants, which
+// `push_isolation` does not do.
+//
+// `overflow: hidden` is not a styling choice: it is `gtk_widget_set_overflow (widget,
+// GTK_OVERFLOW_HIDDEN)` in `init` (gtkpicture.c:557), which is what makes `cover` clip its
+// overflow instead of painting outside the box.
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-view.scss:216 (the only upstream
+//   `picture` rule, a card's conditional rounded corner)
+// Reference: refs/gtk/gtk/gtkpicture.c:146-205,245-254,538-557
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-picture {
+  display: inline-flex;
+
+  // `gtk_widget_set_overflow (widget, GTK_OVERFLOW_HIDDEN)` (gtkpicture.c:557).
+  overflow: hidden;
+
+  // `GtkPicture:isolate-contents` (gtkpicture.c:538-549, :555) as the stacking boundary
+  // `gtk_snapshot_push_isolation` creates (gtkpicture.c:148-149).
+  isolation: isolate;
+
+  // The content fit, handed to the replaced child below. `fill` is the C's first branch
+  // (gtkpicture.c:146) and the initial value of the custom property, so a picture with no
+  // `content-fit` written yet and no stylesheet loaded behaves like the C's default arm
+  // rather than like a broken one.
+  --gtk-picture-content-fit: fill;
+
+  &:not(.can-shrink) {
+    // `gtk_picture_measure`'s `else` arm (gtkpicture.c:249-254): the paintable's own
+    // concrete minimum, which is `min-content` for a replaced element.
+    min-width: min-content;
+    min-height: min-content;
+  }
+
+  // The four `GtkContentFit` members are the four CSS values (gtkpicture.c:146-205). The
+  // replaced-element list is what `GdkPaintable` can stand in for here: an image, a video
+  // frame (which is exactly what `<gtk-video>` puts inside its own picture), a canvas, an
+  // inline SVG.
+  > :is(img, video, canvas, picture, svg) {
+    object-fit: var(--gtk-picture-content-fit);
+
+    // The element is `display: inline-flex`, so a replaced child is a flex item and gets
+    // `min-width: auto` — the same "never smaller than my content" floor a flex row gives,
+    // which would defeat `can-shrink` before `min-content` was ever consulted.
+    min-width: 0;
+    min-height: 0;
+  }
+}

@@ -1,0 +1,125 @@
+// _inscription.scss — <gtk-inscription>: a flex row whose two pseudo-elements are `xalign`,
+// and whose four custom properties are the size request the C measures in characters and
+// lines.
+//
+// `GtkInscription`'s CSS NAME IS `label` (gtkinscription.c:780), so libadwaita's whole
+// `label {}` cascade reaches it — which means there is no `inscription` block in
+// `refs/libadwaita/src/stylesheet/` to port and none is invented here. `_labels.scss` already
+// styles every class on this node (`.dimmed`, `.numeric`, `.title-1`), and the element
+// carries the same two of those: the `tnum` in `text-overflow` is the label's own.
+//
+// THE FOUR COUNTS ARE `ch` AND `lh`, NOT PIXELS. `gtk_inscription_measure_width` multiplies
+// `min_chars` by the font's average character width and returns
+// `MAX (min_chars, nat_chars)` for the natural (gtkinscription.c:347-348);
+// `measure_height` does the same over a line height (gtkinscription.c:383-384). CSS `ch` IS
+// the advance width of the `0` glyph — the same "average character" Pango measures — and `lh`
+// IS the line box, which is `line_pixels`. So the element sets these four and this rule
+// applies them; `--gtk-inscription-width` carries the `MAX` because
+// `labelWidthCharsExtent` already encodes it in `@gjsify/adwaita-core`.
+//
+// THE `auto` FALLBACK IS THE ZERO CASE, AND IT IS NOT THE SAME AS `0`. Both measures
+// return NOTHING when the two counts are zero at once (gtkpicture's sibling,
+// gtkinscription.c:344-345, :378-379) — the inscription does not participate in sizing, and
+// its minimum is whatever the widget already had. `min-width: 0ch` would be a very
+// different, much smaller widget, so the element writes `auto` and this rule leaves the
+// declaration off entirely when it sees it.
+//
+// `xalign`'s SPACERS. GTK places the text at `xalign * (width − text width)` inside the
+// allocation (the same `gtk_label_get_layout_location` arithmetic, transcribed for this
+// widget in `gtk-inscription.ts`'s header). Flexbox's `flex-grow` takes a ratio, so
+// splitting the free space between `::before` and `::after` in the ratio
+// `xalign : 1 − xalign` IS that formula. The default is 0 (gtkinscription.c:67, :791), so
+// out of the box `::before` has zero growth and all the free space lands before the text —
+// which is what a caption under a centred icon wants, with no flex rule of its own.
+//
+// `yalign` IS `--gtk-inscription-align-items`, NOT A SECOND SPACER PAIR. CSS gives
+// `align-items` three keywords and no continuum the way `flex-grow` gives `xalign` one, and
+// `labelYalignAlignItems` (`@gjsify/adwaita-core`) maps to the nearest of the three. That
+// is a DECLARED divergence and `_labels.scss`'s header states it at length for
+// `<gtk-label>`; it is the same declaration here and is not re-argued.
+//
+// `white-space: pre` BECAUSE THE STRING IS TEXT AND A NEWLINE IS A NEWLINE. Pango keeps a
+// newline and a run of spaces, and an inscription that does not wrap is as wide as its
+// text. There is no `[wrap]` attribute on this widget — unlike `<gtk-label>`, an inscription
+// always has a box to lay out in, because that is what it is FOR — so `pre-wrap` is the
+// base rule and `white-space: pre` is not needed at all. The wrap-mode rules below change
+// where a line MAY break, which is a different question from whether one exists.
+//
+// `overflow-wrap: anywhere` IS THE DEFAULT HERE, NOT AN OPT-IN. The pspec says so in its own
+// comment (gtkinscription.c:738-740): unlike `GtkLabel`, the default is
+// `PANGO_WRAP_WORD_CHAR`, because an inscription reserves a box of a known character count
+// and a word longer than that box has to break inside it. `word` therefore needs a rule to
+// turn the default OFF, and `char` needs one to break anywhere. This is the reverse of
+// `_labels.scss`, where `word` is the browser's un-overridden behaviour and needs none —
+// a deliberate inversion, and the reason it reads the other way round.
+//
+// `text-overflow` NEEDS A BOX, WHICH IS WHY `overflow` IS NOT `visible`. CSS only ellipsises
+// a block container with a constrained width, so the same `overflow: hidden` `_labels.scss`
+// puts on its clamp is here — unconditionally, because `text-overflow` is a property of
+// this widget with `clip` as its default rather than an ellipsize a label opts into. With
+// `clip` the value `labelEllipsizeOverflowValue` supplies is `clip`, so nothing disappears
+// silently; with any of the three `ellipsize-*` members it is `ellipsis`, the one truncating
+// value CSS has, which is the declared `start`/`middle` divergence
+// `labelEllipsizeOverflowValue`'s own doc comment carries.
+//
+// Reference: refs/gtk/gtk/gtkinscription.c:59-69,338-412,726-777,780
+// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss (the `label {}` cascade this
+//   widget's CSS name selects)
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-inscription {
+  display: flex;
+
+  // `gtk_inscription_measure_width`/`_height` in `ch` and `lh`
+  // (gtkinscription.c:347-348, :383-384), with the element's `auto` standing for the C's
+  // "both counts are zero, this widget does not participate in sizing" case
+  // (gtkinscription.c:344-345, :378-379).
+  min-width: var(--gtk-inscription-min-ch, auto);
+  width: var(--gtk-inscription-width, auto);
+  min-height: var(--gtk-inscription-min-lh, auto);
+  height: var(--gtk-inscription-height, auto);
+
+  // `--gtk-inscription-align-items` is `labelYalignAlignItems` — nearest-of-three, the
+  // DECLARED divergence `_labels.scss`'s header explains.
+  align-items: var(--gtk-inscription-align-items, center);
+
+  // An inscription always has a box, so it always wraps; `white-space: pre-wrap` keeps a
+  // newline and a run of spaces as Pango does while still honouring the wrap below.
+  white-space: pre-wrap;
+  // CSS ellipsises only inside a box with a constrained width.
+  overflow: hidden;
+  text-overflow: var(--gtk-inscription-text-overflow, clip);
+
+  // GTK's `xalign * (width − text width)`, as a `flex-grow` ratio pair.
+  &::before,
+  &::after {
+    content: '';
+    flex-shrink: 1;
+    flex-basis: 0;
+  }
+
+  &::before {
+    flex-grow: var(--gtk-inscription-xalign, 0);
+  }
+
+  &::after {
+    flex-grow: calc(1 - var(--gtk-inscription-xalign, 0));
+  }
+
+  // `PANGO_WRAP_WORD_CHAR` is the pspec DEFAULT (gtkinscription.c:738-740), so `anywhere`
+  // is the base rule and the other two nicks are the overrides — the reverse of
+  // `_labels.scss`, where `word` is the browser's own behaviour.
+  overflow-wrap: anywhere;
+
+  &[wrap-mode='word'] {
+    overflow-wrap: normal;
+  }
+
+  // Pango's CHAR is "break anywhere", which is CSS `break-all` — the same mapping
+  // `_labels.scss:112-126` states for `<gtk-label>`, from the same two CSS declarations.
+  &[wrap-mode='char'] {
+    word-break: break-all;
+  }
+}

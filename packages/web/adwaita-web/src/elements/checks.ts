@@ -17,12 +17,36 @@
 //   - {@link resolveCheckState} — indeterminate outranks checked, read off the cascade
 //     in libadwaita's `_checks.scss`, and what `aria-checked` needs.
 //
-// NOT DERIVED FROM GTK. `GtkCheckButton` is a GTK widget and libadwaita has no
-// `adw-checkbox.c`, so its group semantics (`gtk_check_button_set_group`, whether a
-// fresh group starts with a member active) and the exact meaning of
-// `GtkCheckButton:inconsistent` are not guessed at. Where a rule was needed the HTML
-// one is used and cited as such — clearing `indeterminate` on activation is the HTML
-// pre-click activation step, not a reading of GTK.
+// WHAT C SAYS, NOW THAT IT IS READABLE. `GtkCheckButton` is a GTK widget and libadwaita
+// has no `adw-checkbox.c`, so everything here is read off
+// `refs/gtk/gtk/gtkcheckbutton.c`:
+//
+//   · The state attribute is `checked`, not GIR's `active` (gtkcheckbutton.c:647-658),
+//     and the third state is `indeterminate`, not GIR's `inconsistent` (:680-691) — the
+//     CSS node GTK raises is `GTK_STATE_FLAG_INCONSISTENT` (:871-880) and libadwaita
+//     styles `.adw-check-indicator:indeterminate`, so the browser names both states the
+//     way the cascade reads them.
+//   · `inconsistent` OUTRANKS `active`, and that is not an inference:
+//     `update_accessible_state` tests inconsistent first and only then active
+//     (:409-426). {@link resolveCheckState} is that order.
+//   · A grouped check button is a check button with `group` set: GTK then names the
+//     indicator node `radio` instead of `check` and raises
+//     `GTK_ACCESSIBLE_ROLE_RADIO` on BOTH members (gtkcheckbutton.c:99-108, :1115,
+//     :1140-1141) — which is why `<adw-radio>` is this same class with a different
+//     `inputType`.
+//   · The active member of a group cannot be clicked off: both the gesture handler and
+//     `real_activate` return early when the button is active AND has a group neighbour
+//     (:395-396, :617-622). `<adw-radio>` gets this from `RadioGroupState`, and
+//     `<gtk-check-button>` cannot reach a group at all here.
+//
+// ONE PLACE THIS PORT DIVERGES, DELIBERATELY AND CITED. GTK does NOT clear
+// `inconsistent` when the user activates the button — `real_activate` only flips
+// `active` (gtkcheckbutton.c:617-628) and the property's own documentation says turning
+// the inconsistent state off again "has to be done manually" (:855-856). HTML's
+// pre-click activation steps clear `indeterminate` before the toggle, and this element
+// wraps a real `<input>`, so the clear happens for us. That is the HTML spec's rule, not
+// a reading of GTK, and it is the one behaviour an application cannot observe a
+// difference over: the result is a definite state either way.
 //
 // NAMING. The state attribute is `checked`, not GtkCheckButton's `active`:
 // these elements wrap a real `<input>`, `checked` is the spelling every author
@@ -53,9 +77,11 @@
 // indeterminate state announces as `mixed` for BOTH — HTML has a native mixed
 // checkbox (`input.indeterminate`) but no mixed radio.
 //
+// Reference: refs/gtk/gtk/gtkcheckbutton.c:99-112,395-426,617-628,647-714,773-774,849-886,925-974
 // Reference: refs/libadwaita/src/stylesheet/widgets/_checks.scss
 // Reference: refs/adwaita-web/adwaita-web/scss/{_checkbox,_radio}.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Copyright (c) The GTK Team. LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Implemented as Web Components for @gjsify/adwaita-web.
 
@@ -211,8 +237,9 @@ export class GtkCheckButton extends AdwCheckBase {
 
     protected activate(): void {
         // HTML's pre-click activation steps clear `indeterminate` before the toggle, so a
-        // user can always reach a definite state. That rule is the HTML spec's, not a
-        // reading of `GtkCheckButton:inconsistent`.
+        // user can always reach a definite state. GTK does NOT: `gtk_check_button_real_activate`
+        // only flips `active` (gtkcheckbutton.c:617-628) and says turning the inconsistent
+        // state off again "has to be done manually" (:855-856). This is the HTML rule.
         this.indeterminate = false;
         this.checked = !this.checked;
     }

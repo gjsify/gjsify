@@ -161,16 +161,27 @@ const COLLECTION_CENSUS = {
     'NativeScript/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
     'NativeScript/gtk-drop-down': ['ComboState.setModel'],
     'browser/adw-combo-row': ['ComboState.setModel', 'attr:model'],
+    'browser/gtk-column-view': ['attr:columns'],
+    'browser/gtk-list-view': ['ListViewState.setModel', 'attr:model'],
     'browser/adw-data-grid': ['attr:columns', 'attr:rows'],
     'browser/adw-inline-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-navigation-view': ['NavigationViewState.replaceWithTags'],
     'browser/adw-sidebar': ['SidebarState.setSections'],
     'browser/adw-split-button': ['SplitButtonState.setMenuModel', 'attr:menu-model'],
     'browser/adw-toggle-group': ['ToggleGroupState.setLabels'],
+    'browser/adw-application-window': ['attr:menu-model'],
     'browser/gtk-menu-button': ['attr:menu-model'],
+    // The three popovers whose content is a MENU. `GtkPopoverMenu` parses the attribute
+    // through the same core parser the menu button uses (ADR 0042) and has no state class
+    // of its own — `PopoverMenuView` holds the model — so `attr:menu-model` is the whole
+    // entry, exactly as it is for `<gtk-menu-button>`.
+    'browser/gtk-popover-menu': ['attr:menu-model'],
+    'browser/gtk-popover-menu-bar': ['attr:menu-model'],
+    'browser/gtk-popover-bin': ['attr:menu-model'],
     'browser/adw-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
     'browser/gtk-drop-down': ['ComboState.setModel', 'attr:model'],
+    'browser/adw-tab-overview': ['attr:secondary-menu'],
 };
 
 function fail(lines) {

@@ -1,0 +1,88 @@
+// _list_box.scss — <gtk-list-box> and its rows, the elements GTK names `list` and `row`.
+//
+// The `list` NODE and the `row` NODE, because upstream writes them as one block and because
+// libadwaita styles them against EACH OTHER: the separator rule is
+// `&.separators:not(.horizontal) > row:not(.separator)` (_lists.scss:29-32), which is a rule
+// about the list's class and the row's own — a port that styled the rows alone could not
+// express it at all.
+//
+// `<gtk-list-box>` IS NOT AN ORIENTABLE, which is worth the header repeating: `GtkListBase` is
+// (gtklistbase.c:2070) and `<gtk-list-view>` therefore takes an `orientation`, while
+// `GtkListBox` has no such property and its rows always run down. So the
+// `&.horizontal` arm of the upstream separator rule has no counterpart here, and the partial
+// draws only the vertical half.
+//
+// The colour tokens are libadwaita's own, spelled with this package's variables:
+// `$view_hover_color` is `currentColor 4%`, `$view_active_color` `currentColor 8%` and
+// `$view_selected_color` `var(--accent-bg-color) 25%` (_colors.scss:263-276).
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss:5-38 (list), :47-95 (row)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-list-box {
+  display: block;
+  box-sizing: border-box;
+  color: var(--view-fg-color);
+  background-color: var(--view-bg-color);
+  background-clip: padding-box;
+
+  // `listview, list { border-color: $border_color }` (_lists.scss:10) — the upstream rule
+  // names a COLOUR and nothing else, because GTK draws a border only where a width or a
+  // style is set alongside it. So a bare list has no frame, and that is what this is: the
+  // frame used to sit here unconditionally, which made every list read as a card where
+  // libadwaita draws one only for `list.boxed-list` (_lists.scss:520) — `Adw.PreferencesGroup`
+  // carries that one, through `%card` (_preferences.scss:83), so nothing needed it here.
+  border-color: var(--border-color);
+
+  &.view:disabled {
+    color: var(--view-fg-color);
+  }
+}
+
+gtk-list-box-row {
+  display: block;
+  box-sizing: border-box;
+  background-clip: padding-box;
+  // `listview > row { padding: 2px }` (_lists.scss:16-19).
+  padding: 2px;
+
+  &.activatable {
+    cursor: pointer;
+  }
+
+  &:hover {
+    background-color: color-mix(in srgb, currentColor 4%, transparent);
+  }
+
+  &:active {
+    background-color: color-mix(in srgb, currentColor 8%, transparent);
+  }
+
+  // `row &:selected { background-color: $view_selected_color }` (_lists.scss:92-94), with the
+  // hover and active shades over it (_lists.scss:83-89).
+  &.selected {
+    background-color: color-mix(in srgb, var(--accent-bg-color) 25%, transparent);
+  }
+
+  &.selected:hover {
+    background-color: color-mix(in srgb, var(--accent-bg-color) 40%, transparent);
+  }
+
+  &.selected:active {
+    background-color: color-mix(in srgb, var(--accent-bg-color) 50%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+  }
+}
+
+// `.separators` is the class GTK adds for `show-separators` (gtklistbox.c:4127-4134), and the
+// rule goes on every row but the last — upstream `> row:not(.separator)`, and a
+// `<gtk-separator>` row is not one, so the port's `:last-child` is the same exclusion without
+// giving the separator a class GTK would then have to know about.
+gtk-list-box.separators > gtk-list-box-row:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}

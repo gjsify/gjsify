@@ -1,0 +1,25 @@
+// _aspect_frame.scss — <gtk-aspect-frame>: draws NOTHING, it only sizes and places.
+//
+// libadwaita has no rule for the `aspectframe` node (its stylesheet never names it), and
+// neither should this: the widget paints no border, no background and no frame, because
+// `gtk_aspect_frame_size_allocate` gives its child one allocation of the requested shape
+// and puts that box at (`xalign`, `yalign`) — gtakaspectframe.c:561-587. That allocation
+// IS the widget.
+//
+// What is left to CSS is the placing, and all of it is per-INSTANCE: the element writes
+// `justify-content` and `align-items` from `xalign` / `yalign` and the child's
+// `aspect-ratio`, `max-width` and `max-height` inline, because a stylesheet cannot key on a
+// fraction. So this partial is the flex container and nothing else.
+//
+// Reference: refs/gtk/gtk/gtkaspectframe.c:561-587
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-aspect-frame {
+  display: flex;
+  // The child's shape and both alignments are written INLINE by the element, because a
+  // stylesheet cannot key on a fraction; these are the values in the frame before it does,
+  // which are also the pspec defaults for `xalign` and `yalign`.
+  justify-content: center;
+  align-items: center;
+}

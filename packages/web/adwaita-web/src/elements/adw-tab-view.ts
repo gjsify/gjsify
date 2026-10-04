@@ -45,21 +45,27 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // tab icon + indicator nodes are <gtk-image>.
 
-import { TabViewState, tabCloseVisible, tabIconState, tabTooltip, tabsRevealed } from '@gjsify/adwaita-core';
+import { TabViewState, tabsRevealed } from '@gjsify/adwaita-core';
 import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelectionChange } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
-import { type GtkImage, createGtkImage } from './gtk-image.js';
+import { type TabChip, createTabChip, refreshTabChip, refreshTabChipClose, scrollChipIntoBar } from '../tab-chip.js';
 
 export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
 
 export type AdwTabViewPageSpec = AdwTabPageSpec<HTMLElement>;
 
 /** The live `<adw-tab-page>` properties, each mapped onto a state setter. */
-const PAGE_ATTRIBUTES = ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'];
-
-/** `SPACING`: the slack `scroll_to_tab_full` allows before it scrolls (adw-tab-box.c:24). */
-const TAB_SPACING = 5;
+const PAGE_ATTRIBUTES = [
+    'title',
+    'tooltip',
+    'icon',
+    'indicator-icon',
+    'keyword',
+    'loading',
+    'needs-attention',
+    'pinned',
+];
 
 /**
  * A single page. Declared as a child of <adw-tab-view>; the element itself becomes the
@@ -109,6 +115,8 @@ export class AdwTabView extends HTMLElement {
     private readonly _pagesEl: HTMLDivElement;
     /** Tab chips keyed by page id — the bar is edited in place, never rebuilt. */
     private readonly _tabs = new Map<string, HTMLButtonElement>();
+    /** The same chips as {@link _tabs}, held as the shared builder's parts for a refresh. */
+    private readonly _chips = new Map<string, TabChip>();
     /** Page panels keyed by page id; kept so a DETACHED page's node is still reachable. */
     private readonly _panels = new Map<string, HTMLElement>();
     private readonly _hovered = new Set<string>();
@@ -257,6 +265,9 @@ export class AdwTabView extends HTMLElement {
                 return;
             case 'indicator-icon':
                 this._state.setPageIndicatorIcon(id, value);
+                return;
+            case 'keyword':
+                this._state.setPageKeyword(id, value);
                 return;
             case 'loading':
                 this._state.setPageLoading(id, value !== null);
@@ -428,8 +439,23 @@ export class AdwTabView extends HTMLElement {
         return this._state.setPageTooltip(id, tooltip);
     }
 
+    /**
+     * Set a page's search keyword (`AdwTabPage:keyword`) — the string the tab overview's
+     * search matches on beside the title and the tooltip ("Use keywords to search in
+     * e.g. page URLs in a web browser", adw-tab-overview.c:1646-1648).
+     */
+    setPageKeyword(id: string, keyword: string | null): boolean {
+        return this._state.setPageKeyword(id, keyword);
+    }
+
+    /** Set a page's icon name (`adw_tab_page_set_icon`). */
     setPageIcon(id: string, icon: string | null): boolean {
         return this._state.setPageIcon(id, icon);
+    }
+
+    /** Set a page's indicator icon (`adw_tab_page_set_indicator_icon`). */
+    setPageIndicatorIcon(id: string, indicatorIcon: string | null): boolean {
+        return this._state.setPageIndicatorIcon(id, indicatorIcon);
     }
 
     setPageLoading(id: string, loading: boolean): boolean {
@@ -488,6 +514,7 @@ export class AdwTabView extends HTMLElement {
             case 'detached': {
                 this._tabs.get(change.id)?.remove();
                 this._tabs.delete(change.id);
+                this._chips.delete(change.id);
                 this._hovered.delete(change.id);
                 // The page is already out of the model, so its node has to come
                 // from here rather than from `getPage(id)?.content`.
@@ -516,64 +543,28 @@ export class AdwTabView extends HTMLElement {
     }
 
     private _insertTab(page: AdwTabViewPage, position: number): void {
-        const tab = document.createElement('button');
-        tab.type = 'button';
-        tab.className = 'adw-tab';
-        tab.setAttribute('role', 'tab');
-        tab.dataset.pageId = page.id;
-
-        // Decorative mask-image nodes — <gtk-image> carries the convention, including the
-        // `-symbolic` strip, which is ours and not C's: there the name reaches
-        // `GtkImage` untouched.
-        const icon = createGtkImage(null, 'adw-tab-icon');
-        tab.appendChild(icon);
-
-        // `AdwTabPage:loading` swaps the icon image for an `AdwSpinnerPaintable` — the
-        // SAME paintable `Adw.Spinner` uses (`update_icons`). So this is a real
-        // `<adw-spinner>` in the icon's slot, not a ring drawn again in CSS: a CSS copy
-        // inherits every spinner defect independently.
-        const spinner = document.createElement('adw-spinner');
-        spinner.className = 'adw-tab-spinner';
-        spinner.setAttribute('size', '16');
-        spinner.hidden = true;
-        tab.appendChild(spinner);
-
-        const label = document.createElement('span');
-        label.className = 'adw-tab-title';
-        tab.appendChild(label);
-
-        tab.appendChild(createGtkImage(null, 'adw-tab-indicator'));
-
-        // Close affordance — a small flat button drawn with a CSS "×" glyph. NOT because
-        // the glyph is unavailable: `window-close` is in the ICONS map and has a mask class
-        // (the comment that used to stand here said otherwise, and was read by two more
-        // widgets). It is a SIZING difference — upstream's close button is 24px around a
-        // 16px symbolic (adw-tab.ui:77), this strip's chip budgets 18px, and a 16px-grid
-        // symbolic scaled into it is a design change, not a rename.
-        // `can-focus=False` in C, so it stays out of the tab order here too.
-        const close = document.createElement('button');
-        close.type = 'button';
-        close.className = 'adw-tab-close';
-        close.tabIndex = -1;
-        close.setAttribute('aria-label', 'Close tab');
-        close.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this._state.closePage(page.id);
+        // The chip itself is the shared one (`../tab-chip.js`), which `<adw-tab-bar>` builds
+        // too — the five nodes, their classes and every derivation off the page live there,
+        // and what is left here is this widget's own business: where the chip goes in the
+        // strip, which page it answers to, and the close affordance's focus policy.
+        const chip = createTabChip({
+            onSelect: () => this._state.setSelectedPage(page.id),
+            onClose: () => this._state.closePage(page.id),
+            onHover: (hovering) => {
+                if (hovering) this._hovered.add(page.id);
+                else this._hovered.delete(page.id);
+                this._refreshCloseVisibility(page.id);
+            },
         });
-        tab.appendChild(close);
+        chip.el.dataset.pageId = page.id;
+        // `can-focus=False` in C (adw-tab.ui:77), and it lives in the WIDGET rather than in
+        // the shared builder because the roving obligation belongs to the file that
+        // registers the arrow keys — see scripts/check-adwaita-keyboard-contract.mjs.
+        chip.close.tabIndex = -1;
 
-        tab.addEventListener('click', () => this._state.setSelectedPage(page.id));
-        tab.addEventListener('pointerenter', () => {
-            this._hovered.add(page.id);
-            this._refreshCloseVisibility(page.id);
-        });
-        tab.addEventListener('pointerleave', () => {
-            this._hovered.delete(page.id);
-            this._refreshCloseVisibility(page.id);
-        });
-
-        this._tabBoxEl.insertBefore(tab, this._tabBoxEl.children[position] ?? null);
-        this._tabs.set(page.id, tab);
+        this._tabBoxEl.insertBefore(chip.el, this._tabBoxEl.children[position] ?? null);
+        this._tabs.set(page.id, chip.el);
+        this._chips.set(page.id, chip);
 
         const panel = page.content;
         if (panel) {
@@ -600,79 +591,25 @@ export class AdwTabView extends HTMLElement {
         const page = this._state.getPage(id);
         const tab = this._tabs.get(id);
         if (!page || !tab) return;
-
-        const label = tab.querySelector('.adw-tab-title') as HTMLElement | null;
-        if (label) label.textContent = page.title;
-        // The tooltip is Pango MARKUP when the page sets one of its own. The DOM `title`
-        // attribute is a TEXT sink, so the markup is shown verbatim rather than pushed
-        // through an HTML sink — interpreting it would execute page-supplied markup.
-        tab.title = tabTooltip(page);
-        tab.classList.toggle('pinned', page.pinned);
-        tab.classList.toggle('needs-attention', page.needsAttention);
-        tab.classList.toggle('closing', page.closing);
-
-        const icons = tabIconState(page, this.getAttribute('default-icon'));
-        const icon = tab.querySelector('.adw-tab-icon') as GtkImage | null;
-        if (icon) {
-            icon.iconName = icons.icon;
-            // The two occupy the same slot and are never both visible: C
-            // REPLACES the image's contents rather than stacking a second node.
-            icon.hidden = !icons.iconVisible || icons.spinner;
-        }
-        const spinner = tab.querySelector('.adw-tab-spinner') as HTMLElement | null;
-        // The spinner is mounted only while it spins, so an idle tab holds no
-        // element in the shared rAF ticker.
-        if (spinner) spinner.hidden = !(icons.spinner && icons.iconVisible);
-        const indicator = tab.querySelector('.adw-tab-indicator') as GtkImage | null;
-        if (indicator) {
-            indicator.iconName = page.indicatorIcon;
-            indicator.hidden = !icons.indicatorVisible;
-        }
+        refreshTabChip(this._chips.get(id) as TabChip, page, this.getAttribute('default-icon'));
         this._refreshCloseVisibility(id);
     }
 
     /**
-     * `get_tab_position` in the BAR's scroll space: how far the chip sits from the
-     * strip's scroll origin, the one coordinate both `scroll_to_tab_full` and
-     * `update_visible` compare against the adjustment.
-     *
-     * Never `offsetLeft`. Nothing in this widget is positioned, so a chip's offsetParent
-     * is whichever positioned ancestor the HOST page happens to have; a tab view that
-     * merely sits indented then measured every chip against the wrong origin and
-     * reported all of them clipped.
-     */
-    private _tabPosition(tab: HTMLElement): number {
-        return tab.getBoundingClientRect().left - this._barEl.getBoundingClientRect().left + this._barEl.scrollLeft;
-    }
-
-    /**
-     * `tabCloseVisible`, with its pinned gate. `dragging` is constantly false — tab
-     * drag-and-drop is compositor work and is not modelled — and `fullyVisible` is
-     * measured against the bar's scroll window, which is what the C term means for a
-     * horizontally scrolled bar.
+     * The close affordance's visibility, and both halves of it now live in `../tab-chip.js`
+     * — `tabCloseVisible` and the geometry it is measured with, in the BAR's own scroll
+     * space. The incident that moved them there is recorded beside `chipPosition`: the
+     * measurement once used `offsetLeft`, which is relative to whichever positioned ancestor
+     * the HOST page happens to have, so a tab view that merely sat indented reported every
+     * chip clipped and swallowed the close button on hover.
      */
     private _refreshCloseVisibility(id: string): void {
         const page = this._state.getPage(id);
-        const tab = this._tabs.get(id);
-        if (!page || !tab) return;
-        const close = tab.querySelector('.adw-tab-close') as HTMLElement | null;
-        if (!close) return;
-
-        const barLeft = this._barEl.scrollLeft;
-        const pos = this._tabPosition(tab);
-        // `update_visible` (adw-tab-box.c:769-797). C also demands SPACING of slack on
-        // both sides; that term is deliberately NOT transplanted, because it is not
-        // slack there either: the allocation loop starts the first tab at `pos = SPACING`
-        // and puts SPACING between tabs (:3270-3286), so `pos - SPACING >= value` is
-        // exactly "flush against the leading edge". This strip has no such gaps, so the
-        // same term would report the first chip clipped and hide its close button.
-        const fullyVisible = pos >= barLeft && pos + tab.offsetWidth <= barLeft + this._barEl.clientWidth;
-        close.hidden = !tabCloseVisible({
+        const chip = this._chips.get(id);
+        if (!page || !chip) return;
+        refreshTabChipClose(this._barEl, chip, page, {
             hovering: this._hovered.has(id),
-            fullyVisible,
             selected: this._state.selectedId === id,
-            dragging: false,
-            pinned: page.pinned,
         });
     }
 
@@ -714,30 +651,14 @@ export class AdwTabView extends HTMLElement {
 
     /**
      * `scroll_to_tab_full` (adw-tab-box.c:928-961), called on every selection the way
-     * `select_page` calls it (:1728): bring the selected chip inside the BAR's own
-     * scroll window, padded by half of whichever is smaller, the chip or the leftover.
-     *
-     * The bar is the only thing C ever scrolls for a tab: `scroll_to_tab_full` writes
-     * `self->adjustment`, the strip's own adjustment, and nothing else. The DOM has no
-     * such narrow API: `focus()` and `scrollIntoView()` both walk EVERY scrollable
-     * ancestor up to the window. So this moves `scrollLeft` by hand, and the focus call
-     * below passes `preventScroll`.
+     * `select_page` calls it (:1728) — `scrollChipIntoBar` in `../tab-chip.js`, with the
+     * reasoning and the SPACING slack that is deliberately not transplanted.
      */
     private _scrollSelectedTabIntoBar(): void {
         const id = this._state.selectedId;
         const tab = id === null ? undefined : this._tabs.get(id);
         if (!tab) return;
-        const pageSize = this._barEl.clientWidth;
-        const width = tab.offsetWidth;
-        // Unmeasured (detached, or still inside connectedCallback): nothing to scroll to.
-        if (pageSize <= 0 || width <= 0) return;
-
-        const value = this._barEl.scrollLeft;
-        const pos = this._tabPosition(tab);
-        const padding = Math.min(width, pageSize - width) / 2;
-        if (pos - TAB_SPACING < value) this._barEl.scrollLeft = pos - padding;
-        else if (pos + width + TAB_SPACING > value + pageSize)
-            this._barEl.scrollLeft = pos + width + padding - pageSize;
+        scrollChipIntoBar(this._barEl, tab);
     }
 
     private _applyBarVisibility(): void {

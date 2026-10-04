@@ -1,0 +1,685 @@
+---
+title: Layout
+description: "GTK's layout widgets: the separator, the frame, the aspect frame, the centre box, the grid, the fixed, the overlay, the revealer, the paned and the expander. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+The widgets that arrange other widgets belong to GTK, and libadwaita only styles
+them — the frame's 1px border is the single rule upstream writes for any of the
+containers below. This page grows with the ones the gallery covers: the
+**separator**, the **frame**, the **aspect frame**, the **centre box**, the
+**grid**, the **fixed**, the **overlay**, the **revealer**, the **paned** and the
+**expander**.
+
+<MoreInfo title="What the NativeScript port has">
+The previews run the browser port. `@gjsify/adwaita-nativescript` has none of
+this page's widgets yet, so the XML template tab of a block here says so instead
+of showing one.
+</MoreInfo>
+
+## Separator
+
+A one-pixel rule between two groups of widgets. Its **orientation** is the one a
+box has: a horizontal separator runs across, a vertical one runs down, so put it
+in a box that runs the other way. Add the `.spacer` style class when you want the
+distance without the line, a 12px gap that draws nothing.
+
+<AdwWidget title="Gtk.Separator">
+  <Fragment slot="preview">
+    ```html
+    <gtk-box orientation="vertical" spacing="12" style="align-items:center;">
+      <gtk-label label="Above"></gtk-label>
+      <gtk-separator style="width:160px;"></gtk-separator>
+      <gtk-label label="Below"></gtk-label>
+      <gtk-box spacing="12" style="height:24px;align-items:stretch;">
+        <gtk-label label="Left"></gtk-label>
+        <gtk-separator orientation="vertical"></gtk-separator>
+        <gtk-label label="Right"></gtk-label>
+      </gtk-box>
+    </gtk-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    column.append(new Gtk.Label({ label: 'Above' }));
+    column.append(new Gtk.Separator());
+    column.append(new Gtk.Label({ label: 'Below' }));
+
+    // `.spacer` keeps the distance and draws nothing.
+    const gap = new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL });
+    gap.add_css_class('spacer');
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.Label {
+        label: _("Above");
+      }
+
+      Gtk.Separator {}
+
+      Gtk.Label {
+        label: _("Below");
+      }
+
+      Gtk.Separator {
+        orientation: vertical;
+
+        styles ["spacer"]
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+    column.append(new Gtk.Label({ label: 'Above' }));
+    column.append(new Gtk.Separator());
+    column.append(new Gtk.Label({ label: 'Below' }));
+
+    // `.spacer` keeps the distance and draws nothing.
+    const gap = new Gtk.Separator({ orientation: Gtk.Orientation.VERTICAL });
+    gap.add_css_class('spacer');
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Frame
+
+A one-pixel border with a label embedded in its **top edge**. GTK keeps the label
+a widget of its own, sized to its own text and placed across the frame, which is
+what **label-xalign** says: `0` at the start, `0.5` centred, `1` at the end. The
+frame clips its child, so it is also the way to round a child's corners — at the
+price of cutting its shadows off.
+
+<AdwWidget title="Gtk.Frame">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center;">
+      <gtk-frame label="Details" label-xalign="0" style="width:200px;">
+        <gtk-label label="Start aligned." style="padding:12px;"></gtk-label>
+      </gtk-frame>
+      <gtk-frame label="Centred" label-xalign="0.5" style="width:200px;">
+        <gtk-label label="Centre aligned." style="padding:12px;"></gtk-label>
+      </gtk-frame>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const frame = new Gtk.Frame({ label: 'Details' });
+    frame.set_label_align(0.5);
+    frame.set_child(new Gtk.Label({ label: 'Centre aligned.' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Frame {
+      label: _("Details");
+      label-xalign: 0.5;
+
+      Gtk.Label {
+        label: _("Centre aligned.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const frame = new Gtk.Frame({ label: 'Details' });
+    frame.set_label_align(0.5);
+    frame.set_child(new Gtk.Label({ label: 'Centre aligned.' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Aspect Frame
+
+One child, given a shape and a place. **ratio** is its width over its height and
+**xalign** / **yalign** say where it sits in the space left over. The fourth
+property is the one to know about: **obey-child** is `true` by default, and at
+that default the frame takes the ratio from the child itself and ignores `ratio`
+entirely — so a declared ratio only bites once you set `obey-child="false"`.
+
+<MoreInfo title="Where the browser port differs">
+GTK fits the child on whichever axis runs out first, so a wide short frame gets a
+child as wide as `ratio × height` and leaves the rest to **xalign**. A CSS box has
+one definite axis and one the ratio derives, so the preview below always fills the
+width and takes the height from the ratio; **yalign** is exact, and **xalign**
+moves the child only where the frame is narrower than the child needs.
+</MoreInfo>
+
+<AdwWidget title="Gtk.AspectFrame">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center;">
+      <!-- ratio: The aspect ratio to be used by the `GtkAspectFrame`. -->
+      <!-- obey-child: Whether the `GtkAspectFrame` should use the aspect ratio of its child. -->
+      <gtk-aspect-frame ratio="2" obey-child="false" xalign="0.5" yalign="0" style="width:200px;height:140px;">
+        <gtk-label label="2 : 1, along the top." style="padding:12px;"></gtk-label>
+      </gtk-aspect-frame>
+      <!-- ratio: The aspect ratio to be used by the `GtkAspectFrame`. -->
+      <!-- obey-child: Whether the `GtkAspectFrame` should use the aspect ratio of its child. -->
+      <gtk-aspect-frame ratio="2" obey-child="false" xalign="0.5" yalign="1" style="width:200px;height:140px;">
+        <gtk-label label="2 : 1, along the bottom." style="padding:12px;"></gtk-label>
+      </gtk-aspect-frame>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // `ratio` is only used when `obey-child` is FALSE.
+    const frame = new Gtk.AspectFrame({ ratio: 2, xalign: 0.5, yalign: 1, obey_child: false });
+    frame.set_child(new Gtk.Label({ label: '2 : 1, along the bottom.' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.AspectFrame {
+      ratio: 2;
+      xalign: 0.5;
+      yalign: 1;
+
+      // `ratio` is only used when `obey-child` is FALSE.
+      obey-child: false;
+
+      Gtk.Label {
+        label: _("2 : 1, along the bottom.");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // `ratio` is only used when `obey-child` is FALSE.
+    const frame = new Gtk.AspectFrame({ ratio: 2, xalign: 0.5, yalign: 1, obey_child: false });
+    frame.set_child(new Gtk.Label({ label: '2 : 1, along the bottom.' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Center Box
+
+Three children, pinned to the **start**, the **centre** and the **end**, with
+whatever space is left over going to whichever of them can grow — give the centre
+child `hexpand` and it takes that space; the three labels below sit at their own
+size and the gaps go between them. The property
+worth knowing is **shrink-center-last**: on by default, it shrinks the start and
+end children first and only then the centre; off, the centre gives up its space
+first. **baseline-position** moves the whole row in the extra space a taller
+window leaves.
+
+<AdwWidget title="Gtk.CenterBox">
+  <Fragment slot="preview">
+    ```html
+    <gtk-center-box style="width:320px;padding:12px;">
+      <gtk-label slot="start-widget" label="Start"></gtk-label>
+      <gtk-label slot="center-widget" label="Centre"></gtk-label>
+      <gtk-label slot="end-widget" label="End"></gtk-label>
+    </gtk-center-box>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const box = new Gtk.CenterBox({ shrink_center_last: true });
+    box.set_start_widget(new Gtk.Label({ label: 'Start' }));
+    box.set_center_widget(new Gtk.Label({ label: 'Centre' }));
+    box.set_end_widget(new Gtk.Label({ label: 'End' }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.CenterBox {
+      shrink-center-last: true;
+
+      start-widget: Gtk.Label {
+        label: _("Start");
+      };
+
+      center-widget: Gtk.Label {
+        label: _("Centre");
+      };
+
+      end-widget: Gtk.Label {
+        label: _("End");
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const box = new Gtk.CenterBox({ shrink_center_last: true });
+    box.set_start_widget(new Gtk.Label({ label: 'Start' }));
+    box.set_center_widget(new Gtk.Label({ label: 'Centre' }));
+    box.set_end_widget(new Gtk.Label({ label: 'End' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Grid
+
+A table of cells, each sized by what is in it, filled **row by row**: a child
+written without a position of its own goes in the first free cell, which is what
+`Gtk.Builder` writes too. **column-spacing** and **row-spacing** are the gaps
+between the lines, and **column-homogeneous** / **row-homogeneous** make every
+line the same. A **vertical** grid fills the rows first instead of the columns.
+
+<AdwWidget title="Gtk.Grid">
+  <Fragment slot="preview">
+    ```html
+    <!-- column-spacing: The amount of space between two consecutive columns. -->
+    <!-- row-spacing: The amount of space between two consecutive rows. -->
+    <gtk-grid column-spacing="12" row-spacing="12" style="width:320px;">
+      <gtk-label label="Name" style="padding:6px;"></gtk-label>
+      <gtk-label label="Value" style="padding:6px;"></gtk-label>
+      <gtk-label label="Unit" style="padding:6px;"></gtk-label>
+      <gtk-label label="editable" style="padding:6px;"></gtk-label>
+    </gtk-grid>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const grid = new Gtk.Grid({ column_spacing: 12, row_spacing: 12 });
+
+    // `-1, -1` is the first free cell along the grid's orientation, which is what
+    // `Gtk.Builder` writes for a child with no position of its own.
+    for (const text of ['Name', 'Value', 'Unit', 'editable']) {
+        grid.attach(new Gtk.Label({ label: text }), -1, -1, 1, 1);
+    }
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Grid {
+      column-spacing: 12;
+      row-spacing: 12;
+
+      Gtk.Label {
+        label: _("Name");
+      }
+
+      Gtk.Label {
+        label: _("Value");
+      }
+
+      Gtk.Label {
+        label: _("Unit");
+      }
+
+      Gtk.Label {
+        label: _("editable");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const grid = new Gtk.Grid({ column_spacing: 12, row_spacing: 12 });
+
+    // `-1, -1` is the first free cell along the grid's orientation, which is what
+    // `Gtk.Builder` writes for a child with no position of its own.
+    for (const text of ['Name', 'Value', 'Unit', 'editable']) {
+        grid.attach(new Gtk.Label({ label: text }), -1, -1, 1, 1);
+    }
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Fixed
+
+Children at pixel positions, which is the whole of the widget: it declares no
+property of its own, and `gtk_fixed_put()` is the entire API. Nothing reflows, so
+a child keeps its position however its siblings move. In markup the position is
+the child's own CSS offset; in `Gtk.Builder` every child lands at 0, 0, which is
+why the call is spelled out in the code rather than the template.
+
+<AdwWidget title="Gtk.Fixed">
+  <Fragment slot="preview">
+    ```html
+    <gtk-fixed style="width:260px;">
+      <gtk-label label="at (24, 16)" style="left:24px;top:16px;"></gtk-label>
+      <gtk-label label="at (120, 56)" style="left:120px;top:56px;"></gtk-label>
+    </gtk-fixed>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const fixed = new Gtk.Fixed();
+    fixed.put(new Gtk.Label({ label: 'at (24, 16)' }), 24, 16);
+    fixed.put(new Gtk.Label({ label: 'at (120, 56)' }), 120, 56);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    // `Gtk.Builder` puts every child of a fixed at 0, 0 — the position is the
+    // `put()` call above and nothing else.
+    Gtk.Fixed {
+      Gtk.Label {
+        label: _("at (24, 16)");
+      }
+
+      Gtk.Label {
+        label: _("at (120, 56)");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const fixed = new Gtk.Fixed();
+    fixed.put(new Gtk.Label({ label: 'at (24, 16)' }), 24, 16);
+    fixed.put(new Gtk.Label({ label: 'at (120, 56)' }), 120, 56);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Overlay
+
+Other widgets, stacked **on top of** one main child. `set_child` takes the widget
+the overlay sizes itself to; `add_overlay` stacks widgets over it. Where a
+stacked child lands is decided by its own **halign** and **valign** — that is all
+`gtk_overlay_get_child_position` reads — so an overlay child with neither fills
+the overlay, and one with an alignment keeps its natural size at that edge. GTK
+adds `.left` / `.right` / `.top` / `.bottom` to an edge-aligned overlay child, so a
+theme can round the corners of a badge that hangs off one.
+
+<AdwWidget title="Gtk.Overlay">
+  <Fragment slot="preview">
+    ```html
+    <gtk-overlay style="width:260px;height:160px;">
+      <gtk-label label="Main child" style="align-self:center;justify-self:center;"></gtk-label>
+      <gtk-label slot="overlay" label="2" style="align-self:end;justify-self:end;"></gtk-label>
+    </gtk-overlay>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const overlay = new Gtk.Overlay({ width_request: 260, height_request: 160 });
+
+    // The main child: the overlay's own size is this widget's size.
+    overlay.set_child(new Gtk.Label({ label: 'Main child', halign: Gtk.Align.CENTER, valign: Gtk.Align.CENTER }));
+
+    // Every other child stacks on top, placed by its own alignment.
+    overlay.add_overlay(new Gtk.Label({ label: '2', halign: Gtk.Align.END, valign: Gtk.Align.END }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Overlay {
+      width-request: 260;
+      height-request: 160;
+
+      Gtk.Label {
+        label: _("Main child");
+        halign: center;
+        valign: center;
+      }
+
+      [overlay]
+      Gtk.Label {
+        label: _("2");
+        halign: end;
+        valign: end;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const overlay = new Gtk.Overlay({ width_request: 260, height_request: 160 });
+
+    // The main child: the overlay's own size is this widget's size.
+    overlay.set_child(new Gtk.Label({ label: 'Main child' }));
+
+    // Every other child stacks on top; its own halign/valign place it.
+    overlay.add_overlay(new Gtk.Label({ label: '2' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Revealer
+
+Shows and hides one child with an animation. **Transition type** is one of fourteen
+nicks — `slide-down` is the default — and it is not only an opacity change: a slide
+scales the box along one axis while allocating the child at its **unscaled** size,
+and a *swing* folds it in with `sin (π · pos / 2)`. **Transition duration** is in
+milliseconds, and `0` skips the animation.
+
+<AdwWidget title="Gtk.Revealer">
+  <Fragment slot="preview">
+    ```html
+    <!-- transition-duration: The animation duration, in milliseconds. -->
+    <gtk-revealer transition-type="slide-down" transition-duration="250" reveal-child>
+      <gtk-label label="The revealed child" style="padding:12px;"></gtk-label>
+    </gtk-revealer>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const revealer = new Gtk.Revealer({
+      transition_type: Gtk.RevealerTransitionType.SLIDE_DOWN,
+      transition_duration: 250,
+      reveal_child: true,
+    });
+
+    const content = new Gtk.Label({ label: 'The revealed child', margin_top: 12, margin_bottom: 12 });
+    revealer.set_child(content);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Revealer {
+      transition-type: slide_down;
+      transition-duration: 250;
+      reveal-child: true;
+
+      Gtk.Label {
+        label: _("The revealed child");
+        margin-top: 12;
+        margin-bottom: 12;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const revealer = new Gtk.Revealer({
+      transition_type: Gtk.RevealerTransitionType.SLIDE_DOWN,
+      transition_duration: 250,
+      reveal_child: true,
+    });
+
+    const content = new Gtk.Label({ label: 'The revealed child' });
+    revealer.set_child(content);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Paned
+
+Two children either side of a divider the user drags. With both children resizable
+and no **position** set, GTK divides the paned in proportion to the two size
+*requests* rather than in half, so a narrow first child gets a narrow first pane.
+**Position** in pixels overrides that, and `-1` hands the choice back to the size
+requests. `resize-*` and `shrink-*` all default to true, so an author turns one off
+by writing `false`. **Wide handle** gives the divider the stronger separation
+libadwaita draws for it.
+
+<AdwWidget title="Gtk.Paned">
+  <Fragment slot="preview">
+    ```html
+    <gtk-paned orientation="horizontal" style="width:400px;height:140px;">
+      <gtk-label label="First child" style="width:100px;"></gtk-label>
+      <gtk-label slot="end" label="Second child" style="width:300px;"></gtk-label>
+    </gtk-paned>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const paned = new Gtk.Paned({ orientation: Gtk.Orientation.HORIZONTAL, width_request: 400 });
+    paned.set_start_child(new Gtk.Label({ label: 'First child', width_request: 100 }));
+    paned.set_end_child(new Gtk.Label({ label: 'Second child', width_request: 300 }));
+
+    // `set_position (-1)` hands the divider back to the two size requests.
+    paned.position = -1;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Paned {
+      orientation: horizontal;
+      width-request: 400;
+
+      Gtk.Label {
+        label: _("First child");
+        width-request: 100;
+      }
+
+      [end]
+      Gtk.Label {
+        label: _("Second child");
+        width-request: 300;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const paned = new Gtk.Paned({ orientation: Gtk.Orientation.HORIZONTAL, width_request: 400 });
+    paned.set_start_child(new Gtk.Label({ label: 'First child' }));
+    paned.set_end_child(new Gtk.Label({ label: 'Second child' }));
+
+    // `set_position (-1)` hands the divider back to the two size requests.
+    paned.position = -1;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Expander
+
+A title the user clicks to reveal the child below it. **Label** makes a `GtkLabel`
+of its own, and `use-underline` turns a leading `_` into a mnemonic that
+`Alt`+that character activates. The disclosure arrow is a separate node and
+`:checked` is set on **that** node, which is what libadwaita's glyph swap keys on.
+**Resize toplevel** asks the window to grow with the disclosure.
+
+<AdwWidget title="Gtk.Expander">
+  <Fragment slot="preview">
+    ```html
+    <gtk-expander label="_More options" style="width:320px;">
+      <gtk-label label="Notifications" style="padding:12px;"></gtk-label>
+    </gtk-expander>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const expander = new Gtk.Expander();
+    // `set_label` builds a real GtkLabel and forwards `use_underline` to it, so the two
+    // are set in that order.
+    expander.use_underline = true;
+    expander.label = '_More options';
+    expander.set_child(new Gtk.Label({ label: 'Notifications', margin_top: 12, margin_bottom: 12 }));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Expander {
+      use-underline: true;
+      label: _("_More options");
+
+      Gtk.Label {
+        label: _("Notifications");
+        margin-top: 12;
+        margin-bottom: 12;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const expander = new Gtk.Expander();
+    // `set_label` builds a real GtkLabel and forwards `use_underline` to it, so the two
+    // are set in that order.
+    expander.use_underline = true;
+    expander.label = '_More options';
+    expander.set_child(new Gtk.Label({ label: 'Notifications' }));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Buttons](../buttons/): the button, the toggle button and the menu button.
+- [Controls](../controls/): the entry and the drop down, two more GTK widgets the
+  Adwaita stylesheet paints.
+- [Adwaita Layout](/gjsify/adwaita/layout/): header bars, clamps and toolbar
+  views, the layout widgets libadwaita adds.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

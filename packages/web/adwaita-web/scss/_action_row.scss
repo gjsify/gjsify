@@ -9,8 +9,8 @@ adw-action-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-m);
-  min-height: 50px;
-  padding: var(--spacing-s) var(--spacing-m);
+  min-height: 54px;
+  padding: 0 var(--spacing-m);
   border-bottom: 1px solid var(--card-shade-color);
   color: var(--card-fg-color);
 

@@ -27,6 +27,10 @@ import colorSchemeTestSuite from './color-scheme.spec.js';
 import appearanceTestSuite from './appearance.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
+import listViewTestSuite from './list-view.spec.js';
+import treeExpanderTestSuite from './tree-expander.spec.js';
+import boxSelectionTestSuite from './box-selection.spec.js';
+import calendarTestSuite from './calendar.spec.js';
 import adjustmentTestSuite from './adjustment.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
@@ -55,6 +59,10 @@ run({
     toastTestSuite,
     dialogTestSuite,
     listTestSuite,
+    listViewTestSuite,
+    treeExpanderTestSuite,
+    boxSelectionTestSuite,
+    calendarTestSuite,
     rowsTestSuite,
     popoverTestSuite,
     avatarTestSuite,

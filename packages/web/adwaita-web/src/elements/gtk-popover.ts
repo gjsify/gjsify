@@ -17,9 +17,16 @@
 // Attributes:
 //   open      — boolean; reflects (and drives) the visible state.
 //   position  — bottom | top | start | end (default bottom) — which side of the anchor
-//               the surface sits on. Only the placement axis is modelled:
-//               `GtkPopover:position`'s autohide/has-arrow semantics belong to GTK,
-//               which libadwaita does not vendor, so they are not guessed at.
+//               the surface sits on. Only the placement AXIS is modelled: GTK's
+//               `GtkPopover:position` is a `GtkPositionType` whose four values pick a
+//               side and then, in GTK, negotiate with the surface for room
+//               (`present_popover`); here placement is CSS and nothing measures a rect.
+//   autohide  — boolean, default TRUE — GTK's grab. `gtk_popover_map` takes the grab
+//               only when it holds (gtkpopover.c:1245-1247) and `gtk_popover_show`
+//               focuses the first child only then (gtkpopover.c:1188-1192), so with it
+//               off an outside click and an Escape do not dismiss and focus stays where
+//               the caller left it. That is entry completion's own shape, which is the
+//               usecase the property documents (gtkpopover.c:1978-1988).
 //   align     — start | end (default start) — which edge it lines up with.
 //   role      — menu | listbox | dialog (default menu) — the ARIA role of the surface.
 //               An a11y fact ONLY; it does not pick the surface variant, see
@@ -37,6 +44,7 @@
 //               the role pads the drop-down like a bare content popover.
 // Properties:
 //   open      — whether the popover is showing (get/set).
+//   autohide  — whether an outside click dismisses (get/set).
 //   anchor    — the element the surface is positioned against and returns focus
 //               to. Defaults to `parentElement` (get/set).
 //   items     — the navigable rows, in DOM order (get). Used for keyboard moves.
@@ -48,6 +56,25 @@
 //   `popover-item-activated` (CustomEvent, bubbles, detail = { index }) — a row
 //     was chosen by keyboard. Click activation stays the row's own listener.
 //
+// KNOWN_GAPS — the `GtkPopover` scalar properties this element does not observe:
+//
+//   `cascade-popdown`   GTK closes the ANCESTOR popovers when a child popover takes the
+//                       focus (`cascade_popdown`, gtkpopover.c:2455-2478), walking
+//                       `gtk_widget_get_parent` upward while each ancestor opts in. A
+//                       DOM popup has no focus owner to walk FROM — focus moves without
+//                       the element learning of it — so there is no event to hang this on.
+//   `has-arrow`         GTK draws the `arrow` node, and `popover > arrow` is a real rule
+//                       (_popovers.scss:44-56). Placement here is the `position`/`align`
+//                       pair alone, with nothing for an arrow to point at.
+//   `mnemonics-visible` GTK underlines the `_` mnemonic of a Pango label
+//                       (gtkpopover.c:2034-2041). The labels here are plain text with no
+//                       keyval, so there is nothing for the property to reveal.
+//
+// `child` and `default-widget` are widget-typed, and on this renderer they are SLOTS —
+// the exclusion `check-adwaita-element-properties.mjs` already applies to every
+// widget-valued property.
+//
+// Reference: refs/gtk/gtk/gtkpopover.c (autohide :1046, :1188, :1245; the property list)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss (popover > contents)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (popover.menu, modelbutton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -88,6 +115,12 @@ export class GtkPopover extends HTMLElement {
     private _reflecting = false;
 
     private _onDocumentPointerDown = (event: Event): void => {
+        // GTK's grab is the whole mechanism: `gtk_popover_map` adds it only when
+        // `autohide` holds (gtkpopover.c:1245-1247), and without a grab nothing routes an
+        // outside click to the popover. So the property is honoured HERE rather than in the
+        // markup, and the listener is still bound either way — unbinding it would make the
+        // attribute change rebuild the document bindings for a boolean.
+        if (!this.autohide) return;
         const target = event.target as Node;
         if (this.contains(target)) return;
         // A click on the anchor is the anchor's own toggle — closing here too would close
@@ -98,6 +131,10 @@ export class GtkPopover extends HTMLElement {
 
     private _onDocumentKeyDown = (event: KeyboardEvent): void => {
         if (event.key !== 'Escape') return;
+        // Same grab, same gate: with `autohide` off the caret belongs to whatever is
+        // behind the surface, and an Escape that closed it would be a keypress with no
+        // handler at all.
+        if (!this.autohide) return;
         // Captured at the document, so a nested popover's Escape does not also close its
         // parent.
         event.stopPropagation();
@@ -106,7 +143,7 @@ export class GtkPopover extends HTMLElement {
     };
 
     static get observedAttributes() {
-        return ['open', 'position', 'align', 'role', 'menu'];
+        return ['open', 'position', 'align', 'role', 'menu', 'autohide'];
     }
 
     get open(): boolean {
@@ -116,6 +153,26 @@ export class GtkPopover extends HTMLElement {
     set open(value: boolean) {
         if (value) this._state.popup();
         else this._state.popdown();
+    }
+
+    /**
+     * Whether an outside click (or an Escape) dismisses the popover — GTK's grab.
+     *
+     * `autohide` defaults to TRUE in C (`priv->autohide = TRUE`, gtkpopover.c:1046) and
+     * that default is what every existing consumer in this package relies on, so it is
+     * the ABSENCE of the attribute rather than its presence, exactly as GTK spells it.
+     * Turning it off is entry completion's shape, which is the usecase the property
+     * documents: the entry keeps the caret and the list follows the typing.
+     */
+    get autohide(): boolean {
+        return this.getAttribute('autohide') !== 'false';
+    }
+
+    set autohide(value: boolean) {
+        // `autohide` is a DEFAULT-TRUE boolean, so its attribute form has to be able to
+        // say BOTH values: `<gtk-popover autohide="false">` is the only markup spelling
+        // of "no grab", and a bare `autohide` cannot be told apart from the default.
+        this.setAttribute('autohide', String(value));
     }
 
     /**
@@ -221,7 +278,13 @@ export class GtkPopover extends HTMLElement {
         this._unbindDocument();
     }
 
-    attributeChangedCallback(name: string, _previous: string | null, value: string | null) {
+    /**
+     * Every parameter is optional, and that is FOR `<gtk-popover-menu>`, which subclasses
+     * this element: an override may not demand a parameter the base signature does not pass,
+     * and the platform always passes all three — the `?` is a typescript-visible fact about
+     * the CALLER, not about what arrives.
+     */
+    attributeChangedCallback(name?: string, _previous?: string | null, value?: string | null) {
         if (!this._initialized) return;
         if (name === 'open') {
             if (this._reflecting) return;

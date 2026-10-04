@@ -506,15 +506,222 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.DropDown': 'GtkDropDown.model is a list of items; an XML attribute is a string.',
     'Adw.ComboRow': 'AdwComboRow.model is a list of items; an XML attribute is a string.',
     'Gtk.MenuButton': 'GtkMenuButton.menuModel is a portable menu model; an XML attribute is a string.',
+    'Gtk.PopoverMenu':
+        'The NativeScript port builds its menus through GtkMenuButton.menuModel, a portable menu model; ' +
+        'an XML attribute is a string, and there is no view for the menu on its own ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.PopoverMenuBar':
+        'The NativeScript port has no menu-bar view: GtkMenuButton.menuModel is its only menu-carrying ' +
+        'widget, and it opens ONE menu from a button rather than a bar of them ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.PopoverBin':
+        'The NativeScript port has no popover container: GtkBox.addChild appends a child eagerly and ' +
+        'nothing in it owns a popup, so there is nothing for a second property to attach ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.Popover':
+        'The NativeScript port has no standalone popover surface: GtkMenuButton.menuModel builds the menu a ' +
+        "popover would show, but the port has no view that takes arbitrary content as a popup's child " +
+        '(status/open-todos/adwaita-ports.md).',
     'Adw.SplitButton': 'AdwSplitButton.menuModel is a portable menu model; an XML attribute is a string.',
     'Adw.ToggleGroup': 'AdwToggleGroup.options is an array of toggles; an XML attribute is a string.',
     'Adw.Sidebar': 'AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.',
+    // The adaptive trio. A layout upstream is a GObject rather than a view, so an XML
+    // template has nothing to name for one, and every child of a multi-layout view is
+    // paired with a slot by a method call rather than by a placement.
+    'Adw.BreakpointBin':
+        'The port has no breakpoint-bin view, so its breakpoints have nowhere to live: AdwNavigationSplitView carries ONE condition on an attribute and a list of them is not markup (status/open-todos/adwaita-ports.md).',
+    'Adw.MultiLayoutView':
+        'The port has no multi-layout view, and what it would hold is not a view either: a layout is a GObject upstream, and AdwNavigationSplitView is ONE arrangement rather than a set of them.',
+    'Adw.LayoutSlot':
+        'The port has no layout-slot view, and nothing in it takes a child by ID: AdwNavigationSplitView has named panes, and a hole a layout fills is not one of them.',
     'Adw.TabView': 'AdwTabView.views and .tabs are arrays; an XML attribute is a string.',
     'Adw.ViewSwitcherBar':
         'AdwViewStack takes its titled pages as AdwViewStackPage records, which are not views and not in the widgets barrel these templates are written against.',
     'Adw.ViewSwitcher': 'AdwViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
     'Adw.InlineViewSwitcher':
         'AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
+    // --- no such widget in the port ---
+    'Gtk.Scale':
+        'The NativeScript port has no standalone scale yet: AdwSliderRow is the boxed-list row, and it renders the @nativescript/core Slider inside that row rather than the widget Gtk.Scale is (status/open-todos/adwaita-ports.md).',
+    'Gtk.SpinButton':
+        'The NativeScript port has no standalone spin button yet: AdwSpinRow is the boxed-list row, and it composes Label and StackLayout itself instead (status/open-todos/adwaita-ports.md).',
+    'Gtk.PasswordEntry':
+        'The NativeScript port has no password entry yet: GtkEntry is the plain field and AdwPasswordEntryRow is its boxed-list row, and neither is the widget Gtk.PasswordEntry is (status/open-todos/adwaita-ports.md).',
+    'Gtk.SearchEntry':
+        'The NativeScript port has no search entry yet: GtkEntry has no leading search icon, no clear button and no search-changed signal to hang them on (status/open-todos/adwaita-ports.md).',
+    'Gtk.ListView':
+        'The NativeScript port has no list view: GtkBox.addChild appends every child eagerly, and the ' +
+        'per-item factory that would replace it has no counterpart there yet (status/open-todos/adwaita-ports.md).',
+    'Gtk.GridView':
+        'The NativeScript port has no grid view: GtkBox.addChild appends every child eagerly and lays them out ' +
+        'in one direction, with no column count to reflow (status/open-todos/adwaita-ports.md).',
+    'Gtk.ColumnView':
+        'The NativeScript port has no column view: AdwDataGrid.columns is the nearest thing and takes rows of ' +
+        'pre-formatted values, not a factory per column (status/open-todos/adwaita-ports.md).',
+    'Gtk.ListBox':
+        'The NativeScript port has no list box: GtkBox.addChild appends every child eagerly and none of ' +
+        'them can be a selectable row — AdwSwitchRow extends AdwActionRow and installs a title and a ' +
+        'boolean, with nothing for a box to select among (status/open-todos/adwaita-ports.md).',
+    'Gtk.FlowBox':
+        'The NativeScript port has no flow box: the nearest wrapping container is AdwWrapBox, whose ' +
+        'orientation picks the wrap axis and whose addChild takes a plain view with no selection state — ' +
+        'the four Gtk.SelectionMode values have nowhere to live (status/open-todos/adwaita-ports.md).',
+    'Gtk.Calendar':
+        'The NativeScript port has no calendar: AdwDataGrid.rows is the nearest thing to a month grid and ' +
+        'takes pre-formatted rows rather than a date, and @nativescript/core ships no DatePicker to take a ' +
+        'day, a six-by-seven grid, a marked day or the four navigation arrows from ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.TreeExpander':
+        'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
+        'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',
+    'Gtk.Notebook':
+        "The NativeScript port has no notebook: @nativescript/core's TabView (ui/tab-view) owns its own tab " +
+        'strip, which is exactly what Gtk.Notebook IS, and it has no separate content-only stack to hold its ' +
+        "pages — the port's content-only half is AdwViewStack, and a TabView cannot be pointed at one " +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.StackSidebar':
+        'The NativeScript port has no bare sidebar list either: AdwTabView draws the strip itself, and ' +
+        'AdwNavigationSplitView (sidebarWidth, isSidebarCollapsed) is the one place the port has a sidebar at ' +
+        'all — it navigates, so it cannot be pointed at the AdwViewStack the port does have ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.StackSwitcher':
+        'The NativeScript port has no bare switcher: AdwTabView is the widget that draws a tab strip, and its ' +
+        'selectedIndex is the only knob it exposes — so the orientation the widget itself carries has no counterpart ' +
+        'there, and there is no content-only strip to point at the AdwViewStack the port does have ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.Stack':
+        'The NativeScript port has no content-only stack: AdwTabView is the widget it has, and its tab strip ' +
+        'lives inside it (AdwTabView.pages), so there is no separate switcher to point at the content. The ' +
+        'content-only half the port does have is AdwViewStack, whose add() takes a view and a name — and its ' +
+        'own header records that its visibility switch is "instant, no cross-fade", so neither of the two ' +
+        '*homogeneous axes nor the transition vocabulary has anything to land on ' +
+        '(status/open-todos/adwaita-ports.md).',
+    'Gtk.EditableLabel':
+        'The NativeScript port has no editable label: GtkLabel carries the text and GtkEntry is the only editable surface it has, and the swap between the two is the widget (status/open-todos/adwaita-ports.md).',
+    'Gtk.SearchBar':
+        'The NativeScript port has no search bar: GtkBox lays its children out unconditionally and GtkEntry has no way to be revealed, so there is no strip to put one in (status/open-todos/adwaita-ports.md).',
+    // The five GTK layout containers. `Gtk.Fixed` is the one the platform would cover
+    // outright — `AbsoluteLayout` IS it — but the port has no view that takes a position
+    // from an XML attribute, and the block is about the widget rather than about the
+    // platform (status/open-todos/adwaita-ports.md).
+    'Gtk.AspectFrame':
+        "The NativeScript port has no aspect frame to shape a child with: GtkBox lays its children out in a StackLayout, and nothing there turns one child's size into a ratio (status/open-todos/adwaita-ports.md).",
+    'Gtk.CenterBox':
+        'The NativeScript port has no centre box to pin a start, a centre and an end child into: GtkBox has one layout and one child order, which is a different fact (status/open-todos/adwaita-ports.md).',
+    'Gtk.Fixed':
+        'The NativeScript port has no fixed view to place a child at an offset: GtkBox stacks its children rather than positioning them (status/open-todos/adwaita-ports.md).',
+    'Gtk.Frame':
+        'The NativeScript port has no frame view to draw a border and a title in around a child, and GtkBox is a plain stack the theme has nothing to frame (status/open-todos/adwaita-ports.md).',
+    'Gtk.Grid':
+        'The NativeScript port has no grid widget: GtkBox is a StackLayout and NativeScript has no subgrid, so every row would resolve its own auto tracks and stagger the columns (theme/adwaita.css:864-868).',
+    'Gtk.Separator':
+        'The NativeScript port has no separator view to put between the children of a GtkBox yet (status/open-todos/adwaita-ports.md).',
+    'Gtk.Text':
+        'The NativeScript port has no standalone text node: GtkEntry is the single-line field such a node would be the delegate of, and GtkLabel is its read-only twin (status/open-todos/adwaita-ports.md).',
+    'Gtk.TextView':
+        'The NativeScript port has no multi-line editor: GtkEntry is single-line by construction and @nativescript/core has no view the port themes as one (status/open-todos/adwaita-ports.md).',
+    'Gtk.ToggleButton':
+        'The NativeScript port has no toggle button yet: GtkButton has no checked state to build one on (status/open-todos/adwaita-ports.md).',
+    'Gtk.DrawingArea':
+        'The NativeScript port has no drawing surface: GtkBox is the container one would sit in and it has no child that paints, so a drawing area there would be an empty box with a size request (status/open-todos/adwaita-ports.md).',
+    'Gtk.GraphicsOffload':
+        'The NativeScript port has no compositor passthrough to wrap anything in: a video or a web view sits in a GtkBox cell and is composited like every other view, so the wrapper would be a plain container with no property of its own to set (status/open-todos/adwaita-ports.md).',
+    'Gtk.GLArea':
+        'The NativeScript port has no GL view, so there is nothing to render into and no context to keep current: GtkBox would hold a plain View instead, and a View has no render signal for GtkBox to forward (status/open-todos/adwaita-ports.md).',
+    'Gtk.DragIcon':
+        'A drag icon is not a widget an application builds — it belongs to a drag operation and dies with it — and @nativescript/core has no drag gesture to attach one to. The port has the pieces a dragged row would show and nothing that starts the drag: GtkLabel.set_markup is the whole of the label side and GtkBox.addChild the whole of the container, so an icon here would be a child nothing ever shows (status/open-todos/adwaita-ports.md).',
+    'Gtk.Overlay':
+        'The NativeScript port has no overlay view: GtkBox appends every child to the layout, and there is nothing in it to stack one over another (status/open-todos/adwaita-ports.md).',
+    'Gtk.Revealer':
+        'The NativeScript port has no revealer view: GtkBox has no transition to run between a collapsed and an expanded child (status/open-todos/adwaita-ports.md).',
+    'Gtk.Paned':
+        'The NativeScript port has no paned view: GtkBox has no divider to place between two children, and so no second slot to take (status/open-todos/adwaita-ports.md).',
+    'Gtk.Expander':
+        'The NativeScript port has no bare expander view: AdwExpanderRow is the disclosure it does have, and this is the Gtk one with no boxed-list row around it (status/open-todos/adwaita-ports.md).',
+    'Gtk.CheckButton':
+        'The NativeScript port has no checkbox view: GtkBox is the container one would sit in and @nativescript/core ships nothing under its ui/ to put in it. The boolean idiom the port does have is AdwSwitchRow (status/open-todos/adwaita-ports.md).',
+    'Gtk.Switch':
+        'The NativeScript port composes the platform Switch inside AdwSwitchRow and has no standalone one; a NativeScript Switch is one boolean, while the GTK widget also carries the backend half behind a state-set signal (status/open-todos/adwaita-ports.md).',
+    'Gtk.ProgressBar':
+        "The NativeScript port has no progress widget: the nearest thing it builds is AdwSpinRow, which is a titled row with a stepper and not a bar, and the theme's CSS subset has no trough to nest anything in (status/open-todos/adwaita-ports.md).",
+    'Gtk.LevelBar':
+        'The NativeScript port has no segmented-bar view: AdwSpinner is the only indicator it has and it takes no value, and GtkBox offers no run of equal children to divide into segments (status/open-todos/adwaita-ports.md).',
+    'Gtk.Spinner':
+        'The NativeScript port ships AdwSpinner for the libadwaita spinner and has no view for the GTK one; AdwSpinner is the whole picture there, and the reduced-motion icon swap GTK does has no counterpart (status/open-todos/adwaita-ports.md).',
+    // Four more the port has no view for, each with the NEIGHBOUR class the reason names —
+    // `GtkButton` and `GtkBox` ship, so the sentences stay checkable against real members.
+    'Gtk.LinkButton':
+        'The port has no link button: GtkButton takes a label and an iconName and nothing that follows a uri, so neither the destination nor the visited state it draws has anywhere to live (status/open-todos/adwaita-ports.md).',
+    'Gtk.ScaleButton':
+        'The port has no scale button: GtkButton.child takes one view, and the value a scale button draws on its icon has no slider behind it (status/open-todos/adwaita-ports.md).',
+    'Gtk.ColorDialogButton':
+        'The port has no colour dialog button: GtkButton.child takes one view and @nativescript/core exports no colour-picker view, so the swatch it would host has nothing to collect the next colour from (status/open-todos/adwaita-ports.md).',
+    'Gtk.FontDialogButton':
+        'The port has no font dialog button: GtkButton.child takes a view but there is no font-picker view in @nativescript/core, so the two GtkLabel children the font_desc names cannot be filled from a chooser (status/open-todos/adwaita-ports.md).',
+    'Adw.Bin':
+        'The NativeScript port has no bin view: AdwClamp is the nearest one-child view it ships, and there is no plain one-child container beside it (status/open-todos/adwaita-ports.md).',
+    'Adw.ClampScrollable':
+        'The NativeScript port has no scrolling clamp: AdwClamp holds its child at a width but does not scroll it (status/open-todos/adwaita-ports.md).',
+    'Adw.PreferencesRow':
+        'The NativeScript port has no bare preferences row: AdwActionRow is the row it ships, and a title-only base has no template of its own (status/open-todos/adwaita-ports.md).',
+    'Adw.TabButton':
+        'The NativeScript port has no tab button: AdwTabView is the only tab widget it ships, and its page counter is not a separate view (status/open-todos/adwaita-ports.md).',
+    'Adw.TabBar':
+        'The NativeScript port has no tab bar: AdwTabView.setViews is the only tab surface it ships, and the strip is drawn inside that view rather than as a view of its own — so there is no class for a template to name (status/open-todos/adwaita-ports.md).',
+    'Adw.ViewSwitcherSidebar':
+        "The NativeScript port has no view-switcher sidebar: it ships AdwViewStack but not an AdwSidebar to drive from it, and nothing binds a stack's page list into one (status/open-todos/adwaita-ports.md).",
+    'Adw.TabOverview':
+        'The NativeScript port has no tab overview: AdwTabView is the only tab widget it ships, and there is no view to stack a thumbnail grid over it with (status/open-todos/adwaita-ports.md).',
+    // --- the gtk/windows page: three bars and two windows, none of them a View ---
+    'Gtk.ActionBar':
+        'The port HAS GtkActionBar, and GtkActionBar.pack_start is what a template would route a child ' +
+        'through — but the gallery block shows the three packed widgets that make a bar a bar, and ' +
+        'GtkBox.addChild appends every child into ONE layout, so an XML template could only show an empty ' +
+        'bar (status/open-todos/adwaita-ports.md).',
+    'Gtk.HeaderBar':
+        'The port has no titlebar widget: AdwHeaderBar.pack_start puts a button in a side box, and the ' +
+        'GTK centre is a plain derived GtkLabel the markup cannot spell, so a template could only show a ' +
+        'bar with no title (status/open-todos/adwaita-ports.md).',
+    'Gtk.WindowControls':
+        'The port has no window-frame buttons at all, and GtkBox.addChild is the nearest container it could ' +
+        'hold them in — there is nothing behind it that reads a decoration layout, which is where every one ' +
+        'of those buttons comes from (status/open-todos/adwaita-ports.md).',
+    'Gtk.Window':
+        "NativeScript's Page IS the window, so there is no window view to inflate: GtkBox.addChild is the " +
+        'content surface, and the frame properties the block documents — deletable, resizable, maximized, ' +
+        'decorated — have no counterpart on a Page (status/open-todos/adwaita-ports.md).',
+    'Gtk.ApplicationWindow':
+        "NativeScript's Page IS the window, and its menubar would be a Gio.MenuModel on the application, " +
+        'which GtkBox.addChild cannot take and no XML attribute carries (status/open-todos/adwaita-ports.md).',
+    'Adw.Dialog':
+        'The NativeScript port has no generic dialog: the three it ships are AdwAlertDialog, AdwAboutDialog and AdwPreferencesDialog, and each substitutes the platform\'s own sheet rather than an in-app card ("There is NO custom in-app modal here", adw-alert-dialog.ts). A content-agnostic dialog has no platform sheet to be, and AdwBottomSheet is the only in-app surface the port has (status/open-todos/adwaita-ports.md).',
+    'Adw.ShortcutsDialog':
+        'The port has no shortcuts dialog and nothing to build one from: AdwShortcutLabel is its whole shortcut surface, and that is ONE keycap rather than a list of rows, so there is no section and no item class to add. The generic-dialog refusal beside it applies for the same reason — a phone has no keyboard to list (status/open-todos/adwaita-ports.md).',
+    // --- not a View ---
+    // --- the scrolling trio: one root, and the two halves it is made of ---
+    'Gtk.ScrolledWindow':
+        'The NativeScript port has no scrolling container yet: GtkBox lays its children out and nothing else, so there is no view whose children a GtkBox could stand in for (status/open-todos/adwaita-ports.md).',
+    'Gtk.Scrollbar':
+        'The NativeScript port has no scrollbar view, and AdwSliderRow is a slider row rather than one — its adjustment belongs to a row, not to a movable thumb (status/open-todos/adwaita-ports.md).',
+    'Gtk.Viewport':
+        'The NativeScript port has no viewport view to clip a GtkBox against a window, and the scrolling container it would live in is absent too (status/open-todos/adwaita-ports.md).',
+    'Gtk.WindowHandle':
+        'The NativeScript port has no titlebar handle: AdwHeaderBar draws the strip but nothing can move the window from it, which is the whole of the widget (status/open-todos/adwaita-ports.md).',
+    'Gtk.Image':
+        'The NativeScript port has no symbolic-icon view: GtkImage there takes a FILE or a data URI and never a NAME, so there is nothing for `iconName` to resolve against and no icon-size enum to measure a box from. AdwAvatar is the nearest thing the port ships and it builds its own image rather than naming one (status/open-todos/adwaita-ports.md).',
+    'Gtk.Picture':
+        "The NativeScript port has no fitted-image view: GtkImage carries its own `stretch` property, so fitting an image is that widget's job and there is no second widget to hold the fit — and `canShrink`, which is the picture's own MEASURE rather than a drawing option (gtkpicture.c:245-254), has no GtkImage counterpart to switch (status/open-todos/adwaita-ports.md).",
+    'Gtk.Inscription':
+        'The NativeScript port measures its text in CONTENT: GtkLabel asks its string how large it wants to be, which is the label half of the pair. An inscription never looks at its text at all — it multiplies min-chars by a character width and stops (gtkinscription.c:338-349) — and neither GtkLabel nor AdwEntryRow has a property to hold two character counters (status/open-todos/adwaita-ports.md).',
+    'Gtk.Video':
+        'The NativeScript port ships a platform Video and that is exactly the half it covers: the frames. The widget is a play SURFACE whose whole content is three overlay nodes over the media (ui/gtkvideo.ui), and the port has no media-stream behind its Video for the overlay icon to report on or for the three-second controls reveal to re-arm — there is no AdwSpinner or GtkBox in the port to hold one (status/open-todos/adwaita-ports.md).',
+    'Gtk.MediaControls':
+        'The NativeScript port has no transport view: its Video is the play surface itself with no bar drawn over it, and the widget holds exactly one property — `media-stream`, an object (gtkmediacontrols.c:296-306) — so there is no stream for a port to own and project the bar from. GtkBox is the container one would sit in and it has no run of equal children to hold six controls (status/open-todos/adwaita-ports.md).',
+    // --- no toplevel to hang a frame on ---
+    'Adw.Window':
+        'NativeScript has no toplevel: its Page IS the window — the storybook Page already carries the `adw-window` style class (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml), which the theme styles (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24) — so there is nothing for a window frame to be the frame OF. AdwToolbarView is the container this window would hold, and it is a template on its own block.',
+    'Adw.ApplicationWindow':
+        'the application window is the window plus Gtk.ApplicationWindow:show-menubar, and the port has neither half: its Page IS the window, and a touch target has no menu bar. AdwToolbarView is the container the window would hold, and it is a template on its own block (status/open-todos/adwaita-ports.md).',
     // --- not a View ---
     // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so
@@ -522,4 +729,14 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Adw.Toast':
         'AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.',
     'Adw.AlertDialog': 'AdwAlertDialog extends Observable, not View: it has no place in a view tree.',
+    // --- the GTK dialogs: the port has no such widget, and the members below are the ones a
+    // port of each would have to reach for ---
+    'Gtk.AboutDialog':
+        "The NativeScript port has no such dialog: AdwAboutDialog is the about dialog it ships, and it takes applicationName and version and nothing else — GTK's credits grid, stack switcher and licence page have no member to land in (status/open-todos/adwaita-ports.md).",
+    'Gtk.EmojiChooser':
+        'The NativeScript port has no emoji chooser and no popover to host one: AdwComboRow opens the platform action() sheet instead, and @nativescript/core ships no emoji set to fill a grid with (status/open-todos/adwaita-ports.md).',
+    'Gtk.PageSetupUnixDialog':
+        'The NativeScript port has no page setup dialog: AdwPreferencesDialog is its only page surface, and GtkBox has no page-setup model to read a paper size or four margins from (status/open-todos/adwaita-ports.md).',
+    'Gtk.PrintUnixDialog':
+        'The NativeScript port has no print dialog: AdwPreferencesDialog has no printer list and no capabilities, and @nativescript/core ships nothing that talks to a print backend (status/open-todos/adwaita-ports.md).',
 };

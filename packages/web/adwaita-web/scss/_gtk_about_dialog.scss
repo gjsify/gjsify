@@ -1,0 +1,186 @@
+// _gtk_about_dialog.scss — <gtk-about-dialog> styling: the GTK about window's own
+// layout, which is NOT libadwaita's `<adw-about-dialog>` (a navigation view of
+// preference rows) but a bold name over a 128px logo and a four-page stack, with a
+// stack switcher where the headerbar's title widget goes.
+//
+// The DIALOG itself (scrim, sheet, header, close button) is not restated here: it is
+// `<adw-dialog>`'s chrome, which this element inherits, so the rules below only cover
+// the parts `gtkaboutdialog.ui` declares and nothing styles upstream either.
+//
+// Reference: refs/gtk/gtk/ui/gtkaboutdialog.ui (the tree: 12px inner spacing, 5px
+//   outer margins, 8px page spacing, the 400x100 stack, the framed scrolled pages)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss:46-56
+//   (`window.aboutdialog:not(.ssd-frame)`: a FLAT titlebar, and `image.large-icons`
+//   at 128px — which is `icon-size: 2`, GTK's DIALOG size)
+// Reference: refs/gtk/gtk/gtkaboutdialog.c:1066-1082 (the bold name label, the
+//   centre justification, the version label's own markup)
+// Copyright (c) 2008-2024 Red Hat, Inc. / The GTK authors. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-about-dialog {
+  // The `.ui` spacing, verbatim: the outer box is 5px all round with 2px between the
+  // two children (the head), and the head is 5px all round with 12px between the logo,
+  // the name and the stack.
+  .adw-gtk-about-dialog-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px;
+    min-width: 320px;
+    min-height: 220px;
+  }
+
+  .adw-gtk-about-dialog-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 5px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  // `image.large-icons` → 128px. The slot exists so the logo can be absent entirely
+  // without the name moving up a line: `GtkImage` is a template child and is always
+  // there in GTK, so the space above the name is always reserved.
+  .adw-gtk-about-dialog-logo-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 128px;
+  }
+
+  .adw-gtk-about-dialog-logo {
+    width: 128px;
+    height: 128px;
+    // `icon-dropshadow` on the `.ui`'s logo image.
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 6, 0.25));
+  }
+
+  // `<span weight="bold">` from `update_name_version`, centred like every label in the
+  // box (`justify: 2`).
+  .adw-gtk-about-dialog-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    text-align: center;
+    user-select: text;
+  }
+
+  // `GtkStack` with `width-request: 400`, `height-request: 100`, and the crossfade
+  // transition (16) at 600ms.
+  .adw-gtk-about-dialog-stack {
+    position: relative;
+    display: flex;
+    width: 100%;
+    min-width: 300px;
+    min-height: 100px;
+    flex: 1 1 auto;
+  }
+
+  .adw-gtk-about-dialog-page {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+    padding: 6px 12px;
+    // The crossfade between pages: 600ms is the `.ui`'s `transition-duration`.
+    animation: adw-gtk-about-dialog-page-in 600ms ease;
+  }
+
+  .adw-gtk-about-dialog-version,
+  .adw-gtk-about-dialog-comments,
+  .adw-gtk-about-dialog-copyright {
+    // `wrap: 1` with `max-width-chars: 60` on the comments and copyright labels.
+    max-width: 60ch;
+    margin: 0 auto;
+  }
+
+  .adw-gtk-about-dialog-website,
+  .adw-gtk-about-dialog-license,
+  .adw-gtk-about-dialog-license-link {
+    max-width: 60ch;
+    margin: 0 auto;
+  }
+
+  // `GtkStackSwitcher` in the titlebar: a row of flat buttons, the visible page's
+  // checked. No title text beside them, because the `.ui` declares none.
+  .adw-gtk-about-dialog-switcher {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .adw-gtk-about-dialog-switcher-item {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 500;
+    color: var(--window-fg-color);
+    background-color: transparent;
+    border: none;
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:checked,
+    &.checked {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  // The three framed pages: a scrolled window with `has-frame` around a `.view`
+  // viewport, and the credits grid inside it.
+  .adw-gtk-about-dialog-scrolled {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    background-color: var(--view-bg-color);
+  }
+
+  .adw-gtk-about-dialog-text {
+    margin: 5px;
+    // `GTK_WRAP_NONE` unless `wrap-license` asked for `GTK_WRAP_WORD`.
+    white-space: pre;
+    font-size: 0.9em;
+  }
+
+  .adw-gtk-about-dialog-text-view.wrap .adw-gtk-about-dialog-text {
+    white-space: pre-wrap;
+  }
+
+  // `add_credits_section`: a two-column grid, headings right-aligned in column 0 and
+  // people left-aligned in column 1, with 2px between rows and 8px between columns.
+  .adw-gtk-about-dialog-credits-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2px 8px;
+    padding: 5px;
+    align-items: center;
+  }
+
+  .adw-gtk-about-dialog-credits-heading {
+    text-align: right;
+    font-size: 0.9em;
+    font-weight: 500;
+  }
+
+  .adw-gtk-about-dialog-credits-person {
+    text-align: left;
+    font-size: 0.9em;
+    user-select: text;
+  }
+}
+
+@keyframes adw-gtk-about-dialog-page-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

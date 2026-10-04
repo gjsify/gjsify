@@ -44,6 +44,7 @@ function pageStates(pages: readonly TabViewVectorPage[]): AdwTabPageState[] {
         id: page.id,
         title: page.title ?? '',
         tooltip: '',
+        keyword: '',
         icon: null,
         indicatorIcon: null,
         loading: false,

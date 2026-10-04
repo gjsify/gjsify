@@ -188,6 +188,36 @@ const PORTABLE_OF = [
         type: 'TextDirection',
         why: "`Gtk.TextDirection` is GTK's, and `Adw.MenuTextDirection` beside it is the same borrowing one level down.",
     },
+    {
+        match: /^AdwColumnViewColumn$/,
+        namespace: 'Gtk',
+        type: 'ColumnViewColumn',
+        why: "One GTK `Gtk.ColumnViewColumn` in plain data. Every field but `key` IS a GTK property (`title`, `id`, `expand`, `fixed-width`, `visible`), and `sortable` is the portable stand-in for a non-null `Gtk.Sorter` — the column object is GTK's, and only the one field that has no GTK counterpart is this repo's.",
+    },
+    {
+        match: /^AdwListItemFactory$/,
+        namespace: 'Gtk',
+        type: 'ListItemFactory',
+        why: 'The function shape of `GtkSignalListItemFactory`: `setup` builds a widget and `bind` fills it, collapsed into one call per item because a renderer that rebuilds a node per splice has no second binding step. It is a FUNCTION rather than the GObject, which is the same reduction `AdwListModel` is of `Gio.ListModel`; `GtkBuilderListItemFactory` has no counterpart, because a `.ui` template needs a binding dialect.',
+    },
+    {
+        match: /^AdwTreeExpanderRow$/,
+        namespace: 'Gtk',
+        type: 'TreeListRow',
+        why: "The three numbers a `Gtk.TreeListRow` gives `gtk_tree_expander_update_for_list_row` — `depth`, `expandable`, `expanded` — and nothing else. ADR 0089 declined to port the row (and with it `GtkTreeListModel`), so the reduction is the same one `AdwListModel` is of `Gio.ListModel`: the object stays GTK's, the numbers cross.",
+    },
+    {
+        match: /^AdwCalendarCell$/,
+        namespace: 'Gtk',
+        type: 'Calendar',
+        why: "One of the 42 cells `calendar_compute_days` fills for a `Gtk.Calendar` (gtkcalendar.c): the date the cell shows, resolved across the month boundary, and which month it belongs to. GTK keeps those as two parallel C arrays on the widget and has no cell type to borrow, so the value is this repo's and the WIDGET it describes is GTK's.",
+    },
+    {
+        match: /^AdwTreeExpanderOptions$|^AdwTreeExpanderAction$/,
+        namespace: 'Gtk',
+        type: 'TreeExpander',
+        why: "Both are `Gtk.TreeExpander` under another name: the three properties `hide-expander`, `indent-for-depth` and `indent-for-icon`, and the `listitem.*` action its key bindings emit (gtktreeexpander.c:654-691). GTK has no action type to borrow — the actions are `GAction` names on the widget — so the value is this repo's and the WIDGET it configures is GTK's.",
+    },
 ];
 
 function fail(lines) {

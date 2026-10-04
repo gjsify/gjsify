@@ -1,0 +1,556 @@
+---
+title: Drawing
+description: "GTK's three ways of drawing something no other widget can: a canvas you paint yourself, a GL surface, and a child handed straight to the compositor. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+import MoreInfo from '../../../components/MoreInfo.astro';
+
+Three GTK widgets draw for themselves. The **drawing area** is the plain one: a blank
+box, a size and a callback, and everything on screen is what the callback painted. The
+**GL area** is the same idea with a GPU behind it. **Graphics offload** draws nothing at
+all — it hands its one child to the compositor untouched, which is cheaper than
+compositing a texture per frame.
+
+The fourth, the **drag icon**, draws nothing either, and for the opposite reason: it is
+not a widget an application builds at all but one that belongs to a drag operation and
+dies with it.
+
+What none of them have is styling. Their CSS nodes carry no rule in libadwaita's
+stylesheet, so what you see here is geometry, not a theme.
+
+<MoreInfo title="What the NativeScript port has">
+None of the four. `@nativescript/core` has no canvas view, no WebGL view and no
+compositor passthrough, and a drag icon is something the platform draws for you rather
+than a widget you build. Each block's XML template tab says so instead of showing one.
+</MoreInfo>
+
+## Drawing Area
+
+A blank widget you paint on. It has **no visual properties at all** — what you see is
+whatever `set_draw_func` drew, and the draw function is called with the widget's
+**allocation**, so it has to be ready for a size it did not choose.
+
+**content-width** and **content-height** are the minimum *and* the natural size in one:
+a parent may hand the area more room than it asked for, but never less. At 0 — the
+default — the area has no intrinsic size at all and fills whatever box it is put in,
+which is why an area with both at 0 and no size request disappears.
+
+The draw function is called again whenever the area is drawn: when it first comes on
+screen, when its size changes, when something covers it, and when you ask for it with
+`queue_draw()`. That is the whole contract — repaint from the function, never
+incrementally.
+
+<AdwWidget title="Gtk.DrawingArea">
+  <Fragment slot="preview">
+    ```html
+    <!-- A drawing area with NO draw function paints nothing, and that is what the
+         live preview shows: the widget, at the size it asked for. The dashed borders
+         are the page's, not the widget's — libadwaita has no rule for this node. The
+         `web` tab installs a draw function, which is the only way to fill one. -->
+    <div style="display:flex;flex-direction:column;gap:16px;align-items:center;">
+      <div style="outline:1px dashed var(--window-fg-color);outline-offset:2px;">
+        <!-- content-height: The content height. -->
+        <!-- content-width: The content width. -->
+        <gtk-drawing-area content-width="160" content-height="120"></gtk-drawing-area>
+      </div>
+      <div style="outline:1px dashed var(--window-fg-color);outline-offset:2px;">
+        <!-- content-height: The content height. -->
+        <!-- content-width: The content width. -->
+        <gtk-drawing-area content-width="160" content-height="60"></gtk-drawing-area>
+      </div>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <gtk-drawing-area id="area" content-width="160" content-height="120"></gtk-drawing-area>
+
+    <script type="module">
+        // The whole API: a size and a callback. The callback is handed the ALLOCATION,
+        // so it has to be ready for a box it did not choose.
+        const area = document.getElementById('area');
+        area.setDrawFunc((area, cr, width, height) => {
+            // `currentColor` is the widget's own colour here, which is what
+            // `gtk_widget_get_color()` answers in GTK (gtkdrawingarea.c:98-101).
+            cr.fillStyle = 'currentColor';
+            cr.beginPath();
+            cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
+            cr.fill();
+        });
+
+        // Repaint by asking, exactly as `queue_draw()` does in GTK: the draw function
+        // is called again, with the current allocation.
+        area.queueDraw();
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // GTK's own documented drawing area: a circle in the widget's own colour
+    // (gtkdrawingarea.c:88-104).
+    const area = new Gtk.DrawingArea({ content_width: 160, content_height: 120 });
+    area.set_draw_func((area, cr, width, height) => {
+        const color = area.get_color();
+        cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
+        cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
+        cr.fill();
+    });
+
+    // A size change is not a redraw: the draw function runs with the NEW allocation on
+    // the next frame, so ask for one when the picture itself changes.
+    area.queue_draw();
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 16;
+
+      Gtk.DrawingArea {
+        content-width: 160;
+        content-height: 120;
+
+        // A draw function is a CALLBACK, and a .blp cannot hold one. What a .blp can do
+        // is declare the widget and its size; the callback is attached in code.
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // GTK's own documented drawing area: a circle in the widget's own colour
+    // (gtkdrawingarea.c:88-104).
+    const area = new Gtk.DrawingArea({ content_width: 160, content_height: 120 });
+    area.set_draw_func((area, cr, width, height) => {
+        const color = area.get_color();
+        cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
+        cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
+        cr.fill();
+    });
+
+    // A size change is not a redraw: the draw function runs with the NEW allocation on
+    // the next frame, so ask for one when the picture itself changes.
+    area.queue_draw();
+    ```
+  </Fragment>
+</AdwWidget>
+
+<MoreInfo title="Why a drawing area needs neither properties nor styling">
+Because it is a blank widget with a blank node. `GtkDrawingArea` sets no CSS name of its
+own, so its node is the generic `widget` node, and libadwaita's stylesheet has no rule
+for it — there is nothing to theme, which is also why a draw function that paints a
+background has to read the widget's own colour (`gtk_widget_get_color`) instead of
+assuming one.
+</MoreInfo>
+## GL Area
+
+The same idea with a GPU behind it. **auto-render** says whether `::render` is emitted
+every time the widget draws, **has-depth-buffer** and **has-stencil-buffer** decide what
+the framebuffer has in it, and **allowed-apis** is a *set* — `gl gles` (the default),
+`gles` or `gl` — not a choice.
+
+The two signals are the whole contract, and their order is the part applications get
+wrong. `::resize` arrives with the **device-pixel** viewport (logical size × scale
+factor) **before** the first `::render` and before every later one, so a program that
+sets up its projection there cannot draw into a viewport nobody told it about.
+
+The render flag is cleared *after* `::render`, so `queue_render()` from inside the
+handler queues its frame and loses its flag — one render, not a loop. Nothing redraws on
+its own either way: **auto-render** decides whether a draw you asked for ends in
+`::render`, and animating means asking, from a tick callback.
+
+One property refuses to change late. `allowed-apis` is read when the context is created,
+so GTK refuses a write to a realized area — and the browser replica does the same, putting
+the attribute back rather than starting a second context.
+
+<MoreInfo title="What this replica actually is">
+A `<canvas>` with a real WebGL context, and the block says so where a reader would
+otherwise assume parity. Three differences are real and none of them is a bug: WebGL and
+WebGL2 are both **ES**, so `api` always reports the ES flavour the browser gave out (no
+browser offers desktop GL) and `allowed-apis` picks between two ES *versions*; WebGL
+clears its drawing buffer after compositing unless the context asks it not to, so the
+element creates the context with `preserveDrawingBuffer` — the counterpart of the texture
+GTK keeps between frames; and `::create-context` still works, a handler supplying its own
+context through `detail.context`. There is no frame clock here either, so a draw happens
+when the allocation changes, when `queue_render()` asks for one, or when a property that
+ends in `queue_draw` changes — an application animating a GL area asks for its frames,
+exactly as it would in GTK.
+</MoreInfo>
+
+<AdwWidget title="Gtk.GLArea">
+  <Fragment slot="preview">
+    ```html
+    <!-- No intrinsic size of its own: `GtkGLArea` has no measure function, so the
+         allocation is the parent's to give and the request below is the whole size. -->
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+      <!-- auto-render: If set to %TRUE the ::render signal will be emitted every time the widget draws. -->
+      <!-- has-depth-buffer: If set to %TRUE the widget will allocate and enable a depth buffer for the target framebuffer. -->
+      <gtk-gl-area auto-render has-depth-buffer style="width:240px;height:160px;"></gtk-gl-area>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <gtk-gl-area id="area" style="width:240px;height:160px;">
+    </gtk-gl-area>
+
+    <script type="module">
+        const area = document.getElementById('area');
+
+        // ORDER, not decoration: `resize` carries the device-pixel viewport and arrives
+        // before every `render`, the first one included.
+        area.addEventListener('resize', (event) => {
+            const { width, height } = event.detail;
+            area.context.viewport(0, 0, width, height);
+        });
+        area.addEventListener('render', (event) => {
+            // The context is the whole GL API, and the browser's is ES — see the note
+            // above the block. A scene is a compiled program and a buffer; this tab is
+            // about the ORDER of the two signals, and the story draws the triangle.
+            const { context } = event.detail;
+            context.clearColor(0.15, 0.16, 0.18, 1);
+            context.clear(context.COLOR_BUFFER_BIT);
+        });
+
+        // Nothing redraws on its own. `queueRender()` asks for the next frame, and the
+        // flag SURVIVES a request made from inside the handler — which is what a tick
+        // callback is: the browser's stand-in for GLib's.
+        function tick () {
+            area.queueRender();
+            requestAnimationFrame(tick);
+        }
+        tick();
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+    import GLib from 'gi://GLib?version=2.0';
+
+    const area = new Gtk.GLArea({ autoRender: true, hasDepthBuffer: false });
+    // A SET, read when the context is created — GTK refuses a write to a realized area,
+    // so it belongs before the first render.
+    area.allowed_apis = Gdk.GLAPI.GL | Gdk.GLAPI.GLES;
+
+    // ORDER: `resize` first (device pixels — logical size × scale factor), then `render`.
+    area.connect('resize', (area, width, height) => {
+        area.get_context().viewport(0, 0, width, height);
+    });
+    area.connect('render', (area) => {
+        // The context IS the whole GL API — `gdk_gl_context_*` mirrors GL — so the
+        // browser replica's `WebGLRenderingContext` answers to the same calls. A scene is
+        // a compiled program and a buffer: `gl.use_program` and `gl.draw_arrays`.
+        const gl = area.get_context();
+        gl.clear_color(0.15, 0.16, 0.18, 1.0);
+        gl.clear(0x4000);
+    });
+
+    // Nothing redraws on its own: a tick callback asking per frame is what animates it.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 33, () => {
+        area.queue_render();
+        return GLib.SOURCE_CONTINUE;
+    });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.GLArea {
+      auto-render: true;
+      has-depth-buffer: false;
+
+      // A GL area has no measure function, so its size is a request like any other
+      // widget's. `allowed-apis` is a SET — `allowed-apis: gl gles;` — and it is read
+      // once, when the context is created.
+      width-request: 240;
+      height-request: 160;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+    import GLib from 'gi://GLib?version=2.0';
+
+    const area = new Gtk.GLArea({ autoRender: true, hasDepthBuffer: false });
+    // A SET, read when the context is created — GTK refuses a write to a realized area,
+    // so it belongs before the first render.
+    area.allowed_apis = Gdk.GLAPI.GL | Gdk.GLAPI.GLES;
+
+    // ORDER: `resize` first (device pixels — logical size × scale factor), then `render`.
+    area.connect('resize', (area, width, height) => {
+        area.get_context().viewport(0, 0, width, height);
+    });
+    area.connect('render', (area) => {
+        // The context IS the whole GL API — `gdk_gl_context_*` mirrors GL — so the
+        // browser replica's `WebGLRenderingContext` answers to the same calls. A scene is
+        // a compiled program and a buffer: `gl.use_program` and `gl.draw_arrays`.
+        const gl = area.get_context();
+        gl.clear_color(0.15, 0.16, 0.18, 1.0);
+        gl.clear(0x4000);
+    });
+
+    // Nothing redraws on its own: a tick callback asking per frame is what animates it.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 33, () => {
+        area.queue_render();
+        return GLib.SOURCE_CONTINUE;
+    });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Drag Icon
+
+The fourth widget on this page is the one **no application builds**. A `GtkDragIcon` belongs
+to a drag operation: `get_for_drag(drag)` returns the icon that drag is using, creating it if
+there is none, and GTK destroys it when the drag ends. Its own docs say the rest — *drag
+icons do not allow user input* — and the class makes it true in `init`, which calls
+`gtk_widget_set_can_target (self, FALSE)`.
+
+There is exactly one property, **child**, and it does the whole job: `set_child` unparents
+the previous child, parents the new one, shows the icon and notifies. Its size is the child's
+preferred size, which is why an icon is exactly as big as what it carries.
+
+What makes the widget interesting is `create_widget_for_value`, which is what a
+**`GtkDragSource`** calls to decide what a drag shows. It answers for six kinds of value: a
+string is a `GtkLabel`, a `GdkRGBA` is a colour swatch, a `GdkPaintable` and a `GFile` are
+`GtkImage`s at the large size, a `GtkTextBuffer` is a painted `GtkPicture` of its selection,
+a `GskRenderNode` is an image of its bounds — and `NULL` for anything else. The hotspot is
+the other half of a drag icon's setup: `set_from_paintable` calls
+`gdk_drag_set_hotspot (drag, hot_x, hot_y)` and aligns that point of the paintable with the
+cursor's.
+
+<MoreInfo title="What this replica actually is">
+The platform paints its own drag image and offers no way to hand a live widget to it, so the
+replica asks for a transparent drag image and mirrors the icon as a fixed-position element
+that follows the pointer for the length of the drag. Where a browser refuses the transparent
+image the platform's own ghost shows as well, and that is the one thing here a page cannot
+own. The **hotspot is fixed at (0, 0)** for the same reason: a browser's drag image is
+positioned by an offset passed once, and the mirror puts the icon's top-left *at* the
+pointer. Two of `create_widget_for_value`'s six answers are ported — a string and a colour,
+the two a drag source can offer without asking the file system anything — and the header
+names the four that are not.
+</MoreInfo>
+
+<AdwWidget title="Gtk.DragIcon">
+  <Fragment slot="preview">
+    ```html
+    <!-- A drag icon is not a declared child of anything: the only markup is the icon
+         itself, which GTK creates FOR a drag and destroys with it. Nothing is visible
+         until a drag begins — a preview cannot hold a pointer down — so the `web` tab
+         carries the row that starts one. -->
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <div draggable="true" style="padding:12px;border:1px solid var(--border-color);border-radius:12px;">
+        Report.odt
+      </div>
+      <gtk-drag-icon hidden></gtk-drag-icon>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <div id="row" draggable="true" style="padding:12px;">Report.odt</div>
+    <gtk-drag-icon id="icon"></gtk-drag-icon>
+
+    <script type="module">
+        import { Gtk } from '@gjsify/adwaita-web';
+
+        const row = document.getElementById('row');
+
+        // `dragstart` is `GtkDragSource::drag-begin` — the moment a drag begins, and the
+        // only moment a drag icon exists.
+        row.addEventListener('dragstart', (event) => {
+            if (event.dataTransfer !== null) {
+                // `actions` on the source is the effect this drag may have; `copy` and
+                // `move` are the two `Gdk.DragAction` bits of the story.
+                event.dataTransfer.effectAllowed = 'copy';
+                event.dataTransfer.setData('text/plain', 'Report.odt');
+            }
+
+            // `get_for_drag` is the ONLY way to reach an icon, and
+            // `create_widget_for_value` is what decides what a value shows: a string is a
+            // `GtkLabel` (:531-534), a `GdkRGBA` a colour swatch (:544-553).
+            const icon = Gtk.DragIcon.getForDrag(event);
+            icon.setChild(Gtk.DragIcon.createWidgetForValue('Report.odt'));
+        });
+    </script>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+
+    // A draggable row. `GtkDragSource` is an EVENT CONTROLLER, not a widget, so it is
+    // added to one with `gtk_widget_add_controller` (gtkdragsource.c:44-58).
+    const row = new Gtk.ListBoxRow();
+    row.set_child(new Gtk.Label({ label: 'Report.odt' }));
+
+    const source = Gtk.DragSource.new();
+    source.actions = Gdk.DragAction.COPY;
+
+    // `prepare` answers the content, set just in time rather than ahead.
+    source.connect('prepare', () => Gdk.ContentProvider.new_for_value('Report.odt'));
+
+    // `drag-begin` is where the icon is set: `get_for_drag` is the only way to reach one
+    // (gtkdragicon.c:400-421), and `create_widget_for_value` decides what a value shows.
+    source.connect('drag-begin', (source, drag) => {
+        const icon = Gtk.DragIcon.get_for_drag(drag);
+        icon.set_child(Gtk.DragIcon.create_widget_for_value('Report.odt'));
+    });
+    row.add_controller(source);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    // A drag icon CANNOT be declared: `gtk_drag_icon_get_for_drag` creates one for a drag
+    // operation and GTK destroys it when the drag ends, so there is no instance a .blp
+    // could put in a tree. What a .blp CAN hold is the row the drag starts from — and the
+    // GtkDragSource that gives it a drag is an event CONTROLLER, which is code, so the icon
+    // is set there too.
+    Gtk.ListBoxRow {
+      Gtk.Label {
+        label: _("Report.odt");
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gdk from 'gi://Gdk?version=4.0';
+
+    // A draggable row. `GtkDragSource` is an EVENT CONTROLLER, not a widget, so it is
+    // added to one with `gtk_widget_add_controller` (gtkdragsource.c:44-58).
+    const row = new Gtk.ListBoxRow();
+    row.set_child(new Gtk.Label({ label: 'Report.odt' }));
+
+    const source = Gtk.DragSource.new();
+    source.actions = Gdk.DragAction.COPY;
+
+    // `prepare` answers the content, set just in time rather than ahead.
+    source.connect('prepare', () => Gdk.ContentProvider.new_for_value('Report.odt'));
+
+    // `drag-begin` is where the icon is set: `get_for_drag` is the only way to reach one
+    // (gtkdragicon.c:400-421), and `create_widget_for_value` decides what a value shows.
+    source.connect('drag-begin', (source, drag) => {
+        const icon = Gtk.DragIcon.get_for_drag(drag);
+        icon.set_child(Gtk.DragIcon.create_widget_for_value('Report.odt'));
+    });
+    row.add_controller(source);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Graphics Offload
+
+A wrapper that draws **nothing itself**: it hands its one child to the compositor as it
+is, skipping the texture round-trip a frequently changing child would otherwise pay on
+every frame. It is worth it for video and nothing else, and GTK falls back to normal
+rendering whenever it cannot — there is no failure mode to handle.
+
+**enabled** says whether the attempt is made at all (**enabled** from the start,
+**disabled** to opt out). **black-background** paints black over the whole allocation
+*before* the child, which is what letterboxing needs: an aspect ratio that does not match
+the screen leaves bars, and the property makes them black in CSS rather than in an
+application's own drawing code.
+
+What the widget will **not** do is the list worth reading before you reach for it: a
+rounded corner that clips the content, a transform more complex than a translation and a
+scale, a filter such as opacity or grayscale, and translucent content all rule offload
+out. An offloaded child is best kept bare.
+
+<MoreInfo title="What this replica actually is">
+A wrapper that carries the enum, the black rectangle and the bin layout — and **not** the
+passthrough, because no browser API hands a surface to a compositor. When `enabled` is
+`enabled` the replica sets `will-change: transform` on its own box, which is the browser's
+own statement that a layer may be composited without being drawn into a texture first; that
+is the whole of what a document can do here, and the block says so rather than implying
+GTK's optimisation is available.
+</MoreInfo>
+
+<AdwWidget title="Gtk.GraphicsOffload">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <!-- black-background: Whether to draw a black background. -->
+      <gtk-graphics-offload enabled black-background style="width:280px;height:96px;">
+        <gtk-label label="The child of an offloaded layer"></gtk-label>
+      </gtk-graphics-offload>
+      <gtk-graphics-offload enabled="disabled" style="width:280px;height:96px;">
+        <gtk-label label="Offload disabled — the child composites normally"></gtk-label>
+      </gtk-graphics-offload>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The child is a VIDEO, and the bars beside it are the letterbox the aspect ratio
+    // leaves behind.
+    const player = new Gtk.Video({ file: GLib.getenv('DEMO_MP4') });
+    const layer = new Gtk.GraphicsOffload({
+        enabled: Gtk.GraphicsOffloadEnabled.ENABLED,
+        blackBackground: true,
+        child: player,
+    });
+
+    // Controls on top defeat it: "Graphics offload is most efficient if there are no
+    // controls drawn on top of the video content" (gtkgraphicsoffload.c:61-62).
+    layer.set_child(player);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.GraphicsOffload {
+        enabled: enabled;
+        black-background: true;
+
+        // `child` is the one GtkBuildable slot, so it is the wrapper's content.
+        Gtk.Label {
+          label: _("The child of an offloaded layer");
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    // The child is a VIDEO, and the bars beside it are the letterbox the aspect ratio
+    // leaves behind.
+    const player = new Gtk.Video({ file: GLib.getenv('DEMO_MP4') });
+    const layer = new Gtk.GraphicsOffload({
+        enabled: Gtk.GraphicsOffloadEnabled.ENABLED,
+        blackBackground: true,
+        child: player,
+    });
+
+    // Controls on top defeat it: "Graphics offload is most efficient if there are no
+    // controls drawn on top of the video content" (gtkgraphicsoffload.c:61-62).
+    layer.set_child(player);
+    ```
+  </Fragment>
+</AdwWidget>

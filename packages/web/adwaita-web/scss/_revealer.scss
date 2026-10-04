@@ -1,0 +1,37 @@
+// _revealer.scss — <gtk-revealer>: the box that clips while its child slides or folds.
+//
+// libadwaita gives the revealer node NO rule of its own — `grep -rn revealer
+// src/stylesheet/` returns the one `actionbar > revealer > box` chain in `_toolbars.scss` —
+// so there is no look to copy and this partial is the CLIP.
+//
+// `overflow: hidden` is `GTK_OVERFLOW_HIDDEN`, which `gtk_revealer_start_animation` sets
+// for the four plain slide types and releases when the position lands
+// (gtkrevealer.c:230-236, :243-249). It is unconditional here instead, which differs
+// nowhere a reader can see: at a settled position the clip box is the child's own size, so
+// there is nothing to clip — and it has to be always, because a revealer that collapsed to
+// `display: none` at position 0 would hide its child from the accessibility tree too, and
+// the widget's doc section says the child stays in it whatever the state
+// (gtkrevealer.c:61-63).
+//
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss (`actionbar > revealer`)
+// Reference: refs/gtk/gtk/gtkrevealer.c (GTK_OVERFLOW_HIDDEN, gtk_revealer_snapshot)
+// Copyright (c) The GTK Team. LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components.
+
+gtk-revealer {
+  display: block;
+  // `gtk_revealer_measure` answers the CHILD's minimum and natural, scaled — so the
+  // revealer's own size is the child's, and a block-level host would stretch to its parent
+  // instead. `fit-content` is `min(max-content, available)`, which is the pair of numbers a
+  // GTK size request is, and a flex parent can still grow it because `flex-basis: auto`
+  // reads this value.
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+// The box the element sizes to `ceil(natural × scale)`. It has to be a real box — the
+// height it is given is the revealer's own measured height in the C.
+.adw-revealer-clip {
+  display: block;
+}

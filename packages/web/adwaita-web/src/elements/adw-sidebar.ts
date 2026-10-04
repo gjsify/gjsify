@@ -22,9 +22,14 @@
 //   <adw-sidebar-section title="…"> — a titled group of items. An untitled
 //     section renders a separator before its rows (first section: nothing),
 //     mirroring AdwSidebar's stack header (title vs separator child).
-//   <adw-sidebar-item title="…" subtitle="…" icon-name="…" disabled hidden> —
+//   <adw-sidebar-item title="…" subtitle="…" icon-name="…" disabled hidden
+//     needs-attention badge-number="3"> —
 //     one row. `disabled` is AdwSidebarItem:enabled=false (bound to the row's
-//     `sensitive`), `hidden` is AdwSidebarItem:visible=false.
+//     `sensitive`), `hidden` is AdwSidebarItem:visible=false, and the last two are the
+//     INDICATOR `AdwViewSwitcherSidebar` puts in `AdwSidebarItem:suffix`
+//     (`update_badge`, adw-view-switcher-sidebar.c:133-181): a bare dot for
+//     `needs-attention` with no count, a `999+`-capped label once there is one, and
+//     `.needs-attention` on the bin when attention is asked for either way.
 // Attributes (on <adw-sidebar>):
 //   mode (sidebar | page, default sidebar) — mirrors Adw.Sidebar:mode.
 //   selected (zero-based flat item index; anything that is not a valid position
@@ -45,6 +50,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // icon nodes are <gtk-image>.
 
+import { viewSwitcherBadgeLabel } from '@gjsify/adwaita-core';
 import {
     ADW_SIDEBAR_NO_SELECTION,
     SidebarState,
@@ -69,7 +75,7 @@ const sectionBindings = new WeakMap<AdwSidebarSection, { sidebar: AdwSidebar; sp
 /** A single sidebar item. Child of <adw-sidebar-section>; consumed at connect time. */
 export class AdwSidebarItem extends HTMLElement {
     static get observedAttributes() {
-        return ['title', 'subtitle', 'icon-name', 'disabled', 'hidden'];
+        return ['title', 'subtitle', 'icon-name', 'disabled', 'hidden', 'needs-attention', 'badge-number'];
     }
 
     /**
@@ -104,6 +110,8 @@ export class AdwSidebarItem extends HTMLElement {
         else if (name === 'icon-name') binding.spec.iconName = value;
         else if (name === 'disabled') binding.spec.enabled = newValue === null;
         else if (name === 'hidden') binding.spec.visible = newValue === null;
+        else if (name === 'needs-attention') binding.spec.needsAttention = newValue === null;
+        else if (name === 'badge-number') binding.spec.badgeNumber = Number.parseInt(value, 10) || 0;
 
         binding.sidebar.refresh();
     }
@@ -257,6 +265,8 @@ export class AdwSidebar extends HTMLElement {
                     iconName: itemEl.getAttribute('icon-name') ?? '',
                     enabled: !itemEl.hasAttribute('disabled'),
                     visible: !itemEl.hasAttribute('hidden'),
+                    badgeNumber: Number.parseInt(itemEl.getAttribute('badge-number') ?? '0', 10) || 0,
+                    needsAttention: itemEl.hasAttribute('needs-attention'),
                 };
                 itemBindings.set(itemEl, { sidebar: this, spec: item });
                 items.push(item);
@@ -391,6 +401,12 @@ export class AdwSidebar extends HTMLElement {
 
         row.appendChild(textEl);
 
+        // `update_badge` (adw-view-switcher-sidebar.c:133-181): no attention and no count
+        // means NO bin at all, a count means the bin loses `.dot` and gains the label, and
+        // a drop back to zero takes the label away and puts `.dot` back. The cap is
+        // `> 999`, which is `viewSwitcherBadgeLabel`'s rule, so 999 itself prints.
+        row.appendChild(this._createIndicator(item));
+
         // Page mode adds a trailing chevron on every row, the way the boxed-list
         // AdwActionRow carries a `go-next-symbolic` arrow.
         row.appendChild(createGtkImage('go-next', 'adw-sidebar-item-arrow'));
@@ -398,6 +414,29 @@ export class AdwSidebar extends HTMLElement {
         row.addEventListener('click', () => this._activate(flat.index));
 
         return row;
+    }
+
+    /**
+     * The item's INDICATOR bin — C's `AdwBin` with `.indicator`, `.dot` and the
+     * optional `.needs-attention`, holding an `AdwFadingLabel`'s worth of text.
+     */
+    private _createIndicator(item: AdwSidebarItemSpec): HTMLElement {
+        const badge = item.badgeNumber ?? 0;
+        const attention = item.needsAttention === true;
+        const bin = document.createElement('span');
+        bin.className = 'indicator';
+        // Hidden, not absent: `set_suffix (item, NULL)` in C REMOVES the bin, and the
+        // difference is only observable through the suffix property.
+        bin.hidden = !attention && badge === 0;
+        bin.classList.toggle('dot', badge === 0);
+        bin.classList.toggle('needs-attention', attention);
+        if (badge > 0) {
+            const label = document.createElement('span');
+            label.className = 'numeric';
+            label.textContent = viewSwitcherBadgeLabel(badge);
+            bin.appendChild(label);
+        }
+        return bin;
     }
 
     private _applyMode(): void {

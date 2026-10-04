@@ -19,6 +19,12 @@
 // Events, all bubbling CustomEvents: `notify::open` (detail `{ open }`), `closed`
 // (Adw.Dialog::closed), `close-attempt` (Adw.Dialog::close-attempt).
 //
+// SUBCLASSING: `decorateHeader(header)` is the one hook, and it exists for
+// `<gtk-about-dialog>`, whose headerbar carries a stack switcher in the title position
+// instead of a title (gtkaboutdialog.ui). Chrome, focus, Escape and dismissal stay here,
+// so a subclass that wants a different header adds to this one rather than building a
+// second scrim.
+//
 // Reference: refs/libadwaita/src/adw-dialog.c (present/close/can-close, Escape, focus)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (floating sheet + bottom sheet)
 // Copyright (c) 2023-2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
@@ -223,6 +229,17 @@ export class AdwDialog extends HTMLElement {
         this._modal.dismiss();
     }
 
+    /**
+     * Add to the header bar, called at the end of every render.
+     *
+     * The hook is for a DIALOG whose header is not a title plus a close button, which is
+     * what `<gtk-about-dialog>` needs: `gtkaboutdialog.ui` puts a `GtkStackSwitcher` in
+     * the titlebar's title-widget position and no title text at all. An empty body is the
+     * default, so every other dialog is unaffected — and the header element is the one
+     * the base already owns, so a subclass never reaches into private state to get it.
+     */
+    protected decorateHeader(_header: HTMLElement): void {}
+
     private _render(): void {
         this.classList.toggle('open', this.open);
 
@@ -244,6 +261,8 @@ export class AdwDialog extends HTMLElement {
         const locked = !this.canClose;
         this._closeBtn.disabled = locked;
         this._closeBtn.classList.toggle('locked', locked);
+
+        this.decorateHeader(this._headerEl);
     }
 }
 

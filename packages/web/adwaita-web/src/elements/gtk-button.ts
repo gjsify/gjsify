@@ -118,7 +118,15 @@ export class GtkButton extends HTMLElement {
             btn.removeAttribute('aria-label');
         }
         btn.disabled = this.hasAttribute('disabled');
+        this.decorate(btn);
     }
+
+    /**
+     * Last step of every render, after the class and the content are written. A subclass
+     * adds its own state to the inner button here, because `_render` resets `className` and
+     * anything set earlier would be gone with it.
+     */
+    protected decorate(_button: HTMLButtonElement): void {}
 }
 
 customElements.define('gtk-button', GtkButton);

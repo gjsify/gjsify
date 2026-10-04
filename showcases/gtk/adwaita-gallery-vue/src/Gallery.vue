@@ -38,6 +38,12 @@
             </adw-action-row>
         </adw-preferences-group>
         <adw-preferences-group>
+            <adw-preferences-row
+                title="A plain preferences row"
+                :use-markup="true"
+            />
+        </adw-preferences-group>
+        <adw-preferences-group>
             <adw-switch-row
                 title="Automatic updates"
                 subtitle="Download and install updates without asking"
@@ -134,6 +140,37 @@
                 { label: 'Print', action: 'app.print' },
             ]"
         />
+        <gtk-box
+            orientation="horizontal"
+            :spacing="12"
+            halign="center"
+        >
+            <gtk-toggle-button
+                label="Mute"
+                :active="true"
+            />
+            <gtk-toggle-button label="Loop" />
+        </gtk-box>
+        <gtk-box
+            orientation="vertical"
+            :spacing="6"
+            halign="center"
+        >
+            <gtk-link-button
+                uri="https://gnome.org"
+                label="GNOME"
+            />
+            <gtk-link-button
+                uri="https://docs.gtk.org/gtk4/"
+                :visited="true"
+            />
+        </gtk-box>
+        <gtk-scale-button
+            :icons="['audio-volume-muted-symbolic', 'audio-volume-low-symbolic', 'audio-volume-high-symbolic']"
+            :value="70"
+        />
+        <gtk-color-dialog-button />
+        <gtk-font-dialog-button />
         <gtk-menu-button
             icon-name="open-menu-symbolic"
             :css-classes="['flat']"
@@ -152,6 +189,341 @@
             :selected="0"
             halign="center"
         />
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-scale
+                :adjustment="{ lower: 0, upper: 100, value: 40, stepIncrement: 1, pageIncrement: 10 }"
+                :digits="0"
+                :draw-value="true"
+                value-pos="top"
+                :width-request="320"
+            />
+        </gtk-box>
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-spin-button
+                :adjustment="{ lower: 0, upper: 10, value: 5, stepIncrement: 1, pageIncrement: 2 }"
+                :digits="0"
+                :numeric="true"
+                :snap-to-ticks="true"
+                halign="center"
+            />
+        </gtk-box>
+        <gtk-password-entry
+            :show-peek-icon="true"
+            placeholder-text="Password"
+        />
+        <gtk-search-entry
+            placeholder-text="Search…"
+            :search-delay="150"
+        />
+        <gtk-check-button
+            label="Enable networking"
+            :active="true"
+        />
+        <gtk-switch
+            :active="true"
+            :state="true"
+            halign="center"
+        />
+        <gtk-progress-bar
+            :fraction="0.4"
+            :show-text="true"
+            :width-request="320"
+            halign="center"
+        />
+        <gtk-level-bar
+            :max-value="5"
+            mode="discrete"
+            :value="3"
+            :width-request="240"
+            halign="center"
+        />
+        <gtk-spinner
+            :spinning="true"
+            :width-request="32"
+            :height-request="32"
+        />
+        <gtk-graphics-offload
+            enabled="enabled"
+            :black-background="true"
+            :width-request="280"
+            :height-request="96"
+        >
+            <gtk-label label="The child of an offloaded layer" />
+        </gtk-graphics-offload>
+        <gtk-gl-area
+            :auto-render="true"
+            :has-depth-buffer="false"
+            :width-request="240"
+            :height-request="160"
+        />
+        <gtk-box
+            orientation="vertical"
+            :spacing="16"
+        >
+            <gtk-drawing-area
+                :content-width="160"
+                :content-height="120"
+            />
+            <gtk-drawing-area
+                :content-width="160"
+                :content-height="60"
+            />
+        </gtk-box>
+        <gtk-scrolled-window
+            hscrollbar-policy="automatic"
+            vscrollbar-policy="automatic"
+            :has-frame="false"
+        >
+            <gtk-box
+                orientation="vertical"
+                :spacing="8"
+            >
+                <gtk-label label="Row 1" />
+                <gtk-label label="Row 2" />
+                <gtk-label label="Row 3" />
+            </gtk-box>
+        </gtk-scrolled-window>
+        <gtk-scrollbar
+            orientation="vertical"
+            valign="center"
+            :adjustment="{ value: 80, lower: 0, upper: 400, stepIncrement: 10, pageIncrement: 80, pageSize: 120 }"
+        />
+        <gtk-viewport :scroll-to-focus="true">
+            <gtk-box
+                orientation="vertical"
+                :spacing="6"
+            >
+                <gtk-label label="Row 1" />
+                <gtk-label label="Row 2" />
+                <gtk-label label="Row 3" />
+            </gtk-box>
+        </gtk-viewport>
+        <gtk-window-handle>
+            <adw-header-bar>
+                <adw-window-title title="Notes" />
+            </adw-header-bar>
+        </gtk-window-handle>
+        <gtk-image
+            icon-name="avatar-default-symbolic"
+            icon-size="large"
+        />
+        <gtk-picture
+            :keep-aspect-ratio="true"
+            content-fit="cover"
+            alternative-text="A tangerine"
+            :width-request="240"
+            :height-request="160"
+        />
+        <gtk-inscription
+            text="A caption in a fixed box"
+            :min-chars="10"
+            :min-lines="2"
+            :width-request="320"
+        />
+        <gtk-video
+            :loop="true"
+            :width-request="320"
+            :height-request="180"
+        />
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-video
+                :loop="true"
+                :width-request="320"
+                :height-request="180"
+            />
+            <gtk-media-controls :css-classes="['osd', 'bottom']" />
+        </gtk-box>
+        <gtk-list-box
+            selection-mode="single"
+            :show-separators="true"
+            :width-request="240"
+        >
+            <gtk-list-box-row>
+                <gtk-label label="Documents" />
+            </gtk-list-box-row>
+            <gtk-list-box-row>
+                <gtk-label label="Downloads" />
+            </gtk-list-box-row>
+            <gtk-list-box-row>
+                <gtk-label label="Pictures" />
+            </gtk-list-box-row>
+        </gtk-list-box>
+        <gtk-flow-box
+            selection-mode="multiple"
+            :min-children-per-line="2"
+            :max-children-per-line="4"
+            :row-spacing="6"
+            :column-spacing="6"
+            :width-request="320"
+        >
+            <gtk-flow-box-child>
+                <gtk-label label="Red" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Orange" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Yellow" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Green" />
+            </gtk-flow-box-child>
+            <gtk-flow-box-child>
+                <gtk-label label="Blue" />
+            </gtk-flow-box-child>
+        </gtk-flow-box>
+        <gtk-calendar
+            :show-week-numbers="true"
+            halign="center"
+        />
+        <gtk-frame
+            label="Details"
+            :label-xalign="0"
+        >
+            <gtk-label label="A framed region: the label sits in the top edge of the border." />
+        </gtk-frame>
+        <gtk-aspect-frame
+            :ratio="2"
+            :obey-child="false"
+            :xalign="0.5"
+            :yalign="0.5"
+        >
+            <gtk-label label="The frame gives this child the ratio above, and puts it where xalign and yalign say." />
+        </gtk-aspect-frame>
+        <gtk-box
+            orientation="vertical"
+            :spacing="12"
+        >
+            <gtk-label label="Above" />
+            <gtk-separator />
+            <gtk-label label="Below" />
+            <gtk-separator
+                orientation="vertical"
+                :css-classes="['spacer']"
+            />
+        </gtk-box>
+        <gtk-overlay
+            :width-request="260"
+            :height-request="160"
+        >
+            <gtk-label
+                label="Main child"
+                halign="center"
+                valign="center"
+                :css-classes="['dimmed']"
+            />
+            <gtk-label
+                slot="overlay"
+                label="2"
+                halign="end"
+                valign="end"
+            />
+        </gtk-overlay>
+        <gtk-center-box
+            :shrink-center-last="true"
+            :width-request="320"
+            halign="center"
+        >
+            <gtk-label
+                slot="start"
+                label="Start"
+            />
+            <gtk-label
+                slot="center"
+                label="Centre"
+            />
+            <gtk-label
+                slot="end"
+                label="End"
+            />
+        </gtk-center-box>
+        <gtk-revealer
+            transition-type="slide-down"
+            :transition-duration="250"
+            :reveal-child="true"
+        >
+            <gtk-label
+                label="The revealed child"
+                :margin-top="12"
+                :margin-bottom="12"
+            />
+        </gtk-revealer>
+        <gtk-paned
+            orientation="horizontal"
+            :width-request="400"
+            :height-request="120"
+            :position="-1"
+        >
+            <gtk-label
+                slot="start"
+                label="First child"
+                :width-request="100"
+            />
+            <gtk-label
+                slot="end"
+                label="Second child"
+                :width-request="300"
+            />
+        </gtk-paned>
+        <gtk-expander
+            :use-underline="true"
+            label="_More options"
+        >
+            <gtk-label
+                label="Notifications"
+                :margin-top="12"
+                :margin-bottom="12"
+            />
+        </gtk-expander>
+        <gtk-text
+            text="correct-horse-battery"
+            placeholder-text="A single line"
+            :max-length="32"
+        />
+        <gtk-editable-label text="Ada Lovelace" />
+        <adw-window
+            :default-width="440"
+            :default-height="240"
+        >
+            <adw-toolbar-view>
+                <adw-header-bar slot="top">
+                    <adw-window-title
+                        slot="title"
+                        title="Text Editor"
+                        subtitle="notes.md"
+                    />
+                </adw-header-bar>
+                <adw-status-page
+                    slot="content"
+                    title="Your Library"
+                    description="Content sits between the toolbars and scrolls independently of them."
+                />
+            </adw-toolbar-view>
+        </adw-window>
+        <adw-bin>
+            <gtk-label
+                label="The one child of this bin."
+                :wrap="true"
+                :xalign="0"
+                :css-classes="['card']"
+            />
+        </adw-bin>
+        <adw-breakpoint-bin>
+            <gtk-label
+                label="Wide"
+                ellipsize="end"
+                :css-classes="['title-1']"
+            />
+        </adw-breakpoint-bin>
         <adw-clamp
             :maximum-size="400"
             :tightening-threshold="300"
@@ -390,9 +762,78 @@
                 halign="center"
             />
         </adw-status-page>
+        <gtk-popover-menu :menu-model="[
+                { label: 'New Window', accel: '<Control>N' },
+                { section: [
+                    { label: 'Cut' },
+                    { label: 'Copy' },
+                    { label: 'Paste' },
+                ], label: 'Edit' },
+                { label: 'Open With', submenu: [
+                    { label: 'Text Editor' },
+                    { label: 'Web Browser' },
+                ] },
+            ]" />
+        <gtk-popover-menu-bar :menu-model="[
+                { label: 'File', submenu: [
+                    { label: 'New Window' },
+                    { label: 'Open' },
+                    { label: 'Quit' },
+                ] },
+                { label: 'Edit', submenu: [
+                    { label: 'Undo' },
+                    { label: 'Redo' },
+                ] },
+                { label: 'View', submenu: [
+                    { label: 'Zoom In' },
+                    { label: 'Zoom Out' },
+                ] },
+            ]" />
+        <gtk-popover-bin
+            :menu-model="[
+                { label: 'Cut' },
+                { label: 'Copy' },
+                { label: 'Paste' },
+                { label: 'Delete' },
+            ]"
+            :handle-input="true"
+        />
         <adw-window-title
             title="Inbox"
             subtitle="3 unread messages"
+        />
+        <gtk-stack
+            transition-type="slide-left-right"
+            :transition-duration="200"
+        />
+        <gtk-header-bar decoration-layout="menu:minimize,maximize,close">
+            <gtk-button
+                slot="start"
+                label="Back"
+                :css-classes="['flat']"
+            />
+            <gtk-label
+                slot="title"
+                label="Mailboxes"
+            />
+            <gtk-button
+                slot="end"
+                label="Search"
+                :css-classes="['flat']"
+            />
+            <gtk-button
+                slot="end"
+                label="Menu"
+                :css-classes="['flat']"
+            />
+        </gtk-header-bar>
+        <gtk-window-controls
+            side="end"
+            decoration-layout="menu:minimize,maximize,close"
+        />
+        <gtk-notebook
+            tab-pos="top"
+            :page="0"
         />
     </gtk-box>
 </template>

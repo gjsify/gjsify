@@ -1,6 +1,6 @@
 ---
 title: View Switching
-description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, inline view switcher and carousel. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, tab button, inline view switcher and carousel. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -29,7 +29,6 @@ swaps between the two on a breakpoint.
 <AdwWidget title="Adw.ViewSwitcher" padding="flush" stage="height: 300px; width: 100%; display: flex; flex-direction: column;">
   <Fragment slot="preview">
     ```html
-    <!-- policy: The policy to determine which mode to use. -->
     <adw-view-switcher policy="wide" style="flex: 1; width: 100%;">
       <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
         <!-- description: The description markup to be displayed below the title. -->
@@ -298,6 +297,283 @@ document looks chrome-free.
   </Fragment>
 </AdwWidget>
 
+## Tab Button
+
+A button that stands in for a tab bar when there is no room for one. It shows
+how many pages its **view** holds, and lights a dot when a page you are not
+looking at needs attention. The number gets smaller from ten pages and gives way
+to a glyph at a hundred. Pair it with an action that opens a tab overview, and
+listen to `clicked` to do so.
+
+<AdwWidget title="Adw.TabButton">
+  <Fragment slot="preview">
+    ```html
+    <adw-tab-view id="tabs" style="display:none;">
+      <adw-tab-page title="One"></adw-tab-page>
+      <adw-tab-page title="Two"></adw-tab-page>
+      <adw-tab-page title="Three"></adw-tab-page>
+    </adw-tab-view>
+    <adw-tab-button view="tabs"></adw-tab-button>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // Counts the pages; `needs-attention` on a page that is not selected lights the dot.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => console.log('Open the tab overview'));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      Adw.TabButton {
+        view: tabs;
+      }
+
+      Adw.TabView tabs {}
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // Counts the pages; `needs-attention` on a page that is not selected lights the dot.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => console.log('Open the tab overview'));
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Tab Bar
+
+The tab bar on its own. libadwaita keeps it a **separate widget** from the view it drives,
+bound through its **view** property, which is what lets one bar sit over a view it does not
+own — a header bar of its own, or a strip that belongs to the window rather than to the
+pages. `Adw.TabView` carries a merged bar of its own, so reach for this one when the bar
+and the view are two things in your layout.
+
+Each tab is a chip with the page's title, its icon and its close button. Two action
+widgets may sit either side of the chips, and **inverted** swaps the order inside every
+chip: the close button moves to the leading edge and the indicator to the trailing one.
+
+<MoreInfo title="Autohide and expand-tabs">
+**Autohide** is the bar's default upstream, and it hides the strip once a single page is
+left — a pinned page keeps it up. **Expand-tabs** makes the chips fill the strip instead of
+sitting at their smallest size. Both default TRUE in libadwaita, and an HTML boolean
+attribute can only spell "present", so both are opt-in in the markup: write the attribute to
+get the behaviour, leave it off for the other one.
+</MoreInfo>
+
+<AdwWidget title="Adw.TabBar" padding="flush" stage="height: 260px; width: 100%; display: flex; flex-direction: column;">
+  <Fragment slot="preview">
+    ```html
+    <!-- view: The tab view the tab bar controls. -->
+    <adw-tab-bar view="tabs" style="flex: 0 0 auto;">
+      <button slot="start-action-widget" class="adw-button flat image-button" title="New page">
+        <gtk-image icon="list-add"></gtk-image>
+      </button>
+      <button slot="end-action-widget" class="adw-button flat image-button" title="Menu">
+        <gtk-image icon="view-more"></gtk-image>
+      </button>
+    </adw-tab-bar>
+    <adw-tab-view id="tabs" style="flex: 1;">
+      <adw-tab-page title="Overview">
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page icon="view-paged" title="Overview" description="A summary of everything at a glance."></adw-status-page>
+      </adw-tab-page>
+      <adw-tab-page title="Details">
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page icon="view-paged" title="Details" description="The specifics, broken down line by line."></adw-status-page>
+      </adw-tab-page>
+      <adw-tab-page title="History">
+        <!-- description: The description markup to be displayed below the title. -->
+        <adw-status-page icon="view-paged" title="History" description="A log of every change made so far."></adw-status-page>
+      </adw-tab-page>
+    </adw-tab-view>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const tabView = new Adw.TabView({ vexpand: true });
+    for (const [title, body] of [
+        ['Overview', 'A summary of everything at a glance.'],
+        ['Details', 'The specifics, broken down line by line.'],
+        ['History', 'A log of every change made so far.'],
+    ] as const) {
+        const page = tabView.append(new Adw.StatusPage({ iconName: 'view-paged-symbolic', title, description: body }));
+        page.title = title;
+    }
+
+    // The bar is a widget of its own over the view; `autohide` and `expand-tabs` both
+    // default TRUE here, so the strip would start collapsed without the first.
+    const tabBar = new Adw.TabBar({ view: tabView, autohide: false });
+    tabBar.startActionWidget = new Gtk.Button({ iconName: 'list-add-symbolic', cssClasses: ['flat'] });
+    tabBar.endActionWidget = new Gtk.Button({ iconName: 'view-more-symbolic', cssClasses: ['flat'] });
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+    box.append(tabBar);
+    box.append(tabView);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      orientation: vertical;
+
+      Adw.TabBar {
+        view: tabs;
+        autohide: false;
+
+        start-action-widget: Gtk.Button {
+          icon-name: "list-add-symbolic";
+          styles ["flat"]
+        };
+      }
+
+      Adw.TabView tabs {
+        vexpand: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    // `AdwViewPage` is a TYPE and not a widget, so it has no member in the `Adw`
+    // namespace and keeps the package import.
+    import type { AdwViewPage } from '@gjsify/adwaita-nativescript';
+
+    const page = (title: string, body: string): Adw.StatusPage =>
+        new Adw.StatusPage({ iconName: 'view-paged-symbolic', title, description: body });
+
+    // The port has no Adw.TabBar: it draws the chips inside its own tab view, so the
+    // strip is not a view here and `view` has nothing to bind to.
+    const tabView = new Adw.TabView();
+    tabView.setViews([
+        { title: 'Overview', content: page('Overview', 'A summary of everything at a glance.') },
+        { title: 'Details', content: page('Details', 'The specifics, broken down line by line.') },
+        { title: 'History', content: page('History', 'A log of every change made so far.') },
+    ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Tab Overview
+
+The **overview** is every page at once: a grid of thumbnails over the tab view, with the
+page title under each one and its own close button on it. It is meant to be the direct
+child of the window, with the tab view as its **child** — opening it covers that view
+and closing it gives it back.
+
+The header bar counts the open pages (**3 Tabs**, **1 Tab** for a single page) and
+carries the search button; the search matches titles, tooltips and each page's
+**keyword**, so a browser can make its URLs findable. Turn **enable-search** off and
+the button goes, leaving a bar that shows nothing worth showing — which is also what
+happens when the secondary menu is unset and both sides' title buttons are off.
+
+<MoreInfo title="Pinned pages">
+A **pinned** page gets its own grid above the ordinary one, and its thumbnail carries an
+unpin mark instead of a close button — that is the arrangement the tab bar's narrow
+chips come from. **Inverted** puts each thumbnail's close button at the leading edge and
+its indicator at the trailing one, for a right-to-left layout.
+</MoreInfo>
+
+<MoreInfo title="What the thumbnails are not">
+GTK paints each page into a texture and shows that picture. A browser cannot paint a
+widget into a texture, so the portrait area shows the page's own title instead. Everything
+around it — the card, the close button, the unpin mark, the attention dot, the indicator —
+is the real thing. Thumbnails are not dragged to reorder here either: reordering goes
+through the tab view's own API, the way the tab bar does it.
+</MoreInfo>
+
+<AdwWidget title="Adw.TabOverview" padding="flush" stage="height: 300px; width: 100%;">
+  <Fragment slot="preview">
+    ```html
+    <adw-tab-overview open enable-new-tab>
+      <adw-tab-view>
+        <adw-tab-page title="One"></adw-tab-page>
+        <adw-tab-page title="Two"></adw-tab-page>
+        <adw-tab-page title="Three" pinned></adw-tab-page>
+      </adw-tab-view>
+    </adw-tab-overview>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // The view goes in twice, deliberately: once as the overview's `child` (the thing it
+    // covers) and once as its `view` (the thing whose pages it lists).
+    const overview = new Adw.TabOverview({ view, child: view, enableNewTab: true });
+
+    // `overview.open` / `overview.close` are the two actions an Adw.TabButton pairs with.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => overview.activate_overview_open());
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.TabOverview {
+      child: Adw.TabView tabs {};
+
+      view: tabs;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const view = new Adw.TabView();
+    for (const title of ['One', 'Two', 'Three']) {
+        view.append(new Gtk.Box()).title = title;
+    }
+
+    // The view goes in twice, deliberately: once as the overview's `child` (the thing it
+    // covers) and once as its `view` (the thing whose pages it lists).
+    const overview = new Adw.TabOverview({ view, child: view, enableNewTab: true });
+
+    // `overview.open` / `overview.close` are the two actions an Adw.TabButton pairs with.
+    const button = new Adw.TabButton({ view });
+    button.connect('clicked', () => overview.activate_overview_open());
+    ```
+  </Fragment>
+</AdwWidget>
+
 ## Inline View Switcher
 
 When a full switcher is too wide for the space, use the inline one. It is built
@@ -437,6 +713,95 @@ makes it fit a header bar or a tight toolbar.
     const box = new Gtk.Box({ orientation: 'vertical', spacing: 12 });
     box.append(switcher);
     box.append(stack);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## View Switcher Sidebar
+
+The one Adw switcher built out of a **sidebar**, and the one whose rows can be
+**grouped into sections**. Point it at a view stack and each page becomes a row with
+its icon, its title and — when it asks — an unread **dot** or a **badge count**;
+`starts-section` on a page opens a new group, headed by that page's `section-title`.
+
+It is adaptive in the sidebar's sense: **mode="page"** turns it into a page of boxed
+lists, which is what a `NavigationSplitView` wants for its sidebar pane once the window
+is too narrow for a sidebar. Keep it in sidebar mode with an **OverlaySplitView**,
+where the pane is still a sidebar when collapsed.
+
+<MoreInfo title="Ordering of `activated`">
+Activating a row selects the stack page **first** and only then emits `activated` —
+that is the signal a split view reveals its content pane on, so a handler that read the
+stack inside it would otherwise reveal the page you were leaving.
+</MoreInfo>
+
+<AdwWidget title="Adw.ViewSwitcherSidebar" padding="flush" stage="height: 300px; width: 100%; display: flex;">
+  <Fragment slot="preview">
+    ```html
+    <adw-view-switcher-sidebar>
+      <!-- description: The description markup to be displayed below the title. -->
+      <adw-status-page slot="placeholder" title="No Results" description="Try a different search"></adw-status-page>
+    </adw-view-switcher-sidebar>
+    <adw-view-stack>
+      <adw-view-stack-page name="inbox" title="Inbox" starts-section section-title="Mail" badge-number="3"></adw-view-stack-page>
+      <adw-view-stack-page name="drafts" title="Drafts"></adw-view-stack-page>
+      <!-- needs-attention: Whether the page requires the user attention. -->
+      <adw-view-stack-page name="archive" title="Archive" starts-section section-title="Older" needs-attention></adw-view-stack-page>
+    </adw-view-stack>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Adw.ViewStack();
+    const inbox = stack.add(new Gtk.Box(), 'inbox');
+    inbox.title = 'Inbox';
+    // `starts_section` opens the group; `section_title` names it.
+    inbox.starts_section = true;
+    inbox.section_title = 'Mail';
+    inbox.badge_number = 3;
+
+    // Each page becomes a row; the stack's visible page marks its row.
+    const sidebar = new Adw.ViewSwitcherSidebar({ stack });
+    sidebar.connect('activated', () => console.log('Reveal the content pane'));
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.NavigationSplitView {
+      sidebar: Adw.NavigationPage {
+        child: Adw.ViewSwitcherSidebar {
+          stack: pages;
+        };
+      };
+
+      content: Adw.NavigationPage {
+        child: Adw.ViewStack pages {};
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    const stack = new Adw.ViewStack();
+    const inbox = stack.add(new Gtk.Box(), 'inbox');
+    inbox.title = 'Inbox';
+    // `starts_section` opens the group; `section_title` names it.
+    inbox.starts_section = true;
+    inbox.section_title = 'Mail';
+    inbox.badge_number = 3;
+
+    // Each page becomes a row; the stack's visible page marks its row.
+    const sidebar = new Adw.ViewSwitcherSidebar({ stack });
+    sidebar.connect('activated', () => console.log('Reveal the content pane'));
     ```
   </Fragment>
 </AdwWidget>

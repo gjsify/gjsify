@@ -1,6 +1,6 @@
 ---
 title: Feedback
-description: "Adwaita feedback widgets: toast, alert dialog, about dialog and preferences dialog. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita feedback widgets: toast, the generic dialog and the alert, about, preferences and shortcuts dialogs. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -9,7 +9,10 @@ import MoreInfo from '../../../components/MoreInfo.astro';
 Two ways to tell the user something. A **toast** slides a short message over the
 content and gets out of the way on its own, so use it when nothing needs to happen
 next. A **dialog** puts a modal surface in front of the window and waits for an
-answer, so use it when something does.
+answer, so use it when something does. The generic **dialog** takes whatever content
+you hand it; the **alert**, **about** and **preferences** dialogs below are the three
+shapes an app asks for often enough that libadwaita writes them for you, plus
+the **shortcuts** dialog that lists your keyboard shortcuts.
 
 <MoreInfo title="How the previews differ from the widget">
 The previews hold each dialog **open** and each toast **visible**, which is not
@@ -126,6 +129,90 @@ desktop.
         timeout: 3000,
         buttonLabel: 'Undo',
     });
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Dialog
+
+The dialog the other three are built on, and the one to reach for when none of them
+fits: it holds **whatever you give it** — one child, no content model of its own — and
+it decides for itself whether to be a **floating card** over the window or a **bottom
+sheet** across it. Give it a **title** and a flat header with a close button appears;
+leave the title off and the content runs to the edges.
+
+<MoreInfo title="How a dialog is dismissed">
+Three ways out, and one lock. <kbd>Escape</kbd>, the scrim and the close button all
+close the dialog, and all three are gated by **can-close**: while it is off, each of
+them raises a `close-attempt` instead and the dialog stays put — which is how you keep
+a user in a half-filled form. `force_close()` ignores the lock, so a program can always
+leave. Every close returns focus to the element that was focused before `present()`.
+</MoreInfo>
+
+<MoreInfo title="Sizing it">
+**Content width** and **content height** bound the card, and the browser port
+defaults the width to the same 360 px `Adw.Dialog` asks for. On a viewport narrower
+than that the dialog switches to a bottom sheet unless you pin **presentation mode**
+to `floating`.
+</MoreInfo>
+
+<AdwWidget title="Adw.Dialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <adw-dialog open title="Preferences">
+      <adw-preferences-page title="General">
+        <adw-preferences-group title="Appearance">
+          <!-- active: Whether the switch row is in the "on" or "off" position. -->
+          <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+        </adw-preferences-group>
+      </adw-preferences-page>
+    </adw-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+
+    Adw.init();
+
+    const group = new Adw.PreferencesGroup({ title: 'Appearance' });
+    group.add(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
+
+    const page = new Adw.PreferencesPage({ title: 'General' });
+    page.add(group);
+
+    // ONE child, and it is a PROPERTY (`Adw.Dialog:child`), not a pack. The alert,
+    // about and preferences dialogs are this class with a content model added.
+    const dialog = new Adw.Dialog({ title: 'Preferences', child: page });
+
+    // `close()` honours can-close, `force_close()` does not; both raise `closed`.
+    dialog.present(window);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    // A dialog is PRESENTED, not shown: a `.blp` declares it, and the code that owns
+    // the window calls `present()` on the object it built.
+    Adw.Dialog {
+      title: _("Preferences");
+
+      child: Adw.PreferencesPage {
+        title: _("General");
+
+        Adw.PreferencesGroup {
+          title: _("Appearance");
+
+          Adw.SwitchRow {
+            title: _("Dark style");
+            subtitle: _("Use a dark colour scheme");
+            active: true;
+          }
+        }
+      };
+    }
     ```
   </Fragment>
 </AdwWidget>
@@ -325,7 +412,6 @@ port renders them stacked instead.
           <!-- active: Whether the switch row is in the "on" or "off" position. -->
           <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
           <!-- model: The model that provides the displayed items. -->
-          <!-- selected: The position of the selected item. -->
           <adw-combo-row title="Accent colour" model='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
           <!-- adjustment: The adjustment that holds the value of the spin row. -->
           <adw-spin-row title="Font size" value="12" adjustment='{"lower":8,"upper":24}'></adw-spin-row>
@@ -444,6 +530,105 @@ port renders them stacked instead.
     page.add(group);
     dialog.add(page);
     dialog.present();
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Shortcuts Dialog
+
+The window behind your _Keyboard Shortcuts_ command: **sections** of **shortcut
+rows**, each row a title, an optional subtitle and an **accelerator** drawn as
+keycaps. New in libadwaita 1.8.
+
+<MoreInfo title="An accelerator, or an action">
+An item can carry the accelerator itself, or name the **action** it stands for and
+let the application supply the key. On GTK that lookup is
+`Gtk.Application.set_accels_for_action`, and the accelerator wins whenever the
+action has none — which is what the class documents. A browser has no application
+to ask, so `<adw-shortcut-label>` draws the accelerator that is there and a row
+that names only an action simply shows no keycaps.
+</MoreInfo>
+
+<MoreInfo title="One direction at a time">
+A row may name the **direction** it belongs to, so one dialog can list the LTR and
+the RTL accelerator for the same action and each shows in its own. An untitled
+section is the documented way to subdivide a section into groups, and libadwaita
+draws no heading for one.
+</MoreInfo>
+
+<AdwWidget title="Adw.ShortcutsDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
+  <Fragment slot="preview">
+    ```html
+    <adw-shortcuts-dialog open title="Keyboard Shortcuts">
+      <!-- title: The title of the section, can be `NULL`. -->
+      <adw-shortcuts-section title="General">
+        <adw-shortcuts-item title="Open Menu" accelerator="F10"></adw-shortcuts-item>
+        <!-- action-name: Fully qualified action name to get the accelerator from. -->
+        <adw-shortcuts-item title="Preferences" action-name="app.preferences"></adw-shortcuts-item>
+        <adw-shortcuts-item title="Quit" accelerator="&lt;Control&gt;q"></adw-shortcuts-item>
+      </adw-shortcuts-section>
+      <adw-shortcuts-section>
+        <adw-shortcuts-item title="Move Tab Left" accelerator="&lt;Shift&gt;&lt;Control&gt;Page_Up" direction="ltr"></adw-shortcuts-item>
+        <adw-shortcuts-item title="Move Tab Left" accelerator="&lt;Shift&gt;&lt;Control&gt;Page_Up" direction="rtl"></adw-shortcuts-item>
+      </adw-shortcuts-section>
+    </adw-shortcuts-dialog>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+
+    Adw.init();
+
+    // SECTIONS ARE GObjects, not widgets, so they are added rather than packed. An
+    // untitled section is the documented way to subdivide one into groups.
+    const general = new Adw.ShortcutsSection({ title: 'General' });
+    general.add(new Adw.ShortcutsItem({ title: 'Open Menu', accelerator: 'F10' }));
+    // Or name the action and let the application supply the key.
+    general.add(new Adw.ShortcutsItem({ title: 'Preferences', action_name: 'app.preferences' }));
+    general.add(new Adw.ShortcutsItem({ title: 'Quit', accelerator: '<Control>q' }));
+
+    const navigation = new Adw.ShortcutsSection();
+    navigation.add(
+        new Adw.ShortcutsItem({
+            title: 'Move Tab Left',
+            accelerator: '<Shift><Control>Page_Up',
+            direction: Gtk.TextDirection.LTR,
+        }),
+    );
+
+    const dialog = new Adw.ShortcutsDialog({ title: 'Keyboard Shortcuts' });
+    dialog.add(general);
+    dialog.add(navigation);
+
+    dialog.present(window);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    // A section and an item are GOBJECTS, so a `.blp` names them as objects and the
+    // dialog takes each as a child — the GtkBuildable route the class documents.
+    Adw.ShortcutsDialog shortcuts_dialog {
+      title: _("Keyboard Shortcuts");
+
+      Adw.ShortcutsSection {
+        title: _("General");
+
+        Adw.ShortcutsItem {
+          title: _("Open Menu");
+          accelerator: "F10";
+        }
+
+        Adw.ShortcutsItem {
+          title: _("Preferences");
+          action-name: "app.preferences";
+        }
+      }
+    }
     ```
   </Fragment>
 </AdwWidget>

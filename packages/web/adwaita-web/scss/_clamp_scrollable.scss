@@ -1,0 +1,28 @@
+// _clamp_scrollable.scss — <adw-clamp-scrollable>.
+//
+// The widget has NO node of its own: `adw_clamp_scrollable_class_init` ends with
+// `set_layout_manager_type(ADW_TYPE_CLAMP_LAYOUT)` and `set_css_name("clamp")`
+// (adw-clamp-scrollable.c:328-329), so it draws exactly what `<adw-clamp>` draws — which
+// is nothing, since there is no `clamp {}` block in the libadwaita stylesheet either. A
+// clamp measures; the cap and the `small`/`medium`/`large` classes are written onto the
+// CHILD by the element, out of `clampAllocate`.
+//
+// What this element adds is `overflow`. In C the CHILD is the `Gtk.Scrollable` and four
+// `g_object_bind_property` calls forward the adjustments onto it
+// (adw-clamp-scrollable.c:440-455); a DOM scrollport is the element itself, so the
+// scrolling moves one level up and the element writes `overflow-x`/`overflow-y` from
+// `hscroll-policy`/`vscroll-policy`. This rule is the floor for an author who set
+// neither policy — GTK's default is GTK_POLICY_AUTOMATIC, which shows a scrollbar only
+// when there is something to scroll, which is `auto` here.
+//
+// Reference: refs/libadwaita/src/adw-clamp-scrollable.c:328-329 (the `clamp` node)
+// Reference: refs/libadwaita/src/adw-clamp-layout.c (adw_clamp_layout_allocate — the
+//   size classes the element stamps on the child)
+// Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web Web Components; the scrollport is the
+//   element where C's is the child, for the reason the element's header records.
+
+adw-clamp-scrollable {
+  display: block;
+  overflow: auto;
+}
