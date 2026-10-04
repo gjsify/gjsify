@@ -40,7 +40,8 @@ export class ApplicationWindowStory extends StoryWidget {
         backButton.add_css_class('flat');
         headerBar.pack_start(backButton);
 
-        this._toolbarView = new Adw.ToolbarView({ top_bar: headerBar });
+        this._toolbarView = new Adw.ToolbarView();
+        this._toolbarView.add_top_bar(headerBar);
         this._toolbarView.content = new Adw.StatusPage({
             title: 'Your Library',
             description: 'Content sits between the toolbars and scrolls independently of them.',

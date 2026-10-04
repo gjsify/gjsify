@@ -26,7 +26,14 @@ export class TextWebStory extends StoryElement {
 
     private _apply(): void {
         if (!this._text) return;
-        const text = this._text as HTMLElement & { text: string; placeholderText: string };
+        const text = this._text as HTMLElement & {
+            text: string;
+            placeholderText: string;
+            editable: boolean;
+            visibility: boolean;
+            maxLength: number;
+            propagateTextWidth: boolean;
+        };
         text.text = this.args.text as string;
         text.placeholderText = this.args.placeholderText as string;
         // `editable` and `visibility` default TRUE in GTK, so the element reads them from a

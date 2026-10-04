@@ -68,9 +68,9 @@ export class PrintUnixDialogStory extends StoryWidget {
         dialog.set_support_selection(true);
         dialog.set_has_selection(true);
         const settings = new Gtk.PrintSettings();
-        settings.set_copies(String(this.args.copies));
+        settings.set_n_copies(Number(this.args.copies));
         settings.set_collate(this.args.range === 'all');
-        settings.set_page_set(this.args.range === 'current' ? Gtk.PageSetRange.CURRENT : Gtk.PageSetRange.ALL);
+        settings.set_print_pages(this.args.range === 'current' ? Gtk.PrintPages.CURRENT : Gtk.PrintPages.ALL);
         dialog.set_settings(settings);
 
         dialog.present();

@@ -26,7 +26,12 @@ export class SearchEntryWebStory extends StoryElement {
             if (this._label) this._label.textContent = `search-changed: "${value}"`;
         });
         this._apply();
-        this.addContent(this._entry, this._label);
+        const box = document.createElement('div');
+        box.style.display = 'flex';
+        box.style.flexDirection = 'column';
+        box.style.gap = '12px';
+        box.append(this._entry, this._label);
+        this.addContent(box);
     }
 
     updateArgs(_args: StoryArgs): void {

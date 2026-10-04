@@ -38,9 +38,9 @@ export class ColorDialogButtonStory extends StoryWidget {
 
     private _apply(): void {
         if (!this._button) return;
-        const rgba = Gdk.RGBA.parse(this.args.rgba as string);
-        if (rgba !== null) this._button.rgba = rgba;
-        this._button.dialog!.title = (this.args.title as string) || null;
+        const rgba = new Gdk.RGBA();
+        if (rgba.parse(this.args.rgba as string)) this._button.rgba = rgba;
+        this._button.dialog!.title = (this.args.title as string) || '';
     }
 }
 

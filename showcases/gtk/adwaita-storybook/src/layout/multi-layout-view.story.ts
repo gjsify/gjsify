@@ -11,11 +11,16 @@ import { multiLayoutViewMeta } from './multi-layout-view.meta.js';
 const PRIMARY = 'primary';
 const SECONDARY = 'secondary';
 
-/** A page with a short list, so the two children are visibly different once they move. */
-function page(title: string, rows: readonly (readonly [string, string])[]): Adw.NavigationPage {
+/** A short list, so the two children are visibly different once they move. */
+function page(rows: readonly (readonly [string, string])[]): Gtk.ListBox {
     const list = new Gtk.ListBox({ selectionMode: Gtk.SelectionMode.NONE });
     for (const [name, detail] of rows) list.append(new Adw.ActionRow({ title: name, subtitle: detail }));
-    return new Adw.NavigationPage({ title, child: list, tag: title.toLowerCase() });
+    return list;
+}
+
+/** A split-view pane that holds nothing but a slot, so the child lands by id. */
+function slotPage(id: string): Adw.NavigationPage {
+    return new Adw.NavigationPage({ title: id, child: Adw.LayoutSlot.new(id), tag: id });
 }
 
 /**
@@ -26,8 +31,8 @@ function page(title: string, rows: readonly (readonly [string, string])[]): Adw.
  */
 function arrangement(collapsed: boolean): Adw.NavigationSplitView {
     const view = new Adw.NavigationSplitView({ collapsed, minSidebarWidth: 160 });
-    view.sidebar = new Adw.LayoutSlot(SECONDARY);
-    view.content = new Adw.LayoutSlot(PRIMARY);
+    view.sidebar = slotPage(SECONDARY);
+    view.content = slotPage(PRIMARY);
     view.set_size_request(420, 220);
     return view;
 }
@@ -35,7 +40,7 @@ function arrangement(collapsed: boolean): Adw.NavigationSplitView {
 /** Story: the same two pages docked, then the same two pages stacked. */
 export class MultiLayoutViewStory extends StoryWidget {
     private _view: Adw.MultiLayoutView | null = null;
-    private _details: Adw.NavigationPage | null = null;
+    private _details: Gtk.Widget | null = null;
 
     static {
         GObject.registerClass({ GTypeName: 'AdwStorybookMultiLayoutView' }, MultiLayoutViewStory);
@@ -50,7 +55,7 @@ export class MultiLayoutViewStory extends StoryWidget {
     }
 
     initialize(): void {
-        this._details = page('Message', [
+        this._details = page([
             ['From', 'Adwaita List'],
             ['Subject', 'Resizing the window'],
         ]);
@@ -58,16 +63,16 @@ export class MultiLayoutViewStory extends StoryWidget {
         // `add_layout` makes the FIRST layout current (adw-multi-layout-view.c:553), so the
         // wide one goes in first; the name is set before the second is added, because
         // `add_layout` warns on a duplicate and reads the name to do it.
-        const wide = new Adw.Layout(arrangement(false));
+        const wide = Adw.Layout.new(arrangement(false));
         wide.name = 'wide';
         this._view.add_layout(wide);
-        const narrow = new Adw.Layout(arrangement(true));
+        const narrow = Adw.Layout.new(arrangement(true));
         narrow.name = 'narrow';
         this._view.add_layout(narrow);
 
         this._view.set_child(
             PRIMARY,
-            page('Inbox', [
+            page([
                 ['General', '12 unread'],
                 ['Starred', '3 threads'],
             ]),

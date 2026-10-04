@@ -50,7 +50,7 @@ export class NotebookStory extends StoryWidget {
             // tab at all (`gtk_notebook_update_labels`, gtknotebook.c:4353-4373).
             const label = page.label ? new Gtk.Label({ label: page.label }) : null;
             const menu = new Gtk.Label({ label: page.label || page.name });
-            this._notebook.append_page_menu(box, label, menu, -1);
+            this._notebook.append_page_menu(box, label, menu);
         }
 
         this._apply();

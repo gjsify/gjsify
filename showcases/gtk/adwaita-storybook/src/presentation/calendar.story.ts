@@ -1,7 +1,7 @@
 // Gtk.Calendar — the month grid, with the marks and the four arrows.
 // original implementation.
 
-import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
@@ -54,9 +54,9 @@ export class CalendarStory extends StoryWidget {
 }
 
 /** `YYYY-MM-DD` → a local `GDateTime`, which is what `GtkCalendar:date` holds. */
-function parseIso(iso: string): Gio.DateTime {
+function parseIso(iso: string): GLib.DateTime {
     const [year, month, day] = iso.split('-').map(Number);
-    return new Gio.DateTime({ year: year!, month: month!, day: day! });
+    return GLib.DateTime.new_local(year!, month!, day!, 0, 0, 0);
 }
 
 GObject.type_ensure(CalendarStory.$gtype);

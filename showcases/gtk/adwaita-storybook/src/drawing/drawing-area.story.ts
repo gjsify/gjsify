@@ -27,7 +27,7 @@ export class DrawingAreaStory extends StoryWidget {
         this._area = new Gtk.DrawingArea();
         // The area paints itself: the draw function reads the widget's colour rather than a
         // hard-coded one, so the shape follows the theme in either renderer.
-        this._area.setDrawFunc((area, cr, width, height) => {
+        this._area.set_draw_func((area, cr, width, height) => {
             // `get_color` is the function GTK's own documented draw_function reads
             // (gtkdrawingarea.c:88-104), so the shape follows the widget's own colour.
             const color = area.get_color();

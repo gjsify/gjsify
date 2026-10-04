@@ -34,7 +34,7 @@ export class LayoutSlotStory extends StoryWidget {
     }
 
     initialize(): void {
-        this._slot = new Adw.LayoutSlot('primary');
+        this._slot = Adw.LayoutSlot.new('primary');
         this._child = new Adw.NavigationPage({
             title: this.args.label as string,
             tag: 'primary',
@@ -42,7 +42,7 @@ export class LayoutSlotStory extends StoryWidget {
         });
 
         this._view = new Adw.MultiLayoutView();
-        const layout = new Adw.Layout(this._slot);
+        const layout = Adw.Layout.new(this._slot);
         layout.name = 'only';
         this._view.add_layout(layout);
         this._view.set_child('primary', this._child);

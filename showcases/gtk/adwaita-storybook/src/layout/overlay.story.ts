@@ -59,9 +59,9 @@ export class OverlayStory extends StoryWidget {
         // halign attribute".
         const halign = ALIGNMENTS[String(this.args.halign)];
         const valign = ALIGNMENTS[String(this.args.valign)];
-        if (halign === undefined) this._badge.unset_property('halign');
+        if (halign === undefined) this._badge.halign = Gtk.Align.FILL;
         else this._badge.halign = halign;
-        if (valign === undefined) this._badge.unset_property('valign');
+        if (valign === undefined) this._badge.valign = Gtk.Align.FILL;
         else this._badge.valign = valign;
         this._badge.visible = this.args.showLabel as boolean;
     }

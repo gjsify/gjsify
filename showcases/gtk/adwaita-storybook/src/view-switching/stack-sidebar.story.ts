@@ -47,7 +47,8 @@ export class StackSidebarStory extends StoryWidget {
             // The last page carries an icon and NO title, which is the page a sidebar row
             // cannot represent: `update_row` reads title, needs-attention and visible, and
             // never `icon-name` (gtkstacksidebar.c:178-184).
-            const info = this._stack.add_titled_with_icon(box, page.name, page.title, page.icon);
+            const info = this._stack.add_titled(box, page.name, page.title);
+            info.icon_name = page.icon;
             info.needs_attention = page.attn;
             info.use_underline = true;
         }

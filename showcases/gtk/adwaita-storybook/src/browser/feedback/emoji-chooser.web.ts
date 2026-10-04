@@ -59,7 +59,7 @@ export class EmojiChooserWebStory extends StoryElement {
         this._chooser.setAttribute('align', 'end');
         // `GtkPopover` positions against the widget it is a child of; here that is the
         // button, which is NOT its DOM parent (the wrapper is), so the anchor is set.
-        (this._chooser as HTMLElement & { anchor: HTMLElement | null }).anchor = this._button;
+        (this._chooser as unknown as HTMLElement & { anchor: HTMLElement | null }).anchor = this._button;
         this._chooser.addEventListener('emoji-picked', (event) => {
             const { text } = (event as CustomEvent).detail as { text: string };
             if (this._entry !== null) this._entry.value += text;

@@ -49,7 +49,8 @@ export class StackSwitcherStory extends StoryWidget {
             // (gtkstackswitcher.c:137-207): title + icon, title only, icon only, and
             // the last page with `needs-attention`.
             if (page.icon) {
-                const info = this._stack.add_titled_with_icon(box, page.name, page.title, page.icon);
+                const info = this._stack.add_titled(box, page.name, page.title);
+                info.icon_name = page.icon;
                 info.needs_attention = page.attn;
                 info.use_underline = true;
             } else {

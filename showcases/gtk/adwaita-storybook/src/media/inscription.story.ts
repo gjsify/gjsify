@@ -3,6 +3,7 @@
 
 import Gtk from 'gi://Gtk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
+import Pango from 'gi://Pango?version=1.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { inscriptionMeta } from './inscription.meta.js';
 
@@ -49,7 +50,7 @@ export class InscriptionStory extends StoryWidget {
         this._inscription.min_lines = this.args.minLines as number;
         this._inscription.nat_lines = this.args.natLines as number;
         this._inscription.text = this.args.text as string;
-        this._inscription.wrap_mode = this.args.wrapMode as Gtk.WrapMode;
+        this._inscription.wrap_mode = this.args.wrapMode as Pango.WrapMode;
         this._inscription.text_overflow = this.args.textOverflow as Gtk.InscriptionOverflow;
         this._inscription.xalign = this.args.xalign as number;
         this._inscription.yalign = this.args.yalign as number;

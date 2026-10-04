@@ -41,7 +41,7 @@ export class TabOverviewStory extends StoryWidget {
             page.title = tab.title;
             // One PINNED page, so the overview has a pinned grid above the ordinary
             // one — the two-grid arrangement `AdwTabOverview` builds its template with.
-            if (index === 0) page.pinned = true;
+            if (index === 0) view.set_page_pinned(page, true);
         }
 
         const overview = new Adw.TabOverview({

@@ -31,13 +31,15 @@ export class ViewSwitcherSidebarStory extends StoryWidget {
                 title: spec.title,
                 vexpand: true,
             });
-            stack.addTitled(content, spec.name, spec.title);
+            stack.add_titled(content, spec.name, spec.title);
         }
 
         // The page properties come BEFORE the switcher exists: `set_stack` populates the
         // sidebar once, and the only signals it later follows are the page list's and the
         // selection's — a section or a badge set afterwards reaches nothing.
-        for (const page of stack.get_pages()) {
+        const pages = stack.get_pages();
+        for (let i = 0; i < pages.get_n_items(); i++) {
+            const page = pages.get_item(i) as Adw.ViewStackPage;
             const spec = VIEW_SWITCHER_SIDEBAR_PAGES.find((candidate) => candidate.name === page.name);
             if (!spec?.sectionTitle) continue;
             page.startsSection = true;

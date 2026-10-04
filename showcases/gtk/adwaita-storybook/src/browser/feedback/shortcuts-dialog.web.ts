@@ -77,7 +77,7 @@ export class ShortcutsDialogWebStory extends StoryElement {
         // A DISCONNECTED element is attached to `document.body` on present, the
         // `Adw.Dialog.present(parent)` idiom; one already in the DOM is revealed in
         // place and stays reusable.
-        dialog.present();
+        (dialog as HTMLElement & { present(): void }).present();
 
         dialog.addEventListener('closed', () => dialog.remove(), { once: true });
     }

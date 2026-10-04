@@ -34,6 +34,7 @@ export class EmojiChooserStory extends StoryWidget {
             halign: Gtk.Align.CENTER,
         });
         this._entry.add_css_class('card');
+        this._entry.hexpand = true;
 
         this._chooser = Gtk.EmojiChooser.new();
         this._chooser.connect('emoji-picked', (_chooser: Gtk.EmojiChooser, text: string) => {
@@ -52,7 +53,9 @@ export class EmojiChooserStory extends StoryWidget {
         // The popover's anchor is the widget it is a child of, and the button is the entry's
         // prefix — which is the arrangement GtkEntry's own emoji completion uses.
         this._chooser.set_parent(this._button);
-        this._entry.add_prefix(this._button);
+        const row = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 6 });
+        row.append(this._button);
+        row.append(this._entry);
 
         const box = new Gtk.Box({
             orientation: Gtk.Orientation.VERTICAL,
@@ -60,7 +63,7 @@ export class EmojiChooserStory extends StoryWidget {
             halign: Gtk.Align.CENTER,
             valign: Gtk.Align.CENTER,
         });
-        box.appendChild(this._entry);
+        box.append(row);
         this.addContent(box);
         this._applySearch(this.args.search as string);
     }

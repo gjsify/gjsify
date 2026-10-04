@@ -33,7 +33,10 @@ export class SearchEntryStory extends StoryWidget {
             if (this._label) this._label.label = `search-changed: "${this._entry?.text ?? ''}"`;
         });
         this._apply();
-        this.addContent(this._entry, this._label);
+        const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 });
+        box.append(this._entry);
+        box.append(this._label);
+        this.addContent(box);
     }
 
     updateArgs(_args: StoryArgs): void {

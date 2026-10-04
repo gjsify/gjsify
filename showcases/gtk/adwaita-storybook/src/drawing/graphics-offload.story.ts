@@ -56,7 +56,7 @@ export class GraphicsOffloadStory extends StoryWidget {
                 const row = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 12 });
                 for (const text of ['One', 'Two', 'Three']) row.append(new Gtk.Label({ label: text }));
                 child = new Gtk.CenterBox();
-                (child as Gtk.CenterBox).set_child(row);
+                (child as Gtk.CenterBox).set_center_widget(row);
                 break;
             }
             default:

@@ -44,7 +44,7 @@ export class WindowHandleStory extends StoryWidget {
         // (gtkwindowhandle.c:282-333). A widget has no handle on either, so this story cannot
         // set it per instance; the web renderer takes the same value as an attribute, which is
         // the only door a document has.
-        void this.args.action as string;
+        void this.args.action;
     }
 }
 

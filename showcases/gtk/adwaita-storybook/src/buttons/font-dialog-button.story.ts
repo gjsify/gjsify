@@ -38,7 +38,7 @@ export class FontDialogButtonStory extends StoryWidget {
         if (!this._button) return;
         // `level` first: it decides whether the size box is visible at all, so writing the
         // description afterwards paints the label the new level asks for.
-        this._button.level = this.args.level as string as Gtk.FontLevel;
+        this._button.level = this.args.level as unknown as Gtk.FontLevel;
         const desc = Pango.FontDescription.from_string(this.args.fontDesc as string);
         if (desc !== null) this._button.fontDesc = desc;
         // `use_size` is only consulted when `use_font` is set, so it goes second.

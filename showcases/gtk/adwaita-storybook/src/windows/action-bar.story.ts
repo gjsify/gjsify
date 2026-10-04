@@ -56,7 +56,7 @@ export class ActionBarStory extends StoryWidget {
         this._bar.revealed = this.args.revealed as boolean;
         // `gtk_action_bar_set_center_widget` (:306-...) takes a widget or NULL, and NULL
         // clears the centre rather than replacing it with an empty label.
-        this._bar.center_widget = (this.args.center as string) === 'label' ? this._centre : null;
+        this._bar.set_center_widget((this.args.center as string) === 'label' ? this._centre : null);
     }
 }
 

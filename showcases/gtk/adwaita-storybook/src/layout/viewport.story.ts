@@ -32,7 +32,6 @@ export class ViewportStory extends StoryWidget {
         box.append(new Gtk.Button({ label: 'Focus me', halign: Gtk.Align.START }));
         this._viewport = new Gtk.Viewport({
             child: box,
-            min_content_height: 240,
             halign: Gtk.Align.CENTER,
         });
         this._apply();

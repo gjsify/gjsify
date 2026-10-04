@@ -48,7 +48,7 @@ export class BreakpointBinStory extends StoryWidget {
         const condition = Adw.BreakpointCondition.parse(this.args.condition as string);
         if (condition === null) return;
         if (this._breakpoint !== null) this._bin.remove_breakpoint(this._breakpoint);
-        this._breakpoint = new Adw.Breakpoint(condition);
+        this._breakpoint = Adw.Breakpoint.new(condition);
         this._breakpoint.add_setter(this._label, 'label', this.args.narrowLabel as string);
         this._bin.add_breakpoint(this._breakpoint);
         // The wide value is what the markup declared, so a rebuild restores to it rather

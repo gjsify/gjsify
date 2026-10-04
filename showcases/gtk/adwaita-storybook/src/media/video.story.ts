@@ -46,7 +46,9 @@ export class VideoStory extends StoryWidget {
         // Graphics offload is a rendering hint with no visible effect until something is
         // actually drawn, so this control exists to show that the property takes the write
         // rather than to show a difference.
-        this._video.graphics_offload = this.args.graphicsOffload as boolean;
+        this._video.graphics_offload = this.args.graphicsOffload
+            ? Gtk.GraphicsOffloadEnabled.ENABLED
+            : Gtk.GraphicsOffloadEnabled.DISABLED;
     }
 }
 
