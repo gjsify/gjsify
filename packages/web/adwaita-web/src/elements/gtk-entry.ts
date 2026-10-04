@@ -1,5 +1,6 @@
 // <gtk-entry> — Adwaita single-line text entry (e.g. a browser URL bar).
-// Attributes: value, placeholder, type, disabled, maxlength.
+// Attributes: value, placeholder-text (`placeholder` is the older spelling and still read),
+//   width-request, type, disabled, maxlength.
 // Properties: value (get/set, proxies the inner input), maxLength, textLength.
 // Events: native `input` bubbles from the inner input; `activate` (CustomEvent)
 //   fires on Enter — mirroring Gtk.Entry's `activate` signal.
@@ -33,7 +34,7 @@ export class GtkEntry extends HTMLElement {
     private _maxLength = 0;
 
     static get observedAttributes() {
-        return ['value', 'placeholder', 'type', 'disabled', 'maxlength'];
+        return ['value', 'placeholder-text', 'placeholder', 'width-request', 'type', 'disabled', 'maxlength'];
     }
 
     get value(): string {
@@ -63,6 +64,20 @@ export class GtkEntry extends HTMLElement {
         return entryTextLength(this.value);
     }
 
+    /**
+     * `Gtk.Entry:placeholder-text`, the name a Blueprint file and the gallery trees use.
+     * `placeholder` stays for markup written before the GTK spelling was read.
+     */
+    private placeholderAttribute(): string {
+        return this.getAttribute('placeholder-text') ?? this.getAttribute('placeholder') ?? '';
+    }
+
+    /** `Gtk.Widget:width-request` — a minimum width in px; -1 or absent leaves the natural one. */
+    private applyWidthRequest(): void {
+        const width = Number(this.getAttribute('width-request') ?? -1);
+        this.style.minWidth = Number.isFinite(width) && width > 0 ? `${width}px` : '';
+    }
+
     /** The inner native input (for focus/selection). */
     get input(): HTMLInputElement {
         return this._input;
@@ -78,7 +93,8 @@ export class GtkEntry extends HTMLElement {
         input.className = 'adw-entry';
         input.type = this.getAttribute('type') || 'text';
         input.value = clampEntryText(this.getAttribute('value') ?? '', this._maxLength);
-        input.placeholder = this.getAttribute('placeholder') ?? '';
+        input.placeholder = this.placeholderAttribute();
+        this.applyWidthRequest();
         input.disabled = this.hasAttribute('disabled');
         // Typing past the limit is clamped here, on the way in — the same place
         // NativeScript clamps it, so both renderers refuse the same character.
@@ -108,9 +124,14 @@ export class GtkEntry extends HTMLElement {
             this.maxLength = Number(value ?? 0);
             return;
         }
+        if (name === 'width-request') {
+            this.applyWidthRequest();
+            return;
+        }
         if (!this._input) return;
         if (name === 'value') this._input.value = clampEntryText(value ?? '', this._maxLength);
-        else if (name === 'placeholder') this._input.placeholder = value ?? '';
+        else if (name === 'placeholder-text' || name === 'placeholder')
+            this._input.placeholder = this.placeholderAttribute();
         else if (name === 'type') this._input.type = value || 'text';
         else if (name === 'disabled') this._input.disabled = value !== null;
     }

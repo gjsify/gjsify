@@ -36,17 +36,6 @@ be read-only. For a field that belongs in a preferences group, use
 row presentation, with the label as the row title.
 
 <AdwWidget title="Gtk.Entry">
-  <Fragment slot="preview">
-    ```html
-    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-      <gtk-entry placeholder="Search files…" style="min-width: 280px;"></gtk-entry>
-
-      <!-- `<gtk-entry>` has no `editable`: the browser spelling of a field you may
-           read but not change is `disabled`, which also greys it. -->
-      <gtk-entry value="notes.md" disabled></gtk-entry>
-    </div>
-    ```
-  </Fragment>
   <Fragment slot="gjs">
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';

@@ -184,9 +184,6 @@ export const ATTRIBUTE_MEANING_LEDGER = {
     // and visibly: /gtk/controls/ already carries an authored comment saying it has
     // no `editable` because it is "the browser spelling of a field". Three of them,
     // and `disabled` is the INVERSE of the property it corresponds to.
-    'gtk-entry value': { kind: 'renamed', girProperty: 'text' },
-    'gtk-entry placeholder': { kind: 'renamed', girProperty: 'placeholder-text' },
-    'gtk-entry disabled': { kind: 'inverted', girProperty: 'sensitive' },
 
     // The same rename, inherited rather than re-declared: `<gtk-password-entry>` and
     // `<gtk-search-entry>` extend `<gtk-entry>` for the `<input>` it owns, so they carry the
