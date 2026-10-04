@@ -175,7 +175,13 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
         // items-changed for exactly this reason (:340-343, :277).
         this._barState.setPages(stackPages);
 
-        const pages = viewSwitcherPagesFromStack(stackPages);
+        const icons = this._stack?.pageIcons() ?? [];
+        const pages = viewSwitcherPagesFromStack(stackPages).map((page, index) => ({
+            ...page,
+            // The stack's own copy of an SVG-source icon, which the core's name
+            // normalisation emptied (see `AdwViewStack.pageIcons`).
+            iconName: (icons[index] ?? '').length > 0 ? icons[index]! : page.iconName,
+        }));
         const models = buildViewSwitcherButtons(pages, this._stack?.visibleChildIndex ?? -1, 'narrow');
 
         // Nodes are recreated only when the page COUNT moves: a selection change
