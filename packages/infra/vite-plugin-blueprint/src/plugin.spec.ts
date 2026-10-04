@@ -25,7 +25,7 @@ import {
     parseBlueprint,
     projectToSharedNode,
 } from '@gjsify/blueprint';
-import { CORPUS_REAL_FILES, CORPUS_REFUSALS } from '@gjsify/blueprint/corpus';
+import { CORPUS_REFUSALS } from '@gjsify/blueprint/corpus';
 import { describe, expect, it } from '@gjsify/unit';
 import type { Plugin } from 'vite';
 import blueprintPlugin, { BlueprintProjectionError, RendererRefusalError } from './index.js';
@@ -105,31 +105,16 @@ const projectionOf = (file: string) =>
     projectToSharedNode(parseBlueprint(readFileSync(file, 'utf8'), file), { gtypeName });
 
 /**
- * A shipped `.blp` the projection still loses something on — ASKED, never named.
+ * A `.blp` the projection still loses something on, written into a scratch directory.
  *
- * The refusal test used to name `templates/gtk-minimal/src/main-window.blp`, and the pairing
- * was the point: one file, the XML exit green and the tree exit refused in the same run. ADR
- * 0068 ended that by carrying its `styles` block, and the test went red with
- * `expect(lost.length > 0).toBe(true)` — the premise, not the behaviour. Three gates were green
- * over it, because none of them reads this suite.
- *
- * So the file is CHOSEN BY MEASUREMENT on every run. Each ADR that closes a loss family moves
- * the answer instead of breaking the test, and the day none is left this throws a sentence that
- * says what happened rather than an assertion that says a number is not bigger than zero.
+ * The refusal test used to pick whichever SHIPPED `.blp` still lost something, measured on every
+ * run so each ADR that closed a loss family moved the answer instead of breaking the test. The
+ * last family closed when breakpoints became tree constructs (ADR 0093 step 5): all shipped files
+ * now project losslessly, which is the goal arriving. The refusal path still exists, so its
+ * vector is a fixture that loses a `menu` — a construct the tree has no node for.
  */
-function lossyShippedBlp(): { file: string; lost: readonly { kind: string; line: number }[] } {
-    for (const { source } of CORPUS_REAL_FILES) {
-        const file = join(repoRoot, source);
-        const { lost } = projectionOf(file);
-        if (lost.length > 0) return { file, lost };
-    }
-    throw new Error(
-        `every one of the ${CORPUS_REAL_FILES.length} shipped .blp now projects losslessly, so this ` +
-            'suite can no longer reach the refusal path with a real file. That is the goal arriving, ' +
-            'not a defect: give this vector a fixture under corpus/ that still loses something, and ' +
-            'say in the corpus manifest which construct it is kept lossy for.',
-    );
-}
+const LOSSY_BLP =
+    'using Gtk 4.0;\n\nGtk.Label {\n  label: "hi";\n}\n\nmenu primary {\n  item {\n    label: "A";\n  }\n}\n';
 
 export default async () => {
     await describe('vite-plugin-blueprint', async () => {
@@ -218,30 +203,36 @@ export default async () => {
             // A build that emitted the tree anyway would render a UI smaller than the `.blp`
             // describes, on a target where nothing else can notice.
             //
-            // The file is whichever shipped `.blp` still loses something — see
-            // `lossyShippedBlp`. Naming one was how this test broke: the file it named stopped
-            // being lossy and the suite failed on its own premise.
-            const { file: source, lost } = lossyShippedBlp();
+            // The file is a scratch fixture, not a shipped one — see `LOSSY_BLP`.
+            const dir = mkdtempSync(join(tmpdir(), 'blp-lossy-'));
+            const source = join(dir, 'lossy.blp');
+            writeFileSync(source, LOSSY_BLP);
+            const { lost } = projectionOf(source);
+            expect(lost.length > 0).toBe(true);
 
-            let thrown: unknown;
             try {
-                await loadOf(pluginUnderTest())(`${source}?shared-tree`);
-            } catch (error) {
-                thrown = error;
-            }
+                let thrown: unknown;
+                try {
+                    await loadOf(pluginUnderTest())(`${source}?shared-tree`);
+                } catch (error) {
+                    thrown = error;
+                }
 
-            expect(thrown instanceof BlueprintProjectionError).toBe(true);
-            const refusal = thrown as BlueprintProjectionError;
-            expect(refusal.file).toBe(source);
-            expect(refusal.lost.length).toBe(lost.length);
-            // The message carries what a reader has to act on: the file, every loss KIND, and
-            // the line each sits on. Asserted off the projection, so a new loss kind on this
-            // file fails here rather than quietly narrowing what the refusal says.
-            for (const loss of lost) {
-                expect(refusal.message.includes(`${loss.kind} at ${source}:${loss.line}`)).toBe(true);
-            }
+                expect(thrown instanceof BlueprintProjectionError).toBe(true);
+                const refusal = thrown as BlueprintProjectionError;
+                expect(refusal.file).toBe(source);
+                expect(refusal.lost.length).toBe(lost.length);
+                // The message carries what a reader has to act on: the file, every loss KIND, and
+                // the line each sits on. Asserted off the projection, so a new loss kind on this
+                // file fails here rather than quietly narrowing what the refusal says.
+                for (const loss of lost) {
+                    expect(refusal.message.includes(`${loss.kind} at ${source}:${loss.line}`)).toBe(true);
+                }
 
-            expect(typeof (await loadOf(pluginUnderTest())(source))).toBe('string');
+                expect(typeof (await loadOf(pluginUnderTest())(source))).toBe('string');
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
         });
 
         await it("checks `for=<renderer>` against that renderer's capability table (ADR 0093)", async () => {
