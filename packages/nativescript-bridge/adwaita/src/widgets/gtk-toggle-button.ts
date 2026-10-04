@@ -120,11 +120,16 @@ export class GtkToggleButton extends GtkButton {
 
     /** Release every OTHER member: walk back to the first, then forwards (:426-434). */
     private _clearGroup(): void {
-        let first: GtkToggleButton = this;
-        for (let depth = 0; first._groupPrev !== null && depth < GROUP_WALK_LIMIT; depth++) first = first._groupPrev;
-        for (let iter: GtkToggleButton | null = first; iter !== null; iter = iter._groupNext) {
+        for (let iter: GtkToggleButton | null = GtkToggleButton._groupHead(this); iter !== null; iter = iter._groupNext) {
             if (iter !== this) iter.active = false;
         }
+    }
+
+    /** Walk back to the first member of a toggle group, bounded like GTK. */
+    private static _groupHead(start: GtkToggleButton): GtkToggleButton {
+        let first = start;
+        for (let depth = 0; first._groupPrev !== null && depth < GROUP_WALK_LIMIT; depth++) first = first._groupPrev;
+        return first;
     }
 
     protected _stateClasses(): readonly string[] {
