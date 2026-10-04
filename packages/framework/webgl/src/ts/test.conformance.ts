@@ -4,6 +4,8 @@
 // Phase 2: rendering-basic (clear-color, simple-shader, draw-indexed), uniforms, state.
 
 import { run } from '@gjsify/unit';
+// on('Gl', …) in these conformance specs needs the GTK/GDK probe registered — see `@gjsify/unit/gl`.
+import '@gjsify/unit/gl';
 import buffersTests from './conformance/buffers.spec.js';
 import programsTests from './conformance/programs.spec.js';
 import attribsTests from './conformance/attribs.spec.js';

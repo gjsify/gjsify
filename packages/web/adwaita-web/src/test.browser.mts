@@ -46,6 +46,7 @@ import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
 import { GtkEntryTest } from './gtk-entry.spec.js';
 import { GtkMenuButtonTest } from './gtk-menu-button.spec.js';
 import { GtkPopoverTest } from './gtk-popover.spec.js';
+import { GtkPopoverRoleTest } from './gtk-popover-role.spec.js';
 import { GtkPopoverBinTest } from './gtk-popover-bin.spec.js';
 import { GtkPopoverMenuTest } from './gtk-popover-menu.spec.js';
 import { GtkPopoverMenuBarTest } from './gtk-popover-menu-bar.spec.js';
@@ -258,6 +259,7 @@ run({
     GtkEntryTest,
     GtkMenuButtonTest,
     GtkPopoverTest,
+    GtkPopoverRoleTest,
     GtkPopoverBinTest,
     GtkPopoverMenuTest,
     GtkPopoverMenuBarTest,

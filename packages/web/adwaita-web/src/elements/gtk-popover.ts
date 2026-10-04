@@ -28,9 +28,14 @@
 //               the caller left it. That is entry completion's own shape, which is the
 //               usecase the property documents (gtkpopover.c:1978-1988).
 //   align     — start | end (default start) — which edge it lines up with.
-//   role      — menu | listbox (default menu) — the ARIA role of the surface.
+//   role      — menu | listbox | dialog (default menu) — the ARIA role of the surface.
 //               An a11y fact ONLY; it does not pick the surface variant, see
-//               `menu` below.
+//               `menu` below. `menu` and `listbox` are the LIST roles: their
+//               `.adw-popover-item` rows are what the arrow keys walk. `dialog` is for a
+//               surface holding CONTENT — an info button's explanatory text — read as
+//               content instead of as a menu of commands; it takes an accessible name
+//               (`aria-label`) and must not claim `aria-modal`, which is
+//               `modal-surface.ts`'s alone.
 //   menu      — boolean; libadwaita's `.menu` STYLE CLASS on the popover node (0
 //               padding on the contents, `$menu_margin` on the item box), opt-in
 //               exactly as it is in GTK. DO NOT infer it from `role`: `GtkDropDown`'s
@@ -83,12 +88,21 @@ export type GtkPopoverPosition = 'bottom' | 'top' | 'start' | 'end';
 /** Which edge of the anchor the surface lines up with. */
 export type GtkPopoverAlign = 'start' | 'end';
 
-/** The ARIA role of the surface — it decides the row role consumers give their items. */
-export type GtkPopoverRole = 'menu' | 'listbox';
+/**
+ * The ARIA role of the surface — it decides the row role consumers give their items.
+ *
+ * `dialog` is the one role that is not a container of ROWS: it is for a surface holding
+ * content, so nothing derives an item role from it. Upstream splits the same way —
+ * `GtkPopoverMenu` declares itself a menu (`refs/gtk/gtk/gtkpopovermenu.c:676`), a bare
+ * `GtkPopover` declares nothing.
+ */
+export type GtkPopoverRole = 'menu' | 'listbox' | 'dialog';
 
 const POSITIONS: readonly GtkPopoverPosition[] = ['bottom', 'top', 'start', 'end'];
 const ALIGNS: readonly GtkPopoverAlign[] = ['start', 'end'];
-const ROLES: readonly GtkPopoverRole[] = ['menu', 'listbox'];
+/** The roles whose `.adw-popover-item` rows the LIST keys walk. */
+const LIST_ROLES: readonly GtkPopoverRole[] = ['menu', 'listbox'];
+const ROLES: readonly GtkPopoverRole[] = [...LIST_ROLES, 'dialog'];
 
 /** The row selector keyboard navigation walks. */
 const ITEM_SELECTOR = '.adw-popover-item';
@@ -191,6 +205,7 @@ export class GtkPopover extends HTMLElement {
         this.setAttribute('align', value);
     }
 
+    /** The ARIA role of the surface; an unknown value reads as the `menu` default. */
     get popoverRole(): GtkPopoverRole {
         const value = this.getAttribute('role');
         return ROLES.includes(value as GtkPopoverRole) ? (value as GtkPopoverRole) : 'menu';
@@ -326,6 +341,10 @@ export class GtkPopover extends HTMLElement {
      */
     private _onKeyDown(event: KeyboardEvent): void {
         if (!this._state.open) return;
+        // The LIST keys belong to a `menu` / `listbox`. A `dialog` holds CONTENT, and a key
+        // there is the content's — the arrows scroll it, and taking them for a row walk
+        // would leave an explanatory popover on keys that move nothing.
+        if (!LIST_ROLES.includes(this.popoverRole)) return;
         const items = this.items;
         const active = document.activeElement as HTMLElement | null;
         const currentIndex = active === null ? -1 : items.indexOf(active);
