@@ -349,6 +349,22 @@ export default async () => {
                 expect(widget.get_child_by_name('first') !== null).toBe(true);
             });
 
+            await it('paged: Gtk.Notebook builds the tab label from the child', async () => {
+                const notebook = createElement('GtkNotebook');
+                const widget = materialize(notebook) as unknown as Gtk.Notebook;
+                const first = createElement('GtkLabel', { label: 'one', layout: { tabLabel: 'First' } });
+                const second = createElement('GtkLabel', { label: 'two' });
+                insert(first, notebook);
+                insert(second, notebook);
+                expect(widget.get_n_pages()).toBe(2);
+                expect((widget.get_tab_label(widget.get_nth_page(0)!) as Gtk.Label).label).toBe('First');
+                // No label is `null` to GTK, which then numbers the tab itself ("Page 2") and
+                // answers `get_tab_label` with `null` for it.
+                expect(widget.get_tab_label(widget.get_nth_page(1)!)).toBe(null);
+                remove(first);
+                expect(widget.get_n_pages()).toBe(1);
+            });
+
             await it('coords: Gtk.Grid reads the position off the child', async () => {
                 const grid = createElement('GtkGrid');
                 const widget = materialize(grid) as unknown as Gtk.Grid;
