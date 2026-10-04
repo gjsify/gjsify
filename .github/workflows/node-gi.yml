@@ -990,9 +990,20 @@ jobs:
           # Latest Homebrew, in step with release.yml: this addon and the runtime bundle
           # must come from one GTK, and a frozen index here would drift from the release.
           formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme)
-          brew update
-          brew install "${formulae[@]}"
-          brew upgrade "${formulae[@]}"
+          # Only arm64 tracks latest Homebrew. Homebrew builds no darwin-x64 bottles for new
+          # formula versions, so `update`+`upgrade` there compiles the whole build closure from
+          # source (dartaotruntime, go, llvm, rust: >30 min). Intel keeps the image's index,
+          # whose formulae still have bottles. The bundle IS bottles: never a source build.
+          if [ "$(uname -m)" = arm64 ]; then
+            brew update
+            brew install --force-bottle "${formulae[@]}"
+            brew upgrade --force-bottle "${formulae[@]}"
+          else
+            brew install --force-bottle "${formulae[@]}"
+          fi
+          # --force-bottle still falls back to source when no bottle exists; fail loudly then.
+          src="$(brew list --formula --built-from-source)"
+          if [ -n "$src" ]; then echo "::error::built from source, the bundle must be bottles: $src"; exit 1; fi
           brew list --versions gtk4 libadwaita glib pango
           BREW_PREFIX="$(brew --prefix)"
           # brew symlinks each keg's lib/ — incl. girepository-1.0/*.typelib and
@@ -1410,9 +1421,20 @@ jobs:
       - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
         run: |
           formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config libgda)
-          brew update
-          brew install "${formulae[@]}"
-          brew upgrade "${formulae[@]}"
+          # Only arm64 tracks latest Homebrew. Homebrew builds no darwin-x64 bottles for new
+          # formula versions, so `update`+`upgrade` there compiles the whole build closure from
+          # source (dartaotruntime, go, llvm, rust: >30 min). Intel keeps the image's index,
+          # whose formulae still have bottles. The bundle IS bottles: never a source build.
+          if [ "$(uname -m)" = arm64 ]; then
+            brew update
+            brew install --force-bottle "${formulae[@]}"
+            brew upgrade --force-bottle "${formulae[@]}"
+          else
+            brew install --force-bottle "${formulae[@]}"
+          fi
+          # --force-bottle still falls back to source when no bottle exists; fail loudly then.
+          src="$(brew list --formula --built-from-source)"
+          if [ -n "$src" ]; then echo "::error::built from source, the bundle must be bottles: $src"; exit 1; fi
           brew list --versions gtk4 libadwaita glib pango
 
       - name: Use Node.js 24
