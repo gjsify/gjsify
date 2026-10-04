@@ -1562,11 +1562,14 @@ Page.adw-window {
 
 /* ===== Toast (transient snackbar) ===== */
 
+/* `toast` (_misc.scss:38-60): $toast_bg_color #505053 / white in BOTH schemes — it is
+ * the one libadwaita surface that does not switch — a 150px (pill) radius, 6px padding
+ * with 12 on the leading side, 12px margin and 24 below. */
 .adw-toast {
-    background-color: #303034;
-    border-radius: 12;
-    padding: 10 12 10 16;
-    margin: 0 12 16 12;
+    background-color: #505053;
+    border-radius: 9999;
+    padding: 6 6 6 12;
+    margin: 12 12 24 12;
 }
 
 .adw-toast-title {
@@ -1576,12 +1579,12 @@ Page.adw-window {
 }
 
 .adw-toast-button {
-    background-color: rgba(255, 255, 255, 0.16);
+    background-color: transparent;
     color: #ffffff;
-    border-radius: 8;
+    border-radius: 9999;
     font-weight: 700;
     padding: 4 12 4 12;
-    margin: 0 0 0 8;
+    margin: 0 0 0 6;
 }
 
 /* ===== About / Preferences dialogs (in-page modal overlay) ===== */
@@ -2336,10 +2339,19 @@ Page.ns-dark.adw-window {
     background-color: transparent;
 }
 
-/* ===== Dark: toast (dark base already; tune for dark page) ===== */
+/* ===== Dark: toast ===== */
 
+/* Restated rather than left to the base rule: the toast is the same #505053 in the dark
+ * scheme (it used to be #45454c here and #303034 in light, neither of which is
+ * libadwaita's), and a `.ns-dark` rule is what keeps it from picking up a later
+ * `.adw-toast` override written for the light page. */
 .ns-dark .adw-toast {
-    background-color: #45454c;
+    background-color: #505053;
+}
+
+.ns-dark .adw-toast-title,
+.ns-dark .adw-toast-button {
+    color: #ffffff;
 }
 
 /* ===== Dark: about / preferences dialogs ===== */
