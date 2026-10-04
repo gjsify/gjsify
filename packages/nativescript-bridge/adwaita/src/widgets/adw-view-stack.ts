@@ -149,7 +149,9 @@ export class AdwViewStack extends withSignals(GridLayout) {
      * source it was added with, else the normalised name (`''` for none).
      */
     pageIcons(): string[] {
-        return this._state.pages.map((page) => (page.content ? this._sourceIcons.get(page.content) : undefined) ?? page.icon);
+        return this._state.pages.map(
+            (page) => (page.content ? this._sourceIcons.get(page.content) : undefined) ?? page.icon,
+        );
     }
 
     /** Convenience alias matching `Adw.ViewStack.add_titled`. */

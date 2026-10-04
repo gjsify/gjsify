@@ -369,9 +369,7 @@ export const RULE_EXPECTATIONS = [
         file: '19-layout.blp',
         node: {
             tag: 'GtkGrid',
-            children: [
-                { tag: 'GtkLabel', props: { label: 'cell' }, layout: { column: 0, row: 1, halign: 'center' } },
-            ],
+            children: [{ tag: 'GtkLabel', props: { label: 'cell' }, layout: { column: 0, row: 1, halign: 'center' } }],
         },
         lost: [],
         note: 'Carried since ADR 0092: `layout` holds the PLACEMENT of the child in the order the file wrote it. `halign` is in there to pin that the compiler does NOT type these against the widget, so it stays the spelling `center` where the same line on the widget itself is `3`.',

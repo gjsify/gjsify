@@ -746,7 +746,7 @@ const PANE_TEXT_DIVERGENCES = {
         'now, and the construction is one text.',
     'Gtk.Overlay':
         'property: halign and valign are GTK alignment requests on the child an overlay places, and the port ' +
-        'has no layout surface to put them on. The overlay\'s own size is `width` and `height` there where GTK ' +
+        "has no layout surface to put them on. The overlay's own size is `width` and `height` there where GTK " +
         'asks for a width and a height request.',
     'Gtk.Revealer':
         'property: margin_top and margin_bottom are GTK margin requests and the port has no layout surface ' +

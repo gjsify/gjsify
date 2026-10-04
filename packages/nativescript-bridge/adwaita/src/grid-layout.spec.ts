@@ -12,8 +12,7 @@ import { build } from './builder/index.js';
 
 type Cell = { row: number; column: number; rowSpan: number; columnSpan: number; id?: string };
 
-const cellOf = (root: unknown, id: string): Cell =>
-    (root as { getViewById(id: string): Cell }).getViewById(id);
+const cellOf = (root: unknown, id: string): Cell => (root as { getViewById(id: string): Cell }).getViewById(id);
 
 const grid = (...children: SharedTreeNode[]): SharedTreeNode => ({ tag: 'GtkGrid', children });
 
@@ -49,9 +48,9 @@ export const AdwGridLayoutNsTest = async () => {
         });
 
         await it('refuses a layout under a parent with no layout manager', () => {
-            expect(() =>
-                build({ tag: 'GtkBox', children: [{ tag: 'GtkLabel', layout: { row: 0 } }] }),
-            ).toThrow('no `attach`');
+            expect(() => build({ tag: 'GtkBox', children: [{ tag: 'GtkLabel', layout: { row: 0 } }] })).toThrow(
+                'no `attach`',
+            );
         });
     });
 };

@@ -25,7 +25,9 @@ const asJson = args.includes('--json');
 const dir = resolve(args.find((arg) => !arg.startsWith('--')) ?? join(root, '../easy6502/packages/app-gnome/src'));
 
 if (!existsSync(dir)) {
-    console.log(`measure-learn6502-projection: ${dir} is absent (the easy6502 sibling is not checked out) — nothing measured.`);
+    console.log(
+        `measure-learn6502-projection: ${dir} is absent (the easy6502 sibling is not checked out) — nothing measured.`,
+    );
     process.exit(0);
 }
 
@@ -74,9 +76,14 @@ if (asJson) {
     console.log(JSON.stringify(rows, null, 2));
 } else {
     for (const row of rows) {
-        const detail = row.error ?? [row.lost.length ? `lost: ${row.lost.join(',')}` : '', row.missing.length ? `no barrel member: ${row.missing.join(',')}` : '']
-            .filter(Boolean)
-            .join(' | ');
+        const detail =
+            row.error ??
+            [
+                row.lost.length ? `lost: ${row.lost.join(',')}` : '',
+                row.missing.length ? `no barrel member: ${row.missing.join(',')}` : '',
+            ]
+                .filter(Boolean)
+                .join(' | ');
         console.log(`${row.projects ? 'PROJECTS' : 'refused '}  ${row.file}${detail ? `  — ${detail}` : ''}`);
     }
     const projecting = rows.filter((row) => row.projects).length;

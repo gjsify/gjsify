@@ -311,9 +311,10 @@ export function extractIconPaths(svg: string): IconPath[] {
             // simply not being filled — which the renderers already do by drawing
             // every extracted path. A neutral Adwaita grey is the same case in the
             // spelling an icon not run through the generator still carries.
-            fill: fill === undefined || fill === 'currentColor' || fill === 'none' || isNeutralSymbolicFill(fill)
-                ? null
-                : fill,
+            fill:
+                fill === undefined || fill === 'currentColor' || fill === 'none' || isNeutralSymbolicFill(fill)
+                    ? null
+                    : fill,
         });
     }
     return paths;

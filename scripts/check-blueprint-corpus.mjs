@@ -342,7 +342,10 @@ const validateNode = (node, where, isRoot = true) => {
     if (node.extensions !== undefined) validateExtensions(node.extensions, where);
     if (node.layout !== undefined) {
         const entries = node.layout !== null && typeof node.layout === 'object' ? Object.entries(node.layout) : [];
-        if (entries.length === 0 || entries.some(([, value]) => !['string', 'number', 'boolean'].includes(typeof value))) {
+        if (
+            entries.length === 0 ||
+            entries.some(([, value]) => !['string', 'number', 'boolean'].includes(typeof value))
+        ) {
             problems.push(
                 `${where}: "layout" is ${JSON.stringify(node.layout)}. ADR 0092: a non-empty record of scalars; ` +
                     'absence is what says a node carries none.',
@@ -1296,7 +1299,8 @@ const checkLayout = (job, result) => {
     }
     const carried = [];
     const walk = (node) => {
-        for (const [name, value] of Object.entries(node.layout ?? {})) carried.push(`${name}=${String(value).toLowerCase()}`);
+        for (const [name, value] of Object.entries(node.layout ?? {}))
+            carried.push(`${name}=${String(value).toLowerCase()}`);
         for (const child of node.children ?? []) walk(child);
     };
     walk(result.node);
