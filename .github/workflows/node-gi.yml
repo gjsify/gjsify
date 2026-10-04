@@ -986,7 +986,27 @@ jobs:
           # glib provides libgirepository-2.0 + girepository-2.0.pc (the merged API);
           # gobject-introspection provides the GLib/GObject/Gio typelibs (Homebrew
           # builds them there to break the glib<->g-i circular dep) + g-ir tools.
-          brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme
+          #
+          # Latest Homebrew, in step with release.yml: this addon and the runtime bundle
+          # must come from one GTK, and a frozen index here would drift from the release.
+          formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config adwaita-icon-theme)
+          # Only arm64 tracks latest Homebrew. Homebrew builds no darwin-x64 bottles for new
+          # formula versions, so `update`+`upgrade` there compiles the whole build closure from
+          # source (dartaotruntime, go, llvm, rust: >30 min). Intel keeps the image's index,
+          # whose formulae still have bottles. The bundle IS bottles: never a source build.
+          if [ "$(uname -m)" = arm64 ]; then
+            brew update
+            brew install --force-bottle "${formulae[@]}"
+            brew upgrade --force-bottle "${formulae[@]}"
+          else
+            brew install --force-bottle "${formulae[@]}"
+          fi
+          # --force-bottle still falls back to source when no bottle exists; fail loudly then. Only the
+          # bundle closure counts: the runner image ships source-built formulae of its own (bicep).
+          closure="$(brew deps --formula --union "${formulae[@]}"; printf "%s\n" "${formulae[@]}")"
+          src="$(brew list --formula --built-from-source | grep -Fx -f <(echo "$closure") || true)"
+          if [ -n "$src" ]; then echo "::error::built from source, the bundle must be bottles: $src"; exit 1; fi
+          brew list --versions gtk4 libadwaita glib pango
           BREW_PREFIX="$(brew --prefix)"
           # brew symlinks each keg's lib/ — incl. girepository-1.0/*.typelib and
           # pkgconfig/*.pc — into $BREW_PREFIX/lib, so one dir covers every formula.
@@ -1398,8 +1418,28 @@ jobs:
     steps:
       # Build-time closure SOURCE only — these libraries are collected + relocated
       # into a self-contained bundle, they are NOT what the conformance job runs on.
+      # Latest Homebrew, like release.yml's bundle job, so this conformance run sees the
+      # GTK a release would ship rather than the runner image's frozen index.
       - name: Install GTK4 + GObject-Introspection (Homebrew, build-time closure source)
-        run: brew install gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config libgda
+        run: |
+          formulae=(gtk4 libadwaita gobject-introspection cairo pango gdk-pixbuf graphene pkg-config libgda)
+          # Only arm64 tracks latest Homebrew. Homebrew builds no darwin-x64 bottles for new
+          # formula versions, so `update`+`upgrade` there compiles the whole build closure from
+          # source (dartaotruntime, go, llvm, rust: >30 min). Intel keeps the image's index,
+          # whose formulae still have bottles. The bundle IS bottles: never a source build.
+          if [ "$(uname -m)" = arm64 ]; then
+            brew update
+            brew install --force-bottle "${formulae[@]}"
+            brew upgrade --force-bottle "${formulae[@]}"
+          else
+            brew install --force-bottle "${formulae[@]}"
+          fi
+          # --force-bottle still falls back to source when no bottle exists; fail loudly then. Only the
+          # bundle closure counts: the runner image ships source-built formulae of its own (bicep).
+          closure="$(brew deps --formula --union "${formulae[@]}"; printf "%s\n" "${formulae[@]}")"
+          src="$(brew list --formula --built-from-source | grep -Fx -f <(echo "$closure") || true)"
+          if [ -n "$src" ]; then echo "::error::built from source, the bundle must be bottles: $src"; exit 1; fi
+          brew list --versions gtk4 libadwaita glib pango
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
