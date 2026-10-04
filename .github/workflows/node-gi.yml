@@ -1001,8 +1001,10 @@ jobs:
           else
             brew install --force-bottle "${formulae[@]}"
           fi
-          # --force-bottle still falls back to source when no bottle exists; fail loudly then.
-          src="$(brew list --formula --built-from-source)"
+          # --force-bottle still falls back to source when no bottle exists; fail loudly then. Only the
+          # bundle closure counts: the runner image ships source-built formulae of its own (bicep).
+          closure="$(brew deps --formula --union "${formulae[@]}"; printf "%s\n" "${formulae[@]}")"
+          src="$(brew list --formula --built-from-source | grep -Fx -f <(echo "$closure") || true)"
           if [ -n "$src" ]; then echo "::error::built from source, the bundle must be bottles: $src"; exit 1; fi
           brew list --versions gtk4 libadwaita glib pango
           BREW_PREFIX="$(brew --prefix)"
@@ -1432,8 +1434,10 @@ jobs:
           else
             brew install --force-bottle "${formulae[@]}"
           fi
-          # --force-bottle still falls back to source when no bottle exists; fail loudly then.
-          src="$(brew list --formula --built-from-source)"
+          # --force-bottle still falls back to source when no bottle exists; fail loudly then. Only the
+          # bundle closure counts: the runner image ships source-built formulae of its own (bicep).
+          closure="$(brew deps --formula --union "${formulae[@]}"; printf "%s\n" "${formulae[@]}")"
+          src="$(brew list --formula --built-from-source | grep -Fx -f <(echo "$closure") || true)"
           if [ -n "$src" ]; then echo "::error::built from source, the bundle must be bottles: $src"; exit 1; fi
           brew list --versions gtk4 libadwaita glib pango
 
