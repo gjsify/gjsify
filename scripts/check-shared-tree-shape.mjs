@@ -92,6 +92,7 @@ import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-
 // moves.
 const MARK = '- translatable?: Record<string, { context?: string }>';
 const STYLES = '- styleClasses?: string[]';
+const PAGE = '- page?: { label?: string; name?: string }';
 const EXTENSIONS =
     '- extensions?: { strings?: { value: string; translatable?: { context?: string } }[]; responses?: ' +
     "{ id: string; label: string; translatable?: { context?: string }; appearance?: 'suggested' | " +
@@ -156,6 +157,7 @@ const FAMILY = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${PAGE}`,
             `${EXTENSIONS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
@@ -181,6 +183,7 @@ const FAMILY = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${PAGE}`,
             `${EXTENSIONS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -204,6 +207,7 @@ const FAMILY = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${PAGE}`,
             `${EXTENSIONS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
@@ -429,6 +433,7 @@ export interface SharedTreeNode {
     template?: string;
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
+    page?: Readonly<{ label?: string; name?: string }>;
     translatable?: Readonly<Record<string, { readonly context?: string }>>;
     styleClasses?: readonly string[];
     extensions?: {
@@ -456,6 +461,7 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    page?: { label?: string; name?: string };
     extensions?: {
         strings?: { value: string; translatable?: { context?: string } }[];
         responses?: {
@@ -481,6 +487,7 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    page?: { label?: string; name?: string };
     extensions?: {
         strings?: { value: string; translatable?: { context?: string } }[];
         responses?: {
@@ -512,6 +519,7 @@ const VECTORS = [
             '- template?: string',
             `${MARK}`,
             `${STYLES}`,
+            `${PAGE}`,
             `${EXTENSIONS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -525,6 +533,7 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    page?: { label?: string; name?: string };
     extensions?: {
         strings?: { value: string; translatable?: { context?: string } }[];
         responses?: {
@@ -551,6 +560,7 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    page?: { label?: string; name?: string };
     extensions?: {
         strings?: { value: string; translatable?: { context?: string } }[];
         responses?: {
@@ -576,6 +586,7 @@ const VECTORS = [
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
+    page?: { label?: string; name?: string };
     extensions?: {
         strings?: { value: string; translatable?: { context?: string } }[];
         responses?: {

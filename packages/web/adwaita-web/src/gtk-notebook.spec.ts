@@ -6,6 +6,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { GtkNotebook } from './elements/gtk-notebook.js';
+import { buildSharedTree } from './shared-tree-builder.js';
 
 interface Page {
     label?: string;
@@ -502,6 +503,44 @@ export const GtkNotebookTest = async () => {
             el.appendPage(second, 'Two');
             expect(details).toStrictEqual([{ position: 1, nPages: 2 }]);
             host.remove();
+        });
+    });
+
+    await describe('geometry measured on a native Gtk.Notebook', async () => {
+        await it('has 37 px tabs under a 37 px header, 8 px in, and does not stretch them', () => {
+            const { el, host } = mount([{ label: 'A' }, { label: 'Longer label' }]);
+            const header = el.querySelector('.adw-notebook-header') as HTMLElement;
+            const tabs = [...el.querySelectorAll('.adw-notebook-tab')] as HTMLElement[];
+            const box = el.getBoundingClientRect();
+            expect(header.getBoundingClientRect().height).toBe(37);
+            expect(tabs.map((tab) => tab.getBoundingClientRect().height)).toStrictEqual([37, 37]);
+            // The 1 px frame, then the 8 px of header padding, strip margin, strip padding and tab margin.
+            expect(tabs[0].getBoundingClientRect().left - box.left).toBe(9);
+            expect(tabs[0].getBoundingClientRect().width).toBeLessThan(tabs[1].getBoundingClientRect().width);
+            expect(tabs[1].getBoundingClientRect().right).toBeLessThan(box.right - 100);
+            host.remove();
+        });
+    });
+
+    await describe('a shared-tree page', async () => {
+        await it('is written as the tab-label the notebook reads, and a stack reads name and title', () => {
+            const notebook = buildSharedTree({
+                tag: 'GtkNotebook',
+                children: [{ tag: 'GtkLabel', page: { label: 'One' }, props: { label: 'first' } }],
+            });
+            expect(notebook.children[0].getAttribute('tab-label')).toBe('One');
+            const stack = buildSharedTree({
+                tag: 'GtkStack',
+                children: [{ tag: 'GtkLabel', page: { name: 'a', label: 'A' } }],
+            });
+            expect(stack.children[0].getAttribute('name')).toBe('a');
+            expect(stack.children[0].getAttribute('title')).toBe('A');
+        });
+
+        await it('is refused BY NAME on a parent with no pages', () => {
+            expect(() =>
+                buildSharedTree({ tag: 'GtkBox', children: [{ tag: 'GtkLabel', page: { label: 'X' } }] }),
+            ).toThrow('has no pages');
         });
     });
 };

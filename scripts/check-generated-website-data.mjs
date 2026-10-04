@@ -373,12 +373,20 @@ if (widgetsSrc === null || propsSrc === null || descriptorFiles.some((f) => f ==
      * one `gtk-host` itself reports.
      */
     const curatedSlots = new Map();
+    const layoutKeys = new Map();
     for (const block of descriptorSrc.split(/\n    \{\n/).slice(1)) {
         const gtype = /gtype:\s*'([^']+)'/.exec(block)?.[1];
         if (!gtype) continue;
         if (/children:\s*\{[\s\S]*?kind:\s*'uncurated'/.test(block)) continue;
         const slots = /slots:\s*\{([^}]*)\}/.exec(block)?.[1];
         curatedSlots.set(gtype, slots === undefined ? null : [...slots.matchAll(/(\w+):/g)].map((m) => m[1]));
+        // The data a child carries for its parent in `layout`, read off the policy that reads it
+        // (`policies.ts` `appendChild`): a key no policy reads is dropped without a word.
+        const nameFrom = /kind:\s*'keyed'[\s\S]*?nameFrom:\s*'(\w+)'/.exec(block)?.[1];
+        const labelFrom = /kind:\s*'paged'[\s\S]*?labelFrom:\s*'(\w+)'/.exec(block)?.[1];
+        if (nameFrom) layoutKeys.set(gtype, [nameFrom, 'title']);
+        if (labelFrom) layoutKeys.set(gtype, [labelFrom]);
+        if (/kind:\s*'coords'/.test(block)) layoutKeys.set(gtype, ['column', 'row', 'columnSpan', 'rowSpan']);
     }
     if (curatedSlots.size === 0) failures.push('no curated descriptor was read — arm 5 cannot judge a slot');
 
@@ -406,6 +414,15 @@ if (widgetsSrc === null || propsSrc === null || descriptorFiles.some((f) => f ==
                     failures.push(
                         `${widget}: <${parent.tag}> declares no slot "${node.slot}" ` +
                             `(known: ${slots === null ? 'none — it is not a slotted parent' : slots.join(', ')}).`,
+                    );
+                }
+            }
+            const keys = layoutKeys.get(parentGType) ?? [];
+            for (const name of Object.keys(node.layout ?? {})) {
+                if (!keys.includes(name)) {
+                    failures.push(
+                        `${widget}: <${parent.tag}> reads no layout key "${name}" off a child ` +
+                            `(known: ${keys.length === 0 ? 'none' : keys.join(', ')}).`,
                     );
                 }
             }

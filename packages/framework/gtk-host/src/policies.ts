@@ -737,6 +737,7 @@ function placeChild(place: Placement): void {
         // falls through — no insert API on this container
         case 'slotted':
         case 'keyed':
+        case 'paged':
             // Containers that can only APPEND. Add ourselves first, then rotate the tail
             // back into place.
             //
@@ -782,6 +783,12 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             // as a rejected child TYPE.
             if (policy.titled) host[policy.add](address, name ?? null, title ?? name ?? '');
             else host[policy.add](address);
+            return;
+        }
+        case 'paged': {
+            // `null` and not an empty label: a page with no label is numbered by C.
+            const text = child.layout?.[policy.labelFrom] as string | undefined;
+            host[policy.append](address, text === undefined ? null : new Gtk.Label({ label: text }));
             return;
         }
         case 'coords': {
@@ -871,6 +878,7 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
         case 'ordered':
         case 'indexed':
         case 'coords':
+        case 'paged':
             host[policy.remove](address);
             return;
         default:
@@ -1001,6 +1009,7 @@ export function reorderMode(policy: ChildPolicy): 'native' | 'remove-all' | 'n/a
             // anything. Same answer as `coords`, for the same reason: the slot is data on the
             // child, so document order carries nothing to pay for.
             return adderSlots(policy).length > 0 ? 'remove-all' : 'n/a';
+        case 'paged':
         case 'keyed':
             // Measured: `Gtk.Stack.reorder_child_after` is `undefined` too, so a
             // keyed reversal was a complete no-op in GTK while the host's own

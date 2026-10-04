@@ -53,6 +53,8 @@ export function methodsOf(policy: ChildPolicy): string[] {
             return [policy.add, policy.remove];
         case 'coords':
             return [policy.attach, policy.remove];
+        case 'paged':
+            return [policy.append, policy.remove];
         default:
             return unhandledPolicy(policy);
     }

@@ -490,7 +490,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
     },
     { widget: 'Gtk.Stack', root:
-        { tag: 'gtk-stack', gtype: 'GtkStack', props: {"transitionType":"slide-left-right","transitionDuration":200} }
+        { tag: 'gtk-stack', gtype: 'GtkStack', props: {"transitionType":"slide-left-right","transitionDuration":200}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Three pages, one visible at a time."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Switching is animated by transition-type."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"This page is the third."} }
+            ] }
     },
     { widget: 'Gtk.HeaderBar', root:
         { tag: 'gtk-header-bar', gtype: 'GtkHeaderBar', props: {"decorationLayout":"menu:minimize,maximize,close"}, children: [
@@ -504,7 +508,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
     },
     { widget: 'Gtk.Notebook', root:
-        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top","page":0} }
+        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top"}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A notebook brings its own tab strip."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"tab-pos says which edge the strip is on."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"No tab label, so GTK numbers it Page 3."} }
+            ] }
     },
 ];
 

@@ -211,7 +211,7 @@ export type NodePlacement =
 // Child placement
 // ---------------------------------------------------------------------------
 
-export type PolicyKind = 'none' | 'single' | 'ordered' | 'indexed' | 'slotted' | 'keyed' | 'coords';
+export type PolicyKind = 'none' | 'single' | 'ordered' | 'indexed' | 'slotted' | 'keyed' | 'coords' | 'paged';
 
 /**
  * How a parent adopts children. GTK4 deleted `GtkContainer`, so there is no
@@ -388,6 +388,18 @@ export type ChildPolicy =
       }
     /** `Gtk.Grid`: position is data on the child, so document order carries nothing. */
     | { kind: 'coords'; attach: string; remove: string }
+    /**
+     * `Gtk.Notebook`: a page is a child plus a tab label, and the label is data on the child
+     * (`layout.tabLabel`), the way a grid cell is.
+     *
+     * Not `keyed`: a notebook page has no name to address it by (the notebook speaks
+     * positions, `GtkNotebookPage` is a GObject with no tag of its own — gtknotebook.c:423),
+     * and `append_page(child, tab_label)` takes a WIDGET for its label. The host builds a
+     * `Gtk.Label` from `layout.tabLabel`; with none it passes `null`, which is what makes
+     * C number the tab "Page N" rather than draw none (gtknotebook.c:4353-4373).
+     * `remove` is `detach_tab`, which takes the child — `remove_page` takes an index.
+     */
+    | { kind: 'paged'; append: string; remove: string; labelFrom: string }
     /**
      * Generated, not curated: the tag exists, its placement rule does not.
      *
