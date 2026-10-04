@@ -22,6 +22,7 @@ import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
+import { GtkControlsNsTest } from './gtk-controls.spec.js';
 import { GtkStackNsTest } from './gtk-stack.spec.js';
 import { GtkToggleButtonNsTest } from './gtk-toggle-button.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
@@ -39,6 +40,7 @@ run({
     GtkGridNsTest,
     AdwGridLayoutNsTest,
     GtkListBoxNsTest,
+    GtkControlsNsTest,
     GtkStackNsTest,
     AdwWidgetBaseNsTest,
     AdwWindowRootsNsTest,

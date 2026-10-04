@@ -130,6 +130,19 @@ export {
     GTK_TOGGLE_BUTTON_TOGGLED,
     NOTIFY_TOGGLE_ACTIVE,
 } from './gtk-toggle-button.js';
+export {
+    GtkCheckButton,
+    GTK_CHECK_BUTTON_ACTIVATE,
+    GTK_CHECK_BUTTON_CHECKED_CLASS,
+    GTK_CHECK_BUTTON_INCONSISTENT_CLASS,
+    GTK_CHECK_BUTTON_TOGGLED,
+    NOTIFY_CHECK_ACTIVE,
+} from './gtk-check-button.js';
+export { GtkDrawingArea, DRAWING_AREA_REFUSAL } from './gtk-drawing-area.js';
+export { GtkFrame } from './gtk-frame.js';
+export { GtkSeparator } from './gtk-separator.js';
+export { GtkTextView, GTK_WRAP_MODES, NOTIFY_TEXT_VIEW_TEXT } from './gtk-text-view.js';
+export type { GtkWrapModeNick } from './gtk-text-view.js';
 export { boxChildTrack, boxSpacingChanges, boxTrackPlan, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
@@ -429,6 +442,11 @@ import { GtkRevealer } from './gtk-revealer.js';
 import { GtkScrolledWindow } from './gtk-scrolled-window.js';
 import { GtkStack } from './gtk-stack.js';
 import { GtkToggleButton } from './gtk-toggle-button.js';
+import { GtkCheckButton } from './gtk-check-button.js';
+import { GtkDrawingArea } from './gtk-drawing-area.js';
+import { GtkFrame } from './gtk-frame.js';
+import { GtkSeparator } from './gtk-separator.js';
+import { GtkTextView } from './gtk-text-view.js';
 import { GtkLabel } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
@@ -494,6 +512,11 @@ const ELEMENTS = {
     GtkScrolledWindow,
     GtkStack,
     GtkToggleButton,
+    GtkCheckButton,
+    GtkDrawingArea,
+    GtkFrame,
+    GtkSeparator,
+    GtkTextView,
     GtkLabel,
     AdwImageButton,
     GtkMenuButton,

@@ -111,6 +111,8 @@ const NO_STORY_OF_ITS_OWN = {
     toggle: 'Buttons/Toggle Group renders toggles — an `Adw.Toggle` is a GObject the group turns into a button, so it has no look of its own to show. Both ports now build one from an authored tree, which is why it left the one-renderer ledger.',
     dialog: 'Feedback/Alert Dialog, Feedback/About Dialog and Feedback/Preferences Dialog are the dialogs libadwaita shows — `Adw.Dialog` is the surface they share, and on its own it is a card around a child the caller brings, so a story would show an empty rectangle. Both ports exist as TARGETS of an authored tree: a `template $ShareDialog : Adw.Dialog` names it, and the NativeScript class is the overlay `present (parent)` mounts in a window.',
     window: "The root of an application, not a thing a gallery previews: the GTK storybook builds an `Adw.Window` only as scaffolding around the header-bar, toolbar-view and window-title stories, and a story of its own would show a bare frame. Both ports exist as TARGETS of an authored tree, like `box` and `label`: a `template $Foo : Adw.Window` names it, and the NativeScript class is the full-size root such a tree builds into, where the platform's `Page` is the screen.",
+    'check-button':
+        "GTK's check primitive, not an Adwaita widget — libadwaita only styles it (`check`, _checks.scss) — and like `box`, `label` and `action-bar` both ports exist as TARGETS of an authored tree: a `.blp` built through `mountSharedTree` or the XML dialect reaches it, and a story would show a GTK primitive beside a list of the rows that carry one.",
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
@@ -191,15 +193,26 @@ const ONE_RENDERER_ONLY = {
         decision:
             "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK was a separate gap and is closed: `.card, .adw-card` is now a rule in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, both spellings on one selector the way `.boxed-list` already carries the same surface. It rendered NOTHING until then, and scripts/check-nativescript-theme-classes.mjs could not see it either — that reader saw only the package's own widget sources, never an app's.",
     },
-    'check-button': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-        vectors: ['RADIO_GROUP_VECTORS'],
-    },
     'application-window': {
         only: 'nativescript',
         decision:
             'The browser has one window element, `<adw-window>`, which is the root a document hangs its frame on; `Adw.ApplicationWindow` differs from `Adw.Window` only by its `Gio.Application` integration (`application`, `show-menubar`, the window actions), and neither the web nor a NativeScript `Page` has an application object to bind. NativeScript ships the second GType because a `template $Foo : Adw.ApplicationWindow` names it, and the same root class serves both.',
+    },
+    'separator': {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'frame': {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'text-view': {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'drawing-area': {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     bin: {
         only: 'nativescript',

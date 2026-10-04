@@ -1560,6 +1560,79 @@ Page.adw-window {
     background-color: transparent;
 }
 
+/* ===== Check button, separator, frame, text view ===== */
+
+/* `check` (_checks.scss): a rounded square, neutral until `checked`/`inconsistent`, then the
+ * accent fill; the white checkmark is the indicator's own image. */
+.adw-check-button {
+    padding: 6 0 6 0;
+}
+
+.adw-check-indicator {
+    width: 20;
+    height: 20;
+    border-radius: 5;
+    background-color: rgba(0, 0, 0, 0.15);
+    margin: 0 8 0 0;
+}
+
+.adw-check-indicator.checked,
+.adw-check-indicator.inconsistent {
+    background-color: #3584e4;
+}
+
+.adw-check-label {
+    font-size: 15;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+.adw-check-button:highlighted {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* `separator` (_misc.scss): a 1px line in the border colour. */
+.adw-separator {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+.adw-separator.horizontal {
+    height: 1;
+    horizontal-align: stretch;
+}
+
+.adw-separator.vertical {
+    width: 1;
+    vertical-align: stretch;
+}
+
+/* `frame` (`.frame` / `frame > border`): one hairline around the child. */
+.adw-frame {
+    border-width: 1;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+.adw-frame-label {
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
+    margin: 0 0 4 0;
+}
+
+/* `textview` (_views.scss): the view surface, with the entry's padding. */
+.adw-text-view {
+    background-color: #ffffff;
+    border-radius: 9;
+    padding: 8 9 8 9;
+}
+
+.adw-text-view-input {
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 15;
+}
+
+.adw-text-view.monospace .adw-text-view-input {
+    font-family: monospace;
+}
+
 /* ===== Toast (transient snackbar) ===== */
 
 /* `toast` (_misc.scss:38-60): $toast_bg_color #505053 / white in BOTH schemes — it is
@@ -2337,6 +2410,43 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-bottom-sheet-inert:highlighted {
     background-color: transparent;
+}
+
+/* ===== Dark: check button, separator, frame, text view ===== */
+
+.ns-dark .adw-check-indicator {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-check-indicator.checked,
+.ns-dark .adw-check-indicator.inconsistent {
+    background-color: #3584e4;
+}
+
+.ns-dark .adw-check-label,
+.ns-dark .adw-frame-label {
+    color: #ffffff;
+}
+
+.ns-dark .adw-check-button:highlighted {
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+.ns-dark .adw-separator,
+.ns-dark .adw-frame {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-separator {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-text-view {
+    background-color: #2a2a2e;
+}
+
+.ns-dark .adw-text-view-input {
+    color: #ffffff;
 }
 
 /* ===== Dark: toast ===== */

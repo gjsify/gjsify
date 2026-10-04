@@ -72,6 +72,11 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-banner-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.adw-avatar', property: 'background-color', role: 'fill' },
     { selector: '.adw-viewswitcherbar-button-badge', property: 'background-color', role: 'fill' },
+    {
+        selector: '.adw-check-indicator.checked, .adw-check-indicator.inconsistent',
+        property: 'background-color',
+        role: 'fill',
+    },
     { selector: '.adw-button-row', property: 'color', role: 'fill' },
     { selector: '.adw-button-row-title', property: 'color', role: 'fill' },
     { selector: '.adw-view-switcher-button-badge', property: 'background-color', role: 'fill' },
@@ -79,6 +84,11 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-carousel-dot.active', property: 'color', role: 'fill' },
     { selector: '.adw-image-button.adw-entry-apply', property: 'background-color', role: 'fill' },
     { selector: '.adw-image-button.adw-entry-apply:highlighted', property: 'background-color', role: 'shade' },
+    {
+        selector: '.ns-dark .adw-check-indicator.checked, .ns-dark .adw-check-indicator.inconsistent',
+        property: 'background-color',
+        role: 'fill',
+    },
     { selector: '.ns-dark .adw-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.ns-dark .adw-button.suggested-action:highlighted', property: 'background-color', role: 'shade' },
     { selector: '.ns-dark .adw-button.suggested-action.checked', property: 'background-color', role: 'shade' },
