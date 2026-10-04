@@ -457,3 +457,11 @@ export const ADWAITA_FRAMEWORK_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.ViewSwitcherSidebar': "its `stack` is a widget reference AND every row is derived from that stack's page list, so a static tree would have to re-state the binding a second time.",
     'Adw.InlineViewSwitcher': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
 };
+
+/**
+ * Gallery blocks whose docs preview is mounted from the tree (JSON of the root node), keyed
+ * by the block's `<AdwWidget title="…">`. Such a block has no `preview` fence.
+ */
+export const ADWAITA_FRAMEWORK_MOUNTED_TREES: Readonly<Record<string, string>> = {
+    'Gtk.Entry': "{\"tag\":\"GtkEntry\",\"props\":{\"placeholderText\":\"Search files…\",\"widthRequest\":280}}",
+};

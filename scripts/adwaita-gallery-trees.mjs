@@ -1349,6 +1349,14 @@ export const ADWAITA_GALLERY_TREES = [
 ];
 
 /**
+ * Blocks whose docs preview IS this tree: the page mounts it with `buildSharedTree` and shows
+ * the generated markup as the Web Components binding, and the block has no `preview` fence to
+ * keep in step. A block joins by being converted, so the list is written out; a block here with
+ * a fence, or without a tree, fails `check-website-adwaita-gallery.mjs`.
+ */
+export const ADWAITA_GALLERY_MOUNTED_PREVIEWS = ['Gtk.Entry'];
+
+/**
  * Every gallery block that gets NO framework snippet, and why.
  *
  * Kept beside the trees rather than in prose: `check-adwaita-gallery-trees.mjs`

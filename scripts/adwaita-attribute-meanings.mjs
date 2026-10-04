@@ -189,6 +189,9 @@ export const ADWAITA_ATTRIBUTE_MEANINGS = {
     'gtk-emoji-chooser': {
         'position': 'How to place the popover, relative to its parent.',
     },
+    'gtk-entry': {
+        'placeholder-text': 'The text that will be displayed in the `GtkEntry` when it is empty and unfocused.',
+    },
     'gtk-expander': {
         'label': null,
     },
@@ -418,9 +421,6 @@ export const ADWAITA_ATTRIBUTE_DIVERGENCES = {
     'gtk-check-button checked': 'renamed',
     'gtk-check-button indeterminate': 'renamed',
     'gtk-emoji-chooser align': 'port-only',
-    'gtk-entry disabled': 'inverted',
-    'gtk-entry placeholder': 'renamed',
-    'gtk-entry value': 'renamed',
     'gtk-image size': 'port-only',
     'gtk-list-view selection-mode': 'port-only',
     'gtk-page-setup-unix-dialog open': 'declarative-state',
@@ -445,12 +445,12 @@ export const ADWAITA_ATTRIBUTE_AUTHORED = [
 
 /** What the line between "glossed" and "the name says it" cost, measured. */
 export const ADWAITA_ATTRIBUTE_MEANING_COUNTS = {
-    set: 237,
-    glossed: 88,
+    set: 235,
+    glossed: 89,
     nameSuffices: 110,
-    divergent: 38,
+    divergent: 35,
     authored: 1,
-    commentLines: 126,
+    commentLines: 127,
 };
 
 /**

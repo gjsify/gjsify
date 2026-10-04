@@ -47,6 +47,7 @@ interface Props {
 }
 
 import {
+    ADWAITA_FRAMEWORK_MOUNTED_TREES,
     ADWAITA_FRAMEWORK_REFUSALS,
     ADWAITA_FRAMEWORK_SNIPPETS,
     type FrameworkDialect,
@@ -263,13 +264,32 @@ if (markupHtml !== null && (previewMarkup === null || previewMarkup.trim() === '
 // fence stays as the Web Components binding, and the other code tabs are untouched.
 const previewRefused = ADWAITA_FRAMEWORK_REFUSALS[title] !== undefined;
 
+// A mounted block's preview IS its gallery tree, built by the renderer's own builder like a
+// one-Blueprint block's: no fence of its own to drift, and the markup is generated from the tree.
+const mountedTree = ADWAITA_FRAMEWORK_MOUNTED_TREES[title];
+if (mountedTree !== undefined && markupHtml !== null) {
+    throw new Error(
+        `AdwWidget(${title}): this block's preview is mounted from its gallery tree, so it takes no ` +
+            '"preview" fence. Drop the fragment.',
+    );
+}
+
+if (mountedTree !== undefined && (previewRefused || oneBlueprint)) {
+    throw new Error(
+        `AdwWidget(${title}): a mounted block is neither refused nor a one-Blueprint block. ` +
+            'Take it out of ADWAITA_GALLERY_MOUNTED_PREVIEWS, or drop the refusal / the blueprint prop.',
+    );
+}
+
 const live: LivePane | undefined = previewRefused
     ? undefined
-    : oneBlueprint
-      ? { tree: JSON.stringify(blueprintTree) }
-      : previewMarkup === null
-        ? undefined
-        : { markup: previewMarkup };
+    : mountedTree !== undefined
+      ? { tree: mountedTree }
+      : oneBlueprint
+        ? { tree: JSON.stringify(blueprintTree) }
+        : previewMarkup === null
+          ? undefined
+          : { markup: previewMarkup };
 
 const tabs: WidgetPane[] = [];
 for (const tab of TABS) {
@@ -281,6 +301,15 @@ for (const tab of TABS) {
 }
 
 const bindings: WidgetPane[] = [];
+if (mountedTree !== undefined) {
+    bindings.push({
+        id: MARKUP_SLOT,
+        kind: 'code',
+        label: 'Web Components',
+        lang: 'html',
+        source: sharedTreeHtml(JSON.parse(mountedTree) as SharedTreeNode),
+    });
+}
 for (const binding of BINDINGS) {
     if (binding.slot === MARKUP_SLOT) {
         if (markupHtml === null) continue;

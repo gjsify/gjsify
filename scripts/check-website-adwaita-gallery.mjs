@@ -165,7 +165,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ADWAITA_STORY_SRC, adwaitaStoryMetas, classTag } from './adwaita-elements.mjs';
 import { attributeOf } from './adwaita-gallery-shared-trees.mjs';
-import { ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
+import { ADWAITA_GALLERY_MOUNTED_PREVIEWS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
 import { markupElements } from './generate-adwaita-attribute-comments.mjs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
@@ -1202,6 +1202,18 @@ for (const block of blocks) {
     }
 }
 
+const MOUNTED_SLOT = 'preview';
+
+// A mounted block's component fills the "preview" pane from its tree, so it counts as having
+// written it; the same arm below holds it to having NO fence of its own.
+for (const title of ADWAITA_GALLERY_MOUNTED_PREVIEWS) {
+    const block = blocks.find((entry) => entry.title === title);
+    if (block === undefined) continue;
+    if (!providedBy.has(MOUNTED_SLOT)) providedBy.set(MOUNTED_SLOT, new Set());
+    providedBy.get(MOUNTED_SLOT).add(`${block.page} ${block.title}`);
+    provided.add(MOUNTED_SLOT);
+}
+
 for (const port of ports) {
     if (provided.has(port)) continue;
     failures.push(
@@ -1514,6 +1526,19 @@ failures.push(...panePartition.problems);
 // the gallery still authors its preview by hand and is the remaining work, not a ledger.
 const PREVIEW_FROM_TREE = ['Gtk.Stack', 'Gtk.Notebook'];
 const PREVIEW_ONLY_ATTRIBUTES = new Set(['style']);
+for (const title of ADWAITA_GALLERY_MOUNTED_PREVIEWS) {
+    const block = blocks.find((entry) => entry.title === title);
+    if (block === undefined || !ADWAITA_GALLERY_TREES.some((entry) => entry.widget === title)) {
+        failures.push(`arm 14: ${title} is a mounted preview and has no gallery block or no tree.`);
+        continue;
+    }
+    if (block.body.includes(`<Fragment slot="${MOUNTED_SLOT}"`)) {
+        failures.push(
+            `arm 14: ${title} is mounted from its tree and still writes a "${MOUNTED_SLOT}" fence. ` +
+                'Drop the fence, or take the block out of ADWAITA_GALLERY_MOUNTED_PREVIEWS.',
+        );
+    }
+}
 
 for (const title of PREVIEW_FROM_TREE) {
     const tree = ADWAITA_GALLERY_TREES.find((entry) => entry.widget === title);
