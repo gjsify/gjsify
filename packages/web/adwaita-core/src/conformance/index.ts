@@ -677,3 +677,22 @@ export type {
     SharedTreeObservable,
     SharedTreePlacement,
 } from './shared-trees.js';
+
+// --- Which template constructs a renderer builds or refuses (ADR 0093) ---
+export {
+    CONSTRUCT_KINDS,
+    CONSTRUCT_VECTORS,
+    UnsupportedConstructError,
+    assertTreeConstructs,
+    constructUsesOf,
+    driveConstructVectors,
+} from './constructs.js';
+export type {
+    ConstructCapabilities,
+    ConstructCapability,
+    ConstructHarness,
+    ConstructKind,
+    ConstructRenderer,
+    ConstructUse,
+    ConstructVector,
+} from './constructs.js';

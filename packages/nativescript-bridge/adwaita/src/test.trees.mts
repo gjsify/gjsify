@@ -16,6 +16,7 @@ import { run } from '@gjsify/unit';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
+import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
@@ -35,6 +36,7 @@ import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 run({
     AdwSharedTreesNsTest,
     AdwClampClasslessChildNsTest,
+    AdwConstructVectorsNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
     GtkGridNsTest,

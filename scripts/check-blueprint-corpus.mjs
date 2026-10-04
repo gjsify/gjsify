@@ -1322,6 +1322,39 @@ const checkLayout = (job, result) => {
     );
 };
 
+/**
+ * ADR 0093's `uses`, held against the GOLDEN: the oracle writes one `<layout>`, `<items>` and
+ * `<responses>` element per construct the source used, so their number (each kind's own element) is the denominator the
+ * projection's `uses` must equal — a use the projection forgot is a construct a renderer would
+ * never be asked about.
+ */
+// `<items>` alone is also what a `Gtk.ComboBoxText` writes for its `items [ ]`, so a string list is
+// the one inside a `GtkStringList` object.
+const USE_ELEMENTS = {
+    layout: /<layout>/g,
+    strings: /class="GtkStringList"[^>]*>\s*<items>/g,
+    responses: /<responses>/g,
+};
+const checkUses = (job, result) => {
+    if (!existsSync(job.golden)) return; // stage A said so
+    const golden = readFileSync(job.golden, 'utf8').replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    for (const [kind, element] of Object.entries(USE_ELEMENTS)) {
+        const wanted = [...golden.matchAll(element)].length;
+        const got = result.uses.filter((use) => use.kind === kind).length;
+        used += got;
+        if (wanted !== got) {
+            problems.push(
+                `${job.key}: the oracle wrote ${wanted} element(s) for \`${kind}\` and the projection reports ${got} ` +
+                    `use(s) of \`${kind}\`.`,
+            );
+        }
+    }
+    const lines = result.uses.map((use) => use.line);
+    if (lines.some((line) => !Number.isInteger(line) || line < 1)) {
+        problems.push(`${job.key}: a use carries no 1-based line.`);
+    }
+};
+
 // The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
@@ -1355,6 +1388,8 @@ let styled = 0;
 let extended = 0;
 // The layout arm's denominator: placement entries carried and held against the oracle.
 let laid = 0;
+// The `uses` arm's denominator: carried constructs reported and held against the oracle's elements.
+let used = 0;
 if (surface !== undefined && existsSync(PROJECTOR)) {
     const { gtypeName, parseBlueprint } = surface;
     // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
@@ -1417,6 +1452,7 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
         checkStyleClasses(job, result);
         checkExtensions(job, result);
         checkLayout(job, result);
+        checkUses(job, result);
     }
 }
 
@@ -1613,7 +1649,7 @@ const stageC =
 const stageD =
     `stage D held ${projected} hand-written SharedNode tree(s) against the projection, and ${addressed} ` +
     `composite class(es), ${addressedIds} object id(s), ${marked} translatable marking(s), ${styled} ` +
-    `style class(es) and ${extended} string-list item(s) and response(s) and ${laid} layout entr(ies) against the golden the oracle wrote`;
+    `style class(es) and ${extended} string-list item(s) and response(s) and ${laid} layout entr(ies) against the golden the oracle wrote, and ${used} carried construct use(s) to its elements`;
 
 const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 

@@ -29,10 +29,11 @@
 // with the function they belong to. The two about ids (an unknown one, a duplicate one) are
 // GtkBuilder's own refusals, restated where the ids are resolved.
 
-import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 import { View } from '@nativescript/core';
 
+import { capabilities } from '../capabilities.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 
 // The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
@@ -177,6 +178,8 @@ export function buildDialog(node: SharedTreeNode): PresentableRoot {
 
 /** Every node, then every held-back object reference resolved against the ids the tree built. */
 function buildTree(node: SharedTreeNode): View | object {
+    // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
+    assertTreeConstructs('adwaita-nativescript', capabilities, node);
     const context: BuildContext = { ids: new Map(), pending: [] };
     const root = buildNode(node, context);
     for (const { view, element, prop, id } of context.pending) {

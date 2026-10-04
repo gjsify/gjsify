@@ -22,6 +22,10 @@
             "types": "./lib/types/builder/index.d.ts",
             "default": "./lib/esm/builder/index.js"
         },
+        "./capabilities": {
+            "types": "./lib/types/capabilities.d.ts",
+            "default": "./lib/esm/capabilities.js"
+        },
         "./theme/adwaita.css": "./src/theme/adwaita.css",
         "./fonts": {
             "types": "./lib/types/fonts.d.ts",

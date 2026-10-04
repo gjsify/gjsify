@@ -18,6 +18,10 @@
             "types": "./lib/types/fonts.d.ts",
             "default": "./src/fonts.ts"
         },
+        "./capabilities": {
+            "types": "./src/capabilities.d.mts",
+            "default": "./src/capabilities.mjs"
+        },
         "./style.css": {
             "types": "./style.css.d.ts",
             "default": "./dist/adwaita-web.css"

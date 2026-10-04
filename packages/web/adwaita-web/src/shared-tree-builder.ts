@@ -34,9 +34,10 @@
 // package's `exports` map ships only `.`, and a new subpath would buy nothing for a module
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
-import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
+import { capabilities } from './capabilities.mjs';
 import { slottedChildrenOf } from './slotted-children.js';
 
 /** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
@@ -104,15 +105,13 @@ function isWritable(el: object, member: string): boolean {
  * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
 export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { placed: [], extended: [] }): HTMLElement {
-    // ADR 0092: the placement of a child in a layout manager (`layout { row: 0; }`) has no door in
-    // the markup this package reads — an `<adw-…>` element is placed by DOM order and `slot=`.
-    // Refused rather than dropped: a grid child with no cell lands on the first one at exit 0.
-    if (node.layout !== undefined) {
-        throw new Error(
-            `\`${node.tag}\` authored layout (${Object.keys(node.layout).join(', ')}; ADR 0092), and ` +
-                'the web renderer has no door for a layout-manager placement.',
-        );
-    }
+    // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
+    // created. A refused `layout` is named with its node and the reason the table gives.
+    assertTreeConstructs('adwaita-web', capabilities, node);
+    return buildNode(node, record);
+}
+
+function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     const el = document.createElement(hostTagOf(node.tag));
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
@@ -134,7 +133,7 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { pl
     writeExtensions(el, node);
     if (node.extensions !== undefined) record.extended.push({ el, node });
     for (const child of node.children ?? []) {
-        const childEl = buildSharedTree(child, record);
+        const childEl = buildNode(child, record);
         if (child.page !== undefined) writePage(el, childEl, child);
         if (child.slot !== undefined) {
             childEl.setAttribute('slot', child.slot);

@@ -37,3 +37,33 @@ export class BlueprintProjectionError extends Error {
         this.lost = lost;
     }
 }
+
+/** One construct a named renderer refuses, with the line it sits on and the table's reason. */
+export interface RefusedUse {
+    kind: string;
+    line: number;
+    reason: string;
+}
+
+/**
+ * A `.blp` imported with `?shared-tree&for=<renderer>` that uses constructs the renderer's
+ * `./capabilities` table refuses (ADR 0093 § 2).
+ *
+ * A subclass of {@link BlueprintProjectionError} so one `instanceof` catches both refusals; `lost`
+ * is empty, because the projection itself was whole — the renderer is what says no.
+ */
+export class RendererRefusalError extends BlueprintProjectionError {
+    readonly renderer: string;
+    readonly refused: readonly RefusedUse[];
+
+    constructor(file: string, renderer: string, refused: readonly RefusedUse[]) {
+        super(file, []);
+        const listed = refused.map((use) => `  ${use.kind} at ${file}:${use.line} — ${use.reason}`).join('\n');
+        this.message =
+            `${file} cannot be rendered by ${renderer}: ${refused.length} construct(s) it refuses.\n${listed}\n` +
+            'The GtkBuilder-XML exit of the same file is unaffected.';
+        this.name = 'RendererRefusalError';
+        this.renderer = renderer;
+        this.refused = refused;
+    }
+}

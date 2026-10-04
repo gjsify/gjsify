@@ -3,6 +3,7 @@
 - Status: **Proposed**
 - Date: 2026-09-21
 - Deciders: Pascal Garber
+- Note: § 3 is superseded for `bind` and `breakpoint` by [ADR 0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md); `bind` is carried in its simple form only, and expression forms stay a loss.
 - Related: [ADR 0033 (declarative templates preferred)](0033-declarative-templates-preferred.md),
   [ADR 0051 (one authored tree, rendered)](0051-one-authored-tree-rendered.md),
   [ADR 0053 (Blueprint parsed in-repo)](0053-blueprint-parsed-in-repo.md),

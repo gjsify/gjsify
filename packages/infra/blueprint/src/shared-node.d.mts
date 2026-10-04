@@ -111,8 +111,21 @@ export interface ProjectedLoss {
     line: number;
 }
 
-/** What `projectToSharedNode` returns: the tree, and every loss named beside it. */
+/**
+ * One occurrence of a construct the tree CARRIES, by kind and line (ADR 0093 § 2).
+ *
+ * `kind` is a plain `string` for the reason `ProjectedLoss.kind` is: this package cannot import
+ * the renderers' `ConstructKind` (tier), and a plugin intersects it with a capability table.
+ */
+export interface ProjectedUse {
+    kind: string;
+    /** 1-based line in the `.blp`. */
+    line: number;
+}
+
+/** What `projectToSharedNode` returns: the tree, every loss, and every carried construct, beside it. */
 export interface SharedNodeProjection {
     node: SharedNode;
     lost: ProjectedLoss[];
+    uses: ProjectedUse[];
 }

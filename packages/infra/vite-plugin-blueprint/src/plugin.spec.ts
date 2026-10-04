@@ -28,7 +28,7 @@ import {
 import { CORPUS_REAL_FILES, CORPUS_REFUSALS } from '@gjsify/blueprint/corpus';
 import { describe, expect, it } from '@gjsify/unit';
 import type { Plugin } from 'vite';
-import blueprintPlugin, { BlueprintProjectionError } from './index.js';
+import blueprintPlugin, { BlueprintProjectionError, RendererRefusalError } from './index.js';
 
 /** The `@gjsify/blueprint` package directory, resolved through the specifier rather than a `../`
  * count: this file is bundled before it runs, so a relative walk would be counted from the
@@ -74,7 +74,7 @@ const pluginUnderTest = () => blueprintPlugin({ sidecars: false });
 const loadOf = (plugin: Plugin) => {
     const hook = plugin.load;
     if (typeof hook !== 'function') throw new Error('the plugin no longer exposes `load` as a function');
-    return (id: string) => Promise.resolve(hook.call({} as never, id, {} as never));
+    return (id: string, context: object = {}) => Promise.resolve(hook.call(context as never, id, {} as never));
 };
 
 /**
@@ -242,6 +242,46 @@ export default async () => {
             }
 
             expect(typeof (await loadOf(pluginUnderTest())(source))).toBe('string');
+        });
+
+        await it("checks `for=<renderer>` against that renderer's capability table (ADR 0093)", async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'blp-for-'));
+            try {
+                const source = join(dir, 'grid.blp');
+                writeFileSync(
+                    source,
+                    'using Gtk 4.0;\n\nGtk.Grid {\n  Gtk.Label {\n    layout {\n      row: 0;\n      column: 1;\n    }\n  }\n}\n',
+                );
+                const table = (layout: string) => {
+                    const path = join(dir, `${layout}.mjs`);
+                    writeFileSync(
+                        path,
+                        `export const capabilities = { layout: ${layout === 'ok' ? "'implemented'" : "{ refused: 'no grid here' }"} };`,
+                    );
+                    return { resolve: () => Promise.resolve({ id: path }) };
+                };
+
+                expect(typeof (await loadOf(pluginUnderTest())(`${source}?shared-tree&for=x`, table('ok')))).toBe(
+                    'string',
+                );
+
+                let thrown: unknown;
+                try {
+                    await loadOf(pluginUnderTest())(`${source}?shared-tree&for=x`, table('no'));
+                } catch (error) {
+                    thrown = error;
+                }
+                expect(thrown instanceof RendererRefusalError).toBe(true);
+                expect(thrown instanceof BlueprintProjectionError).toBe(true);
+                const message = (thrown as Error).message;
+                expect(message.includes('cannot be rendered by x')).toBe(true);
+                expect(message.includes(`layout at ${source}:5 — no grid here`)).toBe(true);
+
+                // No `for=`: the net is the builder's, and the build still succeeds.
+                expect(typeof (await loadOf(pluginUnderTest())(`${source}?shared-tree`))).toBe('string');
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
         });
 
         await it('resolves the query by stripping it and putting it back', async () => {
