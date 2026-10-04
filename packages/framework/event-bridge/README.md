@@ -56,13 +56,16 @@ Three rules, each from a defect the plain mapping got wrong:
   upper-case letter.
 - **`key`/`location`** come from Gdk's own name table, with printable characters from `keyval_to_unicode`.
 
-**macOS: the arrow and navigation keys never reach the bridge.** Measured on macOS / darwin-arm64 / Homebrew GTK 4.24.0
-(`gdk_macos`), gjs 1.88.1: a `Gtk.EventControllerKey` on a `PropagationPhase.CAPTURE` controller of the window — the
-earliest point inside GTK — records **zero** events for ←/→/↑/↓ and Home/End/PageUp/PageDown, while `a`, `space`,
-`Return`, `Escape` and every keypad key arrive with correct keyvals. Where an event does appear for an untranslated key
-it carries `keyval = GDK_KEY_VoidSymbol` **and `keycode = 0`**, so nothing survives to translate it from. Letter keys
-work in Firefox on the same machine, so this is the GDK backend, not macOS and not the application. Recorded in
-`status/upstream-patch-candidates.md`.
+**macOS: with GTK 4.24.0 the arrow and navigation keys never reach the bridge — upgrade to 4.24.1.** Measured on
+macOS / darwin-arm64 / Homebrew GTK 4.24.0 (`gdk_macos`), gjs 1.88.1: a `Gtk.EventControllerKey` on a
+`PropagationPhase.CAPTURE` controller of the window — the earliest point inside GTK — records **zero** events for
+←/→/↑/↓ and Home/End/PageUp/PageDown, while `a`, `space`, `Return`, `Escape` and every keypad key arrive with correct
+keyvals. The cause is a GTK 4.24.0 regression, not the bridge: `_gdk_macos_display_translate` began with
+`if ([nsevent modifierFlags] & NSEventModifierFlagFunction) return NULL;` (commit `f96ab216`, "do not translate events
+that have the Fn (globe) modifier set"), and macOS flags every arrow/navigation key `Function | NumericPad`
+(`0xa00000`, read from the `NSEvent`), whereas keypad keys carry `NumericPad` alone. GDK handed those key-downs
+straight to AppKit (`doCommandBySelector:` → `moveLeft:`), so no `GdkEvent` was ever made. GTK 4.24.1 and `main` revert
+it (`2a35813a`). Recorded in `status/upstream-patch-candidates.md`.
 
 ## Design
 
