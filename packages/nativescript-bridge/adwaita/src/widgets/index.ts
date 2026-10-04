@@ -585,3 +585,7 @@ export function registerAdwaitaElements(): void {
     }
     registered = true;
 }
+
+// --- System bars (status / navigation bar appearance and insets) ---
+export { configureSystemBars, systemBarsConfig, WINDOW_BACKGROUND } from './system-bars.js';
+export type { BarIcons, SystemBarEdges, SystemBarsOptions, ResolvedSystemBars } from './system-bars.js';
