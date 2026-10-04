@@ -27,6 +27,7 @@ import buttonContentNsTestSuite from './button-content.spec.js';
 import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
 import accentThemeNsTestSuite from './accent-theme.spec.js';
 import windowInsetsTestSuite from './window-insets.spec.js';
+import systemBarsTestSuite from './system-bars.spec.js';
 import styleClassesTestSuite from './style-classes.spec.js';
 import boxLayoutTestSuite from './box-layout.spec.js';
 import buttonSlotTestSuite from './button-slot.spec.js';
@@ -60,6 +61,7 @@ run({
     shortcutLabelNsTestSuite,
     accentThemeNsTestSuite,
     windowInsetsTestSuite,
+    systemBarsTestSuite,
     styleClassesTestSuite,
     boxLayoutTestSuite,
     buttonSlotTestSuite,

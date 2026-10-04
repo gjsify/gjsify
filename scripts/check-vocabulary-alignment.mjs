@@ -574,6 +574,9 @@ const RN_WIDGET_ALIGNMENT = {};
  * file's header already refuses elsewhere.
  */
 const NS_PROPERTY_ALIGNMENT = {
+    'adw-toolbar-view.systemInsets': {
+        own: 'Android draws edge-to-edge, so the host must tell the toolbar view which system-bar edges it pays for. `Adw.ToolbarView` has no such key because GTK windows never sit under system bars; the property has no GIR counterpart to converge to.',
+    },
     // ── The counterpart names the control; the port cannot take that name. ────────────
     // No longer the printed distance — see the header. The measurement is in each reason.
     'gtk-button.styleClasses': {

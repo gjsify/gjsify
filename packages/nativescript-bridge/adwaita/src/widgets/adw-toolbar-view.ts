@@ -35,6 +35,8 @@ import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { resolveHostInsets } from './host-insets.js';
 import { observeWindowInsets } from './window-insets-source.js';
 import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
+import { observeSystemBars } from './system-bars-source.js';
+import { type SystemBarEdges, insetsForEdges, resolveEdges, systemBarsConfig } from './system-bars.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -71,6 +73,10 @@ export class AdwToolbarView extends withSignals(GridLayout) {
     private _topBarCount = 0;
     private _bottomBarCount = 0;
     private _detachInsets: (() => void) | null = null;
+    private _detachBars: (() => void) | null = null;
+    private _detachConfig: (() => void) | null = null;
+    /** Per-view override of which edges pay; `null` follows `configureSystemBars`. */
+    private _systemInsets: boolean | Partial<SystemBarEdges> | null = null;
 
     constructor(props?: ConstructProps<AdwToolbarView>) {
         super();
@@ -108,10 +114,16 @@ export class AdwToolbarView extends withSignals(GridLayout) {
         // inset. Bound on `loaded` so a torn-down pane stops holding the listener.
         this.addEventListener('loaded', () => {
             this._detachInsets ??= observeWindowInsets((insets) => this._applyInsets(insets));
+            this._detachBars ??= observeSystemBars();
+            this._detachConfig ??= systemBarsConfig.subscribe(() => this._applyInsets(this._insets));
         });
         this.addEventListener('unloaded', () => {
             this._detachInsets?.();
             this._detachInsets = null;
+            this._detachBars?.();
+            this._detachBars = null;
+            this._detachConfig?.();
+            this._detachConfig = null;
         });
 
         applyConstructProps(this, props);
@@ -196,6 +208,25 @@ export class AdwToolbarView extends withSignals(GridLayout) {
     }
 
     /** `Adw.ToolbarView:top-bar-style` — `flat` (default), `raised` or `raised-border`. */
+    /**
+     * Which edges pay for their system bar with padding. `true` / `false` for both, or
+     * `{ top, bottom }`; `null` (the default) follows `configureSystemBars({ insets })`.
+     */
+    get systemInsets(): boolean | Partial<SystemBarEdges> | null {
+        return this._systemInsets;
+    }
+
+    set systemInsets(value: boolean | Partial<SystemBarEdges> | string | null) {
+        // XML hands the raw string: only the two boolean spellings mean anything there.
+        if (typeof value === 'string') {
+            const known = /^\s*(true|false)\s*$/i.test(value);
+            this._systemInsets = known ? xmlBoolean(value, true) : null;
+        } else {
+            this._systemInsets = value;
+        }
+        this._applyInsets(this._insets);
+    }
+
     get topBarStyle(): AdwToolbarStyle {
         return this._props.topBarStyle;
     }
@@ -285,10 +316,14 @@ export class AdwToolbarView extends withSignals(GridLayout) {
      */
     private _applyInsets(insets: WindowInsets): void {
         this._insets = insets;
-        const padding = toolbarViewInsetPadding(insetsOwedBy(insets, resolveHostInsets(this, insets)), {
-            hasTopBar: this._topBarCount > 0,
-            hasBottomBar: this._bottomBarCount > 0,
-        });
+        const edges = resolveEdges(this._systemInsets, systemBarsConfig.bars.insets);
+        const padding = toolbarViewInsetPadding(
+            insetsForEdges(insetsOwedBy(insets, resolveHostInsets(this, insets)), edges),
+            {
+                hasTopBar: this._topBarCount > 0,
+                hasBottomBar: this._bottomBarCount > 0,
+            },
+        );
         this._topBox.paddingTop = padding.topBarTop;
         this._bottomBox.paddingBottom = padding.bottomBarBottom;
         this.paddingTop = padding.contentTop;

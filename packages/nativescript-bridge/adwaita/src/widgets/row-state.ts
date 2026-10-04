@@ -47,6 +47,15 @@ export function nsVisibility(shown: boolean): NsVisibility {
     return shown ? 'visible' : 'collapse';
 }
 
+/**
+ * The `className` of a row's Switch for its state. NativeScript's `color` tints the
+ * thumb in BOTH states, so the theme needs the `.off` hook to give an unchecked
+ * thumb a neutral colour (`.adw-switch.off` in theme/adwaita.css).
+ */
+export function switchClassName(checked: boolean): string {
+    return checked ? 'adw-switch' : 'adw-switch off';
+}
+
 /** The NativeScript form of a title/subtitle label pair. */
 export interface NsRowLabelVisuals {
     title: string;
