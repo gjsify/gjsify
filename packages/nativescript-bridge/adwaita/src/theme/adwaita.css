@@ -805,9 +805,10 @@ Page.adw-window {
 /* ===== View switcher bar (narrow policy: bottom bar, icon over label) ===== */
 
 .adw-viewswitcherbar {
-    background-color: #ffffff;
-    border-top-width: 1;
-    border-top-color: rgba(0, 0, 0, 0.1);
+    /* Transparent: the bar takes the colour (and, when raised, the hairline) of the
+     * toolbar it sits in. It carried its own #fff and top border, which drew a second
+     * line under the toolbar view's. */
+    background-color: transparent;
 }
 
 .adw-viewswitcherbar-box {
@@ -829,6 +830,12 @@ Page.adw-window {
     background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* `button.flat:checked` — the selected pill, not an accent colour (_buttons.scss
+ * flat `:checked` = $selected_color); the label keeps the window foreground. */
+.adw-viewswitcherbar-button.active {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
 .adw-viewswitcherbar-button-icon {
     margin: 0 0 2 0;
     horizontal-align: center;
@@ -836,13 +843,10 @@ Page.adw-window {
 
 .adw-viewswitcherbar-button-label {
     font-size: 11;
-    color: rgba(0, 0, 0, 0.6);
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.8);
     horizontal-align: center;
     text-align: center;
-}
-
-.adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label {
-    color: #3584e4;
 }
 
 /* AdwIndicatorBin's badge — the unread count, or (with .needs-attention and no
@@ -1229,9 +1233,9 @@ Page.adw-window {
 }
 
 .adw-view-switcher-bar {
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 9;
-    padding: 2;
+    /* libadwaita's `viewswitcher` is a bare row of flat toggles: no frame, no fill. */
+    background-color: transparent;
+    padding: 0;
     margin: 6;
 }
 
@@ -1240,13 +1244,13 @@ Page.adw-window {
  * right margin. Active = raised white pill. */
 .adw-view-switcher-button {
     background-color: transparent;
-    border-radius: 7;
+    border-radius: 9;
     padding: 5 14 5 14;
     margin: 0;
 }
 
 .adw-view-switcher-button.active {
-    background-color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.1);
 }
 
 .adw-view-switcher-button:highlighted {
@@ -1254,7 +1258,7 @@ Page.adw-window {
 }
 
 .adw-view-switcher-button-label {
-    color: rgba(0, 0, 0, 0.75);
+    color: rgba(0, 0, 0, 0.8);
     font-weight: 700;
     vertical-align: center;
 }
@@ -2057,8 +2061,11 @@ Page.ns-dark.adw-window {
 /* ===== Dark: view switcher bar ===== */
 
 .ns-dark .adw-viewswitcherbar {
-    background-color: #2e2e32;
-    border-top-color: rgba(255, 255, 255, 0.12);
+    background-color: transparent;
+}
+
+.ns-dark .adw-viewswitcherbar-button.active {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .ns-dark .adw-viewswitcherbar-button:highlighted {
@@ -2066,11 +2073,7 @@ Page.ns-dark.adw-window {
 }
 
 .ns-dark .adw-viewswitcherbar-button-label {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.ns-dark .adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label {
-    color: #78aeed;
+    color: #ffffff;
 }
 
 /* ===== Dark: data grid ===== */
@@ -2185,17 +2188,26 @@ Page.ns-dark.adw-window {
 
 /* ===== Dark: view switcher ===== */
 
-.ns-dark .adw-view-switcher-bar,
+.ns-dark .adw-view-switcher-bar {
+    background-color: transparent;
+}
+
 .ns-dark .adw-inline-view-switcher-bar {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
-.ns-dark .adw-view-switcher-button-label,
+.ns-dark .adw-view-switcher-button-label {
+    color: #ffffff;
+}
+
+.ns-dark .adw-view-switcher-button.active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
 .ns-dark .adw-inline-view-switcher-button-label {
     color: rgba(255, 255, 255, 0.7);
 }
 
-.ns-dark .adw-view-switcher-button.active,
 .ns-dark .adw-inline-view-switcher-button.active {
     background-color: #45454c;
 }

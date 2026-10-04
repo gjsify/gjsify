@@ -51,6 +51,18 @@ export const AdwViewSwitcherStackNsTest = async () => {
             expect(switcher.views[2]?.name).toBe('archive');
         });
 
+        await it('keeps an SVG-source icon the core would normalise away', () => {
+            const svg = '<svg viewBox="0 0 16 16"><path d="M1 1h2v2z"/></svg>';
+            const stack = new Adw.ViewStack();
+            stack.add_titled_with_icon(new Gtk.Box(), 'a', 'A', svg);
+            stack.add_titled_with_icon(new Gtk.Box(), 'b', 'B', 'folder-symbolic');
+
+            expect(stack.pageIcons()).toStrictEqual([svg, 'folder']);
+            const switcher = new Adw.ViewSwitcher({ stack });
+            expect(switcher.views[0]?.icon).toBe(svg);
+            expect(switcher.views[1]?.icon).toBe('folder');
+        });
+
         await it('leaves the page views parented to the stack', () => {
             const stack = threePageStack();
             const first = stack.pages[0]?.content;

@@ -71,11 +71,6 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-button.suggested-action.checked', property: 'background-color', role: 'shade' },
     { selector: '.adw-banner-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.adw-avatar', property: 'background-color', role: 'fill' },
-    {
-        selector: '.adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label',
-        property: 'color',
-        role: 'fill',
-    },
     { selector: '.adw-viewswitcherbar-button-badge', property: 'background-color', role: 'fill' },
     { selector: '.adw-button-row', property: 'color', role: 'fill' },
     { selector: '.adw-button-row-title', property: 'color', role: 'fill' },
@@ -92,11 +87,6 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     // Accent TEXT on a dark page — the standalone role, lightened rather than
     // darkened. These four were the invisible half of #1154.
     { selector: '.ns-dark .adw-switch', property: 'color', role: 'standalone-dark' },
-    {
-        selector: '.ns-dark .adw-viewswitcherbar-button.active .adw-viewswitcherbar-button-label',
-        property: 'color',
-        role: 'standalone-dark',
-    },
     // One entry, because the theme groups these two into one rule and the generated
     // override has to reproduce the selector VERBATIM to win on source order.
     {
