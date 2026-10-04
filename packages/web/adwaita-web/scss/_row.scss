@@ -1,6 +1,6 @@
 // _row.scss — Shared base styling for rows in preferences groups.
 // Reference: refs/adwaita-web/adwaita-web/scss/_row_types.scss
-// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwActionRow)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwActionRow, row.entry)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
@@ -42,10 +42,25 @@ adw-combo-row {
 
 // Trailing edit pencil shared by editable rows (entry/password) — the
 // Adw.EntryRow edit affordance. Dimmed; clicking focuses the entry.
+//
+// The BOX is upstream's, rule for rule: `row.entry > .editable-area > .edit-icon`
+// (_lists.scss:194-196) is a 24px floor with 5px of padding around the glyph inside it. The
+// glyph stays 16px and centred here (`.adw-icon` centres its mask), so the box settles at
+// exactly that 24px — GTK's own measures 40x34 because the toolkit's `adw-entry-edit-symbolic`
+// is 30x24. That gap is the theme's ICON SIZE, not this rule.
+//
+// NOT PORTED from the same block, each for a reason rather than for want of a selector:
+//   · the 6px margin-start on `.edit-icon` (:198-200). These rows already keep the pencil off
+//     the text with `gap: var(--spacing-m)` = 12px, which is upstream's own arithmetic — 6px
+//     of `.editable-area` padding plus this 6px — so adding the margin would make it 18px.
+//   · the same 24px box on `.indicator`, which is only on the host through a per-subclass
+//     class (`${prefix}-indicator`); the caps-lock warning it belongs to needs a real Caps
+//     Lock source, which this port has no event for.
 .adw-row-edit {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 5px;
   color: var(--card-fg-color);
   opacity: 0.55;
   cursor: pointer;

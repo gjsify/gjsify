@@ -468,6 +468,17 @@ export class GtkScale extends HTMLElement {
         this._value.classList.toggle('right', position === 'right');
         this._value.classList.toggle('top', position === 'top');
         this._value.classList.toggle('bottom', position === 'bottom');
+        // `update_value_position` (gtkscale.c:1042-1073) puts the position class on the
+        // VALUE NODE, and there the four rules are all it needs: `left`/`right` add a
+        // margin and `top`/`bottom` another. The AXIS the two nodes sit on cannot come from
+        // there — `gtk_scale_allocate` (gtkscale.c:373-421) allocates the value at one EDGE
+        // of the widget, which for `top`/`bottom` is a different line from the trough's and
+        // for `left`/`right` the same one — so the same four names go on the HOST, where a
+        // `flex-direction` is all that switch needs.
+        this.classList.toggle('value-top', position === 'top');
+        this.classList.toggle('value-right', position === 'right');
+        this.classList.toggle('value-bottom', position === 'bottom');
+        this.classList.toggle('value-left', position === 'left');
 
         this.setAttribute('aria-valuemin', String(adjustment.lower));
         this.setAttribute('aria-valuemax', String(adjustment.upper - adjustment.pageSize));

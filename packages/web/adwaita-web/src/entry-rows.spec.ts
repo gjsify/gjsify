@@ -150,6 +150,37 @@ export const AdwEntryRowsTest = async () => {
         });
     });
 
+    // Upstream's `row.entry > .editable-area > .edit-icon` (_lists.scss:194-196) sizes the
+    // pencil's BOX: a 24px floor with 5px of padding around the glyph. `test.browser.mts`
+    // imports the package for its side effects, so the stylesheet is in the document and
+    // this reads the SHIPPED rule rather than the SCSS source. GTK's own box measures 40x34
+    // (the toolkit's symbolic is 30x24), so only the floor is comparable.
+    await describe('adw-entry-row edit icon box', async () => {
+        for (const [tag, prefix] of [
+            ['adw-entry-row', 'adw-entry-row'],
+            ['adw-password-entry-row', 'adw-password-entry-row'],
+        ] as const) {
+            await it(`<${tag}> gives its pencil a 24px floor and 5px of padding`, () => {
+                const parts = mount(tag, prefix);
+                const style = getComputedStyle(parts.editIcon);
+                expect(style.minWidth).toBe('24px');
+                expect(style.minHeight).toBe('24px');
+                expect(style.padding).toBe('5px');
+                parts.host.remove();
+            });
+        }
+
+        await it('leaves the row the 12px that upstream padding and margin add up to', () => {
+            // `.editable-area { padding: 0 6px }` (:192) + `.edit-icon { margin-left: 6px }`
+            // (:198-200). These rows carry that as ONE `gap`, so the margin must not be
+            // added on top of it.
+            const parts = mount('adw-entry-row', 'adw-entry-row');
+            expect(getComputedStyle(parts.editIcon).marginLeft).toBe('0px');
+            expect(getComputedStyle(parts.row).gap).toBe('12px');
+            parts.host.remove();
+        });
+    });
+
     await describe('adw-entry-row Enter dispatch (text_activated_cb)', async () => {
         for (const { name, steps, activation, rule } of ENTRY_ROW_ACTIVATION_VECTORS) {
             await it(`${name} — ${rule}`, () => {
