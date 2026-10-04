@@ -117,7 +117,7 @@ export interface SharedTreeNode {
      *
      * A renderer whose parent has no page concept REFUSES it by name rather than dropping it: a
      * stack page with no name lands at exit 0 as a child nobody can switch to. Which renderers
-     * build it is each one's own answer (ADR 0091 § 2), not a rule of this shape.
+     * build it is each one's own answer (ADR 0093 § 2), not a rule of this shape.
      */
     page?: Readonly<{ label?: string; name?: string }>;
     /**
@@ -175,6 +175,12 @@ export interface SharedTreeNode {
             readonly enabled?: boolean;
         }[];
     }>;
+    /**
+     * The `layout { }` block: properties of the child's PLACEMENT in a layout manager
+     * (`GtkGridLayoutChild`'s `row`, `column`, `row-span`, `column-span`), as the source wrote
+     * them (ADR 0092). Never typed against the widget, so an identifier stays its spelling.
+     */
+    layout?: Readonly<Record<string, string | number | boolean>>;
     children?: readonly SharedTreeNode[];
 }
 

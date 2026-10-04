@@ -34,6 +34,7 @@ import {
     ButtonRowState,
     SwitchRowState,
     WindowTitleState,
+    switchClassName,
     buttonRowIconColor,
     buttonRowIconVisuals,
     isViewSensitive,
@@ -132,6 +133,16 @@ export default async () => {
             expect(toLabelVisuals(row.state).titleVisibility).toBe('collapse');
             row.setTitle('Wi-Fi');
             expect(toLabelVisuals(row.state).titleVisibility).toBe('visible');
+        });
+    });
+
+    await describe('switchClassName', async () => {
+        await it('an unchecked switch carries `.off`, which the theme uses to neutralise the thumb', () => {
+            expect(switchClassName(false)).toBe('adw-switch off');
+        });
+
+        await it('a checked switch keeps only the base class and so the accent thumb', () => {
+            expect(switchClassName(true)).toBe('adw-switch');
         });
     });
 

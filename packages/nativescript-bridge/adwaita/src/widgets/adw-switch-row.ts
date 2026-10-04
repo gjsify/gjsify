@@ -22,7 +22,7 @@
 
 import { Switch, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
-import { SwitchRowState } from './row-state.js';
+import { SwitchRowState, switchClassName } from './row-state.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
@@ -47,7 +47,7 @@ export class AdwSwitchRow extends AdwActionRow {
         this.className = 'adw-row adw-action-row adw-switch-row';
 
         const sw = new Switch();
-        sw.className = 'adw-switch';
+        sw.className = switchClassName(false);
         this.add_suffix(sw);
         this._switch = sw;
 
@@ -59,7 +59,10 @@ export class AdwSwitchRow extends AdwActionRow {
         // NativeScript fires `checkedChange` for a PROGRAMMATIC write as well as
         // for a drag, so this is the single funnel: `setActive` returns false for
         // the write `_apply` itself just made, which is what stops the re-entry.
-        sw.addEventListener('checkedChange', () => this._apply(this._switchState.setActive(sw.checked)));
+        sw.addEventListener('checkedChange', () => {
+            sw.className = switchClassName(sw.checked);
+            this._apply(this._switchState.setActive(sw.checked));
+        });
 
         applyConstructProps(this, props);
     }

@@ -111,9 +111,9 @@ Ctrl+Page Up/Down is the horizontal one.
     const column = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
     for (let row = 1; row <= 8; row++) column.append(new Gtk.Label({ label: `Row ${row}` }));
 
-    const scrolled = new Gtk.ScrolledWindow({ child: column, vexpand: true });
-    scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC);
-    scrolled.set_overlay_scrolling(true);
+    const scrolled = new Gtk.ScrolledWindow({ child: column });
+    scrolled.hscrollbarPolicy = 'automatic';
+    scrolled.vscrollbarPolicy = 'automatic';
     ```
   </Fragment>
 </AdwWidget>

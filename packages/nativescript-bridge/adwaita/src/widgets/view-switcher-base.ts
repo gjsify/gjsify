@@ -80,12 +80,13 @@ interface ButtonNodes {
  */
 function viewPagesOfStack(stack: AdwViewStack): AdwViewPage[] {
     const pages: AdwViewPage[] = [];
-    for (const page of stack.pages) {
+    const icons = stack.pageIcons();
+    for (const [index, page] of stack.pages.entries()) {
         if (page.content === undefined) continue;
         pages.push({
             name: page.name,
             title: page.title,
-            icon: page.icon.length > 0 ? page.icon : undefined,
+            icon: (icons[index] ?? '').length > 0 ? icons[index] : undefined,
             visible: page.visible,
             badgeNumber: page.badgeNumber,
             needsAttention: page.needsAttention,

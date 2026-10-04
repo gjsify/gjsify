@@ -174,8 +174,12 @@ export class AdwToastOverlay extends withSignals(GridLayout) {
         this._toastStrip.visibility = 'visible';
     }
 
-    /** Whether a toast is currently shown. */
-    get visible(): boolean {
+    /**
+     * Whether a toast is currently shown. Not `visible`: that is `GtkWidget:visible`, every
+     * widget's own show/hide switch (`widget-layout.ts`), and a read-only getter here would
+     * have taken its setter away from this class.
+     */
+    get toastShowing(): boolean {
         return this._queue.showing;
     }
 }

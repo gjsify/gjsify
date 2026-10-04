@@ -126,19 +126,10 @@ incrementally.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    // GTK's own documented drawing area: a circle in the widget's own colour
-    // (gtkdrawingarea.c:88-104).
-    const area = new Gtk.DrawingArea({ content_width: 160, content_height: 120 });
-    area.set_draw_func((area, cr, width, height) => {
-        const color = area.get_color();
-        cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
-        cr.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI);
-        cr.fill();
-    });
-
-    // A size change is not a redraw: the draw function runs with the NEW allocation on
-    // the next frame, so ask for one when the picture itself changes.
-    area.queue_draw();
+    // NativeScript paints nothing a draw function could reach: `Gtk.DrawingArea` is a
+    // constructible stub, so a shared template that names one still builds and keeps its
+    // size, and `set_draw_func` throws. Draw on a `<canvas>` in a web view instead.
+    const area = new Gtk.DrawingArea({ contentWidth: 160, contentHeight: 120 });
     ```
   </Fragment>
 </AdwWidget>

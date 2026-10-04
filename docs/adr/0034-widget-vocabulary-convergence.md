@@ -3247,3 +3247,138 @@ parent in the port allocates spare space by them yet: `Gtk.Box` is a `StackLayou
 missing size negotiation `homogeneous` is ledgered for (`status/open-todos/README.md`). On the web the
 same names are attributes: `_widget.scss` places a child by auto margins and grows it along a
 `gtk-box`'s own axis, and the shared-tree builder writes the margins as inline style.
+
+## Amendment 21, 2026-10-04 — six containers a shared `.blp` needs, and what each one does not do
+
+Learn6502's 24 shared templates open with `Adw.Bin` and nest `Gtk.Revealer`, `Gtk.Overlay`,
+`Gtk.ScrolledWindow`, `Gtk.Stack` and `Gtk.ToggleButton`. The NativeScript port had none of
+them, so `.blp?shared-tree` could not build a single one of those files there.
+
+**The decision.** Each is a real NativeScript view named after its GIR GType (clause 1) and
+exported through the two namespace barrels (clause 2): `Adw.Bin`, `Gtk.Revealer`, `Gtk.Overlay`,
+`Gtk.ScrolledWindow`, `Gtk.Stack`, `Gtk.ToggleButton`. `Gtk.StackPage` is a constructible VALUE,
+as `Adw.ViewStackPage` is (§ Amendment 19): `GObject.Object`, not a widget, read by its stack
+when it adopts it. Four of the six share one abstract base, `AdwSingleChildBase`
+(`widgets/single-child-base.ts`, named like its sibling `AdwSplitViewBase` so the gates that
+read widget classes by prefix see it), because the one-cell grid, the replace-the-child rule
+and the five `css-classes` verbs are identical in all four. `Gtk.ToggleButton` extends the
+port's `Gtk.Button`, as GTK's does, and wears `checked` as a STATE class that `styleClasses`
+never reports.
+
+**What each declares it does not do.**
+
+- `Gtk.Revealer` and `Gtk.Stack` accept, validate and hold `transition-type` and
+  `transition-duration` and render neither: the CSS subset has no transform or animation, so a
+  swap is instant, as for `Adw.ViewStack`. A word that is not a member of the GIR enum is
+  refused, not swallowed; Blueprint's `slide_up` and the nick `slide-up` are one member.
+- `Gtk.ScrolledWindow` folds its two policies onto the ONE axis a `ScrollView` scrolls on
+  (`widgets/scrolled-window-policy.ts`): a window that scrolls both ways scrolls vertically.
+  `has-frame` is held and draws nothing; the nine properties that need a size-negotiation
+  protocol or a scrollbar the port does not draw are in `KNOWN_GAPS`.
+- `Gtk.Overlay` stacks in one grid cell and lets each overlay's own `halign` / `valign` place
+  it; `measure`, `clip-overlay` and `get-child-position` have no counterpart.
+- `Gtk.ToggleButton:group` (radio exclusivity) is not implemented.
+- `Gtk.Stack:visible-child-name` written BEFORE its pages is a no-op, which is what
+  `Gtk.Builder` does too (measured on GTK 4.22.5: `Child name 'b' not found in GtkStack`).
+
+**What holds it.** The two enum lists carry the GIR constant as their position, held against
+`generated/enum-values.mts` by arm 8 of `check-nativescript-xml-doors.mjs` (mutating one
+position fails it). The browser has no element for any of the six; the storybook coverage gate
+records that as an open gap in `status/open-todos/adwaita-ports.md`.
+
+## Amendment 22, 2026-10-04 — the base properties, a window and a dialog, two layouts, and a box that shares
+
+Learn6502's 24 shared templates put `visible`, `sensitive`, `name`, `width-request` and
+`height-request` on nearly every widget, root at `Adw.ApplicationWindow` / `Adw.Window` /
+`Adw.Dialog`, and lay out with `Gtk.Grid` and `Gtk.ListBox`. § Amendment 20 had left a `vexpand`
+child of a `Gtk.Box` with nothing to grant it space.
+
+**Base properties.** The five are accessors on the `withSignals` seam, beside § Amendment 20's six
+(`widgets/widget-layout.ts`), each over a platform property that stays the source of truth:
+`visible` is `visibility` (`false` is `collapse`, out of layout), `sensitive` is `isEnabled`,
+`width-request` / `height-request` are `minWidth` / `minHeight` (`-1` is unset; a request is a
+minimum, never `width`, which NativeScript takes as exact), and `name` is held and written through
+to `id` only while the view has none, so a `.blp`'s `id` keeps being how code finds the view. An
+unnamed widget answers its class name, as `gtk_widget_get_name` answers its GType name. A class
+that is not a view reads the GTK default and refuses a write by name. `Adw.ToastOverlay`'s
+read-only `visible` (is a toast showing) moved to `toastShowing`, because it had taken the
+setter away. Reading a margin or a minimum back goes through `lengthValue` (`widgets/ns-length.ts`):
+a device answers `{ value, unit }`, `Number()` of which is `NaN`, so `marginStart` had read `0`
+after every write where the double, which stores the number, agreed with the test.
+
+**A window is a container, a dialog is an overlay.** NativeScript has one `Page` per screen and no
+second surface to open, so `Adw.Window` and `Adw.ApplicationWindow` (siblings over
+`AdwWindowBase`) are full-size one-cell grids that hold `content` and wear the page's own
+`.adw-window` class; `default-width` / `default-height` and `title` are held and read back, and
+`adaptive-preview` is a declared gap. `Adw.Dialog` is a scrim over a card around its `child`, as
+`AdwAboutDialog` is, and `present (parent)` walks to the nearest window that hosts dialogs
+(`findDialogHost`) and mounts the overlay above the content; one the caller mounted itself is
+revealed in place; neither is refused by name. `can-close`, `close-attempt`, `force_close` and
+`bottom-sheet` follow libadwaita; `auto` is `floating` because choosing by width needs a layout
+pass this port does not run. The card has no header, as libadwaita's has none: the header bar is
+the child's. Toasts need nothing here, `Adw.ToastOverlay` is a widget of its own.
+
+**`Gtk.Grid` and `Gtk.ListBox`.** `Gtk.Grid` is a `GridLayout` whose tracks follow its children:
+a child is placed by the platform's own `row`, `column`, `rowSpan` and `columnSpan` — `View`
+already carries them, with `col` / `colSpan` underneath — so `attach()`, XML attributes and a
+Blueprint `layout { }` block (once the projection carries it, `status/open-todos/nativescript.md`)
+reach one set of values. Spacing is an additive margin on the leading edge, never an overwrite;
+`*-homogeneous` is equal `*` tracks. `Gtk.ListBox` stacks its children as rows, selects by
+`selection-mode` (`Gtk.SelectionMode`, held position-for-constant by arm 8 of
+`check-nativescript-xml-doors.mjs`) and emits `row-activated` for a port row's own `activated` and
+for a tap on a plain widget.
+
+**`Gtk.Box` shares spare space, and its defaults are GTK's.** It is a one-axis `GridLayout`:
+child `i` in track `2 * i`, a `*` track for every child that expands along the axis (or all of them
+when `homogeneous`) and `auto` for the rest, a `pixel` track between children for `spacing`. A
+child's `hexpand` / `vexpand` change emits `notify::hexpand` / `notify::vexpand`, which the box
+re-plans on. Two consequences are deliberate. The gap no longer rewrites the child's four margins,
+which `view.set('margin', …)` did, erasing an authored `margin-top`. And `orientation` defaults to
+`horizontal`, as `GtkOrientable` and the shared `BOX_ORIENTATION_VECTORS` say, where the old box
+inherited the `StackLayout`'s vertical.
+
+**What is still declared.** An expanding DESCENDANT does not make its ancestor expand (GTK's
+`compute_expand`); `homogeneous` is equal, not minimal; `Gtk.Grid` keeps the gap of an empty track,
+and has no `attach_next_to`, `insert_row` or `baseline-row`; `Gtk.ListBox` has no sort, filter or
+header function, `activate-on-single-click` is held, and `Adw.Breakpoint` is not a window child yet.
+No window, dialog, grid or list was run on a device: every claim above is measured against the
+platform double, which has no layout pass, so what is verified is the track list and the tree.
+
+## Amendment 23, 2026-10-04 — five more primitives, and one that is refused by name
+
+Learn6502's shared templates also place `Gtk.CheckButton`, `Gtk.Separator`, `Gtk.Frame`,
+`Gtk.TextView` and `Gtk.DrawingArea`. Each is a real NativeScript view named after its GIR GType
+(clause 1) and exported through the Gtk barrel (clause 2), with the construct-props bag, the
+`withSignals` seam and the base properties of § Amendment 22.
+
+- **`Gtk.CheckButton`** is a tappable two-column `GridLayout` — the indicator (a rounded square
+  that fills with the accent and shows a checkmark, or a dash when `inconsistent`) and the
+  content (`label`, or a `child` that replaces it). It is NOT a `Gtk.ToggleButton`; it owns
+  `active`, `inconsistent`, `use-underline`, `toggled` and `notify::active`, and wears `checked` /
+  `inconsistent` as STATE classes the style list never reports. A tap toggles, clears
+  `inconsistent` and emits `activate`. `group` (radio exclusivity) is not implemented.
+- **`Gtk.Separator`** is an empty layout whose `orientation` (default `horizontal`) is a class;
+  the theme makes it a one-DIP line.
+- **`Gtk.Frame`** is a two-row layout: the `label` (or `label-widget`) above the bordered `child`.
+  `label-xalign` is a declared gap.
+- **`Gtk.TextView`** is a box around the platform `TextView`, as `Gtk.Entry` is around a
+  `TextField`. The platform edits a string, not a `Gtk.TextBuffer`, so the text is the
+  widget's own `text` property (ledgered `own` in `check-vocabulary-alignment.mjs`); tags, the
+  buffer, margins and indent are declared gaps. `wrap-mode` is held and read back and changes
+  nothing: the platform view always wraps.
+- **`Gtk.DrawingArea` is refused where it cannot work.** NativeScript core has no 2D surface and
+  no cairo context to hand a draw function, so the widget CONSTRUCTS (a template that places
+  one still builds; `content-width` / `content-height` become the minimum size) and
+  `set_draw_func` THROWS, naming itself, rather than leaving a blank rectangle. `queue_draw` is a
+  no-op.
+
+**What holds it.** `gtk-controls.spec.ts` on the trees entry; the gaps in `KNOWN_GAPS`; the
+browser asymmetry in `ONE_RENDERER_ONLY` with its open-todos anchor (`gtk-check-button` left that
+ledger — the browser already ships it — and joined `NO_STORY_OF_ITS_OWN`, as `box` and `label`
+are). The check indicator's fill is in the accent table. No widget was run on a device.
+
+**Same change, not new widgets.** The stack kept no SVG-source icon (the core normalises a page
+icon to a NAME and empties a document), so a bound switcher drew `image-missing` for every page an
+app gave source for; `AdwViewStack.pageIcons()` now returns what each page was added with. The
+icon renderer treats Adwaita's neutral symbolic greys as the caller's colour, as the icon
+generator does, so an app's own symbolics no longer draw `#222` on a dark page.

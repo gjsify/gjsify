@@ -31,6 +31,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
     'Gtk.Adjustment': { gtype: 'GtkAdjustment', widget: false },
+    'Gtk.StackPage': { gtype: 'GtkStackPage', widget: false },
     'Gtk.StringList': { gtype: 'GtkStringList', widget: false },
 };
 

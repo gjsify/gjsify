@@ -264,7 +264,21 @@ export class GtkButton extends withSignals(GridLayout) {
 
     private _setClasses(classes: readonly string[]): void {
         this._styleClasses = [...classes];
-        this.className = classNameWith('adw-button', this._styleClasses);
+        this._restyle();
+    }
+
+    /**
+     * Rewrite `className` from the base class, the caller's list and whatever state classes a
+     * subclass adds (`Gtk.ToggleButton`'s `checked`) — which are NOT in `styleClasses`, as
+     * GTK's `:checked` is a state and never a member of `css-classes`.
+     */
+    protected _restyle(): void {
+        this.className = classNameWith('adw-button', [...this._styleClasses, ...this._stateClasses()]);
+    }
+
+    /** The state classes a subclass wears beside the caller's list. A plain button has none. */
+    protected _stateClasses(): readonly string[] {
+        return [];
     }
 
     /**

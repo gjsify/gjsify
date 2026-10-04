@@ -29,6 +29,7 @@
 
 import type { View } from '@nativescript/core';
 
+import { withPageClass } from './system-bars.js';
 import { type HostPaidEdges, NO_HOST_PAYMENT, type WindowInsets } from './window-insets.js';
 
 /**
@@ -36,6 +37,9 @@ import { type HostPaidEdges, NO_HOST_PAYMENT, type WindowInsets } from './window
  * write below, nothing at the top.
  */
 const PAGE_PAYS_THE_BOTTOM: HostPaidEdges = { top: false, bottom: true };
+
+/** The theme's window fill (`Page.adw-window`), in both schemes. */
+const PAGE_CLASS = 'adw-window';
 
 /** `CoreTypes.AndroidOverflow`: let the content overflow the top edge, pay the rest. */
 const OVERFLOW_TOP = 'top';
@@ -46,6 +50,11 @@ export function resolveHostInsets(view: View, insets: WindowInsets): HostPaidEdg
     // Nothing is paying, so the widget owes both edges, which is what it already does.
     const page = view.page;
     if (!page) return NO_HOST_PAYMENT;
+
+    // The bottom band the page pays is painted by the PAGE background. A page that does not
+    // wear `.adw-window` keeps NativeScript's default (white even in dark), which showed as a
+    // white strip under the view switcher and made Android draw a dark gesture pill on it.
+    page.className = withPageClass(page.className);
 
     // Only take the top edge off the page once there is a reading to pay it WITH.
     // A widget whose reading is stuck at zero would otherwise release an inset nobody

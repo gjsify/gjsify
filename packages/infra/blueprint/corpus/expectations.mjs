@@ -367,14 +367,12 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '19-layout.blp',
-        node: { tag: 'GtkGrid', children: [{ tag: 'GtkLabel', props: { label: 'cell' } }] },
-        lost: [
-            {
-                kind: 'layout',
-                line: 7,
-                detail: 'the whole `layout { }` block — properties of the PLACEMENT of the child, which `SharedNode` has no field for. `halign` is in there to pin that the compiler does NOT type these against the widget, and it is lost with the rest',
-            },
-        ],
+        node: {
+            tag: 'GtkGrid',
+            children: [{ tag: 'GtkLabel', props: { label: 'cell' }, layout: { column: 0, row: 1, halign: 'center' } }],
+        },
+        lost: [],
+        note: 'Carried since ADR 0092: `layout` holds the PLACEMENT of the child in the order the file wrote it. `halign` is in there to pin that the compiler does NOT type these against the widget, so it stays the spelling `center` where the same line on the widget itself is `3`.',
     },
     {
         file: '20-accessibility.blp',
@@ -671,16 +669,10 @@ export const RULE_EXPECTATIONS = [
         file: '37-layout-untyped-ident.blp',
         node: {
             tag: 'GtkGrid',
-            children: [{ tag: 'GtkLabel', props: { label: 'text' } }],
+            children: [{ tag: 'GtkLabel', props: { label: 'text' }, layout: { column: 'null', row: 'start' } }],
         },
-        lost: [
-            {
-                kind: 'layout',
-                line: 7,
-                detail: 'the whole `layout { }` block, and with it both untyped identifiers',
-            },
-        ],
-        note: 'The projection drops every block extension unread, so this file is one where the XML exit is the only one that can be wrong — and it was: the reference check on `identText` refused this file in an earlier cut, and the corpus held no `layout { }` value that was not a number, so nothing said so. The two exits are asymmetric here by design and not by omission.',
+        lost: [],
+        note: 'Since ADR 0092 the projection carries the block, and both untyped identifiers keep their SPELLING (`null`, `start`) exactly as the XML exit passes them through. The reference check on `identText` refused this file in an earlier cut, and the corpus held no `layout { }` value that was not a number, so nothing said so.',
     },
 
     {
@@ -1023,6 +1015,7 @@ export const RULE_EXPECTATIONS = [
                     id: 'probe',
                     props: { orientation: 'vertical' },
                     styleClasses: ['palette', 'dim-label'],
+                    layout: { column: 1, row: 2 },
                 },
                 { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
             ],
@@ -1032,9 +1025,8 @@ export const RULE_EXPECTATIONS = [
             { kind: 'signal', line: 19, detail: '`clicked`' },
             { kind: 'signal', line: 20, detail: '`notify::active`, and that it is `swapped`' },
             { kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' },
-            { kind: 'layout', line: 12, detail: 'the whole `layout { }`, as on any class' },
         ],
-        note: 'What this exit shows and the golden does not: `styleClasses` and `props` survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1`. The four losses are the four losses their own rule files take (`11-signal`, `19-layout`, `20-accessibility`) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one. The `extern` loss sits at the OBJECT and the other four at their blocks, so a reader can tell which is the tag and which is the content.',
+        note: 'What this exit shows and the golden does not: `styleClasses` and `props` survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1`. The losses are the ones their own rule files take (`11-signal`, `20-accessibility`; `19-layout` is carried since ADR 0092) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one. The `extern` loss sits at the OBJECT and the other four at their blocks, so a reader can tell which is the tag and which is the content.',
     },
     {
         file: '58-extern-composition.blp',

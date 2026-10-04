@@ -212,6 +212,30 @@ const responsesOf = (extension) =>
     });
 
 /**
+ * The entries of a `layout { }` block as `SharedNode.layout` holds them, or `undefined` where an
+ * entry is not a scalar (ADR 0092).
+ *
+ * The values are NOT resolved through the widget: a layout entry belongs to the layout CHILD
+ * (`GtkGridLayoutChild`), so `halign: center` stays `center` and `column: null` stays the
+ * spelling `null`, exactly as the XML exit writes them (`19-layout`, `37-layout-untyped-ident`).
+ *
+ * ONE READER FOR BOTH SEAMS, for `styleClassesOf`'s reason: `lossesOf` asks this too.
+ *
+ * @param {import('./ast.d.mts').Extension} extension @param {(type: TypeRef, position?: 'object' | 'reference') => string} tag
+ * @returns {Record<string, string | number | boolean> | undefined}
+ */
+const layoutOf = (extension, tag) => {
+    /** @type {Record<string, string | number | boolean>} */
+    const layout = {};
+    for (const entry of extension.entries) {
+        const scalar = scalarOf(entry.value, tag);
+        if (scalar === undefined) return undefined;
+        layout[entry.name] = scalar;
+    }
+    return layout;
+};
+
+/**
  * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
  * @returns {Omit<SharedNode, 'tag' | 'id' | 'template' | 'slot'>}
  */
@@ -224,6 +248,8 @@ const projectBody = (body, tag) => {
     const styleClasses = [];
     /** @type {NonNullable<SharedNode['extensions']>} */
     const extensions = {};
+    /** @type {SharedNode['layout']} */
+    let layout;
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
     const placed = [];
 
@@ -265,6 +291,10 @@ const projectBody = (body, tag) => {
         }
     }
     for (const extension of body.extensions) {
+        if (extension.name === 'layout') {
+            const carried = layoutOf(extension, tag);
+            if (carried !== undefined) layout = { ...layout, ...carried };
+        }
         if (extension.name !== 'responses') continue;
         extensions.responses = [...(extensions.responses ?? []), ...responsesOf(extension)];
     }
@@ -292,6 +322,7 @@ const projectBody = (body, tag) => {
         ...(Object.keys(translatable).length > 0 ? { translatable } : {}),
         ...(styleClasses.length > 0 ? { styleClasses } : {}),
         ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
+        ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -323,7 +354,7 @@ const projectObject = (object, slot, tag) => {
  * @param {BlueprintFile} file
  * @returns {ProjectedLoss[]}
  */
-const lossesOf = (file) => {
+const lossesOf = (file, tag) => {
     /** @type {ProjectedLoss[]} */
     const lost = [];
 
@@ -348,8 +379,10 @@ const lossesOf = (file) => {
             } else if (value.kind === 'object') walkObject(value.object);
         }
         for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
-        // `responses` is carried in `extensions` (ADR 0072); every other block is still lost.
+        // `responses` is carried in `extensions` (ADR 0072) and a scalar `layout` in `layout`
+        // (ADR 0092); every other block is still lost.
         for (const extension of body.extensions) {
+            if (extension.name === 'layout' && layoutOf(extension, tag) !== undefined) continue;
             if (extension.name !== 'responses') lost.push({ kind: extension.name, line: extension.line });
         }
         // Each list by its own NAME, the way a block extension is, because that is the name a
@@ -486,8 +519,8 @@ export function projectToSharedNode(file, options) {
                 template: templateClass,
                 ...projectBody(template.body, tag),
             },
-            lost: lossesOf(file),
+            lost: lossesOf(file, tag),
         };
     }
-    return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file) };
+    return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file, tag) };
 }
