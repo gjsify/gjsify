@@ -435,6 +435,10 @@ export type {
     TabsRevealedVector,
 } from './tab-view.js';
 
+// --- Grid arrow-key vectors (GtkGridView) ---
+export { GRID_NAVIGATION_GEOMETRY, GRID_NAVIGATION_VECTORS } from './grid-navigation.js';
+export type { GridNavigationVector } from './grid-navigation.js';
+
 // --- Carousel position + paging (Adw.Carousel) vectors ---
 export {
     CAROUSEL_CLAMP_VECTORS,

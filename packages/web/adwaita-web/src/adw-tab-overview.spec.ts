@@ -8,7 +8,11 @@
 // the search entry going to the PINNED grid first, and the close-on-activate rule.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { TAB_SEARCH_VECTORS } from '@gjsify/adwaita-core/conformance';
+import {
+    GRID_NAVIGATION_GEOMETRY,
+    GRID_NAVIGATION_VECTORS,
+    TAB_SEARCH_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 import { tabSearchMatches } from '@gjsify/adwaita-core';
 
 import type { AdwTabOverview } from './elements/adw-tab-overview.js';
@@ -351,6 +355,73 @@ export const AdwTabOverviewTest = async () => {
             overview.setAttribute('inverted', '');
             expect(overview.inverted).toBe(true);
             expect(thumb().classList.contains('inverted')).toBe(true);
+            host.remove();
+        });
+    });
+
+    await describe('<adw-tab-overview> grid keyboard', async () => {
+        // Three 100px columns in a 340px flex-wrap box: the layout the keys measure.
+        const open = (pages: number) => {
+            const m = mount({ pages, attrs: 'open' });
+            const el = grid(m.overview);
+            el.style.cssText = 'display:flex;flex-wrap:wrap;width:340px';
+            const chips = thumbs(m.overview);
+            for (const chip of chips) chip.style.cssText = 'width:100px;height:60px';
+            const press = (target: HTMLElement, key: string, init: KeyboardEventInit = {}) => {
+                const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+                target.dispatchEvent(event);
+                return event;
+            };
+            return { ...m, chips, press };
+        };
+
+        await it('every shared grid vector moves the selection as tabled', async () => {
+            for (const { key, from, to } of GRID_NAVIGATION_VECTORS) {
+                const { view, host, chips, press } = open(GRID_NAVIGATION_GEOMETRY.count);
+                view.setSelectedPage(chips[from].dataset.pageId as string);
+                chips[from].focus();
+                press(chips[from], key);
+                const expected = chips[to ?? from].dataset.pageId;
+                expect(`${key}@${from}=${view.selectedId}`).toBe(`${key}@${from}=${expected}`);
+                host.remove();
+            }
+        });
+
+        await it('ArrowDown moves focus and selection one row, ArrowUp back', async () => {
+            const { view, host, chips, press } = open(7);
+            chips[1].focus();
+            expect(press(chips[1], 'ArrowDown').defaultPrevented).toBe(true);
+            expect(view.selectedId).toBe(chips[4].dataset.pageId);
+            expect(document.activeElement).toBe(chips[4]);
+            press(chips[4], 'ArrowUp');
+            expect(view.selectedId).toBe(chips[1].dataset.pageId);
+            host.remove();
+        });
+
+        await it('Home and End jump to the ends', async () => {
+            const { view, host, chips, press } = open(7);
+            chips[3].focus();
+            press(chips[3], 'End');
+            expect(view.selectedId).toBe(chips[6].dataset.pageId);
+            press(chips[6], 'Home');
+            expect(view.selectedId).toBe(chips[0].dataset.pageId);
+            host.remove();
+        });
+
+        await it('Enter selects the focused thumbnail and closes the overview', async () => {
+            const { overview, view, host, chips, press } = open(3);
+            chips[2].focus();
+            expect(press(chips[2], 'Enter').defaultPrevented).toBe(true);
+            expect(view.selectedId).toBe(chips[2].dataset.pageId);
+            expect(overview.open).toBe(false);
+            host.remove();
+        });
+
+        await it('arrows with a modifier are left to the browser', async () => {
+            const { view, host, chips, press } = open(3);
+            const before = view.selectedId;
+            expect(press(chips[0], 'ArrowRight', { ctrlKey: true }).defaultPrevented).toBe(false);
+            expect(view.selectedId).toBe(before);
             host.remove();
         });
     });

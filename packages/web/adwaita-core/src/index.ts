@@ -739,6 +739,9 @@ export type {
     TabViewSelectionListener,
 } from './tab-view.js';
 
+// --- Grid arrow-key arithmetic (GtkGridView) ---
+export { gridColumns, gridNavigate } from './grid-navigation.js';
+
 // --- Swipe gestures (Adw.SwipeTracker) ---
 export {
     ADW_SWIPE_DECELERATION_TOUCH,

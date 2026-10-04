@@ -68,7 +68,14 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the icon,
 // indicator and portrait nodes are <gtk-image> and the grids are <div role="grid">.
 
-import { tabSearchMatches, tabTooltip, type AdwMenuInput, type AdwMenuModel } from '@gjsify/adwaita-core';
+import {
+    gridColumns,
+    gridNavigate,
+    tabSearchMatches,
+    tabTooltip,
+    type AdwMenuInput,
+    type AdwMenuModel,
+} from '@gjsify/adwaita-core';
 import { normalizeMenuModel } from '@gjsify/adwaita-core';
 import { assertMenuRenderable, ADW_MENU_SURFACE_WEB } from '@gjsify/adwaita-core';
 
@@ -673,9 +680,11 @@ export class AdwTabOverview extends HTMLElement {
      * focus itself, so this only names the destination.
      */
     private _onKeyDown(event: KeyboardEvent): void {
-        if (!this.open || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
+        if (!this.open) return;
         const target = event.target;
         if (!(target instanceof Node)) return;
+        if (this._onGridKey(event, target)) return;
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
 
         if (event.key === 'ArrowDown') {
             if (this._searchBar.contains(target) || this._searchBtn.contains(target)) {
@@ -702,6 +711,50 @@ export class AdwTabOverview extends HTMLElement {
         if (this._newTabBtn.contains(target)) {
             if (this._focusLastRow(this._gridEl) || this._focusLastRow(this._pinnedGridEl)) event.preventDefault();
         }
+    }
+
+    /**
+     * The thumbnail grids are `GtkGridView`s: arrows move a cursor in two dimensions over
+     * a column count the layout decides (the grid reflows), Home/End jump, and nothing
+     * wraps. Selection follows focus; Enter and Space activate like a click, because a
+     * thumbnail is a `div` with no activation of its own. A move that would leave the
+     * grid is not claimed for Up/Down, so `_onKeyDown` can still hand focus to the
+     * new-tab button.
+     */
+    private _onGridKey(event: KeyboardEvent, target: Node): boolean {
+        if (event.altKey || event.ctrlKey || event.metaKey) return false;
+        const grid = [this._pinnedGridEl, this._gridEl].find((el) => el.contains(target));
+        if (grid === undefined) return false;
+        const chips = [...grid.children].filter((el): el is HTMLElement => el instanceof HTMLElement);
+        const from = chips.findIndex((chip) => chip.contains(target));
+        if (from < 0) return false;
+        // The close and indicator buttons are nested controls with their own Enter/Space.
+        if (target instanceof Element && target.closest('button') !== null) return false;
+        const view = this._view;
+        if (view === null) return false;
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            const id = chips[from]!.dataset.pageId;
+            if (id === undefined) return false;
+            event.preventDefault();
+            view.setSelectedPage(id);
+            this.setOpen(false);
+            return true;
+        }
+
+        const columns = gridColumns(chips.map((chip) => chip.getBoundingClientRect().top));
+        const to = gridNavigate(event.key, from, chips.length, columns);
+        if (to === null) {
+            const claimed = ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key);
+            if (claimed) event.preventDefault();
+            return claimed;
+        }
+        const id = chips[to]!.dataset.pageId;
+        if (id === undefined) return false;
+        event.preventDefault();
+        view.setSelectedPage(id);
+        chips[to]!.focus();
+        return true;
     }
 
     private _focusFirstRow(grid: HTMLElement): boolean {
