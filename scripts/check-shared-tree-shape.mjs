@@ -95,6 +95,9 @@ const STYLES = '- styleClasses?: string[]';
 const PAGE = '- page?: { label?: string; name?: string }';
 const LAYOUT = '- layout?: Record<string, string | number | boolean>';
 const EXTERN = '- extern?: true';
+const BINDINGS =
+    "- bindings?: Record< string, { source: string; property: string; flags?: ('bidirectional' | " +
+    "'inverted' | 'no-sync-create')[]; } >";
 const SIGNALS =
     "- signals?: { name: string; detail?: string; handler: string; object?: string; flags?: ('swapped' | " +
     "'after' | 'not-swapped')[]; }[]";
@@ -167,6 +170,7 @@ const FAMILY = [
             `${LAYOUT}`,
             `${EXTERN}`,
             `${SIGNALS}`,
+            `${BINDINGS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -196,6 +200,7 @@ const FAMILY = [
             `${LAYOUT}`,
             `${EXTERN}`,
             `${SIGNALS}`,
+            `${BINDINGS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -223,6 +228,7 @@ const FAMILY = [
             `${LAYOUT}`,
             `${EXTERN}`,
             `${SIGNALS}`,
+            `${BINDINGS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -469,6 +475,16 @@ export interface SharedTreeNode {
         readonly object?: string;
         readonly flags?: readonly ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    bindings?: Readonly<
+        Record<
+            string,
+            {
+                readonly source: string;
+                readonly property: string;
+                readonly flags?: readonly ('bidirectional' | 'inverted' | 'no-sync-create')[];
+            }
+        >
+    >;
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -504,6 +520,10 @@ const VECTORS = [
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -539,6 +559,10 @@ const VECTORS = [
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -565,6 +589,7 @@ const VECTORS = [
             `${LAYOUT}`,
             `${EXTERN}`,
             `${SIGNALS}`,
+            `${BINDINGS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -597,6 +622,10 @@ const VECTORS = [
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: Lossy[];
 }`,
         'Lossy',
@@ -633,6 +662,10 @@ const VECTORS = [
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -668,6 +701,10 @@ const VECTORS = [
         object?: string;
         flags?: ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: (Widened | string)[];
 }`,
         'Widened',

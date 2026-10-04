@@ -236,6 +236,32 @@ const layoutOf = (extension, tag) => {
 };
 
 /**
+ * The simple form of a `bind`, as `SharedNode.bindings` holds it (ADR 0093), or `undefined` for
+ * anything that is an expression.
+ *
+ * SIMPLE IS THE SHAPE THE ORACLE COLLAPSES INTO `bind-source`/`bind-property`: `bind` (not
+ * `expr`), a lookup on a BARE identifier, under at most one cast. `emit-xml.mjs`'s
+ * `simpleLookup` is the same predicate and the two must stay one, or the golden and the tree
+ * disagree about which lines are bindings. A lookup chain, a closure, a parenthesis, a second
+ * cast or `try` stays the loss `binding-expression`.
+ *
+ * ONE READER FOR BOTH SEAMS, for `styleClassesOf`'s reason: `lossesOf` and `usesOf` ask it too.
+ *
+ * @param {import('./ast.d.mts').BindingValue} value
+ * @returns {NonNullable<SharedNode['bindings']>[string] | undefined}
+ */
+const bindingOf = (value) => {
+    if (value.form !== 'bind') return undefined;
+    const lookup = value.expression.kind === 'cast' ? value.expression.of : value.expression;
+    if (lookup.kind !== 'lookup' || lookup.of.kind !== 'ident') return undefined;
+    return {
+        source: lookup.of.name,
+        property: lookup.name,
+        ...(value.flags.length === 0 ? {} : { flags: [...value.flags] }),
+    };
+};
+
+/**
  * The signal handlers of a body as `SharedNode.signals` holds them (ADR 0093): the handler is a
  * NAME, never code, and `object` and the flags are spelled as the source wrote them. A body with
  * none yields `undefined` so the field is absent rather than empty.
@@ -267,6 +293,8 @@ const projectBody = (body, tag) => {
     const styleClasses = [];
     /** @type {NonNullable<SharedNode['extensions']>} */
     const extensions = {};
+    /** @type {NonNullable<SharedNode['bindings']>} */
+    const bindings = {};
     /** @type {SharedNode['layout']} */
     let layout;
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
@@ -294,6 +322,11 @@ const projectBody = (body, tag) => {
             const strings = stringsOf(property);
             // Concatenated like the style classes: two `<items>` blocks append to one list.
             if (strings !== undefined) extensions.strings = [...(extensions.strings ?? []), ...strings];
+            continue;
+        }
+        if (property.value.kind === 'binding') {
+            const binding = bindingOf(property.value);
+            if (binding !== undefined) bindings[property.name] = binding;
             continue;
         }
         const scalar = scalarOf(property.value, tag);
@@ -344,6 +377,7 @@ const projectBody = (body, tag) => {
         ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
         ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
         ...(signals === undefined ? {} : { signals }),
+        ...(Object.keys(bindings).length > 0 ? { bindings } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -386,7 +420,10 @@ const lossesOf = (file, tag) => {
     const walkBody = (body) => {
         for (const property of body.properties) {
             const value = property.value;
-            if (value.kind === 'binding') lost.push({ kind: 'binding', line: property.line });
+            if (value.kind === 'binding') {
+                // The simple form is carried since ADR 0093; what is left is an expression.
+                if (bindingOf(value) === undefined) lost.push({ kind: 'binding-expression', line: property.line });
+            }
             else if (value.kind === 'list') {
                 // Style classes are carried since ADR 0068 and string-list items since ADR 0072,
                 // each through the one reader above. What is still a loss is `widgets [ ]`, a
@@ -480,7 +517,7 @@ const lossesOf = (file, tag) => {
  * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
  *
  * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
- * `strings`, `responses`, `extern` and `signal`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * `strings`, `responses`, `extern`, `signal` and `bind`. A `page` has no Blueprint spelling that reaches this exit. Each
  * question goes to the reader the projection itself fills the field with, so a construct the
  * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
  *
@@ -494,7 +531,9 @@ const usesOf = (file, tag) => {
     /** @param {ObjectBody} body */
     const walkBody = (body) => {
         for (const property of body.properties) {
-            if (property.value.kind === 'list' && stringsOf(property) !== undefined) {
+            if (property.value.kind === 'binding' && bindingOf(property.value) !== undefined) {
+                uses.push({ kind: 'bind', line: property.line });
+            } else if (property.value.kind === 'list' && stringsOf(property) !== undefined) {
                 uses.push({ kind: 'strings', line: property.line });
             } else if (property.value.kind === 'object') walkObject(property.value.object);
         }

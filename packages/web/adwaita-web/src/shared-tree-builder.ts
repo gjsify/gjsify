@@ -59,8 +59,20 @@ interface ExtendedNode {
 interface BuildRecord {
     placed: PlacedChild[];
     extended: ExtendedNode[];
+    /** Every authored id and the element it built, which a `bind` source is looked up in. */
+    ids: Map<string, HTMLElement>;
+    /** The `bindings` of every node, resolved once every id exists (a source may be built after its target). */
+    binds: PendingBind[];
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
+}
+
+interface PendingBind {
+    el: HTMLElement;
+    property: string;
+    source: string;
+    sourceProperty: string;
+    flags: readonly string[];
 }
 
 /**
@@ -108,11 +120,64 @@ function isWritable(el: object, member: string): boolean {
  * container. A DETACHED build therefore cannot check a slot either: an element that has not
  * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
-export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { placed: [], extended: [] }): HTMLElement {
+export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = newRecord()): HTMLElement {
     // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
     // created. A refused `layout` is named with its node and the reason the table gives.
     assertTreeConstructs('adwaita-web', capabilities, node);
-    return buildNode(node, record);
+    const root = buildNode(node, record);
+    for (const bind of record.binds) bindProperty(bind, record);
+    return root;
+}
+
+/** A fresh record, with the scope when the caller has one. */
+function newRecord(scope?: Readonly<Record<string, unknown>>): BuildRecord {
+    return { placed: [], extended: [], ids: new Map(), binds: [], ...(scope === undefined ? {} : { scope }) };
+}
+
+/**
+ * ADR 0093's `bindings`, the simple form: the target property takes the source's value now and
+ * again on every `notify::<property>` the source dispatches (`G_BINDING_SYNC_CREATE`, which is
+ * what GtkBuilder's `bind-flags` default means).
+ *
+ * Refused by name, never dropped: a source that is not an id of this tree (`template` included),
+ * a source element that does not dispatch `notify::<property>`, a target without a writable
+ * property, and any flag, which this first slice has not verified. An element dispatches
+ * `notify::…` only while connected, so a tree built but never attached follows once, at build.
+ */
+function bindProperty(bind: PendingBind, record: BuildRecord): void {
+    const { el, property, source, sourceProperty, flags } = bind;
+    const where = `<${el.localName}> \`${property}: bind ${source}.${sourceProperty}\``;
+    const from = record.ids.get(source);
+    if (from === undefined) {
+        throw new Error(`${where} names no object: nothing in this tree has the id '${source}'.`);
+    }
+    if (flags.length > 0) {
+        throw new Error(
+            `${where} carries ${flags.join(', ')}: adwaita-web binds the plain form only until each flag is ` +
+                'verified against GObject.',
+        );
+    }
+    const notification = `notify::${sourceProperty}`;
+    const declared = dispatchedSignalsOf(from);
+    const event = declared[notification];
+    if (event === undefined) {
+        throw new Error(
+            `${where}: <${from.localName}> dispatches no '${notification}', so the target would follow the source ` +
+                `once and never again. It dispatches: ${Object.keys(declared).join(', ') || 'none'}.`,
+        );
+    }
+    const targetMember = propertyOf(property);
+    const sourceMember = propertyOf(sourceProperty);
+    if (!isWritable(el, targetMember)) {
+        throw new Error(`${where}: <${el.localName}> has no writable property '${targetMember}'.`);
+    }
+    const follow = () => {
+        (el as unknown as Record<string, unknown>)[targetMember] = (from as unknown as Record<string, unknown>)[
+            sourceMember
+        ];
+    };
+    follow();
+    from.addEventListener(event, follow);
 }
 
 function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
@@ -120,7 +185,19 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     const el = document.createElement(node.extern === true ? templateTagFor(node.tag) : hostTagOf(node.tag));
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
-    if (node.id !== undefined) el.id = node.id;
+    if (node.id !== undefined) {
+        el.id = node.id;
+        record.ids.set(node.id, el);
+    }
+    for (const [property, binding] of Object.entries(node.bindings ?? {})) {
+        record.binds.push({
+            el,
+            property,
+            source: binding.source,
+            sourceProperty: binding.property,
+            flags: binding.flags ?? [],
+        });
+    }
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         const member = propertyOf(prop);
         if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
@@ -308,11 +385,7 @@ export function mountSharedTree(
     options: { scope?: Readonly<Record<string, unknown>> } = {},
 ): MountedSharedTree {
     const host = document.createElement('div');
-    const record: BuildRecord = {
-        placed: [],
-        extended: [],
-        ...(options.scope === undefined ? {} : { scope: options.scope }),
-    };
+    const record = newRecord(options.scope);
     host.append(buildSharedTree(node, record));
     document.body.append(host);
     // After the append, because that is what upgrades the elements and runs the binds the

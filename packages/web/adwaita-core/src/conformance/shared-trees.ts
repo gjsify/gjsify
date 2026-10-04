@@ -207,6 +207,21 @@ export interface SharedTreeNode {
         readonly object?: string;
         readonly flags?: readonly ('swapped' | 'after' | 'not-swapped')[];
     }[];
+    /**
+     * The simple `bind`s, keyed by the TARGET property (ADR 0093): one source, one property, the
+     * flags as written. `source` is an object id in this tree, or `template` for the component
+     * itself. An expression form (lookup chain, closure, cast pair, `expr`) is not carried.
+     */
+    bindings?: Readonly<
+        Record<
+            string,
+            {
+                readonly source: string;
+                readonly property: string;
+                readonly flags?: readonly ('bidirectional' | 'inverted' | 'no-sync-create')[];
+            }
+        >
+    >;
     children?: readonly SharedTreeNode[];
 }
 

@@ -29,4 +29,8 @@ export const capabilities: ConstructCapabilities = {
         refused:
             "gtk-host's tree builder resolves no handler names; a GTK app connects signals in code, or loads the .blp through Gtk.Builder with a scope",
     },
+    bind: {
+        refused:
+            "gtk-host's tree builder resolves no bindings between objects; a GTK app binds properties in code, or loads the .blp through Gtk.Builder",
+    },
 };

@@ -13,4 +13,5 @@ export const capabilities = {
     page: 'implemented',
     extern: 'implemented',
     signal: 'implemented',
+    bind: 'implemented',
 };

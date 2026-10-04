@@ -132,7 +132,18 @@ interface PendingReference {
 interface BuildContext {
     ids: Map<string, View>;
     pending: PendingReference[];
+    /** The `bindings` of every node, resolved once every id exists (a source may be built after its target). */
+    binds: PendingBind[];
     scope: Readonly<Record<string, unknown>> | undefined;
+}
+
+interface PendingBind {
+    target: object;
+    element: Element;
+    property: string;
+    source: string;
+    sourceProperty: string;
+    flags: readonly string[];
 }
 
 /** What a caller hands {@link build} beside the tree. */
@@ -200,7 +211,7 @@ export function buildDialog(node: SharedTreeNode, options: BuildOptions = {}): P
 function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
     // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
     assertTreeConstructs('adwaita-nativescript', capabilities, node);
-    const context: BuildContext = { ids: new Map(), pending: [], scope: options.scope };
+    const context: BuildContext = { ids: new Map(), pending: [], binds: [], scope: options.scope };
     const root = buildNode(node, context);
     for (const { view, element, prop, id } of context.pending) {
         const target = context.ids.get(id);
@@ -212,7 +223,50 @@ function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
         }
         (view as unknown as Record<string, unknown>)[prop] = target;
     }
+    for (const bind of context.binds) bindProperty(bind, context);
     return root;
+}
+
+/**
+ * ADR 0093's `bindings`, the simple form: the target property takes the source's value now and
+ * again on every `notify::<property>` the source emits (`G_BINDING_SYNC_CREATE`, which is what
+ * GtkBuilder's `bind-flags` default means).
+ *
+ * Refused by name, never dropped: a source that is not an id of this tree (`template` included),
+ * a source class that does not emit `notify::<property>`, a target without that property, and
+ * any flag, which this first slice has not verified.
+ */
+function bindProperty(bind: PendingBind, context: BuildContext): void {
+    const { target, element, property, source, sourceProperty, flags } = bind;
+    const where = `<${element.xmlName}> \`${property}: bind ${source}.${sourceProperty}\``;
+    const from = context.ids.get(source);
+    if (from === undefined) {
+        throw new Error(`${where} names no object: nothing in this tree has the id '${source}'.`);
+    }
+    if (flags.length > 0) {
+        throw new Error(
+            `${where} carries ${flags.join(', ')}: adwaita-nativescript binds the plain form only until each flag ` +
+                'is verified against GObject.',
+        );
+    }
+    const sourceProp = propertyOf(sourceProperty);
+    const targetProp = propertyOf(property);
+    const emitted = (from.constructor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const notification = `notify::${sourceProperty}`;
+    if (!(sourceProp in from) || !emitted.includes(notification)) {
+        throw new Error(
+            `${where}: ${from.constructor.name} does not emit '${notification}', so the target would follow the ` +
+                `source once and never again. It emits: ${emitted.join(', ') || 'none'}.`,
+        );
+    }
+    if (!(targetProp in target)) {
+        throw new Error(`${where}: the target has no property '${targetProp}'.`);
+    }
+    const follow = () => {
+        (target as Record<string, unknown>)[targetProp] = (from as unknown as Record<string, unknown>)[sourceProp];
+    };
+    follow();
+    (from as unknown as { connect(name: string, callback: () => void): number }).connect(notification, follow);
 }
 
 /**
@@ -238,6 +292,16 @@ function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
     const probe = new element.ctor();
     const built = probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe);
     bindSignals(built, element, node, context);
+    for (const [property, binding] of Object.entries(node.bindings ?? {})) {
+        context.binds.push({
+            target: built,
+            element,
+            property,
+            source: binding.source,
+            sourceProperty: binding.property,
+            flags: binding.flags ?? [],
+        });
+    }
     for (const child of node.children ?? []) {
         const parent = built as Partial<BuilderParent>;
         if (typeof parent._addChildFromBuilder !== 'function') {

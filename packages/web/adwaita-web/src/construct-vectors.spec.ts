@@ -46,6 +46,18 @@ function observe(vector: ConstructVector): unknown {
             unmount();
         }
     }
+    if (vector.kind === 'bind') {
+        const { root, unmount } = mountSharedTree(vector.tree);
+        try {
+            const source = root.querySelector('#source') as unknown as { active: boolean };
+            const target = root.querySelector('#target') as unknown as { active: boolean };
+            const afterBuild = target.active;
+            source.active = true;
+            return { afterBuild, afterSourceOn: target.active };
+        } finally {
+            unmount();
+        }
+    }
     if (vector.kind === 'extern') {
         return [...buildSharedTree(vector.tree).children].map((child) => ({
             id: child.id,
@@ -106,6 +118,24 @@ export const AdwConstructVectorsTest = async () => {
             );
             expect(() => mountSharedTree(on({ name: 'clicked', handler: 'onX', object: 'a' }), { scope })).toThrow(
                 'plain handlers only',
+            );
+        });
+        await it('refuses a bind to an id nothing has, to a source that dispatches no notify, and the flags', () => {
+            const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
+                ({
+                    tag: 'GtkBox',
+                    children: [
+                        { tag: sourceTag, id: 'source' },
+                        { tag: 'GtkToggleButton', bindings: { active: binding } },
+                    ],
+                }) as SharedTreeNode;
+            expect(() => mountSharedTree(bound({ source: 'nobody', property: 'active' }))).toThrow("id 'nobody'");
+            expect(() => mountSharedTree(bound({ source: 'template', property: 'active' }))).toThrow("id 'template'");
+            expect(() => mountSharedTree(bound({ source: 'source', property: 'active' }, 'GtkLabel'))).toThrow(
+                "dispatches no 'notify::active'",
+            );
+            expect(() => mountSharedTree(bound({ source: 'source', property: 'active', flags: ['inverted'] }))).toThrow(
+                'plain form only',
             );
         });
         await it('does not read a registered name for a node that is not extern', () => {

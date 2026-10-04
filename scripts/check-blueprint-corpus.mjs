@@ -132,7 +132,7 @@ const LOSS_KINDS = new Set([
     // is object references — and where an ident inside any of those lists leaves too, since the
     // reference compiler refuses that construct and there is no oracle for it. `translation-domain` stayed because
     // it is a fact about the FILE and this shape is a tree, ADR 0067 § 4.
-    'binding',
+    'binding-expression',
     'breakpoint',
     'menu',
     'layout',
@@ -165,6 +165,7 @@ const NODE_FIELDS = new Set([
     'extensions',
     'layout',
     'signals',
+    'bindings',
     'children',
 ]);
 
@@ -1340,6 +1341,7 @@ const USE_ELEMENTS = {
     strings: /class="GtkStringList"[^>]*>\s*<items>/g,
     responses: /<responses>/g,
     signal: /<signal /g,
+    bind: /bind-source=/g,
 };
 const checkUses = (job, result) => {
     if (!existsSync(job.golden)) return; // stage A said so
@@ -1348,7 +1350,9 @@ const checkUses = (job, result) => {
         const wanted = [...golden.matchAll(element)].length;
         const got = result.uses.filter((use) => use.kind === kind).length;
         used += got;
-        if (wanted !== got) {
+        // A `bind` inside a sibling root is lost with that root, so the golden may hold more of them.
+        const siblingsLost = kind === 'bind' && result.lost.some((loss) => loss.kind === 'sibling-object');
+        if (siblingsLost ? got > wanted : wanted !== got) {
             problems.push(
                 `${job.key}: the oracle wrote ${wanted} element(s) for \`${kind}\` and the projection reports ${got} ` +
                     `use(s) of \`${kind}\`.`,
@@ -1408,6 +1412,37 @@ const checkUses = (job, result) => {
         problems.push(
             `${job.key}: the golden and the projection disagree about the signal handlers — ` +
                 `golden [${goldenSignals.join(', ')}], projection [${treeSignals.join(', ')}].`,
+        );
+    }
+    // ADR 0093's `bindings`: the oracle's `bind-source`/`bind-property`/`bind-flags` against the tree,
+    // with the flags in the order and with the default the compiler writes, not the source's.
+    const goldenBinds = [
+        ...golden.matchAll(/<property name="([^"]+)" bind-source="([^"]+)" bind-property="([^"]+)"(?: bind-flags="([^"]*)")?/g),
+    ].map((match) => [match[1], match[2], match[3], match[4] ?? ''].join('|'));
+    const treeBinds = [];
+    const collectBinds = (node) => {
+        for (const [target, binding] of Object.entries(node.bindings ?? {})) {
+            const flags = binding.flags ?? [];
+            const emitted = [
+                ...(flags.includes('no-sync-create') ? [] : ['sync-create']),
+                ...(flags.includes('inverted') ? ['invert-boolean'] : []),
+                ...(flags.includes('bidirectional') ? ['bidirectional'] : []),
+            ].join('|');
+            treeBinds.push(
+                [target, binding.source === 'template' ? result.node.template : binding.source, binding.property, emitted].join('|'),
+            );
+        }
+        for (const child of node.children ?? []) collectBinds(child);
+    };
+    collectBinds(result.node);
+    const siblingsLost = result.lost.some((loss) => loss.kind === 'sibling-object');
+    const bindsAgree = siblingsLost
+        ? treeBinds.every((bind) => goldenBinds.includes(bind))
+        : goldenBinds.sort().join('\n') === treeBinds.sort().join('\n');
+    if (!bindsAgree) {
+        problems.push(
+            `${job.key}: the golden and the projection disagree about the bindings — ` +
+                `golden [${goldenBinds.join(', ')}], projection [${treeBinds.join(', ')}].`,
         );
     }
     const lines = result.uses.map((use) => use.line);

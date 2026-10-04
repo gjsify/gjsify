@@ -21,7 +21,7 @@ import type { SharedTreeNode } from './shared-trees.js';
 import { authoredNodes } from './shared-trees.js';
 
 /** The construct kinds, in the order the tables list them. */
-export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page', 'extern', 'signal'] as const;
+export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page', 'extern', 'signal', 'bind'] as const;
 
 export type ConstructKind = (typeof CONSTRUCT_KINDS)[number];
 
@@ -48,6 +48,7 @@ export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
         if (node.page !== undefined) found.push({ kind: 'page', path });
         if (node.extern === true) found.push({ kind: 'extern', path });
         node.signals?.forEach(() => found.push({ kind: 'signal', path }));
+        Object.keys(node.bindings ?? {}).forEach(() => found.push({ kind: 'bind', path }));
     }
     return found;
 }
@@ -178,6 +179,22 @@ export const CONSTRUCT_VECTORS: readonly ConstructVector[] = [
             children: [{ tag: 'GtkButton', id: 'pressed', signals: [{ name: 'clicked', handler: 'onClicked' }] }],
         },
         shows: [{ handler: 'onClicked', calls: 1 }],
+    },
+    {
+        kind: 'bind',
+        rule: 'a `bind` makes the target follow the source, once at creation and again on every change (ADR 0093)',
+        tree: {
+            tag: 'GtkBox',
+            children: [
+                { tag: 'GtkToggleButton', id: 'source' },
+                {
+                    tag: 'GtkToggleButton',
+                    id: 'target',
+                    bindings: { active: { source: 'source', property: 'active' } },
+                },
+            ],
+        },
+        shows: { afterBuild: false, afterSourceOn: true },
     },
 ];
 
