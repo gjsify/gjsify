@@ -67,6 +67,9 @@ export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-but
 export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
+export { NOTIFY_HEXPAND, NOTIFY_VEXPAND } from './widget-layout.js';
+export { lengthValue } from './ns-length.js';
+export type { NsLength } from './ns-length.js';
 export { GtkActionBar } from './gtk-action-bar.js';
 // The pass-through containers: one child, no look of their own. `AdwSingleChildBase` is
 // the base the first four share; the pure halves are free of `@nativescript/core`.

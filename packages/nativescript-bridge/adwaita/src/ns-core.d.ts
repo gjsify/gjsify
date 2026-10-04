@@ -175,6 +175,19 @@ declare module '@nativescript/core' {
         marginRight: number;
         /** Visibility (`'visible' | 'hidden' | 'collapse'`). */
         visibility: string;
+        /**
+         * Whether the view takes input — `isEnabledProperty` registers `defaultValue: true`
+         * (`ui/core/view/view-common.ts`), so it is always present. `Gtk.Widget:sensitive`.
+         */
+        isEnabled: boolean;
+        /**
+         * The smallest size the layout gives the view. Always present, and NOT a number until
+         * written: `minWidthProperty` registers `defaultValue: zeroLength` (`{ value: 0, unit:
+         * 'px' }`, `ui/styling/style-properties.ts`), so an unwritten read answers that object.
+         * `Gtk.Widget:width-request` / `height-request`.
+         */
+        minWidth: number | string | { value: number; unit?: string };
+        minHeight: number | string | { value: number; unit?: string };
         /** Whether the view responds to touch at all — NS's `gtk_widget_set_can_target`. */
         isUserInteractionEnabled: boolean;
         /** Horizontal translation offset in DIPs (animatable). */
