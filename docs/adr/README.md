@@ -111,7 +111,7 @@ the TODO records the *what's left*.
 | [0088](0088-a-blp-exports-its-ids-as-typed-names.md) | A `.blp` exports its ids as TYPED names, and the types travel in a committed sidecar | Accepted |
 | [0089](0089-win32-arm64-gtk-is-built-from-source-by-our-msvc-gvsbuild-fork.md) | win32-arm64 GTK is built from source by our MSVC gvsbuild fork | Accepted |
 | [0090](0090-layout-placement-becomes-a-node-field.md) | A `layout { }` block becomes a `layout` field, and a renderer places the child or refuses it | Proposed |
-| [0091](0091-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md) | Template constructs are carried as fields, and each renderer declares which it builds or refuses | Proposed |
+| [0091](0091-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md) | Template constructs are carried as fields, and each renderer declares which it builds or refuses | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

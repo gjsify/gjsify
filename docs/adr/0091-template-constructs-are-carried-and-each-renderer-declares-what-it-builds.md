@@ -1,6 +1,6 @@
 # 91. Template constructs are carried as fields, and each renderer declares which it builds or refuses
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-04)
 - Date: 2026-10-04
 - Deciders: Pascal Garber
 - Related: [ADR 0042 (portable menu model)](0042-portable-menu-model.md),
@@ -310,6 +310,21 @@ the reader, and the refusal is what a renderer does until it has a consumer.
 Follow-up decisions, each its own ADR or amendment: the `bind` expression language; the menu item
 shape; `inline-template` as a factory; a typed `Handlers` export in ADR 0088's sidecar, so a
 handler a `.blp` names is checked against the component class by `tsc`.
+
+### 6. The construct list is open, and refusals have one source
+
+The vocabulary of § 2 is not a closed list. A new construct arrives as exactly four things: a
+`ConstructKind`, one row in every renderer's `./capabilities`, one `CONSTRUCT_VECTORS` entry, and
+its restatement in `check-shared-tree-shape.mjs`. The "total table" rule makes a missing row fail,
+so nothing arrives unclaimed and nothing in the mechanism needs a rewrite. The first expected
+follow-up is `page` (a Notebook or Stack page: a `label` and one child), planned by the gallery
+work; its vocabulary belongs in the shared node shape in `adwaita-core`, not in the gallery's
+example-tree file.
+
+Gallery refusals (`ADWAITA_GALLERY_REFUSALS`, a widget previewed on no renderer, with a reason) and
+the capability tables are the same kind of data: a refusal with a human-readable reason. They must
+not grow into two lists. Until the tables exist the gallery keeps its own; once they do, the
+gallery derives its "no preview" reason from them, and a duplicate is a defect.
 
 ## Consequences
 
