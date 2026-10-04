@@ -237,6 +237,15 @@ function unknownProperty(element: Element, tag: string, authored: string, prop: 
 }
 
 function buildView(node: SharedTreeNode, element: Element, view: View, context: BuildContext): View {
+    // `page`: refused by name until the port has the parent for it. `Gtk.Notebook` has no
+    // NativeScript widget yet (it is not the port's TabView, which owns its own strip), and
+    // `Gtk.Stack` pages need `StackPage`, which lives on feat/learn6502-android-widgets.
+    if (node.page !== undefined) {
+        throw new Error(
+            `<${element.xmlName}> is a page (${JSON.stringify(node.page)}), and adwaita-nativescript builds no ` +
+                'pages: there is no NS widget yet for Gtk.Notebook, and Gtk.StackPage is not on this branch.',
+        );
+    }
     // The id is how the TypeScript beside a `.blp` reaches this view (`getViewById`),
     // the counterpart of `InternalChildren` on GTK and `querySelector('#…')` on the web.
     if (node.id !== undefined) {

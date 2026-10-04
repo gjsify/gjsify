@@ -452,6 +452,11 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name', titled: true },
     },
     {
+        gtype: 'GtkNotebook',
+        ctor: () => Gtk.Notebook,
+        children: { kind: 'paged', append: 'append_page', remove: 'detach_tab', labelFrom: 'tabLabel' },
+    },
+    {
         gtype: 'GtkGrid',
         ctor: () => Gtk.Grid,
         children: { kind: 'coords', attach: 'attach', remove: 'remove' },

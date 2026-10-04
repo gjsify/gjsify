@@ -78,3 +78,9 @@ export const glArea = <gtk-gl-area hasStencilBuffer={true} />;
  * in two dialects and absent from this one.
  */
 export const accessible = <gtk-label label="Total" accessibility={{ label: 'Total for the year', level: 2 }} />;
+
+/**
+ * `layout` reaches the React dialect through `ReactWidgetAttributes` too: a stack page's name and
+ * title are a child prop, and an undeclared one is TS2322 in the showcase that authors a page.
+ */
+export const stackPage = <gtk-label label="One" layout={{ name: 'one', title: 'One' }} />;

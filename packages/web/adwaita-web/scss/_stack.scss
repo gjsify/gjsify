@@ -495,6 +495,12 @@ gtk-stack-sidebar {
         border-#{$edge}-style: solid;
     }
 
+    // `> tabs { margin-bottom: -2px }` on `.top` (_notebook.scss:15, and its siblings): the
+    // strip overlaps the border by one more pixel, so a 37 px tab makes a 37 px header.
+    gtk-notebook[data-tab-pos='#{$pos}'] > .adw-notebook-header > .adw-notebook-tabs {
+        margin-#{$edge}: -2px;
+    }
+
     // `:hover` and `:checked` each get the same inset, in the border colour and in the
     // accent respectively (_notebook.scss:17-19 and its three siblings). The shadow is a
     // whole `box-shadow` value rather than a bare inset, so it is interpolated whole.
@@ -596,7 +602,10 @@ gtk-notebook {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        box-sizing: border-box;
+
+        // GTK's `min-height`/`min-width` size the CONTENT box, so the padding comes on top:
+        // 30 + 3 + 4 = 37 high, 30 + 2 * 12 = 54 wide, measured on a native Gtk.Notebook.
+        box-sizing: content-box;
 
         // `min-height: 30px; min-width: 30px; padding: 3px 12px; font-weight: normal`
         // (_notebook.scss:117-124) and the four-pixel gap `margin-left/right: 4px`
@@ -619,19 +628,14 @@ gtk-notebook {
         -webkit-user-select: none;
         transition: background-color 150ms ease-in-out, box-shadow 150ms ease-in-out;
 
-        // `tab-fill` (TRUE by default, gtknotebook.c:672-681) makes the tab take the
-        // space it is given; `tab-expand` is the one that asks for more.
-        &.fill {
-            flex: 1 1 auto;
-        }
+        // `tab-fill` (TRUE by default, gtknotebook.c:672-681) only decides whether an
+        // EXPANDED tab fills the space it was given; without `tab-expand` a tab keeps its
+        // natural width, which the native measurement shows (54 px, not stretched).
+        flex: 0 0 auto;
 
         &.expand {
             flex: 1 1 0;
             min-width: 0;
-        }
-
-        &:not(.fill) {
-            flex: 0 0 auto;
         }
 
         // `$hover_color` (color-mix in srgb currentColor 7%, transparent), the pair
@@ -661,6 +665,16 @@ gtk-notebook {
         &[hidden] {
             display: none;
         }
+    }
+
+    // `&.top > tabs > tab { padding-bottom: 4px }` and its mirror (_notebook.scss:209-210).
+    &:not([data-tab-pos]) > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab,
+    &[data-tab-pos='top'] > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab {
+        padding-bottom: 4px;
+    }
+
+    &[data-tab-pos='bottom'] > .adw-notebook-header > .adw-notebook-tabs > .adw-notebook-tab {
+        padding-top: 4px;
     }
 
     // The page area, which is a GtkStack inside the C (`gtk_stack_set_visible_child` at

@@ -107,6 +107,20 @@ export interface SharedTreeNode {
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     /**
+     * What a `Gtk.Notebook` or `Gtk.Stack` needs to know about THIS child as one of its pages.
+     *
+     * A page is not a widget: `GtkNotebookPage` and `GtkStackPage` are GObjects with no tag
+     * (gtknotebook.c:423, gtkstack.c:212), so their `tab-label` / `title` / `name` have no node
+     * to live on. They are data on the child, the way a grid cell is. `label` is the notebook's
+     * tab text and the stack's page title; `name` is the stack page's address. A notebook child
+     * with no `page` is numbered by GTK ("Page 3"), which is the page with no label.
+     *
+     * A renderer whose parent has no page concept REFUSES it by name rather than dropping it: a
+     * stack page with no name lands at exit 0 as a child nobody can switch to. Which renderers
+     * build it is each one's own answer (ADR 0091 § 2), not a rule of this shape.
+     */
+    page?: Readonly<{ label?: string; name?: string }>;
+    /**
      * Which of this node's `props` are marked for translation, keyed by the prop name.
      *
      * A present key means marked; `context` carries the message context `C_("noun", …)` gives

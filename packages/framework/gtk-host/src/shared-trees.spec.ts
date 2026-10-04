@@ -205,6 +205,34 @@ export default async () => {
                 ).toThrow('has no slot "header-suffix"');
             });
 
+            await it('a page reaches the notebook as its tab label and the stack as its name and title', () => {
+                const notebook = widgetOf(
+                    buildSharedTree({
+                        tag: 'gtk-notebook',
+                        children: [
+                            { tag: 'gtk-label', page: { label: 'One' }, props: { label: 'first' } },
+                            { tag: 'gtk-label', props: { label: 'second' } },
+                        ],
+                    }),
+                ) as Gtk.Notebook;
+                expect(notebook.get_n_pages()).toBe(2);
+                expect((notebook.get_tab_label(notebook.get_nth_page(0)!) as Gtk.Label).label).toBe('One');
+                const stack = widgetOf(
+                    buildSharedTree({
+                        tag: 'gtk-stack',
+                        children: [{ tag: 'gtk-label', page: { name: 'a', label: 'A' }, props: { label: 'x' } }],
+                    }),
+                ) as Gtk.Stack;
+                expect(stack.get_child_by_name('a') !== null).toBe(true);
+                expect(stack.get_page(stack.get_child_by_name('a')!).title).toBe('A');
+            });
+
+            await it('a page on a parent with no pages is refused BY NAME', () => {
+                expect(() =>
+                    buildSharedTree({ tag: 'gtk-box', children: [{ tag: 'gtk-label', page: { label: 'X' } }] }),
+                ).toThrow('has no pages');
+            });
+
             await it('the PROPERTY spelling of a slot reaches the same widget as its bracket', () => {
                 // `[title]` and `title-widget:` are one placement written two ways, and GTK
                 // accepts both: the buildable branch calls the setter. A `.blp` authoring the
