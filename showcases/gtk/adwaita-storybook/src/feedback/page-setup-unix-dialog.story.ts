@@ -67,4 +67,4 @@ export class PageSetupUnixDialogStory extends StoryWidget {
 const available = 'PageSetupUnixDialog' in Gtk;
 if (available) GObject.type_ensure(PageSetupUnixDialogStory.$gtype);
 
-export const PageSetupUnixDialogStories: StoryModule = { stories: available ? [PageSetupUnixDialogStory] : [] };
+export const PageSetupUnixDialogStories: StoryModule = { stories: [...(available ? [PageSetupUnixDialogStory] : [])] };

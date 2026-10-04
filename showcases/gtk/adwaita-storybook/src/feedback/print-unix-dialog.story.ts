@@ -90,4 +90,4 @@ export class PrintUnixDialogStory extends StoryWidget {
 const available = 'PrintUnixDialog' in Gtk;
 if (available) GObject.type_ensure(PrintUnixDialogStory.$gtype);
 
-export const PrintUnixDialogStories: StoryModule = { stories: available ? [PrintUnixDialogStory] : [] };
+export const PrintUnixDialogStories: StoryModule = { stories: [...(available ? [PrintUnixDialogStory] : [])] };
