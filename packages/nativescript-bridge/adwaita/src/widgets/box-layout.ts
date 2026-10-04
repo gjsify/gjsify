@@ -1,33 +1,27 @@
-// `Gtk.Box` for NativeScript — the pure half: the gap, and where a child lands.
+// `Gtk.Box` for NativeScript — the pure half: the tracks along the box's axis, and where a
+// child lands in the child order.
 //
-// TWO DECISIONS, AND NEITHER OF THEM IS A LAYOUT. A NativeScript `StackLayout` already
-// stacks children along an axis, which is what `GtkBox` does; what it has no word for is
-// the GAP between them (`Style` carries no `columnGap`/`rowGap`, the same absence
-// `wrap-box-layout.ts` records one widget over), and it has no notion of GTK's
-// `insert_after` child ORDER. Both are answered here so the spec suite can drive them
-// off-device — the widget module cannot even be imported there, because `extends
-// StackLayout` evaluates the bare `@nativescript/core` specifier at module eval
-// (AGENTS.md).
+// A `GtkBox` IS A ONE-AXIS GRID HERE, not a `StackLayout`: that measures every child at its
+// natural size along the axis, so it has no spare space to hand to a child that asks for it
+// (`hexpand` / `vexpand`) and no equal-share mode (`homogeneous`). A `GridLayout` has both
+// as track kinds — `*` shares whatever is left, `auto` is the natural size — and a `pixel`
+// track is the gap `Style` has no property for (`Style` carries no `columnGap`/`rowGap`, the
+// same absence `wrap-box-layout.ts` records one widget over). So the widget plans a track
+// list from its children ({@link boxTrackPlan}) and puts child `i` in track `2 * i`.
 //
-// THE GAP IS EXACT HERE AND APPROXIMATE IN THE WRAP BOX, and the difference is worth
-// stating because the two look like the same problem. `AdwWrapBox` puts HALF the spacing
-// on every edge of every child, because a wrapping run has gaps on two axes and a child
-// does not know whether it is first in its line. A `GtkBox` has one axis and one run, so
-// the gap is the LEADING margin of every child but the first — `gtk_box` spacing to the
-// pixel, with no outer inset and no cross-axis margin. That is the shape libadwaita's own
-// `border-spacing` has, and it is reachable here only because the box does not wrap.
+// WHAT IS EXACT AND WHAT IS NOT. The gap is exact: N children have N−1 gaps and the box's own
+// bounds are untouched. The spare space is shared in equal weights, which is what GTK does
+// for expanding children of equal weight; GTK also lets an expanding DESCENDANT make its
+// ancestor expand (`compute_expand`), and this does not — only a child's own flag counts, so
+// a `Gtk.Box` that holds the expanding widget must itself say `vexpand`. `homogeneous` is
+// `*` tracks for everyone, which is equal but not minimal: GTK gives every child the size of
+// the largest, and `*` gives every child an equal share of what the box was given.
 //
-// A BOX OWNS ITS CHILDREN'S MARGINS, which is the one thing a caller has to know: the
-// margin is written as NativeScript's four-value shorthand, so a margin the caller set on
-// a child is replaced rather than added to. `AdwWrapBox` makes the same trade for the same
-// reason (one write, no read-modify-write against a value NS resolves through CSS), and a
-// caller who wants an inset puts a padding on the box or a wrapper around the child.
-//
-// PHYSICAL EDGES, NOT LOGICAL ONES. NativeScript's `Style` has `marginLeft`/`marginRight`
-// and no `marginStart`/`marginEnd` — only ALIGNMENT is direction-relative there
-// (`gtk-align.ts` records that measurement) — so a horizontal box's gap sits on the LEFT
-// of each child and an RTL layout gets the gap on the wrong side of the run. Declared
-// rather than mapped: there is no property to route the logical edge to.
+// Both decisions are answered here, free of `@nativescript/core`, so the spec suite can drive
+// them off-device — the widget module cannot even be imported there, because it extends
+// `GridLayout`, which evaluates the bare `@nativescript/core` specifier at module eval
+// (AGENTS.md). The child ORDER (`gtk_widget_insert_after`'s NULL-means-first rule) is the
+// other.
 //
 // Reference: refs/gtk gtk/gtkbox.c (gtk_box_set_spacing, gtk_box_insert_child_after)
 // Copyright (c) The GTK Team. LGPLv2.1+.
@@ -49,16 +43,39 @@ export function boxSpacingChanges(current: number, next: unknown): boolean {
     return normalizeBoxSpacing(next) !== normalizeBoxSpacing(current);
 }
 
+/** One track of the box's main axis: how the `GridLayout` is told to size it. */
+export interface BoxTrack {
+    unit: 'auto' | 'star' | 'pixel';
+    value: number;
+}
+
 /**
- * The margin shorthand that gives child `index` its share of the box's gap.
+ * The tracks along a box's main axis, for children whose expand flags are `expands`.
  *
- * `top right bottom left`, NativeScript's own order. The first child gets none: with N
- * children there are N−1 gaps, and putting the gap on the LEADING edge of every child but
- * the first is the only distribution that leaves the box's own bounds untouched.
+ * Child `i` lives in track `2 * i` ({@link boxChildTrack}) and a `pixel` gap track sits
+ * between every two children, so N children have N−1 gaps and the box's own bounds are
+ * untouched. A child that expands — or every child, when `homogeneous` — gets a `*` track and
+ * the spare space is shared between them equally, which is `gtk_box_distribute_extra_space`'s
+ * rule for equal weights; every other child is `auto`, its natural size.
+ *
+ * THE GAP IS A TRACK, NOT A MARGIN. This was the leading-edge margin of every child but the
+ * first, written with `view.set('margin', …)` — which REPLACED the child's own margin on all
+ * four edges, so a `margin-top: 12` authored on a child of a box vanished the moment the box
+ * adopted it. A track leaves the child's margins alone.
  */
-export function boxChildMargin(index: number, spacing: unknown, orientation: BoxOrientation): string {
-    const gap = index <= 0 ? 0 : normalizeBoxSpacing(spacing);
-    return orientation === 'vertical' ? `${gap} 0 0 0` : `0 0 0 ${gap}`;
+export function boxTrackPlan(expands: readonly boolean[], spacing: unknown, homogeneous: boolean): BoxTrack[] {
+    const gap = normalizeBoxSpacing(spacing);
+    const tracks: BoxTrack[] = [];
+    for (const [index, expand] of expands.entries()) {
+        if (index > 0) tracks.push({ unit: 'pixel', value: gap });
+        tracks.push({ unit: homogeneous || expand ? 'star' : 'auto', value: 1 });
+    }
+    return tracks;
+}
+
+/** The track child `index` lives in — the even ones; the odd ones are the gaps. */
+export function boxChildTrack(index: number): number {
+    return index * 2;
 }
 
 /**

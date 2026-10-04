@@ -568,9 +568,6 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-stack.styleClasses': {
         own: 'The same slot, the same collision as `gtk-button.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>` the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: [...]` or `styles [...]` on a stack reaches this door; the five GIR verbs sit beside it.',
     },
-    'gtk-box.styleClasses': {
-        own: 'The same slot on the same surface as `gtk-button.styleClasses` above, and the same platform-owned collision: `GtkWidget:css-classes` is the key, `cssClasses` is the name, and `ViewBase` already owns that name as a live `Set<string>` the CSS engine rebuilds on every `className` write. The box needs the string door because an XML attribute is the only way markup can give it a `.card`; the GIR METHODS are there beside it (`add_css_class` and its four siblings), so a caller ported off GJS never has to reach for this spelling.',
-    },
     'gtk-label.styleClasses': {
         own: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
     },
@@ -895,7 +892,13 @@ const NS_METHOD_ALIGNMENT = {
         own: '`adw_alert_dialog_add_responses` is VARARGS in C, which introspection skips, so no GJS caller has a spelling of it to converge on; `add_response`, one at a time, is the introspectable verb and this port has it.',
     },
     'gtk-box.addChild': {
-        own: "`addChild` is `LayoutBase`'s, NativeScript's own entry point for a child — the XML builder calls it, and so does any NativeScript caller. The box overrides it so that every path a child can arrive by ends in one place and the gap is re-applied there (gtk-box.ts), which is the incident `adw-wrap-box.addChild` below records. `append` is the GIR verb, offered beside it.",
+        own: "`addChild` is `LayoutBase`'s, NativeScript's own entry point for a child — the XML builder calls it, and so does any NativeScript caller. The box overrides it so that every path a child can arrive by ends in one place and the tracks are re-planned there (gtk-box.ts), which is the incident `adw-wrap-box.addChild` below records. `append` is the GIR verb, offered beside it.",
+    },
+    'gtk-box.insertChild': {
+        own: CHILD_DOOR_INSERT,
+    },
+    'gtk-box.removeChild': {
+        own: CHILD_DOOR_REMOVE,
     },
     'gtk-grid.addChild': {
         own: CHILD_DOOR_ADD,
