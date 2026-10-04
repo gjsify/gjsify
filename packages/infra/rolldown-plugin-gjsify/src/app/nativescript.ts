@@ -56,6 +56,7 @@ import {
     nativescriptPlatformDefines,
 } from '../plugins/platform-resolve.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
+import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 
 export interface NativescriptBuildConfig {
     /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
@@ -196,6 +197,11 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // consumes. A `.blp` whose projection loses anything is refused at build time
         // rather than rendered partially; see `SHARED_TREE_QUERY` in the plugin.
         blueprintPlugin() as RolldownPluginOption,
+        // ADR 0079's addendum, and the `define` comment above is why it is needed here:
+        // a NativeScript app gates on the absence of `window`, but a WRITE to it is a
+        // `ReferenceError` in a strict module body, not a gate. `globalThis.window = …`
+        // holds the author's intent; the guard and the absence are untouched.
+        implicitGlobalAssignPlugin(),
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
         // @nativescript/core; .css imports are handled by the consuming
         // @nativescript/webpack or @nativescript/vite build

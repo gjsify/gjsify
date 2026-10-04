@@ -69,6 +69,40 @@ project that has the DOM package installed and references `document`.
 - Further browser-only calls in such a branch (`localStorage`, `location`) are separate gaps.
   They surface as named `ReferenceError`s.
 
+## Addendum: implicit-global creation, not `window` alone
+
+Dropping the define exposed code that was only green because the define supplied `window`.
+Excalibur 0.32.0 guards with `typeof window === "undefined"` and then writes
+`window = { audioContext() {} }`. An ES module body is strict, so the assignment to an
+undeclared binding throws a `ReferenceError`; the branch has never been able to run. On GJS and
+in a browser the guard is false and nobody notices, on Node the import dies (PixelRPG/map-editor#300).
+
+`window` still follows the runtime, and no register defines it: a default `window` on Node, Bun
+or Deno flips every `typeof window` guard, which is the @mtcute/web failure above on every server
+runtime. `--globals auto` cannot decide it either, because the analysis bundle keeps each
+isomorphic guard as a free `window` identifier, indistinguishable from a use.
+
+The defect, though, is sloppy mode's implicit-global CREATION, and `window` is only its
+best-known instance. `self = …`, `document = …` and `foo = 1` in a CommonJS file the bundler
+wrapped into a strict ES module die the same way, so the transform is named for the mechanism
+(`plugins/implicit-global-assign.ts`): every `--app` target rewrites `X = …` into
+`globalThis.X = …` when no enclosing scope binds `X`, which is the author's "no such global,
+make one" intent spelled out and valid on any runtime. The guard is untouched. A write to a
+global the runtime already has (`onerror = fn`) is legal in strict mode, so prefixing it is an
+identity — no allowlist, and nothing anywhere defines a global.
+
+Still refused, because each is a write the author means elsewhere or an operation that throws
+in sloppy mode too: a member expression on the left (`X.y = 1`), a bound name, `+=` and
+`++`/`--` (they read first), `with`, `undefined`/`NaN`/`Infinity`/`arguments`/`eval`, and a
+source the pinned parser cannot read. A destructuring target (`({ a } = obj)`) is left alone —
+it needs source ranges the binding-name extraction does not carry.
+
+On GJS and in a browser the Excalibur branch stays unreachable at runtime, but it was
+not harmless in the bundle: the `window: 'globalThis'` define rewrote the assignment TARGET, so
+the bundle carried `globalThis = {…}`. The transform prevents that.
+It only reaches bundled builds; a bare `import('excalibur')` under Node still needs the upstream
+fix.
+
 ## Alternatives considered
 
 - **Drop the define on GJS too and inject `window` from a register.** It cannot change the
