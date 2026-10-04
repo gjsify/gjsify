@@ -99,6 +99,7 @@ export const REAL_EXPECTATIONS = [
                                     id: 'sidebarToggleButton',
                                     slot: 'start',
                                     props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
+                                    bindings: { active: { source: 'splitView', property: 'show-sidebar' } },
                                 },
                                 {
                                     tag: 'GtkButton',
@@ -119,6 +120,7 @@ export const REAL_EXPECTATIONS = [
                                 'min-sidebar-width': 280,
                                 'max-sidebar-width': 400,
                             },
+                            bindings: { 'show-sidebar': { source: 'sidebarToggleButton', property: 'active' } },
                             children: [
                                 {
                                     tag: 'GtkScrolledWindow',
@@ -189,16 +191,6 @@ export const REAL_EXPECTATIONS = [
                 line: 19,
                 detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
             },
-            {
-                kind: 'binding',
-                line: 35,
-                detail: '`active: bind splitView.show-sidebar` — the property is dropped entirely, not defaulted',
-            },
-            {
-                kind: 'binding',
-                line: 49,
-                detail: '`show-sidebar: bind sidebarToggleButton.active`, the mirror of line 35',
-            },
         ],
         note: 'Line 32 writes `ToggleButton` with no namespace and this says `GtkToggleButton` — see finding 1 in the header of this file. `sidebar-width-fraction: 0.30` says `0.3` for the reason `17-numeric-forms.blp` gives.',
     },
@@ -262,6 +254,7 @@ export const REAL_EXPECTATIONS = [
                                     id: 'sidebarToggleButton',
                                     slot: 'start',
                                     props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
+                                    bindings: { active: { source: 'splitView', property: 'show-sidebar' } },
                                 },
                                 {
                                     tag: 'GtkButton',
@@ -282,6 +275,7 @@ export const REAL_EXPECTATIONS = [
                                 'min-sidebar-width': 280,
                                 'max-sidebar-width': 400,
                             },
+                            bindings: { 'show-sidebar': { source: 'sidebarToggleButton', property: 'active' } },
                             children: [
                                 {
                                     tag: 'GtkScrolledWindow',
@@ -372,12 +366,6 @@ export const REAL_EXPECTATIONS = [
                 kind: 'breakpoint',
                 line: 19,
                 detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
-            },
-            { kind: 'binding', line: 35, detail: '`active: bind splitView.show-sidebar`' },
-            {
-                kind: 'binding',
-                line: 49,
-                detail: '`show-sidebar: bind sidebarToggleButton.active`, the mirror of line 35',
             },
         ],
     },
@@ -501,6 +489,7 @@ export const REAL_EXPECTATIONS = [
                                     id: 'sidebarToggleButton',
                                     slot: 'start',
                                     props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
+                                    bindings: { active: { source: 'splitView', property: 'show-sidebar' } },
                                 },
                                 {
                                     tag: 'GtkButton',
@@ -521,6 +510,7 @@ export const REAL_EXPECTATIONS = [
                                 'min-sidebar-width': 280,
                                 'max-sidebar-width': 400,
                             },
+                            bindings: { 'show-sidebar': { source: 'sidebarToggleButton', property: 'active' } },
                             children: [
                                 {
                                     tag: 'GtkScrolledWindow',
@@ -590,12 +580,6 @@ export const REAL_EXPECTATIONS = [
                 kind: 'breakpoint',
                 line: 19,
                 detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
-            },
-            { kind: 'binding', line: 35, detail: '`active: bind splitView.show-sidebar`' },
-            {
-                kind: 'binding',
-                line: 49,
-                detail: '`show-sidebar: bind sidebarToggleButton.active`, the mirror of line 35',
             },
         ],
     },
@@ -970,6 +954,7 @@ export const REAL_EXPECTATIONS = [
                                                     id: 'sidebar_list',
                                                     props: { 'selection-mode': 'single' },
                                                     styleClasses: ['navigation-sidebar'],
+                                                    signals: [{ name: 'row-selected', handler: '_onRowSelected' }],
                                                 },
                                             ],
                                         },
@@ -1006,6 +991,7 @@ export const REAL_EXPECTATIONS = [
                                                         'tooltip-text': 'Toggle Controls',
                                                         active: true,
                                                     },
+                                                    signals: [{ name: 'toggled', handler: '_onToggleControls' }],
                                                 },
                                                 {
                                                     tag: 'GtkButton',
@@ -1014,6 +1000,7 @@ export const REAL_EXPECTATIONS = [
                                                         'icon-name': 'applications-graphics-symbolic',
                                                         'tooltip-text': 'Appearance',
                                                     },
+                                                    signals: [{ name: 'clicked', handler: '_onAppearanceClicked' }],
                                                 },
                                             ],
                                         },
@@ -1075,13 +1062,6 @@ export const REAL_EXPECTATIONS = [
                 line: 4,
                 detail: '17 comment lines across seven blocks, none reaching either exit',
             },
-            {
-                kind: 'signal',
-                line: 46,
-                detail: 'the bare handler binding `row-selected => $_onRowSelected()`',
-            },
-            { kind: 'signal', line: 76, detail: 'the bare handler binding `toggled => $_onToggleControls()`' },
-            { kind: 'signal', line: 86, detail: 'the bare handler binding `clicked => $_onAppearanceClicked()`' },
             {
                 kind: 'breakpoint',
                 line: 134,

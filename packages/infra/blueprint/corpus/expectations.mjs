@@ -82,11 +82,10 @@
  * what a corpus written per LANGUAGE RULE rather than per real file turns up, which is
  * the point of having one.
  *
- * `extern` is the odd one and worth reading twice: it is the only kind where the projection
- * keeps the TEXT and loses the meaning. `SharedNode.tag` is a GIR class name, which is what a
- * renderer looks up; `$MyWidget` is a class the application registers at runtime and is in no
- * GIR, so the tag is spelled exactly right and resolves to nothing. Declared here rather than
- * discovered as a missing widget.
+ * `extern` left this list under ADR 0093: `$MyWidget` is a class the application registers at
+ * runtime and is in no GIR, so the tag is spelled exactly right and resolves to nothing in a
+ * toolkit. The node carries `extern: true` and each renderer answers for the class in its own
+ * registry, instead of the file being a loss everywhere.
  *
  * `template` and `object-id` were on this list until ADR 0066 gave each a field on the node.
  * They are the two GtkBuilder ADDRESSING constructs, and dropping them is what kept every
@@ -106,7 +105,7 @@
  *
  * @typedef {'signal'|'binding'|'breakpoint'
  *          |'menu'|'layout'|'accessibility'|'comment'|'value-list'
- *          |'sibling-object'|'extern'} LossKind
+ *          |'sibling-object'} LossKind
  */
 
 /**
@@ -234,18 +233,22 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkBox',
             children: [
                 { tag: 'GtkLabel', id: 'labelOne' },
-                { tag: 'GtkButton', props: { label: 'press' } },
+                {
+                    tag: 'GtkButton',
+                    props: { label: 'press' },
+                    signals: [
+                        { name: 'clicked', handler: 'onClicked' },
+                        { name: 'activate', handler: 'onActivate', flags: ['swapped'] },
+                        { name: 'map', handler: 'onMap', flags: ['after'] },
+                        { name: 'realize', handler: 'onRealize', object: 'labelOne' },
+                        { name: 'unrealize', handler: 'onUnrealize', object: 'labelOne', flags: ['not-swapped'] },
+                        { name: 'notify', detail: 'sensitive', handler: 'onSensitive' },
+                    ],
+                },
             ],
         },
-        lost: [
-            { kind: 'signal', line: 9, detail: 'the bare handler binding `clicked => $onClicked()`' },
-            { kind: 'signal', line: 10, detail: '`swapped`' },
-            { kind: 'signal', line: 11, detail: '`after`' },
-            { kind: 'signal', line: 12, detail: 'a handler with an object, `$onRealize(labelOne)`' },
-            { kind: 'signal', line: 13, detail: 'an object and `not-swapped`' },
-            { kind: 'signal', line: 14, detail: 'a detailed signal, `notify::sensitive`' },
-        ],
-        note: 'Six spellings of one construct and one loss kind: `SharedNode` has no signal, so the flags, the object and the detail are dropped with the handler. The XML tells them apart — the flags are Python booleans, `swapped="True"` and `swapped="False"`, and `after` appears only when set — which is what `11-signal.ui` pins.',
+        lost: [],
+        note: 'Six spellings of one construct, all carried since ADR 0093: the flags, the object and the detail travel with the handler name. The XML tells them apart — the flags are Python booleans, `swapped="True"` and `swapped="False"`, and `after` appears only when set — which is what `11-signal.ui` pins.',
     },
     {
         file: '12-menu.blp',
@@ -265,21 +268,25 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkBox',
             children: [
                 { tag: 'GtkSwitch', id: 'switchOne' },
-                { tag: 'GtkLabel', props: { label: 'bound visibility' } },
+                {
+                    tag: 'GtkLabel',
+                    props: { label: 'bound visibility' },
+                    bindings: {
+                        visible: { source: 'switchOne', property: 'active' },
+                        sensitive: { source: 'switchOne', property: 'active', flags: ['inverted'] },
+                        'can-focus': { source: 'switchOne', property: 'active', flags: ['bidirectional'] },
+                        focusable: { source: 'switchOne', property: 'active', flags: ['no-sync-create'] },
+                        'has-tooltip': {
+                            source: 'switchOne',
+                            property: 'active',
+                            flags: ['no-sync-create', 'bidirectional', 'inverted'],
+                        },
+                    },
+                },
             ],
         },
-        lost: [
-            {
-                kind: 'binding',
-                line: 8,
-                detail: '`visible: bind switchOne.active` — the property is dropped entirely, not defaulted',
-            },
-            { kind: 'binding', line: 9, detail: '`inverted`' },
-            { kind: 'binding', line: 10, detail: '`bidirectional`' },
-            { kind: 'binding', line: 11, detail: '`no-sync-create`' },
-            { kind: 'binding', line: 12, detail: 'all three flags, written in an order the XML does not keep' },
-        ],
-        note: 'Dropping the property rather than guessing a value is the point: a projected `visible: true` would be a fact the source never stated. The flags go with it; the XML is where they show, and `13-binding.ui` pins that the compiler writes its own order and its own default.',
+        lost: [],
+        note: 'Carried since ADR 0093: the target property is a key of `bindings`, not a prop, so a projected `visible: true` is never invented. The flags travel in the order the source wrote them; the XML is where the compiler writes its own order and its own default, which `13-binding.ui` pins.',
     },
     {
         file: '14-breakpoint.blp',
@@ -486,6 +493,7 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkButton',
             props: { label: 'on one line', 'margin-top': 4, 'margin-bottom': 4 },
             styleClasses: ['flat'],
+            signals: [{ name: 'clicked', handler: 'onClicked' }],
             children: [{ tag: 'GtkLabel' }],
         },
         lost: [
@@ -494,13 +502,8 @@ export const RULE_EXPECTATIONS = [
                 line: 3,
                 detail: 'the whole `menu oneLineMenu { }`, whose submenu writes an item and an attribute on one line',
             },
-            {
-                kind: 'signal',
-                line: 10,
-                detail: 'the handler binding `clicked => $onClicked()`, which shares its line with the property beside it',
-            },
         ],
-        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no signal and no menu, so the projection still sees only a fraction of what this file pins — but the style block on line 12 now lands in `styleClasses`, which is what makes the one-line `styles ["flat"] margin-bottom: 4;` a case the projection reads rather than skips.',
+        note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no menu, so the projection still sees only a fraction of what this file pins — but the style block on line 12 now lands in `styleClasses`, which is what makes the one-line `styles ["flat"] margin-bottom: 4;` a case the projection reads rather than skips.',
     },
     {
         file: '27-property-flags.blp',
@@ -540,16 +543,21 @@ export const RULE_EXPECTATIONS = [
                 {
                     tag: 'GtkBox',
                     slot: 'child',
-                    children: [{ tag: 'GtkLabel', props: { 'mnemonic-widget': 'template' } }, { tag: 'GtkButton' }],
+                    children: [
+                        {
+                            tag: 'GtkLabel',
+                            props: { 'mnemonic-widget': 'template' },
+                            bindings: { visible: { source: 'template', property: 'sensitive' } },
+                        },
+                        { tag: 'GtkButton', signals: [{ name: 'clicked', handler: 'onClicked', object: 'template' }] },
+                    ],
                 },
             ],
         },
         lost: [
-            { kind: 'binding', line: 11, detail: '`bind template.sensitive`' },
-            { kind: 'signal', line: 15, detail: '`$onClicked(template)`' },
             { kind: 'breakpoint', line: 20, detail: 'the whole `[breakpoint]` child, whose setter targets `template`' },
         ],
-        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other three references go with the constructs that carry them.',
+        note: '`mnemonic-widget: template` projects as the literal word `template`: it is an id reference (finding 3 in the header), and the id it refers to is the first thing this file loses, so the XML resolves it to `CorpusSelf` and the projection cannot. The other two references go with the constructs that carry them.',
     },
     {
         file: '31-responses.blp',
@@ -571,31 +579,20 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'AdwToolbarView',
             children: [
-                { tag: 'GalleryHeaderBar', slot: 'top' },
+                { tag: 'GalleryHeaderBar', extern: true, slot: 'top' },
                 {
                     tag: 'GalleryToolbarView',
+                    extern: true,
                     id: 'pane',
                     slot: 'content',
                     children: [
                         { tag: 'GtkLabel', props: { label: 'a real child of an extern parent' } },
-                        { tag: 'NsInner' },
+                        { tag: 'NsInner', extern: true },
                     ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'extern',
-                line: 6,
-                detail: '`$GalleryHeaderBar` is not a GIR class, so the tag resolves to nothing',
-            },
-            { kind: 'extern', line: 9, detail: '`$GalleryToolbarView` likewise, in the property-valued position' },
-            {
-                kind: 'extern',
-                line: 14,
-                detail: '`$Ns.Inner`, whose tag `NsInner` is a concatenation and not a C prefix',
-            },
-        ],
+        lost: [],
         note: 'The three extern tags are spelled exactly as the XML spells them and none of them is resolvable — which is the whole content of the `extern` loss. The `GtkLabel` between them shows that a real subtree under an extern parent projects normally.',
     },
     {
@@ -608,43 +605,39 @@ export const RULE_EXPECTATIONS = [
                     tag: 'GtkBox',
                     props: { orientation: 'vertical' },
                     children: [
-                        { tag: 'GtkBox', id: 'lookalike', props: { orientation: 'vertical' } },
+                        { tag: 'GtkBox', extern: true, id: 'lookalike', props: { orientation: 'vertical' } },
                         { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
                     ],
                 },
             ],
         },
-        lost: [
-            { kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' },
-            { kind: 'extern', line: 20, detail: '`$GtkBox`, an extern class that SPELLS a GIR one' },
-        ],
+        lost: [{ kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' }],
         note: 'All three `orientation` props project as the string `vertical`, because an enum member keeps its source spelling on this exit whatever it sits on — so the projection is where this file says NOTHING and the `.ui` golden is where it bites: two of those three lines emit `1` and the extern one emits `vertical`.',
     },
     {
         file: '34-extern-template-parent.blp',
-        node: { tag: 'CorpusExternBase', template: 'CorpusExternChild', props: { orientation: 'vertical' } },
-        lost: [
-            {
-                kind: 'extern',
-                line: 3,
-                detail: 'the parent `$CorpusExternBase`, which becomes the root tag and is no GIR class',
-            },
-        ],
+        node: {
+            tag: 'CorpusExternBase',
+            extern: true,
+            template: 'CorpusExternChild',
+            props: { orientation: 'vertical' },
+        },
+        lost: [],
         note: 'The parent is what survives as the tag — the rule `08-template.blp` already pins — and here the survivor is extern too, so the one node this file projects carries a tag nothing can look up.',
     },
     {
         file: '35-extern-real-class.blp',
         node: {
             tag: 'GtkListView',
-            children: [{ tag: 'GtkNoSelection', slot: 'model', children: [{ tag: 'GListStore', slot: 'model' }] }],
+            children: [
+                {
+                    tag: 'GtkNoSelection',
+                    slot: 'model',
+                    children: [{ tag: 'GListStore', extern: true, slot: 'model' }],
+                },
+            ],
         },
-        lost: [
-            {
-                kind: 'extern',
-                line: 5,
-                detail: '`$GListStore` — a tag that IS resolvable, and still extern, because nothing in it was read',
-            },
-        ],
+        lost: [],
         note: 'The other `extern` rules project a tag nothing can look up; this one projects a tag GtkBuilder resolves, and the loss is declared all the same. That is the kind at its widest: `extern` says the projection READ nothing inside the object, never that the tag is unknown — and a consumer that treated the loss as "unresolvable tag" would be wrong on exactly this file.',
     },
 
@@ -732,9 +725,12 @@ export const RULE_EXPECTATIONS = [
             tag: 'GtkBox',
             children: [
                 { tag: 'GtkLabel', id: 'labelOne' },
-                { tag: 'GtkLabel' },
-                { tag: 'GtkLabel' },
-                { tag: 'GtkLabel' },
+                { tag: 'GtkLabel', bindings: { label: { source: 'labelOne', property: 'label' } } },
+                { tag: 'GtkLabel', bindings: { label: { source: 'labelOne', property: 'label' } } },
+                {
+                    tag: 'GtkLabel',
+                    bindings: { label: { source: 'labelOne', property: 'label', flags: ['bidirectional'] } },
+                },
                 { tag: 'GtkLabel' },
                 { tag: 'GtkLabel' },
                 { tag: 'GtkLabel' },
@@ -742,13 +738,10 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [
-            { kind: 'binding', line: 8, detail: 'the collapsed shape — `bind labelOne.label`' },
-            { kind: 'binding', line: 12, detail: 'still collapsed under one cast' },
-            { kind: 'binding', line: 16, detail: 'still collapsed with a flag beside the cast' },
-            { kind: 'binding', line: 20, detail: 'a parenthesis, and the shape changes' },
-            { kind: 'binding', line: 24, detail: 'the parenthesis around the IDENT rather than the lookup' },
-            { kind: 'binding', line: 28, detail: 'a cast between the identifier and the dot' },
-            { kind: 'binding', line: 32, detail: 'two casts, which is one too many to collapse' },
+            { kind: 'binding-expression', line: 20, detail: 'a parenthesis, and the shape changes' },
+            { kind: 'binding-expression', line: 24, detail: 'the parenthesis around the IDENT rather than the lookup' },
+            { kind: 'binding-expression', line: 28, detail: 'a cast between the identifier and the dot' },
+            { kind: 'binding-expression', line: 32, detail: 'two casts, which is one too many to collapse' },
         ],
         note: 'Eight children and not one property between them: the projection drops a binding whole, so all seven shapes this file exists to distinguish project IDENTICALLY. That is the point of writing it out — the `.ui` golden is the only exit where the seven differ, and a reader who trusted the tree would conclude the file says one thing seven times.',
     },
@@ -759,15 +752,14 @@ export const RULE_EXPECTATIONS = [
             template: 'CorpusExpressionLookup',
             children: [
                 { tag: 'GtkOverlay', children: [{ tag: 'GtkLabel', id: 'labelOne' }] },
-                { tag: 'CorpusLookupTarget', id: 'externOne' },
+                { tag: 'CorpusLookupTarget', extern: true, id: 'externOne' },
                 { tag: 'GtkLabel' },
             ],
         },
         lost: [
-            { kind: 'extern', line: 9, detail: '`$CorpusLookupTarget`, a class no GIR describes' },
-            { kind: 'binding', line: 13, detail: 'a three-step lookup, each step cast' },
-            { kind: 'binding', line: 14, detail: 'a lookup on `template`, cast to an extern type' },
-            { kind: 'binding', line: 15, detail: 'a lookup on an extern-typed object' },
+            { kind: 'binding-expression', line: 13, detail: 'a three-step lookup, each step cast' },
+            { kind: 'binding-expression', line: 14, detail: 'a lookup on `template`, cast to an extern type' },
+            { kind: 'binding-expression', line: 15, detail: 'a lookup on an extern-typed object' },
         ],
         note: 'The tag of the extern child is `CorpusLookupTarget` and the `<lookup type=…>` for line 15 is the same string — one spelling, two exits. What the tree cannot show is that the XML needed a SECOND id index to get there: the emitter keeps `idTypes` at `null` for an extern object so no identifier inside it is resolved, and the lookup position needs the name anyway.',
     },
@@ -783,15 +775,15 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [
-            { kind: 'binding', line: 8, detail: 'a closure with no arguments' },
-            { kind: 'binding', line: 9, detail: 'four literal arguments, one of each kind' },
-            { kind: 'binding', line: 10, detail: 'a closure as an argument of a closure' },
-            { kind: 'binding', line: 14, detail: 'an object id as an argument' },
-            { kind: 'binding', line: 15, detail: 'the same id under a cast, which the XML drops' },
-            { kind: 'binding', line: 16, detail: '`null`, bare and cast' },
-            { kind: 'binding', line: 20, detail: 'a translated argument, with and without a context' },
-            { kind: 'binding', line: 21, detail: 'a lookup as an argument' },
-            { kind: 'binding', line: 22, detail: 'a lookup ON a closure' },
+            { kind: 'binding-expression', line: 8, detail: 'a closure with no arguments' },
+            { kind: 'binding-expression', line: 9, detail: 'four literal arguments, one of each kind' },
+            { kind: 'binding-expression', line: 10, detail: 'a closure as an argument of a closure' },
+            { kind: 'binding-expression', line: 14, detail: 'an object id as an argument' },
+            { kind: 'binding-expression', line: 15, detail: 'the same id under a cast, which the XML drops' },
+            { kind: 'binding-expression', line: 16, detail: '`null`, bare and cast' },
+            { kind: 'binding-expression', line: 20, detail: 'a translated argument, with and without a context' },
+            { kind: 'binding-expression', line: 21, detail: 'a lookup as an argument' },
+            { kind: 'binding-expression', line: 22, detail: 'a lookup ON a closure' },
         ],
         note: 'Nine bindings, nine losses, and the tree says nothing about any of them — including that line 20 carries two translatable strings. `09-translatable.blp` makes the same point about a property; here the marking is on an argument three levels into an expression and reaches the XML unchanged, which is what having ONE `StringValue` for both positions buys.',
     },
@@ -799,7 +791,7 @@ export const RULE_EXPECTATIONS = [
         file: '45-expression-property.blp',
         node: { tag: 'GtkBoolFilter', id: 'filterOne' },
         lost: [
-            { kind: 'binding', line: 4, detail: '`expr true` — an expression as a property VALUE' },
+            { kind: 'binding-expression', line: 4, detail: '`expr true` — an expression as a property VALUE' },
             { kind: 'sibling-object', line: 7, detail: 'the parenthesised `item` cast' },
             { kind: 'sibling-object', line: 11, detail: 'the same thing without the parentheses' },
             { kind: 'sibling-object', line: 15, detail: '`item` inside a closure argument' },
@@ -821,24 +813,28 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [
-            { kind: 'binding', line: 5, detail: '`as <string>`' },
-            { kind: 'binding', line: 6, detail: '`as <bool>`' },
-            { kind: 'binding', line: 7, detail: '`as <int>`' },
-            { kind: 'binding', line: 11, detail: '`as <uint>`' },
-            { kind: 'binding', line: 12, detail: '`as <long>`' },
-            { kind: 'binding', line: 13, detail: '`as <ulong>`' },
-            { kind: 'binding', line: 17, detail: '`as <int64>`' },
-            { kind: 'binding', line: 18, detail: '`as <uint64>`' },
-            { kind: 'binding', line: 19, detail: '`as <float>`' },
-            { kind: 'binding', line: 23, detail: '`as <double>`, the row that decides the table is hand-written' },
-            { kind: 'binding', line: 24, detail: '`as <char>`' },
-            { kind: 'binding', line: 25, detail: '`as <uchar>`' },
-            { kind: 'binding', line: 29, detail: 'a qualified GIR type' },
-            { kind: 'binding', line: 30, detail: 'an unqualified one, which is Gtk and nothing else' },
-            { kind: 'binding', line: 31, detail: 'an extern type' },
-            { kind: 'binding', line: 35, detail: 'a cast on a string literal' },
-            { kind: 'binding', line: 36, detail: 'a cast on a fractional literal' },
-            { kind: 'binding', line: 37, detail: 'a cast on an integer literal' },
+            { kind: 'binding-expression', line: 5, detail: '`as <string>`' },
+            { kind: 'binding-expression', line: 6, detail: '`as <bool>`' },
+            { kind: 'binding-expression', line: 7, detail: '`as <int>`' },
+            { kind: 'binding-expression', line: 11, detail: '`as <uint>`' },
+            { kind: 'binding-expression', line: 12, detail: '`as <long>`' },
+            { kind: 'binding-expression', line: 13, detail: '`as <ulong>`' },
+            { kind: 'binding-expression', line: 17, detail: '`as <int64>`' },
+            { kind: 'binding-expression', line: 18, detail: '`as <uint64>`' },
+            { kind: 'binding-expression', line: 19, detail: '`as <float>`' },
+            {
+                kind: 'binding-expression',
+                line: 23,
+                detail: '`as <double>`, the row that decides the table is hand-written',
+            },
+            { kind: 'binding-expression', line: 24, detail: '`as <char>`' },
+            { kind: 'binding-expression', line: 25, detail: '`as <uchar>`' },
+            { kind: 'binding-expression', line: 29, detail: 'a qualified GIR type' },
+            { kind: 'binding-expression', line: 30, detail: 'an unqualified one, which is Gtk and nothing else' },
+            { kind: 'binding-expression', line: 31, detail: 'an extern type' },
+            { kind: 'binding-expression', line: 35, detail: 'a cast on a string literal' },
+            { kind: 'binding-expression', line: 36, detail: 'a cast on a fractional literal' },
+            { kind: 'binding-expression', line: 37, detail: 'a cast on an integer literal' },
         ],
         note: 'Eighteen losses and one tag repeated six times. The whole of `src/builtin-types.mjs` is measured by the golden beside this file and by nothing else — which is the shape of every table in this package: the projection cannot see a type it does not carry.',
     },
@@ -858,8 +854,8 @@ export const RULE_EXPECTATIONS = [
             children: [{ tag: 'GtkLabel', id: 'labelOne' }, { tag: 'GtkLabel' }, { tag: 'GtkLabel' }],
         },
         lost: [
-            { kind: 'binding', line: 8, detail: 'three arms — a lookup, a cast closure and a literal' },
-            { kind: 'binding', line: 12, detail: 'one arm and a trailing comma' },
+            { kind: 'binding-expression', line: 8, detail: 'three arms — a lookup, a cast closure and a literal' },
+            { kind: 'binding-expression', line: 12, detail: 'one arm and a trailing comma' },
         ],
         note: 'A `try` is a binding to this exit like any other, so the fallback chain — the entire reason the construct exists — is dropped with it. The trailing comma on line 12 is invisible in both exits; it is in the file because a grammar that accepts one and a grammar that does not are two grammars, and only a file says which this is.',
     },
@@ -885,17 +881,12 @@ export const RULE_EXPECTATIONS = [
         file: '50-template-orphan.blp',
         node: {
             tag: 'CorpusOrphan',
+            extern: true,
             template: 'CorpusOrphan',
             props: { visible: true },
             children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'no parent, so no vocabulary' } }],
         },
-        lost: [
-            {
-                kind: 'extern',
-                line: 3,
-                detail: 'the root tag is the template class itself, which no GIR describes — a parentless template IS the extern case',
-            },
-        ],
+        lost: [],
         note: 'Where `08-template.blp` keeps the PARENT as the root tag beside its `template`, this file has no parent to keep, so the class it declares is BOTH — `tag` and `template` say the same word, and the tag is extern, which is the one loss left. That equality is the assertion: the two fields are not a duplicate, they coincide exactly when the file names no parent. `visible` reaches this exit as `true` rather than resolved, for the same reason it reaches the XML as the string `true`: there is no owner type to resolve it through.',
     },
     {
@@ -984,7 +975,7 @@ export const RULE_EXPECTATIONS = [
     {
         file: '55-template-type-name.blp',
         node: { tag: 'GtkListItem', template: 'GtkListItem', children: [{ tag: 'GtkLabel', slot: 'child' }] },
-        lost: [{ kind: 'binding', line: 5, detail: 'the lookup through `template`' }],
+        lost: [{ kind: 'binding-expression', line: 5, detail: 'the lookup through `template`' }],
         note: 'NO extern loss, where `50-template-orphan.blp` takes one. Both are parentless and both have `tag` and `template` saying one word; this one names a real TYPE, so that word is its GType and nothing is extern. The pair is the assertion — a single file could not show that the loss depends on which spelling the file used, and it is also what pins `template` to the `<template class=…>` bytes rather than to the source spelling `ListItem`. The BINDING is here for a different reason: `template` inside resolves to the class, and reading the spelling there while the `<template>` tag reads the GType is what made this exact file silently different — `<template class="GtkListItem">` beside `<lookup … type="ListItem">`, a class GtkBuilder cannot find.',
     },
     {
@@ -1012,35 +1003,37 @@ export const RULE_EXPECTATIONS = [
             children: [
                 {
                     tag: 'CorpusExternBlocks',
+                    extern: true,
                     id: 'probe',
                     props: { orientation: 'vertical' },
                     styleClasses: ['palette', 'dim-label'],
                     layout: { column: 1, row: 2 },
+                    signals: [
+                        { name: 'clicked', handler: 'onExternClicked' },
+                        { name: 'notify', detail: 'active', handler: 'onExternNotify', flags: ['swapped'] },
+                    ],
                 },
                 { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
             ],
         },
-        lost: [
-            { kind: 'extern', line: 4, detail: '`$CorpusExternBlocks` — the projection read nothing inside it' },
-            { kind: 'signal', line: 19, detail: '`clicked`' },
-            { kind: 'signal', line: 20, detail: '`notify::active`, and that it is `swapped`' },
-            { kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' },
-        ],
+        lost: [{ kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' }],
         note: 'What this exit shows and the golden does not: `styleClasses` and `props` survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1`. The losses are the ones their own rule files take (`11-signal`, `20-accessibility`; `19-layout` is carried since ADR 0092) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one. The `extern` loss sits at the OBJECT and the other four at their blocks, so a reader can tell which is the tag and which is the content.',
     },
     {
         file: '58-extern-composition.blp',
         node: {
             tag: 'CorpusExternBase',
+            extern: true,
             template: 'CorpusExternView',
             children: [
                 {
                     tag: 'GtkOverlay',
                     slot: 'content',
                     children: [
-                        { tag: 'CorpusExternCanvas', id: 'canvas', slot: 'child' },
+                        { tag: 'CorpusExternCanvas', extern: true, id: 'canvas', slot: 'child' },
                         {
                             tag: 'CorpusExternFab',
+                            extern: true,
                             id: 'fab',
                             slot: 'overlay',
                             props: { halign: 'end' },
@@ -1048,15 +1041,10 @@ export const RULE_EXPECTATIONS = [
                         },
                     ],
                 },
-                { tag: 'CorpusExternInspector', id: 'inspector', slot: 'sidebar' },
+                { tag: 'CorpusExternInspector', extern: true, id: 'inspector', slot: 'sidebar' },
             ],
         },
-        lost: [
-            { kind: 'extern', line: 3, detail: 'the PARENT `$CorpusExternBase`, which is what becomes the root tag' },
-            { kind: 'extern', line: 5, detail: '`$CorpusExternCanvas` in a `child:` property' },
-            { kind: 'extern', line: 8, detail: '`$CorpusExternFab` under an `[overlay]` bracket' },
-            { kind: 'extern', line: 15, detail: '`$CorpusExternInspector` in a second named property' },
-        ],
+        lost: [],
         note: 'Four extern tags, every one spelled as the XML spells it, and the tree between them is whole — `slot` is `content`, `child`, `overlay` and `sidebar`, read the same way whether the object under it is extern or not. That is the projection decision this file pins: `extern` is a LOSS and not a refusal, so the shape still comes out, and ADR 0070 is what refuses to hand it to a renderer. The `GtkOverlay` in the middle is the one real class, and it carries two extern children without either of them changing how it projects.',
     },
 ];

@@ -17,7 +17,9 @@
 // caller who forgot to register anything ELSE materialisation needs. The CALLER owns it,
 // exactly as every `*.spec.ts` in this package already does before touching `createElement`.
 
-import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+
+import { capabilities } from '../capabilities.js';
 
 import { createElement, insert, materialize, setProp } from '../host.js';
 import type { HostElement } from '../types.js';
@@ -46,25 +48,14 @@ import type { HostElement } from '../types.js';
  * bar's own construction, at exit 0.
  */
 export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = []): HostElement {
-    // ADR 0072: a string list's items and a dialog's responses have no door in this host yet —
-    // `createElement` builds widgets, and a `Gtk.StringList` is not one. Refused rather than
-    // dropped, because an empty list model or a dialog with no buttons both look finished. A GTK
-    // application loads the `.blp` through `Gtk.Builder`, which fills both itself.
-    if (node.extensions !== undefined) {
-        throw new Error(
-            `gtk-host's shared-tree builder has no door for \`${node.tag}\`'s ` +
-                `${Object.keys(node.extensions).join(' and ')} (ADR 0072); load the .blp through Gtk.Builder instead.`,
-        );
-    }
-    // ADR 0092: `layout` is a property of the child's layout-manager child object, which this
-    // host's `createElement`/`insert` have no door for. Refused rather than dropped, since a grid
-    // child with no cell collapses onto the first one at exit 0.
-    if (node.layout !== undefined) {
-        throw new Error(
-            `gtk-host's shared-tree builder has no door for \`${node.tag}\`'s layout ` +
-                `(${Object.keys(node.layout).join(', ')}; ADR 0092); load the .blp through Gtk.Builder instead.`,
-        );
-    }
+    // ADR 0093 § 2: the table is checked for the WHOLE tree before anything is created, so a
+    // refusal never leaves a half-built tree. A refused `layout`, `strings` or `responses` stays
+    // refused for the reasons `./capabilities.ts` gives.
+    assertTreeConstructs('gtk-host', capabilities, node);
+    return buildNode(node, built);
+}
+
+function buildNode(node: SharedTreeNode, built: HostElement[]): HostElement {
     const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
     built.push(el);
     // Before the children: `insert` parents a REALISED widget, and a construct-only
@@ -74,7 +65,7 @@ export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = [])
     // — correct, and it would place the child twice, the first time in the wrong slot.
     if (node.slot !== undefined) setProp(el, 'slot', node.slot);
     for (const child of node.children ?? []) {
-        const childEl = buildSharedTree(child, built);
+        const childEl = buildNode(child, built);
         if (child.page !== undefined) setPageLayout(el, childEl, child);
         insert(childEl, el);
     }

@@ -15,6 +15,7 @@ import {
     sidecarPathFor,
 } from '@gjsify/blueprint';
 import { emitFormatForTree } from '@gjsify/blueprint/oxfmt';
+import { pathToFileURL } from 'node:url';
 import minifyXML from 'minify-xml';
 import { type Plugin } from 'vite';
 
@@ -43,9 +44,10 @@ export interface BlueprintPluginOptions {
 // the file fine and the projection hands back a tree plus the list of what it cost; deciding
 // that such a tree may not reach a renderer is this plugin's decision, taken at the seam where
 // a build target is known. So it is declared where it is thrown.
-export { BlueprintProjectionError } from './projection-error.js';
+export { BlueprintProjectionError, RendererRefusalError } from './projection-error.js';
+export type { RefusedUse } from './projection-error.js';
 
-import { BlueprintProjectionError } from './projection-error.js';
+import { BlueprintProjectionError, RendererRefusalError } from './projection-error.js';
 
 /**
  * The five seams `@gjsify/blueprint`'s emitter reaches introspection through, answered by that
@@ -97,6 +99,13 @@ const SEAMS: Required<EmitOptions> = Object.freeze({
  */
 const SHARED_TREE_PARAM = 'shared-tree';
 
+/**
+ * `for=<renderer>` names the renderer an import is checked against (ADR 0093 § 2), by the
+ * package name without `@gjsify/`: `./x.blp?shared-tree&for=adwaita-web`. It is chosen at the
+ * import site for ADR 0070 § 1's reason — a target does not determine a renderer.
+ */
+const RENDERER_PARAM = 'for';
+
 /** The specifier an import site writes: `./x.blp?shared-tree`. */
 export const SHARED_TREE_QUERY = `?${SHARED_TREE_PARAM}`;
 
@@ -112,12 +121,14 @@ export const SHARED_TREE_QUERY = `?${SHARED_TREE_PARAM}`;
  * Blueprint source would reach whatever loader runs next. Rolldown, which is what this repo
  * builds with, appends nothing, so the repo's own builds never show it.
  */
-function readId(id: string): { file: string; sharedTree: boolean } | undefined {
+function readId(id: string): { file: string; sharedTree: boolean; renderer?: string } | undefined {
     const queryAt = id.indexOf('?');
     const file = queryAt === -1 ? id : id.slice(0, queryAt);
     if (!file.endsWith('.blp')) return undefined;
     if (queryAt === -1) return { file, sharedTree: false };
-    return { file, sharedTree: new URLSearchParams(id.slice(queryAt + 1)).has(SHARED_TREE_PARAM) };
+    const params = new URLSearchParams(id.slice(queryAt + 1));
+    const renderer = params.get(RENDERER_PARAM) ?? undefined;
+    return { file, sharedTree: params.has(SHARED_TREE_PARAM), ...(renderer === undefined ? {} : { renderer }) };
 }
 
 /**
@@ -169,6 +180,40 @@ const formatFor = (dir: string): ReturnType<typeof emitFormatForTree> => {
     formatCache.set(dir, format);
     return format;
 };
+
+/** A renderer's `./capabilities` export: every construct kind, `implemented` or a reason. */
+type Capabilities = Readonly<Record<string, 'implemented' | { readonly refused: string }>>;
+
+/**
+ * Intersect the constructs a file uses with the table of the renderer it is imported for, and
+ * throw {@link RendererRefusalError} for each one that renderer refuses (ADR 0093 § 2).
+ *
+ * The table is resolved from the `.blp`'s own location, so the renderer found is the one the
+ * project depends on, and read as pure data: `./capabilities` never reaches the renderer's
+ * runtime. A name that resolves to nothing, or a table with no row for a used kind, is an error
+ * and not permission.
+ */
+async function refuseForRenderer(
+    context: { resolve(source: string, importer: string, options: { skipSelf: true }): Promise<{ id: string } | null> },
+    file: string,
+    renderer: string,
+    uses: readonly { kind: string; line: number }[],
+): Promise<void> {
+    const specifier = `@gjsify/${renderer}/capabilities`;
+    const resolved = await context.resolve(specifier, file, { skipSelf: true });
+    if (resolved === null) {
+        throw new Error(`${file}: \`for=${renderer}\` names no renderer — ${specifier} does not resolve from here.`);
+    }
+    const { capabilities } = (await import(pathToFileURL(resolved.id).href)) as { capabilities: Capabilities };
+    const refused = uses.flatMap((use) => {
+        const capability = capabilities[use.kind];
+        if (capability === undefined) {
+            throw new Error(`${specifier} declares no row for the construct '${use.kind}'.`);
+        }
+        return capability === 'implemented' ? [] : [{ ...use, reason: capability.refused }];
+    });
+    if (refused.length > 0) throw new RendererRefusalError(file, renderer, refused);
+}
 
 export default function blueprintPlugin(options: BlueprintPluginOptions = {}): Plugin {
     const { minify = false, verbose = false, sidecars = true } = options;
@@ -223,8 +268,9 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
                 // So the build stops here, with the file, the line and the kind of every loss —
                 // a porting task a reader can open, not a warning scrolled past. `minify` does
                 // not apply: it is an XML setting and this exit emits none.
-                const { node, lost } = projectToSharedNode(ast, { gtypeName });
+                const { node, lost, uses } = projectToSharedNode(ast, { gtypeName });
                 if (lost.length > 0) throw new BlueprintProjectionError(asked.file, lost);
+                if (asked.renderer !== undefined) await refuseForRenderer(this, asked.file, asked.renderer, uses);
                 if (verbose) console.log(`Projected ${asked.file} (@gjsify/blueprint)`);
                 return `export default ${JSON.stringify(node)};`;
             }

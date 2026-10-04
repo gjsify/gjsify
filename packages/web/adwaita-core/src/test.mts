@@ -1,6 +1,7 @@
 import { run } from '@gjsify/unit';
 
 import sharedTreesTestSuite from './shared-trees.spec.js';
+import constructsTestSuite from './constructs.spec.js';
 import viewStackTestSuite from './view-stack.spec.js';
 import navigationViewTestSuite from './navigation-view.spec.js';
 import sidebarTestSuite from './sidebar.spec.js';
@@ -55,6 +56,7 @@ import sourceTestSuite from './source.spec.js';
 
 run({
     sharedTreesTestSuite,
+    constructsTestSuite,
     aboutDialogTestSuite,
     adjustmentTestSuite,
     gtkAdjustmentTestSuite,

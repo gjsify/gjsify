@@ -82,6 +82,7 @@ export type { AdwUndershootEdges } from './scroll-shading.js';
 // for why `mountSharedTree` and not `buildSharedTree` alone is the instantiation half.
 export { buildSharedTree, mountSharedTree } from './shared-tree-builder.js';
 export type { MountedSharedTree } from './shared-tree-builder.js';
+export { registerTemplateClass } from './template-classes.js';
 
 // The stylesheet compiles a chosen SUBSET of `@gjsify/adwaita-icons` (the whole set is
 // ~1.07 MB of data-URI), so a name outside it draws the `image-missing` fallback. This is

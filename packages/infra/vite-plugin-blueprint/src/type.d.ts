@@ -19,3 +19,9 @@ declare module '*.blp?shared-tree' {
     const tree: import('@gjsify/blueprint').SharedNode;
     export default tree;
 }
+
+/** The same exit, checked against one renderer's capability table (ADR 0093 § 2). */
+declare module '*.blp?shared-tree&for=*' {
+    const tree: import('@gjsify/blueprint').SharedNode;
+    export default tree;
+}

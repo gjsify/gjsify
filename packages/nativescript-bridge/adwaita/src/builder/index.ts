@@ -29,11 +29,15 @@
 // with the function they belong to. The two about ids (an unknown one, a duplicate one) are
 // GtkBuilder's own refusals, restated where the ids are resolved.
 
-import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 import { View } from '@nativescript/core';
 
+import { capabilities } from '../capabilities.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
+import { templateClassFor } from './template-classes.js';
+
+export { registerTemplateClass } from './template-classes.js';
 
 // The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
 // Imported as MODULE NAMESPACES because that is literally what this door is:
@@ -101,6 +105,16 @@ export function elementFor(tag: string): Element {
     );
 }
 
+/**
+ * The element a NODE is: the registered class for an `extern` node (ADR 0093), else the barrel
+ * member its GIR tag names. The `app:` prefix is only what an error prints, as `adw:` is for a
+ * barrel member.
+ */
+function elementOf(node: SharedTreeNode): Element {
+    if (node.extern === true) return { xmlName: `app:${node.tag}`, ctor: templateClassFor(node.tag) };
+    return elementFor(node.tag);
+}
+
 /** What a parent must be for an XML child to reach a slot rather than the first cell. */
 interface BuilderParent {
     _addChildFromBuilder(name: string, child: object): void;
@@ -118,6 +132,24 @@ interface PendingReference {
 interface BuildContext {
     ids: Map<string, View>;
     pending: PendingReference[];
+    /** The `bindings` of every node, resolved once every id exists (a source may be built after its target). */
+    binds: PendingBind[];
+    scope: Readonly<Record<string, unknown>> | undefined;
+}
+
+interface PendingBind {
+    target: object;
+    element: Element;
+    property: string;
+    source: string;
+    sourceProperty: string;
+    flags: readonly string[];
+}
+
+/** What a caller hands {@link build} beside the tree. */
+export interface BuildOptions {
+    /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
+    scope?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -146,8 +178,8 @@ interface BuildContext {
  *
  * The root is always a widget: a tree whose root is a value object has nothing to show.
  */
-export function build(node: SharedTreeNode): View {
-    const built = buildTree(node);
+export function build(node: SharedTreeNode, options: BuildOptions = {}): View {
+    const built = buildTree(node, options);
     if (!(built instanceof View)) {
         throw new Error(`\`${node.tag}\` is not a widget, so a tree cannot root at it: there is nothing to show.`);
     }
@@ -167,8 +199,8 @@ export interface PresentableRoot {
  * refusal intact for every other value object, and admits a root by the one method a dialog
  * is for rather than by a class list.
  */
-export function buildDialog(node: SharedTreeNode): PresentableRoot {
-    const built = buildTree(node);
+export function buildDialog(node: SharedTreeNode, options: BuildOptions = {}): PresentableRoot {
+    const built = buildTree(node, options);
     if (built instanceof View || typeof (built as Partial<PresentableRoot>).present !== 'function') {
         throw new Error(`\`${node.tag}\` is not a dialog: it has no \`present()\`, so use \`build\` for it.`);
     }
@@ -176,8 +208,10 @@ export function buildDialog(node: SharedTreeNode): PresentableRoot {
 }
 
 /** Every node, then every held-back object reference resolved against the ids the tree built. */
-function buildTree(node: SharedTreeNode): View | object {
-    const context: BuildContext = { ids: new Map(), pending: [] };
+function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
+    // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
+    assertTreeConstructs('adwaita-nativescript', capabilities, node);
+    const context: BuildContext = { ids: new Map(), pending: [], binds: [], scope: options.scope };
     const root = buildNode(node, context);
     for (const { view, element, prop, id } of context.pending) {
         const target = context.ids.get(id);
@@ -189,7 +223,50 @@ function buildTree(node: SharedTreeNode): View | object {
         }
         (view as unknown as Record<string, unknown>)[prop] = target;
     }
+    for (const bind of context.binds) bindProperty(bind, context);
     return root;
+}
+
+/**
+ * ADR 0093's `bindings`, the simple form: the target property takes the source's value now and
+ * again on every `notify::<property>` the source emits (`G_BINDING_SYNC_CREATE`, which is what
+ * GtkBuilder's `bind-flags` default means).
+ *
+ * Refused by name, never dropped: a source that is not an id of this tree (`template` included),
+ * a source class that does not emit `notify::<property>`, a target without that property, and
+ * any flag, which this first slice has not verified.
+ */
+function bindProperty(bind: PendingBind, context: BuildContext): void {
+    const { target, element, property, source, sourceProperty, flags } = bind;
+    const where = `<${element.xmlName}> \`${property}: bind ${source}.${sourceProperty}\``;
+    const from = context.ids.get(source);
+    if (from === undefined) {
+        throw new Error(`${where} names no object: nothing in this tree has the id '${source}'.`);
+    }
+    if (flags.length > 0) {
+        throw new Error(
+            `${where} carries ${flags.join(', ')}: adwaita-nativescript binds the plain form only until each flag ` +
+                'is verified against GObject.',
+        );
+    }
+    const sourceProp = propertyOf(sourceProperty);
+    const targetProp = propertyOf(property);
+    const emitted = (from.constructor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const notification = `notify::${sourceProperty}`;
+    if (!(sourceProp in from) || !emitted.includes(notification)) {
+        throw new Error(
+            `${where}: ${from.constructor.name} does not emit '${notification}', so the target would follow the ` +
+                `source once and never again. It emits: ${emitted.join(', ') || 'none'}.`,
+        );
+    }
+    if (!(targetProp in target)) {
+        throw new Error(`${where}: the target has no property '${targetProp}'.`);
+    }
+    const follow = () => {
+        (target as Record<string, unknown>)[targetProp] = (from as unknown as Record<string, unknown>)[sourceProp];
+    };
+    follow();
+    (from as unknown as { connect(name: string, callback: () => void): number }).connect(notification, follow);
 }
 
 /**
@@ -211,9 +288,20 @@ function buildTree(node: SharedTreeNode): View | object {
  * value object has no class list — rather than dropped.
  */
 function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
-    const element = elementFor(node.tag);
+    const element = elementOf(node);
     const probe = new element.ctor();
     const built = probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe);
+    bindSignals(built, element, node, context);
+    for (const [property, binding] of Object.entries(node.bindings ?? {})) {
+        context.binds.push({
+            target: built,
+            element,
+            property,
+            source: binding.source,
+            sourceProperty: binding.property,
+            flags: binding.flags ?? [],
+        });
+    }
     for (const child of node.children ?? []) {
         const parent = built as Partial<BuilderParent>;
         if (typeof parent._addChildFromBuilder !== 'function') {
@@ -227,6 +315,44 @@ function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
         parent._addChildFromBuilder(builderNameFor(element, node.tag, child), childBuilt);
     }
     return built;
+}
+
+/**
+ * ADR 0093's `signals`: each handler NAME is looked up on the scope and connected through the
+ * widget's GJS-shaped `connect`, which hands the callback `(self, data)`.
+ *
+ * Refused by name, never dropped: a value object (no `connect`), a signal the class does not
+ * declare in `emittedSignals`, a missing scope or handler (as `Gtk.Builder` refuses one), and the
+ * `swapped`, `after` and `object` forms, which this first slice has not verified.
+ */
+function bindSignals(built: object, element: Element, node: SharedTreeNode, context: BuildContext): void {
+    if (node.signals === undefined) return;
+    const emitted = (element.ctor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const connectable = built as Partial<{ connect(name: string, callback: (...args: unknown[]) => void): number }>;
+    for (const signal of node.signals) {
+        const name = signal.detail === undefined ? signal.name : `${signal.name}::${signal.detail}`;
+        if (typeof connectable.connect !== 'function' || !emitted.includes(name)) {
+            throw new Error(
+                `<${element.xmlName}> declares no signal '${name}', so the handler '${signal.handler}' would never ` +
+                    `run. It emits: ${emitted.join(', ') || 'none'}.`,
+            );
+        }
+        if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {
+            throw new Error(
+                `the handler '${signal.handler}' for '${name}' uses ${signal.object === undefined ? '' : 'an object '}` +
+                    `${(signal.flags ?? []).join(', ')}: adwaita-nativescript binds plain handlers only until each ` +
+                    'of those is verified against GTK.',
+            );
+        }
+        const handler = context.scope?.[signal.handler];
+        if (typeof handler !== 'function') {
+            throw new Error(
+                `the tree binds the handler '${signal.handler}' for '${name}', and the scope ` +
+                    `${context.scope === undefined ? 'was not given (pass `scope`)' : 'has no such function'}.`,
+            );
+        }
+        connectable.connect(name, (...args) => handler.apply(context.scope, args));
+    }
 }
 
 /** The `GtkGridLayoutChild` properties `layout { }` may carry, and the NativeScript member each is. */
@@ -251,7 +377,7 @@ function applyLayout(child: SharedTreeNode, built: View | object, parentElement:
     if (child.layout === undefined) return;
     if (typeof (parentElement.ctor.prototype as { attach?: unknown }).attach !== 'function') {
         throw new Error(
-            `<${elementFor(child.tag).xmlName}> authored layout (${Object.keys(child.layout).join(', ')}) under ` +
+            `<${elementOf(child).xmlName}> authored layout (${Object.keys(child.layout).join(', ')}) under ` +
                 `\`${parentTag}\`, which has no \`attach\`: this port's only layout manager is the grid, so the ` +
                 'placement would be dropped.',
         );
@@ -431,7 +557,7 @@ function applyResponses(built: object, element: Element, node: SharedTreeNode): 
  * ledgered `vocabulary` divergence, not a child to place somewhere close by.
  */
 function builderNameFor(element: Element, tag: string, child: SharedTreeNode): string {
-    const childElement = elementFor(child.tag);
+    const childElement = elementOf(child);
     if (child.slot === undefined) return childElement.xmlName;
     const slot = child.slot;
     const known = declaredBuilderSlots(element.ctor);

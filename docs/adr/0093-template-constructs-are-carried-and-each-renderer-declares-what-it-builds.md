@@ -186,7 +186,7 @@ verifies it or turns the cell into a refusal.
 | `layout` (0092) | native | refused | refused | port |
 | `strings`, `responses` (0072) | native | refused | port | port |
 | `signal` | native | refused | port | port |
-| `bind` (simple) | native | refused | port, UNVERIFIED | port, UNVERIFIED |
+| `bind` (simple) | native | refused | port (plain form only) | port (plain form only) |
 | `breakpoint` | native | refused | port | port, UNVERIFIED on a tablet |
 | `extern` / `$Name` | native | refused | port | port |
 | `accessibility` | native | port (0069) | port | refused until mapped |
@@ -393,3 +393,12 @@ Tracked in `status/open-todos/README.md`; this ADR records the *why*. Order and 
 | 3 | `signals` | the stage-D `<signal>` arm; a handler the scope lacks |
 | 4 | `bindings` | the stage-D binding arm; an unobservable source |
 | 5 | `breakpoints` | the stage-D `<setter>` arm; a device run on a tablet that switches layout |
+
+### Progress
+
+| # | state |
+|---|---|
+| 1 | landed |
+| 2 | landed. `extern` is carried and no longer a loss; `registerTemplateClass` exists on `adwaita-web` (`name, tag`: the application defines the custom element itself, which keeps the package's element set the one it ships) and `adwaita-nativescript` (`name, ctor`). `gtk-host` keeps its § 3 cell, `refused`: its host resolves tags through built-in descriptors and has no registry for an application class, so it has no `registerTemplateClass` either |
+| 3 | landed, plain handlers only. `signals` is carried (the `lost` kind `signal` is gone; `not-swapped` joins the flag union because the oracle writes it); `scope` is an option of `adwaita-web`'s `mountSharedTree` and `adwaita-nativescript`'s `build`/`buildDialog`. A signal is bound only if the element declares it (`static signals` on the web, a GTK→DOM event map; `static emittedSignals` on NativeScript), declared so far for `GtkButton` and `GtkToggleButton`. `swapped`, `after`, `not-swapped` and `object` are refused by name. NOT done: the scope defaulting to the instance of the registered template class |
+| 4 | landed, plain form only. `bindings` is carried (the `lost` kind `binding` is now `binding-expression`, for what stays an expression); the stage-D arm compares the oracle's `bind-source`/`bind-property`/`bind-flags` against the tree, in the order and with the `sync-create` default the compiler writes. `adwaita-web` and `adwaita-nativescript` bind id → id only: the target takes the source's value at build and follows each `notify::<property>` the source's class declares (`static signals` / `static emittedSignals`; so far `GtkToggleButton:active`). Verified by the `bind` vector on both. Refused by name: every flag (`inverted`, `bidirectional`, `no-sync-create`), the `template` source, a source class that declares no notify for the property, and an unknown id. NOT done: those flags and `template` sources; a bare `buildSharedTree` that is never attached follows once, because the web elements dispatch `notify::…` only while connected |

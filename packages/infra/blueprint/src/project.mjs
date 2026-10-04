@@ -40,7 +40,7 @@
 // before comparing rather than teaching this file to invent it.
 
 /** @import { BlueprintFile, ObjectBody, ObjectNode, SourceLocation, TemplateNode, TypeRef, Value } from './ast.d.mts' */
-/** @import { ProjectedLoss, SharedNode, SharedNodeProjection } from './shared-node.d.mts' */
+/** @import { ProjectedLoss, ProjectedUse, SharedNode, SharedNodeProjection } from './shared-node.d.mts' */
 import { numberLiteral } from './number-literal.mjs';
 
 /**
@@ -236,6 +236,51 @@ const layoutOf = (extension, tag) => {
 };
 
 /**
+ * The simple form of a `bind`, as `SharedNode.bindings` holds it (ADR 0093), or `undefined` for
+ * anything that is an expression.
+ *
+ * SIMPLE IS THE SHAPE THE ORACLE COLLAPSES INTO `bind-source`/`bind-property`: `bind` (not
+ * `expr`), a lookup on a BARE identifier, under at most one cast. `emit-xml.mjs`'s
+ * `simpleLookup` is the same predicate and the two must stay one, or the golden and the tree
+ * disagree about which lines are bindings. A lookup chain, a closure, a parenthesis, a second
+ * cast or `try` stays the loss `binding-expression`.
+ *
+ * ONE READER FOR BOTH SEAMS, for `styleClassesOf`'s reason: `lossesOf` and `usesOf` ask it too.
+ *
+ * @param {import('./ast.d.mts').BindingValue} value
+ * @returns {NonNullable<SharedNode['bindings']>[string] | undefined}
+ */
+const bindingOf = (value) => {
+    if (value.form !== 'bind') return undefined;
+    const lookup = value.expression.kind === 'cast' ? value.expression.of : value.expression;
+    if (lookup.kind !== 'lookup' || lookup.of.kind !== 'ident') return undefined;
+    return {
+        source: lookup.of.name,
+        property: lookup.name,
+        ...(value.flags.length === 0 ? {} : { flags: [...value.flags] }),
+    };
+};
+
+/**
+ * The signal handlers of a body as `SharedNode.signals` holds them (ADR 0093): the handler is a
+ * NAME, never code, and `object` and the flags are spelled as the source wrote them. A body with
+ * none yields `undefined` so the field is absent rather than empty.
+ *
+ * @param {ObjectBody} body
+ * @returns {SharedNode['signals']}
+ */
+const signalsOf = (body) => {
+    if (body.signals.length === 0) return undefined;
+    return body.signals.map((signal) => ({
+        name: signal.name,
+        ...(signal.detail === undefined ? {} : { detail: signal.detail }),
+        handler: signal.handler,
+        ...(signal.object === undefined ? {} : { object: signal.object }),
+        ...(signal.flags.length === 0 ? {} : { flags: [...signal.flags] }),
+    }));
+};
+
+/**
  * @param {ObjectBody} body @param {(type: TypeRef) => string} tag
  * @returns {Omit<SharedNode, 'tag' | 'id' | 'template' | 'slot'>}
  */
@@ -248,6 +293,8 @@ const projectBody = (body, tag) => {
     const styleClasses = [];
     /** @type {NonNullable<SharedNode['extensions']>} */
     const extensions = {};
+    /** @type {NonNullable<SharedNode['bindings']>} */
+    const bindings = {};
     /** @type {SharedNode['layout']} */
     let layout;
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
@@ -275,6 +322,11 @@ const projectBody = (body, tag) => {
             const strings = stringsOf(property);
             // Concatenated like the style classes: two `<items>` blocks append to one list.
             if (strings !== undefined) extensions.strings = [...(extensions.strings ?? []), ...strings];
+            continue;
+        }
+        if (property.value.kind === 'binding') {
+            const binding = bindingOf(property.value);
+            if (binding !== undefined) bindings[property.name] = binding;
             continue;
         }
         const scalar = scalarOf(property.value, tag);
@@ -316,6 +368,7 @@ const projectBody = (body, tag) => {
     const children = placed
         .filter((entry) => !isBreakpoint(entry.object))
         .map((entry) => projectObject(entry.object, entry.slot, tag));
+    const signals = signalsOf(body);
 
     return {
         ...(Object.keys(props).length > 0 ? { props } : {}),
@@ -323,6 +376,8 @@ const projectBody = (body, tag) => {
         ...(styleClasses.length > 0 ? { styleClasses } : {}),
         ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
         ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
+        ...(signals === undefined ? {} : { signals }),
+        ...(Object.keys(bindings).length > 0 ? { bindings } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -335,6 +390,9 @@ const projectObject = (object, slot, tag) => {
     const body = projectBody(object.body, tag);
     return {
         tag: tag(object.type),
+        // `$Name` is a class the application registers, in no GIR (ADR 0093): the tag is spelled
+        // right and a renderer looks it up in its own registry rather than in the toolkit.
+        ...(object.type.extern === true ? { extern: true } : {}),
         // The id is the node's NAME and not a property of it, which is why it is a field and
         // not a prop: `Gtk.Box canvasContainer { }` emits `<object class="GtkBox"
         // id="canvasContainer">`, an attribute beside the class rather than a value inside it.
@@ -362,8 +420,10 @@ const lossesOf = (file, tag) => {
     const walkBody = (body) => {
         for (const property of body.properties) {
             const value = property.value;
-            if (value.kind === 'binding') lost.push({ kind: 'binding', line: property.line });
-            else if (value.kind === 'list') {
+            if (value.kind === 'binding') {
+                // The simple form is carried since ADR 0093; what is left is an expression.
+                if (bindingOf(value) === undefined) lost.push({ kind: 'binding-expression', line: property.line });
+            } else if (value.kind === 'list') {
                 // Style classes are carried since ADR 0068 and string-list items since ADR 0072,
                 // each through the one reader above. What is still a loss is `widgets [ ]`, a
                 // list of object REFERENCES, and a non-string item in either list.
@@ -378,7 +438,6 @@ const lossesOf = (file, tag) => {
                 lost.push({ kind: 'menu', line: property.line });
             } else if (value.kind === 'object') walkObject(value.object);
         }
-        for (const signal of body.signals) lost.push({ kind: 'signal', line: signal.line });
         // `responses` is carried in `extensions` (ADR 0072) and a scalar `layout` in `layout`
         // (ADR 0092); every other block is still lost.
         for (const extension of body.extensions) {
@@ -419,12 +478,8 @@ const lossesOf = (file, tag) => {
 
     /** @param {ObjectNode} object */
     const walkObject = (object) => {
-        // An extern type is the one loss where the text SURVIVES and the meaning does not.
-        // `SharedNode.tag` is a GIR class name — that is what a renderer looks up — and
-        // `MyWidget` is a class the application registers at runtime, in no GIR at all. So
-        // the tag is spelled right and is not resolvable, and a consumer told nothing would
-        // discover that as a missing widget rather than as a declared limit.
-        if (object.type.extern === true) lost.push({ kind: 'extern', line: object.line });
+        // An extern type is no loss since ADR 0093: the node carries `extern` and the renderer
+        // answers for the class itself, so what is left to walk is the object's body.
         walkBody(object.body);
     };
 
@@ -449,25 +504,69 @@ const lossesOf = (file, tag) => {
         }
         keptWidget = true;
         if (root.kind === 'template') {
-            // The class the template DEFINES is `SharedNode.template` since ADR 0066 and is no
-            // longer a loss. An extern PARENT still is — the parent is what becomes the root tag,
-            // and a tag no GIR describes is the one loss where the text survives and the meaning
-            // does not.
-            //
-            // With no parent and a `$Name`, the template type is itself extern — the oracle's
-            // `ExternType`, `incomplete`, validating nothing — and it is that name which becomes
-            // the root tag. So the `extern` loss is recorded at the template's own line.
-            //
-            // With no parent and a TYPE (`template ListItem`), it is not extern at all: the
-            // type is a real one and the tag is its GType. Declaring a loss there would name a
-            // limit the file does not have.
-            if (root.parent === undefined && (root.classType === undefined || root.classType.extern === true)) {
-                lost.push({ kind: 'extern', line: root.line });
-            } else if (root.parent?.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
+            // The class the template DEFINES is `SharedNode.template` since ADR 0066, and an
+            // extern class or parent is carried as `extern` since ADR 0093: neither is a loss.
             walkBody(root.body);
         } else walkObject(root);
     }
     return lost;
+};
+
+/**
+ * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
+ *
+ * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
+ * `strings`, `responses`, `extern`, `signal` and `bind`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * question goes to the reader the projection itself fills the field with, so a construct the
+ * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
+ *
+ * @param {BlueprintFile} file @param {(type: TypeRef, position?: 'object' | 'reference') => string} tag
+ * @returns {ProjectedUse[]}
+ */
+const usesOf = (file, tag) => {
+    /** @type {ProjectedUse[]} */
+    const uses = [];
+
+    /** @param {ObjectBody} body */
+    const walkBody = (body) => {
+        for (const property of body.properties) {
+            if (property.value.kind === 'binding' && bindingOf(property.value) !== undefined) {
+                uses.push({ kind: 'bind', line: property.line });
+            } else if (property.value.kind === 'list' && stringsOf(property) !== undefined) {
+                uses.push({ kind: 'strings', line: property.line });
+            } else if (property.value.kind === 'object') walkObject(property.value.object);
+        }
+        for (const extension of body.extensions) {
+            if (extension.name === 'layout' && layoutOf(extension, tag) !== undefined) {
+                uses.push({ kind: 'layout', line: extension.line });
+            }
+            if (extension.name === 'responses') uses.push({ kind: 'responses', line: extension.line });
+        }
+        // The handler bindings, one use each (ADR 0093).
+        for (const signal of body.signals) uses.push({ kind: 'signal', line: signal.line });
+        for (const child of body.children) {
+            if (!isBreakpoint(child.object)) walkObject(child.object);
+        }
+    };
+
+    /** @param {ObjectNode} object */
+    const walkObject = (object) => {
+        if (object.type.extern === true) uses.push({ kind: 'extern', line: object.line });
+        walkBody(object.body);
+    };
+
+    const root = file.roots.find((candidate) => candidate.kind !== 'menu');
+    if (root?.kind === 'template') {
+        // The root tag is the template's PARENT, or, with none, the class it defines. So the
+        // `extern` use sits on the parent's line when the parent is extern, and on the
+        // template's own line when it has no parent and its class is a `$Name` (a named TYPE
+        // — `template ListItem` — is a real GType and nothing is extern).
+        if (root.parent === undefined && (root.classType === undefined || root.classType.extern === true)) {
+            uses.push({ kind: 'extern', line: root.line });
+        } else if (root.parent?.extern === true) uses.push({ kind: 'extern', line: root.parent.line });
+        walkBody(root.body);
+    } else if (root !== undefined) walkObject(root);
+    return uses;
 };
 
 /**
@@ -516,11 +615,17 @@ export function projectToSharedNode(file, options) {
         return {
             node: {
                 tag: tag(rootType, 'reference'),
+                ...(rootType.extern === true ? { extern: true } : {}),
                 template: templateClass,
                 ...projectBody(template.body, tag),
             },
             lost: lossesOf(file, tag),
+            uses: usesOf(file, tag),
         };
     }
-    return { node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag), lost: lossesOf(file, tag) };
+    return {
+        node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag),
+        lost: lossesOf(file, tag),
+        uses: usesOf(file, tag),
+    };
 }

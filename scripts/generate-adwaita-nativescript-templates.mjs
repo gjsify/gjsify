@@ -430,6 +430,8 @@ export interface ExpectNode {
     id?: string;
     /** Root only: the component class the tree defines. No gallery block declares one. */
     template?: string;
+    /** The tag is a class the application registers, in no GIR (ADR 0093). */
+    extern?: true;
     /** The parent property this child asked for, when it asked for one. */
     slot?: string;
     /** Attribute name -> the value the widget must READ BACK, typed. */
@@ -452,6 +454,19 @@ export interface ExpectNode {
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    /** The signal handlers the node binds, as names — ADR 0093. */
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
+    /** The simple binds, keyed by target property — ADR 0093. */
+    bindings?: Record<
+        string,
+        { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
+    >;
     children?: ExpectNode[];
 }
 

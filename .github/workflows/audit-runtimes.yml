@@ -717,6 +717,12 @@ jobs:
       - name: Check every authored-tree node shape says the same thing (self-testing)
         run: node scripts/check-shared-tree-shape.mjs
 
+      # ADR 0093 § 4: every renderer's `./capabilities` table is total over the construct
+      # vocabulary, and its suite calls `driveConstructVectors` and is registered. The helper
+      # holds the claims from inside one suite; this holds what it cannot see from there.
+      - name: Check every renderer answers for every template construct
+        run: node scripts/check-construct-capabilities.mjs
+
       # `hostTagOf`/`attributeOf` are the same shape one level down: authored once in the
       # published `@gjsify/adwaita-core/tags`, restated in `scripts/adwaita-gallery-shared-
       # trees.mjs` because that file's own readers run in THIS job, which installs nothing.

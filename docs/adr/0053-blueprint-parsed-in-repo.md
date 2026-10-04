@@ -3,6 +3,7 @@
 - Status: **Accepted**
 - Date: 2026-09-10
 - Deciders: Pascal Garber
+- Note: clause 3 is superseded for `breakpoint` by [ADR 0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md), which carries it as a field once built. Until each construct lands the refusal stands.
 - Related: [ADR 0002 (bootstrap bundle minimization)](0002-bootstrap-bundle-minimization.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0029 (girs widget vocabulary)](0029-girs-widget-vocabulary.md), [ADR 0030 (one corpus, GJS as oracle)](0030-one-corpus-gjs-as-oracle.md), [ADR 0033 (declarative templates preferred)](0033-declarative-templates-preferred.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md), [ADR 0049 (style classes are a list)](0049-style-classes-are-a-list.md), [ADR 0051 (one authored tree, rendered)](0051-one-authored-tree-rendered.md)
 
 ## Context

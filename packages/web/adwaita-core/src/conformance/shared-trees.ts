@@ -85,6 +85,15 @@ export interface SharedTreeNode {
      */
     template?: string;
     /**
+     * `tag` is a class the APPLICATION registers (`$SourceView`), in no GIR (ADR 0093).
+     *
+     * The tag is spelled as the `.blp` spells it, without a namespace default, and a renderer
+     * resolves it in its own `registerTemplateClass` registry instead of in the toolkit's class
+     * list. An unregistered name is a refusal that names it. What the registered class builds
+     * inside itself is its own business: typically its own `.blp?shared-tree`.
+     */
+    extern?: true;
+    /**
      * Where in the parent this child goes — the placement, spelled as the GTK side spells it.
      *
      * ONE FIELD FOR TWO GtkBuilder CONSTRUCTS, and the conflation is the projection's, not a
@@ -181,6 +190,38 @@ export interface SharedTreeNode {
      * them (ADR 0092). Never typed against the widget, so an identifier stays its spelling.
      */
     layout?: Readonly<Record<string, string | number | boolean>>;
+    /**
+     * The signal handlers this node binds (`clicked => $onClicked()`), in source order and spelled
+     * as the `.blp` wrote them (ADR 0093).
+     *
+     * `handler` is a NAME, never code: the builder resolves it against a scope object it is
+     * handed, as `Gtk.BuilderScope` does, and a missing handler is a refusal. `name` and `detail`
+     * are the two halves of `notify::sensitive`. `object` is the `(obj)` the handler is swapped
+     * with. A renderer that has not verified `swapped`, `after`, `not-swapped` or `object` refuses
+     * them by name rather than binding a handler that fires differently from GTK's.
+     */
+    signals?: readonly {
+        readonly name: string;
+        readonly detail?: string;
+        readonly handler: string;
+        readonly object?: string;
+        readonly flags?: readonly ('swapped' | 'after' | 'not-swapped')[];
+    }[];
+    /**
+     * The simple `bind`s, keyed by the TARGET property (ADR 0093): one source, one property, the
+     * flags as written. `source` is an object id in this tree, or `template` for the component
+     * itself. An expression form (lookup chain, closure, cast pair, `expr`) is not carried.
+     */
+    bindings?: Readonly<
+        Record<
+            string,
+            {
+                readonly source: string;
+                readonly property: string;
+                readonly flags?: readonly ('bidirectional' | 'inverted' | 'no-sync-create')[];
+            }
+        >
+    >;
     children?: readonly SharedTreeNode[];
 }
 

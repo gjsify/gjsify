@@ -48,6 +48,11 @@ export interface SharedNode {
      * the `$Name` verbatim, or the GType where the file named a type (`template ListItem`).
      */
     template?: string;
+    /**
+     * `tag` is a class the application registers (`$SourceView`), in no GIR (ADR 0093). The tag is
+     * spelled as the XML spells it, and a renderer resolves it in its own template-class registry.
+     */
+    extern?: true;
     /** The parent property this child was written at, or the bracket it was written under. */
     slot?: string;
     props?: Record<string, string | number | boolean>;
@@ -94,6 +99,30 @@ export interface SharedNode {
      * them (ADR 0092). Never typed against the widget, so an identifier stays its spelling.
      */
     layout?: Record<string, string | number | boolean>;
+    /**
+     * The signal handlers (`clicked => $onClicked()`), in source order and as the source wrote
+     * them (ADR 0093). `handler` is a NAME the renderer resolves against a scope object, never
+     * code; `name` and `detail` are the two halves of `notify::sensitive`.
+     */
+    signals?: {
+        name: string;
+        detail?: string;
+        handler: string;
+        object?: string;
+        flags?: ('swapped' | 'after' | 'not-swapped')[];
+    }[];
+    /**
+     * The simple `bind`s, keyed by the target property (ADR 0093): one source, one property, the
+     * flags as written. `source` is an object id, or `template` for the component itself.
+     */
+    bindings?: Record<
+        string,
+        {
+            source: string;
+            property: string;
+            flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[];
+        }
+    >;
     children?: SharedNode[];
 }
 
@@ -111,8 +140,21 @@ export interface ProjectedLoss {
     line: number;
 }
 
-/** What `projectToSharedNode` returns: the tree, and every loss named beside it. */
+/**
+ * One occurrence of a construct the tree CARRIES, by kind and line (ADR 0093 § 2).
+ *
+ * `kind` is a plain `string` for the reason `ProjectedLoss.kind` is: this package cannot import
+ * the renderers' `ConstructKind` (tier), and a plugin intersects it with a capability table.
+ */
+export interface ProjectedUse {
+    kind: string;
+    /** 1-based line in the `.blp`. */
+    line: number;
+}
+
+/** What `projectToSharedNode` returns: the tree, every loss, and every carried construct, beside it. */
 export interface SharedNodeProjection {
     node: SharedNode;
     lost: ProjectedLoss[];
+    uses: ProjectedUse[];
 }

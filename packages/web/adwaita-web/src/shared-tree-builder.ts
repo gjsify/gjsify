@@ -34,10 +34,13 @@
 // package's `exports` map ships only `.`, and a new subpath would buy nothing for a module
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
-import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
+import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
+import { capabilities } from './capabilities.mjs';
+import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
+import { templateTagFor } from './template-classes.js';
 
 /** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
 interface PlacedChild {
@@ -56,6 +59,20 @@ interface ExtendedNode {
 interface BuildRecord {
     placed: PlacedChild[];
     extended: ExtendedNode[];
+    /** Every authored id and the element it built, which a `bind` source is looked up in. */
+    ids: Map<string, HTMLElement>;
+    /** The `bindings` of every node, resolved once every id exists (a source may be built after its target). */
+    binds: PendingBind[];
+    /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
+    scope?: Readonly<Record<string, unknown>>;
+}
+
+interface PendingBind {
+    el: HTMLElement;
+    property: string;
+    source: string;
+    sourceProperty: string;
+    flags: readonly string[];
 }
 
 /**
@@ -103,20 +120,84 @@ function isWritable(el: object, member: string): boolean {
  * container. A DETACHED build therefore cannot check a slot either: an element that has not
  * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
-export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { placed: [], extended: [] }): HTMLElement {
-    // ADR 0092: the placement of a child in a layout manager (`layout { row: 0; }`) has no door in
-    // the markup this package reads — an `<adw-…>` element is placed by DOM order and `slot=`.
-    // Refused rather than dropped: a grid child with no cell lands on the first one at exit 0.
-    if (node.layout !== undefined) {
+export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = newRecord()): HTMLElement {
+    // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
+    // created. A refused `layout` is named with its node and the reason the table gives.
+    assertTreeConstructs('adwaita-web', capabilities, node);
+    const root = buildNode(node, record);
+    for (const bind of record.binds) bindProperty(bind, record);
+    return root;
+}
+
+/** A fresh record, with the scope when the caller has one. */
+function newRecord(scope?: Readonly<Record<string, unknown>>): BuildRecord {
+    return { placed: [], extended: [], ids: new Map(), binds: [], ...(scope === undefined ? {} : { scope }) };
+}
+
+/**
+ * ADR 0093's `bindings`, the simple form: the target property takes the source's value now and
+ * again on every `notify::<property>` the source dispatches (`G_BINDING_SYNC_CREATE`, which is
+ * what GtkBuilder's `bind-flags` default means).
+ *
+ * Refused by name, never dropped: a source that is not an id of this tree (`template` included),
+ * a source element that does not dispatch `notify::<property>`, a target without a writable
+ * property, and any flag, which this first slice has not verified. An element dispatches
+ * `notify::…` only while connected, so a tree built but never attached follows once, at build.
+ */
+function bindProperty(bind: PendingBind, record: BuildRecord): void {
+    const { el, property, source, sourceProperty, flags } = bind;
+    const where = `<${el.localName}> \`${property}: bind ${source}.${sourceProperty}\``;
+    const from = record.ids.get(source);
+    if (from === undefined) {
+        throw new Error(`${where} names no object: nothing in this tree has the id '${source}'.`);
+    }
+    if (flags.length > 0) {
         throw new Error(
-            `\`${node.tag}\` authored layout (${Object.keys(node.layout).join(', ')}; ADR 0092), and ` +
-                'the web renderer has no door for a layout-manager placement.',
+            `${where} carries ${flags.join(', ')}: adwaita-web binds the plain form only until each flag is ` +
+                'verified against GObject.',
         );
     }
-    const el = document.createElement(hostTagOf(node.tag));
+    const notification = `notify::${sourceProperty}`;
+    const declared = dispatchedSignalsOf(from);
+    const event = declared[notification];
+    if (event === undefined) {
+        throw new Error(
+            `${where}: <${from.localName}> dispatches no '${notification}', so the target would follow the source ` +
+                `once and never again. It dispatches: ${Object.keys(declared).join(', ') || 'none'}.`,
+        );
+    }
+    const targetMember = propertyOf(property);
+    const sourceMember = propertyOf(sourceProperty);
+    if (!isWritable(el, targetMember)) {
+        throw new Error(`${where}: <${el.localName}> has no writable property '${targetMember}'.`);
+    }
+    const follow = () => {
+        (el as unknown as Record<string, unknown>)[targetMember] = (from as unknown as Record<string, unknown>)[
+            sourceMember
+        ];
+    };
+    follow();
+    from.addEventListener(event, follow);
+}
+
+function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
+    // An `extern` node is built by the class the application registered under its name (ADR 0093).
+    const el = document.createElement(node.extern === true ? templateTagFor(node.tag) : hostTagOf(node.tag));
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
-    if (node.id !== undefined) el.id = node.id;
+    if (node.id !== undefined) {
+        el.id = node.id;
+        record.ids.set(node.id, el);
+    }
+    for (const [property, binding] of Object.entries(node.bindings ?? {})) {
+        record.binds.push({
+            el,
+            property,
+            source: binding.source,
+            sourceProperty: binding.property,
+            flags: binding.flags ?? [],
+        });
+    }
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         const member = propertyOf(prop);
         if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
@@ -132,9 +213,10 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { pl
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) el.classList.add(...node.styleClasses);
     writeExtensions(el, node);
+    bindSignals(el, node, record);
     if (node.extensions !== undefined) record.extended.push({ el, node });
     for (const child of node.children ?? []) {
-        const childEl = buildSharedTree(child, record);
+        const childEl = buildNode(child, record);
         if (child.page !== undefined) writePage(el, childEl, child);
         if (child.slot !== undefined) {
             childEl.setAttribute('slot', child.slot);
@@ -143,6 +225,43 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { pl
         el.append(childEl);
     }
     return el;
+}
+
+/**
+ * ADR 0093's `signals`: each handler NAME is looked up on the scope the builder was handed and
+ * listened for as the DOM event the element declares for that GTK signal.
+ *
+ * Refused by name, never dropped: a missing scope or handler (as `Gtk.Builder` refuses one), a
+ * signal the element does not declare, and the `swapped`, `after` and `object` forms, which this
+ * first slice has not verified against GTK's argument order and emission phase.
+ */
+function bindSignals(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): void {
+    const declared = dispatchedSignalsOf(el);
+    for (const signal of node.signals ?? []) {
+        const name = signal.detail === undefined ? signal.name : `${signal.name}::${signal.detail}`;
+        const event = declared[name];
+        if (event === undefined) {
+            throw new Error(
+                `<${el.localName}> declares no signal '${name}', so the handler '${signal.handler}' would never ` +
+                    `run. It dispatches: ${Object.keys(declared).join(', ') || 'none'}.`,
+            );
+        }
+        if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {
+            throw new Error(
+                `the handler '${signal.handler}' for '${name}' uses ${signal.object === undefined ? '' : 'an object '}` +
+                    `${(signal.flags ?? []).join(', ')}: adwaita-web binds plain handlers only until each of those ` +
+                    'is verified against GTK.',
+            );
+        }
+        const handler = record.scope?.[signal.handler];
+        if (typeof handler !== 'function') {
+            throw new Error(
+                `the tree binds the handler '${signal.handler}' for '${name}', and the scope ` +
+                    `${record.scope === undefined ? 'was not given (pass `scope`)' : 'has no such function'}.`,
+            );
+        }
+        el.addEventListener(event, (domEvent) => handler.call(record.scope, domEvent));
+    }
 }
 
 /**
@@ -261,9 +380,12 @@ export interface MountedSharedTree {
  * instantiation half a caller reading the corpus's elements normally wants; a bare
  * `buildSharedTree` is for a caller that already has somewhere of its own to attach it.
  */
-export function mountSharedTree(node: SharedTreeNode): MountedSharedTree {
+export function mountSharedTree(
+    node: SharedTreeNode,
+    options: { scope?: Readonly<Record<string, unknown>> } = {},
+): MountedSharedTree {
     const host = document.createElement('div');
-    const record: BuildRecord = { placed: [], extended: [] };
+    const record = newRecord(options.scope);
     host.append(buildSharedTree(node, record));
     document.body.append(host);
     // After the append, because that is what upgrades the elements and runs the binds the

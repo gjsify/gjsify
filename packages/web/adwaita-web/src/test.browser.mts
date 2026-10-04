@@ -135,6 +135,7 @@ import { AdwEmptySectionsTest } from './empty-sections.spec.js';
 import { AdwSlottedChildrenTest } from './slotted-children.spec.js';
 import { AdwKeyboardOperableTest } from './keyboard-operable.spec.js';
 import { AdwFontsTest } from './adw-fonts.spec.js';
+import { AdwConstructVectorsTest } from './construct-vectors.spec.js';
 import { AdwSharedTreesTest } from './shared-trees.spec.js';
 import { AdwBlueprintTreeTest } from './blueprint-tree.spec.js';
 import { AdwValueListsTest } from './value-lists.spec.js';
@@ -145,6 +146,7 @@ import { AdwFontStackTest } from './font-stack.spec.js';
 
 run({
     AdwSharedTreesTest,
+    AdwConstructVectorsTest,
     AdwBlueprintTreeTest,
     AdwValueListsTest,
     AdwBlueprintLayoutTest,

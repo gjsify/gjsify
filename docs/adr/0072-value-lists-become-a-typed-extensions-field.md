@@ -3,6 +3,7 @@
 - Status: **Proposed**
 - Date: 2026-09-23
 - Deciders: Pascal Garber
+- Note: § 3 (what stays refused) is superseded by [ADR 0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md), which turns the per-renderer refusals into `./capabilities` rows.
 - Related: [ADR 0051 (one authored tree, rendered)](0051-one-authored-tree-rendered.md),
   [ADR 0053 (Blueprint parsed in-repo)](0053-blueprint-parsed-in-repo.md),
   [ADR 0067 (the translatable marking becomes a field)](0067-the-translatable-marking-becomes-a-field.md),

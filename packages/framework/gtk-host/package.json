@@ -42,6 +42,10 @@
             "types": "./lib/types/react-jsx-runtime.d.ts",
             "default": "./lib/esm/react-jsx-runtime.js"
         },
+        "./capabilities": {
+            "types": "./lib/types/capabilities.d.ts",
+            "default": "./lib/esm/capabilities.js"
+        },
         "./conformance": {
             "types": "./lib/types/conformance/index.d.ts",
             "default": "./lib/esm/conformance/index.js"
