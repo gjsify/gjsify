@@ -144,8 +144,8 @@ export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = {
         dark: 'rgba(255, 255, 255, 0.22)',
     },
     '--entry-bg-color': {
-        light: '#ffffff',
-        dark: 'rgba(255, 255, 255, 0.06)',
+        light: 'rgba(0, 0, 6, 0.1)',
+        dark: 'rgba(255, 255, 255, 0.1)',
     },
     '--entry-border-color': {
         light: 'rgba(0, 0, 6, 0.18)',
