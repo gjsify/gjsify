@@ -164,6 +164,7 @@ const NODE_FIELDS = new Set([
     'translatable',
     'styleClasses',
     'extensions',
+    'layout',
     'children',
 ]);
 
@@ -339,6 +340,15 @@ const validateNode = (node, where, isRoot = true) => {
         }
     }
     if (node.extensions !== undefined) validateExtensions(node.extensions, where);
+    if (node.layout !== undefined) {
+        const entries = node.layout !== null && typeof node.layout === 'object' ? Object.entries(node.layout) : [];
+        if (entries.length === 0 || entries.some(([, value]) => !['string', 'number', 'boolean'].includes(typeof value))) {
+            problems.push(
+                `${where}: "layout" is ${JSON.stringify(node.layout)}. ADR 0090: a non-empty record of scalars; ` +
+                    'absence is what says a node carries none.',
+            );
+        }
+    }
     if (node.children !== undefined) {
         if (!Array.isArray(node.children)) {
             problems.push(`${where}: "children" must be an array.`);
@@ -1270,6 +1280,44 @@ const checkExtensions = (job, result) => {
     );
 };
 
+/**
+ * ADR 0090's `layout`, held against the GOLDEN: the `<property>` elements inside every
+ * `<layout>` the oracle wrote, compared as `name=value` with the entries the projection carries.
+ * A multiset, for the reason `checkMarkings` gives.
+ */
+const checkLayout = (job, result) => {
+    if (!existsSync(job.golden)) return; // stage A said so
+    const golden = readFileSync(job.golden, 'utf8').replaceAll(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    const wanted = [];
+    for (const block of golden.matchAll(/<layout>([\s\S]*?)<\/layout>/g)) {
+        for (const entry of block[1].matchAll(/<property name="([^"]*)"[^>]*>([\s\S]*?)<\/property>/g)) {
+            wanted.push(`${entry[1]}=${entry[2].toLowerCase()}`);
+        }
+    }
+    const carried = [];
+    const walk = (node) => {
+        for (const [name, value] of Object.entries(node.layout ?? {})) carried.push(`${name}=${String(value).toLowerCase()}`);
+        for (const child of node.children ?? []) walk(child);
+    };
+    walk(result.node);
+    laid += carried.length;
+    const a = [...wanted].sort();
+    const b = [...carried].sort();
+    if (a.join('\n') === b.join('\n')) return;
+    const missing = [...a];
+    const invented = [];
+    for (const one of b) {
+        const at = missing.indexOf(one);
+        if (at === -1) invented.push(one);
+        else missing.splice(at, 1);
+    }
+    problems.push(
+        `${job.key}: the golden and the projection disagree about the layout entries — ` +
+            `written by the oracle and not carried: [${missing.join(', ')}]; ` +
+            `carried and not written: [${invented.join(', ')}].`,
+    );
+};
+
 // The hand-written `SharedNode` trees, run rather than read.
 //
 // Stage A holds their SHAPE — a valid tag, scalar props, a loss line inside the file — and
@@ -1301,6 +1349,8 @@ let marked = 0;
 let styled = 0;
 // The extensions arm's denominator: items and responses carried and held against the oracle.
 let extended = 0;
+// The layout arm's denominator: placement entries carried and held against the oracle.
+let laid = 0;
 if (surface !== undefined && existsSync(PROJECTOR)) {
     const { gtypeName, parseBlueprint } = surface;
     // `project.mjs` is the one of the four NOT on the surface — `src/index.mjs` § WHAT IS
@@ -1362,6 +1412,7 @@ if (surface !== undefined && existsSync(PROJECTOR)) {
         checkMarkings(job, result);
         checkStyleClasses(job, result);
         checkExtensions(job, result);
+        checkLayout(job, result);
     }
 }
 
@@ -1558,7 +1609,7 @@ const stageC =
 const stageD =
     `stage D held ${projected} hand-written SharedNode tree(s) against the projection, and ${addressed} ` +
     `composite class(es), ${addressedIds} object id(s), ${marked} translatable marking(s), ${styled} ` +
-    `style class(es) and ${extended} string-list item(s) and response(s) against the golden the oracle wrote`;
+    `style class(es) and ${extended} string-list item(s) and response(s) and ${laid} layout entr(ies) against the golden the oracle wrote`;
 
 const stageE = `stage E held ${refused} refusal(s) to an error naming the construct and its line, and the projection to its recorded verdict on each`;
 
