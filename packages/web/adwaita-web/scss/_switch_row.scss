@@ -15,4 +15,14 @@ adw-switch-row {
     font-size: var(--font-size-base);
     color: var(--card-fg-color);
   }
+
+  // Adw.SwitchRow is an AdwActionRow upstream (adw-switch-row.c:50), so it inherits
+  // `add_prefix` and the box that carries it. Same rules as `.adw-action-row-prefix`:
+  // a fixed-size icon must not be squeezed by the text column, which grows.
+  .adw-switch-row-prefix {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
 }

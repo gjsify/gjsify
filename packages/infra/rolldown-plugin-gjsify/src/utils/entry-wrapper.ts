@@ -12,6 +12,24 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { GJSIFY_VIRTUAL_PREFIX } from './virtual-module-id.js';
 
+/**
+ * The wrapper's last statement, GJS only (`opts.exitOnReportedCode`).
+ *
+ * GJS has no atexit hook: nothing reads `process.exitCode` when the entry ends
+ * naturally, so `process.exitCode = 1` exited 0 where Node exits 1. The wrapper
+ * body is the one place that runs after the entry's body AND its top-level
+ * awaits (ESM evaluates the imported entry first), so it is the end of main.
+ *
+ * Reaches `process` through `globalThis` (see the process-stub banner: a bare
+ * identifier can bind to a bundled module's own top-level). `exit(code)` is
+ * passed the number explicitly because the byte-1 stub's `exit(c)` ignores
+ * `exitCode`; the full `@gjsify/process` then also emits `'exit'`. Zero,
+ * `undefined` and non-numeric values stay a natural 0, as on Node.
+ */
+const END_OF_MAIN_EXIT =
+    'const __gjsify_p = globalThis.process, __gjsify_c = Number(__gjsify_p?.exitCode);\n' +
+    'if (Number.isInteger(__gjsify_c) && __gjsify_c !== 0) __gjsify_p.exit(__gjsify_c);';
+
 export interface VirtualEntriesResult {
     input: RolldownOptions['input'];
     plugin: RolldownPluginOption | null;
@@ -30,9 +48,9 @@ export interface VirtualEntriesResult {
 export function wrapInputWithSideEffects(
     input: RolldownOptions['input'],
     sideEffects: string[],
-    opts: { preserveDefaultExport?: boolean } = {},
+    opts: { preserveDefaultExport?: boolean; exitOnReportedCode?: boolean } = {},
 ): VirtualEntriesResult {
-    if (sideEffects.length === 0 || input === undefined) {
+    if ((sideEffects.length === 0 && !opts.exitOnReportedCode) || input === undefined) {
         return { input, plugin: null };
     }
 
@@ -64,6 +82,7 @@ export function wrapInputWithSideEffects(
     }
 
     const sideEffectImports = sideEffects.map((p) => `import ${JSON.stringify(p)};`).join('\n');
+    const endOfMain = opts.exitOnReportedCode ? `\n${END_OF_MAIN_EXIT}\n` : '';
 
     // Resolved real-path targets from `userEntries` get their moduleSideEffects
     // forced to 'no-treeshake' so the user-entry's top-level body (`run({...})`,
@@ -110,12 +129,12 @@ export function wrapInputWithSideEffects(
                 return {
                     code:
                         `${sideEffectImports}\nimport * as ${ns} from ${JSON.stringify(target)};\n` +
-                        `export * from ${JSON.stringify(target)};\nexport default ${ns}.default;\n`,
+                        `export * from ${JSON.stringify(target)};\nexport default ${ns}.default;\n${endOfMain}`,
                     moduleSideEffects: 'no-treeshake',
                 };
             }
             return {
-                code: `${sideEffectImports}\nimport ${JSON.stringify(target)};\nexport * from ${JSON.stringify(target)};\n`,
+                code: `${sideEffectImports}\nimport ${JSON.stringify(target)};\nexport * from ${JSON.stringify(target)};\n${endOfMain}`,
                 moduleSideEffects: 'no-treeshake',
             };
         },

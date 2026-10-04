@@ -1,4 +1,6 @@
 import { run } from '@gjsify/unit';
+// on('Gl', …) in these specs needs the GTK/GDK probe registered — see `@gjsify/unit/gl`.
+import '@gjsify/unit/gl';
 
 import webgl1TestSuite from './webgl1.spec.js';
 import webgl2TestSuite from './webgl2.spec.js';

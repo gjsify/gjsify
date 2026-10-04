@@ -162,6 +162,34 @@ export function resolveShipFlatpakSettings(input: ShipFlatpakInput): ResolvedShi
     return { settings, warnings: fromLegacy.length === 0 ? [] : [deprecationWarning(fromLegacy)] };
 }
 
+/**
+ * Refuse a Flatpak ship that would silently drop the project's own modules.
+ *
+ * `gjsify.flatpak.modules` / `extraModules` are read by `gjsify flatpak init`
+ * only; `ship` renders exactly one module, the staged payload (ADR 0024 § 2),
+ * and the keys' absence from {@link ShipFlatpakOptions} is deliberate. The
+ * defect was the silence: a project that moved to `ship` kept the keys, got a
+ * manifest without its `extra-data` module and exit 0, and found out when the
+ * app started without the binary the module downloads. A key `ship` does not
+ * read must not be one it ignores quietly, so the run stops BEFORE the build.
+ *
+ * Called only when `flatpak` is among the formats being made: the same keys
+ * still drive `gjsify flatpak init`, and a `ship --target deb` has nothing to
+ * drop them from.
+ */
+export function assertNoDroppedFlatpakModules(flatpak: ConfigDataFlatpak): void {
+    const dropped = (['modules', 'extraModules'] as const).filter((key) => (flatpak[key]?.length ?? 0) > 0);
+    if (dropped.length === 0) return;
+    const list = dropped.map((key) => `gjsify.flatpak.${key}`).join(' and ');
+    throw new Error(
+        `gjsify ship: ${list} ${dropped.length > 1 ? 'are' : 'is'} set, but the \`flatpak\` target renders ` +
+            'ONE module, the staged payload, and would drop ' +
+            `${dropped.length > 1 ? 'them' : 'it'} (ADR 0024 § 2). Build this Flatpak with ` +
+            '`gjsify flatpak init` + `gjsify flatpak build`, which honour the key, or leave `flatpak` out of ' +
+            '`--target` / `gjsify.ship.targets`.',
+    );
+}
+
 /** One line, naming every key still read from the old block and where each goes. */
 function deprecationWarning(keys: readonly MigratedFlatpakKey[]): string {
     const list = keys.map((key) => `gjsify.flatpak.${key}`).join(', ');

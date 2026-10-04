@@ -694,6 +694,11 @@ export interface ShipSignOptions {
  * the one thing ADR 0024 § 8 gates the whole migration on. A project that has
  * to BUILD something inside the sandbox still has `gjsify flatpak init` +
  * `gjsify flatpak build`, unchanged.
+ *
+ * Setting `gjsify.flatpak.modules` / `extraModules` and shipping the `flatpak`
+ * target is REFUSED (`assertNoDroppedFlatpakModules`) rather than ignored:
+ * those keys are read by `flatpak init` only, and dropping them at exit 0 hid an
+ * `extra-data` module until the app ran without its downloaded binary.
  */
 export interface ShipFlatpakOptions {
     /**

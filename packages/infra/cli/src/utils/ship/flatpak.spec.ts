@@ -21,6 +21,7 @@ import {
     resolveFormats,
 } from './formats.js';
 import {
+    assertNoDroppedFlatpakModules,
     LEGACY_FLATPAK_KEYS_REMOVED_IN,
     MIGRATED_FLATPAK_KEYS,
     pickFlatpakBuildKeys,
@@ -412,6 +413,37 @@ export default async () => {
             expect(onWindows).toContain('light.exe');
             expect(onWindows).toContain('WiX Toolset');
             expect(onWindows).not.toContain('wixl');
+        });
+    });
+
+    await describe('modules the ship manifest cannot carry', async () => {
+        const extraData = { name: 'agent', buildsystem: 'simple', sources: [{ type: 'extra-data' }] };
+
+        await it('refuses `extraModules` instead of dropping the module at exit 0', async () => {
+            let message = '';
+            try {
+                assertNoDroppedFlatpakModules({ extraModules: [extraData] });
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('gjsify.flatpak.extraModules');
+            expect(message).toContain('gjsify flatpak build');
+        });
+
+        await it('refuses `modules`, and names both keys when both are set', async () => {
+            let message = '';
+            try {
+                assertNoDroppedFlatpakModules({ modules: [extraData], extraModules: [extraData] });
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('gjsify.flatpak.modules');
+            expect(message).toContain('gjsify.flatpak.extraModules');
+        });
+
+        await it('passes a project that sets neither, or an empty list', async () => {
+            assertNoDroppedFlatpakModules({});
+            assertNoDroppedFlatpakModules({ modules: [], extraModules: [] });
         });
     });
 

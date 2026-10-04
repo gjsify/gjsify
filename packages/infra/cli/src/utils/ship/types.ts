@@ -452,6 +452,8 @@ export interface PackSettings {
  * model back in the tree — which is the one thing § 8 gates the whole migration
  * on. A project that genuinely needs to BUILD something inside the sandbox
  * still has `gjsify flatpak init` + `gjsify flatpak build`, unchanged.
+ * A project that sets those keys and ships `flatpak` anyway is refused up front
+ * (`assertNoDroppedFlatpakModules`), never silently stripped of them.
  */
 export interface ShipFlatpakSettings {
     /** Runtime id, e.g. `org.gnome.Platform`. */

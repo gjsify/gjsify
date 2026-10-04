@@ -8,8 +8,11 @@ tier: high
    landed, but the shim itself — a new native package — is not built; `@gjsify/webgl` now draws WebGL2 content on darwin
    and is measured HiDPI-correct on a Retina Mac, but two GLES 3.0 API spellings are still missing and no CI leg realizes
    a GL context on darwin itself; and the node-free toolchain on macOS is exercised only by e2e suites, never by a
-   cold-tree `build:infra` with no Node. `win32-arm64` is measured as blocked upstream rather than on
-   effort, so it is not on this list.
+   cold-tree `build:infra` with no Node; and `win32-arm64`, which is NOT blocked upstream any more — the
+   prefix is built from our own MSVC fork in CI (ADR 0089) and `@gjsify/node-gi` ships a win32-arm64
+   prebuild against it, so the remaining arm64 work is ours and unowned: `@gjsify/gtk-runtime-win32-arm64`
+   does not exist, and neither do the two-pass GStreamer recipe, webgl, gamepad or webview2 on that arch.
+   Ordered in `open-todos/windows.md` § win32-arm64, tracked in #1117.
 
    musl is covered by two jobs asking two questions, and both are gates now.
    `check-committed-musl` asks whether the committed glibc prebuilds resolve on real Alpine; it
