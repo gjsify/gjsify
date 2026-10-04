@@ -671,6 +671,14 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   needs a `CONSTRUCT_VECTORS` entry and a line in `check-construct-capabilities.mjs`; until then the
   three builder specs hold it. The gallery's `ADWAITA_GALLERY_REFUSALS` reasons should reuse those
   tables instead of restating them.
+- **Storybook reuse of the gallery trees (scoped, not built).** Stories author their widget
+  imperatively in `initialize()` (`packages/framework/adwaita-app/stories/*.story.ts`), the gallery
+  trees are data in `scripts/adwaita-gallery-trees.mjs`. The seam is a `StoryWidget` method that
+  calls `buildSharedTree` (`@gjsify/gtk-host/conformance`) and passes the root to `addContent()`.
+  Blockers: the trees are `scripts/*.mjs`, not a published module, so they must move into a package
+  first; the `layout` field has no counterpart in `addContent()`; stories with arg-bound
+  `updateArgs()`, signals or a `.blp` template do not fit, nor do the blocks in
+  `ADWAITA_GALLERY_TREE_DIVERGENCES`. Start with the static, argument-free stories.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
