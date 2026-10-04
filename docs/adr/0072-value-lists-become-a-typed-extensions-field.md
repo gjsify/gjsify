@@ -31,7 +31,7 @@ exist and which are needed:
 | `strings [ ]` | 1 | combo row, drop-down, preferences examples (4 pages) | **carried** |
 | `responses [ ]` | 2 | alert dialog (2 pages) | **carried** |
 | `menu { }` / `menu-model:` | 5 / 4 | menu button, split button (5 pages) | stays a loss |
-| `layout { }` | 2 | none | stays a loss |
+| `layout { }` | 2 | none | stays a loss (carried since [ADR 0092](0092-layout-placement-becomes-a-node-field.md)) |
 | `accessibility { }` | 3 | none | ADR 0069 |
 | `widgets [ ]` | 2 | none | stays `value-list` |
 | `items`, `marks`, `offsets`, `mime-types`, `patterns`, `suffixes` | 1 | none | stay losses |

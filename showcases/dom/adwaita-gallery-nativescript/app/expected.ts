@@ -42,6 +42,7 @@ export interface ExpectNode {
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: ExpectNode[];
 }
 

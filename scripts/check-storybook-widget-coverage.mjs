@@ -174,17 +174,6 @@ const ONE_RENDERER_ONLY = {
     // second key would not be a second row. It would silently shadow this one, which is how
     // `Adw.ApplicationWindow` and `Gtk.ApplicationWindow` each ended up with the OTHER's
     // sentence for a moment. `window` below is the same pair, merged the same way.
-    'application-window': {
-        only: 'web',
-        decision:
-            'A window class, and NativeScript HAS no window widget: the storybook\'s `Page` carries `class="adw-window"` ' +
-            '(showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` ' +
-            '(packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). Either window is that FRAME with an ' +
-            'application menubar on top of it, and a page has no place to hang a second one — so the ' +
-            '`show-menubar` half, the ONE property `Adw.ApplicationWindow` adds to `Adw.Window`, is a markup slot ' +
-            "here and has no counterpart there. The `window` row records the frame itself, and the port's own answer " +
-            'is `AdwToolbarView` inside that `Page`, a template on its own block.',
-    },
     'window-controls': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -218,10 +207,6 @@ const ONE_RENDERER_ONLY = {
         decision:
             '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="sheet">`, which leaves nothing in the tree. It is the markup form, not the only route: the element binds a plain `slot="sheet"` child too, through `bindSlottedChildren` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts).',
     },
-    bin: {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     card: {
         only: 'web',
         decision:
@@ -230,11 +215,6 @@ const ONE_RENDERER_ONLY = {
     'center-box': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    'check-button': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-        vectors: ['RADIO_GROUP_VECTORS'],
     },
     // The four Gtk buttons of page gtk/buttons that libadwaita ships NO type behind, so
     // this is one bullet in the open-todos section above covering all four; the reasons
@@ -260,15 +240,7 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    dialog: {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     'drag-icon': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    'drawing-area': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -288,15 +260,7 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    frame: {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     'graphics-offload': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    grid: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -311,10 +275,6 @@ const ONE_RENDERER_ONLY = {
             "`GtkInscription` sizes itself in CHARACTERS and LINES (gtkinscription.c:338-349, :370-391) and its defaults are the opposite of GtkLabel's — `min-chars` 3, `xalign` 0, `wrap-mode` WORD_CHAR (gtkinscription.c:59-69, :738-740). `@nativescript/core` ships no such widget, and neither of the port's two text primitives measures in those units: a NativeScript `Label` asks its content for a size, which is GtkLabel's half of the pair and not this one.",
     },
     'level-bar': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    stack: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -342,10 +302,6 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'print-unix-dialog': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    overlay: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -412,10 +368,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    'list-box': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     'list-view': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -429,14 +381,6 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'popover-menu-bar': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    revealer: {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    separator: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -461,10 +405,6 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     scrollbar: {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    'scrolled-window': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -526,14 +466,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    'text-view': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    'toggle-button': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     'tree-expander': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -552,11 +484,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             '`GtkVideo` is a play SURFACE with a `GtkMediaStream` behind it and no transport of its own (gtkvideo.c:400-445, ui/gtkvideo.ui) — the three overlay nodes over the frames are the whole widget. `@nativescript/core` ships a `Video`, but it is the frames alone: there is no widget for the overlay icon and the self-hiding controls bar, and the port has no `GtkMediaStream` to drive one from. The browser element takes a real `<video>` for exactly that reason.',
-    },
-    window: {
-        only: 'web',
-        decision:
-            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on, and `<gtk-window>` for the same reason plus the frame PROPERTIES: `deletable`, `resizable`, `maximized`, `decorated` and `hide-on-close` decide which frame buttons a page draws and there is nothing on a `Page` for them to decide.',
     },
     'shortcuts-dialog': {
         only: 'web',
@@ -587,9 +514,10 @@ const MIN_REASON = 40;
 
 /** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
 const GAP_ISSUE = /^#\d+$/;
-/** What the messages call the place a `gap` anchors into. */
-const OPEN_TODOS = 'status/open-todos/';
 const GAP_TODO = /^open-todos: (\S.*)$/;
+
+/** Where those anchors are read from, named in the failures that point at one. */
+const OPEN_TODOS = 'status/open-todos/';
 
 /**
  * The open-TODO sections a `gap` may point at, via `generate-status.mjs`'s OWN resolver

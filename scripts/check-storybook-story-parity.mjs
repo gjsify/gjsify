@@ -81,7 +81,7 @@ const NOT_ON_THIS_TARGET = {
     'text@nativescript':
         'status/open-todos/adwaita-ports.md, "the Adwaita renderer asymmetries with no verdict yet": the port has no standalone text node — GtkEntry is the single-line field it would be the delegate of.',
     'text-view@nativescript':
-        'status/open-todos/adwaita-ports.md, "the Adwaita renderer asymmetries with no verdict yet": the port has no multi-line editor, and GtkEntry is single-line by construction.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-text-view.ts: Gtk.TextView ships as a multi-line editor over the platform TextView, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'breakpoint-bin@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-breakpoint-bin> on NativeScript": the port has no Adw.BreakpointBin view yet, so the story is rendered by the other two targets only.',
     'layout-slot@nativescript':
@@ -89,7 +89,7 @@ const NOT_ON_THIS_TARGET = {
     'multi-layout-view@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-multi-layout-view> on NativeScript": the port has no Adw.MultiLayoutView view yet, so the story is rendered by the other two targets only.',
     'bin@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwBin widget yet, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/adw-bin.ts: Adw.Bin ships as the one-child base, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'clamp-scrollable@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-bin>, <adw-clamp-scrollable>, <adw-preferences-row>, <adw-tab-bar>, <adw-tab-button>, <adw-tab-overview> and <adw-view-switcher-sidebar> on NativeScript": the port has no AdwClampScrollable widget yet, so the story is rendered by the other two targets only.',
     'preferences-row@nativescript':
@@ -105,7 +105,7 @@ const NOT_ON_THIS_TARGET = {
     'action-bar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no bottom bar, so the story is rendered by the other two targets only.',
     'gtk-application-window@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window class to drive one property on and the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/adw-application-window.ts: Adw.ApplicationWindow ships as a root class a template builds into (the Page stays the screen), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'emoji-chooser@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no popover to host an emoji chooser in and no emoji table behind it, so the story is rendered by the other two targets only.',
     'gtk-about-dialog@nativescript':
@@ -115,9 +115,9 @@ const NOT_ON_THIS_TARGET = {
     'print-unix-dialog@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK dialogs on NativeScript": the port has no print backend, no printer list and no capabilities to gate a dialog on, so the story is rendered by the other two targets only.',
     'check-button@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-check-button> on NativeScript": @nativescript/core ships no checkbox view, so the port has none and the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-check-button.ts: Gtk.CheckButton ships, minus the radio `group`, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'drawing-area@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-drawing-area>, <gtk-gl-area>, <gtk-graphics-offload> and <gtk-drag-icon> on NativeScript": the port has no canvas child to paint into at all, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-drawing-area.ts: Gtk.DrawingArea ships as a constructible stub whose `set_draw_func` throws, so there is nothing to draw, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'gl-area@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-drawing-area>, <gtk-gl-area>, <gtk-graphics-offload> and <gtk-drag-icon> on NativeScript": the port has no GL view at all, so the story is rendered by the other two targets only.',
     'graphics-offload@nativescript':
@@ -173,17 +173,17 @@ const NOT_ON_THIS_TARGET = {
     'fixed@nativescript':
         'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Fixed widget, so the story is rendered by the other two targets only.',
     'frame@nativescript':
-        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Frame widget, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-frame.ts: Gtk.Frame ships with its label and child, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'grid@nativescript':
-        'status/open-todos/adwaita-ports.md, "the five Gtk layout containers on NativeScript": the port has no Gtk.Grid widget, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-grid.ts: Gtk.Grid ships over GridLayout, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'calendar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": @nativescript/core ships no DatePicker and the port installs none, so the story is rendered by the other two targets only.',
     'flow-box@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": the port has AdwWrapBox and GtkBox but no cell that can hold a selection, so the story is rendered by the other two targets only.',
     'list-box@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": the port has GtkBox but no row that can be selected inside it, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-list-box.ts: Gtk.ListBox ships with rows and a selection mode, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'separator@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-separator> and <gtk-toggle-button> on NativeScript": the port has no Gtk.Separator widget yet, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-separator.ts: Gtk.Separator ships, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'notebook@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-stack>, <gtk-stack-switcher>, <gtk-stack-sidebar> and <gtk-notebook> on NativeScript": @nativescript/core\'s TabView owns its own tab strip, which is what a Gtk.Notebook is, so the port has no notebook to drive one with, and its story is rendered by the other two targets only.',
     'stack-sidebar@nativescript':
@@ -191,19 +191,19 @@ const NOT_ON_THIS_TARGET = {
     'stack-switcher@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-stack>, <gtk-stack-switcher>, <gtk-stack-sidebar> and <gtk-notebook> on NativeScript": @nativescript/core\'s TabView owns its own tab strip, so the port has no content-only stack to drive one with, so the story is rendered by the other two targets only.',
     'stack@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-stack>, <gtk-stack-switcher>, <gtk-stack-sidebar> and <gtk-notebook> on NativeScript": @nativescript/core\'s TabView owns its tab strip, so the port has no content-only stack to drive one with, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-stack.ts: Gtk.Stack and Gtk.StackPage ship, without the transitions, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'switch@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-switch> on NativeScript": the port composes the platform Switch for AdwSwitchRow and has no standalone one with the two-property active/state pair, so the story is rendered by the other two targets only.',
     'expander@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Expander widget yet, so the story is rendered by the other two targets only.',
     'overlay@nativescript':
-        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Overlay widget yet, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-overlay.ts: Gtk.Overlay ships, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'paned@nativescript':
         'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Paned widget yet, so the story is rendered by the other two targets only.',
     'revealer@nativescript':
-        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.Revealer widget yet, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-revealer.ts: Gtk.Revealer ships, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'toggle-button@nativescript':
-        'status/open-todos/adwaita-ports.md, "the GTK layout widgets on NativeScript": the port has no Gtk.ToggleButton widget yet, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-toggle-button.ts: Gtk.ToggleButton ships, with `group`, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'link-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.LinkButton widget yet, so the story is rendered by the other two targets only.',
     'scale-button@nativescript':
@@ -213,23 +213,23 @@ const NOT_ON_THIS_TARGET = {
     'font-dialog-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.FontDialogButton widget yet, so the story is rendered by the other two targets only.',
     'gtk-window@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-window> and <gtk-application-window> on NativeScript": NativeScript\'s Page IS the window, so there is no window widget to render a story on and the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/adw-window.ts: Gtk/Adw windows ship as a root class a template builds into (the Page stays the screen), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'window-controls@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-action-bar>, <gtk-header-bar> and <gtk-window-controls> on NativeScript": the port has no window-frame buttons, and it has no Gtk.Settings to read a decoration layout from either, so the story is rendered by the other two targets only.',
     'dialog@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-dialog> and <adw-shortcuts-dialog> on NativeScript": the port ships the three SPECIALISED dialogs — AdwAlertDialog, AdwAboutDialog and AdwPreferencesDialog — each of which substitutes the platform\'s own sheet, and has no AdwDialog class to hold arbitrary content, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/adw-dialog.ts: Adw.Dialog ships as an in-app overlay card, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'shortcuts-dialog@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-dialog> and <adw-shortcuts-dialog> on NativeScript": the port has no shortcuts dialog, no section and no item to build one from — AdwShortcutLabel is its whole shortcut surface, and it is one keycap, not a list — so the story is rendered by the other two targets only.',
     'scrollbar@nativescript':
         'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no Gtk.Scrollbar widget yet, so the story is rendered by the other two targets only.',
     'scrolled-window@nativescript':
-        'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no scrolling container yet, so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/gtk-scrolled-window.ts: Gtk.ScrolledWindow ships with its two scrollbar policies, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'viewport@nativescript':
         'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no Gtk.Viewport widget yet, so the story is rendered by the other two targets only.',
     'window-handle@nativescript':
         'status/open-todos/adwaita-ports.md, "the scrolling widgets on NativeScript": the port has no titlebar handle yet, so the story is rendered by the other two targets only.',
     'window@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-window> on NativeScript": NativeScript has no toplevel view to hang a window frame on — its `Page` IS the window, and the storybook\'s Page already carries the `adw-window` style class (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml), so the story is rendered by the other two targets only.',
+        'packages/nativescript-bridge/adwaita/src/widgets/adw-window.ts: Adw.Window ships as a root class a template builds into (the Page stays the screen), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'application-window@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-window> and <adw-application-window> on NativeScript": the port has no toplevel and no menubar — its Page is the window and a phone has no menu bar — so the story is rendered by the other two targets only.',
 };

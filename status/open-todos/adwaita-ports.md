@@ -341,18 +341,16 @@ Most are decisions with a reason next to them. These are the ones nobody has set
 from outside the port — each is a product question, not scheduled work, which is
 exactly why they must not be written as decisions.
 
-- **`<gtk-check-button>`, `<adw-radio>` and now `<gtk-switch>` on NativeScript.** The
-  headless half already exists for the first two: `@gjsify/adwaita-core` carries
-  `RadioGroupState` and `RADIO_GROUP_VECTORS`, driven today by core's own spec
-  (`checks.spec.ts`) and the browser suite, by no NativeScript spec. What does not
-  exist is the decision. `@nativescript/core` ships no checkbox view (nothing under
-  its `ui/`), and libadwaita's own phone idiom for a boolean is `AdwSwitchRow`, which
-  this port already has — so the question is whether a checkbox belongs on a touch
-  target at all, not how to build one. The switch is the mirror image of that: its
-  widget DOES exist (`@nativescript/core`'s `Switch`, installed by `AdwSwitchRow`), so
-  what is missing is the second boolean — `GtkSwitch:state`, the half that makes a slow
-  backend look pending (`refs/gtk/gtk/gtkswitch.c:39-43, :637-654`) has nowhere to go in
-  a one-boolean `Switch`. Same question, other side of it.
+- **`<adw-radio>` and now `<gtk-switch>` on NativeScript.** `Gtk.CheckButton` ships there
+  now (it carries the radio-group behaviour, so a shared template's `group` binding
+  builds), and `<adw-radio>` stays web-only: the headless half exists —
+  `@gjsify/adwaita-core` carries `RadioGroupState` and `RADIO_GROUP_VECTORS` — but the
+  browser element is a separate tag over the same class, and whether a touch target wants
+  a second spelling of it is the open decision. The switch is the mirror image: its widget
+  DOES exist (`@nativescript/core`'s `Switch`, installed by `AdwSwitchRow`), so what is
+  missing is the second boolean — `GtkSwitch:state`, the half that makes a slow backend
+  look pending (`refs/gtk/gtk/gtkswitch.c:39-43, :637-654`) has nowhere to go in a
+  one-boolean `Switch`.
 - **`<gtk-progress-bar>` on NativeScript.** libadwaita styles the GtkProgressBar node in
   `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
   NativeScript port has no progress widget. The PLATFORM half is not what is missing:
@@ -366,28 +364,25 @@ exactly why they must not be written as decisions.
   buildable. Its story is therefore ledgered as not rendered there
   (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
   template refused.
-- **`<gtk-stack>`, `<gtk-stack-switcher>`, `<gtk-stack-sidebar>` and `<gtk-notebook>` on
-  NativeScript.** All four browser elements and their gallery blocks exist; the
-  NativeScript port has none of the four. Every one of them is the same question from a
-  different side, and it is a question about the Adwaita EXPRESSION rather than about the
-  platform: `@nativescript/core` ships `TabView` (`ui/tab-view`), so a stack is
-  expressible there the way it is on GTK — but `TabView` owns its own tab strip, which is
-  `GtkStackSwitcher` AND `GtkStackSidebar` in one, and it has no separate content-only
-  half to drive one of those with. `AdwToggleView`/`AdwNavigationView` in the port are
-  built on `StackLayout`, which is a `GridLayout` that hides one child at a time — so the
-  closest thing this port has to `GtkStack` is a layout, not a widget, and it carries
-  neither the two `*homogeneous` axes nor `transition-type`. The transitions are the part
-  with no counterpart at all: the 23 members of `GtkStackTransitionType`
-  (`refs/gtk/gtk/gtkstack.c:95-121`), the two-way nick resolved by page order
-  (`get_simple_transition_type`, `refs/gtk/gtk/gtkstack.c:1162-1200`) and the reduced-
-  motion swap to a crossfade (`:1320-1340`) are GTK's own animation vocabulary, and a
-  NativeScript page transition is chosen by the platform, not authored. So the four
-  stories are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
-  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused.
+- **`<gtk-stack-switcher>`, `<gtk-stack-sidebar>` and `<gtk-notebook>` on NativeScript.**
+  `Gtk.Stack` and `Gtk.StackPage` ship there now (a layout that shows one child at a time,
+  built for Learn6502's shared templates), so the stack itself is no longer open. The three
+  that remain are the same question from different sides, and it is about the Adwaita
+  EXPRESSION rather than the platform: `@nativescript/core` ships `TabView`, but it owns its
+  own tab strip, which is `GtkStackSwitcher` AND `GtkStackSidebar` in one and has no
+  content-only half to drive one of them with. The transitions stay unmodelled: the 23
+  members of `GtkStackTransitionType` (`refs/gtk/gtk/gtkstack.c:95-121`), the two-way nick
+  resolved by page order (`get_simple_transition_type`, `:1162-1200`) and the reduced-motion
+  swap to a crossfade (`:1320-1340`) are GTK's own animation vocabulary, and a NativeScript
+  page transition is chosen by the platform, not authored. So the three stories are ledgered
+  as not rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`)
+  and their XML templates refused.
 - **`<gtk-drawing-area>`, `<gtk-gl-area>`, `<gtk-graphics-offload>` and `<gtk-drag-icon>` on
-  NativeScript.** Four browser elements with their blocks and stories, and a NativeScript port
-  with no counterpart for any of them: `GtkBox` is the container one would sit in and nothing in
-  the port paints — a drawing area would be an empty box with a size request. The GL area
+  NativeScript.** Four browser elements with their blocks and stories. `Gtk.DrawingArea` ships
+  as a constructible STUB (so Learn6502's shared templates build): `set_draw_func` throws and
+  `queue_draw` is a no-op, because nothing in the port paints — a drawing area is an empty view
+  with a size request, and its story stays unrendered there. The other three have no
+  counterpart at all. The GL area
   is the harder half of the same question: a GPU surface is what `@nativescript/core` has
   NO view for, and the whole contract is a signal pair
   (`::resize` before the first `::render`, `needs_render` cleared after the emit,
@@ -449,30 +444,12 @@ exactly why they must not be written as decisions.
   (`refs/gtk/gtk/gtkvideo.c:125-133` is the three-second reveal), which is a product question
   rather than a buildability one: a `<Video>` with a native overlay is what a platform already
   offers. Story ledgered as not rendered there, XML template refused.
-- **`<adw-dialog>` on NativeScript.** `AdwDialog` is a real upstream widget
-  (`adw-dialog.h`) and the browser element, its block and its story all exist; the
-  NativeScript port has the three SPECIALISED dialogs — alert, about, preferences —
-  but no generic one, so the story is ledgered as not rendered there
-  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
-  template refused. Every NativeScript dialog here is deliberately the platform sheet
-  ("There is NO custom in-app modal here", `adw-alert-dialog.ts`), and a
-  content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
-  card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
-  open decision. `<adw-shortcuts-dialog>` is ledgered beside it: the generic-dialog half
-  is the same, and the shortcuts half is a platform fact rather than an unwritten port —
-  a touch target has no keyboard, so there is no accelerator to list — but the port has
-  neither the dialog nor the `AdwShortcutsSection` / `AdwShortcutsItem` GObjects to build
-  it from. Its whole shortcut surface is `<adw-shortcut-label>`, one keycap.
-- **`<adw-window>` and `<adw-application-window>` on NativeScript.** Both browser elements,
-  both gallery blocks and both stories exist, and both are ledgered as not rendered on
-  NativeScript (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) with their
-  XML templates refused. This one is a `decision` rather than a `gap` in
-  `scripts/check-storybook-widget-coverage.mjs` — NativeScript's `Page` IS the window (the
-  storybook Page already carries the `adw-window` style class,
-  `showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml`) — and the
-  application window adds only `Gtk.ApplicationWindow:show-menubar`, a menu bar no phone
-  has. What the browser port therefore has that the page does not is the FRAME; the port's
-  own answer is `AdwToolbarView` inside a `Page`.
+- **`<adw-shortcuts-dialog>` on NativeScript.** `AdwDialog` ships there now, as an in-app
+  overlay card over a scrim (`widgets/adw-dialog.ts`), so the generic-dialog half is closed.
+  What remains is a platform fact rather than an unwritten port: a touch target has no
+  keyboard, so there is no accelerator to list, and the port has neither the dialog nor the
+  `AdwShortcutsSection` / `AdwShortcutsItem` GObjects to build it from. Its whole shortcut
+  surface is `<adw-shortcut-label>`, one keycap.
 - **`<gtk-about-dialog>`, `<gtk-emoji-chooser>`, `<gtk-page-setup-unix-dialog>` and
   `<gtk-print-unix-dialog>` on NativeScript.** Four browser elements and their gallery blocks
   exist; the NativeScript port has none of the four, so their stories are ledgered as not
@@ -487,14 +464,14 @@ exactly why they must not be written as decisions.
   open question is not whether each CAN be built: it is whether a document that has to be
   printed, or an emoji inserted from a keyboard, is a phone interaction at all, and what its
   Adwaita expression would be if it were.
-- **The GTK layout widgets on NativeScript.** Six browser elements and their gallery blocks
-  exist — `<gtk-separator>`, `<gtk-toggle-button>`, `<gtk-overlay>`, `<gtk-revealer>`,
-  `<gtk-paned>` and `<gtk-expander>` — and the NativeScript port has none of the six, so the
-  stories are ledgered as not rendered there (`NOT_ON_THIS_TARGET` in
-  `scripts/check-storybook-story-parity.mjs`) and their XML templates refused. The
-  separator is a 1px view with the `.spacer` variant and the toggle button is
-  `GtkButton` plus a checked state that `@nativescript/core`'s `Button` has no
-  `:checked` CSS state for, so the Adwaita expression is the open question, not the
+- **`<gtk-paned>` and `<gtk-expander>` on NativeScript.** `Gtk.Separator`,
+  `Gtk.ToggleButton`, `Gtk.Overlay` and `Gtk.Revealer` ship there now; these two browser
+  elements and their gallery blocks do not, so their stories are ledgered as not rendered there
+  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and their XML templates
+  refused. Both are CONTAINERS: a paned is a question about splitting that no NativeScript
+  layout answers in the Adwaita idiom, and the expander's disclosure is the one shape the port
+  is missing where libadwaita's own is `AdwExpanderRow`, which it already has. So the open
+  question is the EXPRESSION of each, not whether a view can be built.
 state. The other four are CONTAINERS: `GtkBox` places each child into a slot it already
   names, so an overlay, a paned and a revealer are each a question about stacking, splitting
   and animation that no NativeScript layout answers in the Adwaita idiom — and the
@@ -526,11 +503,11 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   (`gtkwindowcontrols.c:129-140`), a display-wide default NativeScript has no equivalent of, so the
   question is what a touch target's window chrome should be at all — and whether the platform's own
   title bar is the whole answer.
-- **`<gtk-window>` and `<gtk-application-window>` on NativeScript.** Neither browser element's
-  counterpart is missing because the port cannot do windows — its `Page` IS the window
-  (`Page.adw-window`, `packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24`), which is
-  why `<gtk-window>` is a DECISION in `ONE_RENDERER_ONLY` and only the two story slots are gaps. What
-  is undecided is the frame PROPERTY half: `decorated`, `deletable`, `resizable`, `maximized` and
+- **`<gtk-window>`, `<adw-window>` and the application windows on NativeScript.** All of
+  them exist there now as the full-size ROOT CLASS a `template $Foo : Adw.Window` builds
+  into; the platform's `Page` stays the screen (`Page.adw-window`,
+  `packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24`). What is undecided is
+  the frame PROPERTY half: `decorated`, `deletable`, `resizable`, `maximized` and
   `hide-on-close` decide which frame buttons a page draws (`gtkwindowcontrols.c:270-274`), and a
   `Page` has nothing for them to decide. `GtkApplicationWindow` adds a menubar built from the
   application's `GMenuModel` (`gtkapplicationwindow.c:337-348`), and whether a phone has room for
@@ -569,45 +546,39 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   multi-layout view has to re-parent children between slots on a platform whose
   `LayoutBase` has no notion of a slot ID. `AdwLayout` is a GObject there too, so the
   layouts need the same markup-to-object step the browser gets for free.
-- **`<adw-bin>`, `<adw-clamp-scrollable>`, `<adw-preferences-row>`, `<adw-tab-bar>`,
+- **`<adw-clamp-scrollable>`, `<adw-preferences-row>`, `<adw-tab-bar>`,
   `<adw-tab-button>`, `<adw-tab-overview>` and `<adw-view-switcher-sidebar>` on
-  NativeScript.** The seven browser elements and their gallery blocks exist; the
-  NativeScript port has none of them, so their stories are ledgered as not rendered
-  there (`NOT_ON_THIS_TARGET`) and their XML templates refused. The bin is the one-child
-  base `AdwClamp` and the rows could stand on; the scrolling clamp needs a scrollable
-  child `@nativescript/core` would have to supply; the preferences row is the title half
-  of `AdwActionRow`; the tab bar is the strip of chips over an `AdwTabView` the port
-  MERGES into its own tab view, so a separate bar would be the same decision taken twice
-  and the `view` binding has no XML spelling there; the tab button is a counter over
-  `AdwTabView`'s page list; the tab overview is a second surface stacked over the view
-  that holds it, and the switcher sidebar is an `AdwSidebar` driven from an
-  `AdwViewStack`'s page list — which `AdwSidebar` has, but no way to bind one to the
-  other.
-- **`<gtk-editable-label>`, `<gtk-text>`, `<gtk-text-view>` and `<gtk-search-bar>` on
-  NativeScript.** Four browser elements and their gallery blocks exist; the NativeScript
-  port has none of the four, so their stories are ledgered as not rendered there and
+  NativeScript.** The six browser elements and their gallery blocks exist; the
+  NativeScript port has none of them (`Adw.Bin` ships now), so their stories are ledgered as
+  not rendered there (`NOT_ON_THIS_TARGET`) and their XML templates refused. The scrolling
+  clamp needs a scrollable child `@nativescript/core` would have to supply; the preferences row
+  is the title half of `AdwActionRow`; the tab bar is the strip of chips over an `AdwTabView`
+  the port MERGES into its own tab view, so a separate bar would be the same decision taken
+  twice and the `view` binding has no XML spelling there; the tab button is a counter over
+  `AdwTabView`'s page list; the tab overview is a second surface stacked over the view that
+  holds it, and the switcher sidebar is an `AdwSidebar` driven from an `AdwViewStack`'s page
+  list — which `AdwSidebar` has, but no way to bind one to the other.
+- **`<gtk-editable-label>`, `<gtk-text>` and `<gtk-search-bar>` on
+  NativeScript.** Three browser elements and their gallery blocks exist (`Gtk.TextView` ships
+  there now); the NativeScript port has none of the three, so their stories are ledgered as not rendered there and
   their XML templates refused. What each one would be is a question, not an omission:
   `GtkEntry` is the port's single-line field and `GtkLabel` its read-only twin, so
   `<gtk-text>` — the delegate an entry is built from — has no separate counterpart; the
   editable label is a swap between those two plus the commit/discard keys, which no
-  `@nativescript/core` view offers; `<gtk-text-view>` needs a multi-line editor, which
-  `GtkEntry` is not, and `<gtk-search-bar>` is a revealer plus a key-capture widget, and
+  `@nativescript/core` view offers; `<gtk-search-bar>` is a revealer plus a key-capture widget, and
   the port's theme has no Adwaita expression for either. The open decision is what the
   Adwaita EXPRESSION of each is on a touch target, not whether a stand-in is buildable.
-- **The five Gtk layout containers on NativeScript** — `<gtk-frame>`, `<gtk-aspect-frame>`,
-  `<gtk-center-box>`, `<gtk-grid>` and `<gtk-fixed>`. They have browser elements and
-  gallery blocks; the port has none of them, so their five stories are ledgered as not
-  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
-  their XML templates refused. The interesting half is not that they are missing but that
-  they are the wrong SHAPE to translate one-for-one: the frame's label, the aspect frame's
-  ratio, the centre box's three slots and the fixed's pixel offsets are all things
-  `component-builder`'s two doors (a string attribute, a child) either cannot carry or
-  carry with no arithmetic — `GtkBox` has no border-spacing a theme could style and
-  `GtkLabel` no `baseline-position` to align against, and there is no `Grid`-equivalent view
-  in `@nativescript/core` beyond `GridLayout`, which has no homogeneous lines at all.
-  `AbsoluteLayout` does cover `Gtk.Fixed` exactly, so whether these five arrive as five
-  widgets or as four styled boxes plus one `AbsoluteLayout` is the open question, not the
-  platform half.
+- **The three Gtk layout containers on NativeScript** — `<gtk-aspect-frame>`,
+  `<gtk-center-box>` and `<gtk-fixed>`. (`Gtk.Frame` and `Gtk.Grid` ship now.) They have browser
+  elements and gallery blocks; the port has none of the three, so their stories are ledgered as
+  not rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
+  their XML templates refused. They are the wrong SHAPE to translate one-for-one: the aspect
+  frame's ratio, the centre box's three slots and the fixed's pixel offsets are all things
+  `component-builder`'s two doors (a string attribute, a child) either cannot carry or carry
+  with no arithmetic — `GtkBox` has no border-spacing a theme could style and `GtkLabel` no
+  `baseline-position` to align against. `AbsoluteLayout` does cover `Gtk.Fixed` exactly, so
+  whether these arrive as three widgets or as two styled boxes plus one `AbsoluteLayout` is the
+  open question, not the platform half.
 - **`<gtk-popover>`, `<gtk-popover-menu>`, `<gtk-popover-menu-bar>` and
   `<gtk-popover-bin>` on NativeScript.** All four exist on the browser with their gallery
   blocks, and all four are refused an XML template because the NativeScript port has no
@@ -624,50 +595,42 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   has no positioned overlay that is not a modal. The dismissal machinery would come free —
   `PopoverState` and `resolvePopoverKey` are renderer-neutral (ADR 0089) — so the question is
   the surface, not the behaviour.
-- **`<gtk-scrolled-window>`, `<gtk-scrollbar>`, `<gtk-viewport>` and
-  `<gtk-window-handle>` on NativeScript.** All four browser elements and their gallery
-  blocks exist; the NativeScript port has none of the four widgets, so their stories are
-  ledgered as not rendered there and their XML templates refused. The same bullet covers
-  them from the widget side too — see "The scrolling widgets on NativeScript" above.
-- **The scrolling widgets on NativeScript.** `<gtk-scrolled-window>`, `<gtk-scrollbar>`,
-  `<gtk-viewport>` and `<gtk-window-handle>` are browser elements with gallery blocks, and
-  the NativeScript port has none of the four widgets, so their stories are ledgered as not
+- **The scrolling widgets on NativeScript.** `<gtk-scrollbar>`, `<gtk-viewport>` and
+  `<gtk-window-handle>` are browser elements with gallery blocks (`Gtk.ScrolledWindow` ships
+  there now), and the NativeScript port has none of the three widgets, so their stories are ledgered as not
   rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
   their XML templates refused. What is missing is the whole chain rather than one view: the
   browser gets a scrolling container, its scrollbars and the viewport under them out of
   `overflow: auto` plus two elements of its own, where `GtkBox` lays children out and
   nothing else, so there is nothing for a scrolled window to stand in for and nothing to
-  drive a trough. The scrollbar is the sharpest of the four, because its geometry is
+  drive a trough. The scrollbar is the sharpest of the three, because its geometry is
   `page_size / (upper - lower)` and its position `(value - lower) / (upper - lower -
   page_size)` — two different denominators that a NativeScript `ScrollView`'s own thumb
   does not expose. The titlebar handle is the odd one out and is here because it is on the
   same page: a `Page` cannot be dragged by a view inside it, so the gesture has no host
   there at all.
-- **`<gtk-list-box>`, `<gtk-flow-box>` and `<gtk-calendar>` on NativeScript.** The three
+- **`<gtk-flow-box>` and `<gtk-calendar>` on NativeScript.** (`Gtk.ListBox` ships now, with
+  its rows, `selection-mode` and `row-activated`.) The two
   browser elements and their gallery blocks exist, and the SELECTION half is portable and
   renderer-neutral already — `listBoxSelect` and its three siblings in `@gjsify/adwaita-core`
   are `gtk_list_box_update_selection_full` line for line (ADR 0089), which is also
   `gtk_flow_box_update_selection`, and their vector tables run from the core suite AND from
   both browser specs. What the NativeScript port has is `GtkBox` (a `StackLayout`) and
-  `AdwWrapBox` (a `FlexboxLayout`), so both containers' CHILDREN have somewhere to go and
-  neither SELECTION does: `AdwSwitchRow` is a title and a boolean, with no child for a box to
-  select among, and a wrap holds no state per cell. The calendar is further out —
+  `AdwWrapBox` (a `FlexboxLayout`), so the wrap's CHILDREN have somewhere to go and its SELECTION does not: a wrap holds no state per cell. The calendar is further out —
   `@nativescript/core` ships no `DatePicker`, so there is nothing to take a day, a month grid,
   a marked day or the four navigation arrows from. Their stories are therefore ledgered as not
   rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and their
-  XML templates refused. The open question for the first two is whether the Adwaita
+  XML templates refused. The open question for the flow box is whether the Adwaita
   EXPRESSION — four `Gtk.SelectionMode` values and a selected cell on a touch target — is the
-  one this port wants at all, which is the same product question `<gtk-check-button>` above
-  records; for the calendar it is whether a platform date picker counts as an Adwaita calendar,
+  one this port wants at all, which the list box already answered; for the calendar it is whether a platform date picker counts as an Adwaita calendar,
   which `<adw-combo-row>` and `GtkDropDown` already decided for a LIST of values and not for a
   date.
 - **`page` (Gtk.Notebook / Gtk.Stack pages) on the shared node shape.** `SharedTreeNode.page`
   (`{ label?, name? }`) is built by `gtk-host` (`layout` `tabLabel`, or `name` and `title`) and by
   `adwaita-web` (`tab-label`, or `name` and `title`), and refused BY NAME by `adwaita-nativescript`:
-  there is no NS widget yet for `Gtk.Notebook` (a TabView owns its own tab strip), and `Gtk.StackPage`
-  is on `feat/learn6502-android-widgets`, not here. When ADR 0091's `./capabilities` tables land,
+  there is no NS widget yet for `Gtk.Notebook` (a TabView owns its own tab strip), while `Gtk.Stack` and `Gtk.StackPage` ship there. When ADR 0093's `./capabilities` tables land,
   `page` becomes a row in each: gtk-host `implemented`; web `implemented`; nativescript
-  `{ refused: 'no NS widget yet' }` for Notebook, and Stack flips once StackPage is merged. It also
+  `{ refused: 'no NS widget yet' }` for Notebook, and Stack is `implemented` too. It also
   needs a `CONSTRUCT_VECTORS` entry and a line in `check-construct-capabilities.mjs`; until then the
   three builder specs hold it. The gallery's `ADWAITA_GALLERY_REFUSALS` reasons should reuse those
   tables instead of restating them.

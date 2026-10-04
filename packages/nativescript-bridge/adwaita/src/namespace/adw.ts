@@ -53,8 +53,10 @@
 export { AdwAboutDialog as AboutDialog } from '../widgets/adw-about-dialog.js';
 export { AdwActionRow as ActionRow } from '../widgets/adw-action-row.js';
 export { AdwAlertDialog as AlertDialog } from '../widgets/adw-alert-dialog.js';
+export { AdwApplicationWindow as ApplicationWindow } from '../widgets/adw-application-window.js';
 export { AdwAvatar as Avatar } from '../widgets/adw-avatar.js';
 export { AdwBanner as Banner } from '../widgets/adw-banner.js';
+export { AdwBin as Bin } from '../widgets/adw-bin.js';
 export { AdwBottomSheet as BottomSheet } from '../widgets/adw-bottom-sheet.js';
 export { AdwButtonContent as ButtonContent } from '../widgets/adw-button-content.js';
 export { AdwButtonRow as ButtonRow } from '../widgets/adw-button-row.js';
@@ -63,6 +65,7 @@ export { AdwCarouselIndicatorDots as CarouselIndicatorDots } from '../widgets/ad
 export { AdwCarouselIndicatorLines as CarouselIndicatorLines } from '../widgets/adw-carousel-indicator-lines.js';
 export { AdwClamp as Clamp } from '../widgets/adw-clamp.js';
 export { AdwComboRow as ComboRow } from '../widgets/adw-combo-row.js';
+export { AdwDialog as Dialog } from '../widgets/adw-dialog.js';
 export { AdwEntryRow as EntryRow } from '../widgets/adw-entry-row.js';
 export { AdwExpanderRow as ExpanderRow } from '../widgets/adw-expander-row.js';
 export { AdwHeaderBar as HeaderBar } from '../widgets/adw-header-bar.js';
@@ -94,5 +97,6 @@ export { AdwViewStack as ViewStack } from '../widgets/adw-view-stack.js';
 export { AdwViewStackPage as ViewStackPage } from '../widgets/view-stack-page.js';
 export { AdwViewSwitcher as ViewSwitcher } from '../widgets/adw-view-switcher.js';
 export { AdwViewSwitcherBar as ViewSwitcherBar } from '../widgets/adw-view-switcher-bar.js';
+export { AdwWindow as Window } from '../widgets/adw-window.js';
 export { AdwWindowTitle as WindowTitle } from '../widgets/adw-window-title.js';
 export { AdwWrapBox as WrapBox } from '../widgets/adw-wrap-box.js';

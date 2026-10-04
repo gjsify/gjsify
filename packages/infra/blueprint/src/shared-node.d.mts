@@ -88,6 +88,12 @@ export interface SharedNode {
             enabled?: boolean;
         }[];
     };
+    /**
+     * The `layout { }` block: properties of the child's PLACEMENT in a layout manager
+     * (`GtkGridLayoutChild`'s `row`, `column`, `row-span`, `column-span`), as the source wrote
+     * them (ADR 0092). Never typed against the widget, so an identifier stays its spelling.
+     */
+    layout?: Record<string, string | number | boolean>;
     children?: SharedNode[];
 }
 

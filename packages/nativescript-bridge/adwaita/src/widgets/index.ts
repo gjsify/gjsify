@@ -67,8 +67,83 @@ export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-but
 export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
+export { GtkGrid } from './gtk-grid.js';
+export { gridChildAt, gridGap, gridSpacing, gridTrackCounts } from './grid-state.js';
+export type { GridPlacement } from './grid-state.js';
+export { GtkListBox, LIST_BOX_ROW_ACTIVATED, LIST_BOX_ROW_SELECTED, LIST_ROW_SELECTED_CLASS } from './gtk-list-box.js';
+export type { ListBoxRowEventData } from './gtk-list-box.js';
+export {
+    DEFAULT_LIST_SELECTION_MODE,
+    GTK_SELECTION_MODES,
+    selectionAfterModeChange,
+    selectionAfterTap,
+    selectionMode,
+} from './list-box-state.js';
+export type { GtkSelectionModeNick } from './list-box-state.js';
+// The window roots a shared tree builds into, and the dialog overlay presented over them.
+export { AdwWindow } from './adw-window.js';
+export { AdwApplicationWindow } from './adw-application-window.js';
+export { AdwWindowBase, ADW_WINDOW_CLASS } from './window-base.js';
+export { AdwDialog, ADW_DIALOG_CLASS, ADW_DIALOG_CLOSED, ADW_DIALOG_CLOSE_ATTEMPT } from './adw-dialog.js';
+export {
+    ADW_DIALOG_PRESENTATION_MODES,
+    DEFAULT_DIALOG_PRESENTATION_MODE,
+    dialogPresentationMode,
+    findDialogHost,
+    surfaceSize,
+} from './window-state.js';
+export type { AdwDialogPresentationNick, DialogHost } from './window-state.js';
+export { NOTIFY_HEXPAND, NOTIFY_VEXPAND } from './widget-layout.js';
+export { lengthValue } from './ns-length.js';
+export type { NsLength } from './ns-length.js';
 export { GtkActionBar } from './gtk-action-bar.js';
-export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
+// The pass-through containers: one child, no look of their own. `AdwSingleChildBase` is
+// the base the first four share; the pure halves are free of `@nativescript/core`.
+export { AdwBin } from './adw-bin.js';
+export { GtkOverlay } from './gtk-overlay.js';
+export { GtkRevealer, NOTIFY_REVEAL_CHILD } from './gtk-revealer.js';
+export { revealerChildVisibility } from './revealer-state.js';
+export type { RevealerChildVisibility } from './revealer-state.js';
+export { GtkScrolledWindow } from './gtk-scrolled-window.js';
+export {
+    DEFAULT_SCROLLBAR_POLICY,
+    GTK_POLICY_TYPES,
+    normalizePolicy,
+    policyScrolls,
+    scrollOrientationFor,
+} from './scrolled-window-policy.js';
+export type { GtkPolicyNick } from './scrolled-window-policy.js';
+export { GtkStack, NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME } from './gtk-stack.js';
+export type { NotifyStackVisibleChildEventData } from './gtk-stack.js';
+export { GtkStackPage } from './stack-page.js';
+export {
+    DEFAULT_REVEALER_TRANSITION_DURATION,
+    DEFAULT_STACK_TRANSITION_DURATION,
+    GTK_REVEALER_TRANSITIONS,
+    GTK_STACK_TRANSITIONS,
+    transitionNick,
+} from './transition-type.js';
+export type { GtkRevealerTransitionNick, GtkStackTransitionNick } from './transition-type.js';
+export {
+    GtkToggleButton,
+    GTK_TOGGLE_BUTTON_CHECKED_CLASS,
+    GTK_TOGGLE_BUTTON_TOGGLED,
+    NOTIFY_TOGGLE_ACTIVE,
+} from './gtk-toggle-button.js';
+export {
+    GtkCheckButton,
+    GTK_CHECK_BUTTON_ACTIVATE,
+    GTK_CHECK_BUTTON_CHECKED_CLASS,
+    GTK_CHECK_BUTTON_INCONSISTENT_CLASS,
+    GTK_CHECK_BUTTON_TOGGLED,
+    NOTIFY_CHECK_ACTIVE,
+} from './gtk-check-button.js';
+export { GtkDrawingArea, DRAWING_AREA_REFUSAL } from './gtk-drawing-area.js';
+export { GtkFrame } from './gtk-frame.js';
+export { GtkSeparator } from './gtk-separator.js';
+export { GtkTextView, GTK_WRAP_MODES, NOTIFY_TEXT_VIEW_TEXT } from './gtk-text-view.js';
+export type { GtkWrapModeNick } from './gtk-text-view.js';
+export { boxChildTrack, boxSpacingChanges, boxTrackPlan, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
 // The text reduction is headless (`@gjsify/adwaita-core`, ADR 0004) — the web label draws
@@ -355,7 +430,23 @@ import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
 import { GtkBox } from './gtk-box.js';
+import { GtkGrid } from './gtk-grid.js';
+import { GtkListBox } from './gtk-list-box.js';
+import { AdwWindow } from './adw-window.js';
+import { AdwApplicationWindow } from './adw-application-window.js';
+import { AdwDialog } from './adw-dialog.js';
 import { GtkActionBar } from './gtk-action-bar.js';
+import { AdwBin } from './adw-bin.js';
+import { GtkOverlay } from './gtk-overlay.js';
+import { GtkRevealer } from './gtk-revealer.js';
+import { GtkScrolledWindow } from './gtk-scrolled-window.js';
+import { GtkStack } from './gtk-stack.js';
+import { GtkToggleButton } from './gtk-toggle-button.js';
+import { GtkCheckButton } from './gtk-check-button.js';
+import { GtkDrawingArea } from './gtk-drawing-area.js';
+import { GtkFrame } from './gtk-frame.js';
+import { GtkSeparator } from './gtk-separator.js';
+import { GtkTextView } from './gtk-text-view.js';
 import { GtkLabel } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
@@ -409,7 +500,23 @@ const ELEMENTS = {
     AdwExpanderRow,
     GtkButton,
     GtkBox,
+    GtkGrid,
+    GtkListBox,
+    AdwWindow,
+    AdwApplicationWindow,
+    AdwDialog,
     GtkActionBar,
+    AdwBin,
+    GtkOverlay,
+    GtkRevealer,
+    GtkScrolledWindow,
+    GtkStack,
+    GtkToggleButton,
+    GtkCheckButton,
+    GtkDrawingArea,
+    GtkFrame,
+    GtkSeparator,
+    GtkTextView,
     GtkLabel,
     AdwImageButton,
     GtkMenuButton,

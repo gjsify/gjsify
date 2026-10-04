@@ -35,12 +35,26 @@ import constructPropsTestSuite from './construct-props.spec.js';
 import signalsTestSuite from './signals.spec.js';
 import iconSizeTestSuite from './icon-size.spec.js';
 import gioMenuTestSuite from './gio-menu.spec.js';
+import transitionTypeTestSuite from './transition-type.spec.js';
+import scrolledWindowPolicyTestSuite from './scrolled-window-policy.spec.js';
+import revealerStateTestSuite from './revealer-state.spec.js';
+import windowStateTestSuite from './window-state.spec.js';
+import gridStateTestSuite from './grid-state.spec.js';
+import listBoxStateTestSuite from './list-box-state.spec.js';
+import nsLengthTestSuite from './ns-length.spec.js';
 
 run({
     constructPropsTestSuite,
     signalsTestSuite,
     iconSizeTestSuite,
     gioMenuTestSuite,
+    transitionTypeTestSuite,
+    scrolledWindowPolicyTestSuite,
+    revealerStateTestSuite,
+    windowStateTestSuite,
+    gridStateTestSuite,
+    listBoxStateTestSuite,
+    nsLengthTestSuite,
     bannerNsTestSuite,
     buttonContentNsTestSuite,
     shortcutLabelNsTestSuite,

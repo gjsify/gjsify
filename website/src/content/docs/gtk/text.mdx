@@ -159,15 +159,11 @@ character and keeps the focus in the view.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    // The text belongs to the BUFFER, which the view is then given.
-    const buffer = new Gtk.TextBuffer({
-        text: 'A text view holds as many lines as it is given.',
-    });
+    // NativeScript has no `Gtk.TextBuffer`: the text is a property of the view itself, and
+    // `justification` and the margins are not shipped.
     const view = new Gtk.TextView({
-        buffer,
-        wrap_mode: Gtk.WrapMode.WORD,
-        justification: Gtk.Justification.LEFT,
-        top_margin: 6,
+        text: 'A text view holds as many lines as it is given.',
+        wrapMode: 'word',
     });
     // A view scrolls, so it is normally put in a scrolled window.
     const scroller = new Gtk.ScrolledWindow({ child: view });

@@ -222,9 +222,56 @@ function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
                     'the corpus nests a node this element cannot hold.',
             );
         }
-        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), buildNode(child, context));
+        const childBuilt = buildNode(child, context);
+        applyLayout(child, childBuilt, element, node.tag);
+        parent._addChildFromBuilder(builderNameFor(element, node.tag, child), childBuilt);
     }
     return built;
+}
+
+/** The `GtkGridLayoutChild` properties `layout { }` may carry, and the NativeScript member each is. */
+const GRID_LAYOUT: Readonly<Record<string, string>> = {
+    row: 'row',
+    column: 'column',
+    'row-span': 'rowSpan',
+    'column-span': 'columnSpan',
+};
+
+/**
+ * ADR 0092's `layout { }`: the child's cell in a `Gtk.Grid`, written BEFORE the child is handed
+ * to the parent, whose `addChild` reads the placement to derive its tracks.
+ *
+ * The one layout manager this port has is the grid, and the parent says so by `attach` (the
+ * GtkGrid method that takes the same four values), so a layout under any other parent is
+ * REFUSED: a cell the tree asked for would be silently ignored there. A key the grid child has
+ * no spelling for, or a value that is not a whole number (`column: null` is a `.blp` ident), is
+ * refused by name too — NativeScript would take either as a dead write or as cell 0.
+ */
+function applyLayout(child: SharedTreeNode, built: View | object, parentElement: Element, parentTag: string): void {
+    if (child.layout === undefined) return;
+    if (typeof (parentElement.ctor.prototype as { attach?: unknown }).attach !== 'function') {
+        throw new Error(
+            `<${elementFor(child.tag).xmlName}> authored layout (${Object.keys(child.layout).join(', ')}) under ` +
+                `\`${parentTag}\`, which has no \`attach\`: this port's only layout manager is the grid, so the ` +
+                'placement would be dropped.',
+        );
+    }
+    if (!(built instanceof View)) {
+        throw new Error(`\`${child.tag}\` is not a view, so it has no cell to place.`);
+    }
+    for (const [key, value] of Object.entries(child.layout)) {
+        const member = GRID_LAYOUT[key];
+        if (member === undefined) {
+            throw new Error(
+                `layout \`${key}\` on \`${child.tag}\` reaches nothing: a grid child takes ` +
+                    `${Object.keys(GRID_LAYOUT).join(', ')}.`,
+            );
+        }
+        if (typeof value !== 'number' || !Number.isInteger(value)) {
+            throw new Error(`layout \`${key}: ${String(value)}\` on \`${child.tag}\` is not a whole number.`);
+        }
+        (built as unknown as Record<string, number>)[member] = value;
+    }
 }
 
 /** The refusal for an authored property the class does not declare. */
