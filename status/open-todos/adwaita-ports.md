@@ -661,6 +661,16 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   records; for the calendar it is whether a platform date picker counts as an Adwaita calendar,
   which `<adw-combo-row>` and `GtkDropDown` already decided for a LIST of values and not for a
   date.
+- **`page` (Gtk.Notebook / Gtk.Stack pages) on the shared node shape.** `SharedTreeNode.page`
+  (`{ label?, name? }`) is built by `gtk-host` (`layout` `tabLabel`, or `name` and `title`) and by
+  `adwaita-web` (`tab-label`, or `name` and `title`), and refused BY NAME by `adwaita-nativescript`:
+  there is no NS widget yet for `Gtk.Notebook` (a TabView owns its own tab strip), and `Gtk.StackPage`
+  is on `feat/learn6502-android-widgets`, not here. When ADR 0091's `./capabilities` tables land,
+  `page` becomes a row in each: gtk-host `implemented`; web `implemented`; nativescript
+  `{ refused: 'no NS widget yet' }` for Notebook, and Stack flips once StackPage is merged. It also
+  needs a `CONSTRUCT_VECTORS` entry and a line in `check-construct-capabilities.mjs`; until then the
+  three builder specs hold it. The gallery's `ADWAITA_GALLERY_REFUSALS` reasons should reuse those
+  tables instead of restating them.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.

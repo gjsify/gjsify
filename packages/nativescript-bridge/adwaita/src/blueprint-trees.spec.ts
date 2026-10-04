@@ -117,6 +117,12 @@ export const AdwBlueprintTreesNsTest = async () => {
         });
     });
 
+    await describe('a page is refused until the port has a parent for it', async () => {
+        await it('names the page and why: no Gtk.Notebook widget yet', () => {
+            expect(() => built({ tag: 'GtkLabel', page: { label: 'One' } })).toThrow('builds no pages');
+        });
+    });
+
     await describe('the GtkWidget layout accessors refuse what GTK would not hold', async () => {
         await it('a baseline alignment names the reason it has no NativeScript counterpart', () => {
             expect(() => built({ tag: 'GtkButton', props: { valign: 'baseline-fill' } })).toThrow('baseline');

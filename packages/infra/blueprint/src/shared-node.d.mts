@@ -51,6 +51,8 @@ export interface SharedNode {
     /** The parent property this child was written at, or the bracket it was written under. */
     slot?: string;
     props?: Record<string, string | number | boolean>;
+    /** The child as a page of a `Gtk.Notebook` or `Gtk.Stack`: tab text or title, and a stack page's name. */
+    page?: { label?: string; name?: string };
     /**
      * The `_()` / `C_()` markings on this node's `props`, keyed by the prop name it marks.
      *
