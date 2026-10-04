@@ -64,6 +64,31 @@ export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = [])
     // And before `insert`, which is where the slot is READ: writing it afterwards is a move
     // — correct, and it would place the child twice, the first time in the wrong slot.
     if (node.slot !== undefined) setProp(el, 'slot', node.slot);
-    for (const child of node.children ?? []) insert(buildSharedTree(child, built), el);
+    for (const child of node.children ?? []) {
+        const childEl = buildSharedTree(child, built);
+        if (child.page !== undefined) setPageLayout(el, childEl, child);
+        insert(childEl, el);
+    }
     return el;
+}
+
+/**
+ * A `page` is the child's `layout` as the parent's policy reads it: `name` and `title` for a
+ * `Gtk.Stack` (`keyed`), `tabLabel` for a `Gtk.Notebook` (`paged`). Written before `insert`, which
+ * is where the policy reads it. Any other parent is refused by name — its policy would drop the
+ * keys without a word.
+ */
+function setPageLayout(parent: HostElement, child: HostElement, node: SharedTreeNode): void {
+    const { page } = node;
+    const gtype = parent.descriptor.gtype;
+    if (gtype === 'GtkNotebook') {
+        setProp(child, 'layout', page?.label === undefined ? {} : { tabLabel: page.label });
+    } else if (gtype === 'GtkStack') {
+        setProp(child, 'layout', {
+            ...(page?.name === undefined ? {} : { name: page.name }),
+            ...(page?.label === undefined ? {} : { title: page.label }),
+        });
+    } else {
+        throw new Error(`gtk-host's shared-tree builder: \`${node.tag}\` has a page, and ${gtype} has no pages.`);
+    }
 }

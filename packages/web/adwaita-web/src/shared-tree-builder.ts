@@ -126,6 +126,7 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { pl
     if (node.extensions !== undefined) record.extended.push({ el, node });
     for (const child of node.children ?? []) {
         const childEl = buildSharedTree(child, record);
+        if (child.page !== undefined) writePage(el, childEl, child);
         if (child.slot !== undefined) {
             childEl.setAttribute('slot', child.slot);
             record.placed.push({ parent: el, child: childEl, slot: child.slot });
@@ -267,4 +268,23 @@ export function mountSharedTree(node: SharedTreeNode): MountedSharedTree {
         throw error;
     }
     return { root: host.firstElementChild as HTMLElement, unmount: () => host.remove() };
+}
+
+/**
+ * A `page` as the attributes `<gtk-notebook>` (`tab-label`) and `<gtk-stack>` (`name`, `title`)
+ * read off their children. Any other parent is refused by name: the attributes would be written
+ * and read by nobody.
+ */
+function writePage(parent: HTMLElement, child: HTMLElement, node: SharedTreeNode): void {
+    const { page } = node;
+    if (parent.localName === 'gtk-notebook') {
+        if (page?.label !== undefined) child.setAttribute('tab-label', page.label);
+    } else if (parent.localName === 'gtk-stack') {
+        if (page?.name !== undefined) child.setAttribute('name', page.name);
+        if (page?.label !== undefined) child.setAttribute('title', page.label);
+    } else {
+        throw new Error(
+            `adwaita-web's shared-tree builder: <${node.tag}> has a page, and <${parent.localName}> has no pages.`,
+        );
+    }
 }

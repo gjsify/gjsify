@@ -6,6 +6,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { GtkNotebook } from './elements/gtk-notebook.js';
+import { buildSharedTree } from './shared-tree-builder.js';
 
 interface Page {
     label?: string;
@@ -502,6 +503,28 @@ export const GtkNotebookTest = async () => {
             el.appendPage(second, 'Two');
             expect(details).toStrictEqual([{ position: 1, nPages: 2 }]);
             host.remove();
+        });
+    });
+
+    await describe('a shared-tree page', async () => {
+        await it('is written as the tab-label the notebook reads, and a stack reads name and title', () => {
+            const notebook = buildSharedTree({
+                tag: 'GtkNotebook',
+                children: [{ tag: 'GtkLabel', page: { label: 'One' }, props: { label: 'first' } }],
+            });
+            expect(notebook.children[0].getAttribute('tab-label')).toBe('One');
+            const stack = buildSharedTree({
+                tag: 'GtkStack',
+                children: [{ tag: 'GtkLabel', page: { name: 'a', label: 'A' } }],
+            });
+            expect(stack.children[0].getAttribute('name')).toBe('a');
+            expect(stack.children[0].getAttribute('title')).toBe('A');
+        });
+
+        await it('is refused BY NAME on a parent with no pages', () => {
+            expect(() =>
+                buildSharedTree({ tag: 'GtkBox', children: [{ tag: 'GtkLabel', page: { label: 'X' } }] }),
+            ).toThrow('has no pages');
         });
     });
 };
