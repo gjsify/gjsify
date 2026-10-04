@@ -266,7 +266,7 @@ const entryFor = (widget) => {
 //
 // EVERY FIELD IS COPIED BY NAME, so this is the first place a new one is lost — ADR 0058 §
 // Implementation named it before there was a second field to lose, and ADR 0066 added two.
-// `id`, `template`, `translatable` (ADR 0067), `styleClasses` (ADR 0068) and `extensions` (ADR
+// `id`, `template`, `page`, `translatable` (ADR 0067), `styleClasses` (ADR 0068) and `extensions` (ADR
 // 0072) are unreached by today's corpus and copied anyway: a block that grows one must not have
 // it dropped by a function that is silent about what it does not know. The last three are
 // copied deep — a shallow spread would hand both renderers the same `{ context }` object, the
@@ -277,6 +277,7 @@ const rebuild = (node, tagOf) => ({
     ...(node.id === undefined ? {} : { id: node.id }),
     ...(node.template === undefined ? {} : { template: node.template }),
     ...(node.slot === undefined ? {} : { slot: node.slot }),
+    ...(node.page === undefined ? {} : { page: { ...node.page } }),
     ...(node.props === undefined ? {} : { props: { ...node.props } }),
     ...(node.translatable === undefined
         ? {}

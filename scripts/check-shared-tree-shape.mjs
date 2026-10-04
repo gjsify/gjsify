@@ -434,7 +434,6 @@ export interface SharedTreeNode {
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     page?: Readonly<{ label?: string; name?: string }>;
-    page?: Readonly<{ label?: string; name?: string }>;
     translatable?: Readonly<Record<string, { readonly context?: string }>>;
     styleClasses?: readonly string[];
     extensions?: {
