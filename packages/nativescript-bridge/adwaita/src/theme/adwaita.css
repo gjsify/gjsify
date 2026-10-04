@@ -763,13 +763,21 @@ Page.adw-window {
  * same reason the accent has to be inlined as a literal. AdwToolbarView applies the
  * real reading now (#1128). */
 .adw-toolbar-view-top {
-    background-color: #ffffff;
+    /* `top-bar-style: flat` (the default): the bar is the window background, with no
+     * separator — the header bar inside it is flat too (`.adw-toolbar-view-top
+     * .adw-header-bar` below). `.raised` brings the header colour and the hairline. */
+    background-color: #fafafb;
 }
 
 .adw-toolbar-view-bottom {
-    background-color: #ffffff;
-    border-top-width: 1;
-    border-top-color: rgba(0, 0, 0, 0.1);
+    background-color: #fafafb;
+}
+
+/* A header bar in a toolbar view paints nothing of its own: the bar around it owns the
+ * colour (window background when flat, header colour when raised) and the hairline. */
+.adw-toolbar-view-top .adw-header-bar {
+    background-color: transparent;
+    border-bottom-width: 0;
 }
 
 /* top-bar-style / bottom-bar-style = raised: an opaque background with a
@@ -789,6 +797,7 @@ Page.adw-window {
 
 .adw-toolbar-view-bottom.raised {
     background-color: #ffffff;
+    border-top-width: 1;
     border-top-color: rgba(0, 0, 0, 0.1);
 }
 
@@ -2032,12 +2041,17 @@ Page.ns-dark.adw-window {
 }
 
 .ns-dark .adw-toolbar-view-top {
-    background-color: #2e2e32;
+    background-color: #222226;
+}
+
+/* Outranks `.ns-dark .adw-header-bar` above: inside a toolbar view the bar paints. */
+.ns-dark .adw-toolbar-view-top .adw-header-bar {
+    background-color: transparent;
+    border-bottom-width: 0;
 }
 
 .ns-dark .adw-toolbar-view-bottom {
-    background-color: #2e2e32;
-    border-top-color: rgba(255, 255, 255, 0.12);
+    background-color: #222226;
 }
 
 .ns-dark .adw-toolbar-view-top.raised {
@@ -2051,6 +2065,7 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-toolbar-view-bottom.raised {
     background-color: #2e2e32;
+    border-top-width: 1;
     border-top-color: rgba(255, 255, 255, 0.12);
 }
 
