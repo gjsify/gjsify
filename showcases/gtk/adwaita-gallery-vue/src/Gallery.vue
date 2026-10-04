@@ -805,7 +805,20 @@
         <gtk-stack
             transition-type="slide-left-right"
             :transition-duration="200"
-        />
+        >
+            <gtk-label
+                :layout="{ name: 'overview', title: 'Overview' }"
+                label="Three pages, one visible at a time."
+            />
+            <gtk-label
+                :layout="{ name: 'activity', title: 'Activity' }"
+                label="Switching is animated by transition-type."
+            />
+            <gtk-label
+                :layout="{ name: 'settings', title: 'Settings' }"
+                label="This page is the third."
+            />
+        </gtk-stack>
         <gtk-header-bar decoration-layout="menu:minimize,maximize,close">
             <gtk-button
                 slot="start"
@@ -831,9 +844,16 @@
             side="end"
             decoration-layout="menu:minimize,maximize,close"
         />
-        <gtk-notebook
-            tab-pos="top"
-            :page="0"
-        />
+        <gtk-notebook tab-pos="top">
+            <gtk-label
+                :layout="{ tabLabel: 'Overview' }"
+                label="A notebook brings its own tab strip."
+            />
+            <gtk-label
+                :layout="{ tabLabel: 'Activity' }"
+                label="tab-pos says which edge the strip is on."
+            />
+            <gtk-label label="No tab label, so GTK numbers it Page 3." />
+        </gtk-notebook>
     </gtk-box>
 </template>

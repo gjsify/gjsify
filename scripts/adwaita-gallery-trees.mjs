@@ -50,6 +50,9 @@
  * @typedef {Object} TreeNode
  * @property {string} tag                            a `gtk-host` tag, e.g. 'adw-header-bar'
  * @property {string} [slot]                         placement in the parent's descriptor
+ * @property {Record<string, string|number>} [layout] data the PARENT's policy reads off this
+ *                                                  child: a stack page's `name`/`title`, a
+ *                                                  notebook page's `tabLabel`, a grid cell
  * @property {Record<string, string|number|boolean|string[]|object[]|Record<string, number>>} [props]
  *                                                  an object array is a menu model (ADR 0042),
  *                                                  a string or object array a list model (ADR 0046),
@@ -1259,11 +1262,33 @@ export const ADWAITA_GALLERY_TREES = [
         widget: 'Gtk.Stack',
         page: 'stacks',
         // The pages are CHILDREN here, and the page metadata is not a property of the
-        // child widget but of the `GtkStackPage` GObject that wraps it
-        // (gtkstack.c:212-233) — which has no tag in the descriptor table. So the two
-        // properties a page would carry (`title`, `needs-attention`) have nowhere to
-        // live in a static tree, and the block's fences build the pages imperatively.
-        root: { tag: 'gtk-stack', props: { transitionType: 'slide-left-right', transitionDuration: 200 } },
+        // child widget but of the `GtkStackPage` GObject that wraps it (gtkstack.c:212-233),
+        // which has no tag. `gtk-host` reads the two it needs off the child's `layout`
+        // (`name`, `title`: `appendChild` in policies.ts), the way a grid cell reads its
+        // position — so the page is written once, here, and the preview is held to it by
+        // `check-website-adwaita-gallery.mjs` arm 14. `needs-attention` and `use-underline`
+        // are page properties `layout` does not carry; the block's fences teach them.
+        root: {
+            tag: 'gtk-stack',
+            props: { transitionType: 'slide-left-right', transitionDuration: 200 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    layout: { name: 'overview', title: 'Overview' },
+                    props: { label: 'Three pages, one visible at a time.' },
+                },
+                {
+                    tag: 'gtk-label',
+                    layout: { name: 'activity', title: 'Activity' },
+                    props: { label: 'Switching is animated by transition-type.' },
+                },
+                {
+                    tag: 'gtk-label',
+                    layout: { name: 'settings', title: 'Settings' },
+                    props: { label: 'This page is the third.' },
+                },
+            ],
+        },
     },
     // --------------------------------------------------------------- gtk/windows
     {
@@ -1297,12 +1322,29 @@ export const ADWAITA_GALLERY_TREES = [
     {
         widget: 'Gtk.Notebook',
         page: 'stacks',
-        // The same seam as the stack above: the pages are CHILDREN here and their metadata
+        // The same seam as the stack above: the pages are CHILDREN and their metadata
         // belongs to the `GtkNotebookPage` GObject that wraps one
-        // (G_DEFINE_TYPE (…, G_TYPE_OBJECT), gtknotebook.c:423), which has no tag in the
-        // descriptor table — so `tab-label` has nowhere to live in a static tree and the
-        // block's fences build the pages with it.
-        root: { tag: 'gtk-notebook', props: { tabPos: 'top', page: 0 } },
+        // (G_DEFINE_TYPE (…, G_TYPE_OBJECT), gtknotebook.c:423). `gtk-host`'s `paged` policy
+        // reads `tabLabel` off the child's `layout`; a page without one is numbered by C
+        // ("Page 3", gtknotebook.c:4353-4373), which is what the last page shows.
+        // `menu-label`, `tab-fill`, `tab-expand` and `reorderable` stay in the fences.
+        root: {
+            tag: 'gtk-notebook',
+            props: { tabPos: 'top' },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    layout: { tabLabel: 'Overview' },
+                    props: { label: 'A notebook brings its own tab strip.' },
+                },
+                {
+                    tag: 'gtk-label',
+                    layout: { tabLabel: 'Activity' },
+                    props: { label: 'tab-pos says which edge the strip is on.' },
+                },
+                { tag: 'gtk-label', props: { label: 'No tab label, so GTK numbers it Page 3.' } },
+            ],
+        },
     },
 ];
 

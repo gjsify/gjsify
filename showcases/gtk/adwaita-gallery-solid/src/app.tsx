@@ -1042,7 +1042,20 @@ const GtkStack = () => (
     <gtk-stack
         transitionType="slide-left-right"
         transitionDuration={200}
-    />
+    >
+        <gtk-label
+            layout={{ name: 'overview', title: 'Overview' }}
+            label="Three pages, one visible at a time."
+        />
+        <gtk-label
+            layout={{ name: 'activity', title: 'Activity' }}
+            label="Switching is animated by transition-type."
+        />
+        <gtk-label
+            layout={{ name: 'settings', title: 'Settings' }}
+            label="This page is the third."
+        />
+    </gtk-stack>
 );
 
 const GtkHeaderBar = () => (
@@ -1077,10 +1090,17 @@ const GtkWindowControls = () => (
 );
 
 const GtkNotebook = () => (
-    <gtk-notebook
-        tabPos="top"
-        page={0}
-    />
+    <gtk-notebook tabPos="top">
+        <gtk-label
+            layout={{ tabLabel: 'Overview' }}
+            label="A notebook brings its own tab strip."
+        />
+        <gtk-label
+            layout={{ tabLabel: 'Activity' }}
+            label="tab-pos says which edge the strip is on."
+        />
+        <gtk-label label="No tab label, so GTK numbers it Page 3." />
+    </gtk-notebook>
 );
 
 /** Every gallery snippet in one column, so one mount carries them all. */
@@ -1639,7 +1659,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
     },
     { widget: 'Gtk.Stack', root:
-        { tag: 'gtk-stack', gtype: 'GtkStack', props: {"transitionType":"slide-left-right","transitionDuration":200} }
+        { tag: 'gtk-stack', gtype: 'GtkStack', props: {"transitionType":"slide-left-right","transitionDuration":200}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Three pages, one visible at a time."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Switching is animated by transition-type."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"This page is the third."} }
+            ] }
     },
     { widget: 'Gtk.HeaderBar', root:
         { tag: 'gtk-header-bar', gtype: 'GtkHeaderBar', props: {"decorationLayout":"menu:minimize,maximize,close"}, children: [
@@ -1653,7 +1677,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
         { tag: 'gtk-window-controls', gtype: 'GtkWindowControls', props: {"side":"end","decorationLayout":"menu:minimize,maximize,close"} }
     },
     { widget: 'Gtk.Notebook', root:
-        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top","page":0} }
+        { tag: 'gtk-notebook', gtype: 'GtkNotebook', props: {"tabPos":"top"}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"A notebook brings its own tab strip."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"tab-pos says which edge the strip is on."} },
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"No tab label, so GTK numbers it Page 3."} }
+            ] }
     },
 ];
 

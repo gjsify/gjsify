@@ -164,6 +164,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ADWAITA_STORY_SRC, adwaitaStoryMetas, classTag } from './adwaita-elements.mjs';
+import { attributeOf } from './adwaita-gallery-shared-trees.mjs';
+import { ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
+import { markupElements } from './generate-adwaita-attribute-comments.mjs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 const args = process.argv.slice(2);
@@ -1476,6 +1479,75 @@ const panePairs = blocks.flatMap((block) => {
 });
 const panePartition = panePartitionProblems({ pairs: panePairs, ledger: PANE_TEXT_DIVERGENCES });
 failures.push(...panePartition.problems);
+
+// --- arm 14: a PREVIEW drawn from a tree shows what the tree says, and nothing else ---
+//
+// THE INCIDENT. `Gtk.Notebook`'s tree was `{ tag: 'gtk-notebook', props: { tabPos: 'top' } }`
+// with no pages, so the native reference rendered an empty notebook while the web block
+// showed three tabs and a sentence on each, authored by hand in the MDX. The web preview
+// was content that existed on ONE side only, and the native render proved nothing about it.
+//
+// Every block in {@link PREVIEW_FROM_TREE} has its preview held to its tree in `adwaita-
+// gallery-trees.mjs`: the same elements in the same order, every prop and `layout` value
+// of the tree written as the attribute the element reads, and NO attribute the tree does
+// not say — `style` aside, which sizes the stage and is no content. A preview with content
+// the tree lacks fails here; a tree with no preview element for it fails too. The blocks
+// are listed rather than derived, because a block joins by being converted: the rest of
+// the gallery still authors its preview by hand and is the remaining work, not a ledger.
+const PREVIEW_FROM_TREE = ['Gtk.Stack', 'Gtk.Notebook'];
+const PREVIEW_ONLY_ATTRIBUTES = new Set(['style']);
+
+for (const title of PREVIEW_FROM_TREE) {
+    const tree = ADWAITA_GALLERY_TREES.find((entry) => entry.widget === title);
+    const block = blocks.find((entry) => entry.title === title);
+    if (tree === undefined || block === undefined) {
+        failures.push(
+            `arm 14: ${title} is in PREVIEW_FROM_TREE but has ${tree === undefined ? 'no tree' : 'no block'}.`,
+        );
+        continue;
+    }
+    const fence = /<Fragment slot="preview">([\s\S]*?)<\/Fragment>/.exec(block.body)?.[1];
+    if (fence === undefined) {
+        failures.push(`arm 14: ${title} has no preview fragment to hold against its tree.`);
+        continue;
+    }
+    const elements = markupElements(fence);
+    const nodes = [];
+    const collect = (node) => {
+        nodes.push(node);
+        for (const child of node.children ?? []) collect(child);
+    };
+    collect(tree.root);
+    if (elements.length !== nodes.length || elements.some((element, i) => element.tag !== nodes[i].tag)) {
+        failures.push(
+            `arm 14: the preview of ${title} is [${elements.map((e) => e.tag).join(' ')}] and its tree is ` +
+                `[${nodes.map((n) => n.tag).join(' ')}]. The preview shows content the tree does not describe, ` +
+                'so the native render cannot be the reference for it.',
+        );
+        continue;
+    }
+    nodes.forEach((node, i) => {
+        const wanted = new Map(
+            Object.entries({ ...node.layout, ...node.props }).map(([key, value]) => [attributeOf(key), String(value)]),
+        );
+        for (const [name, value] of wanted) {
+            if (elements[i].values.get(name) !== value) {
+                failures.push(
+                    `arm 14: ${title} <${node.tag}> #${i}: the tree says ${name}="${value}" and the preview says ` +
+                        `${elements[i].values.has(name) ? `"${elements[i].values.get(name)}"` : 'nothing'}.`,
+                );
+            }
+        }
+        for (const name of elements[i].attributes) {
+            if (!wanted.has(name) && !PREVIEW_ONLY_ATTRIBUTES.has(name)) {
+                failures.push(
+                    `arm 14: ${title} <${node.tag}> #${i} sets ${name} in the preview and its tree does not. ` +
+                        'Put it in the tree or take it out of the preview.',
+                );
+            }
+        }
+    });
+}
 
 if (failures.length > 0) {
     console.error(`check-website-adwaita-gallery: ${failures.length} gallery/storybook disagreement(s):\n`);

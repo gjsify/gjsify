@@ -37,9 +37,9 @@ smoothly during the change.
     ```html
     <!-- transition-duration: The animation duration, in milliseconds. -->
     <gtk-stack transition-type="slide-left-right" transition-duration="200" style="height:220px;">
-      <div name="overview" title="Overview">Three pages, one visible at a time.</div>
-      <div name="activity" title="Activity">Switching is animated by transition-type.</div>
-      <div name="settings" title="Settings" needs-attention>This page wants your attention.</div>
+      <gtk-label name="overview" title="Overview" label="Three pages, one visible at a time."></gtk-label>
+      <gtk-label name="activity" title="Activity" label="Switching is animated by transition-type."></gtk-label>
+      <gtk-label name="settings" title="Settings" label="This page is the third."></gtk-label>
     </gtk-stack>
     ```
   </Fragment>
@@ -369,9 +369,9 @@ Three guards are C's, not ours: a **negative** `page` means the *last* page rath
     ```html
     <!-- tab-pos: Which side of the notebook holds the tabs. -->
     <gtk-notebook tab-pos="top" style="width:420px;height:150px;">
-      <div tab-label="Overview" menu-label="Overview">A notebook brings its own tab strip.</div>
-      <div tab-label="Activity" menu-label="Activity">tab-pos says which edge the strip is on.</div>
-      <div menu-label="Notes">No tab-label, so the tab reads "Page 3".</div>
+      <gtk-label tab-label="Overview" label="A notebook brings its own tab strip."></gtk-label>
+      <gtk-label tab-label="Activity" label="tab-pos says which edge the strip is on."></gtk-label>
+      <gtk-label label="No tab label, so GTK numbers it Page 3."></gtk-label>
     </gtk-notebook>
     ```
   </Fragment>
