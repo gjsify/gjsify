@@ -3285,3 +3285,61 @@ never reports.
 `generated/enum-values.mts` by arm 8 of `check-nativescript-xml-doors.mjs` (mutating one
 position fails it). The browser has no element for any of the six; the storybook coverage gate
 records that as an open gap in `status/open-todos/adwaita-ports.md`.
+
+## Amendment 22, 2026-10-04 — the base properties, a window and a dialog, two layouts, and a box that shares
+
+Learn6502's 24 shared templates put `visible`, `sensitive`, `name`, `width-request` and
+`height-request` on nearly every widget, root at `Adw.ApplicationWindow` / `Adw.Window` /
+`Adw.Dialog`, and lay out with `Gtk.Grid` and `Gtk.ListBox`. § Amendment 20 had left a `vexpand`
+child of a `Gtk.Box` with nothing to grant it space.
+
+**Base properties.** The five are accessors on the `withSignals` seam, beside § Amendment 20's six
+(`widgets/widget-layout.ts`), each over a platform property that stays the source of truth:
+`visible` is `visibility` (`false` is `collapse`, out of layout), `sensitive` is `isEnabled`,
+`width-request` / `height-request` are `minWidth` / `minHeight` (`-1` is unset; a request is a
+minimum, never `width`, which NativeScript takes as exact), and `name` is held and written through
+to `id` only while the view has none, so a `.blp`'s `id` keeps being how code finds the view. An
+unnamed widget answers its class name, as `gtk_widget_get_name` answers its GType name. A class
+that is not a view reads the GTK default and refuses a write by name. `Adw.ToastOverlay`'s
+read-only `visible` (is a toast showing) moved to `toastShowing`, because it had taken the
+setter away. Reading a margin or a minimum back goes through `lengthValue` (`widgets/ns-length.ts`):
+a device answers `{ value, unit }`, `Number()` of which is `NaN`, so `marginStart` had read `0`
+after every write where the double, which stores the number, agreed with the test.
+
+**A window is a container, a dialog is an overlay.** NativeScript has one `Page` per screen and no
+second surface to open, so `Adw.Window` and `Adw.ApplicationWindow` (siblings over
+`AdwWindowBase`) are full-size one-cell grids that hold `content` and wear the page's own
+`.adw-window` class; `default-width` / `default-height` and `title` are held and read back, and
+`adaptive-preview` is a declared gap. `Adw.Dialog` is a scrim over a card around its `child`, as
+`AdwAboutDialog` is, and `present (parent)` walks to the nearest window that hosts dialogs
+(`findDialogHost`) and mounts the overlay above the content; one the caller mounted itself is
+revealed in place; neither is refused by name. `can-close`, `close-attempt`, `force_close` and
+`bottom-sheet` follow libadwaita; `auto` is `floating` because choosing by width needs a layout
+pass this port does not run. The card has no header, as libadwaita's has none: the header bar is
+the child's. Toasts need nothing here, `Adw.ToastOverlay` is a widget of its own.
+
+**`Gtk.Grid` and `Gtk.ListBox`.** `Gtk.Grid` is a `GridLayout` whose tracks follow its children:
+a child is placed by the platform's own `row`, `column`, `rowSpan` and `columnSpan` — `View`
+already carries them, with `col` / `colSpan` underneath — so `attach()`, XML attributes and a
+Blueprint `layout { }` block (once the projection carries it, `status/open-todos/nativescript.md`)
+reach one set of values. Spacing is an additive margin on the leading edge, never an overwrite;
+`*-homogeneous` is equal `*` tracks. `Gtk.ListBox` stacks its children as rows, selects by
+`selection-mode` (`Gtk.SelectionMode`, held position-for-constant by arm 8 of
+`check-nativescript-xml-doors.mjs`) and emits `row-activated` for a port row's own `activated` and
+for a tap on a plain widget.
+
+**`Gtk.Box` shares spare space, and its defaults are GTK's.** It is a one-axis `GridLayout`:
+child `i` in track `2 * i`, a `*` track for every child that expands along the axis (or all of them
+when `homogeneous`) and `auto` for the rest, a `pixel` track between children for `spacing`. A
+child's `hexpand` / `vexpand` change emits `notify::hexpand` / `notify::vexpand`, which the box
+re-plans on. Two consequences are deliberate. The gap no longer rewrites the child's four margins,
+which `view.set('margin', …)` did, erasing an authored `margin-top`. And `orientation` defaults to
+`horizontal`, as `GtkOrientable` and the shared `BOX_ORIENTATION_VECTORS` say, where the old box
+inherited the `StackLayout`'s vertical.
+
+**What is still declared.** An expanding DESCENDANT does not make its ancestor expand (GTK's
+`compute_expand`); `homogeneous` is equal, not minimal; `Gtk.Grid` keeps the gap of an empty track,
+and has no `attach_next_to`, `insert_row` or `baseline-row`; `Gtk.ListBox` has no sort, filter or
+header function, `activate-on-single-click` is held, and `Adw.Breakpoint` is not a window child yet.
+No window, dialog, grid or list was run on a device: every claim above is measured against the
+platform double, which has no layout pass, so what is verified is the track list and the tree.
