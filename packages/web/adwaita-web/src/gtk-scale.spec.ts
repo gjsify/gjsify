@@ -177,5 +177,37 @@ export const GtkScaleTest = async () => {
             expect(el.getAttribute('aria-valuenow')).toBe('10');
             host.remove();
         });
+
+        // `gtk_scale_allocate` (gtkscale.c:373-421) puts the value at one EDGE of the widget,
+        // which is what the host's four `value-*` classes name — a class the element has to
+        // write, because upstream's own `update_value_position` (gtkscale.c:1042-1073) only
+        // ever puts the position on the value NODE.
+        await it('value-pos names the edge on the host and on the value node', () => {
+            const { el, host } = mount({ 'draw-value': '', 'value-pos': 'left' });
+            const value = el.querySelector('.adw-scale-value') as HTMLElement;
+            expect(el.classList.contains('value-left')).toBe(true);
+            expect(el.classList.contains('value-top')).toBe(false);
+            expect(value.classList.contains('left')).toBe(true);
+            expect(value.classList.contains('top')).toBe(false);
+            host.remove();
+        });
+
+        await it('value-pos defaults to top, follows a runtime change, and falls back to it', () => {
+            const { el, host } = mount({ 'draw-value': '' });
+            const value = el.querySelector('.adw-scale-value') as HTMLElement;
+            expect(el.valuePos).toBe('top');
+            expect(el.classList.contains('value-top')).toBe(true);
+            expect(value.classList.contains('top')).toBe(true);
+            el.setAttribute('value-pos', 'bottom');
+            expect(el.classList.contains('value-bottom')).toBe(true);
+            expect(el.classList.contains('value-top')).toBe(false);
+            expect(value.classList.contains('bottom')).toBe(true);
+            // Not one of the four nicks, so the pspec default stands.
+            el.setAttribute('value-pos', 'middle');
+            expect(el.valuePos).toBe('top');
+            expect(el.classList.contains('value-top')).toBe(true);
+            expect(el.classList.contains('value-bottom')).toBe(false);
+            host.remove();
+        });
     });
 };

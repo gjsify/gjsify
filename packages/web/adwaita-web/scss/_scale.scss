@@ -16,8 +16,18 @@
 //   inside it. It is a thickness; nothing else in this partial or in the element's
 //   behaviour depends on it.
 //
+//   The VALUE'S PLACE comes from GTK's own `gtk_scale_allocate` (gtkscale.c:373-421),
+//   which is not a stylesheet at all: the four `value-pos` cases pick an edge of the
+//   widget for the value, and `gtk_scale_get_range_border` (:1239-1272) keeps the trough
+//   out of it. The container axis below is that switch.
+//
 // NOT PORTED, each because nothing here can select it — the same reasoning
 // `_progress_bar.scss` records for `progressbar.vertical`:
+//   · the value's placement ON THE KNOB. `gtk_scale_allocate_value` (gtkscale.c:388-425)
+//     centres it on the slider for `top`/`bottom` and on the trough for `left`/`right`, which
+//     a flow layout cannot reach for either — `align-self: center` is the cross-axis centre,
+//     the one half that needs no knowledge of the value's own width. It shows only once the
+//     value is off the middle of its range.
 //   · the `> marks` blocks and `.marks-before` / `.marks-after` (:98-111, :114-124,
 //     :152-170, :212-226). Those style classes are added ONLY by `gtk_scale_add_mark()` /
 //     `clear_marks()` (gtkscale.c:1638, :1696-1721), which have been deprecated since
@@ -30,6 +40,8 @@
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss:1-251
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss:280-289
+// Reference: refs/gtk/gtk/gtkscale.c (gtk_scale_allocate_value, update_value_position,
+//   gtk_scale_get_range_border), refs/gtk/gtk/gtkrange.c (clamp_dimensions)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
@@ -43,14 +55,79 @@ gtk-scale {
   min-height: 10px;
   padding: 12px;
 
-  &.horizontal {
+  // THE CONTAINER AXIS FOLLOWS `value-pos`, NOT THE ORIENTATION. GTK's
+  // `gtk_scale_allocate` (gtkscale.c:373-421) puts the value BESIDE the trough for
+  // `left`/`right` and ABOVE or BELOW it for `top`/`bottom` — for BOTH orientations,
+  // because those four are the cross-axis ends of a horizontal scale and the main-axis
+  // ends of a vertical one. Measured, not read off the switch: a 628px horizontal scale
+  // with `draw-value` and `value-pos: top` allocates the value at `y=0` above a trough
+  // that starts at `y=29` (`gtk_scale_get_range_border`, gtkscale.c:1239-1272), and the
+  // same scale with `left` allocates the value at `x=0`, `y=0`, ON THE TROUGH'S LINE.
+  //
+  // The value node is the scale's FIRST child upstream — `gtk_scale_set_draw_value`
+  // (gtkscale.c:1097-1101) does `gtk_widget_insert_after (…, GTK_WIDGET (scale), NULL)`,
+  // ahead of the trough `gtk_range_init` appended — and `update_value_position`
+  // (gtkscale.c:1042-1073) only ever puts a position class on it. Here the DOM runs
+  // trough-then-value, so the two positions that mean "ahead of the trough in the flow"
+  // upstream — `top` and `left` — are the ones that need the axis REVERSED. The four HOST
+  // classes carry the same four names, so one `value-pos` attribute decides the axis as well
+  // as the value node's own margins.
+  &.value-top,
+  &.value-bottom {
     flex-direction: column;
     align-items: stretch;
+
+    // GTK centres the value on the KNOB for these two
+    // (`value_alloc.x = slider_center_x - value_alloc.width / 2`, gtkscale.c:391, :397),
+    // which the flow layout cannot reach — the cross-axis centre is what is left, and it
+    // is the one half that does not need the value's width.
+    .adw-scale-value {
+      align-self: center;
+    }
   }
 
-  &.vertical {
-    flex-direction: row-reverse;
+  &.value-top {
+    flex-direction: column-reverse;
+  }
+
+  &.value-left,
+  &.value-right {
+    flex-direction: row;
+    // GTK centres the value on the trough (`value_alloc.y = trough_center_y -
+    // value_alloc.height / 2`, gtkscale.c:376, :382), which for one line of children is
+    // `align-items: center`.
     align-items: center;
+
+    .adw-scale-value {
+      flex: 0 0 auto;
+    }
+  }
+
+  &.value-left {
+    flex-direction: row-reverse;
+  }
+
+  // WHERE THE VALUE SITS BESIDE THE TROUGH, the value takes its width off the track and the
+  // trough takes what is left — `gtk_scale_get_range_border` (gtkscale.c:1239-1272) shrinks
+  // the trough's allocation by the value's, never the other way round. The axis there is the
+  // scale's OWN, which is why `flex: 1` has to be asked for by orientation: the trough is an
+  // empty bar whose only size is what the layout gives it.
+  &.horizontal.value-left,
+  &.horizontal.value-right,
+  &.vertical.value-top,
+  &.vertical.value-bottom {
+    .adw-scale-trough {
+      flex: 1 1 auto;
+    }
+  }
+
+  // The other two pairs leave the trough across the cross axis, where `stretch` reaches it on
+  // its own — except for a vertical one under `align-items: center` above.
+  &.vertical.value-left,
+  &.vertical.value-right {
+    .adw-scale-trough {
+      align-self: stretch;
+    }
   }
 
   .adw-scale-trough {
@@ -131,6 +208,9 @@ gtk-scale {
     .adw-scale-trough {
       width: 4px;
       min-width: 4px;
+      // The trough is a fixed-width BAR and the axis above is the cross axis, so it must
+      // not stretch: `align-items: stretch` on a column would give it the full width.
+      align-self: center;
     }
 
     .adw-scale-highlight,
