@@ -134,3 +134,53 @@ export function withoutCssClass(classes: readonly string[], name: string): strin
     const wanted = (name ?? '').trim();
     return classes.filter((held) => held !== wanted);
 }
+
+/**
+ * The `styleClasses` list of ONE widget, with GTK's `css-classes` verbs over it.
+ *
+ * `GtkBox` and `GtkButton` each carry their own copy of this bookkeeping; a container that
+ * is only a pass-through (`Adw.Bin`, `Gtk.Overlay`, `Gtk.Stack` …) needs the same five verbs
+ * and nothing else, so the list lives here once and a widget keeps one of these. The widget
+ * still declares the accessors itself — a `Property` of the platform base must not be
+ * shadowed by a mixin, and the coverage gates read the members off the class body.
+ *
+ * `base` is the class the widget wears of its own accord, `''` for the transparent ones (see
+ * {@link classNameWith}); {@link className} is what to write onto the view after a change.
+ */
+export class StyleClassList {
+    private _classes: string[] = [];
+
+    constructor(private readonly _base: string = '') {}
+
+    /** The classes, without the widget's own base class. */
+    get classes(): string[] {
+        return [...this._classes];
+    }
+
+    /** The `className` the widget must carry for the current list. */
+    get className(): string {
+        return classNameWith(this._base, this._classes);
+    }
+
+    /** `styleClasses = '…'` — the string door, REPLACES the list. */
+    replace(value: AdwStyleClassesInput): void {
+        this._classes = normalizeStyleClasses(value);
+    }
+
+    /** `gtk_widget_set_css_classes` — REPLACES the list from names. */
+    replaceAll(names: readonly string[]): void {
+        this._classes = normalizeStyleClasses([...names].join(' '));
+    }
+
+    add(name: string): void {
+        this._classes = withCssClass(this._classes, name);
+    }
+
+    remove(name: string): void {
+        this._classes = withoutCssClass(this._classes, name);
+    }
+
+    has(name: string): boolean {
+        return this._classes.includes((name ?? '').trim());
+    }
+}
