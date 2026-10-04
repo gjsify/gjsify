@@ -88,6 +88,16 @@
 				</instance-parameter>
 			</parameters>
 		</method>
+		<method name="stop" c:identifier="gjsify_terminal_resize_watcher_stop">
+			<return-value transfer-ownership="full">
+				<type name="none" c:type="void"/>
+			</return-value>
+			<parameters>
+				<instance-parameter name="self" transfer-ownership="none">
+					<type name="GjsifyTerminal.ResizeWatcher" c:type="GjsifyTerminalResizeWatcher*"/>
+				</instance-parameter>
+			</parameters>
+		</method>
 		<constructor name="new" c:identifier="gjsify_terminal_resize_watcher_new">
 			<return-value transfer-ownership="full">
 				<type name="GjsifyTerminal.ResizeWatcher" c:type="GjsifyTerminalResizeWatcher*"/>
