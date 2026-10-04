@@ -82,11 +82,10 @@
  * what a corpus written per LANGUAGE RULE rather than per real file turns up, which is
  * the point of having one.
  *
- * `extern` is the odd one and worth reading twice: it is the only kind where the projection
- * keeps the TEXT and loses the meaning. `SharedNode.tag` is a GIR class name, which is what a
- * renderer looks up; `$MyWidget` is a class the application registers at runtime and is in no
- * GIR, so the tag is spelled exactly right and resolves to nothing. Declared here rather than
- * discovered as a missing widget.
+ * `extern` left this list under ADR 0093: `$MyWidget` is a class the application registers at
+ * runtime and is in no GIR, so the tag is spelled exactly right and resolves to nothing in a
+ * toolkit. The node carries `extern: true` and each renderer answers for the class in its own
+ * registry, instead of the file being a loss everywhere.
  *
  * `template` and `object-id` were on this list until ADR 0066 gave each a field on the node.
  * They are the two GtkBuilder ADDRESSING constructs, and dropping them is what kept every
@@ -106,7 +105,7 @@
  *
  * @typedef {'signal'|'binding'|'breakpoint'
  *          |'menu'|'layout'|'accessibility'|'comment'|'value-list'
- *          |'sibling-object'|'extern'} LossKind
+ *          |'sibling-object'} LossKind
  */
 
 /**
@@ -571,31 +570,20 @@ export const RULE_EXPECTATIONS = [
         node: {
             tag: 'AdwToolbarView',
             children: [
-                { tag: 'GalleryHeaderBar', slot: 'top' },
+                { tag: 'GalleryHeaderBar', extern: true, slot: 'top' },
                 {
                     tag: 'GalleryToolbarView',
+                    extern: true,
                     id: 'pane',
                     slot: 'content',
                     children: [
                         { tag: 'GtkLabel', props: { label: 'a real child of an extern parent' } },
-                        { tag: 'NsInner' },
+                        { tag: 'NsInner', extern: true },
                     ],
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'extern',
-                line: 6,
-                detail: '`$GalleryHeaderBar` is not a GIR class, so the tag resolves to nothing',
-            },
-            { kind: 'extern', line: 9, detail: '`$GalleryToolbarView` likewise, in the property-valued position' },
-            {
-                kind: 'extern',
-                line: 14,
-                detail: '`$Ns.Inner`, whose tag `NsInner` is a concatenation and not a C prefix',
-            },
-        ],
+        lost: [],
         note: 'The three extern tags are spelled exactly as the XML spells them and none of them is resolvable — which is the whole content of the `extern` loss. The `GtkLabel` between them shows that a real subtree under an extern parent projects normally.',
     },
     {
@@ -608,43 +596,39 @@ export const RULE_EXPECTATIONS = [
                     tag: 'GtkBox',
                     props: { orientation: 'vertical' },
                     children: [
-                        { tag: 'GtkBox', id: 'lookalike', props: { orientation: 'vertical' } },
+                        { tag: 'GtkBox', extern: true, id: 'lookalike', props: { orientation: 'vertical' } },
                         { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
                     ],
                 },
             ],
         },
-        lost: [
-            { kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' },
-            { kind: 'extern', line: 20, detail: '`$GtkBox`, an extern class that SPELLS a GIR one' },
-        ],
+        lost: [{ kind: 'breakpoint', line: 8, detail: 'the whole `Adw.Breakpoint`, including both setters' }],
         note: 'All three `orientation` props project as the string `vertical`, because an enum member keeps its source spelling on this exit whatever it sits on — so the projection is where this file says NOTHING and the `.ui` golden is where it bites: two of those three lines emit `1` and the extern one emits `vertical`.',
     },
     {
         file: '34-extern-template-parent.blp',
-        node: { tag: 'CorpusExternBase', template: 'CorpusExternChild', props: { orientation: 'vertical' } },
-        lost: [
-            {
-                kind: 'extern',
-                line: 3,
-                detail: 'the parent `$CorpusExternBase`, which becomes the root tag and is no GIR class',
-            },
-        ],
+        node: {
+            tag: 'CorpusExternBase',
+            extern: true,
+            template: 'CorpusExternChild',
+            props: { orientation: 'vertical' },
+        },
+        lost: [],
         note: 'The parent is what survives as the tag — the rule `08-template.blp` already pins — and here the survivor is extern too, so the one node this file projects carries a tag nothing can look up.',
     },
     {
         file: '35-extern-real-class.blp',
         node: {
             tag: 'GtkListView',
-            children: [{ tag: 'GtkNoSelection', slot: 'model', children: [{ tag: 'GListStore', slot: 'model' }] }],
+            children: [
+                {
+                    tag: 'GtkNoSelection',
+                    slot: 'model',
+                    children: [{ tag: 'GListStore', extern: true, slot: 'model' }],
+                },
+            ],
         },
-        lost: [
-            {
-                kind: 'extern',
-                line: 5,
-                detail: '`$GListStore` — a tag that IS resolvable, and still extern, because nothing in it was read',
-            },
-        ],
+        lost: [],
         note: 'The other `extern` rules project a tag nothing can look up; this one projects a tag GtkBuilder resolves, and the loss is declared all the same. That is the kind at its widest: `extern` says the projection READ nothing inside the object, never that the tag is unknown — and a consumer that treated the loss as "unresolvable tag" would be wrong on exactly this file.',
     },
 
@@ -759,12 +743,11 @@ export const RULE_EXPECTATIONS = [
             template: 'CorpusExpressionLookup',
             children: [
                 { tag: 'GtkOverlay', children: [{ tag: 'GtkLabel', id: 'labelOne' }] },
-                { tag: 'CorpusLookupTarget', id: 'externOne' },
+                { tag: 'CorpusLookupTarget', extern: true, id: 'externOne' },
                 { tag: 'GtkLabel' },
             ],
         },
         lost: [
-            { kind: 'extern', line: 9, detail: '`$CorpusLookupTarget`, a class no GIR describes' },
             { kind: 'binding', line: 13, detail: 'a three-step lookup, each step cast' },
             { kind: 'binding', line: 14, detail: 'a lookup on `template`, cast to an extern type' },
             { kind: 'binding', line: 15, detail: 'a lookup on an extern-typed object' },
@@ -885,17 +868,12 @@ export const RULE_EXPECTATIONS = [
         file: '50-template-orphan.blp',
         node: {
             tag: 'CorpusOrphan',
+            extern: true,
             template: 'CorpusOrphan',
             props: { visible: true },
             children: [{ tag: 'GtkLabel', slot: 'child', props: { label: 'no parent, so no vocabulary' } }],
         },
-        lost: [
-            {
-                kind: 'extern',
-                line: 3,
-                detail: 'the root tag is the template class itself, which no GIR describes — a parentless template IS the extern case',
-            },
-        ],
+        lost: [],
         note: 'Where `08-template.blp` keeps the PARENT as the root tag beside its `template`, this file has no parent to keep, so the class it declares is BOTH — `tag` and `template` say the same word, and the tag is extern, which is the one loss left. That equality is the assertion: the two fields are not a duplicate, they coincide exactly when the file names no parent. `visible` reaches this exit as `true` rather than resolved, for the same reason it reaches the XML as the string `true`: there is no owner type to resolve it through.',
     },
     {
@@ -1012,6 +990,7 @@ export const RULE_EXPECTATIONS = [
             children: [
                 {
                     tag: 'CorpusExternBlocks',
+                    extern: true,
                     id: 'probe',
                     props: { orientation: 'vertical' },
                     styleClasses: ['palette', 'dim-label'],
@@ -1021,7 +1000,6 @@ export const RULE_EXPECTATIONS = [
             ],
         },
         lost: [
-            { kind: 'extern', line: 4, detail: '`$CorpusExternBlocks` — the projection read nothing inside it' },
             { kind: 'signal', line: 19, detail: '`clicked`' },
             { kind: 'signal', line: 20, detail: '`notify::active`, and that it is `swapped`' },
             { kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' },
@@ -1032,15 +1010,17 @@ export const RULE_EXPECTATIONS = [
         file: '58-extern-composition.blp',
         node: {
             tag: 'CorpusExternBase',
+            extern: true,
             template: 'CorpusExternView',
             children: [
                 {
                     tag: 'GtkOverlay',
                     slot: 'content',
                     children: [
-                        { tag: 'CorpusExternCanvas', id: 'canvas', slot: 'child' },
+                        { tag: 'CorpusExternCanvas', extern: true, id: 'canvas', slot: 'child' },
                         {
                             tag: 'CorpusExternFab',
+                            extern: true,
                             id: 'fab',
                             slot: 'overlay',
                             props: { halign: 'end' },
@@ -1048,15 +1028,10 @@ export const RULE_EXPECTATIONS = [
                         },
                     ],
                 },
-                { tag: 'CorpusExternInspector', id: 'inspector', slot: 'sidebar' },
+                { tag: 'CorpusExternInspector', extern: true, id: 'inspector', slot: 'sidebar' },
             ],
         },
-        lost: [
-            { kind: 'extern', line: 3, detail: 'the PARENT `$CorpusExternBase`, which is what becomes the root tag' },
-            { kind: 'extern', line: 5, detail: '`$CorpusExternCanvas` in a `child:` property' },
-            { kind: 'extern', line: 8, detail: '`$CorpusExternFab` under an `[overlay]` bracket' },
-            { kind: 'extern', line: 15, detail: '`$CorpusExternInspector` in a second named property' },
-        ],
+        lost: [],
         note: 'Four extern tags, every one spelled as the XML spells it, and the tree between them is whole — `slot` is `content`, `child`, `overlay` and `sidebar`, read the same way whether the object under it is extern or not. That is the projection decision this file pins: `extern` is a LOSS and not a refusal, so the shape still comes out, and ADR 0070 is what refuses to hand it to a renderer. The `GtkOverlay` in the middle is the one real class, and it carries two extern children without either of them changing how it projects.',
     },
 ];

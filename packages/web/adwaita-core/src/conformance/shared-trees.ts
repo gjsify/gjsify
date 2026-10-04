@@ -85,6 +85,15 @@ export interface SharedTreeNode {
      */
     template?: string;
     /**
+     * `tag` is a class the APPLICATION registers (`$SourceView`), in no GIR (ADR 0093).
+     *
+     * The tag is spelled as the `.blp` spells it, without a namespace default, and a renderer
+     * resolves it in its own `registerTemplateClass` registry instead of in the toolkit's class
+     * list. An unregistered name is a refusal that names it. What the registered class builds
+     * inside itself is its own business: typically its own `.blp?shared-tree`.
+     */
+    extern?: true;
+    /**
      * Where in the parent this child goes — the placement, spelled as the GTK side spells it.
      *
      * ONE FIELD FOR TWO GtkBuilder CONSTRUCTS, and the conflation is the projection's, not a

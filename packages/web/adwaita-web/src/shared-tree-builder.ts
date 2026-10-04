@@ -39,6 +39,7 @@ import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsi
 
 import { capabilities } from './capabilities.mjs';
 import { slottedChildrenOf } from './slotted-children.js';
+import { templateTagFor } from './template-classes.js';
 
 /** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
 interface PlacedChild {
@@ -112,7 +113,8 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { pl
 }
 
 function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
-    const el = document.createElement(hostTagOf(node.tag));
+    // An `extern` node is built by the class the application registered under its name (ADR 0093).
+    const el = document.createElement(node.extern === true ? templateTagFor(node.tag) : hostTagOf(node.tag));
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
     if (node.id !== undefined) el.id = node.id;

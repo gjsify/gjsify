@@ -21,7 +21,7 @@ import type { SharedTreeNode } from './shared-trees.js';
 import { authoredNodes } from './shared-trees.js';
 
 /** The construct kinds, in the order the tables list them. */
-export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page'] as const;
+export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page', 'extern'] as const;
 
 export type ConstructKind = (typeof CONSTRUCT_KINDS)[number];
 
@@ -46,6 +46,7 @@ export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
         if (node.extensions?.strings !== undefined) found.push({ kind: 'strings', path });
         if (node.extensions?.responses !== undefined) found.push({ kind: 'responses', path });
         if (node.page !== undefined) found.push({ kind: 'page', path });
+        if (node.extern === true) found.push({ kind: 'extern', path });
     }
     return found;
 }
@@ -159,7 +160,19 @@ export const CONSTRUCT_VECTORS: readonly ConstructVector[] = [
         },
         shows: [{ name: 'first', title: 'First' }],
     },
+    {
+        kind: 'extern',
+        rule: 'an `extern` node is built by the class the application registered under its name (ADR 0093)',
+        tree: {
+            tag: 'GtkBox',
+            children: [{ tag: 'CorpusExtern', id: 'registered', extern: true }],
+        },
+        shows: [{ id: 'registered', builtByRegisteredClass: true }],
+    },
 ];
+
+/** The name the extern vector's class is registered under, so each renderer registers the same one. */
+export const EXTERN_VECTOR_CLASS = 'CorpusExtern';
 
 /** What a renderer hands {@link driveConstructVectors}. */
 export interface ConstructRenderer {

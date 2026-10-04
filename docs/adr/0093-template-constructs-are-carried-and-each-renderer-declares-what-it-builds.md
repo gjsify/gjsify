@@ -393,3 +393,10 @@ Tracked in `status/open-todos/README.md`; this ADR records the *why*. Order and 
 | 3 | `signals` | the stage-D `<signal>` arm; a handler the scope lacks |
 | 4 | `bindings` | the stage-D binding arm; an unobservable source |
 | 5 | `breakpoints` | the stage-D `<setter>` arm; a device run on a tablet that switches layout |
+
+### Progress
+
+| # | state |
+|---|---|
+| 1 | landed |
+| 2 | landed. `extern` is carried and no longer a loss; `registerTemplateClass` exists on `adwaita-web` (`name, ctor, tag`) and `adwaita-nativescript` (`name, ctor`). `gtk-host` keeps its § 3 cell, `refused`: its host resolves tags through built-in descriptors and has no registry for an application class, so it has no `registerTemplateClass` either |

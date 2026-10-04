@@ -59,7 +59,7 @@ for (const file of blueprintFiles(dir).sort()) {
     try {
         const { node, lost } = projectToSharedNode(parseBlueprint(readFileSync(file, 'utf8'), file), { gtypeName });
         const tags = [...tagsOf(node)];
-        // A `$Name` extern is a registered template class, not a barrel member: ADR-level item 5.
+        // A `$Name` extern is a registered template class, not a barrel member (ADR 0093).
         const missing = tags.filter((tag) => !barrelClasses.has(tag));
         Object.assign(row, {
             projects: lost.length === 0,

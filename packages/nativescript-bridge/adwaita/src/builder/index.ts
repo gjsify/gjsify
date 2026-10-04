@@ -35,6 +35,9 @@ import { View } from '@nativescript/core';
 
 import { capabilities } from '../capabilities.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
+import { templateClassFor } from './template-classes.js';
+
+export { registerTemplateClass } from './template-classes.js';
 
 // The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
 // Imported as MODULE NAMESPACES because that is literally what this door is:
@@ -100,6 +103,16 @@ export function elementFor(tag: string): Element {
     throw new Error(
         `\`${tag}\` starts with no library this dialect has a barrel for (${Object.keys(BARRELS).join(', ')}).`,
     );
+}
+
+/**
+ * The element a NODE is: the registered class for an `extern` node (ADR 0093), else the barrel
+ * member its GIR tag names. The `app:` prefix is only what an error prints, as `adw:` is for a
+ * barrel member.
+ */
+function elementOf(node: SharedTreeNode): Element {
+    if (node.extern === true) return { xmlName: `app:${node.tag}`, ctor: templateClassFor(node.tag) };
+    return elementFor(node.tag);
 }
 
 /** What a parent must be for an XML child to reach a slot rather than the first cell. */
@@ -214,7 +227,7 @@ function buildTree(node: SharedTreeNode): View | object {
  * value object has no class list — rather than dropped.
  */
 function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
-    const element = elementFor(node.tag);
+    const element = elementOf(node);
     const probe = new element.ctor();
     const built = probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe);
     for (const child of node.children ?? []) {
@@ -254,7 +267,7 @@ function applyLayout(child: SharedTreeNode, built: View | object, parentElement:
     if (child.layout === undefined) return;
     if (typeof (parentElement.ctor.prototype as { attach?: unknown }).attach !== 'function') {
         throw new Error(
-            `<${elementFor(child.tag).xmlName}> authored layout (${Object.keys(child.layout).join(', ')}) under ` +
+            `<${elementOf(child).xmlName}> authored layout (${Object.keys(child.layout).join(', ')}) under ` +
                 `\`${parentTag}\`, which has no \`attach\`: this port's only layout manager is the grid, so the ` +
                 'placement would be dropped.',
         );
@@ -434,7 +447,7 @@ function applyResponses(built: object, element: Element, node: SharedTreeNode): 
  * ledgered `vocabulary` divergence, not a child to place somewhere close by.
  */
 function builderNameFor(element: Element, tag: string, child: SharedTreeNode): string {
-    const childElement = elementFor(child.tag);
+    const childElement = elementOf(child);
     if (child.slot === undefined) return childElement.xmlName;
     const slot = child.slot;
     const known = declaredBuilderSlots(element.ctor);

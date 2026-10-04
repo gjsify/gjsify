@@ -18,7 +18,8 @@ import { GTK_HOSTS } from './testing/gate.mjs';
 
 const hostTree = (node: SharedTreeNode): SharedTreeNode => ({
     ...node,
-    tag: hostTagOf(node.tag),
+    // An application class is in no GIR, so `hostTagOf` has no spelling for it.
+    tag: node.extern === true ? node.tag : hostTagOf(node.tag),
     ...(node.children === undefined ? {} : { children: node.children.map(hostTree) }),
 });
 

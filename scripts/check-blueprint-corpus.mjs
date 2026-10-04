@@ -141,7 +141,6 @@ const LOSS_KINDS = new Set([
     'comment',
     'value-list',
     'sibling-object',
-    'extern',
     'inline-template',
     // The six bracketed lists, each by its own name — see `project.mjs`.
     'marks',
@@ -159,6 +158,7 @@ const NODE_FIELDS = new Set([
     'tag',
     'id',
     'template',
+    'extern',
     'slot',
     'props',
     'translatable',
@@ -338,6 +338,11 @@ const validateNode = (node, where, isRoot = true) => {
                 }
             }
         }
+    }
+    if (node.extern !== undefined && node.extern !== true) {
+        problems.push(
+            `${where}: "extern" is ${JSON.stringify(node.extern)}. ADR 0093: \`true\`, and absence says a node is not.`,
+        );
     }
     if (node.extensions !== undefined) validateExtensions(node.extensions, where);
     if (node.layout !== undefined) {
@@ -1346,6 +1351,30 @@ const checkUses = (job, result) => {
             problems.push(
                 `${job.key}: the oracle wrote ${wanted} element(s) for \`${kind}\` and the projection reports ${got} ` +
                     `use(s) of \`${kind}\`.`,
+            );
+        }
+    }
+    // `extern` has no element of its own: the golden spells `$Name` as a plain class. So its denominator
+    // is the tree (every node the projection flagged is one use) and the golden holds each flagged tag
+    // to the class name the oracle wrote for it.
+    const externs = [];
+    const collect = (node) => {
+        if (node.extern === true) externs.push(node);
+        for (const child of node.children ?? []) collect(child);
+    };
+    collect(result.node);
+    const externUses = result.uses.filter((use) => use.kind === 'extern').length;
+    used += externUses;
+    if (externs.length !== externUses) {
+        problems.push(
+            `${job.key}: the tree flags ${externs.length} node(s) \`extern\` and the projection reports ` +
+                `${externUses} use(s) of \`extern\`.`,
+        );
+    }
+    for (const node of externs) {
+        if (!golden.includes(`class="${node.tag}"`) && !golden.includes(`parent="${node.tag}"`)) {
+            problems.push(
+                `${job.key}: \`${node.tag}\` is flagged \`extern\` and the oracle wrote no class or template parent of that name.`,
             );
         }
     }
