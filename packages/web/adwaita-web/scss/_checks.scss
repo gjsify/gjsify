@@ -103,7 +103,9 @@ adw-radio {
       display: block;
       width: 100%;
       height: 100%;
-      background-color: currentColor;
+      // Transparent until a state supplies a glyph: an unmasked currentColor box is a
+      // solid square, which is what an unchecked control used to paint.
+      background-color: transparent;
       mask-repeat: no-repeat;
       mask-position: center;
       mask-size: 14px; // -gtk-icon-size: 14px (:25)
@@ -187,11 +189,13 @@ adw-radio .adw-check-indicator {
 
 // `check:checked` → check.svg (:70) / `radio:checked` → bullet.svg (:76)
 gtk-check-button[checked] .adw-check-indicator::after {
+  background-color: currentColor;
   mask-image: $check-glyph;
   -webkit-mask-image: $check-glyph;
 }
 
 adw-radio[checked] .adw-check-indicator::after {
+  background-color: currentColor;
   mask-image: $bullet-glyph;
   -webkit-mask-image: $bullet-glyph;
 }
@@ -203,6 +207,7 @@ adw-radio[checked] .adw-check-indicator::after {
 // in `@gjsify/adwaita-core` encodes for the a11y value.
 gtk-check-button[indeterminate] .adw-check-indicator::after,
 adw-radio[indeterminate] .adw-check-indicator::after {
+  background-color: currentColor;
   mask-image: $dash-glyph;
   -webkit-mask-image: $dash-glyph;
 }
