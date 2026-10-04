@@ -490,6 +490,82 @@ export const AdwRowStateTest = async () => {
         });
     });
 
+    // `row.spin spinbutton > button.image-button.up/.down`
+    // (refs/libadwaita/src/stylesheet/widgets/_lists.scss:250-262) extends `%button_basic`
+    // AND `%circular_button` (_buttons.scss:19-27, :312-320): a 30px CIRCLE, filled at rest,
+    // with `margin: 10px 2px`. It rendered here as a transparent 32px rounded square. Read
+    // from the SHIPPED sheet — `test.browser.mts` imports the package for its side effects,
+    // so it is in the document — against a native capture of `Adw.SpinRow` (libadwaita
+    // 1.9.3, light): each button allocated 34x50 with min = nat, painted as a 30px circle of
+    // flat rgb(235,235,235), the two circles 10px apart, at y=12..41 inside the 54px row.
+    await describe('adw-spin-row stepper buttons', async () => {
+        /** The two steppers, as the element builds them: `−`, the input, then `+`. */
+        function steppers(row: AdwSpinRow): { dec: HTMLElement; inc: HTMLElement; control: HTMLElement } {
+            const control = row.querySelector('.adw-spin-control') as HTMLElement;
+            return {
+                control,
+                dec: row.querySelector('.adw-spin-dec') as HTMLElement,
+                inc: row.querySelector('.adw-spin-inc') as HTMLElement,
+            };
+        }
+
+        await it("is a 30px circle with upstream's margins, not a 32px rounded square", () => {
+            const { el: row, host } = parse<AdwSpinRow>(
+                `<adw-spin-row title="Amount" value="5" adjustment='{"lower":0,"upper":10}'></adw-spin-row>`,
+                'adw-spin-row',
+            );
+            const style = getComputedStyle(steppers(row).dec);
+            // A floor, as upstream writes it, so a wider glyph grows the circle.
+            expect(style.minWidth).toBe('30px');
+            expect(style.minHeight).toBe('30px');
+            expect(style.margin).toBe('10px 2px');
+            expect(style.padding).toBe('0px');
+            expect(style.borderRadius).toBe('9999px');
+            host.remove();
+        });
+
+        await it('paints the filled rest state rather than a transparent one', async () => {
+            const { el: row, host } = parse<AdwSpinRow>(
+                `<adw-spin-row title="Amount" value="5" adjustment='{"lower":0,"upper":10}'></adw-spin-row>`,
+                'adw-spin-row',
+            );
+            const { dec } = steppers(row);
+            // `$button_color` (_buttons.scss:1) — the 10% mix that composites to the 235
+            // the native pixels show. A transparent rest state resolves to alpha 0.
+            expect(getComputedStyle(dec).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+            host.remove();
+        });
+
+        await it('renders both circles 30px across, spaced as native lays them out', async () => {
+            const { el: row, host } = parse<AdwSpinRow>(
+                `<adw-spin-row title="Amount" value="5" adjustment='{"lower":0,"upper":10}'></adw-spin-row>`,
+                'adw-spin-row',
+            );
+            const { dec, inc } = steppers(row);
+            const input = row.querySelector('input') as HTMLElement;
+            const decBox = dec.getBoundingClientRect();
+            const incBox = inc.getBoundingClientRect();
+            const inputBox = input.getBoundingClientRect();
+            const rowBox = row.getBoundingClientRect();
+
+            expect(Math.round(decBox.width)).toBe(30);
+            expect(Math.round(decBox.height)).toBe(30);
+            expect(Math.round(incBox.width)).toBe(30);
+            expect(Math.round(incBox.height)).toBe(30);
+            // 8px on each side of the entry: `border-spacing: 6px` (:242) plus this button's
+            // own 2px margin. Native's two circles stand 10px apart with NO entry between
+            // them; this port sandwiches the input between them, so its dec-to-inc distance
+            // is not the comparable number.
+            expect(Math.round(inputBox.left - decBox.right)).toBe(8);
+            expect(Math.round(incBox.left - inputBox.right)).toBe(8);
+            // The 10px margins put each circle 12px down the 54px row, which is the native
+            // capture's y=12..41.
+            expect(Math.round(rowBox.height)).toBe(54);
+            expect(Math.round(decBox.top - rowBox.top)).toBe(12);
+            host.remove();
+        });
+    });
+
     await describe('adw-toggle-group (ToggleGroupState)', async () => {
         await it('tracks the active segment and notifies only on a click', async () => {
             const { el: group, host } = parse<AdwToggleGroup>(

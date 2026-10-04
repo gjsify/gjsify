@@ -1,9 +1,29 @@
 // _spin_row.scss — adw-spin-row styling.
 // Reference: refs/adwaita-web/adwaita-web/scss/_spin_button.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_spin-button.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (the `row.spin` block,
+//   :241-275, which is what the two stepper buttons are)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
+//
+// NOT PORTED, and why:
+//   - `%button_basic`'s focus ring (`_buttons.scss:25`). `row.spin`'s OWN rule already
+//     takes the ring away from the entry (`&, &:focus { outline: none }`, :246-248) and
+//     asks the ROW to draw one instead (`row.entry, row.spin { @include focus-ring(...) }`,
+//     :277-279), so a per-button ring would double it.
+//   - `&:disabled { filter: Opacity(var(--disabled-opacity)) }` and the
+//     `&:disabled spinbutton > button… { filter: none }` that cancels it for these two
+//     buttons (:264-274). The port's steppers never get disabled: `AdwSpinRow` clamps at
+//     the bounds instead, and there is no `.disabled` to filter.
+//   - `font-weight: bold` from `%button_basic` (:23) — the glyphs here are text nodes, and
+//     `+`/`−` at bold weight is a different glyph size, not a bolder one.
+//   - The ENTRY still differs from upstream and is left alone here: `row.spin spinbutton`
+//     sets `background: none; box-shadow: none` (:242-244), so the native row's number
+//     field is flat card white, while `.adw-spin-control input` below still paints a
+//     10% grey fill and a 9px radius. A native pixel run over the row finds nothing but
+//     white between the title and the first stepper. That is the input's deviation, not
+//     the steppers', and it is a separate fix.
 
 adw-spin-row {
   display: flex;
@@ -27,14 +47,36 @@ adw-spin-row {
 .adw-spin-control {
   display: flex;
   align-items: center;
-  gap: 2px;
+  // `border-spacing: 6px` (refs/libadwaita/src/stylesheet/widgets/_lists.scss:242). GTK
+  // spreads the spinbutton's three boxes with it, so this is the 6px between the entry and
+  // the first stepper AND the 6px between the two — which, with the 2px margins below,
+  // is the 10px the native circles actually stand apart.
+  gap: 6px;
 
+  // `row.spin spinbutton > button.image-button.up/.down` (_lists.scss:250-262) extends
+  // `%button_basic` AND `%circular_button` (_buttons.scss:19-27, :312-320). It was a
+  // 32px rounded SQUARE on a transparent background, so both steppers read as flat
+  // 32px squares beside a GTK render of the same `.blp`. Measured natively
+  // (Adw.SpinRow, libadwaita 1.9.3, light, `Adw.PreferencesGroup` capture): each button is
+  // allocated 34x50 with min = nat, its painted area a 30px circle of flat
+  // rgb(235,235,235) with an rgb(47,47,52) glyph. 34x50 = the 30px floor plus
+  // `margin: 10px 2px`; and in a 54px row those margins put the circle at y=12..41,
+  // which is exactly where the native capture paints it.
   button {
-    width: 32px;
-    height: 32px;
+    // A FLOOR, not a size: upstream sets `min-width`/`min-height`, and a glyph wider than
+    // 30px grows the circle rather than overflowing it.
+    min-width: 30px;
+    min-height: 30px;
+    margin: 10px 2px;
+    padding: 0;
     border: none;
-    border-radius: var(--button-radius);
-    background: transparent;
+    // `%circular_button`'s `border-radius: 9999px`, beating `%button_basic`'s
+    // `var(--button-radius)`, which is what the 32px square drew before.
+    border-radius: 9999px;
+    // `%button_basic` pulls in `%button_basic_raised`'s background through the same nested
+    // `@at-root`, so these buttons are FILLED at rest — this is upstream's
+    // `$button_color` (_buttons.scss:1), the mix that resolves to the measured 235.
+    background-color: color-mix(in srgb, currentColor 10%, transparent);
     color: var(--card-fg-color);
     cursor: pointer;
     font-size: 16px;
@@ -43,8 +85,14 @@ adw-spin-row {
     justify-content: center;
     flex-shrink: 0;
 
+    // `$button_hover_color` / `$button_active_color` (_buttons.scss:2-3). The rest state
+    // was transparent, so only the hover existed before and it was an unblended grey.
     &:hover {
-      background: rgba(128, 128, 128, 0.15);
+      background-color: color-mix(in srgb, currentColor 15%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 30%, transparent);
     }
   }
 
