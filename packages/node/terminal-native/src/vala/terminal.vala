@@ -104,9 +104,18 @@ namespace GjsifyTerminal {
      * ResizeWatcher — fires #GjsifyTerminal.ResizeWatcher::resized whenever
      * the terminal window is resized (SIGWINCH).
      *
-     * Call start() once; the watcher stays active for the process lifetime.
      * The signal is dispatched on the GLib main context via GLib.Idle so
      * JavaScript signal handlers run on the main thread.
+     *
+     * LIFECYCLE: `start()` takes a GLib source on the DEFAULT main context and
+     * that source holds a strong reference to the watcher (it is the callback's
+     * user_data), so a watcher that was started and never stopped is immortal —
+     * it can never be finalized, keeps its signal handlers alive, and is only
+     * torn down when GLib unrefs it during the host's own shutdown. `stop()`
+     * releases that reference and `dispose()` calls it, so a caller that is
+     * done with a watcher MUST stop or dispose it. Keeping the source id is
+     * what makes that possible; discarding it (as this class used to) leaves
+     * no way to reach the source again.
      */
     public class ResizeWatcher : GLib.Object {
 
@@ -118,17 +127,19 @@ namespace GjsifyTerminal {
         public signal void resized (int rows, int cols);
 
         private bool _active = false;
+        private uint _winch_source = 0;
 
         /**
          * start:
          *
-         * Begin watching SIGWINCH.  Idempotent — safe to call multiple times.
+         * Begin watching SIGWINCH.  Idempotent — safe to call multiple times,
+         * and safe to call again after stop().
          */
         public void start () {
             if (_active) return;
             _active = true;
 
-            GLib.Unix.signal_add (Posix.Signal.WINCH, () => {
+            _winch_source = (uint) GLib.Unix.signal_add (Posix.Signal.WINCH, () => {
                 int r = 0, c = 0, xp = 0, yp = 0;
                 if (Terminal.get_size (1, out r, out c, out xp, out yp)) {
                     int rows_snap = r;
@@ -140,6 +151,40 @@ namespace GjsifyTerminal {
                 }
                 return GLib.Source.CONTINUE;
             });
+        }
+
+        /**
+         * stop:
+         *
+         * Stop watching SIGWINCH and drop the source's reference to this
+         * watcher, so it can be finalized.  Idempotent — safe on a watcher
+         * that was never started, and safe to call twice.
+         *
+         * A resize already dispatched to GLib.Idle still fires `resized`:
+         * that idle holds its own reference, so a watcher is never emitted on
+         * after it is gone.
+         */
+        public void stop () {
+            if (!_active) return;
+            _active = false;
+
+            if (_winch_source != 0) {
+                GLib.Source.remove (_winch_source);
+                _winch_source = 0;
+            }
+        }
+
+        /**
+         * dispose:
+         *
+         * Release the SIGWINCH source on an explicit `run_dispose()`.  This is
+         * NOT reached when the last JavaScript reference is dropped: the source
+         * holds its own reference, so a started watcher is never disposed by
+         * garbage collection.  Call stop() for that.
+         */
+        public override void dispose () {
+            stop ();
+            base.dispose ();
         }
     }
 }

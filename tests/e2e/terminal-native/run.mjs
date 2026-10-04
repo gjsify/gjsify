@@ -12,7 +12,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname, join } from 'node:path';
 
@@ -20,6 +21,7 @@ import { e2eSkipReason, installedPrebuildDir, prebuildDir, MONOREPO_ROOT } from 
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
+const RESIZE_BUNDLE = resolve(__dirname, 'dist/resize-probe.gjs.mjs');
 // The per-target package, a SIBLING of the bridge since ADR 0017:
 // `@gjsify/terminal-native` ships no `prebuilds/` of its own any more, so a
 // consumer downloads only the binary their machine can load.
@@ -72,13 +74,20 @@ function envWithoutNativeTerminal(extra = {}) {
     return env;
 }
 
-/** The probe's environment with the prebuild directory first on every path, so
- * GjsifyTerminal.typelib and its .so are both found. */
-function envWithNativeTerminal(extra = {}) {
+/**
+ * The probe's environment with `libDir` first on every path, so that directory's
+ * GjsifyTerminal.typelib and its .so are both found.
+ *
+ * @param {object} [extra] env overrides to apply last
+ * @param {string} [libDir] the prebuild (or freshly built) directory to reach
+ *   first — the default is the committed one; the ResizeWatcher suite passes its
+ *   own build of this tree's Vala instead (see `buildBridgeFromSource`)
+ */
+function envWithNativeTerminal(extra = {}, libDir = PREBUILD_DIR) {
     const env = { ...process.env, ...extra };
     for (const name of PREBUILD_PATH_VARS) {
         const existing = env[name] || '';
-        env[name] = existing ? `${PREBUILD_DIR}:${existing}` : PREBUILD_DIR;
+        env[name] = existing ? `${libDir}:${existing}` : libDir;
     }
     return env;
 }
@@ -113,11 +122,96 @@ function runProbe(withCore, envOverrides) {
 
 const prebuildsBuilt = existsSync(`${PREBUILD_DIR}/GjsifyTerminal-1.0.typelib`);
 
+/**
+ * Build `GjsifyTerminal` from THIS tree's Vala, or answer null where there is no
+ * toolchain for it.
+ *
+ * WHY THE COMMITTED PREBUILD IS NOT THE SUBJECT HERE. `packages/node/
+ * terminal-native-linux-x64/prebuilds/` is committed, and by policy only
+ * `prebuilds.yml`'s `commit-prebuilds` rewrites it — a `main`-branch act a pull
+ * request cannot reach (`docs/prebuilds.md`, `docs/ci-selective.md`: "BUILD legs
+ * on PRs, commit-prebuilds main-only"). So in a PR the committed bytes are the
+ * PREVIOUS release's library, whatever the Vala in the same commit says. A probe
+ * pointed at them cannot observe the change it was written for: it reports the
+ * absence of a method that does not exist yet and calls that a regression —
+ * which is exactly how this suite's first ResizeWatcher attempt read (#2025:
+ * "a stopped watcher holds 2 refs against 2 for a live one", against a build
+ * where `stop` is not a function at all).
+ *
+ * The build leg of `prebuilds.yml` proves such a change COMPILES on the PR; this
+ * proves it BEHAVES, which a compile cannot. meson + vala + g-ir-compiler are
+ * baked into `ghcr.io/gjsify/ci-fedora`, so the leg that runs this suite has all
+ * three. The build goes to a scratch directory (`meson setup <dir> <src>`) rather
+ * than to `packages/node/terminal-native/build`, which the tree does not ignore —
+ * a build that wrote there would show up as untracked noise in a status check.
+ *
+ * A build that FAILS is reported and answered with the committed prebuild, not
+ * thrown: the compiler's verdict belongs to `prebuilds.yml`'s leg, which runs on
+ * every PR and gates on it. What must not happen here is a suite that dies on an
+ * unwritable scratch directory — the honest fallback is a named skip.
+ *
+ * @returns {string | null} the directory holding the fresh `.so` + `.typelib`
+ */
+function buildBridgeFromSource() {
+    const source = resolve(MONOREPO_ROOT, 'packages/node/terminal-native');
+    if (!existsSync(`${source}/src/vala/terminal.vala`)) return null;
+
+    try {
+        execFileSync('sh', ['-c', 'command -v meson && command -v g-ir-compiler && command -v ninja'], {
+            stdio: 'ignore',
+        });
+    } catch {
+        return null; // No toolchain: the committed prebuild is all this host has.
+    }
+
+    // A Vala/C build of the cheapest bridge in the matrix is ~30 s on a runner;
+    // generous, because a timeout here reads as a missing toolchain.
+    const timeout = 300_000;
+    try {
+        const buildDir = mkdtempSync(join(tmpdir(), 'gjsify-terminal-native-'));
+        execFileSync('meson', ['setup', buildDir, source], { stdio: 'ignore', timeout });
+        execFileSync('meson', ['compile', '-C', buildDir], { stdio: 'ignore', timeout });
+        return existsSync(`${buildDir}/GjsifyTerminal-1.0.typelib`) ? buildDir : null;
+    } catch (error) {
+        console.warn(
+            `terminal-native: building ${source} failed, falling back to the committed prebuild: ${error.message}`,
+        );
+        return null;
+    }
+}
+
+// Lazy in the one thing that costs minutes: with no built bundle there is nothing
+// to run the fresh library against, so the suite below skips and the toolchain
+// question is moot.
+const FRESH_BRIDGE = existsSync(RESIZE_BUNDLE) ? buildBridgeFromSource() : null;
+
+/**
+ * The probe's environment with `libDir` FIRST on every path, so that directory's
+ * `GjsifyTerminal.typelib` and its `.so` win over anything else reachable.
+ *
+ * @param {string} libDir the prebuild (or fresh build) directory to measure
+ */
+function runResizeProbe(libDir) {
+    const raw = execFileSync('gjs', ['-m', RESIZE_BUNDLE], {
+        env: envWithNativeTerminal({}, libDir),
+        encoding: 'utf8',
+        timeout: 10_000,
+    }).trim();
+    const jsonLine = raw
+        .split('\n')
+        .reverse()
+        .find((l) => l.trim().startsWith('{'));
+    assert.ok(jsonLine, `No JSON output found in probe output:\n${raw}`);
+    return JSON.parse(jsonLine);
+}
+
 // The core-module half needs a STAGED prebuild, which `test:e2e` does not build — the
 // reason this suite is ledgered in `scripts/e2e-unlisted-suites.mjs`. Routed through
 // `e2eSkipReason` so a host that means to run it can say so with
 // `GJSIFY_E2E_REQUIRE=terminal-native` and get a named failure instead of a silence
-// (#1550). No CI job sets it yet: nothing in CI stages this prebuild.
+// (#1550). No CI job sets it yet, and nothing in CI stages the COMMITTED prebuild:
+// the ResizeWatcher suite below builds its own library instead, which is why it can
+// run in CI at all (see `buildBridgeFromSource`).
 const CORE_SKIP = e2eSkipReason('terminal-native', [
     [
         'a staged GjsifyTerminal-1.0.typelib (gjsify workspace @gjsify/terminal-native run build:prebuilds)',
@@ -206,6 +300,54 @@ await describe('probe environment', async () => {
             );
         },
     );
+});
+
+// Needs the built bundle, and SOME GjsifyTerminal to measure: a fresh build of
+// this tree where the toolchain exists, else the committed prebuild.
+const RESIZE_SKIP = e2eSkipReason('terminal-native', [
+    ['the built probe bundle (gjsify run build in tests/e2e/terminal-native)', existsSync(RESIZE_BUNDLE)],
+    [
+        FRESH_BRIDGE
+            ? 'a build of packages/node/terminal-native (meson setup/compile)'
+            : 'a staged GjsifyTerminal-1.0.typelib (gjsify workspace @gjsify/terminal-native run build:prebuilds)',
+        FRESH_BRIDGE !== null || prebuildsBuilt,
+    ],
+]);
+
+await describe('ResizeWatcher owns its SIGWINCH source', { skip: RESIZE_SKIP }, async () => {
+    // Deterministic: a started watcher is referenced by its GLib source, so
+    // stop() must drop exactly one reference. No terminal or signal is involved.
+    const r = runResizeProbe(FRESH_BRIDGE ?? PREBUILD_DIR);
+    // A committed prebuild that never had `stop()` cannot answer either question
+    // — it is the previous release's library, and `stop_idempotent: false` there
+    // means "this method is newer than these bytes", not "the method is broken".
+    // Skip with that named, rather than assert a number measured against a
+    // library the assertion is not about (#2025). `available: false` is NOT that
+    // case — nothing loaded at all, which the first test below fails on.
+    const STALE_PREBUILD = {
+        skip:
+            FRESH_BRIDGE === null && r.available === true && !r.stop_idempotent
+                ? 'the committed GjsifyTerminal prebuild predates src/vala/terminal.vala ' +
+                  '(no stop() in it), and this host has no meson + vala to build this tree: ' +
+                  'install the toolchain, or let prebuilds.yml commit-prebuilds land the rebuild on main'
+                : false,
+    };
+    it('the bridge loads and stop() is idempotent', STALE_PREBUILD, () => {
+        assert.strictEqual(
+            r.available,
+            true,
+            `GjsifyTerminal did not load from ${FRESH_BRIDGE ?? PREBUILD_DIR}: no ResizeWatcher to measure`,
+        );
+        assert.strictEqual(r.stop_idempotent, true, 'ResizeWatcher.stop() is missing or threw on a second call');
+    });
+    it('stop() releases the source reference', STALE_PREBUILD, () => {
+        assert.strictEqual(
+            r.refs_stopped,
+            r.refs_live - 1,
+            `a stopped watcher holds ${r.refs_stopped} refs against ${r.refs_live} for a live one; ` +
+                'the SIGWINCH source still references it, so it can never be finalized',
+        );
+    });
 });
 
 await describe('terminal-native E2E', async () => {
