@@ -33,4 +33,8 @@ export const capabilities: ConstructCapabilities = {
         refused:
             "gtk-host's tree builder resolves no bindings between objects; a GTK app binds properties in code, or loads the .blp through Gtk.Builder",
     },
+    breakpoint: {
+        refused:
+            "gtk-host's tree builder resolves no setters between objects and has no Adw.Breakpoint; a GTK app loads the .blp through Gtk.Builder, or builds an Adw.Breakpoint in code",
+    },
 };

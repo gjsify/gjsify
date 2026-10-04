@@ -166,6 +166,7 @@ const NODE_FIELDS = new Set([
     'layout',
     'signals',
     'bindings',
+    'breakpoints',
     'children',
 ]);
 
@@ -367,7 +368,9 @@ const validateNode = (node, where, isRoot = true) => {
     }
 };
 
-const countNodes = (node) => 1 + (node.children ?? []).reduce((n, c) => n + countNodes(c), 0);
+// A carried `Adw.Breakpoint` is an `<object>` of the golden and a field of its parent, so it is counted here.
+const countNodes = (node) =>
+    1 + (node.breakpoints ?? []).length + (node.children ?? []).reduce((n, c) => n + countNodes(c), 0);
 
 /**
  * How many GtkBuilder OBJECTS the reference compiler emitted for a file. `<template>` is
@@ -1342,6 +1345,7 @@ const USE_ELEMENTS = {
     responses: /<responses>/g,
     signal: /<signal /g,
     bind: /bind-source=/g,
+    breakpoint: /<object class="AdwBreakpoint"/g,
 };
 const checkUses = (job, result) => {
     if (!existsSync(job.golden)) return; // stage A said so
@@ -1352,7 +1356,10 @@ const checkUses = (job, result) => {
         used += got;
         // A `bind` inside a sibling root is lost with that root, so the golden may hold more of them.
         const siblingsLost = kind === 'bind' && result.lost.some((loss) => loss.kind === 'sibling-object');
-        if (siblingsLost ? got > wanted : wanted !== got) {
+        // A breakpoint with a setter the tree cannot carry is the loss `breakpoint`, not a use.
+        const keptWanted =
+            kind === 'breakpoint' ? wanted - result.lost.filter((loss) => loss.kind === 'breakpoint').length : wanted;
+        if (siblingsLost ? got > wanted : keptWanted !== got) {
             problems.push(
                 `${job.key}: the oracle wrote ${wanted} element(s) for \`${kind}\` and the projection reports ${got} ` +
                     `use(s) of \`${kind}\`.`,
@@ -1450,6 +1457,47 @@ const checkUses = (job, result) => {
         problems.push(
             `${job.key}: the golden and the projection disagree about the bindings — ` +
                 `golden [${goldenBinds.join(', ')}], projection [${treeBinds.join(', ')}].`,
+        );
+    }
+    // ADR 0093's `breakpoints`: the oracle's `<condition>` and `<setter object property>` against the tree.
+    // The VALUES are not compared: the golden carries the resolved ones (`1` for `vertical`) and the tree
+    // the source spelling, which `expectations.mjs` says is the point of having both exits.
+    const goldenBreakpoints = [
+        ...golden.matchAll(
+            /<object class="AdwBreakpoint">\s*<condition>([^<]*)<\/condition>((?:\s*<setter [^>]*>[^<]*<\/setter>)*)/g,
+        ),
+    ].map((match) => {
+        const setters = [
+            ...match[2].matchAll(/<setter object="([^"]+)" property="([^"]+)"( translatable="yes")?>/g),
+        ].map((setter) => [setter[1], setter[2], setter[3] === undefined ? '' : 'translatable'].join('.'));
+        return `${match[1]}|${setters.join(',')}`;
+    });
+    const treeBreakpoints = [];
+    const collectBreakpoints = (node) => {
+        for (const breakpoint of node.breakpoints ?? []) {
+            const setters = breakpoint.setters.map((setter) =>
+                [
+                    setter.object === 'template' ? result.node.template : setter.object,
+                    setter.property,
+                    setter.translatable === undefined ? '' : 'translatable',
+                ].join('.'),
+            );
+            treeBreakpoints.push(`${breakpoint.condition}|${setters.join(',')}`);
+        }
+        for (const child of node.children ?? []) collectBreakpoints(child);
+    };
+    collectBreakpoints(result.node);
+    // A breakpoint lost whole (a `null` setter) or inside a lost sibling root is in the golden only.
+    const breakpointsPartial =
+        result.lost.some((loss) => loss.kind === 'breakpoint') ||
+        result.lost.some((loss) => loss.kind === 'sibling-object');
+    const breakpointsAgree = breakpointsPartial
+        ? treeBreakpoints.every((entry) => goldenBreakpoints.includes(entry))
+        : goldenBreakpoints.join('\n') === treeBreakpoints.join('\n');
+    if (!breakpointsAgree) {
+        problems.push(
+            `${job.key}: the golden and the projection disagree about the breakpoints — ` +
+                `golden [${goldenBreakpoints.join('; ')}], projection [${treeBreakpoints.join('; ')}].`,
         );
     }
     const lines = result.uses.map((use) => use.line);

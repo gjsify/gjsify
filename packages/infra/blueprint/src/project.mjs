@@ -14,7 +14,7 @@
 // loss any shipped `.blp` here reaches that is not a grammar: `styles [ ]` and
 // `css-classes: [ ]` are two spellings of `GtkWidget:css-classes`, and both fill
 // `styleClasses`. ADR 0072 gave the two value-carrying extensions one, `extensions`: a string
-// list's items and an alert dialog's responses. `bind` and `breakpoint` stay losses and stay
+// list's items and an alert dialog's responses. `breakpoint` setters that are not scalars stay losses and stay
 // declared; ADR 0067 § 3 says why each, and why the file-level `translation-domain` is not a
 // node fact.
 //
@@ -262,6 +262,51 @@ const bindingOf = (value) => {
 };
 
 /**
+ * An `Adw.Breakpoint` child as `SharedNode.breakpoints` holds it (ADR 0093), or `undefined` where
+ * a setter has no spelling the tree can carry.
+ *
+ * The values are NOT resolved through the target widget, as `layoutOf` does not: an enum member
+ * keeps its source spelling and the renderer writes it as it writes any prop. A `null` setter
+ * stays a loss, because the identifier `null` is an object reference or the null literal only
+ * once the ids are known, and `36-setter-null` pins that the oracle writes an empty element.
+ *
+ * ONE READER FOR BOTH SEAMS, for `styleClassesOf`'s reason: `lossesOf` and `usesOf` ask it too.
+ *
+ * @param {ObjectNode} object @param {(type: TypeRef, position?: 'object' | 'reference') => string} tag
+ * @returns {NonNullable<SharedNode['breakpoints']>[number] | undefined}
+ */
+const breakpointOf = (object, tag) => {
+    let condition;
+    /** @type {NonNullable<SharedNode['breakpoints']>[number]['setters']} */
+    const setters = [];
+    for (const extension of object.body.extensions) {
+        if (extension.name === 'condition') {
+            const argument = extension.argument ?? '';
+            const quote = argument.charAt(0);
+            if (argument.length < 2 || (quote !== '"' && quote !== "'") || !argument.endsWith(quote)) return undefined;
+            const body = argument.slice(1, -1);
+            if (body.includes('\\')) return undefined;
+            condition = body;
+        } else if (extension.name === 'setters') {
+            for (const entry of extension.entries) {
+                const dot = entry.name.indexOf('.');
+                if (dot <= 0 || (entry.value.kind === 'ident' && entry.value.name === 'null')) return undefined;
+                const value = scalarOf(entry.value, tag);
+                if (value === undefined) return undefined;
+                setters.push({
+                    object: entry.name.slice(0, dot),
+                    property: entry.name.slice(dot + 1),
+                    value,
+                    ...(entry.value.kind === 'string' ? markingOf(entry.value) : {}),
+                });
+            }
+        } else return undefined;
+    }
+    if (condition === undefined) return undefined;
+    return { condition, setters };
+};
+
+/**
  * The signal handlers of a body as `SharedNode.signals` holds them (ADR 0093): the handler is a
  * NAME, never code, and `object` and the flags are spelled as the source wrote them. A body with
  * none yields `undefined` so the field is absent rather than empty.
@@ -368,6 +413,10 @@ const projectBody = (body, tag) => {
     const children = placed
         .filter((entry) => !isBreakpoint(entry.object))
         .map((entry) => projectObject(entry.object, entry.slot, tag));
+    const breakpoints = placed
+        .filter((entry) => isBreakpoint(entry.object))
+        .map((entry) => breakpointOf(entry.object, tag))
+        .filter((entry) => entry !== undefined);
     const signals = signalsOf(body);
 
     return {
@@ -378,6 +427,7 @@ const projectBody = (body, tag) => {
         ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
         ...(signals === undefined ? {} : { signals }),
         ...(Object.keys(bindings).length > 0 ? { bindings } : {}),
+        ...(breakpoints.length > 0 ? { breakpoints } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
 };
@@ -469,7 +519,9 @@ const lossesOf = (file, tag) => {
             if (isBreakpoint(child.object)) {
                 // Named on the OBJECT line, never on the bracket above it — the convention
                 // stated once in the header of `corpus/expectations.mjs`.
-                lost.push({ kind: 'breakpoint', line: child.object.line });
+                if (breakpointOf(child.object, tag) === undefined) {
+                    lost.push({ kind: 'breakpoint', line: child.object.line });
+                }
                 continue;
             }
             walkObject(child.object);
@@ -516,7 +568,7 @@ const lossesOf = (file, tag) => {
  * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
  *
  * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
- * `strings`, `responses`, `extern`, `signal` and `bind`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * `strings`, `responses`, `extern`, `signal`, `bind` and `breakpoint`. A `page` has no Blueprint spelling that reaches this exit. Each
  * question goes to the reader the projection itself fills the field with, so a construct the
  * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
  *
@@ -546,6 +598,9 @@ const usesOf = (file, tag) => {
         for (const signal of body.signals) uses.push({ kind: 'signal', line: signal.line });
         for (const child of body.children) {
             if (!isBreakpoint(child.object)) walkObject(child.object);
+            else if (breakpointOf(child.object, tag) !== undefined) {
+                uses.push({ kind: 'breakpoint', line: child.object.line });
+            }
         }
     };
 

@@ -237,6 +237,10 @@ const MODULE_REASONS = {
     // caller is `@gjsify/adwaita-app/system-accent`, a reader outside every renderer.
     'apple-accent': { gap: NO_TABLE_LEDGER },
     breakpoint: { gap: NO_TABLE_LEDGER },
+    // The wiring around `breakpoint.ts`: it applies and restores setters through a renderer's
+    // property door. `breakpoint-driver.spec.ts` holds it in core; a vector table both
+    // renderers drive is the open item.
+    'breakpoint-driver': { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
     glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },

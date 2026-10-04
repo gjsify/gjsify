@@ -222,6 +222,15 @@ export interface SharedTreeNode {
             }
         >
     >;
+    breakpoints?: readonly {
+        readonly condition: string;
+        readonly setters: readonly {
+            readonly object: string;
+            readonly property: string;
+            readonly value: string | number | boolean;
+            readonly translatable?: { context?: string };
+        }[];
+    }[];
     children?: readonly SharedTreeNode[];
 }
 

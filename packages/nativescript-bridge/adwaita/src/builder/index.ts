@@ -29,11 +29,13 @@
 // with the function they belong to. The two about ids (an unknown one, a duplicate one) are
 // GtkBuilder's own refusals, restated where the ids are resolved.
 
+import { createBreakpointDriver, parseBreakpointCondition, type BreakpointSize } from '@gjsify/adwaita-core';
 import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 import { View } from '@nativescript/core';
 
 import { capabilities } from '../capabilities.js';
+import { observeViewSize } from '../widgets/breakpoint.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 import { templateClassFor } from './template-classes.js';
 
@@ -134,6 +136,9 @@ interface BuildContext {
     pending: PendingReference[];
     /** The `bindings` of every node, resolved once every id exists (a source may be built after its target). */
     binds: PendingBind[];
+    /** The nodes that carry `breakpoints`, wired once every id exists (a setter may name a later sibling). */
+    breakpointHosts: { view: object; element: Element; node: SharedTreeNode }[];
+    observeSize: SizeSource;
     scope: Readonly<Record<string, unknown>> | undefined;
 }
 
@@ -146,8 +151,13 @@ interface PendingBind {
     flags: readonly string[];
 }
 
+/** Calls `onSize` with the view's measured size, now and on every change; returns its disposer. */
+export type SizeSource = (view: View, onSize: (size: BreakpointSize) => void) => () => void;
+
 /** What a caller hands {@link build} beside the tree. */
 export interface BuildOptions {
+    /** Where a `breakpoints` node reads its size from; the view's post-layout size unless supplied. */
+    observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
 }
@@ -211,7 +221,14 @@ export function buildDialog(node: SharedTreeNode, options: BuildOptions = {}): P
 function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
     // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
     assertTreeConstructs('adwaita-nativescript', capabilities, node);
-    const context: BuildContext = { ids: new Map(), pending: [], binds: [], scope: options.scope };
+    const context: BuildContext = {
+        ids: new Map(),
+        pending: [],
+        binds: [],
+        breakpointHosts: [],
+        observeSize: options.observeSize ?? observeViewSize,
+        scope: options.scope,
+    };
     const root = buildNode(node, context);
     for (const { view, element, prop, id } of context.pending) {
         const target = context.ids.get(id);
@@ -224,6 +241,7 @@ function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
         (view as unknown as Record<string, unknown>)[prop] = target;
     }
     for (const bind of context.binds) bindProperty(bind, context);
+    for (const host of context.breakpointHosts) bindBreakpoints(host, context);
     return root;
 }
 
@@ -270,6 +288,87 @@ function bindProperty(bind: PendingBind, context: BuildContext): void {
 }
 
 /**
+ * ADR 0093's `breakpoints`: each setter's `object` resolves to the view built for that id and the
+ * write is the one an authored prop takes (the value as its string, which the property's setter
+ * coerces). The parent's post-layout size is the size source, which is the window's on a root
+ * view; `adwaita-core` picks the breakpoint and the restores.
+ *
+ * Refused by name, never dropped: a host that is not a view, a setter whose object is not an id of
+ * this tree (`template` included), a property the target does not declare, and a condition the
+ * grammar cannot read, which libadwaita would drop silently.
+ */
+function bindBreakpoints(
+    { view, element, node }: BuildContext['breakpointHosts'][number],
+    context: BuildContext,
+): void {
+    if (!(view instanceof View)) {
+        throw new Error(`<${element.xmlName}> is not a view, so it has no size for a breakpoint to read.`);
+    }
+    wireBreakpoints(element.xmlName, view, node.breakpoints ?? [], context.ids, context.observeSize);
+}
+
+/**
+ * The breakpoints of a view the application built itself, for a shell that is not (yet) a tree:
+ * the same data `breakpoints` carries, wired the same way. `ids` names the views the setters
+ * address; `host` is the view whose size decides (the window's, when it is the root).
+ */
+export function applyBreakpoints(
+    host: View,
+    breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
+    ids: Readonly<Record<string, View>>,
+    options: Pick<BuildOptions, 'observeSize'> = {},
+): void {
+    wireBreakpoints(
+        host.constructor.name,
+        host,
+        breakpoints,
+        new Map(Object.entries(ids)),
+        options.observeSize ?? observeViewSize,
+    );
+}
+
+function wireBreakpoints(
+    owner: string,
+    view: View,
+    breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
+    ids: ReadonlyMap<string, View>,
+    observeSize: SizeSource,
+): void {
+    const definitions = breakpoints.map((breakpoint) => {
+        if (parseBreakpointCondition(breakpoint.condition) === null) {
+            throw new Error(
+                `<${owner}> \`condition ("${breakpoint.condition}")\` is not an Adwaita breakpoint condition.`,
+            );
+        }
+        return {
+            condition: breakpoint.condition,
+            setters: breakpoint.setters.map((setter) => {
+                const object = ids.get(setter.object);
+                const where = `<${owner}> breakpoint setter \`${setter.object}.${setter.property}\``;
+                if (object === undefined) {
+                    throw new Error(`${where} names no object: nothing in this tree has the id '${setter.object}'.`);
+                }
+                if (!(propertyOf(setter.property) in object)) {
+                    throw new Error(`${where}: the target declares no '${propertyOf(setter.property)}'.`);
+                }
+                return { object, property: setter.property, value: { authored: setter.value } };
+            }),
+        };
+    });
+    const driver = createBreakpointDriver<View>(definitions, {
+        read: (target, property) => ({
+            original: (target as unknown as Record<string, unknown>)[propertyOf(property)],
+        }),
+        write(target, property, value) {
+            const slot = value as { authored: unknown } | { original: unknown };
+            (target as unknown as Record<string, unknown>)[propertyOf(property)] =
+                'authored' in slot ? String(slot.authored) : slot.original;
+        },
+    });
+    observeSize(view, (size) => driver.evaluate(size));
+}
+
+/**
  * One node, widget or VALUE OBJECT.
  *
  * A VALUE OBJECT is what the barrel offers that is not a `View`: `Gtk.Adjustment`,
@@ -302,6 +401,7 @@ function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
             flags: binding.flags ?? [],
         });
     }
+    if (node.breakpoints !== undefined) context.breakpointHosts.push({ view: built, element, node });
     for (const child of node.children ?? []) {
         const parent = built as Partial<BuilderParent>;
         if (typeof parent._addChildFromBuilder !== 'function') {

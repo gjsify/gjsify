@@ -98,6 +98,9 @@ const EXTERN = '- extern?: true';
 const BINDINGS =
     "- bindings?: Record< string, { source: string; property: string; flags?: ('bidirectional' | " +
     "'inverted' | 'no-sync-create')[]; } >";
+const BREAKPOINTS =
+    '- breakpoints?: { condition: string; setters: { object: string; property: string; value: string | number | ' +
+    'boolean; translatable?: { context?: string }; }[]; }[]';
 const SIGNALS =
     "- signals?: { name: string; detail?: string; handler: string; object?: string; flags?: ('swapped' | " +
     "'after' | 'not-swapped')[]; }[]";
@@ -171,6 +174,7 @@ const FAMILY = [
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
+            `${BREAKPOINTS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -201,6 +205,7 @@ const FAMILY = [
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
+            `${BREAKPOINTS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -229,6 +234,7 @@ const FAMILY = [
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
+            `${BREAKPOINTS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -485,6 +491,15 @@ export interface SharedTreeNode {
             }
         >
     >;
+    breakpoints?: readonly {
+        readonly condition: string;
+        readonly setters: readonly {
+            readonly object: string;
+            readonly property: string;
+            readonly value: string | number | boolean;
+            readonly translatable?: { context?: string };
+        }[];
+    }[];
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -524,6 +539,15 @@ const VECTORS = [
         string,
         { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
     >;
+    breakpoints?: {
+        condition: string;
+        setters: {
+            object: string;
+            property: string;
+            value: string | number | boolean;
+            translatable?: { context?: string };
+        }[];
+    }[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -563,6 +587,15 @@ const VECTORS = [
         string,
         { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
     >;
+    breakpoints?: {
+        condition: string;
+        setters: {
+            object: string;
+            property: string;
+            value: string | number | boolean;
+            translatable?: { context?: string };
+        }[];
+    }[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -590,6 +623,7 @@ const VECTORS = [
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
+            `${BREAKPOINTS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -626,6 +660,15 @@ const VECTORS = [
         string,
         { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
     >;
+    breakpoints?: {
+        condition: string;
+        setters: {
+            object: string;
+            property: string;
+            value: string | number | boolean;
+            translatable?: { context?: string };
+        }[];
+    }[];
     children?: Lossy[];
 }`,
         'Lossy',
@@ -666,6 +709,15 @@ const VECTORS = [
         string,
         { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
     >;
+    breakpoints?: {
+        condition: string;
+        setters: {
+            object: string;
+            property: string;
+            value: string | number | boolean;
+            translatable?: { context?: string };
+        }[];
+    }[];
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -705,6 +757,15 @@ const VECTORS = [
         string,
         { source: string; property: string; flags?: ('bidirectional' | 'inverted' | 'no-sync-create')[]; }
     >;
+    breakpoints?: {
+        condition: string;
+        setters: {
+            object: string;
+            property: string;
+            value: string | number | boolean;
+            translatable?: { context?: string };
+        }[];
+    }[];
     children?: (Widened | string)[];
 }`,
         'Widened',

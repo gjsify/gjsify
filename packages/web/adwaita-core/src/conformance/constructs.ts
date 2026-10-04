@@ -21,7 +21,16 @@ import type { SharedTreeNode } from './shared-trees.js';
 import { authoredNodes } from './shared-trees.js';
 
 /** The construct kinds, in the order the tables list them. */
-export const CONSTRUCT_KINDS = ['layout', 'strings', 'responses', 'page', 'extern', 'signal', 'bind'] as const;
+export const CONSTRUCT_KINDS = [
+    'layout',
+    'strings',
+    'responses',
+    'page',
+    'extern',
+    'signal',
+    'bind',
+    'breakpoint',
+] as const;
 
 export type ConstructKind = (typeof CONSTRUCT_KINDS)[number];
 
@@ -49,6 +58,7 @@ export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
         if (node.extern === true) found.push({ kind: 'extern', path });
         node.signals?.forEach(() => found.push({ kind: 'signal', path }));
         Object.keys(node.bindings ?? {}).forEach(() => found.push({ kind: 'bind', path }));
+        node.breakpoints?.forEach(() => found.push({ kind: 'breakpoint', path }));
     }
     return found;
 }
@@ -196,6 +206,31 @@ export const CONSTRUCT_VECTORS: readonly ConstructVector[] = [
         },
         shows: { afterBuild: false, afterSourceOn: true },
     },
+    {
+        kind: 'breakpoint',
+        rule: 'a `breakpoint` writes its setters while its condition holds for the parent, and restores them after (ADR 0093)',
+        tree: {
+            tag: 'GtkBox',
+            children: [{ tag: 'GtkLabel', id: 'caption', props: { label: 'wide' } }],
+            breakpoints: [
+                {
+                    condition: 'max-width: 400px',
+                    setters: [{ object: 'caption', property: 'label', value: 'narrow' }],
+                },
+            ],
+        },
+        shows: ['wide', 'narrow', 'wide'],
+    },
+];
+
+/**
+ * The sizes a renderer feeds the `breakpoint` vector through its own size source, in order, and
+ * reads the caption after each: wide, then narrow enough for the condition, then wide again.
+ */
+export const BREAKPOINT_VECTOR_SIZES: readonly { readonly width: number; readonly height: number }[] = [
+    { width: 800, height: 600 },
+    { width: 300, height: 600 },
+    { width: 800, height: 600 },
 ];
 
 /** The name the extern vector's class is registered under, so each renderer registers the same one. */

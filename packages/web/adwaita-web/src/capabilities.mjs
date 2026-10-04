@@ -14,4 +14,5 @@ export const capabilities = {
     extern: 'implemented',
     signal: 'implemented',
     bind: 'implemented',
+    breakpoint: 'implemented',
 };

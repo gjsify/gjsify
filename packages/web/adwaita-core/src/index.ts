@@ -871,6 +871,13 @@ export type {
 
 // --- Breakpoint bin (pick one, and what the change writes) ---
 export { BreakpointBinState } from './breakpoint-bin.js';
+export { createBreakpointDriver } from './breakpoint-driver.js';
+export type {
+    BreakpointDriver,
+    BreakpointDriverDefinition,
+    BreakpointDriverIo,
+    BreakpointDriverSetter,
+} from './breakpoint-driver.js';
 export type {
     BreakpointDefinition,
     BreakpointSetter,

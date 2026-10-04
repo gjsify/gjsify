@@ -2,6 +2,7 @@
 // tree builder and the elements it mounts.
 
 import {
+    BREAKPOINT_VECTOR_SIZES,
     CONSTRUCT_VECTORS,
     EXTERN_VECTOR_CLASS,
     driveConstructVectors,
@@ -54,6 +55,23 @@ function observe(vector: ConstructVector): unknown {
             const afterBuild = target.active;
             source.active = true;
             return { afterBuild, afterSourceOn: target.active };
+        } finally {
+            unmount();
+        }
+    }
+    if (vector.kind === 'breakpoint') {
+        let feed: ((size: { width: number; height: number }) => void) | undefined;
+        const { root, unmount } = mountSharedTree(vector.tree, {
+            observeSize: (_element, onSize) => {
+                feed = onSize;
+                return () => {};
+            },
+        });
+        try {
+            return BREAKPOINT_VECTOR_SIZES.map((size) => {
+                feed!(size);
+                return root.querySelector('#caption')!.getAttribute('label');
+            });
         } finally {
             unmount();
         }
@@ -137,6 +155,17 @@ export const AdwConstructVectorsTest = async () => {
             expect(() => mountSharedTree(bound({ source: 'source', property: 'active', flags: ['inverted'] }))).toThrow(
                 'plain form only',
             );
+        });
+        await it('refuses a breakpoint setter that names no object, and a condition nobody can read', () => {
+            const withBreakpoint = (object: string, condition = 'max-width: 400px') =>
+                ({
+                    tag: 'GtkBox',
+                    children: [{ tag: 'GtkLabel', id: 'caption' }],
+                    breakpoints: [{ condition, setters: [{ object, property: 'label', value: 'x' }] }],
+                }) as SharedTreeNode;
+            expect(() => mountSharedTree(withBreakpoint('nobody'))).toThrow("id 'nobody'");
+            expect(() => mountSharedTree(withBreakpoint('template'))).toThrow("id 'template'");
+            expect(() => mountSharedTree(withBreakpoint('caption', 'wide please'))).toThrow('breakpoint condition');
         });
         await it('does not read a registered name for a node that is not extern', () => {
             const el = buildSharedTree({ tag: 'GtkBox', children: [{ tag: 'GtkLabel' }] });

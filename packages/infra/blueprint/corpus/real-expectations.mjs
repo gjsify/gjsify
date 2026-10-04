@@ -85,6 +85,22 @@ export const REAL_EXPECTATIONS = [
             tag: 'AdwApplicationWindow',
             template: 'FireworksWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'Fireworks — Canvas 2D' },
+            breakpoints: [
+                {
+                    condition: 'max-width: 799sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: true },
+                        { object: 'splitView', property: 'show-sidebar', value: false },
+                    ],
+                },
+                {
+                    condition: 'min-width: 800sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: false },
+                        { object: 'splitView', property: 'show-sidebar', value: true },
+                    ],
+                },
+            ],
             children: [
                 {
                     tag: 'GtkBox',
@@ -180,18 +196,7 @@ export const REAL_EXPECTATIONS = [
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'breakpoint',
-                line: 10,
-                detail: 'the whole `[breakpoint] Adw.Breakpoint` child: `condition ("max-width: 799sp")` and two setters on `splitView`',
-            },
-            {
-                kind: 'breakpoint',
-                line: 19,
-                detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
-            },
-        ],
+        lost: [],
         note: 'Line 32 writes `ToggleButton` with no namespace and this says `GtkToggleButton` — see finding 1 in the header of this file. `sidebar-width-fraction: 0.30` says `0.3` for the reason `17-numeric-forms.blp` gives.',
     },
     {
@@ -240,6 +245,22 @@ export const REAL_EXPECTATIONS = [
             tag: 'AdwApplicationWindow',
             template: 'TeapotWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'Three.js Teapot' },
+            breakpoints: [
+                {
+                    condition: 'max-width: 799sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: true },
+                        { object: 'splitView', property: 'show-sidebar', value: false },
+                    ],
+                },
+                {
+                    condition: 'min-width: 800sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: false },
+                        { object: 'splitView', property: 'show-sidebar', value: true },
+                    ],
+                },
+            ],
             children: [
                 {
                     tag: 'GtkBox',
@@ -356,18 +377,7 @@ export const REAL_EXPECTATIONS = [
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'breakpoint',
-                line: 10,
-                detail: 'the whole `[breakpoint] Adw.Breakpoint` child: `condition ("max-width: 799sp")` and two setters on `splitView`',
-            },
-            {
-                kind: 'breakpoint',
-                line: 19,
-                detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
-            },
-        ],
+        lost: [],
     },
     {
         file: 'showcases/dom/three-loader-ldraw/src/gjs/ldraw-window.blp',
@@ -475,6 +485,22 @@ export const REAL_EXPECTATIONS = [
             tag: 'AdwApplicationWindow',
             template: 'PixelWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'Pixel Post-Processing' },
+            breakpoints: [
+                {
+                    condition: 'max-width: 799sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: true },
+                        { object: 'splitView', property: 'show-sidebar', value: false },
+                    ],
+                },
+                {
+                    condition: 'min-width: 800sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: false },
+                        { object: 'splitView', property: 'show-sidebar', value: true },
+                    ],
+                },
+            ],
             children: [
                 {
                     tag: 'GtkBox',
@@ -570,18 +596,7 @@ export const REAL_EXPECTATIONS = [
                 },
             ],
         },
-        lost: [
-            {
-                kind: 'breakpoint',
-                line: 10,
-                detail: 'the whole `[breakpoint] Adw.Breakpoint` child: `condition ("max-width: 799sp")` and two setters on `splitView`',
-            },
-            {
-                kind: 'breakpoint',
-                line: 19,
-                detail: 'the second `[breakpoint] Adw.Breakpoint` child: `condition ("min-width: 800sp")` and two setters on `splitView`',
-            },
-        ],
+        lost: [],
     },
     {
         file: 'showcases/gtk/adw-blueprint-layout/src/header-bar.blp',
@@ -915,6 +930,15 @@ export const REAL_EXPECTATIONS = [
                 'height-request': 320,
                 title: 'Storybook',
             },
+            breakpoints: [
+                {
+                    condition: 'max-width: 720sp',
+                    setters: [
+                        { object: 'main_split_view', property: 'collapsed', value: true },
+                        { object: 'controls_split_view', property: 'collapsed', value: true },
+                    ],
+                },
+            ],
             children: [
                 {
                     tag: 'AdwNavigationSplitView',
@@ -1061,11 +1085,6 @@ export const REAL_EXPECTATIONS = [
                 kind: 'comment',
                 line: 4,
                 detail: '17 comment lines across seven blocks, none reaching either exit',
-            },
-            {
-                kind: 'breakpoint',
-                line: 134,
-                detail: 'the whole `Adw.Breakpoint` child, written with no `[breakpoint]` slot: `condition ("max-width: 720sp")` and two setters, one on `main_split_view` and one on `controls_split_view`',
             },
         ],
         note: "The first real file from `packages/framework` rather than a showcase or a template — the storybook's own chrome, split out of `window.ts` by this PR. Its own header comment says captions are deliberately not marked translatable, and the projection shows that literally: this is the largest real file so far (20 nodes) with NO `translatable` field on any of them. Two siblings share `slot: 'end'` under one `AdwHeaderBar`, the same cardinality finding 2 above already names. `top-bar-style: flat` on both toolbar views is source spelling, not the `0` the golden resolves it to — finding 4 in `expectations.mjs`'s header. Unlike the three showcases that reach `breakpoint`, this one writes `Adw.Breakpoint` bare, with no `[breakpoint]` slot annotation — `14-breakpoint.blp` already proved that slot optional, and this is the first real file to take that path.",

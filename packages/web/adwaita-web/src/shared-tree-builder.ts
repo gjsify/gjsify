@@ -34,9 +34,11 @@
 // package's `exports` map ships only `.`, and a new subpath would buy nothing for a module
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
+import { createBreakpointDriver, parseBreakpointCondition, type BreakpointSize } from '@gjsify/adwaita-core';
 import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
+import { observeAdaptiveSize } from './breakpoints.js';
 import { capabilities } from './capabilities.mjs';
 import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
@@ -63,9 +65,18 @@ interface BuildRecord {
     ids: Map<string, HTMLElement>;
     /** The `bindings` of every node, resolved once every id exists (a source may be built after its target). */
     binds: PendingBind[];
+    /** The nodes that carry `breakpoints`, wired once every id exists (a setter may name a later sibling). */
+    breakpointHosts: { el: HTMLElement; node: SharedTreeNode }[];
+    /** Undoes what the build wired to the outside (the size observers); {@link mountSharedTree}'s `unmount` runs it. */
+    disposers: (() => void)[];
+    /** The size source a `breakpoints` node is driven from; a `ResizeObserver` unless the caller supplies one. */
+    observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
 }
+
+/** Calls `onSize` with the host's measured size, now and on every change; returns its disposer. */
+export type SizeSource = (element: Element, onSize: (size: BreakpointSize) => void) => () => void;
 
 interface PendingBind {
     el: HTMLElement;
@@ -126,12 +137,79 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = newR
     assertTreeConstructs('adwaita-web', capabilities, node);
     const root = buildNode(node, record);
     for (const bind of record.binds) bindProperty(bind, record);
+    for (const host of record.breakpointHosts) bindBreakpoints(host.el, host.node, record);
     return root;
 }
 
 /** A fresh record, with the scope when the caller has one. */
-function newRecord(scope?: Readonly<Record<string, unknown>>): BuildRecord {
-    return { placed: [], extended: [], ids: new Map(), binds: [], ...(scope === undefined ? {} : { scope }) };
+function newRecord(scope?: Readonly<Record<string, unknown>>, observeSize?: SizeSource): BuildRecord {
+    return {
+        placed: [],
+        extended: [],
+        ids: new Map(),
+        binds: [],
+        breakpointHosts: [],
+        disposers: [],
+        ...(scope === undefined ? {} : { scope }),
+        ...(observeSize === undefined ? {} : { observeSize }),
+    };
+}
+
+/** What a setter's target held before any breakpoint wrote it: the member's value or the attribute's. */
+type Original = { member: unknown } | { attribute: string | null };
+
+/**
+ * ADR 0093's `breakpoints`: each setter's `object` resolves to the element built for that id and
+ * the write is the one an authored prop takes. The parent's own box is the size source (a
+ * `ResizeObserver`; an Adwaita condition is written against the window, which a page rarely is),
+ * and `adwaita-core` picks the breakpoint and the restores.
+ *
+ * Refused by name, never dropped: a setter whose object is not an id of this tree (`template`
+ * included) and a condition the grammar cannot read, which libadwaita would drop silently.
+ */
+function bindBreakpoints(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): void {
+    const definitions = (node.breakpoints ?? []).map((breakpoint) => {
+        if (parseBreakpointCondition(breakpoint.condition) === null) {
+            throw new Error(
+                `<${el.localName}> \`condition ("${breakpoint.condition}")\` is not an Adwaita breakpoint condition.`,
+            );
+        }
+        return {
+            condition: breakpoint.condition,
+            setters: breakpoint.setters.map((setter) => {
+                const object = record.ids.get(setter.object);
+                if (object === undefined) {
+                    throw new Error(
+                        `<${el.localName}> breakpoint setter \`${setter.object}.${setter.property}\` names no object: ` +
+                            `nothing in this tree has the id '${setter.object}'.`,
+                    );
+                }
+                return { object, property: setter.property, value: setter.value };
+            }),
+        };
+    });
+    const driver = createBreakpointDriver<HTMLElement>(definitions, {
+        read(target, property) {
+            const member = propertyOf(property);
+            const current = (target as unknown as Record<string, unknown>)[member];
+            if (typeof current === 'boolean' && isWritable(target, member))
+                return { member: current } satisfies Original;
+            return { attribute: target.getAttribute(attributeOf(property)) } satisfies Original;
+        },
+        write(target, property, value) {
+            const member = propertyOf(property);
+            if (typeof value === 'object' && value !== null && 'member' in value) {
+                (target as unknown as Record<string, unknown>)[member] = (value as { member: unknown }).member;
+            } else if (typeof value === 'object' && value !== null && 'attribute' in value) {
+                const attribute = (value as { attribute: string | null }).attribute;
+                if (attribute === null) target.removeAttribute(attributeOf(property));
+                else target.setAttribute(attributeOf(property), attribute);
+            } else if (typeof value === 'boolean' && isWritable(target, member)) {
+                (target as unknown as Record<string, unknown>)[member] = value;
+            } else writeProp(target, property, value as string | number | boolean);
+        },
+    });
+    record.disposers.push((record.observeSize ?? observeAdaptiveSize)(el, (size) => driver.evaluate(size)));
 }
 
 /**
@@ -180,6 +258,18 @@ function bindProperty(bind: PendingBind, record: BuildRecord): void {
     from.addEventListener(event, follow);
 }
 
+/** One authored property, written as the element reads it; a breakpoint setter takes the same door. */
+function writeProp(el: HTMLElement, prop: string, value: string | number | boolean): void {
+    const member = propertyOf(prop);
+    if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
+    else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
+    else el.setAttribute(attributeOf(prop), String(value));
+    // A margin is also inline style (`GTK_WIDGET_MARGIN_CSS` says why); the attribute
+    // stays, since it is what the tree authored and what a reader of the DOM looks for.
+    const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
+    if (margin !== undefined) el.style.setProperty(margin, `${Number(value)}px`);
+}
+
 function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     // An `extern` node is built by the class the application registered under its name (ADR 0093).
     const el = document.createElement(node.extern === true ? templateTagFor(node.tag) : hostTagOf(node.tag));
@@ -198,16 +288,8 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
             flags: binding.flags ?? [],
         });
     }
-    for (const [prop, value] of Object.entries(node.props ?? {})) {
-        const member = propertyOf(prop);
-        if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
-        else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
-        else el.setAttribute(attributeOf(prop), String(value));
-        // A margin is also inline style (`GTK_WIDGET_MARGIN_CSS` says why); the attribute
-        // stays, since it is what the tree authored and what a reader of the DOM looks for.
-        const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
-        if (margin !== undefined) el.style.setProperty(margin, `${Number(value)}px`);
-    }
+    for (const [prop, value] of Object.entries(node.props ?? {})) writeProp(el, prop, value);
+    if (node.breakpoints !== undefined) record.breakpointHosts.push({ el, node });
     // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the
     // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
@@ -382,10 +464,10 @@ export interface MountedSharedTree {
  */
 export function mountSharedTree(
     node: SharedTreeNode,
-    options: { scope?: Readonly<Record<string, unknown>> } = {},
+    options: { scope?: Readonly<Record<string, unknown>>; observeSize?: SizeSource } = {},
 ): MountedSharedTree {
     const host = document.createElement('div');
-    const record = newRecord(options.scope);
+    const record = newRecord(options.scope, options.observeSize);
     host.append(buildSharedTree(node, record));
     document.body.append(host);
     // After the append, because that is what upgrades the elements and runs the binds the
@@ -395,10 +477,17 @@ export function mountSharedTree(
         refuseUnknownSlots(record.placed);
         refuseUnheldExtensions(record.extended);
     } catch (error) {
+        for (const dispose of record.disposers) dispose();
         host.remove();
         throw error;
     }
-    return { root: host.firstElementChild as HTMLElement, unmount: () => host.remove() };
+    return {
+        root: host.firstElementChild as HTMLElement,
+        unmount: () => {
+            for (const dispose of record.disposers) dispose();
+            host.remove();
+        },
+    };
 }
 
 /**
