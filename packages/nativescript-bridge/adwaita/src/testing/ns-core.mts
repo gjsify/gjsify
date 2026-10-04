@@ -209,6 +209,14 @@ export class View extends Observable {
     marginRight = 0;
     /** `'visible' | 'hidden' | 'collapse'` — NativeScript's own default is `'visible'`. */
     visibility = 'visible';
+    /** `isEnabledProperty` registers `defaultValue: true`. */
+    isEnabled = true;
+    /**
+     * `minWidthProperty` registers `defaultValue: zeroLength`, so an unwritten read is the
+     * `{ value, unit }` object and not a number — the edge a reader of it must be tolerant of.
+     */
+    minWidth: number | string | { value: number; unit?: string } = { value: 0, unit: 'px' };
+    minHeight: number | string | { value: number; unit?: string } = { value: 0, unit: 'px' };
     isUserInteractionEnabled = true;
     translateX = 0;
     translateY = 0;

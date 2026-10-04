@@ -24,12 +24,14 @@ import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
+import { AdwWidgetBaseNsTest } from './widget-base.spec.js';
 
 run({
     AdwSharedTreesNsTest,
     AdwClampClasslessChildNsTest,
     AdwContainersNsTest,
     GtkStackNsTest,
+    AdwWidgetBaseNsTest,
     GtkToggleButtonNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
