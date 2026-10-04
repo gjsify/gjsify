@@ -63,6 +63,8 @@ export class PageSetupUnixDialogStory extends StoryWidget {
     }
 }
 
-GObject.type_ensure(PageSetupUnixDialogStory.$gtype);
+// Unix-only widget: GTK's Windows build has no page setup dialog, so the module contributes no story.
+const available = 'PageSetupUnixDialog' in Gtk;
+if (available) GObject.type_ensure(PageSetupUnixDialogStory.$gtype);
 
-export const PageSetupUnixDialogStories: StoryModule = { stories: [PageSetupUnixDialogStory] };
+export const PageSetupUnixDialogStories: StoryModule = { stories: available ? [PageSetupUnixDialogStory] : [] };
