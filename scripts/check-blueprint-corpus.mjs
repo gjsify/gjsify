@@ -1417,7 +1417,9 @@ const checkUses = (job, result) => {
     // ADR 0093's `bindings`: the oracle's `bind-source`/`bind-property`/`bind-flags` against the tree,
     // with the flags in the order and with the default the compiler writes, not the source's.
     const goldenBinds = [
-        ...golden.matchAll(/<property name="([^"]+)" bind-source="([^"]+)" bind-property="([^"]+)"(?: bind-flags="([^"]*)")?/g),
+        ...golden.matchAll(
+            /<property name="([^"]+)" bind-source="([^"]+)" bind-property="([^"]+)"(?: bind-flags="([^"]*)")?/g,
+        ),
     ].map((match) => [match[1], match[2], match[3], match[4] ?? ''].join('|'));
     const treeBinds = [];
     const collectBinds = (node) => {
@@ -1429,7 +1431,12 @@ const checkUses = (job, result) => {
                 ...(flags.includes('bidirectional') ? ['bidirectional'] : []),
             ].join('|');
             treeBinds.push(
-                [target, binding.source === 'template' ? result.node.template : binding.source, binding.property, emitted].join('|'),
+                [
+                    target,
+                    binding.source === 'template' ? result.node.template : binding.source,
+                    binding.property,
+                    emitted,
+                ].join('|'),
             );
         }
         for (const child of node.children ?? []) collectBinds(child);

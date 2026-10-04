@@ -423,8 +423,7 @@ const lossesOf = (file, tag) => {
             if (value.kind === 'binding') {
                 // The simple form is carried since ADR 0093; what is left is an expression.
                 if (bindingOf(value) === undefined) lost.push({ kind: 'binding-expression', line: property.line });
-            }
-            else if (value.kind === 'list') {
+            } else if (value.kind === 'list') {
                 // Style classes are carried since ADR 0068 and string-list items since ADR 0072,
                 // each through the one reader above. What is still a loss is `widgets [ ]`, a
                 // list of object REFERENCES, and a non-string item in either list.

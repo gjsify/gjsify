@@ -822,7 +822,11 @@ export const RULE_EXPECTATIONS = [
             { kind: 'binding-expression', line: 17, detail: '`as <int64>`' },
             { kind: 'binding-expression', line: 18, detail: '`as <uint64>`' },
             { kind: 'binding-expression', line: 19, detail: '`as <float>`' },
-            { kind: 'binding-expression', line: 23, detail: '`as <double>`, the row that decides the table is hand-written' },
+            {
+                kind: 'binding-expression',
+                line: 23,
+                detail: '`as <double>`, the row that decides the table is hand-written',
+            },
             { kind: 'binding-expression', line: 24, detail: '`as <char>`' },
             { kind: 'binding-expression', line: 25, detail: '`as <uchar>`' },
             { kind: 'binding-expression', line: 29, detail: 'a qualified GIR type' },
