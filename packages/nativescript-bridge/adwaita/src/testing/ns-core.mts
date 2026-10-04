@@ -217,6 +217,64 @@ export class View extends Observable {
      */
     minWidth: number | string | { value: number; unit?: string } = { value: 0, unit: 'px' };
     minHeight: number | string | { value: number; unit?: string } = { value: 0, unit: 'px' };
+    /**
+     * Grid placement, as the platform has it: `View.prototype.row/col/rowSpan/colSpan` are
+     * properties of EVERY view, `column` / `columnSpan` accessors over `col` / `colSpan`
+     * (`grid-layout-common.ts`), and a write emits `<name>Change` — which is what a grid
+     * subclass listens to when a child moves after it was added.
+     */
+    get row(): number {
+        return placementOf(this).row;
+    }
+
+    set row(value: number) {
+        placementOf(this).row = Math.max(0, Math.trunc(Number(value)));
+        this.notify({ eventName: 'rowChange', object: this });
+    }
+
+    get col(): number {
+        return placementOf(this).column;
+    }
+
+    set col(value: number) {
+        placementOf(this).column = Math.max(0, Math.trunc(Number(value)));
+        this.notify({ eventName: 'colChange', object: this });
+    }
+
+    get column(): number {
+        return this.col;
+    }
+
+    set column(value: number) {
+        this.col = value;
+    }
+
+    get rowSpan(): number {
+        return placementOf(this).rowSpan;
+    }
+
+    set rowSpan(value: number) {
+        placementOf(this).rowSpan = Math.max(1, Math.trunc(Number(value)));
+        this.notify({ eventName: 'rowSpanChange', object: this });
+    }
+
+    get colSpan(): number {
+        return placementOf(this).columnSpan;
+    }
+
+    set colSpan(value: number) {
+        placementOf(this).columnSpan = Math.max(1, Math.trunc(Number(value)));
+        this.notify({ eventName: 'colSpanChange', object: this });
+    }
+
+    get columnSpan(): number {
+        return this.colSpan;
+    }
+
+    set columnSpan(value: number) {
+        this.colSpan = value;
+    }
+
     isUserInteractionEnabled = true;
     translateX = 0;
     translateY = 0;
@@ -447,20 +505,36 @@ export class GridLayout extends LayoutBase {
         return { ...placementOf(view) };
     }
 
+    static getColumn(view: View): number {
+        return view.col;
+    }
+
+    static getRow(view: View): number {
+        return view.row;
+    }
+
+    static getColumnSpan(view: View): number {
+        return view.colSpan;
+    }
+
+    static getRowSpan(view: View): number {
+        return view.rowSpan;
+    }
+
     static setColumn(view: View, value: number): void {
-        placementOf(view).column = value;
+        view.col = value;
     }
 
     static setRow(view: View, value: number): void {
-        placementOf(view).row = value;
+        view.row = value;
     }
 
     static setColumnSpan(view: View, value: number): void {
-        placementOf(view).columnSpan = value;
+        view.colSpan = value;
     }
 
     static setRowSpan(view: View, value: number): void {
-        placementOf(view).rowSpan = value;
+        view.rowSpan = value;
     }
 }
 

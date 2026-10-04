@@ -1649,6 +1649,30 @@ Page.adw-window {
     margin: 0;
 }
 
+/* ===== Adw.Dialog =====
+ *
+ * The scrim dims the whole window; the card is Adwaita's dialog surface — the window
+ * fill, the 15-ish window radius, no padding of its own (the dialog's child brings its
+ * header bar and its content margins). `.adw-dialog-card` sits in the middle by default
+ * and at the bottom edge, full width, for `presentation-mode: bottom-sheet`. */
+.adw-dialog {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.adw-dialog-card {
+    background-color: #fafafb;
+    border-radius: 16;
+    margin: 24;
+}
+
+/* ===== Gtk.ListBox selected row =====
+ *
+ * `row:selected` is the 10% currentColor fill (_lists.scss). The rows of a boxed list are
+ * transparent over the card, so a true rgba overlay applies directly. */
+.adw-list-row-selected {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
 /* ===== Shortcut label (keycaps) =====
  *
  * libadwaita: `_shortcuts-dialog.scss:33-58` — 6 spacing at BOTH levels, keycaps
@@ -2296,6 +2320,18 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-about-dialog,
 .ns-dark .adw-preferences-dialog {
     background-color: rgba(0, 0, 0, 0.55);
+}
+
+.ns-dark .adw-dialog {
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+.ns-dark .adw-dialog-card {
+    background-color: #2e2e32;
+}
+
+.ns-dark .adw-list-row-selected {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .ns-dark .adw-about-dialog-card,

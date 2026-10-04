@@ -109,6 +109,8 @@ const NO_STORY_OF_ITS_OWN = {
     'navigation-page':
         'Navigation/Navigation View renders pages — a page is the bin the view pushes and pops, and alone it is a blank preview with no stack to navigate. Both ports now build one from an authored tree (`Adw.NavigationPage` carrying tag/title/can-pop), which is why it left the one-renderer ledger.',
     toggle: 'Buttons/Toggle Group renders toggles — an `Adw.Toggle` is a GObject the group turns into a button, so it has no look of its own to show. Both ports now build one from an authored tree, which is why it left the one-renderer ledger.',
+    dialog: 'Feedback/Alert Dialog, Feedback/About Dialog and Feedback/Preferences Dialog are the dialogs libadwaita shows — `Adw.Dialog` is the surface they share, and on its own it is a card around a child the caller brings, so a story would show an empty rectangle. Both ports exist as TARGETS of an authored tree: a `template $ShareDialog : Adw.Dialog` names it, and the NativeScript class is the overlay `present (parent)` mounts in a window.',
+    window: "The root of an application, not a thing a gallery previews: the GTK storybook builds an `Adw.Window` only as scaffolding around the header-bar, toolbar-view and window-title stories, and a story of its own would show a bare frame. Both ports exist as TARGETS of an authored tree, like `box` and `label`: a `template $Foo : Adw.Window` names it, and the NativeScript class is the full-size root such a tree builds into, where the platform's `Page` is the screen.",
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
@@ -194,11 +196,20 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
     },
-    dialog: {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    'application-window': {
+        only: 'nativescript',
+        decision:
+            'The browser has one window element, `<adw-window>`, which is the root a document hangs its frame on; `Adw.ApplicationWindow` differs from `Adw.Window` only by its `Gio.Application` integration (`application`, `show-menubar`, the window actions), and neither the web nor a NativeScript `Page` has an application object to bind. NativeScript ships the second GType because a `template $Foo : Adw.ApplicationWindow` names it, and the same root class serves both.',
     },
     bin: {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    grid: {
+        only: 'nativescript',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'list-box': {
         only: 'nativescript',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
@@ -281,11 +292,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         decision:
             "There is no AdwViewSwitcherPage upstream at all: a view switcher takes an AdwViewStack and reads its AdwViewStackPages. This element is this port's markup form of that same page descriptor, and NativeScript passes the descriptors to `AdwViewSwitcherBase.setViews`.",
-    },
-    window: {
-        only: 'web',
-        decision:
-            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on.',
     },
 };
 

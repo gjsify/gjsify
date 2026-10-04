@@ -359,13 +359,6 @@ exactly why they must not be written as decisions.
   text label and the fraction have no counterpart at all. So the question is what a
   determinate Adwaita progress bar should even look like there, not whether one is
   buildable.
-- **`adw-dialog` on NativeScript.** `AdwDialog` is a real upstream widget
-  (`adw-dialog.h`) and the port has the three SPECIALISED dialogs — alert, about,
-  preferences — but no generic one. Every NativeScript dialog here is deliberately the
-  platform sheet ("There is NO custom in-app modal here", `adw-alert-dialog.ts`), and
-  a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
-  card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
-  open decision.
 - **`adw-bin`, `adw-overlay`, `adw-revealer`, `adw-scrolled-window`, `adw-stack` and
   `adw-toggle-button` in the browser.** These are the ledger's join keys; the GTK tags
   are `gtk-overlay`, `gtk-revealer`, `gtk-scrolled-window`, `gtk-stack` and
@@ -376,6 +369,12 @@ exactly why they must not be written as decisions.
   the same templates do not build there. This one is scheduled work rather than a
   product question: the NativeScript classes are the behaviour to match, and the
   browser half is unwritten, not decided against.
+- **`adw-grid` and `adw-list-box` in the browser.** The join keys again; the GTK tags are
+  `gtk-grid` and `gtk-list-box`. NativeScript ships `Gtk.Grid` (children placed by the
+  platform's `row` / `column` / `rowSpan` / `columnSpan`, spacing, homogeneous) and
+  `Gtk.ListBox` (rows, `selection-mode`, `row-activated`) because Learn6502's debugger and
+  learn templates need them through `?shared-tree`; the browser has no element for either.
+  The same scheduled-work verdict as the six containers above.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
