@@ -220,6 +220,7 @@ function markup(node, dialect, depth = 0) {
     const attr = dialect === 'vue' ? vueAttr : jsxAttr;
     const parts = [];
     if (node.slot !== undefined) parts.push(`slot=${JSON.stringify(node.slot)}`);
+    if (node.layout !== undefined) parts.push(attr('layout', node.layout, pad + INDENT));
     // The attribute's own indent, so a multi-line value (a menu model) lines up under
     // the tag rather than at column 0.
     for (const [name, value] of Object.entries(node.props ?? {})) parts.push(attr(name, value, pad + INDENT));
