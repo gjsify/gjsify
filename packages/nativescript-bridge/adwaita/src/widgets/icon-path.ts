@@ -173,6 +173,28 @@ function tagAttributes(tag: string): Map<string, string> {
 }
 
 /**
+ * The neutral greys Adwaita's symbolic icons paint their primary shape in — the set
+ * `@gjsify/adwaita-icons`' generator rewrites to `currentColor` (`scripts/generate.ts`,
+ * `GRAY`). An icon that did not pass through that generator (an app's own symbolics,
+ * copied from its GNOME icon theme) still names one literally, and drawing it as a
+ * pinned colour put a near-black glyph on a dark page: the status page's icon and the
+ * view switcher's tabs vanished in dark mode while the caller's colour was ignored.
+ */
+const NEUTRAL_SYMBOLIC_FILLS: ReadonlySet<string> = new Set([
+    '#2e3436',
+    '#2e3434',
+    '#474747',
+    '#222222',
+    '#222',
+    '#2d3336',
+]);
+
+/** Whether `fill` is one of the greys {@link NEUTRAL_SYMBOLIC_FILLS} says are the caller's colour. */
+function isNeutralSymbolicFill(fill: string): boolean {
+    return NEUTRAL_SYMBOLIC_FILLS.has(fill.trim().toLowerCase());
+}
+
+/**
  * A presentation attribute, preferring the `style="…"` declaration when there is one.
  *
  * `style` wins over the attribute in CSS, and it is not academic here: shipped icons
@@ -287,8 +309,12 @@ export function extractIconPaths(svg: string): IconPath[] {
             // `currentColor` and `none` are not colours to pin: the first IS the
             // caller's colour by definition, and the second is handled by the path
             // simply not being filled — which the renderers already do by drawing
-            // every extracted path.
-            fill: fill === undefined || fill === 'currentColor' || fill === 'none' ? null : fill,
+            // every extracted path. A neutral Adwaita grey is the same case in the
+            // spelling an icon not run through the generator still carries.
+            fill:
+                fill === undefined || fill === 'currentColor' || fill === 'none' || isNeutralSymbolicFill(fill)
+                    ? null
+                    : fill,
         });
     }
     return paths;

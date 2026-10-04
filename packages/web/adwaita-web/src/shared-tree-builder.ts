@@ -104,6 +104,15 @@ function isWritable(el: object, member: string): boolean {
  * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
 export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = { placed: [], extended: [] }): HTMLElement {
+    // ADR 0092: the placement of a child in a layout manager (`layout { row: 0; }`) has no door in
+    // the markup this package reads — an `<adw-…>` element is placed by DOM order and `slot=`.
+    // Refused rather than dropped: a grid child with no cell lands on the first one at exit 0.
+    if (node.layout !== undefined) {
+        throw new Error(
+            `\`${node.tag}\` authored layout (${Object.keys(node.layout).join(', ')}; ADR 0092), and ` +
+                'the web renderer has no door for a layout-manager placement.',
+        );
+    }
     const el = document.createElement(hostTagOf(node.tag));
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.

@@ -258,11 +258,18 @@ if (markupHtml !== null && (previewMarkup === null || previewMarkup.trim() === '
     );
 }
 
-const live: LivePane | undefined = oneBlueprint
-    ? { tree: JSON.stringify(blueprintTree) }
-    : previewMarkup === null
-      ? undefined
-      : { markup: previewMarkup };
+// A widget the shared tree cannot express has no preview: the refusals table is the one list,
+// so a block cannot be refused for the gallery and still mount hand-written markup. Its markup
+// fence stays as the Web Components binding, and the other code tabs are untouched.
+const previewRefused = ADWAITA_FRAMEWORK_REFUSALS[title] !== undefined;
+
+const live: LivePane | undefined = previewRefused
+    ? undefined
+    : oneBlueprint
+      ? { tree: JSON.stringify(blueprintTree) }
+      : previewMarkup === null
+        ? undefined
+        : { markup: previewMarkup };
 
 const tabs: WidgetPane[] = [];
 for (const tab of TABS) {

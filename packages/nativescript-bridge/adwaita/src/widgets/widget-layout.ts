@@ -1,5 +1,6 @@
-// The `GtkWidget` layout properties every widget of this port answers to — `halign`,
-// `valign`, `hexpand`, `vexpand`, `margin-start` and `margin-end` — under the names GTK
+// The `GtkWidget` properties every widget of this port answers to — `halign`, `valign`,
+// `hexpand`, `vexpand`, `margin-start`, `margin-end`, and the five BASE properties
+// `visible`, `sensitive`, `name`, `width-request` and `height-request` — under the names GTK
 // gives them.
 //
 // WHY THEY WERE MISSING, AND WHAT IT COST. A GTK widget inherits these from `GtkWidget`, and
@@ -29,18 +30,43 @@
 //     baseline. A value that is not a `Gtk.Align` is refused too, rather than passed
 //     through: `halign="left"` is NativeScript's vocabulary written under GTK's name.
 //   · `margin-start` / `margin-end` are LOGICAL edges and NativeScript's `Style` has only
-//     physical ones (`box-layout.ts` records that measurement). They resolve against the
+//     physical ones (`gtk-align.ts` records that measurement: only ALIGNMENT is direction-relative). They resolve against the
 //     view's text direction when written: `start` is the left edge in LTR and the right edge
 //     in RTL, as `gtk_widget_set_margin_start` documents. A direction that changes AFTER the
 //     write does not move the margin — the one thing this cannot follow.
-//   · `hexpand` / `vexpand` are held and read back, and no parent in this port ALLOCATES by
-//     them yet. In GTK they are a request the parent's layout grants: a `GtkBox` hands its
-//     spare space to its expanding children. This port's `GtkBox` is a NativeScript
-//     `StackLayout`, which measures every child at its natural size and has no spare space to
-//     hand out — the same missing size-negotiation protocol the `gtk-box` ledger row already
-//     declares for `homogeneous`. The grid-based containers (`AdwToolbarView`'s content row,
+//   · `hexpand` / `vexpand` are held and read back, and a change emits `notify::hexpand` /
+//     `notify::vexpand` (`NOTIFY_HEXPAND`, `NOTIFY_VEXPAND`). In GTK they are a request the
+//     parent's layout grants, and ONE parent in this port grants it: `Gtk.Box` plans a `*`
+//     track for every child that expands along its axis and listens to these events to
+//     re-plan (`box-layout.ts`). The grid-based containers (`AdwToolbarView`'s content row,
 //     `AdwViewStack`, `AdwBottomSheet`) already give their child the whole cell, which is what
-//     an expanding child asks for there.
+//     an expanding child asks for there; `Gtk.Grid` places by cell and does not distribute.
+//
+// THE FIVE BASE PROPERTIES (ADR 0034 § Amendment 22), each over a platform property that
+// stays the source of truth:
+//
+//   · `visible` is `visibility`: `true` is `'visible'`, `false` is `'collapse'` — out of
+//     layout, which is what a hidden GTK widget is (it allocates nothing). `'hidden'`, which
+//     keeps the space, reads back as not visible. A widget that drives `visibility` itself
+//     (`Adw.Banner:revealed`, a `Gtk.Revealer`'s child) and a caller writing `visible` write
+//     the same property; the last write wins, which is the one thing this cannot arbitrate.
+//   · `sensitive` is `isEnabled`, NativeScript's own flag: a disabled view takes no input and
+//     NativeScript puts it in the `:disabled` pseudo-state the Adwaita theme dims.
+//   · `name` is the widget NAME GTK's CSS reads as `#name`. NativeScript's `#id` selector is
+//     the same thing under another word, so a write also lands on `id` — unless the view
+//     already has one, because the `id` a `.blp` declares is how code beside it finds the
+//     view (`getViewById`) and the `name` is a second, independent fact. Either write order
+//     gives the same result. Read back, an unnamed widget answers its class name, as
+//     `gtk_widget_get_name` answers its GType name.
+//   · `width-request` / `height-request` are `minWidth` / `minHeight`. GTK's `-1` means
+//     "unset" and is what an unrequested size reads back as; `0` writes the same request. A
+//     request is a MINIMUM, which is exactly what `min-width` is — and why neither is `width`,
+//     which NativeScript takes as an exact size.
+//
+// All five are tolerant of NativeScript's unset reads: `minWidth` answers a `{value, unit}`
+// object (its `zeroLength` default), `isEnabled` and `visibility` carry real defaults, and
+// none of the five is in `status/nativescript-undefined-defaults.json` — measured against
+// `@nativescript/core` 9.1.0-alpha.11, where each `Property` registers a `defaultValue`.
 //
 // NOT EVERY CLASS BEHIND THE MIXIN IS A VIEW. `withSignals` also wraps the two classes that
 // extend `Observable` directly (`AdwAlertDialog`, and the page records a stack is authored
@@ -55,6 +81,7 @@ import type { Observable } from '@nativescript/core';
 
 import { GTK_ALIGN, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { nsAlignment } from './construct-props.js';
+import { lengthValue, type NsLength } from './ns-length.js';
 import { xmlBoolean } from './xml-values.js';
 
 /**
@@ -64,8 +91,13 @@ import { xmlBoolean } from './xml-values.js';
 interface LaidOut {
     horizontalAlignment: string;
     verticalAlignment: string;
-    marginLeft: number | string;
-    marginRight: number | string;
+    marginLeft: NsLength;
+    marginRight: NsLength;
+    visibility: string;
+    isEnabled: boolean;
+    id: string | undefined;
+    minWidth: NsLength;
+    minHeight: NsLength;
     readonly style: { direction?: 'ltr' | 'rtl' | null };
 }
 
@@ -75,6 +107,10 @@ interface LaidOut {
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- TS2545 admits no other spelling for a mixin base
 type ObservableConstructor = abstract new (...args: any[]) => Observable;
+
+/** The events a `hexpand` / `vexpand` change emits, so a parent that allocates by them can re-allocate. */
+export const NOTIFY_HEXPAND = 'notify::hexpand';
+export const NOTIFY_VEXPAND = 'notify::vexpand';
 
 /** `gtkwidget.c`'s margin pspecs: `0 … G_MAXINT16`. */
 const MAX_MARGIN = 0x7fff;
@@ -143,6 +179,34 @@ function marginOf(value: unknown, property: string): number {
     throw new TypeError(`'${String(value)}' is not a margin: '${property}' takes an integer from 0 to ${MAX_MARGIN}.`);
 }
 
+/** `gtkwidget.c`'s size-request pspecs: `-1 … G_MAXINT`. */
+const MAX_SIZE_REQUEST = 0x7fffffff;
+
+/** A size request as GTK takes it: an integer from -1 (unset) up, or throw. */
+function sizeRequestOf(value: unknown, property: string): number {
+    const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    if (typeof parsed === 'number' && Number.isInteger(parsed) && parsed >= -1 && parsed <= MAX_SIZE_REQUEST) {
+        return parsed;
+    }
+    throw new TypeError(
+        `'${String(value)}' is not a size request: '${property}' takes an integer from -1 (unset) upward.`,
+    );
+}
+
+/**
+ * The size request a NativeScript minimum reads back as — `-1` when nothing is requested.
+ *
+ * `minWidth` answers `{ value: 0, unit: 'px' }` until written, a number or `'120'`/`'120px'`
+ * once someone wrote one; a percentage or `auto` is no request GTK has a number for.
+ */
+function readSizeRequest(length: NsLength): number {
+    const parsed = lengthValue(length);
+    return parsed !== null && parsed > 0 ? Math.round(parsed) : -1;
+}
+
+/** Per-instance `name`s, held beside the view because `id` may belong to a `.blp`. */
+const NAMES = new WeakMap<object, string>();
+
 /** The per-instance expand flags, kept off the instance so the mixin adds no own property. */
 const EXPAND = new WeakMap<object, { h: boolean; v: boolean }>();
 
@@ -169,6 +233,16 @@ export interface GtkWidgetLayout {
     marginStart: number;
     /** `GtkWidget:margin-end` — the trailing edge, resolved against the text direction. */
     marginEnd: number;
+    /** `GtkWidget:visible` — `visibility`; `false` takes the widget out of layout. */
+    visible: boolean;
+    /** `GtkWidget:sensitive` — `isEnabled`. */
+    sensitive: boolean;
+    /** `GtkWidget:name` — the CSS `#name`, written through to `id` when the view has none. */
+    name: string;
+    /** `GtkWidget:width-request` — `minWidth`; `-1` is unset. */
+    widthRequest: number;
+    /** `GtkWidget:height-request` — `minHeight`; `-1` is unset. */
+    heightRequest: number;
 }
 
 /**
@@ -208,7 +282,10 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
         set hexpand(value: boolean | string) {
             laidOut(this, 'hexpand');
             const flags = expandOf(this);
-            flags.h = xmlBoolean(value, flags.h);
+            const next = xmlBoolean(value, flags.h);
+            if (next === flags.h) return;
+            flags.h = next;
+            this.notify({ eventName: NOTIFY_HEXPAND, object: this });
         }
 
         get vexpand(): boolean {
@@ -218,13 +295,16 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
         set vexpand(value: boolean | string) {
             laidOut(this, 'vexpand');
             const flags = expandOf(this);
-            flags.v = xmlBoolean(value, flags.v);
+            const next = xmlBoolean(value, flags.v);
+            if (next === flags.v) return;
+            flags.v = next;
+            this.notify({ eventName: NOTIFY_VEXPAND, object: this });
         }
 
         get marginStart(): number {
             const view = viewOf(this);
             if (view === null) return 0;
-            return Number(view.style?.direction === 'rtl' ? view.marginRight : view.marginLeft) || 0;
+            return lengthValue(view.style?.direction === 'rtl' ? view.marginRight : view.marginLeft) ?? 0;
         }
 
         set marginStart(value: number | string) {
@@ -237,7 +317,7 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
         get marginEnd(): number {
             const view = viewOf(this);
             if (view === null) return 0;
-            return Number(view.style?.direction === 'rtl' ? view.marginLeft : view.marginRight) || 0;
+            return lengthValue(view.style?.direction === 'rtl' ? view.marginLeft : view.marginRight) ?? 0;
         }
 
         set marginEnd(value: number | string) {
@@ -245,6 +325,61 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
             const margin = marginOf(value, 'marginEnd');
             if (view.style?.direction === 'rtl') view.marginLeft = margin;
             else view.marginRight = margin;
+        }
+
+        get visible(): boolean {
+            const view = viewOf(this);
+            return view === null ? true : view.visibility === 'visible';
+        }
+
+        set visible(value: boolean | string) {
+            const view = laidOut(this, 'visible');
+            view.visibility = xmlBoolean(value, this.visible) ? 'visible' : 'collapse';
+        }
+
+        get sensitive(): boolean {
+            const view = viewOf(this);
+            return view === null ? true : view.isEnabled !== false;
+        }
+
+        set sensitive(value: boolean | string) {
+            const view = laidOut(this, 'sensitive');
+            view.isEnabled = xmlBoolean(value, this.sensitive);
+        }
+
+        get name(): string {
+            return NAMES.get(this) ?? this.constructor.name;
+        }
+
+        set name(value: string | null) {
+            const view = laidOut(this, 'name');
+            const previous = NAMES.get(this);
+            const next = value ?? '';
+            if (next === '') NAMES.delete(this);
+            else NAMES.set(this, next);
+            // `id` follows the name only while it IS the name (or nothing): an id someone else
+            // wrote is a different fact and stays.
+            if (view.id === undefined || view.id === previous) view.id = next === '' ? undefined : next;
+        }
+
+        get widthRequest(): number {
+            const view = viewOf(this);
+            return view === null ? -1 : readSizeRequest(view.minWidth);
+        }
+
+        set widthRequest(value: number | string) {
+            const view = laidOut(this, 'widthRequest');
+            view.minWidth = Math.max(0, sizeRequestOf(value, 'widthRequest'));
+        }
+
+        get heightRequest(): number {
+            const view = viewOf(this);
+            return view === null ? -1 : readSizeRequest(view.minHeight);
+        }
+
+        set heightRequest(value: number | string) {
+            const view = laidOut(this, 'heightRequest');
+            view.minHeight = Math.max(0, sizeRequestOf(value, 'heightRequest'));
         }
     }
     return WithGtkWidgetLayout;

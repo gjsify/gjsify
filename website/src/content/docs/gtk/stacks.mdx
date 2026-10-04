@@ -60,7 +60,7 @@ smoothly during the change.
     settings.use_underline = true;
 
     // Selecting by name is what a switcher, a sidebar and the property itself all do.
-    stack.visible_child_name = 'activity';
+    stack.visibleChildName = 'activity';
 
     // Hidden pages are skipped entirely: setting the name of a hidden page changes
     // nothing, and hiding the visible one falls back to the first visible page.
@@ -125,7 +125,7 @@ smoothly during the change.
     settings.use_underline = true;
 
     // Selecting by name is what a switcher, a sidebar and the property itself all do.
-    stack.visible_child_name = 'activity';
+    stack.visibleChildName = 'activity';
 
     // Hidden pages are skipped entirely: setting the name of a hidden page changes
     // nothing, and hiding the visible one falls back to the first visible page.
@@ -230,14 +230,15 @@ of the row entirely. **`needs-attention`** on a page puts a dot on its button.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
+    // `add_titled_with_icon` is not shipped on NativeScript; a page's icon is a `Gtk.StackPage`'s `iconName`.
     const page = (text: string) => new Gtk.Label({ label: text });
     const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
-    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+    stack.add_titled(page('Three unread conversations.'), 'inbox', 'Inbox');
 
     // A title alone is a text button; an icon alone is an icon button whose tooltip is
     // the title; a page with NEITHER is skipped by the row (gtkstackswitcher.c:200).
     stack.add_titled(page('Older conversations kept for reference.'), 'archive', 'Archive');
-    const drafts = stack.add_titled_with_icon(page('One draft needs your attention.'), 'drafts', '', 'document-edit-symbolic');
+    const drafts = stack.add_titled(page('One draft needs your attention.'), 'drafts', '');
     drafts.needs_attention = true;
 
     // `stack` is a widget property in C, so it is set through the setter; the row builds
@@ -328,15 +329,16 @@ the sidebar does not, so a page carrying only an icon gets **no row at all**.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
+    // `add_titled_with_icon` is not shipped on NativeScript; a page's icon is a `Gtk.StackPage`'s `iconName`.
     const page = (text: string) => new Gtk.Label({ label: text });
     const stack = new Gtk.Stack({ transitionType: Gtk.StackTransitionType.SLIDE_LEFT_RIGHT });
-    stack.add_titled_with_icon(page('Three unread conversations.'), 'inbox', 'Inbox', 'mail-unread-symbolic');
+    stack.add_titled(page('Three unread conversations.'), 'inbox', 'Inbox');
     const drafts = stack.add_titled(page('One draft needs your attention.'), 'drafts', 'Drafts');
     drafts.needs_attention = true;
 
     // A page with an icon and NO title gets no row: `update_row` reads title,
     // needs-attention and visible, and never icon-name (gtkstacksidebar.c:178-186).
-    stack.add_titled_with_icon(page('No row for this page.'), 'settings', '', 'preferences-system-symbolic');
+    stack.add_titled(page('No row for this page.'), 'settings', '');
 
     const sidebar = new Gtk.StackSidebar({ stack });
     ```

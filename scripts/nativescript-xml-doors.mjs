@@ -460,6 +460,17 @@ export const NO_CONSTRUCT_PROPS = {
     AdwViewSwitcherBase:
         'abstract, and constructed only by AdwViewSwitcher / AdwInlineViewSwitcher, for the same reason: a ' +
         'bag applied in a base is applied before the derived constructor has run.',
+    AdwSingleChildBase:
+        'abstract, and constructed only by AdwBin / GtkRevealer / GtkOverlay / GtkScrolledWindow, which take ' +
+        'their own bag: applied in the base it would run before a subclass has built its inner view (the ' +
+        "scroll window's `ScrollView`) and the subclass would then overwrite or lose it.",
+    AdwStyledLayoutBase:
+        'abstract, and the shared css-classes half of every GridLayout container (single-child, box, grid, ' +
+        'list box, window, dialog), each of which takes its own bag: applied in the base it would run ' +
+        'before the subclass built its tracks, rows or card, and the subclass would then overwrite it.',
+    AdwWindowBase:
+        'abstract, and constructed only by AdwWindow / AdwApplicationWindow, which take their own bag: ' +
+        'a `content` applied in the base would be written before the subclass constructor finished.',
     AdwCarouselIndicatorBase:
         'abstract, and constructed only by AdwCarouselIndicatorDots / AdwCarouselIndicatorLines, which ' +
         'take their own bag: a `carousel` applied in the base would render markers before the subclass ' +

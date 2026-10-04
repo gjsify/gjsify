@@ -55,7 +55,9 @@ const NON_ACCENT_LITERALS = {
     '#34343a': 'dark $card_bg',
     '#3a3a40': 'dark banner strip — neutral by design, not an accent',
     '#45454c': 'dark separator/border',
+    '#505053': 'libadwaita $toast_bg_color (_colors.scss:296), the same in both schemes',
     '#c01c28': 'libadwaita $destructive_bg (red_4)',
+    '#9a9996': 'neutral grey thumb of an unchecked switch (.adw-switch.off), no accent',
     '#ff7b80': 'libadwaita destructive foreground on dark',
 };
 

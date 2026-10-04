@@ -11,8 +11,12 @@ import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { printUnixDialogMeta } from './print-unix-dialog.meta.js';
 
-/** The nicks of `GtkPrintCapabilities`, in enum order. */
-const CAPABILITIES: Record<string, Gtk.PrintCapabilities> = {
+/**
+ * The nicks of `GtkPrintCapabilities`, in enum order. Read lazily: GTK compiles the Unix print
+ * dialog, and with it this enum, out of its Windows build, so the namespace has no
+ * `PrintCapabilities` there.
+ */
+const capabilities = (): Record<string, Gtk.PrintCapabilities> => ({
     collate: Gtk.PrintCapabilities.COLLATE,
     copies: Gtk.PrintCapabilities.COPIES,
     'generate-pdf': Gtk.PrintCapabilities.GENERATE_PDF,
@@ -23,7 +27,7 @@ const CAPABILITIES: Record<string, Gtk.PrintCapabilities> = {
     preview: Gtk.PrintCapabilities.PREVIEW,
     reverse: Gtk.PrintCapabilities.REVERSE,
     scale: Gtk.PrintCapabilities.SCALE,
-};
+});
 
 /** Story: the print dialog with the capabilities the application declares it can handle. */
 export class PrintUnixDialogStory extends StoryWidget {
@@ -56,9 +60,10 @@ export class PrintUnixDialogStory extends StoryWidget {
 
     private _present(): void {
         const dialog = Gtk.PrintUnixDialog.new('Print', null);
+        const nicks = capabilities();
         const mask = String(this.args.capabilities)
             .split('|')
-            .map((nick) => CAPABILITIES[nick.trim()] ?? 0)
+            .map((nick) => nicks[nick.trim()] ?? 0)
             .reduce((caps, capability) => caps | capability, 0);
         dialog.set_manual_capabilities(mask);
 
@@ -81,6 +86,8 @@ export class PrintUnixDialogStory extends StoryWidget {
     }
 }
 
-GObject.type_ensure(PrintUnixDialogStory.$gtype);
+// Unix-only widget: on Windows there is nothing to show, so the module contributes no story.
+const available = 'PrintUnixDialog' in Gtk;
+if (available) GObject.type_ensure(PrintUnixDialogStory.$gtype);
 
-export const PrintUnixDialogStories: StoryModule = { stories: [PrintUnixDialogStory] };
+export const PrintUnixDialogStories: StoryModule = { stories: [PrintUnixDialogStory].filter(() => available) };

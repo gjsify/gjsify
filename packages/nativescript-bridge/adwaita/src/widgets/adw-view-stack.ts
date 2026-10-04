@@ -29,6 +29,7 @@ import {
     type ViewStackNotifyPayload,
 } from './view-stack-state.js';
 import { AdwViewStackPage } from './view-stack-page.js';
+import { iconValueKind } from './icon-theme.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
@@ -55,6 +56,13 @@ export class AdwViewStack extends withSignals(GridLayout) {
     static readonly builderSlots: readonly string[] = [];
 
     private readonly _state = createViewStackState();
+    /**
+     * The SVG-source icons pages were added with, by content view. The headless core
+     * normalises an icon to a GTK NAME and turns anything that is not one token into
+     * `''` — an SVG document included — so a switcher reading `page.icon` drew
+     * `image-missing` for every page whose icon was handed in as source.
+     */
+    private readonly _sourceIcons = new Map<View, string>();
 
     constructor(props?: ConstructProps<AdwViewStack>) {
         super();
@@ -84,6 +92,7 @@ export class AdwViewStack extends withSignals(GridLayout) {
      */
     add(content: View, name: string, title?: string, icon?: string): AdwViewStackPageInfo {
         const page = this._state.addPage({ name, title, icon, content });
+        this._rememberSourceIcon(content, icon);
         this._placePage(content);
         return page;
     }
@@ -127,7 +136,22 @@ export class AdwViewStack extends withSignals(GridLayout) {
             needsAttention: view.needsAttention,
             useUnderline: view.useUnderline,
         });
+        this._rememberSourceIcon(content, view.iconName);
         this._placePage(content);
+    }
+
+    private _rememberSourceIcon(content: View, icon: string | null | undefined): void {
+        if (icon && iconValueKind(icon) === 'source') this._sourceIcons.set(content, icon);
+    }
+
+    /**
+     * The icon each page carries as a switcher button shows it, in page order: the SVG
+     * source it was added with, else the normalised name (`''` for none).
+     */
+    pageIcons(): string[] {
+        return this._state.pages.map(
+            (page) => (page.content ? this._sourceIcons.get(page.content) : undefined) ?? page.icon,
+        );
     }
 
     /** Convenience alias matching `Adw.ViewStack.add_titled`. */
@@ -163,7 +187,10 @@ export class AdwViewStack extends withSignals(GridLayout) {
         const name = typeof child === 'string' ? child : (this._nameOf(child) ?? '');
         const content = this._state.pages[this._state.indexOfName(name)]?.content;
         if (!this._state.removePage(name)) return false;
-        if (content) this.removeChild(content);
+        if (content) {
+            this.removeChild(content);
+            this._sourceIcons.delete(content);
+        }
         applyViewStackVisibility(this._state);
         return true;
     }

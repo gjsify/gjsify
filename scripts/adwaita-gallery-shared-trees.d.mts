@@ -52,6 +52,7 @@ export interface SharedNode {
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: SharedNode[];
 }
 

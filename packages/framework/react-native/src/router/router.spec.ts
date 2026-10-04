@@ -1386,7 +1386,11 @@ export default async () => {
                         contentWithBar = stack.get_height();
                     },
                     undefined,
-                    [420, 700],
+                    // 480, not 420: the bar's own switch makes the toolbar view ask for 453 px,
+                    // and a bin narrower than its child's request warns once per allocation
+                    // ("exceeds AdwBreakpointBin width"), which the quiet-GTK gate fails the
+                    // job for. Still far under the ~670 px the six labels need, so still narrow.
+                    [480, 700],
                 );
 
                 // AND NOTHING IN THE TREE WHEN NOTHING IS ASKED FOR.

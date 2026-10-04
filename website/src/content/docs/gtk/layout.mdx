@@ -146,7 +146,7 @@ price of cutting its shadows off.
     import Gtk from 'gi://Gtk?version=4.0';
 
     const frame = new Gtk.Frame({ label: 'Details' });
-    frame.set_label_align(0.5);
+    // `label-xalign` is not shipped on NativeScript: the label sits at the start.
     frame.set_child(new Gtk.Label({ label: 'Centre aligned.' }));
     ```
   </Fragment>
@@ -312,7 +312,7 @@ line the same. A **vertical** grid fills the rows first instead of the columns.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const grid = new Gtk.Grid({ column_spacing: 12, row_spacing: 12 });
+    const grid = new Gtk.Grid({ columnSpacing: 12, rowSpacing: 12 });
 
     // `-1, -1` is the first free cell along the grid's orientation, which is what
     // `Gtk.Builder` writes for a child with no position of its own.
@@ -351,7 +351,7 @@ line the same. A **vertical** grid fills the rows first instead of the columns.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const grid = new Gtk.Grid({ column_spacing: 12, row_spacing: 12 });
+    const grid = new Gtk.Grid({ columnSpacing: 12, rowSpacing: 12 });
 
     // `-1, -1` is the first free cell along the grid's orientation, which is what
     // `Gtk.Builder` writes for a child with no position of its own.
@@ -475,7 +475,7 @@ theme can round the corners of a badge that hangs off one.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const overlay = new Gtk.Overlay({ width_request: 260, height_request: 160 });
+    const overlay = new Gtk.Overlay({ width: 260, height: 160 });
 
     // The main child: the overlay's own size is this widget's size.
     overlay.set_child(new Gtk.Label({ label: 'Main child' }));
@@ -539,9 +539,9 @@ milliseconds, and `0` skips the animation.
     import Gtk from 'gi://Gtk?version=4.0';
 
     const revealer = new Gtk.Revealer({
-      transition_type: Gtk.RevealerTransitionType.SLIDE_DOWN,
-      transition_duration: 250,
-      reveal_child: true,
+      transitionType: 'slide-down',
+      transitionDuration: 250,
+      revealChild: true,
     });
 
     const content = new Gtk.Label({ label: 'The revealed child' });

@@ -269,9 +269,63 @@ const KNOWN_GAPS = {
         gaps: ['policy'],
         why: 'The port HAS this control and not under this name: `AdwViewSwitcherBase` declares a PROTECTED `policy` getter for the button orientation and exposes the settable door as `switcherPolicy` beside it (view-switcher-base.ts:89-99). So the GIR name is taken by a port-owned member, which ADR 0034 § Amendment 11 records as a question about that member rather than a reason the name cannot converge — the getter is internal and could be renamed. Listed here because until it is, the widget does not answer to `policy`.',
     },
+    'gtk-scrolled-window': {
+        gaps: [
+            'kineticScrolling',
+            'maxContentHeight',
+            'maxContentWidth',
+            'minContentHeight',
+            'minContentWidth',
+            'overlayScrolling',
+            'propagateNaturalHeight',
+            'propagateNaturalWidth',
+            'windowPlacement',
+        ],
+        why: "The port wraps a NativeScript `ScrollView` (gtk-scrolled-window.ts), which owns its own physics, scrollbar and sizing: kinetic and overlay scrolling are the platform's behaviour with no switch, and `window-placement` moves a scrollbar the port does not draw. The four content-size bounds and the two propagate-natural flags size the scrolled window from its child, which needs the size-negotiation protocol a `GridLayout` cell does not have — the same absence the `gtk-box` row declares for `homogeneous`. `has-frame` is held and read back but draws no frame, so it is set here and not listed.",
+    },
+    'adw-window': {
+        gaps: ['adaptivePreview'],
+        why: "`adaptive-preview` is libadwaita's inspector toggle that resizes the window to preview an adaptive layout; a NativeScript `Page` is the screen and has no resizable surface to preview in (window-state.ts says why this class is a container and not a window).",
+    },
+    'adw-application-window': {
+        gaps: ['adaptivePreview'],
+        why: "The same as `adw-window`: `adaptive-preview` previews a layout by resizing a window, and the platform's window is the screen.",
+    },
+    'gtk-grid': {
+        gaps: ['baselineRow'],
+        why: "`baseline-row` picks the row whose text baseline the grid aligns to; nothing in @nativescript/core measures a text baseline (the absence `gtk-align.ts` declares for `Gtk.Align`'s baseline members), so there is no allocation for it to change.",
+    },
+    'gtk-list-box': {
+        gaps: ['tabBehavior'],
+        why: '`tab-behavior` decides where Tab moves focus inside the list; the platform has no keyboard focus chain a view can steer (the absence the keyboard-contract notes elsewhere), so there is no traversal for it to change.',
+    },
+    'gtk-frame': {
+        gaps: ['labelXalign'],
+        why: 'The label always sits at the leading edge: the frame is a two-row `GridLayout` whose label row is `auto` and left-aligned, and a fractional alignment inside it needs the size-negotiation protocol a grid cell does not have.',
+    },
+    'gtk-text-view': {
+        gaps: [
+            'acceptsTab',
+            'bottomMargin',
+            'cursorVisible',
+            'imModule',
+            'indent',
+            'inputHints',
+            'inputPurpose',
+            'justification',
+            'leftMargin',
+            'overwrite',
+            'pixelsAboveLines',
+            'pixelsBelowLines',
+            'pixelsInsideWrap',
+            'rightMargin',
+            'topMargin',
+        ],
+        why: "The port wraps NativeScript's `TextView`, which edits a plain string and not a `Gtk.TextBuffer`: there are no tags to carry per-paragraph spacing (`pixels-*`, `indent`, `justification`), no input-method or purpose hook on the platform view, no overwrite mode, and the margins are the box's own CSS padding rather than text-area insets. `wrap-mode` IS set but is held and read back only — the platform view always wraps at its edge, so `none` changes nothing (gtk-text-view.ts).",
+    },
     'gtk-box': {
-        gaps: ['baselineChild', 'baselinePosition', 'homogeneous'],
-        why: "The box extends the real NativeScript `StackLayout` and adds the two things the platform has no word for — the gap, which comes out of the children's margins because `Style` carries no `columnGap`/`rowGap`, and GTK's child verbs (gtk-box.ts). The two baseline properties are the same absence `gtk-align.ts` already declares for `Gtk.Align`'s three baseline members: nothing in @nativescript/core measures a text baseline, so there is no allocation for a baseline child or a baseline position to change. `homogeneous` asks every child for the widest child's size, and a `StackLayout` measures each child at its natural size with no equal-share mode — the same missing size-negotiation protocol `adw-inline-view-switcher` declares one entry over.",
+        gaps: ['baselineChild', 'baselinePosition'],
+        why: "The box is a one-axis `GridLayout` (gtk-box.ts, box-layout.ts) and adds what the platform has no word for — the gap, a `pixel` track between children because `Style` carries no `columnGap`/`rowGap`, the spare space an expanding child is handed (`*` tracks), and GTK's child verbs. The two baseline properties are the same absence `gtk-align.ts` already declares for `Gtk.Align`'s three baseline members: nothing in @nativescript/core measures a text baseline, so there is no allocation for a baseline child or a baseline position to change. `homogeneous` is set as equal `*` tracks, which is equal but not minimal (GTK gives every child the largest child's size); that approximation is declared in box-layout.ts, not listed here.",
     },
     'gtk-label': {
         gaps: [

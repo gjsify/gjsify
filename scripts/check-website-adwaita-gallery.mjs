@@ -746,13 +746,31 @@ const PANE_TEXT_DIVERGENCES = {
         'now, and the construction is one text.',
     'Gtk.Overlay':
         'property: halign and valign are GTK alignment requests on the child an overlay places, and the port ' +
-        'has no layout surface to put them on — nor a Gtk.Overlay to place a child in at all, which is the ' +
-        'refusal in ADWAITA_GALLERY_NS_REFUSALS. The width and height requests on the overlay itself are ' +
-        'left in place because the whole construction is a class the port cannot resolve.',
+        "has no layout surface to put them on. The overlay's own size is `width` and `height` there where GTK " +
+        'asks for a width and a height request.',
     'Gtk.Revealer':
         'property: margin_top and margin_bottom are GTK margin requests and the port has no layout surface ' +
-        "to put them on; the transition type, duration and reveal flag are the widget's own and would be " +
-        'there if the port had a Gtk.Revealer to set them on.',
+        'to put them on; the transition type is a nick (`slide-down`) there where GTK takes a ' +
+        'Gtk.RevealerTransitionType constant, and the size request on the revealer is `width` and `height`.',
+    'Gtk.DrawingArea':
+        'property: the port ships Gtk.DrawingArea as a constructible stub — set_draw_func throws and there is ' +
+        'no cairo context to hand it — so its pane keeps the size and nothing is drawn.',
+    'Gtk.Frame':
+        'property: label-xalign is not shipped, so the label sits at the start and set_label_align has no ' +
+        'counterpart.',
+    'Gtk.ScrolledWindow':
+        'property: vexpand is a GTK expand request the port has no layout surface for, the two scrollbar ' +
+        'policies are nicks on properties there where GTK takes set_policy and Gtk.PolicyType constants, and ' +
+        'overlay scrolling is not modelled.',
+    'Gtk.StackSwitcher':
+        'property: the stack the switcher reads is a Gtk.Stack there too, but add_titled_with_icon is not ' +
+        'shipped — a page icon belongs to a Gtk.StackPage.',
+    'Gtk.StackSidebar':
+        'property: the stack the sidebar reads is a Gtk.Stack there too, but add_titled_with_icon is not ' +
+        'shipped — a page icon belongs to a Gtk.StackPage.',
+    'Gtk.TextView':
+        'property: the port has no Gtk.TextBuffer — the text is a property of the view — and ships no ' +
+        'justification or margins, so the pane builds the view from its text and a wrap mode nick.',
     'Gtk.Paned':
         'property: width_request is a GTK size request and the port has no layout surface to put it on, so ' +
         'the two panes are told apart by their labels instead. The orientation and the position are the ' +

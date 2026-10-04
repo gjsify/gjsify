@@ -1,9 +1,10 @@
-// `Gtk.Box`'s two decisions — the gap and the child order — driven off-device.
+// `Gtk.Box`'s two decisions — the tracks along its axis and the child order — driven off-device.
 //
-// The widget class cannot be imported here: `extends StackLayout` evaluates the bare
+// The widget class cannot be imported here: `extends GridLayout` evaluates the bare
 // `@nativescript/core` specifier at module eval and the workspace install has none
 // (AGENTS.md). So this drives `widgets/box-layout.ts`, the SHIPPING pure half the widget
-// calls, and asserts the margin strings a `StackLayout` child would be handed.
+// calls, and asserts the track list a `GridLayout` would be handed; the widget itself is
+// driven against the platform double in `gtk-box.spec.ts`.
 //
 // THE GAP EXPECTATIONS ARE GTK'S, not the port's: measured under gjs 1.88.1 /
 // gtk 4.22.4 on `Gtk.Box`, `spacing` written and the children's allocations read back.
@@ -17,7 +18,13 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { boxChildMargin, boxSpacingChanges, DEFAULT_BOX_SPACING, resolveBoxChildOrder } from './widgets/box-layout.js';
+import {
+    boxChildTrack,
+    boxSpacingChanges,
+    boxTrackPlan,
+    DEFAULT_BOX_SPACING,
+    resolveBoxChildOrder,
+} from './widgets/box-layout.js';
 
 export default async () => {
     await describe('boxSpacingChanges — the early return the setter takes', async () => {
@@ -36,43 +43,61 @@ export default async () => {
         });
     });
 
-    await describe('boxChildMargin — the gap, on the leading edge of the current axis', async () => {
-        await it('gives the FIRST child no gap: N children have N-1 gaps', () => {
-            expect(boxChildMargin(0, 12, 'vertical')).toBe('0 0 0 0');
-            expect(boxChildMargin(0, 12, 'horizontal')).toBe('0 0 0 0');
+    await describe('boxTrackPlan — one track per child, a pixel gap between them', async () => {
+        await it('gives N children N-1 gaps: the first and last touch the box edge', () => {
+            expect(boxTrackPlan([false, false, false], 12, false)).toStrictEqual([
+                { unit: 'auto', value: 1 },
+                { unit: 'pixel', value: 12 },
+                { unit: 'auto', value: 1 },
+                { unit: 'pixel', value: 12 },
+                { unit: 'auto', value: 1 },
+            ]);
         });
 
-        await it('puts a vertical box gap on the TOP of every later child', () => {
-            expect(boxChildMargin(1, 12, 'vertical')).toBe('12 0 0 0');
-            expect(boxChildMargin(2, 12, 'vertical')).toBe('12 0 0 0');
+        await it('one child has no gap at all, and no child has no track', () => {
+            expect(boxTrackPlan([false], 12, false)).toStrictEqual([{ unit: 'auto', value: 1 }]);
+            expect(boxTrackPlan([], 12, false)).toStrictEqual([]);
         });
 
-        await it('puts a horizontal box gap on the LEFT of every later child', () => {
-            expect(boxChildMargin(1, 12, 'horizontal')).toBe('0 0 0 12');
+        await it('hands the spare space to the children that expand — `*` for them, `auto` for the rest', () => {
+            expect(boxTrackPlan([false, true, false], 0, false).map((track) => track.unit)).toStrictEqual([
+                'auto',
+                'pixel',
+                'star',
+                'pixel',
+                'auto',
+            ]);
         });
 
-        await it('touches no cross-axis edge — a `Gtk.Box` gap is one axis, unlike the wrap box', () => {
-            // `wrapBoxChildMargin` puts half the spacing on all four edges because a
-            // wrapping run has gaps on two axes. A box has one, so three of the four
-            // edges are 0 and the box's own bounds are untouched: no outer inset.
+        await it('shares equally between every child that expands', () => {
+            const plan = boxTrackPlan([true, true], 0, false);
+            expect(plan.filter((track) => track.unit === 'star').length).toBe(2);
+            expect(plan.every((track) => track.unit !== 'star' || track.value === 1)).toBe(true);
+        });
+
+        await it('makes every child `*` when homogeneous, expanding or not', () => {
             expect(
-                boxChildMargin(1, 12, 'vertical')
-                    .split(' ')
-                    .filter((edge) => edge !== '0'),
-            ).toStrictEqual(['12']);
-            expect(
-                boxChildMargin(1, 12, 'horizontal')
-                    .split(' ')
-                    .filter((edge) => edge !== '0'),
-            ).toStrictEqual(['12']);
+                boxTrackPlan([false, false], 6, true)
+                    .filter((track) => track.unit !== 'pixel')
+                    .map((track) => track.unit),
+            ).toStrictEqual(['star', 'star']);
         });
 
-        await it('is all zeroes at the default spacing, so an untouched box writes nothing visible', () => {
-            expect(boxChildMargin(1, DEFAULT_BOX_SPACING, 'vertical')).toBe('0 0 0 0');
+        await it('is all-zero gap tracks at the default spacing, so an untouched box shows no gap', () => {
+            expect(boxTrackPlan([false, false], DEFAULT_BOX_SPACING, false)[1]).toStrictEqual({
+                unit: 'pixel',
+                value: 0,
+            });
         });
 
         await it('clamps through the same normaliser, so a negative spacing cannot pull children together', () => {
-            expect(boxChildMargin(1, -4, 'vertical')).toBe('0 0 0 0');
+            expect(boxTrackPlan([false, false], -4, false)[1]).toStrictEqual({ unit: 'pixel', value: 0 });
+        });
+    });
+
+    await describe('boxChildTrack — the even tracks are the children, the odd ones the gaps', async () => {
+        await it('numbers children 0, 2, 4', () => {
+            expect([0, 1, 2].map(boxChildTrack)).toStrictEqual([0, 2, 4]);
         });
     });
 

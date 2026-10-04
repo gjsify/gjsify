@@ -93,6 +93,7 @@ import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-
 const MARK = '- translatable?: Record<string, { context?: string }>';
 const STYLES = '- styleClasses?: string[]';
 const PAGE = '- page?: { label?: string; name?: string }';
+const LAYOUT = '- layout?: Record<string, string | number | boolean>';
 const EXTENSIONS =
     '- extensions?: { strings?: { value: string; translatable?: { context?: string } }[]; responses?: ' +
     "{ id: string; label: string; translatable?: { context?: string }; appearance?: 'suggested' | " +
@@ -159,6 +160,7 @@ const FAMILY = [
             `${STYLES}`,
             `${PAGE}`,
             `${EXTENSIONS}`,
+            `${LAYOUT}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -185,6 +187,7 @@ const FAMILY = [
             `${STYLES}`,
             `${PAGE}`,
             `${EXTENSIONS}`,
+            `${LAYOUT}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -209,6 +212,7 @@ const FAMILY = [
             `${STYLES}`,
             `${PAGE}`,
             `${EXTENSIONS}`,
+            `${LAYOUT}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -446,6 +450,7 @@ export interface SharedTreeNode {
             enabled?: boolean;
         }[];
     };
+    layout?: Readonly<Record<string, string | number | boolean>>;
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -472,6 +477,7 @@ const VECTORS = [
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -498,6 +504,7 @@ const VECTORS = [
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -521,6 +528,7 @@ const VECTORS = [
             `${STYLES}`,
             `${PAGE}`,
             `${EXTENSIONS}`,
+            `${LAYOUT}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -544,6 +552,7 @@ const VECTORS = [
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: Lossy[];
 }`,
         'Lossy',
@@ -571,6 +580,7 @@ const VECTORS = [
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -597,6 +607,7 @@ const VECTORS = [
             enabled?: boolean;
         }[];
     };
+    layout?: Record<string, string | number | boolean>;
     children?: (Widened | string)[];
 }`,
         'Widened',
