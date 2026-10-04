@@ -642,6 +642,19 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   first; the `layout` field has no counterpart in `addContent()`; stories with arg-bound
   `updateArgs()`, signals or a `.blp` template do not fit, nor do the blocks in
   `ADWAITA_GALLERY_TREE_DIVERGENCES`. Start with the static, argument-free stories.
+- **Previews from the tree for the other families (audited, not convertible mechanically).** Arm 14
+  of `check-website-adwaita-gallery.mjs` run against every block that has a tree and a hand-written
+  preview (48 blocks) fails on 45; only Gtk.Stack, Gtk.Notebook and Adw.EditableLabel agree. The
+  cause is vocabulary, not carelessness: `ADWAITA_GALLERY_TREES` is in `gtk-host` spelling
+  (`placeholder-text`, `active`, `adjustment` as an object) while the web previews use the element
+  spellings (`placeholder`, `checked`, a JSON string). A tree-to-markup rewrite was tried and produced
+  `adjustment="[object Object]"`, so it was dropped. Only 7 blocks have one tree for both renderers
+  (`ADWAITA_GALLERY_SHARED_TREES`) and 17 more are ledgered in `ADWAITA_GALLERY_TREE_DIVERGENCES`.
+  The way forward is to mount the tree with `buildSharedTree` as one-Blueprint blocks already do
+  and drop the `preview` fence of each converted block; the property spellings the trees and the
+  elements disagree on (not yet counted: `check-vocabulary-alignment.mjs` is green and its "99
+  failing vectors" are its own self-test inputs, not open gaps) are settled per block on the way. Notebook and Stack went first because their
+  `page` vocabulary was new and aligned from the start.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
