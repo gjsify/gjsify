@@ -48,6 +48,11 @@ export interface SharedNode {
      * the `$Name` verbatim, or the GType where the file named a type (`template ListItem`).
      */
     template?: string;
+    /**
+     * `tag` is a class the application registers (`$SourceView`), in no GIR (ADR 0093). The tag is
+     * spelled as the XML spells it, and a renderer resolves it in its own template-class registry.
+     */
+    extern?: true;
     /** The parent property this child was written at, or the bracket it was written under. */
     slot?: string;
     props?: Record<string, string | number | boolean>;

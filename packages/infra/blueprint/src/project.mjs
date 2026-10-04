@@ -335,6 +335,9 @@ const projectObject = (object, slot, tag) => {
     const body = projectBody(object.body, tag);
     return {
         tag: tag(object.type),
+        // `$Name` is a class the application registers, in no GIR (ADR 0093): the tag is spelled
+        // right and a renderer looks it up in its own registry rather than in the toolkit.
+        ...(object.type.extern === true ? { extern: true } : {}),
         // The id is the node's NAME and not a property of it, which is why it is a field and
         // not a prop: `Gtk.Box canvasContainer { }` emits `<object class="GtkBox"
         // id="canvasContainer">`, an attribute beside the class rather than a value inside it.
@@ -419,12 +422,8 @@ const lossesOf = (file, tag) => {
 
     /** @param {ObjectNode} object */
     const walkObject = (object) => {
-        // An extern type is the one loss where the text SURVIVES and the meaning does not.
-        // `SharedNode.tag` is a GIR class name — that is what a renderer looks up — and
-        // `MyWidget` is a class the application registers at runtime, in no GIR at all. So
-        // the tag is spelled right and is not resolvable, and a consumer told nothing would
-        // discover that as a missing widget rather than as a declared limit.
-        if (object.type.extern === true) lost.push({ kind: 'extern', line: object.line });
+        // An extern type is no loss since ADR 0093: the node carries `extern` and the renderer
+        // answers for the class itself, so what is left to walk is the object's body.
         walkBody(object.body);
     };
 
@@ -449,21 +448,8 @@ const lossesOf = (file, tag) => {
         }
         keptWidget = true;
         if (root.kind === 'template') {
-            // The class the template DEFINES is `SharedNode.template` since ADR 0066 and is no
-            // longer a loss. An extern PARENT still is — the parent is what becomes the root tag,
-            // and a tag no GIR describes is the one loss where the text survives and the meaning
-            // does not.
-            //
-            // With no parent and a `$Name`, the template type is itself extern — the oracle's
-            // `ExternType`, `incomplete`, validating nothing — and it is that name which becomes
-            // the root tag. So the `extern` loss is recorded at the template's own line.
-            //
-            // With no parent and a TYPE (`template ListItem`), it is not extern at all: the
-            // type is a real one and the tag is its GType. Declaring a loss there would name a
-            // limit the file does not have.
-            if (root.parent === undefined && (root.classType === undefined || root.classType.extern === true)) {
-                lost.push({ kind: 'extern', line: root.line });
-            } else if (root.parent?.extern === true) lost.push({ kind: 'extern', line: root.parent.line });
+            // The class the template DEFINES is `SharedNode.template` since ADR 0066, and an
+            // extern class or parent is carried as `extern` since ADR 0093: neither is a loss.
             walkBody(root.body);
         } else walkObject(root);
     }
@@ -474,7 +460,7 @@ const lossesOf = (file, tag) => {
  * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
  *
  * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
- * `strings` and `responses`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * `strings`, `responses` and `extern`. A `page` has no Blueprint spelling that reaches this exit. Each
  * question goes to the reader the projection itself fills the field with, so a construct the
  * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
  *
@@ -490,7 +476,7 @@ const usesOf = (file, tag) => {
         for (const property of body.properties) {
             if (property.value.kind === 'list' && stringsOf(property) !== undefined) {
                 uses.push({ kind: 'strings', line: property.line });
-            } else if (property.value.kind === 'object') walkBody(property.value.object.body);
+            } else if (property.value.kind === 'object') walkObject(property.value.object);
         }
         for (const extension of body.extensions) {
             if (extension.name === 'layout' && layoutOf(extension, tag) !== undefined) {
@@ -499,12 +485,27 @@ const usesOf = (file, tag) => {
             if (extension.name === 'responses') uses.push({ kind: 'responses', line: extension.line });
         }
         for (const child of body.children) {
-            if (!isBreakpoint(child.object)) walkBody(child.object.body);
+            if (!isBreakpoint(child.object)) walkObject(child.object);
         }
     };
 
+    /** @param {ObjectNode} object */
+    const walkObject = (object) => {
+        if (object.type.extern === true) uses.push({ kind: 'extern', line: object.line });
+        walkBody(object.body);
+    };
+
     const root = file.roots.find((candidate) => candidate.kind !== 'menu');
-    if (root !== undefined) walkBody(root.body);
+    if (root?.kind === 'template') {
+        // The root tag is the template's PARENT, or, with none, the class it defines. So the
+        // `extern` use sits on the parent's line when the parent is extern, and on the
+        // template's own line when it has no parent and its class is a `$Name` (a named TYPE
+        // — `template ListItem` — is a real GType and nothing is extern).
+        if (root.parent === undefined && (root.classType === undefined || root.classType.extern === true)) {
+            uses.push({ kind: 'extern', line: root.line });
+        } else if (root.parent?.extern === true) uses.push({ kind: 'extern', line: root.parent.line });
+        walkBody(root.body);
+    } else if (root !== undefined) walkObject(root);
     return uses;
 };
 
@@ -554,6 +555,7 @@ export function projectToSharedNode(file, options) {
         return {
             node: {
                 tag: tag(rootType, 'reference'),
+                ...(rootType.extern === true ? { extern: true } : {}),
                 template: templateClass,
                 ...projectBody(template.body, tag),
             },

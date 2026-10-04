@@ -94,6 +94,7 @@ const MARK = '- translatable?: Record<string, { context?: string }>';
 const STYLES = '- styleClasses?: string[]';
 const PAGE = '- page?: { label?: string; name?: string }';
 const LAYOUT = '- layout?: Record<string, string | number | boolean>';
+const EXTERN = '- extern?: true';
 const EXTENSIONS =
     '- extensions?: { strings?: { value: string; translatable?: { context?: string } }[]; responses?: ' +
     "{ id: string; label: string; translatable?: { context?: string }; appearance?: 'suggested' | " +
@@ -161,6 +162,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${EXTERN}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -188,6 +190,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${EXTERN}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -213,6 +216,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${EXTERN}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -435,6 +439,7 @@ export interface SharedTreeNode {
     tag: string;
     id?: string;
     template?: string;
+    extern?: true;
     slot?: string;
     props?: Readonly<Record<string, string | number | boolean>>;
     page?: Readonly<{ label?: string; name?: string }>;
@@ -462,6 +467,7 @@ const VECTORS = [
     tag: string;
     id?: string;
     template?: string;
+    extern?: true;
     slot?: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
@@ -489,6 +495,7 @@ const VECTORS = [
     tag: string;
     id?: string;
     template?: string;
+    extern?: true;
     slot: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
@@ -529,6 +536,7 @@ const VECTORS = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${EXTERN}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -538,6 +546,7 @@ const VECTORS = [
     tag: string;
     id?: string;
     template?: string;
+    extern?: true;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;
     styleClasses?: string[];
@@ -564,6 +573,7 @@ const VECTORS = [
     tag: string;
     id?: string;
     template?: string;
+    extern?: true;
     slot?: string;
     render: (into: Callbacky) => void;
     props?: Record<string, string | number | boolean>;
@@ -592,6 +602,7 @@ const VECTORS = [
     tag: string;
     id?: string;
     template?: string;
+    extern?: true;
     slot?: string;
     props?: Record<string, string | number | boolean>;
     translatable?: Record<string, { context?: string }>;

@@ -681,6 +681,7 @@ export type {
 // --- Which template constructs a renderer builds or refuses (ADR 0093) ---
 export {
     CONSTRUCT_KINDS,
+    EXTERN_VECTOR_CLASS,
     CONSTRUCT_VECTORS,
     UnsupportedConstructError,
     assertTreeConstructs,

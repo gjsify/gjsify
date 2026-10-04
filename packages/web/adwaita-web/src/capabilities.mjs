@@ -11,4 +11,5 @@ export const capabilities = {
     strings: 'implemented',
     responses: 'implemented',
     page: 'implemented',
+    extern: 'implemented',
 };

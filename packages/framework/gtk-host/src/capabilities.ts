@@ -21,4 +21,8 @@ export const capabilities: ConstructCapabilities = {
             "gtk-host's host builds widgets and a dialog's responses have no door in it (ADR 0072); load the .blp through Gtk.Builder instead",
     },
     page: 'implemented',
+    extern: {
+        refused:
+            "gtk-host's host resolves a tag against its built-in widget descriptors and has no registry for an application class; load the .blp through Gtk.Builder instead",
+    },
 };

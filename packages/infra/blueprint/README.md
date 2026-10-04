@@ -283,8 +283,8 @@ would drift.
     form now resolves too and `rules/49-namespace-core-vocabulary.blp` holds it; the extern rule
     is unchanged, and its file keeps measuring the same thing against a namespace one import
     further out. So the gate holds on the dotted form, the extern form asks for the GType by
-    name, and the `extern` loss says the projection read nothing inside the object — never that
-    the tag is unknown.
+    name, and the node's `extern: true` (ADR 0093) says the tag is a class the application
+    registers — it reads nothing about whether the tag is unknown to a toolkit.
 
     **And extern-ness stops at the VOCABULARY, which rules 32-35 above could not show.**
     They probe properties and a `setters { }` target; a body may also hold `accessibility { }`,

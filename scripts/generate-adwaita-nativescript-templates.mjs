@@ -430,6 +430,8 @@ export interface ExpectNode {
     id?: string;
     /** Root only: the component class the tree defines. No gallery block declares one. */
     template?: string;
+    /** The tag is a class the application registers, in no GIR (ADR 0093). */
+    extern?: true;
     /** The parent property this child asked for, when it asked for one. */
     slot?: string;
     /** Attribute name -> the value the widget must READ BACK, typed. */

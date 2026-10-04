@@ -33,6 +33,8 @@ export interface SharedNode {
     id?: string;
     /** Root only: the composite class the tree defines, where `tag` is the type it extends. */
     template?: string;
+    /** `tag` is a class the application registers, in no GIR — ADR 0093. */
+    extern?: true;
     slot?: string;
     props?: Record<string, string | number | boolean>;
     /** The child as a page of a `Gtk.Notebook` or `Gtk.Stack`: tab text or title, and a stack page's name. */
