@@ -10,6 +10,7 @@ import {
     resolveEdges,
     resolveSystemBars,
     systemBarsAppearance,
+    withPageClass,
 } from './widgets/system-bars.js';
 
 export default async () => {
@@ -55,6 +56,15 @@ export default async () => {
         await it('switched-off edges are zeroed, sides untouched', () => {
             const out = insetsForEdges({ top: 24, bottom: 48, left: 3, right: 4 }, { top: true, bottom: false });
             expect(out).toStrictEqual({ top: 24, bottom: 0, left: 3, right: 4 });
+        });
+    });
+
+    await describe('withPageClass', async () => {
+        await it('adds the window class once and keeps the others', () => {
+            expect(withPageClass('')).toBe('adw-window');
+            expect(withPageClass(undefined)).toBe('adw-window');
+            expect(withPageClass('a b')).toBe('a b adw-window');
+            expect(withPageClass('adw-window x')).toBe('adw-window x');
         });
     });
 

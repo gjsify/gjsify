@@ -177,3 +177,10 @@ export const systemBarsConfig = new SystemBarsConfig();
 export function configureSystemBars(options: SystemBarsOptions): void {
     systemBarsConfig.configure(options);
 }
+
+/** `className` with the theme's window class added once, so the page paints the Adwaita window colour. */
+export function withPageClass(className: string | null | undefined): string {
+    const classes = (className ?? '').split(/\s+/).filter(Boolean);
+    if (!classes.includes('adw-window')) classes.push('adw-window');
+    return classes.join(' ');
+}
