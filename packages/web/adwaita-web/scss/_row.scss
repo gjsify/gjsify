@@ -31,30 +31,21 @@ adw-combo-row {
   min-width: 0;
 }
 
-// Base styles for row title/subtitle — wrap by default like libadwaita's
-// GtkLabel with wrap=true. Line clamping is applied via inline styles when
-// title-lines/subtitle-lines attributes are set (>0).
-.adw-row-title,
-.adw-row-subtitle {
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-wrap: break-word; // Legacy alias for overflow-wrap
-  // overflow: hidden; // Only set when line-clamping
-  // text-overflow: ellipsis; // Only set when line-clamping
-  // display: -webkit-box; // Only set when line-clamping
-  // -webkit-box-orient: vertical; // Only set when line-clamping
-  // -webkit-line-clamp: N; // Only set when line-clamping
-}
-
 .adw-row-title {
   font-size: var(--font-size-base);
   color: var(--card-fg-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .adw-row-subtitle {
   font-size: var(--font-size-small);
   opacity: var(--dim-opacity);
   color: var(--card-fg-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 // Trailing edit pencil shared by editable rows (entry/password) — the

@@ -196,95 +196,112 @@ export const AdwActionRowsTest = async () => {
         });
     });
 
-    await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita conformance)', async () => {
-        // Default (0 = unlimited): wraps normally, no ellipsis
-        await it('title-lines=0 (default) wraps without ellipsis', () => {
+    // Helper to count rendered text lines in a constrained container
+function countRenderedLines(el: HTMLElement, containerWidth: number): number {
+    // Constrain the host to force wrapping
+    const host = el.closest('div')!;
+    host.style.width = `${containerWidth}px`;
+    host.style.whiteSpace = 'nowrap'; // Prevent host from wrapping
+    // Force layout
+    el.getBoundingClientRect();
+    // Count lines by measuring text rects
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const rects = range.getClientRects();
+    return rects.length;
+}
+
+await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita conformance)', async () => {
+        // Default (0 = unlimited): wraps freely in narrow container
+        await it('title-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('title', 'A very long title that should wrap across multiple lines when the container is narrow enough to force wrapping behavior in the browser');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('');
-            expect(titleEl.style.overflow).toBe('');
+            el.setAttribute('title', 'A very long title that should wrap across multiple lines when the container is narrow');
+            host.style.width = '200px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 200);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
-        await it('subtitle-lines=0 (default) wraps without ellipsis', () => {
+        await it('subtitle-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('subtitle', 'A very long subtitle that should wrap across multiple lines when the container is narrow enough to force wrapping behavior in the browser');
-            const subtitleEl = el.querySelector('.adw-row-subtitle') as HTMLElement;
-            expect(subtitleEl.style.webkitLineClamp).toBe('');
-            expect(subtitleEl.style.overflow).toBe('');
+            el.setAttribute('subtitle', 'A very long subtitle that should wrap across multiple lines when the container is narrow');
+            host.style.width = '200px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 200);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
-        // title-lines > 0: clamps to N lines with ellipsis
-        await it('title-lines=1 clamps to 1 line with ellipsis', () => {
+        // title-lines > 0: clamps to N lines
+        await it('title-lines=1 clamps to exactly 1 line', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '1');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('1');
-            expect(titleEl.style.overflow).toBe('hidden');
-            expect(titleEl.style.textOverflow).toBe('ellipsis');
-            expect(titleEl.style.display).toBe('-webkit-box');
-            expect(titleEl.style.webkitBoxOrient).toBe('vertical');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
             host.remove();
         });
 
-        // subtitle-lines > 0: clamps to N lines with ellipsis
-        await it('subtitle-lines=2 clamps to 2 lines with ellipsis', () => {
+        await it('subtitle-lines=2 clamps to exactly 2 lines', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('subtitle', 'Subtitle');
+            el.setAttribute('subtitle', 'Subtitle that is long enough to wrap into three lines if allowed');
             el.setAttribute('subtitle-lines', '2');
-            const subtitleEl = el.querySelector('.adw-row-subtitle') as HTMLElement;
-            expect(subtitleEl.style.webkitLineClamp).toBe('2');
-            expect(subtitleEl.style.overflow).toBe('hidden');
-            expect(subtitleEl.style.textOverflow).toBe('ellipsis');
-            expect(subtitleEl.style.display).toBe('-webkit-box');
-            expect(subtitleEl.style.webkitBoxOrient).toBe('vertical');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 150);
+            expect(lines).toBe(2);
             host.remove();
         });
 
         // Dynamic attribute change
-        await it('changing title-lines from 0 to 1 applies clamping', () => {
+        await it('changing title-lines from 0 to 1 applies clamping visually', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('');
+            host.style.width = '150px';
+            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
-            expect(titleEl.style.webkitLineClamp).toBe('1');
+            // Force reflow
+            el.getBoundingClientRect();
+            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
             host.remove();
         });
 
-        await it('changing title-lines from 1 to 0 removes clamping', () => {
+        await it('changing title-lines from 1 to 0 removes clamping visually', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '1');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('1');
+            host.style.width = '150px';
+            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
 
             el.setAttribute('title-lines', '0');
-            expect(titleEl.style.webkitLineClamp).toBe('');
+            el.getBoundingClientRect();
+            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
-        // Invalid/non-numeric values treated as 0 (unlimited)
-        await it('title-lines="invalid" treated as unlimited', () => {
+        // Invalid/non-numeric values treated as 0 (unlimited) — AdwActionRow pspec range is 0..G_MAXINT
+        await it('title-lines="invalid" treated as unlimited (wraps)', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', 'invalid');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
-        await it('subtitle-lines="-1" treated as unlimited (sentinel)', () => {
+        await it('subtitle-lines="-1" treated as unlimited (wraps)', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('subtitle', 'Subtitle');
+            el.setAttribute('subtitle', 'Subtitle that is long enough to wrap if allowed');
             el.setAttribute('subtitle-lines', '-1');
-            const subtitleEl = el.querySelector('.adw-row-subtitle') as HTMLElement;
-            expect(subtitleEl.style.webkitLineClamp).toBe('');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 150);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
     });
@@ -339,68 +356,66 @@ export const AdwActionRowsTest = async () => {
         }
 
         // title-lines / subtitle-lines tests (same behavior as adw-action-row)
-        await it('title-lines=0 (default) wraps without ellipsis', () => {
+        await it('title-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('title', 'A very long title that should wrap across multiple lines when the container is narrow enough to force wrapping behavior in the browser');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('');
-            expect(titleEl.style.overflow).toBe('');
+            el.setAttribute('title', 'A very long title that should wrap across multiple lines when the container is narrow');
+            host.style.width = '200px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 200);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
-        await it('subtitle-lines=0 (default) wraps without ellipsis', () => {
+        await it('subtitle-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('subtitle', 'A very long subtitle that should wrap across multiple lines when the container is narrow enough to force wrapping behavior in the browser');
-            const subtitleEl = el.querySelector('.adw-row-subtitle') as HTMLElement;
-            expect(subtitleEl.style.webkitLineClamp).toBe('');
-            expect(subtitleEl.style.overflow).toBe('');
+            el.setAttribute('subtitle', 'A very long subtitle that should wrap across multiple lines when the container is narrow');
+            host.style.width = '200px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 200);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
-        await it('title-lines=1 clamps to 1 line with ellipsis', () => {
+        await it('title-lines=1 clamps to exactly 1 line', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '1');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('1');
-            expect(titleEl.style.overflow).toBe('hidden');
-            expect(titleEl.style.textOverflow).toBe('ellipsis');
-            expect(titleEl.style.display).toBe('-webkit-box');
-            expect(titleEl.style.webkitBoxOrient).toBe('vertical');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
             host.remove();
         });
 
-        await it('subtitle-lines=2 clamps to 2 lines with ellipsis', () => {
+        await it('subtitle-lines=2 clamps to exactly 2 lines', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('subtitle', 'Subtitle');
+            el.setAttribute('subtitle', 'Subtitle that is long enough to wrap into three lines if allowed');
             el.setAttribute('subtitle-lines', '2');
-            const subtitleEl = el.querySelector('.adw-row-subtitle') as HTMLElement;
-            expect(subtitleEl.style.webkitLineClamp).toBe('2');
-            expect(subtitleEl.style.overflow).toBe('hidden');
-            expect(subtitleEl.style.textOverflow).toBe('ellipsis');
-            expect(subtitleEl.style.display).toBe('-webkit-box');
-            expect(subtitleEl.style.webkitBoxOrient).toBe('vertical');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 150);
+            expect(lines).toBe(2);
             host.remove();
         });
 
-        await it('changing title-lines from 0 to 1 applies clamping', () => {
+        await it('changing title-lines from 0 to 1 applies clamping visually', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('');
+            host.style.width = '150px';
+            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
-            expect(titleEl.style.webkitLineClamp).toBe('1');
+            el.getBoundingClientRect();
+            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
             host.remove();
         });
 
-        await it('title-lines="invalid" treated as unlimited', () => {
+        await it('title-lines="invalid" treated as unlimited (wraps)', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('title', 'Title');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', 'invalid');
-            const titleEl = el.querySelector('.adw-row-title') as HTMLElement;
-            expect(titleEl.style.webkitLineClamp).toBe('');
+            host.style.width = '150px';
+            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
             host.remove();
         });
     });
@@ -575,6 +590,62 @@ export const AdwActionRowsTest = async () => {
 
             expect(title.textContent).toBe('Documents');
             expect(title.hidden).toBe(false);
+            host.remove();
+        });
+    });
+
+    // Line-clamping tests for other row types that inherit title-lines/subtitle-lines
+    import type { AdwComboRow } from './elements/adw-combo-row.js';
+    import type { AdwSpinRow } from './elements/adw-spin-row.js';
+    import type { AdwExpanderRow } from './elements/adw-expander-row.js';
+
+    await describe('<adw-combo-row> title-lines / subtitle-lines', async () => {
+        await it('title-lines=0 wraps, title-lines=1 clamps to 1 line', () => {
+            const { el, host } = mount<AdwComboRow>('adw-combo-row');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
+            el.setAttribute('title-lines', '0');
+            host.style.width = '150px';
+            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
+
+            el.setAttribute('title-lines', '1');
+            el.getBoundingClientRect();
+            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
+            host.remove();
+        });
+    });
+
+    await describe('<adw-spin-row> title-lines / subtitle-lines', async () => {
+        await it('title-lines=0 wraps, title-lines=1 clamps to 1 line', () => {
+            const { el, host } = mount<AdwSpinRow>('adw-spin-row');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
+            el.setAttribute('title-lines', '0');
+            host.style.width = '150px';
+            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
+
+            el.setAttribute('title-lines', '1');
+            el.getBoundingClientRect();
+            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
+            host.remove();
+        });
+    });
+
+    await describe('<adw-expander-row> title-lines / subtitle-lines', async () => {
+        await it('title-lines=0 wraps, title-lines=1 clamps to 1 line', () => {
+            const { el, host } = mount<AdwExpanderRow>('adw-expander-row');
+            el.setAttribute('title', 'Title that is long enough to wrap if allowed');
+            el.setAttribute('title-lines', '0');
+            host.style.width = '150px';
+            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBeGreaterThan(1);
+
+            el.setAttribute('title-lines', '1');
+            el.getBoundingClientRect();
+            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            expect(lines).toBe(1);
             host.remove();
         });
     });

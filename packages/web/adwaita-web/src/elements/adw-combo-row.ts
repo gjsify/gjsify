@@ -29,6 +29,8 @@
 //   title / subtitle — the text column.
 //   model            — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected         — the selected index (number).
+//   title-lines      — clamp title to N lines (0 = unlimited, default)
+//   subtitle-lines   — clamp subtitle to N lines (0 = unlimited, default)
 // Properties — the `<gtk-drop-down>` set minus `enableSearch` and `active`, which are that
 // element's own popover chrome and have no counterpart on a row that opens a native
 // <select>:
@@ -60,6 +62,7 @@ import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gj
 
 import { bindSlottedChildren } from '../slotted-children.js';
 import { stringListSlot } from '../string-list-slot.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
@@ -71,7 +74,7 @@ export class AdwComboRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'model', 'selected'];
+        return ['title', 'subtitle', 'model', 'selected', 'title-lines', 'subtitle-lines'];
     }
 
     /** The list model (`Adw.ComboRow:model`). Setting it splices the <select> and clamps the selection. */
@@ -283,6 +286,18 @@ export class AdwComboRow extends HTMLElement {
         this._titleEl.hidden = !labels.titleVisible;
         this._subtitleEl.textContent = labels.subtitle;
         this._subtitleEl.hidden = !labels.subtitleVisible;
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 }
 

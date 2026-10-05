@@ -35,6 +35,7 @@ import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { attributeOf } from '@gjsify/adwaita-core/tags';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 /** `Gtk.Adjustment`'s six properties, as `AdwAdjustmentInput` names them. */
 const ADJUSTMENT_FIELDS = ['value', 'lower', 'upper', 'stepIncrement', 'pageIncrement', 'pageSize'] as const;
@@ -65,7 +66,7 @@ export class AdwSpinRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'value', 'adjustment'];
+        return ['title', 'subtitle', 'value', 'adjustment', 'title-lines', 'subtitle-lines'];
     }
 
     get value(): number {
@@ -186,6 +187,18 @@ export class AdwSpinRow extends HTMLElement {
         this._titleEl.hidden = !labels.titleVisible;
         this._subtitleEl.textContent = labels.subtitle;
         this._subtitleEl.hidden = !labels.subtitleVisible;
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 
     /** A stepper press — the interactive path, so it emits `notify::value`. */

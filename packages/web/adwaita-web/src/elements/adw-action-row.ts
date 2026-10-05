@@ -7,6 +7,12 @@
 // in `@gjsify/adwaita-core` (ADR 0004) as {@link ActionRowState}; this element keeps
 // only the DOM render half.
 //
+// ATTRIBUTES:
+//   title, subtitle — the text column
+//   activatable     — whether the row activates on click (boolean presence)
+//   title-lines     — clamp title to N lines (0 = unlimited, default)
+//   subtitle-lines  — clamp subtitle to N lines (0 = unlimited, default)
+//
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/actionrow.md
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (.row styling)
@@ -19,6 +25,7 @@ import { ActionRowState } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 /**
  * Attributes whose change means the activatable widget's sensitivity may have
@@ -136,39 +143,6 @@ export class AdwActionRow extends HTMLElement {
         this._applyLineClamping();
     }
 
-    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
-    private _applyLineClamping() {
-        const titleLines = parseInt(this.getAttribute('title-lines') ?? '0', 10);
-        const subtitleLines = parseInt(this.getAttribute('subtitle-lines') ?? '0', 10);
-
-        this._setLineClamp(this._titleEl, titleLines);
-        this._setLineClamp(this._subtitleEl, subtitleLines);
-    }
-
-    /**
-     * Apply or remove CSS line-clamping on an element.
-     * lines = 0 (or invalid) → no clamping (wrap normally)
-     * lines > 0 → clamp to N lines with ellipsis
-     */
-    private _setLineClamp(el: HTMLElement, lines: number): void {
-        if (!Number.isFinite(lines) || lines <= 0) {
-            // Unlimited lines — wrap normally, no ellipsis
-            el.style.removeProperty('overflow');
-            el.style.removeProperty('text-overflow');
-            el.style.removeProperty('display');
-            el.style.removeProperty('-webkit-box-orient');
-            el.style.removeProperty('-webkit-line-clamp');
-            return;
-        }
-
-        // Clamp to N lines using the standard -webkit-line-clamp approach
-        el.style.overflow = 'hidden';
-        el.style.textOverflow = 'ellipsis';
-        el.style.display = '-webkit-box';
-        el.style.webkitBoxOrient = 'vertical';
-        el.style.webkitLineClamp = String(lines);
-    }
-
     disconnectedCallback() {
         this._sensitivityObserver?.disconnect();
         this._sensitivityObserver = null;
@@ -229,6 +203,17 @@ export class AdwActionRow extends HTMLElement {
         this._subtitleEl.hidden = !subtitleVisible;
         this.classList.toggle('activatable', this._state.activatable);
         this._activation?.sync();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 }
 

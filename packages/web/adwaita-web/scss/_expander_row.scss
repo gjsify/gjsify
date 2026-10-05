@@ -35,9 +35,42 @@ adw-expander-row {
   .adw-row-title {
     font-size: var(--font-size-base);
     color: var(--card-fg-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  }
+
+  .adw-row-subtitle {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    color: var(--card-fg-color);
+  }
+
+  // Title/subtitle wrap by default (matching libadwaita's GtkLabel wrap=true).
+  // Line clamping is enabled via .adw-row-clamp class when title-lines/
+  // subtitle-lines > 0, reading --adw-row-title-lines / --adw-row-subtitle-lines.
+  .adw-row-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Clamped state — enabled by JS toggling .adw-row-clamp on the text container.
+  .adw-expander-row-header.adw-row-clamp .adw-row-text {
+    .adw-row-title,
+    .adw-row-subtitle {
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: var(--adw-row-ellipsize-overflow, ellipsis);
+    }
+
+    .adw-row-title {
+      -webkit-line-clamp: var(--adw-row-title-lines, 1);
+    }
+
+    .adw-row-subtitle {
+      -webkit-line-clamp: var(--adw-row-subtitle-lines, 1);
+    }
   }
 
   // The text column takes the free space so prefix/suffix widgets, the enable
