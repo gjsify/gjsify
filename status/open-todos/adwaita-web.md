@@ -341,3 +341,26 @@ normaliser. Closing it is that helper beside `labelEffectiveLines` in
 `adwaita-core`, and a decision on which spelling `title-lines` carries. The decision
 is cheap while the property is new; the helper is the work.
 
+
+
+### A `.click()` on a button custom element reaches nothing, and `focus()` with it
+
+`<gtk-toggle-button>` renders an inner native `<button>` (`gtk-button.ts`'s
+`_button`) and binds the toggle to a `click` listener ON THAT BUTTON
+(`gtk-toggle-button.ts`, `connectedCallback`). A real click hit-tests to the inner
+button, so the listener runs and the button toggles. `el.click()` does not:
+`HTMLElement.click()` (`@gjsify/dom-elements`, `html-element.ts`) dispatches a
+synthetic `click` AT THE OUTER CUSTOM ELEMENT, and an event dispatched at an
+element never reaches a DESCENDANT's listener — so the toggle listener never runs
+and nothing changes. `gtk-toggle-button.spec.ts` drives `el.button.click()`, which
+is the workaround, and the one the issue reporter did not know about (#2051).
+
+This is a missing DELEGATION SEAM, not a missing line in one element. The same
+gap is `focus()`: no element sets `delegatesFocus` and the host carries no
+tabindex, so `el.focus()` on a `<gtk-button>` moves focus nowhere while the inner
+button holds it. Fixing `click()` alone would leave the pair half-closed, and
+choosing WHICH inner control each of the ~120 elements delegates to is a design
+call — `<adw-dialog>`, `<adw-window>` and the roving-tabindex elements manage
+focus themselves, so a blanket "delegate to the first focusable child" would
+fight them. GTK's own spelling of the operation is `gtk_widget_activate()`;
+`click()` on a `<gtk-button>` that does not activate is the divergence from it.

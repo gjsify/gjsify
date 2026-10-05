@@ -91,7 +91,7 @@ import type { AdwAdjustment } from '@gjsify/adwaita-core';
 import { AdwScrollShading } from '../scroll-shading.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import type { GtkScrollType } from './gtk-scrollbar.js';
-import { GtkViewport } from './gtk-viewport.js';
+import type { GtkViewport } from './gtk-viewport.js';
 
 /**
  * `INDICATOR_FADE_OUT_DELAY` — how long an indicator waits, after the last scroll, before
