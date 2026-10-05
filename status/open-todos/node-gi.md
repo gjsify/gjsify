@@ -443,3 +443,11 @@ and the "libuv idle" case still passes, which is exactly the boundary.
 3 consecutive runs, and once inside a full `npm test` (762 tests, 729 pass, 1 fail,
 32 skipped) — it passed in the next full run (764/732/0). Pre-existing, recorded
 because a 2-in-3 flake in the suite's own gate reads as a red run from any cause.
+
+## Storybook probe: node-gi stays alive after `quit()` since #2011
+
+The Fedora smoke printed `STORYBOOK PROBE: PASS` (121 stories) and then ran to its 20 minute
+timeout on every main push from 6a5ad46 on; 73eb0e3 was the last green run. The probe now ends
+the process after a 5 s grace, which hides the symptom. Open: which source or handle the new
+gallery stories leave alive after `Adw.Application.quit()` on node-gi. Look for it by bisecting
+the stories added in #2011 with `GJSIFY_STORYBOOK_PROBE_STORY`, then drop the grace exit.
