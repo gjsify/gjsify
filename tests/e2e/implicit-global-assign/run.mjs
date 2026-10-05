@@ -22,20 +22,19 @@
 // crash, which is the wrong 900 KB of evidence. `--no-minify` because those two assertions
 // have to read the artifact rather than a mangled copy of it (`cjs-require-stream`'s call).
 //
-// The fixture is a `.mts` INSIDE the suite, not a packed project: the subject is what the CLI
-// does with a THIRD-PARTY package, and `excalibur@0.32.0` is already in the tree —
-// `tests/dom/excalibur`'s devDep, hoisted to the repo root — so the suite resolves the same
-// published artifact a consumer installs, with no registry, no pack and no npm install.
-// `cwd` is the repo root for that reason, and the version is ASSERTED rather than trusted: a
-// silently different Excalibur would leave this suite measuring nothing.
+// The fixture is a `.mts` INSIDE the suite with its own `package.json` declaring
+// `excalibur@0.32.0` as a dependency — following the same self-contained fixture
+// convention as `tests/e2e/cjs-require-stream/` (which uses `createTestEnvironment` +
+// `setupProject`). This avoids depending on another test package's hoisted devDep.
 //
-// `--globals node` ON THE GJS LEG, and the CLI's own note is the reason: `--globals auto`
-// sees Excalibur's `Audio`/`AudioContext`/`document`/`Image` and injects registers pulling
-// `gi://Gdk`, `gi://GdkPixbuf`, `gi://Gst`, `gi://GstApp`, `gi://Manette`, `gi://Pango` and
-// `gi://PangoCairo` into the bundle — nine typelibs a suite about ONE assignment would then
-// need at load, and would fail on a host carrying none of them. The `window` define under
-// test belongs to the `--app gjs` TARGET, not to `--globals`, so narrowing the allowlist
-// costs this suite nothing.
+// `--globals node` ON THE GJS LEG: `--globals auto` sees Excalibur's
+// `Audio`/`AudioContext`/`document`/`Image` and injects registers pulling
+// `gi://Gdk`, `gi://GdkPixbuf`, `gi://Gst`, `gi://GstApp`, `gi://Manette`,
+// `gi://Pango`, `gi://PangoCairo`, `gi://Gio`, `gi://GjsifyGamepad`, and `gi://Soup`
+// into the bundle — eleven typelibs a suite about ONE assignment would then need at load,
+// and would fail on a host carrying none of them. The `window` define under test belongs
+// to the `--app gjs` TARGET, not to `--globals`, so narrowing the allowlist costs this
+// suite nothing.
 //
 // WHAT THE GJS LEG CANNOT CLAIM, and why its STUB marker stays unasserted there: that target's
 // define is `window → globalThis`, so Excalibur's guard `typeof window === 'undefined'` reads
@@ -44,7 +43,7 @@
 // this leg asserts bytes: there is no runtime symptom to catch.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,8 +53,9 @@ import { MONOREPO_ROOT, e2eSkipReason, hasCommand } from '../helpers.mjs';
 
 const cliEntry = join(MONOREPO_ROOT, 'packages/infra/cli/lib/index.js');
 const fixture = fileURLToPath(new URL('./fixture/excalibur.mts', import.meta.url));
-const fixturePkg = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'tests/dom/excalibur/package.json'), 'utf-8'));
-const EXCALIBUR_VERSION = fixturePkg.devDependencies.excalibur;
+const fixtureDir = fileURLToPath(new URL('./fixture/', import.meta.url));
+const fixturePkg = JSON.parse(readFileSync(join(fixtureDir, 'package.json'), 'utf-8'));
+const EXCALIBUR_VERSION = fixturePkg.dependencies.excalibur;
 
 /**
  * A bare `window = {` the plugin did not rewrite — the exact bytes that throw at load.
@@ -103,6 +103,11 @@ describe(
     () => {
         before(() => {
             outDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-iga-'));
+            // Install the fixture's declared dependency (excalibur@0.32.0) so the build
+            // resolves it from the fixture's own node_modules, not from a hoisted devDep
+            // of another test package. This follows the self-contained fixture convention
+            // established by `tests/e2e/cjs-require-stream/`.
+            execSync('npm install', { cwd: fixtureDir, stdio: 'pipe', timeout: 60 * 1000 });
         });
 
         after(() => {
@@ -111,7 +116,7 @@ describe(
 
         it(`resolves the excalibur@${EXCALIBUR_VERSION} the fixture was written against`, () => {
             const installed = JSON.parse(
-                readFileSync(join(MONOREPO_ROOT, 'node_modules/excalibur/package.json'), 'utf-8'),
+                readFileSync(join(fixtureDir, 'node_modules', 'excalibur', 'package.json'), 'utf-8'),
             );
             assert.equal(installed.version, EXCALIBUR_VERSION);
         });

@@ -1,0 +1,9 @@
+{
+    "name": "implicit-global-assign-fixture",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "excalibur": "0.32.0"
+    }
+}
