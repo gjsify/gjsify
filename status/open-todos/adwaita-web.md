@@ -343,24 +343,28 @@ is cheap while the property is new; the helper is the work.
 
 
 
-### A `.click()` on a button custom element reaches nothing, and `focus()` with it
+### A `.click()` on a button custom element reaches nothing
 
-`<gtk-toggle-button>` renders an inner native `<button>` (`gtk-button.ts`'s
-`_button`) and binds the toggle to a `click` listener ON THAT BUTTON
-(`gtk-toggle-button.ts`, `connectedCallback`). A real click hit-tests to the inner
+`<gtk-toggle-button>` renders an inner native `<button>` — created at
+`gtk-button.ts:68` as `this._button`, exposed via the `button` getter — and binds
+the toggle to a `click` listener ON THAT BUTTON (`gtk-toggle-button.ts:117`,
+`this.button.addEventListener('click', …)`). A real click hit-tests to the inner
 button, so the listener runs and the button toggles. `el.click()` does not:
-`HTMLElement.click()` (`@gjsify/dom-elements`, `html-element.ts`) dispatches a
-synthetic `click` AT THE OUTER CUSTOM ELEMENT, and an event dispatched at an
+`HTMLElement.click()` (`@gjsify/dom-elements`, `html-element.ts:303`) dispatches
+a synthetic `click` AT THE OUTER CUSTOM ELEMENT, and an event dispatched at an
 element never reaches a DESCENDANT's listener — so the toggle listener never runs
-and nothing changes. `gtk-toggle-button.spec.ts` drives `el.button.click()`, which
-is the workaround, and the one the issue reporter did not know about (#2051).
+and nothing changes. `gtk-toggle-button.spec.ts` drives `el.button.click()`,
+which is the workaround, and the one the issue reporter did not know about (#2051).
 
-This is a missing DELEGATION SEAM, not a missing line in one element. The same
-gap is `focus()`: no element sets `delegatesFocus` and the host carries no
-tabindex, so `el.focus()` on a `<gtk-button>` moves focus nowhere while the inner
-button holds it. Fixing `click()` alone would leave the pair half-closed, and
-choosing WHICH inner control each of the ~120 elements delegates to is a design
+
+### `focus()` on `<gtk-button>` moves focus nowhere
+
+No element sets `delegatesFocus` and the host carries no tabindex, so the
+same delegation gap hits `focus()`: `el.focus()` on a `<gtk-button>` (or any
+of the ~120 button family elements) moves focus nowhere while the inner button
+holds it. Choosing which inner control each element delegates to is a design
 call — `<adw-dialog>`, `<adw-window>` and the roving-tabindex elements manage
 focus themselves, so a blanket "delegate to the first focusable child" would
 fight them. GTK's own spelling of the operation is `gtk_widget_activate()`;
 `click()` on a `<gtk-button>` that does not activate is the divergence from it.
+Fixing only `click()` would leave the focus half unclosed.
