@@ -3426,7 +3426,7 @@ the trade is made rather than left to be discovered from a bundle analyser.
 `@gjsify/adwaita-web` keeps 60 element modules on `import { Adw } from <root>` against 1
 from `./src/elements/adw-clamp.js` — same order of magnitude, same all-or-nothing. But
 `export * as Adw` over `src/namespace/adw.ts` keeps those 60 as well, so on THAT surface the
-namespace shape is not the cause: **all 56 `Adw` element modules call
+namespace shape is not the cause: **every `Adw` element module calls
 `customElements.define` at module scope**, which is a side effect a bundler is not permitted
 to drop, and a namespace cannot narrow it either. React Native has no equivalent — its
 members are function components with no registration — so the object literal there is the
