@@ -14,6 +14,11 @@
 // `apps/oxfmt/src/cli/{walk,resolve}.rs`, `crates/oxc_config/src/walk.rs`):
 //
 //   - VCS directories and `node_modules` are never entered;
+//   - hidden directories are walked, not skipped: oxfmt's walk sets
+//     `.hidden(false)` and the CLI adds no hidden-file filter (verified
+//     against oxlint 1.72.0 / oxfmt 0.61.0), so the scan mirrors the tools
+//     rather than freezing a bug — a dot-directory like `.worktrees` is
+//     a real scan candidate;
 //   - `.prettierignore` in cwd and `!`-prefixed CLI paths block everywhere;
 //   - `.gitignore` (nested, plus parents up to the repository root) and
 //     `.git/info/exclude` apply to walked entries — only inside a repository
