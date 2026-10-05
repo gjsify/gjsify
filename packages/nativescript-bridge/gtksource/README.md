@@ -12,3 +12,17 @@ from the text `Layout` in `onDraw`, and `GtkSource.Buffer` / `LanguageManager` /
 - Android API used (R8): the consuming app must keep `android.widget.EditText`, `android.text.*`
   spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist.
 - The platform half (`native-editor.android.ts`) is not verified on a device yet.
+
+## Using it from XML
+
+The package publishes the `GtkSource` namespace as a subpath, and an app re-exports it as its own
+barrel, one barrel per library (see [docs/nativescript-xml.md](../../../docs/nativescript-xml.md)):
+
+```ts
+// app/gtksource.ts
+export * from '@gjsify/gtksource-nativescript/gtksource';
+```
+
+```xml
+<gtksource:View xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:gtksource="~/gtksource" />
+```

@@ -393,7 +393,10 @@ const WEB_ELEMENT_ALIGNMENT = {
     // No widget behind them at all.
     'adw-card': { webOnly: 'the .adw-card style class as an element; GTK styles a container instead' },
     'adw-data-grid': { webOnly: 'a presentational aligned grid; the GTK counterpart is a plain Gtk.Grid' },
-    'adw-source-view': { webOnly: 'GtkSourceView lives in the GtkSource namespace, outside the Gtk+Adw table' },
+    'adw-source-view': {
+        webOnly:
+            'GtkSourceView lives in the GtkSource namespace, outside the Gtk+Adw table; its NativeScript counterpart is @gjsify/gtksource-nativescript, a package this gate does not read',
+    },
 };
 
 /**
