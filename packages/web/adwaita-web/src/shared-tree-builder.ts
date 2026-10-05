@@ -460,8 +460,21 @@ function refuseUnknownSlots(placed: readonly PlacedChild[]): void {
 export interface MountedSharedTree {
     /** The authored root — connected, so every custom element under it has upgraded and run. */
     root: HTMLElement;
-    /** Disconnects and discards the mount point. */
+    /** Disconnects the tree, and discards the mount point when this call made one. */
     unmount: () => void;
+}
+
+/** What {@link mountSharedTree} takes beside the tree. */
+export interface MountOptions {
+    /** The object a handler NAME is looked up on (ADR 0093 § 3). */
+    scope?: Readonly<Record<string, unknown>>;
+    /** The size source a `breakpoints` node is driven from. */
+    observeSize?: SizeSource;
+    /**
+     * Where the root is appended — a showcase's own container, which then lays the window out.
+     * Without it the tree gets a fresh host `<div>` in `document.body`, discarded on `unmount`.
+     */
+    into?: HTMLElement;
 }
 
 /**
@@ -470,14 +483,14 @@ export interface MountedSharedTree {
  * instantiation half a caller reading the corpus's elements normally wants; a bare
  * `buildSharedTree` is for a caller that already has somewhere of its own to attach it.
  */
-export function mountSharedTree(
-    node: SharedTreeNode,
-    options: { scope?: Readonly<Record<string, unknown>>; observeSize?: SizeSource } = {},
-): MountedSharedTree {
-    const host = document.createElement('div');
+export function mountSharedTree(node: SharedTreeNode, options: MountOptions = {}): MountedSharedTree {
+    const { into } = options;
+    const host = into ?? document.createElement('div');
     const record = newRecord(options.scope, options.observeSize);
-    host.append(buildSharedTree(node, record));
-    document.body.append(host);
+    const root = buildSharedTree(node, record);
+    host.append(root);
+    if (into === undefined) document.body.append(host);
+    const discard = () => (into === undefined ? host : root).remove();
     // After the append, because that is what upgrades the elements and runs the binds the
     // refusal reads; before the return, because a caller handed a tree back has no way left
     // to tell a placement that was honoured from one that was dropped.
@@ -486,14 +499,14 @@ export function mountSharedTree(
         refuseUnheldExtensions(record.extended);
     } catch (error) {
         for (const dispose of record.disposers) dispose();
-        host.remove();
+        discard();
         throw error;
     }
     return {
-        root: host.firstElementChild as HTMLElement,
+        root,
         unmount: () => {
             for (const dispose of record.disposers) dispose();
-            host.remove();
+            discard();
         },
     };
 }

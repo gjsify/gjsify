@@ -81,7 +81,7 @@ export type { AdwUndershootEdges } from './scroll-shading.js';
 // spec itself — has a route to it that is not a `.spec.ts` import; see that file's header
 // for why `mountSharedTree` and not `buildSharedTree` alone is the instantiation half.
 export { buildSharedTree, mountSharedTree } from './shared-tree-builder.js';
-export type { MountedSharedTree, SizeSource } from './shared-tree-builder.js';
+export type { MountOptions, MountedSharedTree, SizeSource } from './shared-tree-builder.js';
 export { registerTemplateClass } from './template-classes.js';
 
 // The stylesheet compiles a chosen SUBSET of `@gjsify/adwaita-icons` (the whole set is
