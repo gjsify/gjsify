@@ -30,6 +30,9 @@ import { isIconAvailable } from './icon-registry.js';
 import { fallbackMask, maskOf } from './icon-registry.spec.js';
 
 import type { AdwActionRow } from './elements/adw-action-row.js';
+import type { AdwComboRow } from './elements/adw-combo-row.js';
+import type { AdwExpanderRow } from './elements/adw-expander-row.js';
+import type { AdwSpinRow } from './elements/adw-spin-row.js';
 import type { AdwSwitchRow } from './elements/adw-switch-row.js';
 import type { AdwWindowTitle } from './elements/adw-window-title.js';
 
@@ -595,10 +598,6 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
     });
 
     // Line-clamping tests for other row types that inherit title-lines/subtitle-lines
-    import type { AdwComboRow } from './elements/adw-combo-row.js';
-    import type { AdwSpinRow } from './elements/adw-spin-row.js';
-    import type { AdwExpanderRow } from './elements/adw-expander-row.js';
-
     await describe('<adw-combo-row> title-lines / subtitle-lines', async () => {
         await it('title-lines=0 wraps, title-lines=1 clamps to 1 line', () => {
             const { el, host } = mount<AdwComboRow>('adw-combo-row');
