@@ -53,7 +53,7 @@ Registering a source-view suite pulls CodeMirror into the browser test bundle,
 which is why it is a note rather than part of the fix.
 
 
-### 83 scalar GIR properties no `adw-*` element observes yet
+### 160 scalar GIR properties no element observes yet
 
 `<adw-alert-dialog>` shipped observing FOUR attributes while `Adw.AlertDialog` carries
 eight own properties, and the website's widget table — which reads `observedAttributes` —
@@ -88,16 +88,24 @@ so eight elements (`adw-action-row`, `adw-spin-row`, `adw-entry-row`, `adw-expan
 INVISIBLE, and the summary line read "35 elements hold their properties" while the honest
 number was 35 of 43. Both shapes are fixture vectors now.
 
-**What remains: 83 scalar properties across 28 elements**, listed in the check's
-`KNOWN_GAPS`. They are listed rather than individually justified, deliberately — inventing
-83 rationales would be worse than naming none, because a rule without its real reason gets
-"simplified" back into the bug. What the list buys today is the RATCHET: a new gap fails,
-and closing one fails too until it leaves the list, so the number can only go down.
+**What remains: 160 scalar properties across 51 elements**, listed in the check's
+`KNOWN_GAPS` — 68 across 28 `adw-*` elements, 92 across 23 `gtk-*` ones, because the
+check now maps the GTK elements too and this entry's own "83 across 28" predates that
+(it counted the `adw-*` half before ENUMS went into scope, and never followed the
+number when the scope grew). They are listed rather than individually justified,
+deliberately — inventing 160 rationales would be worse than naming none, because a rule
+without its real reason gets "simplified" back into the bug. What the list buys today is
+the RATCHET: a new gap fails, and closing one fails too until it leaves the list, so the
+number can only go down.
 
-The worst three are `adw-wrap-box` (13 — its whole layout surface; it observes NO
-attributes at all), `adw-about-dialog` (11 — the credit-list and release-notes surface)
-and `adw-header-bar` (6 — `show-title`, `show-back-button`, `centering-policy` and the two
-title-button toggles). Those three are 30 of the 83 and are the obvious first pass. Each
+The worst three are `gtk-entry` (27 — `im-module`, the input-hints cluster and
+`activates-default`), `adw-about-dialog` (12 — the credit-list and release-notes surface)
+and `gtk-text` (9 — the same input cluster). Those three are 48 of the 160 and are the
+obvious first pass. On the `adw-*` half alone `adw-about-dialog` (12) leads,
+`adw-header-bar` (6 — `show-title`, `show-back-button`, `centering-policy` and the two
+title-button toggles) and `adw-spin-row` (6) tie next; `adw-wrap-box`, named here
+earlier, now observes every scalar property it names and has LEFT the list, which is
+the ratchet doing its job. Each
 needs its own decision: some are genuinely missing attributes, and some are properties a
 web element is right to expose another way (`artists`/`developers` are string LISTS, which
 an attribute carries badly). The check does not pretend to know which; it makes the
@@ -302,4 +310,34 @@ because "driven by X" was a plain text scan over every `.ts` under X — comment
 included. The original defect was caught only because it used the glob spelling
 `DATA_GRID_*_VECTORS`, which contains no individual name. Fixed by resolving
 drivers from usage: names outside a comment, in a `*.spec.ts`.
+
+
+### A row title and a `Gtk.Label` read "no line limit" in opposite ways
+
+Two line-limit normalisers ship in this workspace and they disagree about the token
+that means "no limit". `AdwActionRow:title-lines` / `AdwExpanderRow:title-lines` go
+through `parseRowLinesAttribute`
+(`packages/web/adwaita-web/src/row-line-clamp.ts:70`), which folds every `n <= 0` to
+`0`, and `0` means UNLIMITED — the pspec's own range is `0..G_MAXINT`, so there is no
+negative spelling to reach. `Gtk.Label:lines` goes through `normalizeLabelLines`
+(`packages/web/adwaita-core/src/label.ts:214`), which floors at `-1`, GTK's pspec
+floor for `lines`, and then `labelEffectiveLines` (`label.ts:248`) folds "unset" into
+Pango's OWN default rather than into "unlimited": `lines` absent or `0` with
+`ellipsize != NONE` lays out exactly ONE line, measured on a real `Gtk.Label` (see
+that function's docblock). So the same `0` clamps a label to one line and lets a row
+title wrap freely.
+
+NEITHER END IS A BUG — each matches its own pspec, and the floors differ because GTK's
+`lines` predates Adw's by a decade. What is missing is one spelling the two can meet
+on, and they cannot meet today even if one wanted them to: a row title is a plain
+`<span class="adw-row-title">` inside `<div class="adw-row-text">`, clamped through its
+own `--adw-row-title-lines` custom property plus the `.adw-row-clamp` class toggle by
+`applyRowLineClamp` (`row-line-clamp.ts:28`), never through `labelEffectiveLines`.
+Both `gtk-label.ts` ports hold the `-1` floor —
+`packages/web/adwaita-web/src/elements/gtk-label.ts:225` and
+`packages/nativescript-bridge/adwaita/src/widgets/gtk-label.ts:205` — so a shared
+clamp helper has to take the floor as a parameter rather than import either
+normaliser. Closing it is that helper beside `labelEffectiveLines` in
+`adwaita-core`, and a decision on which spelling `title-lines` carries. The decision
+is cheap while the property is new; the helper is the work.
 
