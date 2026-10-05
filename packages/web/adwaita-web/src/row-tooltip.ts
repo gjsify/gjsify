@@ -5,8 +5,7 @@
 // `title=`, which is the same attribute `HTMLElement.title` reflects. Writing the tooltip
 // to the host would blank the label, so it goes to the row's own parts instead — and the
 // browser then finds it FIRST. Firefox resolves a tooltip by walking UP from the hovered
-// node until an element carries a non-empty `title` (measured: a child of a titled element
-// with no title of its own offers the ancestor's text), so one `title` per part covers
+// node until an element carries a non-empty `title`, so one `title` per part covers
 // everything inside it. Two consequences, both wanted:
 //
 //   - a SLOTTED control that carries a tooltip of its own still wins, which is GTK's
@@ -14,9 +13,14 @@
 //   - a part the element owns for its OWN tooltip keeps it, which is why the entry row
 //     hands over its prefixes / area / suffixes and not its apply button.
 //
-// The gap is the row's own padding, where no part is hovered and the walk reaches the host
-// and finds the LABEL — exactly what the row showed before `tooltip-text` existed. Writing
-// to the host instead would blank the label on every row in the package.
+// A PART ONLY COUNTS IF IT COVERS THE ROW. Measured on the shipped row before the
+// `data-row-tooltip` marker existed: a 884x54 `adw-action-row` offered the LABEL over 36 of
+// its 54 rows of pixels and across its 24px of inline padding, and the tooltip only over the
+// 18px the label text happens to occupy — the label column is content-height in a 54px row,
+// so two thirds of the widget's own hit area fell through to the host and found the label.
+// The tooltip has to reach the whole widget the way GTK's does, so the marked part STRETCHES
+// (`scss/_row.scss`) and the row's inline padding is what is left; `row-tooltip.spec.ts`
+// measures the covered region against the row's box so this cannot come back.
 //
 // Upstream has no stylesheet rule for this: GTK draws the tooltip surface itself
 // (`refs/libadwaita/src/stylesheet/widgets/_tooltip.scss`), and `refs/adwaita-web` has no
@@ -26,16 +30,23 @@
  * Apply `row`'s `tooltip-text` to `parts`, or clear it when the attribute is absent.
  *
  * `parts` are the row's OWN sections, never a slotted consumer widget — see the header.
+ * Each one is marked `data-row-tooltip`, which is the hook `scss/_row.scss` stretches so
+ * the tooltip covers the row rather than the label text inside it.
  */
 export function applyRowTooltip(row: HTMLElement, parts: readonly Element[]): void {
     const tooltip = row.getAttribute('tooltip-text') ?? '';
     for (const part of parts) {
-        // Only on a real change: `_render` runs on every unrelated attribute write, and
-        // `setAttribute` fires a mutation record even for the value already there.
         if (tooltip) {
+            // Only on a real change: `_render` runs on every unrelated attribute write, and
+            // `setAttribute` fires a mutation record even for the value already there.
             if (part.getAttribute('title') !== tooltip) part.setAttribute('title', tooltip);
+            if (!part.hasAttribute(TOOLTIP_PART_ATTR)) part.setAttribute(TOOLTIP_PART_ATTR, '');
         } else {
             part.removeAttribute('title');
+            part.removeAttribute(TOOLTIP_PART_ATTR);
         }
     }
 }
+
+/** The hook `applyRowTooltip` marks its parts with, and `scss/_row.scss` selects on. */
+const TOOLTIP_PART_ATTR = 'data-row-tooltip';

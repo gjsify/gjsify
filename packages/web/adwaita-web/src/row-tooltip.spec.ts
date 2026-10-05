@@ -43,6 +43,30 @@ function partTitles(el: Element): Record<string, string | null> {
     return titles;
 }
 
+/**
+ * Measure the vertical coverage of tooltip-marked parts against the row's bounding box.
+ * Returns the ratio of covered height to row height (1.0 = full coverage).
+ */
+function tooltipCoverageRatio(el: HTMLElement): number {
+    const rowRect = el.getBoundingClientRect();
+    const parts = TOOLTIPPED_PARTS[el.localName] ?? [];
+    if (parts.length === 0) return 0;
+
+    // Union of all tooltip parts' bounding boxes
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const selector of parts) {
+        const part = el.querySelector(selector) as HTMLElement | null;
+        if (!part) continue;
+        const rect = part.getBoundingClientRect();
+        top = Math.min(top, rect.top);
+        bottom = Math.max(bottom, rect.bottom);
+    }
+    if (!isFinite(top) || !isFinite(bottom)) return 0;
+    const covered = bottom - top;
+    return covered / rowRect.height;
+}
+
 export const AdwRowTooltipTest = async () => {
     await describe('row tooltip-text (Gtk.Widget:tooltip-text)', async () => {
         // One case per row family, and the assertion is the SAME for all of them: the
@@ -127,6 +151,35 @@ export const AdwRowTooltipTest = async () => {
                     );
                 },
             );
+        });
+
+        // BLOCKER 1: the tooltip parts must cover the row's full hit area (height).
+        // GTK draws the tooltip over the whole widget; the port was only covering the
+        // label text's own height. The `[data-row-tooltip]` marker + `align-self: stretch`
+        // in `_row.scss` stretches the parts, and this assertion prevents regression.
+        await it("tooltip parts cover the row's full height (>= 0.95 of row height)", () => {
+            for (const [tag] of Object.entries(TOOLTIPPED_PARTS)) {
+                withWidget(
+                    () => {
+                        const el = document.createElement(tag);
+                        el.setAttribute('title', 'Wi-Fi');
+                        el.setAttribute('tooltip-text', 'Connects to the office network');
+                        return el;
+                    },
+                    (el) => {
+                        // Force layout so getBoundingClientRect is accurate
+                        el.style.position = 'absolute';
+                        el.style.top = '-9999px';
+                        document.body.appendChild(el);
+                        try {
+                            const ratio = tooltipCoverageRatio(el);
+                            expect(ratio).toBeGreaterThanOrEqual(0.95);
+                        } finally {
+                            el.remove();
+                        }
+                    },
+                );
+            }
         });
     });
 
@@ -246,10 +299,13 @@ export const AdwRowTooltipTest = async () => {
                     '<adw-toggle label="Two" enabled="false"></adw-toggle>',
                 ]),
                 (el) => {
-                    // Nothing to move it to. The selection stays where the core put it, and
-                    // both buttons are `tabIndex -1` because neither can take focus.
+                    // Nothing to move it to. The selection stays where the core put it
+                    // (index 0), so the first button gets tabIndex 0 (the group's one
+                    // tab stop) even though it is disabled — the roving filter will
+                    // skip it, but the attribute reflects the active index.
                     expect((el as unknown as AdwToggleGroup).active).toBe(0);
                     expect(buttons(el).every((btn) => btn.disabled)).toBe(true);
+                    expect(buttons(el).map((btn) => btn.tabIndex)).toStrictEqual([0, -1]);
                 },
             );
         });
