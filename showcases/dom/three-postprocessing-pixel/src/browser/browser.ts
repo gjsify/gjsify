@@ -53,7 +53,7 @@ const SPIN_ROWS = {
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
-    const { root: win } = mountSharedTree(tree, container);
+    const { root: win } = mountSharedTree(tree, { into: container });
 
     for (const [id, range] of Object.entries(SPIN_ROWS))
         byId(win, id).setAttribute('adjustment', JSON.stringify(range));
