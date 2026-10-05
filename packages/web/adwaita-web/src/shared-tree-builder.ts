@@ -36,13 +36,21 @@
 
 import { createBreakpointDriver, parseBreakpointCondition, type BreakpointSize } from '@gjsify/adwaita-core';
 import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
-import { GTK_WIDGET_EXPAND, attributeOf, hostTagOf, propertyOf, widgetLengthStyle } from '@gjsify/adwaita-core/tags';
+import {
+    GTK_WIDGET_EXPAND,
+    attributeOf,
+    hostTagOf,
+    isValueBasedBooleanAttr,
+    propertyOf,
+    widgetLengthStyle,
+} from '@gjsify/adwaita-core/tags';
 
 import { observeAdaptiveSize } from './breakpoints.js';
 import { capabilities } from './capabilities.mjs';
 import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
 import { templateTagFor } from './template-classes.js';
+import { writeBooleanAttribute } from './attributes.js';
 
 /** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
 interface PlacedChild {
@@ -104,21 +112,22 @@ function isWritable(el: object, member: string): boolean {
  * A `SharedTreeNode`, realised as a DETACHED element tree: a tag, its authored properties as
  * attributes, its style classes as classes, its extensions (ADR 0072) as the markup the element
  * reads, its placement as `slot=`, its children, in that order — recursive and total,
- * no tag list, no per-block case. A boolean authored property is the ATTRIBUTE'S PRESENCE
- * (`toggleAttribute`), which is what every element in the corpus reads
- * (`hasAttribute('revealed')`, `hasAttribute('expanded')`); spelling `"true"` would set a
- * present attribute for `false` as well.
+ * no tag list, no per-block case.
  *
- * EXCEPT AN AUTHORED `false` ON A PROPERTY THE ELEMENT DECLARES. Absence cannot say `false`
- * where the GTK default is TRUE — `AdwNavigationPage:can-pop`, `GtkActionBar:revealed` —
- * because those elements read an absent attribute as that default, so `can-pop: false`
- * reached the page as `can-pop` unset and the page stayed poppable. The element's own
- * property setter knows its attribute convention, so an authored `false` is written
- * through it when the element (already upgraded: `createElement` of a defined tag
- * constructs it) declares one; everything else keeps the presence rule. "Declares" means a
- * member it can WRITE ({@link isWritable}): a getter-only accessor of the same name — the
- * split button's and the menu button's read-only `active` — would throw a bare `TypeError`
- * out of the assignment, so such a property falls back to the presence rule too.
+ * BOOLEAN ATTRIBUTES are written per (widget, property), not per attribute name. The same
+ * attribute name (e.g. `revealed`) can be VALUE-BASED for one widget (`gtk-action-bar`,
+ * default TRUE) and PRESENCE-BASED for another (`adw-banner`, default FALSE). The
+ * per-widget map in `@gjsify/adwaita-core/tags` ({@link isValueBasedBooleanAttr}) records this.
+ *
+ * - VALUE-BASED: `attr="false"` means false, absent means true (the GTK default).
+ *   The builder writes `attr="true"|"false"` directly via {@link writeBooleanAttribute}.
+ * - PRESENCE-BASED (style classes like `flat`, `round`, `compact`): `toggleAttribute`
+ *   writes the bare attribute for `true`, removes it for `false`.
+ *
+ * EXCEPT an authored `false` on a NON-value-based, WRITABLE property: the property is set
+ * directly (bypassing the attribute) because the element's setter will reflect it correctly.
+ * A getter-only property of the same name (e.g. `AdwSplitButton.active`) falls back to the
+ * presence rule since assignment would throw.
  *
  * THE SLOT IS WRITTEN AS THE ATTRIBUTE THIS RENDERER ALREADY ROUTES ON, not translated:
  * `src/slotted-children.ts` reads `slot=` off every light-DOM child and keeps the routing
@@ -260,19 +269,42 @@ function bindProperty(bind: PendingBind, record: BuildRecord): void {
 
 /**
  * One authored property, written as the element reads it; a breakpoint setter takes the same door.
- * `hexpand` / `vexpand` keep an authored `false` as the attribute `"false"` and a later `true`
- * rewrites it, which `toggleAttribute` would not.
+ *
+ * BOOLEAN ATTRIBUTES are written per (widget, property), not per attribute name. The same
+ * attribute name (e.g. `revealed`) can be VALUE-BASED for one widget (`gtk-action-bar`,
+ * default TRUE) and PRESENCE-BASED for another (`adw-banner`, default FALSE). The
+ * per-widget map in `@gjsify/adwaita-core/tags` ({@link isValueBasedBooleanAttr}) records this.
+ *
+ * - VALUE-BASED: `attr="false"` means false, absent means true (the GTK default).
+ *   The builder writes `attr="true"|"false"` directly via {@link writeBooleanAttribute}.
+ * - PRESENCE-BASED (style classes like `flat`, `round`, `compact`): `toggleAttribute`
+ *   writes the bare attribute for `true`, removes it for `false`.
+ *
+ * EXCEPT an authored `false` on a NON-value-based, WRITABLE property: the property is set
+ * directly (bypassing the attribute) because the element's setter will reflect it correctly.
+ * A getter-only property of the same name (e.g. `AdwSplitButton.active`) falls back to the
+ * presence rule since assignment would throw. `hexpand` / `vexpand` keep an authored `false`
+ * as the attribute `"false"` and a later `true` rewrites it — `GTK_WIDGET_EXPAND` says why.
  */
 export function writeProp(el: HTMLElement, prop: string, value: string | number | boolean): void {
+    const attr = attributeOf(prop);
     const member = propertyOf(prop);
-    const expand = GTK_WIDGET_EXPAND.find((name) => name === attributeOf(prop));
+    const expand = GTK_WIDGET_EXPAND.find((name) => name === attr);
     if (expand !== undefined && typeof value === 'boolean') el.setAttribute(expand, value ? '' : 'false');
-    else if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
-    else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
-    else el.setAttribute(attributeOf(prop), String(value));
+    else if (typeof value === 'boolean' && isValueBasedBooleanAttr(el.localName, attr)) {
+        writeBooleanAttribute(el, attr, value);
+    } else if (value === false && isWritable(el, member)) {
+        // Non-value-based, writable property: set the property directly (bypasses attribute).
+        (el as unknown as Record<string, unknown>)[member] = false;
+    } else if (typeof value === 'boolean') {
+        // Presence-based (style classes) or true for non-value-based: use toggleAttribute.
+        el.toggleAttribute(attr, value);
+    } else {
+        el.setAttribute(attr, String(value));
+    }
     // A margin or a size request is also inline style (`GTK_WIDGET_MARGIN_CSS` says why); the
     // attribute stays, since it is what the tree authored and what a reader of the DOM looks for.
-    const length = widgetLengthStyle(attributeOf(prop), value);
+    const length = widgetLengthStyle(attr, value);
     if (length === undefined) return;
     if (length[1] === null) el.style.removeProperty(length[0]);
     else el.style.setProperty(length[0], length[1]);

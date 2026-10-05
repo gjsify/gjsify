@@ -59,6 +59,7 @@ import type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
+import { booleanAttribute } from '../attributes.js';
 
 /** Response button appearance — mirrors Adw.ResponseAppearance. */
 export type { AdwResponseAppearance } from '@gjsify/adwaita-core';
@@ -269,7 +270,9 @@ export class AdwAlertDialog extends HTMLElement {
         const appearance = (el.getAttribute('appearance') ?? 'default') as AdwResponseAppearance;
         this.addResponse(id, (el.textContent ?? '').trim());
         if (appearance !== 'default') this.setResponseAppearance(id, appearance);
-        if (el.getAttribute('enabled') === 'false') this.setResponseEnabled(id, false);
+        // `enabled` is a value-based boolean attribute (GTK property defaulting to TRUE).
+        // Use the shared reader instead of a hand-rolled `=== 'false'` comparison.
+        if (!booleanAttribute(el.getAttribute('enabled'), true)) this.setResponseEnabled(id, false);
     }
 
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
