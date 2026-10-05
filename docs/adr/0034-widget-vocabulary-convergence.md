@@ -3382,3 +3382,67 @@ icon to a NAME and empties a document), so a bound switcher drew `image-missing`
 app gave source for; `AdwViewStack.pageIcons()` now returns what each page was added with. The
 icon renderer treats Adwaita's neutral symbolic greys as the caller's colour, as the icon
 generator does, so an app's own symbolics no longer draw `#222` on a dark page.
+
+## Amendment 24, 2026-10-05 — the namespace's PRICE, which § Amendment 8's cost section priced as migration effort only
+
+§ Amendment 8's cost section measured one thing: *"It cost nothing to migrate, and that is a
+measurement rather than luck."* That is the right claim about the one migration this
+repository could see — nothing outside the package imports the barrel — and it is not the
+cost of the change. A consumer who wants `Adw.Clamp` now gets **all twenty-eight widget
+implementations**, and before § Amendment 8 the same consumer got one. Migration effort was
+never the expensive axis; **bundle size is**, and the section priced only the axis that
+measured zero.
+
+**Measured on this tree**, with the repository's pinned `esbuild` (`0.28.0`) against the built
+`lib/esm`, `@gjsify/adwaita-core` / `@gjsify/gtk-host` / `react` / `react-native` / `gi://*`
+external, one consumer file per row:
+
+| consumer shape | bytes | widget implementations kept |
+|---|---:|---:|
+| the flat shape § Amendment 8 removed — `export { AdwClamp } from …` | 647 | 1 |
+| now: `import { Adw } from <root>`; `Adw.Clamp` | 17 866 | **28** |
+| the counter-hypothesis: `export * as Adw` over the same barrel | 18 217 | **28** |
+| subpath: `import { AdwClamp } from <…>/widgets/clamp.gtk.js` | 607 | 1 |
+
+`export * as Adw` was the obvious counter-hypothesis — it was § Amendment 6's answer on
+`@gjsify/adwaita-web`, and it is the shape that *ought* to shake. It does not: it keeps the
+same 28, and so the object literal is not what forbids narrowing. **Neither namespace shape
+narrows here**, because `Adw.Clamp` is a property read off a value the bundler cannot see
+through, and the barrel's 28 import lines are what that value is built from — so all 28
+modules stay. That is the price of the namespace, and § Amendment 6's object-literal remark
+("a bundler cannot tree-shake a property out of an object literal") is this surface's case
+rather than only the web one's. It also means this surface took the literal without paying
+anything extra for it: both shapes cost the same 28, so the choice between them was free and
+the annotation decided it.
+
+**So the subpath is not only "one widget on its own", it is the only shape that shakes**, and
+until now the README presented it as the first. The per-widget entry point existed before
+this amendment for § Amendment 8's other reason — `AdwClamp` is the widget's only name there,
+not a second one — and nobody wrote down that it is also the bundle door. A consumer that
+takes the root pays for 28 widgets to use 1; that is the trade, and it is now stated where
+the trade is made rather than left to be discovered from a bundle analyser.
+
+**The web surface pays it too, and for a second reason worth not confusing with this one.**
+`@gjsify/adwaita-web` keeps 60 element modules on `import { Adw } from <root>` against 1
+from `./src/elements/adw-clamp.js` — same order of magnitude, same all-or-nothing. But
+`export * as Adw` over `src/namespace/adw.ts` keeps those 60 as well, so on THAT surface the
+namespace shape is not the cause: **every `Adw` element module calls
+`customElements.define` at module scope**, which is a side effect a bundler is not permitted
+to drop, and a namespace cannot narrow it either. React Native has no equivalent — its
+members are function components with no registration — so the object literal there is the
+whole of the explanation, and here the registration is most of it. Neither surface is
+tree-shakeable through its root today; what differs is only whether the namespace or the
+registration is what forbids it.
+
+That is also why this surface could take the object literal without paying extra: the
+namespace module buys the web's classes the type position their
+`document.createElement(...) as Adw.HeaderBar` casts need, and here the members are function
+components annotated through the flat `Adw…Props` types, so value position is the whole
+requirement. Both shapes keep all the widgets, so the choice between them was free and the
+annotation decided it.
+
+**What it does not change.** No surface re-exports a flat widget class to buy back the
+bundle; § Amendment 6's rule stands, and Rule 10 of `check-adwaita-rn-platform-split.mjs`
+still refuses one. Nothing about the migration argument is withdrawn: inside this repository
+nothing imports the barrel, so § Amendment 8's "cost nothing to migrate" remains exactly
+true. Only the sentence implied that migration effort was the whole price, and it was not.

@@ -857,9 +857,12 @@ const RN_NAMESPACE_IMPORT =
  * A THIRD naming convention, because the package has neither of the other two: no
  * `customElements.define`, and its modules are `clamp.ts` rather than `adw-clamp.ts`
  * (the `Adw` lives in the exported component, and the platform split puts
- * `clamp.gtk.tsx` beside it). So the widget set is the BASE BARREL's namespace import
- * list, which is what `exports['.']` resolves for a condition-blind tool and what
- * `check-adwaita-rn-platform-split.mjs` rules 5 and 8 already hold for completeness.
+ * `clamp.gtk.tsx` beside it). So the widget set is the BASE BARREL's namespace IMPORT
+ * list, one hop from what `exports['.']` resolves for a condition-blind tool — that
+ * resolution is `Adw`'s MEMBERS, and § Amendment 8 replaced the flat `export … from`
+ * list, which used to be the barrel's whole surface, with the import lines beside the
+ * literal that builds it. Also what `check-adwaita-rn-platform-split.mjs` rules 5 and 8
+ * already hold for completeness.
  *
  * BOTH HALVES OF THE LINE ARE HELD against the module name, the same way the other two
  * readers hold theirs: `import { AdwClamp as Clamp } from './widgets/bin.js'` is refused

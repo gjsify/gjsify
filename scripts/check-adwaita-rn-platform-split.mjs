@@ -124,6 +124,11 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The ONE comment stripper every whole-file check reads through. This gate fronted rules
+// 3, 5 and 10 on its own copy, which made "is this line real" a second question with a
+// second answer — the exact argument its header made for extracting one in the first place.
+import { stripComments as withoutComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
+
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 if (rootFlag !== -1 && args[rootFlag + 1] === undefined) {
@@ -200,53 +205,6 @@ function moduleSpecifiers(source) {
         specifiers.add(match[2]);
     }
     return specifiers;
-}
-
-/**
- * `source` with comments removed and string literals kept, string-aware.
- *
- * Its own function because rule 10 needs the same view of a barrel that
- * {@link moduleSpecifiers} does, and the two must not disagree about what code is: a
- * second stripper is a second answer to "is this line real", and the rule that got the
- * looser one stops gating without saying so.
- */
-function withoutComments(source) {
-    let code = '';
-    let index = 0;
-    while (index < source.length) {
-        const char = source[index];
-        const next = source[index + 1];
-        if (char === '/' && next === '/') {
-            while (index < source.length && source[index] !== '\n') index += 1;
-            continue;
-        }
-        if (char === '/' && next === '*') {
-            index += 2;
-            while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
-            index += 2;
-            continue;
-        }
-        if (char === '"' || char === "'" || char === '`') {
-            const quote = char;
-            code += char;
-            index += 1;
-            while (index < source.length && source[index] !== quote) {
-                if (source[index] === '\\') {
-                    code += source.slice(index, index + 2);
-                    index += 2;
-                    continue;
-                }
-                code += source[index];
-                index += 1;
-            }
-            code += quote;
-            index += 1;
-            continue;
-        }
-        code += char;
-        index += 1;
-    }
-    return code;
 }
 
 if (!existsSync(WIDGETS_DIR)) {
