@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.55.0](https://github.com/gjsify/gjsify/compare/v0.54.0...v0.55.0) (2026-10-05)
+
+### Features
+
+* **adwaita-core:** breakpoints as template construct ([#2039](https://github.com/gjsify/gjsify/issues/2039)) ([b7b60ad](https://github.com/gjsify/gjsify/commit/b7b60adde92ba7b8465ca3d05de2fe2c1abf2ab6))
+* **adwaita-core:** template constructs per renderer ([#2038](https://github.com/gjsify/gjsify/issues/2038)) ([29cf00c](https://github.com/gjsify/gjsify/commit/29cf00cf0fdadb53bbe31a0f0851c3fdfc9760f8))
+* **adwaita-nativescript:** widgets for the Learn6502 port ([#2031](https://github.com/gjsify/gjsify/issues/2031)) ([96b9265](https://github.com/gjsify/gjsify/commit/96b92656b234ca7fbd69e0c8b005c1c17e4563ce)), closes [#2018](https://github.com/gjsify/gjsify/issues/2018) [#222](https://github.com/gjsify/gjsify/issues/222) [#505053](https://github.com/gjsify/gjsify/issues/505053) [#303034](https://github.com/gjsify/gjsify/issues/303034)
+* **adwaita-web:** add prefix slot to switch row ([#2019](https://github.com/gjsify/gjsify/issues/2019)) ([31522ec](https://github.com/gjsify/gjsify/commit/31522ec1f8201b96f56cc1b1312bf8f5d951ebc5)), closes [#1822](https://github.com/gjsify/gjsify/issues/1822)
+* **adwaita-web:** carry a tooltip on adw-toggle ([#2020](https://github.com/gjsify/gjsify/issues/2020)) ([e42202f](https://github.com/gjsify/gjsify/commit/e42202ff2902ecffc5501db9f284b728f55fe62c)), closes [#1823](https://github.com/gjsify/gjsify/issues/1823)
+* **adwaita-web:** give a popover a dialog role ([#2023](https://github.com/gjsify/gjsify/issues/2023)) ([799dd5e](https://github.com/gjsify/gjsify/commit/799dd5e7910719406822cf7c1b2e2749b79b3ddc)), closes [#1824](https://github.com/gjsify/gjsify/issues/1824)
+* **adwaita-web:** navigate tab overview in 2-D ([#2017](https://github.com/gjsify/gjsify/issues/2017)) ([7944c3d](https://github.com/gjsify/gjsify/commit/7944c3d237ff118ab9e6ce030926d36c9e893c86))
+* **node-gi:** build and ship win32-arm64 ([#2003](https://github.com/gjsify/gjsify/issues/2003)) ([5148371](https://github.com/gjsify/gjsify/commit/51483713c94070558a4119885494d6a89bb8629e)), closes [#1117](https://github.com/gjsify/gjsify/issues/1117)
+* **website:** drop previews of refused widgets ([#2034](https://github.com/gjsify/gjsify/issues/2034)) ([48eff7c](https://github.com/gjsify/gjsify/commit/48eff7c8d8d490e6da874f4734d9e31110726d6c))
+* **website:** mount the Entry preview from its tree ([#2040](https://github.com/gjsify/gjsify/issues/2040)) ([557d121](https://github.com/gjsify/gjsify/commit/557d121f373ce7df9d766125933e60573125a6a5))
+* **website:** notebook and stack previews from tree ([#2032](https://github.com/gjsify/gjsify/issues/2032)) ([f9d8f71](https://github.com/gjsify/gjsify/commit/f9d8f71fad3187dca21ffb69a29d216e049f9cb0))
+
+### Bug Fixes
+
+* **adwaita-web:** match native scale, entry and spin rows ([#2030](https://github.com/gjsify/gjsify/issues/2030)) ([986346e](https://github.com/gjsify/gjsify/commit/986346e2b0ce9d8084752041aba4d00d93f7e7c3))
+* **auto-globals:** skip process stub in analysis ([#2004](https://github.com/gjsify/gjsify/issues/2004)) ([fd818ed](https://github.com/gjsify/gjsify/commit/fd818eddf973e881d3dab125eef71c3a47dcb672))
+* **blueprint:** ask the project how it formats ([#2008](https://github.com/gjsify/gjsify/issues/2008)) ([1329872](https://github.com/gjsify/gjsify/commit/132987212da9fe2df9846df869e3ef6bd1fb5512))
+* **bundler:** rewrite every implicit-global assign ([#2021](https://github.com/gjsify/gjsify/issues/2021)) ([f7d8bfa](https://github.com/gjsify/gjsify/commit/f7d8bfa37b101ea8908deb385850d03baac1c31c)), closes [#2018](https://github.com/gjsify/gjsify/issues/2018)
+* **cli:** refuse ship flatpak that drops modules ([#2009](https://github.com/gjsify/gjsify/issues/2009)) ([c55c6b8](https://github.com/gjsify/gjsify/commit/c55c6b8384c89282e6c624306d3348aeec0a6413))
+* **crypto:** carry the AES counter past a full byte ([#2028](https://github.com/gjsify/gjsify/issues/2028)) ([430c529](https://github.com/gjsify/gjsify/commit/430c529a946c84ce05b8da15a31a5bca403e0db3))
+* **event-bridge:** never invent a DOM key from a Gdk keyval ([#2026](https://github.com/gjsify/gjsify/issues/2026)) ([73eb0e3](https://github.com/gjsify/gjsify/commit/73eb0e3867988df7640dc53e443ca0cb7c181045))
+* give the closure check a retry budget that clears the lag ([#2015](https://github.com/gjsify/gjsify/issues/2015)) ([62af0f0](https://github.com/gjsify/gjsify/commit/62af0f05f9e84412ee324a22bcd2573d82db66be))
+* **node-gi:** real gettext in the arm64 prefix ([#2010](https://github.com/gjsify/gjsify/issues/2010)) ([0a75557](https://github.com/gjsify/gjsify/commit/0a7555771819f28af58eb9a78f59a29a3aee4207)), closes [#1117](https://github.com/gjsify/gjsify/issues/1117)
+* **os:** per-OS os.constants.signals ([#2024](https://github.com/gjsify/gjsify/issues/2024)) ([bfd8569](https://github.com/gjsify/gjsify/commit/bfd85698781418f7123e65e3f43ebdc365016fe6)), closes [#2001](https://github.com/gjsify/gjsify/issues/2001)
+* **react-native:** widen the bottom-bar router vector ([#2037](https://github.com/gjsify/gjsify/issues/2037)) ([4986aaa](https://github.com/gjsify/gjsify/commit/4986aaae57b340dc3e329b2f129f58645fde7675))
+* **rolldown-plugin-gjsify:** exit on exitCode at GJS end of main ([#2007](https://github.com/gjsify/gjsify/issues/2007)) ([7d16720](https://github.com/gjsify/gjsify/commit/7d167203b8285f34875112eb1c5181b5403e9935))
+* **sqlite:** never release a libgda connection ([#2012](https://github.com/gjsify/gjsify/issues/2012)) ([f652b3c](https://github.com/gjsify/gjsify/commit/f652b3c5d1461f00da4e6c7b2d9cefd4fa8d9c21))
+* **storybook:** end the probe if the host outlives quit() ([#2043](https://github.com/gjsify/gjsify/issues/2043)) ([1253202](https://github.com/gjsify/gjsify/commit/1253202a8a289b8f52c099606d3be99de06e552e))
+* **storybook:** skip Unix print dialogs on Windows ([#2033](https://github.com/gjsify/gjsify/issues/2033)) ([04ef94d](https://github.com/gjsify/gjsify/commit/04ef94d5c6040f7630c0736ee10cfe5c46e4b08c))
+* **terminal-native:** own the SIGWINCH source ([#2025](https://github.com/gjsify/gjsify/issues/2025)) ([5d2f450](https://github.com/gjsify/gjsify/commit/5d2f450d72e5669273cccd9cd49ffe6fba6b4906))
+* **unit:** keep gi://Gtk out of a bundle not using Gl ([#2014](https://github.com/gjsify/gjsify/issues/2014)) ([c37b276](https://github.com/gjsify/gjsify/commit/c37b276542d7ad23ad4809e87dea7a3ec7f11161))
+
+### Documentation
+
+* **adr:** 0090 design languages on top of Adwaita ([#1998](https://github.com/gjsify/gjsify/issues/1998)) ([d0c6945](https://github.com/gjsify/gjsify/commit/d0c6945391a20456d7e648dc7b03c3c88296b2f7))
+* **adwaita-web:** cover every Gtk and Adw widget ([#2011](https://github.com/gjsify/gjsify/issues/2011)) ([6a5ad46](https://github.com/gjsify/gjsify/commit/6a5ad46a204bdd972efdee42519f7e7cf1de5e60))
+* **install:** pin a version on the GJS route ([#2005](https://github.com/gjsify/gjsify/issues/2005)) ([6e9a0cd](https://github.com/gjsify/gjsify/commit/6e9a0cdf4b9d8c9767cd1519b0958998fcfc7cc7))
+* **status:** record the preview-from-tree audit ([#2036](https://github.com/gjsify/gjsify/issues/2036)) ([0477a5c](https://github.com/gjsify/gjsify/commit/0477a5c03a236abf0771c618bafab7cd5433c274))
+* **status:** scope storybook tree reuse ([#2035](https://github.com/gjsify/gjsify/issues/2035)) ([c371e77](https://github.com/gjsify/gjsify/commit/c371e77b52fe0304274c8f9a4d649b4ee2ba6cd4))
+* stop calling win32-arm64 blocked upstream ([#2016](https://github.com/gjsify/gjsify/issues/2016)) ([538d543](https://github.com/gjsify/gjsify/commit/538d5438cf00c969e4ab00a7f80744a00ecbc3ce)), closes [#2003](https://github.com/gjsify/gjsify/issues/2003)
+
+### Continuous Integration
+
+* **node-gi:** bundle darwin GTK from latest brew ([#2027](https://github.com/gjsify/gjsify/issues/2027)) ([d440d12](https://github.com/gjsify/gjsify/commit/d440d126f0c2bd44f5d01064df5a776a8cf28f49)), closes [#910](https://github.com/gjsify/gjsify/issues/910)
+
+### Maintenance
+
+* **ledger:** drop the two finished bootstraps ([#2006](https://github.com/gjsify/gjsify/issues/2006)) ([af53a94](https://github.com/gjsify/gjsify/commit/af53a949a0c890d7a19b95a237ff7f93b5f67797)), closes [#1946](https://github.com/gjsify/gjsify/issues/1946) [#1953](https://github.com/gjsify/gjsify/issues/1953)
+* update native prebuilds [skip ci] ([b582a56](https://github.com/gjsify/gjsify/commit/b582a565a487c78bcf81e878d1be6c9783d59c26))
+* update native prebuilds [skip ci] ([7e2fdd0](https://github.com/gjsify/gjsify/commit/7e2fdd035098c0220ca44bf2b8640212fcff6fb2))
+
 ## [0.54.0](https://github.com/gjsify/gjsify/compare/v0.53.0...v0.54.0) (2026-10-02)
 
 ### Features
