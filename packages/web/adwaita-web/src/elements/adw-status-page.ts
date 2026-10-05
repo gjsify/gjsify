@@ -1,9 +1,10 @@
 // <adw-status-page> — A centered empty/placeholder state: a large symbolic
 // icon, a title, a description and an optional action (slotted child).
 // Attributes: icon (symbolic name, with or without -symbolic) or icon-name, the GObject
-// spelling a projected `.blp` writes; title, description.
+// spelling a projected `.blp` writes; title, description, and the boolean compact.
 // Reference: refs/adwaita-web/adwaita-web/scss/_status_page.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwStatusPage)
+// Reference: refs/libadwaita/doc/style-classes.md (Compact Status Page)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // icon node is <gtk-image>.
@@ -22,7 +23,7 @@ export class AdwStatusPage extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['icon', 'icon-name', 'title', 'description'];
+        return ['icon', 'icon-name', 'title', 'description', 'compact'];
     }
 
     connectedCallback() {
@@ -64,6 +65,13 @@ export class AdwStatusPage extends HTMLElement {
     }
 
     private _render() {
+        // `.compact` (style-classes.md "Compact Status Page") is keyed off the HOST by
+        // `_status_page.scss`, so this door writes the class itself. ADDED, never toggled:
+        // `shared-tree-builder.ts` puts a `.blp`'s `styles ["compact"]` on this same class,
+        // and a `toggle` would strip it on the first attribute change — `title`, on any page
+        // that sets one. Additive, the way `gtk_button_add_css_class` is.
+        if (this.hasAttribute('compact')) this.classList.add('compact');
+
         const icon = this.getAttribute('icon') ?? this.getAttribute('icon-name');
         // The element swaps the mask class and keeps the size class.
         this._iconEl.iconName = icon;

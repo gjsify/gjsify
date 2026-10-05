@@ -53,7 +53,7 @@ adw-status-page {
 
   // `.compact` — the documented smaller status page, for a sidebar or a popover
   // (style-classes.md "Compact Status Page"): margins 24px 12px, the icon 96px with 12px
-  // under it, `.title-2`, and 24px to the child (`_misc.scss`, statuspage.compact).
+  // under it, `.title-2`, and 12px to the child (`_misc.scss`, statuspage.compact).
   &.compact {
     padding: 24px 12px;
 

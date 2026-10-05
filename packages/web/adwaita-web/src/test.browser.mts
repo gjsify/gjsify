@@ -126,6 +126,7 @@ import { GtkInscriptionTest } from './gtk-inscription.spec.js';
 import { GtkVideoTest } from './gtk-video.spec.js';
 import { GtkMediaControlsTest } from './gtk-media-controls.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
+import { AdwStatusPageTest } from './adw-status-page.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
 import { AdwAppearanceTest } from './adw-appearance.spec.js';
@@ -156,6 +157,7 @@ run({
     AdwConnectLifecycleTest,
     AdwEmptySectionsTest,
     AdwSlottedChildrenTest,
+    AdwStatusPageTest,
     AdwStyleClassesTest,
     AdwAccentTest,
     AdwAppearanceTest,

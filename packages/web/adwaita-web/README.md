@@ -219,6 +219,14 @@ if (!isIconAvailable('dialog-error')) {
 <adw-status-page icon="dialog-error" title="Could not connect"></adw-status-page>
 ```
 
+A status page also takes libadwaita's `.compact` style class as a boolean attribute, for a
+narrow surface such as an extension popup — a 96px icon, 24px margins and the smaller
+`.title-2` heading (`style-classes.md` "Compact Status Page"):
+
+```html
+<adw-status-page compact icon="dialog-error" title="No results"></adw-status-page>
+```
+
 `registerIcon(name, svg)` takes the icon's **SVG source** — exactly what
 `@gjsify/adwaita-icons` exports, and equally any symbolic SVG of your own drawn on the 16px
 Adwaita grid with `fill="currentColor"`. It writes the same pair the build writes: a
