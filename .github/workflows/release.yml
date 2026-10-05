@@ -381,6 +381,9 @@ jobs:
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
         run: |
           formulae=(gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking libgda)
+          # The runner image ships openssl@1.1 linked; openssl@3 (a gstreamer dep) then fails
+          # `brew link` on bin/openssl (run 37276615185). Unlink so the bottle links cleanly.
+          brew unlink openssl@1.1 2>/dev/null || true
           # Only arm64 tracks latest Homebrew. Homebrew builds no darwin-x64 bottles for new
           # formula versions, so `update`+`upgrade` there compiles the whole build closure from
           # source (dartaotruntime, go, llvm, rust: >30 min). Intel keeps the image's index,
