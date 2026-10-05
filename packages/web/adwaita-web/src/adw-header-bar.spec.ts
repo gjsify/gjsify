@@ -124,6 +124,24 @@ export const AdwHeaderBarTest = async () => {
             expect(centerText(bar)).toBe('example.org');
             unmountAll();
         });
+
+        // `update_title` (adw-header-bar.c:475) ends at the root window's title.
+        await it("a bar with no title of its own shows its window's, and follows it", async () => {
+            const window = document.createElement('adw-application-window');
+            window.setAttribute('title', 'Fireworks');
+            const bar = document.createElement('adw-header-bar');
+            window.appendChild(bar);
+            document.body.appendChild(window);
+            expect(centerText(bar)).toBe('Fireworks');
+
+            window.setAttribute('title', 'Sparks');
+            await Promise.resolve();
+            expect(centerText(bar)).toBe('Sparks');
+
+            bar.setAttribute('title', 'Own');
+            expect(centerText(bar)).toBe('Own');
+            window.remove();
+        });
     });
 
     // The centre is an `<adw-window-title>` — this port's divergence, not the bare
