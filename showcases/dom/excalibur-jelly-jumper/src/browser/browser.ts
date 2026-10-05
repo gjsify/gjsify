@@ -45,7 +45,7 @@ function byId(root: HTMLElement, id: string): HTMLElement {
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const startMuted = options?.startMuted ?? true; // browser defaults to muted
 
-    const { root: win } = mountSharedTree(tree, container);
+    const { root: win } = mountSharedTree(tree, { into: container });
     const pauseBtn = byId(win, 'pauseButton');
     const audioBtn = byId(win, 'audioButton');
 
