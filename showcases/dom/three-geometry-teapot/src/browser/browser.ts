@@ -52,7 +52,7 @@ function byId(root: HTMLElement, id: string): HTMLElement {
  * and writes them onto the rows, so the lists themselves have one source; only the wiring is copied.
  */
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
-    const { root: win } = mountSharedTree(tree, container);
+    const { root: win } = mountSharedTree(tree, { into: container });
 
     const tessRow = byId(win, 'tessRow');
     const shadingRow = byId(win, 'shadingRow');
