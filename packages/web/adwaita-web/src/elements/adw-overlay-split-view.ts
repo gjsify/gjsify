@@ -26,6 +26,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
+import type { DispatchedSignals } from '../signals.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 
 /**
@@ -80,6 +81,9 @@ function readTriStateAttr(element: Element, name: string, fallback: boolean): bo
 }
 
 export class AdwOverlaySplitView extends HTMLElement {
+    /** The GTK signals this element dispatches, which is what a `.blp` `bind` of `show-sidebar` follows. */
+    static readonly signals: DispatchedSignals = { 'notify::show-sidebar': 'notify::show-sidebar' };
+
     private _initialized = false;
     private _sidebarEl!: HTMLDivElement;
     private _contentEl!: HTMLDivElement;
@@ -97,6 +101,8 @@ export class AdwOverlaySplitView extends HTMLElement {
      * `show-sidebar` + `pin-sidebar` mean together, held to `OVERLAY_COLLAPSE_VECTORS`.
      */
     private _state = new OverlaySplitViewState();
+    /** The `show-sidebar` the last `notify::show-sidebar` (or the first read) settled on. */
+    private _notifiedShowSidebar: boolean | null = null;
     /** Re-entrancy guard for {@link _reflectShowSidebar}. */
     private _reflecting = false;
     /** The view's own width in CSS px — the size the sidebar fraction is OF. */
@@ -329,13 +335,30 @@ export class AdwOverlaySplitView extends HTMLElement {
     private _reflectShowSidebar() {
         if (this._reflecting) return;
         const wanted = this._state.showSidebar ? '' : 'false';
-        if (this.getAttribute('show-sidebar') === wanted) return;
-        this._reflecting = true;
-        try {
-            this.setAttribute('show-sidebar', wanted);
-        } finally {
-            this._reflecting = false;
+        if (this.getAttribute('show-sidebar') !== wanted) {
+            this._reflecting = true;
+            try {
+                this.setAttribute('show-sidebar', wanted);
+            } finally {
+                this._reflecting = false;
+            }
         }
+        this._notifyShowSidebar();
+    }
+
+    /**
+     * `notify::show-sidebar`, raised on the EFFECTIVE value — the state's, after an auto-hide on
+     * collapse — and only when it changed, the way GObject notifies. Every path that moves it
+     * (the attribute, the property, a breakpoint, a gesture) ends in {@link _reflectShowSidebar},
+     * so this is the one place it is raised. The first read only records the baseline: a bind
+     * reads the current value itself.
+     */
+    private _notifyShowSidebar() {
+        const shown = this._state.showSidebar;
+        const previous = this._notifiedShowSidebar;
+        this._notifiedShowSidebar = shown;
+        if (previous === null || previous === shown) return;
+        this.dispatchEvent(new CustomEvent('notify::show-sidebar', { bubbles: true, detail: { showSidebar: shown } }));
     }
 
     private _syncBreakpoint() {
