@@ -361,7 +361,7 @@ which is the workaround, and the one the issue reporter did not know about (#205
 
 No element sets `delegatesFocus` and the host carries no tabindex, so the
 same delegation gap hits `focus()`: `el.focus()` on a `<gtk-button>` (or any
-of the ~120 button family elements) moves focus nowhere while the inner button
+of the button family elements) moves focus nowhere while the inner button
 holds it. Choosing which inner control each element delegates to is a design
 call — `<adw-dialog>`, `<adw-window>` and the roving-tabindex elements manage
 focus themselves, so a blanket "delegate to the first focusable child" would
