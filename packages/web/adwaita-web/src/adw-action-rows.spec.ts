@@ -13,6 +13,8 @@
 //   - libadwaita has no activatable opt-out for a button row, and
 //     `<adw-action-row activatable="false">` reads by PRESENCE, so it means the
 //     opposite of what it says.
+//   - the row `title-lines`/`subtitle-lines` clamp is observed as RENDERED GEOMETRY, not
+//     as computed style (see `renderedLineCount`).
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -199,37 +201,55 @@ export const AdwActionRowsTest = async () => {
         });
     });
 
-    // Helper to count rendered text lines in a constrained container
-function countRenderedLines(el: HTMLElement, containerWidth: number): number {
-    // Constrain the host to force wrapping
-    const host = el.closest('div')!;
-    host.style.width = `${containerWidth}px`;
-    host.style.whiteSpace = 'nowrap'; // Prevent host from wrapping
-    // Force layout
-    el.getBoundingClientRect();
-    // Count lines by measuring text rects
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const rects = range.getClientRects();
-    return rects.length;
-}
+    /**
+     * The number of lines a row title/subtitle element actually RENDERS, measured from its
+     * height divided by one line box's height.
+     *
+     * NOT the number of rects a `Range` over the element reports. Firefox reports a rect per
+     * laid-out line box and `-webkit-line-clamp` truncates the BOX without re-laying out the
+     * text, so a label clamped to one line still lists every line it would have taken:
+     * measured on a real `adw-switch-row`, `title-lines=1` gave 5 rects for a box that
+     * collapsed from 90px to 18px, and an isolated `display:-webkit-box;
+     * -webkit-line-clamp:1` probe gave 3 rects / 22px against 3 rects / 66px unclamped —
+     * identical rect counts, opposite line counts. Only the HEIGHT moves, so only the height
+     * can carry the claim; the rect count was never a line count and no `-webkit-line-clamp`
+     * implementation can satisfy `expect(rects.length).toBe(1)`.
+     *
+     * The step is the FIRST line box, not the computed `line-height`: the stylesheet sets no
+     * line-height on these labels, so `getComputedStyle().lineHeight` reads `normal` — which
+     * computes to no number at all.
+     */
+    function renderedLineCount(el: HTMLElement): number {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const rects = range.getClientRects();
+        const lineBox = rects.length > 0 ? rects[0]!.height : 0;
+        if (!(lineBox > 0)) return Number.NaN;
+        return Math.round(el.getBoundingClientRect().height / lineBox);
+    }
 
-await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita conformance)', async () => {
-        // Default (0 = unlimited): wraps freely in narrow container
+    // Default (0 = unlimited, the AdwActionRow pspec's sentinel): wraps freely.
+    await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita conformance)', async () => {
         await it('title-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('title', 'A very long title that should wrap across multiple lines when the container is narrow');
+            el.setAttribute(
+                'title',
+                'A very long title that should wrap across multiple lines when the container is narrow',
+            );
             host.style.width = '200px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 200);
+            const lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
         await it('subtitle-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
-            el.setAttribute('subtitle', 'A very long subtitle that should wrap across multiple lines when the container is narrow');
+            el.setAttribute(
+                'subtitle',
+                'A very long subtitle that should wrap across multiple lines when the container is narrow',
+            );
             host.style.width = '200px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 200);
+            const lines = renderedLineCount(el.querySelector('.adw-row-subtitle')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
@@ -240,7 +260,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '1');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
@@ -250,7 +270,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('subtitle', 'Subtitle that is long enough to wrap into three lines if allowed');
             el.setAttribute('subtitle-lines', '2');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-subtitle')!);
             expect(lines).toBe(2);
             host.remove();
         });
@@ -261,13 +281,13 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
             host.style.width = '150px';
-            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            let lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
             // Force reflow
             el.getBoundingClientRect();
-            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
@@ -277,12 +297,12 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '1');
             host.style.width = '150px';
-            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            let lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
 
             el.setAttribute('title-lines', '0');
             el.getBoundingClientRect();
-            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
@@ -293,7 +313,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', 'invalid');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
@@ -303,7 +323,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('subtitle', 'Subtitle that is long enough to wrap if allowed');
             el.setAttribute('subtitle-lines', '-1');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-subtitle')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
@@ -361,18 +381,24 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
         // title-lines / subtitle-lines tests (same behavior as adw-action-row)
         await it('title-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('title', 'A very long title that should wrap across multiple lines when the container is narrow');
+            el.setAttribute(
+                'title',
+                'A very long title that should wrap across multiple lines when the container is narrow',
+            );
             host.style.width = '200px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 200);
+            const lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
 
         await it('subtitle-lines=0 (default) wraps to multiple lines in narrow container', () => {
             const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
-            el.setAttribute('subtitle', 'A very long subtitle that should wrap across multiple lines when the container is narrow');
+            el.setAttribute(
+                'subtitle',
+                'A very long subtitle that should wrap across multiple lines when the container is narrow',
+            );
             host.style.width = '200px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 200);
+            const lines = renderedLineCount(el.querySelector('.adw-row-subtitle')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
@@ -382,7 +408,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '1');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
@@ -392,7 +418,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('subtitle', 'Subtitle that is long enough to wrap into three lines if allowed');
             el.setAttribute('subtitle-lines', '2');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-subtitle')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-subtitle')!);
             expect(lines).toBe(2);
             host.remove();
         });
@@ -402,12 +428,12 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
             host.style.width = '150px';
-            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            let lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
             el.getBoundingClientRect();
-            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
@@ -417,7 +443,7 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', 'invalid');
             host.style.width = '150px';
-            const lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            const lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
             host.remove();
         });
@@ -604,12 +630,12 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
             host.style.width = '150px';
-            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            let lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
             el.getBoundingClientRect();
-            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
@@ -621,12 +647,12 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
             host.style.width = '150px';
-            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            let lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
             el.getBoundingClientRect();
-            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
@@ -638,12 +664,12 @@ await describe('<adw-action-row> title-lines / subtitle-lines (libadwaita confor
             el.setAttribute('title', 'Title that is long enough to wrap if allowed');
             el.setAttribute('title-lines', '0');
             host.style.width = '150px';
-            let lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            let lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBeGreaterThan(1);
 
             el.setAttribute('title-lines', '1');
             el.getBoundingClientRect();
-            lines = countRenderedLines(el.querySelector('.adw-row-title')!, 150);
+            lines = renderedLineCount(el.querySelector('.adw-row-title')!);
             expect(lines).toBe(1);
             host.remove();
         });
