@@ -46,22 +46,9 @@ adw-action-row {
     min-width: 0;
   }
 
-  .adw-row-title {
-    font-size: var(--font-size-base);
-    color: var(--card-fg-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .adw-row-subtitle {
-    font-size: var(--font-size-small);
-    opacity: var(--dim-opacity);
-    color: var(--card-fg-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  // .adw-row-title and .adw-row-subtitle base styles are in _row.scss
+  // They wrap by default; line-clamping is applied via inline styles
+  // when title-lines/subtitle-lines attributes are set (>0).
 }
 
 // `.property` SWAPS the emphasis of a row: the title becomes the small dimmed

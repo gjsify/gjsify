@@ -47,7 +47,7 @@ export class AdwActionRow extends HTMLElement {
     private _activation?: AdwRowActivation;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'activatable'];
+        return ['title', 'subtitle', 'activatable', 'title-lines', 'subtitle-lines'];
     }
 
     /** The end (suffix) section — append controls here imperatively. */
@@ -133,6 +133,40 @@ export class AdwActionRow extends HTMLElement {
         this._state.setTitle(this.getAttribute('title'));
         this._state.setSubtitle(this.getAttribute('subtitle'));
         this._state.setActivatable(this.hasAttribute('activatable'));
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping() {
+        const titleLines = parseInt(this.getAttribute('title-lines') ?? '0', 10);
+        const subtitleLines = parseInt(this.getAttribute('subtitle-lines') ?? '0', 10);
+
+        this._setLineClamp(this._titleEl, titleLines);
+        this._setLineClamp(this._subtitleEl, subtitleLines);
+    }
+
+    /**
+     * Apply or remove CSS line-clamping on an element.
+     * lines = 0 (or invalid) → no clamping (wrap normally)
+     * lines > 0 → clamp to N lines with ellipsis
+     */
+    private _setLineClamp(el: HTMLElement, lines: number): void {
+        if (!Number.isFinite(lines) || lines <= 0) {
+            // Unlimited lines — wrap normally, no ellipsis
+            el.style.removeProperty('overflow');
+            el.style.removeProperty('text-overflow');
+            el.style.removeProperty('display');
+            el.style.removeProperty('-webkit-box-orient');
+            el.style.removeProperty('-webkit-line-clamp');
+            return;
+        }
+
+        // Clamp to N lines using the standard -webkit-line-clamp approach
+        el.style.overflow = 'hidden';
+        el.style.textOverflow = 'ellipsis';
+        el.style.display = '-webkit-box';
+        el.style.webkitBoxOrient = 'vertical';
+        el.style.webkitLineClamp = String(lines);
     }
 
     disconnectedCallback() {

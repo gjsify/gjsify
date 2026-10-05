@@ -45,7 +45,7 @@ export class AdwSwitchRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'active'];
+        return ['title', 'subtitle', 'active', 'title-lines', 'subtitle-lines'];
     }
 
     /** The start (prefix) section — append icons/widgets here imperatively. */
@@ -160,6 +160,40 @@ export class AdwSwitchRow extends HTMLElement {
         this._titleEl.hidden = !titleVisible;
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping() {
+        const titleLines = parseInt(this.getAttribute('title-lines') ?? '0', 10);
+        const subtitleLines = parseInt(this.getAttribute('subtitle-lines') ?? '0', 10);
+
+        this._setLineClamp(this._titleEl, titleLines);
+        this._setLineClamp(this._subtitleEl, subtitleLines);
+    }
+
+    /**
+     * Apply or remove CSS line-clamping on an element.
+     * lines = 0 (or invalid) → no clamping (wrap normally)
+     * lines > 0 → clamp to N lines with ellipsis
+     */
+    private _setLineClamp(el: HTMLElement, lines: number): void {
+        if (!Number.isFinite(lines) || lines <= 0) {
+            // Unlimited lines — wrap normally, no ellipsis
+            el.style.removeProperty('overflow');
+            el.style.removeProperty('text-overflow');
+            el.style.removeProperty('display');
+            el.style.removeProperty('-webkit-box-orient');
+            el.style.removeProperty('-webkit-line-clamp');
+            return;
+        }
+
+        // Clamp to N lines using the standard -webkit-line-clamp approach
+        el.style.overflow = 'hidden';
+        el.style.textOverflow = 'ellipsis';
+        el.style.display = '-webkit-box';
+        el.style.webkitBoxOrient = 'vertical';
+        el.style.webkitLineClamp = String(lines);
     }
 }
 
