@@ -106,9 +106,15 @@ export class GtkWindow extends HTMLElement {
         ];
     }
 
-    /** `Gtk.Window:title` — the window's title. */
-    get title(): string | null {
-        return this.getAttribute('title');
+    /**
+     * `Gtk.Window:title` — the window's title.
+     *
+     * The getter answers `''` for no title, not `null`: a `string | null` getter is not assignable to
+     * `HTMLElement.title`, and the emitted `.d.ts` then fails every consumer that does not set
+     * `skipLibCheck`. The setter still takes `null` to clear it, as GTK does.
+     */
+    get title(): string {
+        return this.getAttribute('title') ?? '';
     }
 
     set title(value: string | null) {
