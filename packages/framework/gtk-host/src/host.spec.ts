@@ -306,6 +306,26 @@ export default async () => {
                 expect(inertWidget.measure(Gtk.Orientation.VERTICAL, 116)[1]).toBe(58);
             });
 
+            await it('single: a Gtk.Revealer adopts a child while unrevealed', async () => {
+                // The row is what this pins: an uncurated `GtkRevealer` refuses its
+                // child by name, so the widget was unreachable from a tree.
+                //
+                // `revealChild` FALSE, and that is the arm worth pinning. The child is
+                // MEASURED `get_child()` and a real `GtkLabel` child either way, because
+                // `set_child` parents it whether or not the revealer is showing — a
+                // vector written at the default could have been reading a revealer that
+                // had already animated in, and adoption is the claim, not visibility.
+                // Nothing here waits on a transition: `GtkRevealer` reveals over
+                // `transition-duration`, and a test that animated would assert timing.
+                const revealer = createElement('gtk-revealer', { revealChild: false });
+                const widget = materialize(revealer) as unknown as Gtk.Revealer;
+                const [a] = labels(1);
+                insert(a, revealer);
+                expect(gtkChildTypes(widget as unknown as Gtk.Widget)).toStrictEqual(['GtkLabel']);
+                expect((widget.get_child() as Gtk.Label).label).toBe('L0');
+                expect(a.attached).toBe(true);
+            });
+
             await it('single: set_child replaces, it does not append', async () => {
                 const bin = createElement('AdwBin');
                 const widget = materialize(bin) as unknown as Adw.Bin;
