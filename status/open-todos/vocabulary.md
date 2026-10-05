@@ -308,16 +308,17 @@ versions / 5 006 downloads a month / 11 in-repo import sites; `adwaita-nativescr
 point endpoint 404s for a package published that morning — not a measured zero) / 0 import
 sites outside the package.
 
-**Stage 1 is down to its namespace export, and is still worth doing**, which is exactly the
-risk ADR 0034 § Risks named ("the cheap stage is skipped because it is the least
-urgent-looking"), so it is written down here with its price rather than left to be
-re-derived. Stage 4 took the other two thirds: React Native declares itself a surface, its
-widget set is read from the base barrel's `import { Adw… as … } from './widgets/…'` lines
-(they were `export … from` lines until § Amendment 8 removed the flat spelling), and its
-(empty) `RN_WIDGET_ALIGNMENT` is held against the GIR tag table. What is left is clause
-2, the `Adw` namespace export. What stage 1 no longer buys: the guarantee that the rule
-costs that package nothing it can ever undo. Both its names are already correct, so no
-rename is in it at any price.
+**Stage 1 is DOWN TO ITS NAMESPACE EXPORT, and that half is DONE** — § Amendment 3 landed
+`Adw` on all three barrels and § Amendment 8 then made it the only spelling there, so what
+stage 1 still buys is nothing on this surface. It is written down here with its price rather
+than left to be re-derived, because that is exactly the risk ADR 0034 § Risks named ("the
+cheap stage is skipped because it is the least urgent-looking"). Stage 4 took the other two
+thirds: React Native declares itself a surface, its widget set is read from the base
+barrel's `import { Adw… as … } from './widgets/…'` lines (they were `export … from` lines
+until § Amendment 8 removed the flat spelling), and its (empty) `RN_WIDGET_ALIGNMENT` is
+held against the GIR tag table. What stage 1 no longer buys: the guarantee that the rule
+costs that package nothing it can ever undo. Both its names were already correct, so no
+rename was ever in it at any price.
 
 One thing whoever picks this up should not re-derive: `collectAdwaitaCoverage`
 (`scripts/generate-status.mjs:223-225`) joins the renderers on the BARE name and says the

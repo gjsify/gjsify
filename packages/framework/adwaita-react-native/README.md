@@ -23,6 +23,14 @@ any more. One widget on its own comes from its subpath —
 identifier is the widget's only name and not a second one; the prop TYPES keep their flat
 spelling for the same reason, since `Adw.ClampProps` names nothing libadwaita has.
 
+**The subpath is also the only shape that tree-shakes.** Importing `Adw` from the root costs
+all 28 widget implementations however many you use — a bundler cannot drop a property out of
+the `Adw` object literal — so a consumer that wants one widget should take that widget's
+subpath. Measured with this repo's pinned `esbuild` against the built `lib/esm`: the root
+keeps 28 widget modules in ~17.9 kB, the subpath keeps 1 in ~0.6 kB, and `export * as Adw`
+— the shape `@gjsify/adwaita-web` uses — keeps 28 as well. That is the price of the one
+spelling, and ADR 0034 § Amendment 24 records it (and what is *not* the cause of it).
+
 ## What this is, honestly
 
 **Not a widget set yet.** The table below is the whole of it, and every row carries the
