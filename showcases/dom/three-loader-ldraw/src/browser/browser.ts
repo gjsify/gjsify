@@ -67,7 +67,7 @@ const TS_ONLY = {
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
-    const { root: win } = mountSharedTree(tree, container);
+    const { root: win } = mountSharedTree(tree, { into: container });
 
     const modelRow = byId(win, 'modelRow');
     const flatColorsRow = byId(win, 'flatColorsRow');
