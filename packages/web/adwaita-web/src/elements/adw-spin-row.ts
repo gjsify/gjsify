@@ -24,6 +24,10 @@
 // `adjustment:` sets the property to a whole new object: an unwritten field takes the
 // adjustment's own default, not what the row held (`ADJUSTMENT_AUTHORED_VECTORS`).
 //
+// ATTRIBUTES: `adjustment` (the range, JSON), `value`, `title`, `subtitle`, and
+// `title-lines` / `subtitle-lines` — clamp either label to N lines, `0` = unlimited,
+// the AdwActionRow pspec's sentinel (`@girs/adw-1`, min 0, default 0).
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -165,7 +169,10 @@ export class AdwSpinRow extends HTMLElement {
 
     attributeChangedCallback(name: string, _old: string | null, val: string | null) {
         if (!this._initialized) return;
-        if (name === 'title' || name === 'subtitle') {
+        if (name === 'title' || name === 'subtitle' || name === 'title-lines' || name === 'subtitle-lines') {
+            // The two `*-lines` attributes are LABEL geometry, not the adjustment: without
+            // this branch they fell through to the `setValue` below, so `title-lines="1"`
+            // set the numeric value to 1 and clamped nothing.
             this._renderText();
             return;
         }

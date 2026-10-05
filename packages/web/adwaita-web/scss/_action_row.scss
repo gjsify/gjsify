@@ -46,22 +46,26 @@ adw-spin-row {
     flex-shrink: 0;
   }
 
-  .adw-action-row-text {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
+  // The text column's own rule is `_row.scss`'s shared `.adw-row-text` — one spelling
+  // for all five rows, so the clamp selectors below can name it too.
 
-  // Title/subtitle wrap by default (matching libadwaita's GtkLabel wrap=true).
-  // Line clamping is enabled via .adw-row-clamp class when title-lines/
-  // subtitle-lines > 0, reading --adw-row-title-lines / --adw-row-subtitle-lines.
-  .adw-row-title,
-  .adw-row-subtitle {
+  // Title/subtitle WRAP BY DEFAULT, matching libadwaita's GtkLabel wrap=true,
+  // lines=0. The typography is this row type's own (it was here before the wrap); only
+  // `white-space` moves, and `overflow`/`text-overflow` are left to the clamped state
+  // below, where the ellipsis has a line count to truncate to.
+  .adw-row-title {
+    font-size: var(--font-size-base);
+    color: var(--card-fg-color);
     white-space: normal;
     overflow-wrap: break-word;
-    word-wrap: break-word;
+  }
+
+  .adw-row-subtitle {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    color: var(--card-fg-color);
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 
   // Clamped state — enabled by JS toggling .adw-row-clamp on the text container.

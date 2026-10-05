@@ -31,14 +31,12 @@ adw-combo-row {
   min-width: 0;
 }
 
-.adw-row-title {
-  font-size: var(--font-size-base);
-  color: var(--card-fg-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
+// NO `.adw-row-title` default HERE, deliberately. `.adw-row-title` is also the class
+// `<adw-entry-row>` and `<adw-preferences-row>` put on their titles, so a global
+// `white-space: nowrap` here silently made those two rows un-wrapping too — a change
+// to row types this feature was never scoped to. Each row type that wants a wrapping
+// title says so in its own partial at its own specificity (see `_action_row.scss`,
+// `_expander_row.scss`); a global default can only ever be the losing side of that.
 .adw-row-subtitle {
   font-size: var(--font-size-small);
   opacity: var(--dim-opacity);

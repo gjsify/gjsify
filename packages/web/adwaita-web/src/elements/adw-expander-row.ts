@@ -1,6 +1,10 @@
 // <adw-expander-row> — a boxed-list row that discloses nested rows when expanded,
 // with an optional enable switch. Mirrors Adw.ExpanderRow.
 //
+// ATTRIBUTES: `title`, `subtitle`, `expanded`, `enable-expansion`, `show-enable-switch`,
+// and `title-lines` / `subtitle-lines` — clamp either label to N lines, `0` = unlimited,
+// the AdwActionRow pspec's sentinel (`@girs/adw-1`, min 0, default 0).
+//
 // Slots: `slot="prefix"` / `slot="suffix"` children sit in the HEADER row beside the
 // title (before the enable switch and disclosure chevron), like Adw.ExpanderRow's
 // add_prefix/add_suffix; every other child is moved into the disclosed content
@@ -69,7 +73,15 @@ export class AdwExpanderRow extends HTMLElement {
     }
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'expanded', 'enable-expansion', 'show-enable-switch', 'title-lines', 'subtitle-lines'];
+        return [
+            'title',
+            'subtitle',
+            'expanded',
+            'enable-expansion',
+            'show-enable-switch',
+            'title-lines',
+            'subtitle-lines',
+        ];
     }
 
     get expanded(): boolean {

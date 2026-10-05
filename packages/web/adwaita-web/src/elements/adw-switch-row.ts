@@ -14,6 +14,10 @@
 // `<adw-action-row>` — libadwaita's AdwSwitchRow IS an AdwActionRow
 // (adw-switch-row.c:50), so `add_prefix` is inherited, not invented here.
 //
+// ATTRIBUTES: `title`, `subtitle`, `active`, and `title-lines` / `subtitle-lines` —
+// clamp either label to N lines, `0` = unlimited, the AdwActionRow pspec's sentinel
+// (`@girs/adw-1`, min 0, default 0).
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;

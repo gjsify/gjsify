@@ -86,7 +86,7 @@ const KNOWN_GAPS = {
         'release-notes-version',
         'translator-credits',
     ],
-    'adw-action-row': ['icon-name', 'subtitle-lines', 'subtitle-selectable', 'title-lines'],
+    'adw-action-row': ['icon-name', 'subtitle-selectable'],
     'adw-avatar': ['icon-name'],
     'adw-bottom-sheet': ['align', 'full-width'],
     'adw-carousel': ['reveal-duration'],
@@ -94,7 +94,7 @@ const KNOWN_GAPS = {
     'adw-combo-row': ['enable-search', 'search-match-mode', 'use-subtitle'],
     'adw-dialog': ['follows-content-size'],
     'adw-entry-row': ['enable-emoji-completion', 'input-hints', 'input-purpose'],
-    'adw-expander-row': ['icon-name', 'subtitle-lines', 'title-lines'],
+    'adw-expander-row': ['icon-name'],
     'adw-header-bar': [
         'centering-policy',
         'decoration-layout',

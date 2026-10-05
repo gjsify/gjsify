@@ -102,7 +102,10 @@ export class AdwActionRow extends HTMLElement {
         this._prefixEl.className = 'adw-action-row-prefix';
 
         const textEl = document.createElement('div');
-        textEl.className = 'adw-action-row-text';
+        // `.adw-row-text`, the ONE spelling every row type's text column carries —
+        // switch, combo, spin and expander all build it under that name, and so do the
+        // shared `.adw-row-clamp` rules in `_action_row.scss`/`_expander_row.scss`.
+        textEl.className = 'adw-row-text';
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-row-title';
         this._subtitleEl = document.createElement('span');
