@@ -61,6 +61,46 @@ export function observeViewSize(view: View, onSize: (size: BreakpointSize) => vo
 }
 
 /**
+ * The size of the WINDOW the view sits in: its topmost ancestor, which is the page the window
+ * shows. `Adw.Window` breakpoints evaluate against the window content, so a toolbar view that
+ * the system bars squeeze (a 609 dp window leaves it 586 dp) must not decide `min-height: 600sp`.
+ * Falls back to the view itself while it has no parent, as before it is attached.
+ */
+function measureWindow(view: View): BreakpointSize | null {
+    let top: View = view;
+    while (top.parent && typeof (top.parent as View).getActualSize === 'function') top = top.parent as View;
+    return measureView(top) ?? measureView(view);
+}
+
+/**
+ * The size source for a WINDOW breakpoint (a `breakpoints` tree field, ADR 0093): like
+ * {@link observeViewSize}, but reads the window rather than the view, and re-reads when either
+ * the view or the window root re-lays out.
+ */
+export function observeWindowSize(view: View, onSize: (size: BreakpointSize) => void): () => void {
+    let root: View | null = null;
+    const recompute = (): void => {
+        let top: View = view;
+        while (top.parent && typeof (top.parent as View).getActualSize === 'function') top = top.parent as View;
+        if (top !== root) {
+            root?.removeEventListener('layoutChanged', recompute);
+            root = top === view ? null : top;
+            root?.addEventListener('layoutChanged', recompute);
+        }
+        const size = measureWindow(view);
+        if (size) onSize(size);
+    };
+    view.addEventListener('layoutChanged', recompute);
+    view.addEventListener('loaded', recompute);
+    recompute();
+    return () => {
+        view.removeEventListener('layoutChanged', recompute);
+        view.removeEventListener('loaded', recompute);
+        root?.removeEventListener('layoutChanged', recompute);
+    };
+}
+
+/**
  * Bind breakpoints to a view so they re-evaluate on every layout pass (the NS
  * stand-in for Adwaita's window-size signal): the view's `layoutChanged` event
  * drives {@link AdwBreakpoint.evaluate} with the post-layout DIP size, and a

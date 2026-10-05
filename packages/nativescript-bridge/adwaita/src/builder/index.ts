@@ -35,7 +35,7 @@ import { propertyOf } from '@gjsify/adwaita-core/tags';
 import { View } from '@nativescript/core';
 
 import { capabilities } from '../capabilities.js';
-import { observeViewSize } from '../widgets/breakpoint.js';
+import { observeWindowSize } from '../widgets/breakpoint.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 import { templateClassFor } from './template-classes.js';
 
@@ -226,7 +226,7 @@ function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
         pending: [],
         binds: [],
         breakpointHosts: [],
-        observeSize: options.observeSize ?? observeViewSize,
+        observeSize: options.observeSize ?? observeWindowSize,
         scope: options.scope,
     };
     const root = buildNode(node, context);
@@ -323,7 +323,7 @@ export function applyBreakpoints(
         host,
         breakpoints,
         new Map(Object.entries(ids)),
-        options.observeSize ?? observeViewSize,
+        options.observeSize ?? observeWindowSize,
     );
 }
 

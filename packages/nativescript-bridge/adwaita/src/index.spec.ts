@@ -66,6 +66,7 @@ import {
     AdwBreakpoint,
     addBreakpoints,
     evaluateBreakpointCondition,
+    observeWindowSize,
     parseBreakpointCondition,
 } from './widgets/breakpoint.js';
 import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
@@ -1044,6 +1045,46 @@ export default async () => {
             expect(node.value).toBe(720);
             expect(evaluateBreakpointCondition(node, { width: 411, height: 900 })).toBe(true); // phone
             expect(evaluateBreakpointCondition(node, { width: 928, height: 1280 })).toBe(false); // tablet
+        });
+
+        await it('observeWindowSize reads the topmost ancestor, not the squeezed view', () => {
+            // Measured on the Android emulator: a 975x610 dp window leaves the toolbar view 586 dp
+            // high, so `min-height: 600sp` must be decided by the window, not the view.
+            const makeView = (width: number, height: number, parent?: unknown) => {
+                const listeners = new Map<string, Array<() => void>>();
+                return {
+                    parent,
+                    size: { width, height },
+                    getActualSize() {
+                        return this.size;
+                    },
+                    addEventListener(name: string, cb: () => void) {
+                        listeners.set(name, [...(listeners.get(name) ?? []), cb]);
+                    },
+                    removeEventListener(name: string, cb: () => void) {
+                        listeners.set(
+                            name,
+                            (listeners.get(name) ?? []).filter((c) => c !== cb),
+                        );
+                    },
+                    fire: (name: string) => (listeners.get(name) ?? []).forEach((c) => c()),
+                };
+            };
+            const page = makeView(975, 610);
+            const toolbar = makeView(975, 586, page);
+            const seen: Array<{ width: number; height: number }> = [];
+            const dispose = observeWindowSize(toolbar as unknown as View, (size) => seen.push(size));
+            expect(seen[0]).toStrictEqual({ width: 975, height: 610 });
+
+            page.size = { width: 700, height: 500 };
+            page.fire('layoutChanged');
+            expect(seen[seen.length - 1]).toStrictEqual({ width: 700, height: 500 });
+
+            dispose();
+            const count = seen.length;
+            page.fire('layoutChanged');
+            toolbar.fire('layoutChanged');
+            expect(seen.length).toBe(count);
         });
 
         await it('addBreakpoints wires layoutChanged + seeds, and disposes', () => {
