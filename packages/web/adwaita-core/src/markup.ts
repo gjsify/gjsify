@@ -20,7 +20,7 @@
 // `@nativescript/core` at module scope. This file needs only the case rules in `./tags`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
-import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from './tags.js';
+import { GTK_WIDGET_EXPAND, attributeOf, hostTagOf, propertyOf, widgetLengthStyle } from './tags.js';
 
 const INDENT = '  ';
 
@@ -88,15 +88,18 @@ function htmlElement(node: SharedTreeNode, depth: number): string {
     const style: string[] = [];
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         // A boolean is the attribute's PRESENCE (`toggleAttribute`), so `false` is no
-        // attribute at all and `true` is the bare name.
+        // attribute at all and `true` is the bare name — except the expand pair, whose
+        // `false` is written (`GTK_WIDGET_EXPAND` says why).
         if (typeof value === 'boolean') {
+            const expands = GTK_WIDGET_EXPAND.some((name) => name === attributeOf(prop));
             if (value) attributes.push([attributeOf(prop), null]);
+            else if (expands) attributes.push([attributeOf(prop), 'false']);
         } else {
             attributes.push([attributeOf(prop), String(value)]);
         }
-        // A margin is inline style as well, in the order the builder sets it.
-        const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
-        if (margin !== undefined) style.push(`${margin}: ${Number(value)}px;`);
+        // A margin or size request is inline style as well, in the order the builder sets it.
+        const length = widgetLengthStyle(attributeOf(prop), value);
+        if (length !== undefined && length[1] !== null) style.push(`${length[0]}: ${length[1]};`);
     }
     if (style.length > 0) attributes.push(['style', style.join(' ')]);
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {

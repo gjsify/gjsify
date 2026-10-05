@@ -101,3 +101,38 @@ export const GTK_WIDGET_MARGIN_CSS: Readonly<Record<string, string>> = {
     'margin-top': 'margin-top',
     'margin-bottom': 'margin-bottom',
 };
+
+/**
+ * `GtkWidget:hexpand` / `vexpand`, the two booleans whose `false` is an AUTHORED answer: the
+ * attribute's absence says "not written", and a widget that expands by default
+ * (`<gtk-scrolled-window>`) needs the author's `false` to stop. A renderer writes `true` as
+ * the bare attribute and `false` as `hexpand="false"`, which the stylesheet reads.
+ */
+export const GTK_WIDGET_EXPAND = ['hexpand', 'vexpand'] as const;
+
+/**
+ * `GtkWidget:width-request` / `height-request`, as the CSS minimum each one is. A size request
+ * is a MINIMUM in GTK (`gtk_widget_set_size_request`: the widget is never measured below it,
+ * and its natural size still wins when larger), so `min-*` is the same sentence and `width`
+ * would claim an exactness GTK does not give. -1 is the pspec's "not set".
+ */
+export const GTK_WIDGET_SIZE_CSS: Readonly<Record<string, string>> = {
+    'width-request': 'min-width',
+    'height-request': 'min-height',
+};
+
+/**
+ * The inline-style declaration an authored GtkWidget length property stands for, or
+ * `undefined` when `attribute` is not one. `null` is a size request of -1: the author said
+ * "unset", so nothing is written (and an earlier value is to be cleared).
+ */
+export function widgetLengthStyle(
+    attribute: string,
+    value: string | number | boolean,
+): readonly [property: string, length: string | null] | undefined {
+    const margin = GTK_WIDGET_MARGIN_CSS[attribute];
+    if (margin !== undefined) return [margin, `${Number(value)}px`];
+    const size = GTK_WIDGET_SIZE_CSS[attribute];
+    if (size === undefined) return undefined;
+    return [size, Number(value) < 0 ? null : `${Number(value)}px`];
+}

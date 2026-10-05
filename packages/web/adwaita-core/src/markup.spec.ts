@@ -81,6 +81,27 @@ export default async () => {
             );
         });
 
+        // The builder writes a size request as the `min-*` it is, and an authored `false` of the
+        // expand pair as `"false"` — the two renderers must agree.
+        await it('writes a size request as min-size style and an authored expand false', async () => {
+            expect(
+                sharedTreeHtml({
+                    tag: 'GtkScrolledWindow',
+                    props: { 'width-request': 320, 'height-request': -1, hexpand: false, vexpand: true },
+                }),
+            ).toBe(
+                [
+                    '<gtk-scrolled-window',
+                    '  width-request="320"',
+                    '  height-request="-1"',
+                    '  hexpand="false"',
+                    '  vexpand',
+                    '  style="min-width: 320px;"',
+                    '></gtk-scrolled-window>',
+                ].join('\n'),
+            );
+        });
+
         // ADR 0072: what `writeExtensions` writes for each kind.
         await it('writes a string list as its `strings` attribute, a JSON array', async () => {
             const list: SharedTreeNode = {

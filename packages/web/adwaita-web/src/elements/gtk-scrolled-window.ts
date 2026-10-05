@@ -198,6 +198,8 @@ function resolveScrollKey(event: KeyboardEvent): { scroll: GtkScrollType; horizo
 export class GtkScrolledWindow extends HTMLElement {
     private _viewport!: GtkViewport;
     private _bars: Record<'horizontal' | 'vertical', HTMLElement> | null = null;
+    /** The size clamps `_writeSize` last wrote, which are the only ones it may clear. */
+    private readonly _wroteSizes = new Set<string>();
     private _shading: AdwScrollShading | null = null;
     private _observer: ResizeObserver | null = null;
     private _hoverable: MediaQueryList | null = null;
@@ -447,10 +449,10 @@ export class GtkScrolledWindow extends HTMLElement {
         this.classList.toggle('overlay-scrolling', indicators);
         // `gtk_scrolled_window_measure`'s four clamps, as the four CSS size requests they
         // are: an unwritten one (-1) sets nothing at all.
-        this.style.minWidth = this._size('min-content-width');
-        this.style.minHeight = this._size('min-content-height');
-        this.style.maxWidth = this._size('max-content-width');
-        this.style.maxHeight = this._size('max-content-height');
+        this._writeSize('min-width', 'min-content-width');
+        this._writeSize('min-height', 'min-content-height');
+        this._writeSize('max-width', 'max-content-width');
+        this._writeSize('max-height', 'max-content-height');
         for (const axis of AXES) {
             const bar = bars[axis.bar];
             const policy = normalizePolicy(this.getAttribute(axis.policy));
@@ -481,9 +483,18 @@ export class GtkScrolledWindow extends HTMLElement {
         if (!indicators) this._clearFade();
     }
 
-    private _size(attribute: string): string {
+    /**
+     * One of the four clamps as inline style. An unwritten clamp clears only what THIS element
+     * wrote: `min-width` / `min-height` are also where a tree's `width-request` /
+     * `height-request` land (`GTK_WIDGET_SIZE_CSS`), and assigning '' unconditionally erased it.
+     * Where both are set the content clamp wins, which is the one the widget measures itself.
+     */
+    private _writeSize(property: string, attribute: string): void {
         const size = sizeRequest(this.getAttribute(attribute));
-        return size === null ? '' : `${size}px`;
+        if (size !== null) this.style.setProperty(property, `${size}px`);
+        else if (this._wroteSizes.has(property)) this.style.removeProperty(property);
+        if (size !== null) this._wroteSizes.add(property);
+        else this._wroteSizes.delete(property);
     }
 
     /** The viewport's adjustment for one axis, which is where GTK reads the scrollbar's. */
