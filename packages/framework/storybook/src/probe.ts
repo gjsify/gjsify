@@ -63,6 +63,24 @@ export function probeEnabled(): boolean {
     return t !== '' && t !== '0' && t !== 'false';
 }
 
+/** Grace period for the host to drain after `app.quit()` before the probe ends the process itself. */
+const DRAIN_GRACE_MS = 5000;
+
+/**
+ * The verdict is already logged and written when this runs, so a host that stays alive after
+ * `quit()` would hold the CI step until its job timeout and turn a PASS into a cancelled job
+ * (node-gi main, 121 stories). GJS exits on `quit()` and never reaches the timer; on Node the
+ * timer is unref'd so a drained loop still exits on its own.
+ */
+function exitIfNotDrained(): void {
+    if (typeof process === 'undefined' || typeof process.exit !== 'function') return;
+    const timer = setTimeout(() => {
+        console.error(`STORYBOOK PROBE: host still alive ${DRAIN_GRACE_MS}ms after quit(), exiting`);
+        process.exit(process.exitCode ?? 0);
+    }, DRAIN_GRACE_MS);
+    if (typeof timer === 'object' && typeof timer.unref === 'function') timer.unref();
+}
+
 /** Collect every widget `type` in a {@link NodeInfo} tree into `out`. */
 function collectTypes(node: NodeInfo, out: Set<string>): void {
     out.add(node.type);
@@ -123,6 +141,7 @@ export function installStorybookProbe(
             }
         }
         app.quit();
+        exitIfNotDrained();
     };
 
     let waited = 0;
