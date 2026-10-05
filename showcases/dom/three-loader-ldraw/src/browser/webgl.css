@@ -1,6 +1,6 @@
 /* Page chrome for the STANDALONE `index.html` only — how the window is centred
-   on an otherwise empty page. The window's own layout (sidebar vs. GL area) is
-   deliberately NOT here: `browser.ts` builds an <adw-overlay-split-view> and
+   on an otherwise empty page. The window's own layout (controls vs. GL area) is
+   deliberately NOT here: `browser.ts` mounts the `.blp` tree and
    inline-styles the GL container, because the website embeds `mount()` without
    ever loading this file, and a layout that lives here is a layout the embed
    does not get. */
@@ -21,7 +21,7 @@ html, body {
     justify-content: center;
 }
 
-adw-window {
+adw-application-window {
     max-width: 100%;
     max-height: 100%;
 }

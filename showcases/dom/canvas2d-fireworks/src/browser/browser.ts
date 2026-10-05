@@ -1,15 +1,16 @@
 // Browser UI for canvas2d-fireworks example.
-// Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web.
+// The widget tree is the GJS window's own `fireworks-window.blp`, projected and mounted by
+// @gjsify/adwaita-web — one authored file, so the sidebar toggle, the `bind`s between the toggle
+// and the split view and the two `[breakpoint]`s cannot drift from the GTK build.
 
-import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
+import { mountSharedTree } from '@gjsify/adwaita-web'; // also registers the custom elements + self-injects the stylesheet
 // A showcase is served to whatever browser opens it, so it cannot assume the host has
 // Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
 // family and ships no `@font-face`, so without this call the chrome renders in the host's
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { Adw } from '@gjsify/adwaita-web';
-import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
+import tree from '../gjs/fireworks-window.blp?shared-tree';
 import { start, type FireworksDemo } from '../fireworks.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -23,113 +24,45 @@ export interface ShowcaseHandle {
     readonly isPaused: boolean;
 }
 
-/** Parse a trusted literal SVG string into an SVGElement. */
-function parseSvg(svgSource: string): SVGElement {
-    const doc = new DOMParser().parseFromString(svgSource, 'image/svg+xml');
-    return doc.documentElement as unknown as SVGElement;
+/** The one element of the mounted tree with this authored id. */
+function byId(root: HTMLElement, id: string): HTMLElement {
+    const el = root.querySelector<HTMLElement>(`#${id}`);
+    if (el === null) throw new Error(`fireworks-window.blp declares no object with the id "${id}"`);
+    return el;
 }
 
-/** Replace a button's icon with a freshly-parsed copy of the given SVG source. */
-function setButtonIcon(btn: HTMLButtonElement, svgSource: string): void {
-    btn.replaceChildren(parseSvg(svgSource));
-}
+/**
+ * The SpinRow ranges. On GTK they are `Gtk.Adjustment`s the window's TypeScript constructs
+ * (`fireworks-window.ts`), because Blueprint has no spelling for one here — so they are not in the
+ * tree, and this table is the browser's copy of those three adjustments. Keep the two in step.
+ */
+const SPIN_ROWS = {
+    particleCountRow: { lower: 10, upper: 100, stepIncrement: 1, value: 30 },
+    autoIntervalRow: { lower: 50, upper: 1000, stepIncrement: 50, value: 200 },
+    maxBurstRadiusRow: { lower: 50, upper: 300, stepIncrement: 10, value: 160 },
+};
 
 export function mount(container: HTMLElement): ShowcaseHandle {
-    // Build UI — mirrors GJS Blueprint structure
-    const win = document.createElement('adw-window');
-    win.setAttribute('width', '1100');
-    win.setAttribute('height', '700');
+    const { root: win } = mountSharedTree(tree, { into: container });
 
-    // Header bar (toggle button added after DOM connection below)
-    const headerBar = document.createElement('adw-header-bar') as Adw.HeaderBar;
-    headerBar.setAttribute('title', 'Fireworks — Canvas 2D');
+    for (const [id, range] of Object.entries(SPIN_ROWS))
+        byId(win, id).setAttribute('adjustment', JSON.stringify(range));
+    const particleCountRow = byId(win, 'particleCountRow');
+    const autoIntervalRow = byId(win, 'autoIntervalRow');
+    const maxBurstRadiusRow = byId(win, 'maxBurstRadiusRow');
+    const autoFireworksRow = byId(win, 'autoFireworksRow');
+    const pauseBtn = byId(win, 'pauseButton');
+    const splitView = byId(win, 'splitView');
 
-    // Sidebar toggle button
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'adw-header-btn adw-sidebar-toggle-icon active';
-    toggleBtn.title = 'Toggle Sidebar';
-
-    // Pause/Resume rendering button (header end). Starts in "running" state →
-    // shows the pause icon. Clicking toggles the pause state and swaps the icon.
-    const pauseBtn = document.createElement('button');
-    pauseBtn.className = 'adw-header-btn';
-    pauseBtn.title = 'Pause Rendering';
-    setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
-
-    // OverlaySplitView — sidebar + content
-    const splitView = document.createElement('adw-overlay-split-view') as Adw.OverlaySplitView;
-    splitView.setAttribute('min-sidebar-width', '280');
-    splitView.setAttribute('max-sidebar-width', '400');
-    splitView.setAttribute('sidebar-width-fraction', '0.30');
-    splitView.setAttribute('show-sidebar', '');
-
-    // Sidebar content
-    const sidebarContent = document.createElement('div');
-    sidebarContent.setAttribute('slot', 'sidebar');
-    sidebarContent.className = 'adw-sidebar-content';
-
-    // Fireworks group
-    const group = document.createElement('adw-preferences-group');
-    group.setAttribute('title', 'Fireworks');
-
-    const particleCountRow = document.createElement('adw-spin-row');
-    particleCountRow.setAttribute('title', 'Particle Count');
-    particleCountRow.setAttribute('min', '10');
-    particleCountRow.setAttribute('max', '100');
-    particleCountRow.setAttribute('step', '1');
-    particleCountRow.setAttribute('value', '30');
-
-    const autoIntervalRow = document.createElement('adw-spin-row');
-    autoIntervalRow.setAttribute('title', 'Auto Interval (ms)');
-    autoIntervalRow.setAttribute('min', '50');
-    autoIntervalRow.setAttribute('max', '1000');
-    autoIntervalRow.setAttribute('step', '50');
-    autoIntervalRow.setAttribute('value', '200');
-
-    const maxBurstRadiusRow = document.createElement('adw-spin-row');
-    maxBurstRadiusRow.setAttribute('title', 'Max Burst Radius');
-    maxBurstRadiusRow.setAttribute('min', '50');
-    maxBurstRadiusRow.setAttribute('max', '300');
-    maxBurstRadiusRow.setAttribute('step', '10');
-    maxBurstRadiusRow.setAttribute('value', '160');
-
-    const autoFireworksRow = document.createElement('adw-switch-row');
-    autoFireworksRow.setAttribute('title', 'Auto Fireworks');
-    autoFireworksRow.setAttribute('active', '');
-
-    group.append(particleCountRow, autoIntervalRow, maxBurstRadiusRow, autoFireworksRow);
-    sidebarContent.append(group);
-
-    // Canvas container (content slot) — inline styles so the showcase
-    // is self-contained and works regardless of host CSS.
-    const canvasContainer = document.createElement('div');
-    canvasContainer.setAttribute('slot', 'content');
-    canvasContainer.id = 'canvas-container';
+    // Canvas container — inline styles so the showcase is self-contained and works regardless
+    // of host CSS.
+    const canvasContainer = byId(win, 'canvasContainer');
     canvasContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0;background:#000';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'fireworks-canvas';
     canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     canvasContainer.append(canvas);
-
-    splitView.append(sidebarContent, canvasContainer);
-    win.append(headerBar, splitView);
-    container.append(win);
-
-    // Append toggle button to header bar start section AFTER DOM connection
-    const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
-    if (startSection) {
-        startSection.appendChild(toggleBtn);
-    } else {
-        headerBar.prepend(toggleBtn);
-    }
-
-    const endSection = headerBar.endSection ?? headerBar.querySelector('.adw-header-bar-end');
-    if (endSection) {
-        endSection.appendChild(pauseBtn);
-    } else {
-        headerBar.append(pauseBtn);
-    }
 
     // Sync canvas buffer to container dimensions
     function syncCanvasSize() {
@@ -140,28 +73,6 @@ export function mount(container: HTMLElement): ShowcaseHandle {
             canvas.height = h;
         }
     }
-
-    // Sidebar toggle wiring
-    toggleBtn.addEventListener('click', () => {
-        splitView.toggleSidebar();
-        toggleBtn.classList.toggle('active', splitView.showSidebar);
-    });
-
-    splitView.addEventListener('sidebar-toggled', () => {
-        toggleBtn.classList.toggle('active', splitView.showSidebar);
-    });
-
-    // Responsive breakpoints — mirror GJS Adw.Breakpoint behavior
-    let lastCollapsed: boolean | null = null;
-    new ResizeObserver(([entry]) => {
-        const width = entry.contentRect.width;
-        const shouldCollapse = width < 800;
-        if (shouldCollapse === lastCollapsed) return;
-        lastCollapsed = shouldCollapse;
-        splitView.collapsed = shouldCollapse;
-        splitView.showSidebar = !shouldCollapse;
-        toggleBtn.classList.toggle('active', !shouldCollapse);
-    }).observe(win);
 
     // Start fireworks once the canvas has a size. We keep the demo reference
     // in an outer closure so the pause button and the returned ShowcaseHandle
@@ -195,8 +106,8 @@ export function mount(container: HTMLElement): ShowcaseHandle {
 
     // Pause button wiring — toggles demo state and swaps the icon.
     function updatePauseButton(paused: boolean): void {
-        setButtonIcon(pauseBtn, paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic);
-        pauseBtn.title = paused ? 'Resume Rendering' : 'Pause Rendering';
+        pauseBtn.setAttribute('icon-name', paused ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic');
+        pauseBtn.setAttribute('tooltip-text', paused ? 'Resume Rendering' : 'Pause Rendering');
     }
     pauseBtn.addEventListener('click', () => {
         if (demo) {

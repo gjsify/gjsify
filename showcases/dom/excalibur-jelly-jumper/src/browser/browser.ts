@@ -1,17 +1,16 @@
 // Browser UI for the Excalibur Jelly Jumper showcase.
-// Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web — HeaderBar with
-// pause/resume button only (no sidebar: the game has no configurable params).
+// The widget tree is the GJS window's own `jelly-jumper-window.blp`, projected and mounted by
+// @gjsify/adwaita-web — one authored file, so the header bar, its two buttons and the canvas
+// container cannot drift from the GTK build. The game has no configurable params, hence no sidebar.
 
-import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
+import { mountSharedTree } from '@gjsify/adwaita-web'; // also registers the custom elements + self-injects the stylesheet
 // A showcase is served to whatever browser opens it, so it cannot assume the host has
 // Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
 // family and ships no `@font-face`, so without this call the chrome renders in the host's
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { Adw } from '@gjsify/adwaita-web';
-import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
-import { audioVolumeHighSymbolic, audioVolumeMutedSymbolic } from '@gjsify/adwaita-icons/status';
+import tree from '../gjs/jelly-jumper-window.blp?shared-tree';
 import { startGame, type GameHandle } from '../game.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -36,38 +35,29 @@ export interface ShowcaseHandle {
     readonly isMuted: boolean;
 }
 
-function parseSvg(src: string): SVGElement {
-    const doc = new DOMParser().parseFromString(src, 'image/svg+xml');
-    return doc.documentElement as unknown as SVGElement;
+/** The one element of the mounted tree with this authored id. */
+function byId(root: HTMLElement, id: string): HTMLElement {
+    const el = root.querySelector<HTMLElement>(`#${id}`);
+    if (el === null) throw new Error(`jelly-jumper-window.blp declares no object with the id "${id}"`);
+    return el;
 }
 
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const startMuted = options?.startMuted ?? true; // browser defaults to muted
 
-    // Build UI
-    const win = document.createElement('adw-window');
-    win.setAttribute('width', '1280');
-    win.setAttribute('height', '720');
+    const { root: win } = mountSharedTree(tree, container);
+    const pauseBtn = byId(win, 'pauseButton');
+    const audioBtn = byId(win, 'audioButton');
 
-    const headerBar = document.createElement('adw-header-bar') as Adw.HeaderBar;
-    headerBar.setAttribute('title', 'Jelly Jumper — Excalibur.js');
-
-    // Audio toggle button
-    const audioBtn = document.createElement('button');
-    audioBtn.className = 'adw-header-btn';
-    audioBtn.title = startMuted ? 'Unmute Audio' : 'Mute Audio';
-    audioBtn.replaceChildren(parseSvg(startMuted ? audioVolumeMutedSymbolic : audioVolumeHighSymbolic));
-
-    const pauseBtn = document.createElement('button');
-    pauseBtn.className = 'adw-header-btn';
-    pauseBtn.title = 'Pause Game';
-    pauseBtn.replaceChildren(parseSvg(mediaPlaybackPauseSymbolic));
+    // The tree holds the buttons' initial (unmuted) state; the browser starts muted by default.
+    updateAudioButton(startMuted);
 
     // Canvas container — flex child that fills the window minus header.
     // IMPORTANT: position:relative is required so the canvas (which Excalibur
     // will style as position:absolute via FitContainerAndFill) uses this as
-    // its offset parent and inherits the laid-out dimensions.
-    const canvasContainer = document.createElement('div');
+    // its offset parent and inherits the laid-out dimensions. Inline styles so the layout holds in
+    // the website embed too, which loads no showcase CSS.
+    const canvasContainer = byId(win, 'canvasContainer');
     canvasContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0;background:#000;overflow:hidden';
 
     // Canvas: no explicit drawing-buffer size — Excalibur's FitContainerAndFill
@@ -79,30 +69,18 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     canvasContainer.append(canvas);
 
-    win.append(headerBar, canvasContainer);
-    container.append(win);
-
-    // Append buttons to header end section after DOM connection
-    const endSection = headerBar.endSection ?? headerBar.querySelector('.adw-header-bar-end');
-    if (endSection) {
-        endSection.appendChild(audioBtn);
-        endSection.appendChild(pauseBtn);
-    } else {
-        headerBar.append(audioBtn, pauseBtn);
-    }
-
     let game: GameHandle | null = null;
     let pendingPause = false;
     let pendingMuted = startMuted;
 
     function updatePauseButton(paused: boolean): void {
-        pauseBtn.replaceChildren(parseSvg(paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic));
-        pauseBtn.title = paused ? 'Resume Game' : 'Pause Game';
+        pauseBtn.setAttribute('icon-name', paused ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic');
+        pauseBtn.setAttribute('tooltip-text', paused ? 'Resume Game' : 'Pause Game');
     }
 
     function updateAudioButton(muted: boolean): void {
-        audioBtn.replaceChildren(parseSvg(muted ? audioVolumeMutedSymbolic : audioVolumeHighSymbolic));
-        audioBtn.title = muted ? 'Unmute Audio' : 'Mute Audio';
+        audioBtn.setAttribute('icon-name', muted ? 'audio-volume-muted-symbolic' : 'audio-volume-high-symbolic');
+        audioBtn.setAttribute('tooltip-text', muted ? 'Unmute Audio' : 'Mute Audio');
     }
 
     pauseBtn.addEventListener('click', () => {

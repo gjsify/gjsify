@@ -1,5 +1,7 @@
 // Browser UI for three-loader-ldraw example.
-// Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web.
+// The widget tree is the GJS window's own `ldraw-window.blp`, projected and mounted by
+// @gjsify/adwaita-web — one authored file, so the control groups and the GL area cannot drift
+// from the GTK build.
 // Ported from refs/three/examples/webgl_loader_ldraw.html
 // Original: MIT license, three.js authors (https://threejs.org)
 // This software uses the LDraw Parts Library (http://www.ldraw.org), CC BY 2.0.
@@ -9,14 +11,14 @@
 // dead twice over: under this build css-as-string turns it into a string a
 // side-effect import discards, and under a real CSS pipeline it injects the same
 // rules a SECOND time (`style.css.d.ts` says so).
-import '@gjsify/adwaita-web';
+import { mountSharedTree } from '@gjsify/adwaita-web';
 // A showcase is served to whatever browser opens it, so it cannot assume the host has
 // Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
 // family and ships no `@font-face`, so without this call the chrome renders in the host's
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { Adw } from '@gjsify/adwaita-web';
+import tree from '../gjs/ldraw-window.blp?shared-tree';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -38,94 +40,56 @@ export interface ShowcaseHandle {
     readonly isPaused: boolean;
 }
 
+/** The one element of the mounted tree with this authored id. */
+function byId(root: HTMLElement, id: string): HTMLElement {
+    const el = root.querySelector<HTMLElement>(`#${id}`);
+    if (el === null) throw new Error(`ldraw-window.blp declares no object with the id "${id}"`);
+    return el;
+}
+
+/**
+ * The values `ldraw-window.ts` sets in TypeScript because Blueprint has no spelling for them
+ * here, so they are not in the tree and this is the browser's copy. Keep the two in step.
+ *
+ * | id                 | attribute    | value                                   | GTK counterpart                               |
+ * | ------------------ | ------------ | --------------------------------------- | --------------------------------------------- |
+ * | `modelRow`         | `model`      | `MODEL_LIST` names                      | `set_model(Gtk.StringList.new(…))`            |
+ * | `modelRow`         | `selected`   | `DEFAULT_MODEL_INDEX`                   | `set_selected(DEFAULT_MODEL_INDEX)`           |
+ * | `buildingStepRow`  | `adjustment` | `lower 0, upper 0, stepIncrement 1, value 0` | `set_adjustment(new Gtk.Adjustment(…))`  |
+ *
+ * `upper` and `value` of the building step follow the loaded model (see the `start` callback).
+ */
+const TS_ONLY = {
+    modelRow: { model: MODEL_LIST.map((m) => m.name), selected: DEFAULT_MODEL_INDEX },
+    buildingStepRow: { lower: 0, upper: 0, stepIncrement: 1, value: 0 },
+};
+
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
-    const win = document.createElement('adw-window');
-    win.setAttribute('width', '1100');
-    win.setAttribute('height', '700');
+    const { root: win } = mountSharedTree(tree, container);
 
-    const headerBar = document.createElement('adw-header-bar');
-    headerBar.setAttribute('title', 'LDraw Loader');
+    const modelRow = byId(win, 'modelRow');
+    const flatColorsRow = byId(win, 'flatColorsRow');
+    const mergeModelRow = byId(win, 'mergeModelRow');
+    const smoothNormalsRow = byId(win, 'smoothNormalsRow');
+    const buildingStepRow = byId(win, 'buildingStepRow');
+    const displayLinesRow = byId(win, 'displayLinesRow');
+    const conditionalLinesRow = byId(win, 'conditionalLinesRow');
+
+    modelRow.setAttribute('model', JSON.stringify(TS_ONLY.modelRow.model));
+    modelRow.setAttribute('selected', String(TS_ONLY.modelRow.selected));
+    buildingStepRow.setAttribute('adjustment', JSON.stringify(TS_ONLY.buildingStepRow));
 
     // A showcase has two hosts — the standalone page and the website embed — and only the former
     // loads `browser/webgl.css`, so the layout has to live here rather than in that stylesheet.
-    const splitView = document.createElement('adw-overlay-split-view') as Adw.OverlaySplitView;
-    splitView.setAttribute('min-sidebar-width', '280');
-    splitView.setAttribute('max-sidebar-width', '400');
-    splitView.setAttribute('sidebar-width-fraction', '0.30');
-    splitView.setAttribute('show-sidebar', '');
-
-    // Inline styles for the same reason as the GL container below.
-    const sidebarContent = document.createElement('div');
-    sidebarContent.setAttribute('slot', 'sidebar');
-    sidebarContent.className = 'adw-sidebar-content';
-    sidebarContent.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:12px';
-
-    const modelGroup = document.createElement('adw-preferences-group');
-    modelGroup.setAttribute('title', 'Model');
-
-    const modelRow = document.createElement('adw-combo-row');
-    modelRow.setAttribute('title', 'Model');
-    modelRow.setAttribute('items', JSON.stringify(MODEL_LIST.map((m) => m.name)));
-    modelRow.setAttribute('selected', String(DEFAULT_MODEL_INDEX));
-
-    modelGroup.append(modelRow);
-
-    // Rendering group
-    const renderGroup = document.createElement('adw-preferences-group');
-    renderGroup.setAttribute('title', 'Rendering');
-
-    const flatColorsRow = document.createElement('adw-switch-row');
-    flatColorsRow.setAttribute('title', 'Flat Colors');
-
-    const mergeModelRow = document.createElement('adw-switch-row');
-    mergeModelRow.setAttribute('title', 'Merge Model');
-
-    const smoothNormalsRow = document.createElement('adw-switch-row');
-    smoothNormalsRow.setAttribute('title', 'Smooth Normals');
-    smoothNormalsRow.setAttribute('active', '');
-
-    renderGroup.append(flatColorsRow, mergeModelRow, smoothNormalsRow);
-
-    // Display group
-    const displayGroup = document.createElement('adw-preferences-group');
-    displayGroup.setAttribute('title', 'Display');
-
-    const buildingStepRow = document.createElement('adw-spin-row');
-    buildingStepRow.setAttribute('title', 'Building Step');
-    buildingStepRow.setAttribute('min', '0');
-    buildingStepRow.setAttribute('max', '0');
-    buildingStepRow.setAttribute('step', '1');
-    buildingStepRow.setAttribute('value', '0');
-
-    const displayLinesRow = document.createElement('adw-switch-row');
-    displayLinesRow.setAttribute('title', 'Display Lines');
-    displayLinesRow.setAttribute('active', '');
-
-    const conditionalLinesRow = document.createElement('adw-switch-row');
-    conditionalLinesRow.setAttribute('title', 'Conditional Lines');
-    conditionalLinesRow.setAttribute('active', '');
-
-    displayGroup.append(buildingStepRow, displayLinesRow, conditionalLinesRow);
-
-    sidebarContent.append(modelGroup, renderGroup, displayGroup);
-
-    // GL container (content slot) — inline styles so the showcase
-    // is self-contained and works regardless of host CSS.
-    const glContainer = document.createElement('div');
-    glContainer.setAttribute('slot', 'content');
-    glContainer.id = 'gl-area-container';
+    const glContainer = byId(win, 'glAreaContainer');
     glContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'webgl-canvas';
     canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     glContainer.append(canvas);
-
-    splitView.append(sidebarContent, glContainer);
-    win.append(headerBar, splitView);
-    container.append(win);
 
     // Sync canvas size
     new ResizeObserver(() => {
@@ -138,9 +102,10 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     // Start three.js
     const demo = start(canvas, { assetBase }, (numSteps) => {
         // Update building step range when model loads
-        buildingStepRow.setAttribute('max', String(numSteps - 1));
-        // oxlint-disable-next-line typescript/no-explicit-any -- adw-spin-row is a custom element with no TypeScript type for .value property
-        (buildingStepRow as any).value = numSteps - 1;
+        buildingStepRow.setAttribute(
+            'adjustment',
+            JSON.stringify({ ...TS_ONLY.buildingStepRow, upper: numSteps - 1, value: numSteps - 1 }),
+        );
     });
 
     connectControls(
