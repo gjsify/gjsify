@@ -183,5 +183,19 @@ export default async () => {
                 'sharedTreeNativeScriptXml: ShumateMap is not an Adw or Gtk class name',
             );
         });
+
+        await it('refuses ADR 0093 behaviour by name instead of dropping it', () => {
+            const bound: SharedTreeNode = {
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkSwitch', id: 'a', bindings: { active: { source: 'b', property: 'active' } } }],
+            };
+            const adapting: SharedTreeNode = {
+                tag: 'AdwWindow',
+                breakpoints: [{ condition: 'max-width: 1sp', setters: [] }],
+            };
+            expect(() => sharedTreeHtml(bound)).toThrow("sharedTreeHtml has no markup for `GtkSwitch`'s bindings");
+            expect(() => sharedTreeHtml(adapting)).toThrow("`AdwWindow`'s breakpoints");
+            expect(() => sharedTreeNativeScriptXml(bound)).toThrow('sharedTreeNativeScriptXml has no markup');
+        });
     });
 };

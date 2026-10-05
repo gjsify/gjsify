@@ -80,7 +80,23 @@ const htmlQuote: Quote = (value) => {
     return `${quote}${escaped}${quote}`;
 };
 
+/**
+ * ADR 0093's `bindings` and `breakpoints` are BEHAVIOUR, and this module writes static markup:
+ * neither has a spelling an HTML parse could restore. Refused by name rather than dropped — a
+ * split view whose toggle never follows it looks finished. `mountSharedTree` realises both.
+ */
+function refuseBehaviour(node: SharedTreeNode, writer = 'sharedTreeHtml'): void {
+    const fields = [node.bindings && 'bindings', node.breakpoints && 'breakpoints'].filter(Boolean);
+    if (fields.length > 0) {
+        throw new Error(
+            `${writer} has no markup for \`${node.tag}\`'s ${fields.join(' and ')} (ADR 0093); ` +
+                'a bound property and a breakpoint are behaviour, and a renderer has to observe them.',
+        );
+    }
+}
+
 function htmlElement(node: SharedTreeNode, depth: number): string {
+    refuseBehaviour(node);
     const attributes: Attribute[] = [];
     // `buildSharedTree`: the id, the props through `attributeOf`, the style classes as
     // `class`, then the placement as `slot=` — in that order.
@@ -168,6 +184,7 @@ function prefixesOf(node: SharedTreeNode, into: Set<string>): Set<string> {
 const NATIVESCRIPT_XMLNS = 'http://schemas.nativescript.org/tns.xsd';
 
 function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonly Attribute[]): string {
+    refuseBehaviour(node, 'sharedTreeNativeScriptXml');
     const { prefix, member } = xmlNameOf(node.tag);
     const name = `${prefix}:${member}`;
     const attributes: Attribute[] = [...rootAttributes];
