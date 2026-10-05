@@ -32,12 +32,45 @@ adw-expander-row {
     }
   }
 
+  // Title/subtitle WRAP BY DEFAULT, matching libadwaita's GtkLabel wrap=true,
+  // lines=0 — stated HERE, at this row's own specificity, because `_row.scss` carries
+  // a `white-space: nowrap` default for `.adw-row-subtitle` and an inherited one reaches
+  // the title. A rule that only turns `white-space` on inside the clamp selector cannot
+  // make a row wrap by DEFAULT: the clamp is the minority state.
   .adw-row-title {
     font-size: var(--font-size-base);
     color: var(--card-fg-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  .adw-row-subtitle {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+    color: var(--card-fg-color);
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  // Clamped state — JS toggles `.adw-row-clamp` on the TEXT COLUMN, the same node and
+  // the same class `_action_row.scss` keys off; reading it off the header instead never
+  // matched anything.
+  .adw-row-text.adw-row-clamp {
+    .adw-row-title,
+    .adw-row-subtitle {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: var(--adw-row-ellipsize-overflow, ellipsis);
+    }
+
+    .adw-row-title {
+      -webkit-line-clamp: var(--adw-row-title-lines, 1);
+    }
+
+    .adw-row-subtitle {
+      -webkit-line-clamp: var(--adw-row-subtitle-lines, 1);
+    }
   }
 
   // The text column takes the free space so prefix/suffix widgets, the enable

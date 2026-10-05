@@ -5,7 +5,14 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
-adw-action-row {
+adw-action-row,
+adw-switch-row,
+adw-combo-row,
+adw-spin-row {
+  // These row types inherit from AdwActionRow upstream and have
+  // title-lines/subtitle-lines properties. Match libadwaita: wrap by default
+  // (GtkLabel with wrap=true, lines=0), clamp via CSS custom property when
+  // title-lines/subtitle-lines > 0. See adw-action-row.ui lines 54-61, 70-81.
   display: flex;
   align-items: center;
   gap: var(--spacing-m);
@@ -31,36 +38,53 @@ adw-action-row {
   }
 
   .adw-action-row-prefix,
-  .adw-action-row-suffix {
+  .adw-action-row-suffix,
+  .adw-switch-row-prefix {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
     flex-shrink: 0;
   }
 
-  .adw-action-row-text {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
+  // The text column's own rule is `_row.scss`'s shared `.adw-row-text` — one spelling
+  // for all five rows, so the clamp selectors below can name it too.
 
+  // Title/subtitle WRAP BY DEFAULT, matching libadwaita's GtkLabel wrap=true,
+  // lines=0. The typography is this row type's own (it was here before the wrap); only
+  // `white-space` moves, and `overflow`/`text-overflow` are left to the clamped state
+  // below, where the ellipsis has a line count to truncate to.
   .adw-row-title {
     font-size: var(--font-size-base);
     color: var(--card-fg-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 
   .adw-row-subtitle {
     font-size: var(--font-size-small);
     opacity: var(--dim-opacity);
     color: var(--card-fg-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  // Clamped state — enabled by JS toggling .adw-row-clamp on the text container.
+  .adw-row-text.adw-row-clamp {
+    .adw-row-title,
+    .adw-row-subtitle {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: var(--adw-row-ellipsize-overflow, ellipsis);
+    }
+
+    .adw-row-title {
+      -webkit-line-clamp: var(--adw-row-title-lines, 1);
+    }
+
+    .adw-row-subtitle {
+      -webkit-line-clamp: var(--adw-row-subtitle-lines, 1);
+    }
   }
 }
 

@@ -24,6 +24,10 @@
 // `adjustment:` sets the property to a whole new object: an unwritten field takes the
 // adjustment's own default, not what the row held (`ADJUSTMENT_AUTHORED_VECTORS`).
 //
+// ATTRIBUTES: `adjustment` (the range, JSON), `value`, `title`, `subtitle`, and
+// `title-lines` / `subtitle-lines` — clamp either label to N lines, `0` = unlimited,
+// the AdwActionRow pspec's sentinel (`@girs/adw-1`, min 0, default 0).
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -35,6 +39,7 @@ import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { attributeOf } from '@gjsify/adwaita-core/tags';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 /** `Gtk.Adjustment`'s six properties, as `AdwAdjustmentInput` names them. */
 const ADJUSTMENT_FIELDS = ['value', 'lower', 'upper', 'stepIncrement', 'pageIncrement', 'pageSize'] as const;
@@ -65,7 +70,7 @@ export class AdwSpinRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'value', 'adjustment'];
+        return ['title', 'subtitle', 'value', 'adjustment', 'title-lines', 'subtitle-lines'];
     }
 
     get value(): number {
@@ -164,7 +169,10 @@ export class AdwSpinRow extends HTMLElement {
 
     attributeChangedCallback(name: string, _old: string | null, val: string | null) {
         if (!this._initialized) return;
-        if (name === 'title' || name === 'subtitle') {
+        if (name === 'title' || name === 'subtitle' || name === 'title-lines' || name === 'subtitle-lines') {
+            // The two `*-lines` attributes are LABEL geometry, not the adjustment: without
+            // this branch they fell through to the `setValue` below, so `title-lines="1"`
+            // set the numeric value to 1 and clamped nothing.
             this._renderText();
             return;
         }
@@ -186,6 +194,18 @@ export class AdwSpinRow extends HTMLElement {
         this._titleEl.hidden = !labels.titleVisible;
         this._subtitleEl.textContent = labels.subtitle;
         this._subtitleEl.hidden = !labels.subtitleVisible;
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 
     /** A stepper press — the interactive path, so it emits `notify::value`. */

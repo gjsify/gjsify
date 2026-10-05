@@ -7,6 +7,12 @@
 // in `@gjsify/adwaita-core` (ADR 0004) as {@link ActionRowState}; this element keeps
 // only the DOM render half.
 //
+// ATTRIBUTES:
+//   title, subtitle — the text column
+//   activatable     — whether the row activates on click (boolean presence)
+//   title-lines     — clamp title to N lines (0 = unlimited, default)
+//   subtitle-lines  — clamp subtitle to N lines (0 = unlimited, default)
+//
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/actionrow.md
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (.row styling)
@@ -19,6 +25,7 @@ import { ActionRowState } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 /**
  * Attributes whose change means the activatable widget's sensitivity may have
@@ -47,7 +54,7 @@ export class AdwActionRow extends HTMLElement {
     private _activation?: AdwRowActivation;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'activatable'];
+        return ['title', 'subtitle', 'activatable', 'title-lines', 'subtitle-lines'];
     }
 
     /** The end (suffix) section — append controls here imperatively. */
@@ -95,7 +102,10 @@ export class AdwActionRow extends HTMLElement {
         this._prefixEl.className = 'adw-action-row-prefix';
 
         const textEl = document.createElement('div');
-        textEl.className = 'adw-action-row-text';
+        // `.adw-row-text`, the ONE spelling every row type's text column carries —
+        // switch, combo, spin and expander all build it under that name, and so do the
+        // shared `.adw-row-clamp` rules in `_action_row.scss`/`_expander_row.scss`.
+        textEl.className = 'adw-row-text';
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-row-title';
         this._subtitleEl = document.createElement('span');
@@ -133,6 +143,7 @@ export class AdwActionRow extends HTMLElement {
         this._state.setTitle(this.getAttribute('title'));
         this._state.setSubtitle(this.getAttribute('subtitle'));
         this._state.setActivatable(this.hasAttribute('activatable'));
+        this._applyLineClamping();
     }
 
     disconnectedCallback() {
@@ -195,6 +206,17 @@ export class AdwActionRow extends HTMLElement {
         this._subtitleEl.hidden = !subtitleVisible;
         this.classList.toggle('activatable', this._state.activatable);
         this._activation?.sync();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 }
 

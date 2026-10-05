@@ -14,6 +14,10 @@
 // `<adw-action-row>` — libadwaita's AdwSwitchRow IS an AdwActionRow
 // (adw-switch-row.c:50), so `add_prefix` is inherited, not invented here.
 //
+// ATTRIBUTES: `title`, `subtitle`, `active`, and `title-lines` / `subtitle-lines` —
+// clamp either label to N lines, `0` = unlimited, the AdwActionRow pspec's sentinel
+// (`@girs/adw-1`, min 0, default 0).
+//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -24,6 +28,7 @@ import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `gtk-switch` is defined before this module's `customElements.define` can upgrade a
@@ -45,7 +50,7 @@ export class AdwSwitchRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'active'];
+        return ['title', 'subtitle', 'active', 'title-lines', 'subtitle-lines'];
     }
 
     /** The start (prefix) section — append icons/widgets here imperatively. */
@@ -160,6 +165,18 @@ export class AdwSwitchRow extends HTMLElement {
         this._titleEl.hidden = !titleVisible;
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 }
 

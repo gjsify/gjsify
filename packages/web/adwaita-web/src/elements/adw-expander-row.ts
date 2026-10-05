@@ -1,6 +1,10 @@
 // <adw-expander-row> — a boxed-list row that discloses nested rows when expanded,
 // with an optional enable switch. Mirrors Adw.ExpanderRow.
 //
+// ATTRIBUTES: `title`, `subtitle`, `expanded`, `enable-expansion`, `show-enable-switch`,
+// and `title-lines` / `subtitle-lines` — clamp either label to N lines, `0` = unlimited,
+// the AdwActionRow pspec's sentinel (`@girs/adw-1`, min 0, default 0).
+//
 // Slots: `slot="prefix"` / `slot="suffix"` children sit in the HEADER row beside the
 // title (before the enable switch and disclosure chevron), like Adw.ExpanderRow's
 // add_prefix/add_suffix; every other child is moved into the disclosed content
@@ -23,6 +27,7 @@ import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `gtk-switch` is defined before this module's `customElements.define` can upgrade a
@@ -68,7 +73,15 @@ export class AdwExpanderRow extends HTMLElement {
     }
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'expanded', 'enable-expansion', 'show-enable-switch'];
+        return [
+            'title',
+            'subtitle',
+            'expanded',
+            'enable-expansion',
+            'show-enable-switch',
+            'title-lines',
+            'subtitle-lines',
+        ];
     }
 
     get expanded(): boolean {
@@ -224,6 +237,19 @@ export class AdwExpanderRow extends HTMLElement {
         // step with the flag; `aria-expanded` is the same statement to the same reader.
         this._headerEl.setAttribute('aria-expanded', String(this.expanded));
         this._contentEl.classList.toggle('expanded', this.expanded);
+
+        this._applyLineClamping();
+    }
+
+    /** Apply CSS line-clamping based on title-lines/subtitle-lines attributes. */
+    private _applyLineClamping(): void {
+        applyRowLineClamp({
+            titleEl: this._titleEl,
+            subtitleEl: this._subtitleEl,
+            textContainerEl: this._titleEl.parentElement!,
+            getTitleLines: () => parseRowLinesAttribute(this.getAttribute('title-lines')),
+            getSubtitleLines: () => parseRowLinesAttribute(this.getAttribute('subtitle-lines')),
+        });
     }
 }
 
