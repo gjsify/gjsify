@@ -380,7 +380,10 @@ function classifyAxis(relativeDir, pkgName) {
         return 'framework-gjs';
     }
     if (pillar === 'web') {
-        if ((subpath ?? pkgName).startsWith('adwaita')) return 'design-identity';
+        // `gtksource-core` is the headless engine behind a design-identity widget (ADR 0094): the
+        // same pure-TS contract shape as `adwaita-core`, so it takes the same all-`polyfill` reading.
+        const name = subpath ?? pkgName;
+        if (name.startsWith('adwaita') || name.startsWith('gtksource')) return 'design-identity';
         return 'web-api';
     }
     return 'unknown';
