@@ -170,6 +170,19 @@ it, and `keyboard-operable.spec.ts` pins `AdwToggleGroup.observedAttributes` so 
 cannot land quietly. `<adw-inline-view-switcher>` has no such pin yet.
 
 
+### `<adw-toggle-group>` diverges from upstream on active-toggle-disabled behaviour
+
+Upstream `adw_toggle_group_set_active` (adw-toggle-group.c:720) clears the selection
+when the active toggle is disabled: `if (toggle && !toggle->enabled) toggle = NULL;`
+— the group ends up with no active toggle. The port (`_activateFirstEnabled`,
+adw-toggle-group.ts:347) instead moves the selection to the first enabled toggle.
+This keeps the group operable (one tab stop on a reachable toggle) but diverges from
+the C behaviour. The divergence is intentional for web UX; if alignment is later
+desired, the fix is to clear `active` and emit `notify::active` with `-1` (or omit
+the attribute) when no enabled toggle exists. `row-tooltip.spec.ts` exercises the
+current behaviour (active moves to first enabled).
+
+
 ### `<adw-carousel>` does not work in RTL at all, and the reason is its offset model
 
 Measured in Firefox with `document.documentElement.dir = 'rtl'`, three 440 px pages:
