@@ -39,6 +39,10 @@ on:
         required: false
         type: boolean
         default: false
+      only:
+        description: 'Space-separated package names/globs (e.g. "@gjsify/adwaita-fonts @gjsify/example-*"). Publishes ONLY those (needs skip_publish=false) instead of the whole ~130-package serial run — the way to land the few packages a release missed.'
+        required: false
+        default: ''
 
 jobs:
   publish:
@@ -195,9 +199,19 @@ jobs:
       # this long, on every release, for no output.
       - name: Publish packages to npm
         if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run npm:publish:prebuilt
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          if [ -z "$ONLY" ]; then
+            gjsify run npm:publish:prebuilt
+          else
+            inc=(); for p in $ONLY; do inc+=(--include "$p"); done
+            gjsify foreach -v --topological --no-private --exclude "@girs/*" "${inc[@]}" --exec -- \
+              gjsify publish --tolerate-republish --tolerate-untrusted-new --verify-defer \
+              --verify-timeout 5 --tag latest --access public
+          fi
         env:
           GJSIFY_PUBLISH_DEBUG: "1"
+          ONLY: ${{ inputs.only }}
 
       # Phase F: ship install.mjs + cli.gjs.mjs as GitHub-release assets so end
       # users can bootstrap gjsify (or any gjsify-based GJS app) with a single
