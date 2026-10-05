@@ -43,10 +43,9 @@ Not a polyfill leak — `WebGLShader`, `WebGL2RenderingContext`, `HTMLCanvasElem
 is the GPU-less VM and how much would also fail on a real GPU is unmeasured, and deciding that
 is the first step.
 
-Two smaller things found alongside: `dist/index.html` links `./browser.css`, which neither
-exists in `src/browser/` nor is produced by `build:assets` — a hard 404 on every load. And the
-browser build failed outright until `@gjsify/adwaita-core` was rebuilt (129 `MISSING_EXPORT`s
-from its stale `lib/esm/index.js`), which no `build:browser` run tells you to do.
+One smaller thing found alongside: the browser build failed outright until
+`@gjsify/adwaita-core` was rebuilt (129 `MISSING_EXPORT`s from its stale
+`lib/esm/index.js`), which no `build:browser` run tells you to do.
 
 Also worth knowing for anything that reasons about renderers: **Safari does not expose
 `WEBGL_debug_renderer_info` at all**. The extension gjsify implements is the Chrome/Firefox
