@@ -96,6 +96,19 @@ export class AdwToggle extends HTMLElement {
     static get observedAttributes() {
         return ['label', 'icon-name', 'tooltip', 'enabled'];
     }
+
+    attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+        if (name === 'enabled' && oldValue !== newValue) {
+            // Notify the parent group that this toggle's enabled state changed.
+            this.dispatchEvent(
+                new CustomEvent('toggle-enabled-changed', {
+                    bubbles: true,
+                    composed: true,
+                    detail: { enabled: newValue !== 'false' },
+                }),
+            );
+        }
+    }
 }
 
 export class AdwToggleGroup extends HTMLElement {
@@ -110,6 +123,8 @@ export class AdwToggleGroup extends HTMLElement {
     private _names: (string | null)[] = [];
     /** `AdwToggle:enabled` per rendered button, in order — `add_toggle` spends this at add time. */
     private _enabled: boolean[] = [];
+    /** The authored <adw-toggle> elements, kept to observe live `enabled` changes. */
+    private _toggles: AdwToggle[] = [];
 
     static get observedAttributes() {
         return ['active', 'active-name', 'flat', 'round', 'sensitive'];
@@ -206,6 +221,7 @@ export class AdwToggleGroup extends HTMLElement {
         // in the C.
         this._innerEl.setAttribute('role', 'none');
 
+        this._toggles = toggles;
         this._buttons = toggles.map((toggle, index) => {
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -239,6 +255,21 @@ export class AdwToggleGroup extends HTMLElement {
 
         this._innerEl.append(...this._buttons);
         this.replaceChildren(this._innerEl);
+
+        // Observe live `enabled` changes on the authored <adw-toggle> elements.
+        // Upstream's `adw_toggle_set_enabled` is a live setter (:1663); the port
+        // snapshots at connect, so a later `toggle.setAttribute('enabled', 'false')`
+        // had no effect. The `AdwToggle` element fires `toggle-enabled-changed`
+        // from its attributeChangedCallback; we update `_enabled` and re-render.
+        for (let i = 0; i < this._toggles.length; i++) {
+            this._toggles[i].addEventListener('toggle-enabled-changed', (event: Event) => {
+                const { enabled } = (event as CustomEvent<{ enabled: boolean }>).detail;
+                if (this._enabled[i] !== enabled) {
+                    this._enabled[i] = enabled;
+                    this._render();
+                }
+            });
+        }
 
         // Hand the segments to the headless state machine (it needs the count to
         // bound the selection), then seed the active index from the attribute.
@@ -349,6 +380,9 @@ export class AdwToggleGroup extends HTMLElement {
         if (first === -1) return;
         this._state.setSelected(first);
         this.setAttribute('active', String(first));
+        // The state change came from _render, not user interaction, but the active
+        // index changed — emit notify::active so consumers stay in sync.
+        this.dispatchEvent(new CustomEvent('notify::active', { bubbles: true, detail: { active: first } }));
     }
 }
 
