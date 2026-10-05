@@ -410,6 +410,7 @@ export {
     addBreakpoints,
     evaluateBreakpointCondition,
     observeViewSize,
+    observeWindowSize,
     parseBreakpointCondition,
 } from './breakpoint.js';
 export type {
