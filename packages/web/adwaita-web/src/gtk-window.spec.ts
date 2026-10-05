@@ -37,6 +37,18 @@ export const GtkWindowTest = async () => {
             host.remove();
         });
 
+        await it('answers an unset title as a string and clears it with null', async () => {
+            // `HTMLElement.title` is a `string`; a `string | null` getter broke every consumer's
+            // type check of the emitted `.d.ts`.
+            const { el, host } = mount();
+            expect(el.title).toBe('');
+            el.title = 'Learn6502';
+            expect(el.title).toBe('Learn6502');
+            el.title = null;
+            expect(el.title).toBe('');
+            host.remove();
+        });
+
         await it('routes every unslotted child into the content box, in document order', async () => {
             const { el, host } = mount();
             const first = document.createElement('span');
