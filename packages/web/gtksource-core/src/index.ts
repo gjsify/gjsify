@@ -4,3 +4,4 @@ export * from './lang.js';
 export * from './style.js';
 export * from './regex.js';
 export * from './xml.js';
+export * from './tokenizer.js';
