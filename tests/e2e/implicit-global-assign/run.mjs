@@ -107,7 +107,9 @@ describe(
             // resolves it from the fixture's own node_modules, not from a hoisted devDep
             // of another test package. This follows the self-contained fixture convention
             // established by `tests/e2e/cjs-require-stream/`.
-            execSync('npm install', { cwd: fixtureDir, stdio: 'pipe', timeout: 60 * 1000 });
+            // Use `npm ci` to install strictly from the committed lockfile and never
+            // rewrite it — the lockfile is the source of truth for the fixture's resolution.
+            execSync('npm ci', { cwd: fixtureDir, stdio: 'pipe', timeout: 60 * 1000 });
         });
 
         after(() => {
