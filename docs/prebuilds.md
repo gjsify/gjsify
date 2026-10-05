@@ -59,3 +59,37 @@ Native libs in `prebuilds/<os>-<arch>/` (`.so`/`.dylib` + `.typelib`); `package.
 |**the crates.io half is pinned by a COMMITTED `src/rust/Cargo.lock` per bridge** (shipped via `files: ["src/rust"]`) — none of the three checks sees a crates.io transitive. Load-bearing with the prebuild change-gate: a run that never rebuilds never absorbs registry drift. ENFORCED on CI via `${CI:+--locked}` on the `cargo build` (a lock nothing checks is decoration); locally expands to nothing. GitHub Actions exports `CI=true` to steps and job `container:`s but a bare `docker run` inherits NOTHING — the emulated legs pass `-e CI=true` explicitly; a containerised step that forgets it still USES the lock but silently stops FAILING on a stale one. The lock is also a `rust_sources` input (ninja otherwise tracks only `Cargo.toml` + `src/**.rs`; a lock-only change would re-stage the OLD binary). Update = explicit act: `cargo update [-p <crate>]`, `cargo tree -d`, rebuild, commit the lock diff together; a `refs/` bump invalidates the lock and needs the same regeneration in that commit.
 |**a lock does NOT replace `[patch.crates-io]` — crate IDENTITY is not a version choice.** `refs/oxc` publishes `oxc_allocator` AND path-deps it in-tree; the crates.io-only parsers pull it from the REGISTRY, and Cargo treats registry and path copies as SEPARATE crate instances even at the same version → `E0308 … multiple different versions of crate oxc_allocator`. A `[patch]` table is honoured only from the ROOT of the workspace being built — each `src/rust/` is its own root and must repeat the patch (as `@gjsify/oxfmt-native` does). When adding/bumping a `refs/` submodule that publishes its own crates: check `cargo tree -d` for a name appearing as both path and registry, patch it to the path copy.
 |why it earns its keep: the committed `rolldown-native` prebuild had drifted BEHIND its pin, and the pin sat 41 commits past `v1.1.5` while the npm devDep was `1.1.4`; the gap contained a runtime-chunk change, so the rebuilt native engine emitted two chunks where npm emitted one and every `--app gjs --outfile` build keeping a standalone runtime chunk failed ("output.dir must be used"). Reproducibility is now GATED on darwin by `scripts/check-prebuild-reproducible.mjs` (§ above), and the committed-vs-fresh comparison it reports is what is left open — `status/open-todos/prebuilds.md` says why it cannot gate.
+
+## Language recipes
+
+Meson is the prebuild build system; each package declares its languages in
+`project()`. The distinct lists in use:
+
+- **`['c', 'vala']`** — the Vala+C bridges: valac emits the GIR (`vala_gir:`),
+  the C compiler builds valac's output and any C glue. `packages/web/webrtc-native/`,
+  `packages/infra/oxfmt-native/`, `packages/infra/rolldown-native/`,
+  `packages/infra/lightningcss-native/`, `packages/node/sab-native/`,
+  `packages/node/terminal-native/`, `packages/node/tls-native/`,
+  `packages/node/http-soup-bridge/`, `packages/node/http2-native/`.
+- **`['c', 'cpp', 'vala']`** — `packages/napi/napi/`; the native half is C++
+  because JSAPI is C++.
+- **`['c', 'objc']`** — `packages/framework/webkit-native/`, the one
+  Objective-C package (the constraint below).
+- **`['c']`** — `packages/framework/webgl/` and
+  `packages/framework/webview2-native/`, each adding its second language with
+  `add_languages()` on the branch that needs it (Vala for webgl, C++ for
+  webview2's win32 build): a language declared in `project()` makes meson
+  require its compiler at setup time. `packages/web/gamepad-native/` spells
+  the same one language as the bare string `'c'`.
+
+**The one Objective-C constraint:** `g-ir-scanner` has no Objective-C front
+end, so webkit-native's GIR is scanned from the plain-C header
+(`sources: headers` in `packages/framework/webkit-native/meson.build`) —
+ObjC stays an implementation language behind a C API, and everything the GIR
+must carry lives in the header.
+
+**Rust is in no language list** — cargo is driven from a meson
+`custom_target`, not a `project()` language. Three bridges
+(`rolldown-native`, `oxfmt-native`, `lightningcss-native`) compile a cargo
+cdylib next to the Vala library and link it: `rustSibling: true` in their
+`.github/prebuild-toolchain/darwin-bridges.mjs` rows.
