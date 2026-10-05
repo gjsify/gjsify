@@ -5,7 +5,8 @@
 // FOUR PROPERTIES, AND EVERY ONE OF THEM IS ABOUT THE TITLE LABEL:
 // `title` (Pango markup unless `use-markup` is FALSE), `use-markup`, `use-underline`
 // (an embedded `_` marks a mnemonic) and `title-selectable` (the user may copy it) —
-// the property docs are at adw-preferences-row.c:118-170.
+// the property docs are at adw-preferences-row.c:118-170. Inherited from `GtkWidget`,
+// every row also takes `tooltip-text` (`src/row-tooltip.ts`).
 //
 // ONE DELIBERATE PORT DECISION, named here because C says the opposite in so many
 // words: "It doesn't present the title in any way and lets you present the preference
@@ -43,6 +44,7 @@
 
 import { labelDisplayText, stringIsNotEmpty } from '@gjsify/adwaita-core';
 
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 
@@ -52,7 +54,7 @@ export class AdwPreferencesRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'title-selectable', 'use-markup', 'use-underline'];
+        return ['title', 'title-selectable', 'use-markup', 'use-underline', 'tooltip-text'];
     }
 
     /** `Adw.PreferencesRow:title` — Pango markup unless {@link useMarkup} is false. */
@@ -144,6 +146,7 @@ export class AdwPreferencesRow extends HTMLElement {
         // `Gtk.Label:selectable` puts a label in GTK_SELECTION_TEXT; the DOM's spelling
         // of "this text may be copied" is `user-select: text`.
         this._titleEl.style.userSelect = this.titleSelectable ? 'text' : '';
+        applyRowTooltip(this, [this._titleEl, this._contentEl]);
     }
 }
 

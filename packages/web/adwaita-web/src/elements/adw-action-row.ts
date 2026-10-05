@@ -10,6 +10,8 @@
 // ATTRIBUTES:
 //   title, subtitle — the text column
 //   activatable     — whether the row activates on click (boolean presence)
+//   tooltip-text    — `Gtk.Widget:tooltip-text` (`src/row-tooltip.ts` carries why it lands
+//                     on the row's parts and not on the host)
 //   title-lines     — clamp title to N lines (0 = unlimited, default)
 //   subtitle-lines  — clamp subtitle to N lines (0 = unlimited, default)
 //
@@ -23,6 +25,7 @@
 import { ActionRowState } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
@@ -45,6 +48,8 @@ export class AdwActionRow extends HTMLElement {
     private _subtitleEl!: HTMLSpanElement;
     private _suffixEl!: HTMLDivElement;
     private _prefixEl!: HTMLDivElement;
+    /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */
+    private _textEl!: HTMLDivElement;
     /** The headless labels + activatable-widget coupling (ADR 0004). */
     private readonly _state = new ActionRowState<HTMLElement>();
     /** Watches the activatable widget's `disabled`/`aria-disabled` — the live binding. */
@@ -54,7 +59,7 @@ export class AdwActionRow extends HTMLElement {
     private _activation?: AdwRowActivation;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'activatable', 'title-lines', 'subtitle-lines'];
+        return ['title', 'subtitle', 'activatable', 'tooltip-text', 'title-lines', 'subtitle-lines'];
     }
 
     /** The end (suffix) section — append controls here imperatively. */
@@ -106,6 +111,7 @@ export class AdwActionRow extends HTMLElement {
         // switch, combo, spin and expander all build it under that name, and so do the
         // shared `.adw-row-clamp` rules in `_action_row.scss`/`_expander_row.scss`.
         textEl.className = 'adw-row-text';
+        this._textEl = textEl;
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-row-title';
         this._subtitleEl = document.createElement('span');
@@ -205,6 +211,7 @@ export class AdwActionRow extends HTMLElement {
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;
         this.classList.toggle('activatable', this._state.activatable);
+        applyRowTooltip(this, [this._prefixEl, this._textEl, this._suffixEl]);
         this._activation?.sync();
     }
 

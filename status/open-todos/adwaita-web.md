@@ -138,64 +138,36 @@ rather than adding a second one here.
 and says why.
 
 
-### `<adw-toggle>` has no `enabled`, so a toggle group cannot disable one segment
+### `<adw-toggle>` observes three of its five properties, and neither group has `orientation`
 
-Upstream's `AdwToggle` carries `enabled`, and `add_toggle` spends it immediately:
-`gtk_widget_set_sensitive (toggle->button, toggle->enabled)`
-(`adw-toggle-group.c:871`). The web `<adw-toggle>` observes `label` and `icon-name`
-and nothing else, so every rendered button is sensitive and there is no way to
-express "this view mode is unavailable right now" short of removing the toggle.
+`AdwToggle` carries five own properties — `child`, `description`, `enabled`, `name`,
+`tooltip` — and `<adw-toggle>` observes three of them. `enabled` arrived with #1818
+(the roving-focus filter it obliged landed in the same commit) and `tooltip` with
+#1823; `description`, `name` and `use-underline` are still in
+`check-adwaita-element-properties.mjs`'s `KNOWN_GAPS` ratchet.
 
-This surfaced while making the group keyboard-navigable. `elements/roving-focus.ts`
-documents that its caller must filter `hidden`/`disabled` items — leaving one in
-strands the user on a `focus()` the browser refuses, which is why
-`<adw-sidebar>` filters and has a spec for it. `<adw-toggle-group>` passes its
-buttons through UNFILTERED, deliberately: no `<adw-toggle>` attribute can produce
-a disabled or hidden button, so a filter would be a branch no test could reach.
-Adding `enabled` therefore means adding the filter and its spec in the same
-change, or the first disabled toggle is a focus trap — and that obligation is not
-left to this paragraph. `keyboard-operable.spec.ts` pins
-`AdwToggle.observedAttributes` to exactly `['label', 'icon-name']`, so the commit
-that adds `enabled` fails until someone reads this entry.
+THE ENTRY THIS SPLITS FROM RECORDED WHY THEY WERE INVISIBLE, which is the part worth
+keeping: that check holds an `adw-*` element against its WIDGET's GIR properties, and
+`AdwToggle` had no entry in the widget table to be held against, because the table meant
+"concrete `GtkWidget` descendant" and `AdwToggle` is not one. The moment the
+placement-carrier rule gave it a tag (ADR 0028 § Amendment), the check started comparing
+and named five gaps at once. **A gate that compares two surfaces is blind wherever one of
+them has no entry**, and widening a table is therefore also a way of discovering what a
+check was never asked. The vocabulary-alignment gate found the same thing in the same PR
+from the other side — `<adw-toggle>` had been declared web-only with the reason "descends
+from GObject.Object, not GtkWidget", which stopped being true.
 
-**Four siblings surfaced with it (2026-08-28), and the reason they were invisible is the
-point.** `check-adwaita-element-properties.mjs` holds an `adw-*` element against its
-WIDGET's GIR properties — and `AdwToggle` had no entry in the widget table to be held
-against, because that table meant "concrete `GtkWidget` descendant" and `AdwToggle` is
-not one. The moment the placement-carrier rule gave it a tag (ADR 0028 § Amendment), the
-check started comparing and named five gaps at once: `enabled`, plus `description`,
-`name`, `tooltip` and `use-underline`. None is new; the ability to see them is. All five
-are in that script's `KNOWN_GAPS` ratchet, so closing one now fails until it leaves the
-list.
-
-That is worth generalising beyond this element: **a gate that compares two surfaces is
-blind wherever one of them has no entry**, and widening a table is therefore also a way
-of discovering what a check was never asked. The vocabulary-alignment gate found the same
-thing in the same PR, from the other side — `<adw-toggle>` had been declared web-only
-with the reason "descends from GObject.Object, not GtkWidget", which stopped being true.
-
-`orientation` is the second thing missing, and it is not cosmetic. `AdwToggleGroup`
-implements `GtkOrientable` (`adw-toggle-group.c:187`), installs `PROP_ORIENTATION`
-(`:202`), reorients its layout manager (`:929`) and every separator (`:873`,
-`:935`), and `AdwInlineViewSwitcher` forwards the property (`:107`). Neither web
-element has it, so both are hardcoded horizontal — `attachRovingFocus(…,
-orientation: 'horizontal')` in each — and the keyboard follows the layout
-GEOMETRICALLY upstream (`focus_sort_up_down`, `adw-widget-utils.c:339-342`), not
-from a property. A vertical group therefore needs Up/Down to move inside and
-Left/Right to propagate: the exact opposite of what both elements do today. The day
-`orientation` lands, the axis and the `inert` spec row move with it, and
-`keyboard-operable.spec.ts` pins `AdwToggleGroup.observedAttributes` so that commit
+`orientation` is the other half and it is not cosmetic. `AdwToggleGroup` implements
+`GtkOrientable` (`adw-toggle-group.c:187`), installs `PROP_ORIENTATION` (`:202`), reorients
+its layout manager (`:929`) and every separator (`:873`, `:935`), and `AdwInlineViewSwitcher`
+forwards the property (`:107`). Neither web element has it, so both are hardcoded
+horizontal — `attachRovingFocus(…, orientation: 'horizontal')` in each — and the keyboard
+follows the layout GEOMETRICALLY upstream (`focus_sort_up_down`,
+`adw-widget-utils.c:339-342`), not from a property. A vertical group therefore needs
+Up/Down to move inside and Left/Right to propagate: the exact opposite of what both
+elements do today. The day `orientation` lands, the axis and the `inert` spec row move with
+it, and `keyboard-operable.spec.ts` pins `AdwToggleGroup.observedAttributes` so that commit
 cannot land quietly. `<adw-inline-view-switcher>` has no such pin yet.
-
-The same commit closed the roving half of this widget, and the entry it replaces
-got the ROLE wrong in a way worth keeping: it recommended "giving the group the
-tab-list role", generalised from `AdwInlineViewSwitcher` building this widget with
-`GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`). That is the one
-place upstream OVERRIDES the default — the C marks it `/* Special case for
-AdwInlineViewSwitcher */` (`adw-toggle-group.c:856`) — and `AdwToggleGroup` itself
-declares `GTK_ACCESSIBLE_ROLE_RADIO_GROUP` (`:1191`). Reading the widget that
-consumes a class instead of the class itself is how a ledger entry ends up
-prescribing the exception as the rule.
 
 
 ### `<adw-carousel>` does not work in RTL at all, and the reason is its offset model

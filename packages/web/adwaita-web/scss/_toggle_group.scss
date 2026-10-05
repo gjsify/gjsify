@@ -24,6 +24,13 @@ adw-toggle-group {
   border-radius: var(--button-radius);
   background-color: var(--button-bg-color);
 
+  // `toggle-group:disabled` (libadwaita `_toggle-group.scss:16`) — the whole group's
+  // background mixed toward transparent. Written against `[disabled]` and not `:disabled`:
+  // a custom element is never `:disabled`, the way `_expander.scss` records.
+  &[disabled] {
+    background-color: color-mix(in srgb, var(--button-bg-color) var(--disabled-opacity), transparent);
+  }
+
   .adw-toggle-group-inner {
     display: flex;
     align-items: stretch;
@@ -70,6 +77,20 @@ adw-toggle-group {
       outline-offset: 1px;
     }
 
+    // A `<button disabled>` carries GTK's `:disabled` dimming — `_buttons.scss:58`,
+    // `filter: Opacity(var(--disabled-opacity))` — and `cursor: default` with it
+    // (`_button.scss`). Hover and active are suppressed because a disabled button takes
+    // neither, so the hover fill would linger over a toggle that cannot be pressed.
+    &:disabled {
+      opacity: var(--disabled-opacity);
+      cursor: default;
+
+      &:hover,
+      &:active {
+        background-color: transparent;
+      }
+    }
+
     // The active toggle — a raised white chip, the way libadwaita draws it.
     &.active {
       background-color: var(--active-toggle-bg-color);
@@ -80,6 +101,13 @@ adw-toggle-group {
 
       &:hover {
         background-color: var(--active-toggle-bg-color);
+      }
+
+      // The raised chip is what makes it read as raised; libadwaita drops the shadow on a
+      // disabled active toggle (`_toggle-group.scss:131`) so an unavailable choice does not
+      // look pressed.
+      &:disabled {
+        box-shadow: none;
       }
     }
   }

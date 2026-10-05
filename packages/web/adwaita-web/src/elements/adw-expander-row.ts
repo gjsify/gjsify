@@ -4,6 +4,8 @@
 // ATTRIBUTES: `title`, `subtitle`, `expanded`, `enable-expansion`, `show-enable-switch`,
 // and `title-lines` / `subtitle-lines` — clamp either label to N lines, `0` = unlimited,
 // the AdwActionRow pspec's sentinel (`@girs/adw-1`, min 0, default 0).
+// `tooltip-text` (`Gtk.Widget:tooltip-text`) — on the HEADER row alone, which is the
+// part that is the row libadwaita draws.
 //
 // Slots: `slot="prefix"` / `slot="suffix"` children sit in the HEADER row beside the
 // title (before the enable switch and disclosure chevron), like Adw.ExpanderRow's
@@ -26,6 +28,7 @@
 import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
@@ -79,6 +82,7 @@ export class AdwExpanderRow extends HTMLElement {
             'expanded',
             'enable-expansion',
             'show-enable-switch',
+            'tooltip-text',
             'title-lines',
             'subtitle-lines',
         ];
@@ -237,7 +241,10 @@ export class AdwExpanderRow extends HTMLElement {
         // step with the flag; `aria-expanded` is the same statement to the same reader.
         this._headerEl.setAttribute('aria-expanded', String(this.expanded));
         this._contentEl.classList.toggle('expanded', this.expanded);
-
+        // The HEADER only, not the disclosure: libadwaita's tooltip belongs to the row, and
+        // the content box is where the disclosed rows live — a child row's own tooltip is
+        // what the browser should offer there.
+        applyRowTooltip(this, [this._headerEl]);
         this._applyLineClamping();
     }
 

@@ -14,10 +14,10 @@
 // `<adw-action-row>` — libadwaita's AdwSwitchRow IS an AdwActionRow
 // (adw-switch-row.c:50), so `add_prefix` is inherited, not invented here.
 //
-// ATTRIBUTES: `title`, `subtitle`, `active`, and `title-lines` / `subtitle-lines` —
+// ATTRIBUTES: `title`, `subtitle`, `active`, `tooltip-text` (`Gtk.Widget:tooltip-text`),
+// and `title-lines` / `subtitle-lines` —
 // clamp either label to N lines, `0` = unlimited, the AdwActionRow pspec's sentinel
 // (`@girs/adw-1`, min 0, default 0).
-//
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -27,6 +27,7 @@
 import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
@@ -43,6 +44,8 @@ import type { GtkSwitch } from './gtk-switch.js';
 export class AdwSwitchRow extends HTMLElement {
     private _switchEl!: GtkSwitch;
     private _prefixEl!: HTMLDivElement;
+    /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */
+    private _textEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless active flag + its notify rule (ADR 0004). */
@@ -50,7 +53,7 @@ export class AdwSwitchRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'active', 'title-lines', 'subtitle-lines'];
+        return ['title', 'subtitle', 'active', 'tooltip-text', 'title-lines', 'subtitle-lines'];
     }
 
     /** The start (prefix) section — append icons/widgets here imperatively. */
@@ -74,6 +77,7 @@ export class AdwSwitchRow extends HTMLElement {
 
         const text = document.createElement('div');
         text.className = 'adw-row-text';
+        this._textEl = text;
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-row-title';
         this._subtitleEl = document.createElement('span');
@@ -165,6 +169,9 @@ export class AdwSwitchRow extends HTMLElement {
         this._titleEl.hidden = !titleVisible;
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;
+        // The switch is NOT a part here: `unfocusable` and consumer-facing, and a
+        // tooltip the consumer put on it has to keep winning over the row's.
+        applyRowTooltip(this, [this._prefixEl, this._textEl]);
         this._applyLineClamping();
     }
 

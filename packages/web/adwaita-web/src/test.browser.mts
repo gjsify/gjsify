@@ -37,6 +37,7 @@ import { GtkDrawingAreaTest } from './gtk-drawing-area.spec.js';
 import { GtkGLAreaTest } from './gtk-gl-area.spec.js';
 import { GtkGraphicsOffloadTest } from './gtk-graphics-offload.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
+import { AdwRowTooltipTest } from './row-tooltip.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
 import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
@@ -258,6 +259,7 @@ run({
     AdwApplicationWindowTest,
     GtkDropDownTest,
     AdwRowStateTest,
+    AdwRowTooltipTest,
     AdwTabViewTest,
     AdwToastOverlayTest,
     AdwViewSwitcherBarTest,

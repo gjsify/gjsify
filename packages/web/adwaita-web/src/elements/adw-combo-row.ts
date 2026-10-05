@@ -29,6 +29,7 @@
 //   title / subtitle — the text column.
 //   model            — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected         — the selected index (number).
+//   tooltip-text     — `Gtk.Widget:tooltip-text` (`src/row-tooltip.ts`).
 //   title-lines      — clamp title to N lines (0 = unlimited, default)
 //   subtitle-lines   — clamp subtitle to N lines (0 = unlimited, default)
 // Properties — the `<gtk-drop-down>` set minus `enableSearch` and `active`, which are that
@@ -60,6 +61,7 @@
 import { ComboState, deriveRowLabels, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
 
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { stringListSlot } from '../string-list-slot.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
@@ -67,6 +69,8 @@ import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js'
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
     private _valueEl!: HTMLSpanElement;
+    /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */
+    private _textEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
@@ -74,7 +78,7 @@ export class AdwComboRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'model', 'selected', 'title-lines', 'subtitle-lines'];
+        return ['title', 'subtitle', 'model', 'selected', 'tooltip-text', 'title-lines', 'subtitle-lines'];
     }
 
     /** The list model (`Adw.ComboRow:model`). Setting it splices the <select> and clamps the selection. */
@@ -144,6 +148,7 @@ export class AdwComboRow extends HTMLElement {
         // survive being attached, and an absent attribute must not blank it.
         const text = document.createElement('div');
         text.className = 'adw-row-text';
+        this._textEl = text;
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-row-title';
         this._subtitleEl = document.createElement('span');
@@ -286,6 +291,11 @@ export class AdwComboRow extends HTMLElement {
         this._titleEl.hidden = !labels.titleVisible;
         this._subtitleEl.textContent = labels.subtitle;
         this._subtitleEl.hidden = !labels.subtitleVisible;
+        // The <select> is stretched over the whole row (`position: absolute; inset: 0`,
+        // `_combo_row.scss`), so it is what the pointer actually lands on — the label column
+        // has `pointer-events: none`. A tooltip on the label parts alone would therefore
+        // never be reached over the title half of the row.
+        applyRowTooltip(this, [this._textEl, this._valueEl, this._select]);
         this._applyLineClamping();
     }
 

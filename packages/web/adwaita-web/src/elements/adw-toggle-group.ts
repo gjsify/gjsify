@@ -48,6 +48,28 @@
 // C does for the only layout this element has, it matches the three sibling tab lists,
 // and it leaves ArrowUp/ArrowDown to the page instead of swallowing a scroll.
 //
+// SENSITIVITY HAS TWO DOORS, and both are the GTK ones. `GtkWidget:sensitive` on the GROUP
+// is the `sensitive` attribute, read by VALUE rather than by presence because the property
+// is TRUE by default and `<adw-toggle-group>` must not read as insensitive (`src/attributes.ts`).
+// `AdwToggle:enabled` is per toggle.
+//
+// PER-TOGGLE `enabled` IS REACHABLE, and the issue's warning does not close it. `add_toggle`
+// spends it at add time — `gtk_widget_set_sensitive (toggle->button, toggle->enabled)`
+// (adw-toggle-group.c:871) — and `adw_toggle_set_enabled` applies it to that same button
+// afterwards (:1663), so nothing about the order is load-bearing. What makes the door awkward
+// is not the order but the TYPE: `AdwToggle` is not a widget and has no `set_sensitive`, so
+// `add_toggle` is the only public way in and it wants an `AdwToggle` this element never
+// builds. Here the door is the rendered `<button>` — which is exactly what `add_toggle` spends
+// the flag on — so the element reads `enabled` where `add_toggle` would have read it and lands
+// in the same state. One consequence is ported with it: an insensitive toggle cannot be the
+// active one (`set_active_toggle`, :720), which is also what makes a disabled `<button>`
+// agree with the selection rather than sitting checked and unreachable.
+//
+// The roving walk is FILTERED, which `roving-focus.ts` requires of every caller: a disabled
+// `<button>` cannot take focus, and leaving one in strands the user on a `focus()` the browser
+// refuses. `status/open-todos/adwaita-web.md` made adding that filter the price of the
+// attribute; this is that change.
+//
 // Reference: refs/libadwaita/src/adw-toggle-group.c (AdwToggleGroup behaviour)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toggle-group.scss
 // Reference: refs/adwaita-web/adwaita-web/scss/_toggle_group.scss
@@ -58,6 +80,7 @@
 
 import { ToggleGroupState, keptToggles, toggleIndexOfName } from '@gjsify/adwaita-core';
 
+import { booleanAttribute } from '../attributes.js';
 import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
 
@@ -67,8 +90,11 @@ export class AdwToggle extends HTMLElement {
     // icon-only toggle has no other text — `tooltip` is what NAMES it, so it is not a
     // decoration. It produces no disabled or hidden button, which is the invariant
     // `keyboard-operable.spec.ts` pins this list for.
+    //
+    // `enabled` is the one that DOES change the invariant, and the pinned list is what
+    // forced the roving filter to land in the same change.
     static get observedAttributes() {
-        return ['label', 'icon-name', 'tooltip'];
+        return ['label', 'icon-name', 'tooltip', 'enabled'];
     }
 }
 
@@ -82,9 +108,30 @@ export class AdwToggleGroup extends HTMLElement {
     private _stateAttr: 'aria-checked' | 'aria-selected' = 'aria-checked';
     /** Each toggle's `name`, in order — what `active-name` resolves against. */
     private _names: (string | null)[] = [];
+    /** `AdwToggle:enabled` per rendered button, in order — `add_toggle` spends this at add time. */
+    private _enabled: boolean[] = [];
 
     static get observedAttributes() {
-        return ['active', 'active-name', 'flat', 'round'];
+        return ['active', 'active-name', 'flat', 'round', 'sensitive'];
+    }
+
+    /**
+     * `GtkWidget:sensitive` — whether the whole group is insensitive.
+     *
+     * TRUE unless the attribute says `false`, because the property defaults to TRUE and a
+     * boolean attribute read by PRESENCE would leave every group on a page insensitive.
+     */
+    get sensitive(): boolean {
+        return booleanAttribute(this.getAttribute('sensitive'), true);
+    }
+
+    set sensitive(value: boolean) {
+        this.setAttribute('sensitive', value ? 'true' : 'false');
+    }
+
+    /** Whether the toggle at `index` is enabled (`AdwToggle:enabled`) — false once disabled. */
+    isToggleEnabled(index: number): boolean {
+        return this._enabled[index] ?? false;
     }
 
     /** Zero-based index of the active toggle. */
@@ -164,6 +211,9 @@ export class AdwToggleGroup extends HTMLElement {
             btn.type = 'button';
             btn.className = 'adw-toggle';
             btn.setAttribute('role', toggleRole);
+            // `add_toggle` reads `enabled` while building the button (:871), and a toggle
+            // with no `enabled` attribute is the TRUE default (:513).
+            this._enabled[index] = booleanAttribute(toggle.getAttribute('enabled'), true);
 
             const label = toggle.getAttribute('label') ?? '';
             const icon = toggle.getAttribute('icon-name') ?? '';
@@ -203,16 +253,13 @@ export class AdwToggleGroup extends HTMLElement {
         this._applyActiveName();
         this._render();
 
-        // No `disabled`/`hidden` filter, because no `<adw-toggle>` attribute can produce
-        // either — upstream's per-toggle `enabled` (adw-toggle-group.c:871) has no web
-        // counterpart yet, and a filter for a state this element cannot reach would be
-        // untestable. `AdwToggle.observedAttributes` is pinned in
-        // `keyboard-operable.spec.ts` so the day it grows, this decision has to be
-        // revisited instead of silently becoming a focus trap.
+        // No `hidden` filter, because no `<adw-toggle>` attribute can produce one — and now
+        // there IS a `disabled` one, so the filter `roving-focus.ts` asks of every caller is
+        // here. `status/open-todos/adwaita-web.md` made that the price of `enabled`.
         attachRovingFocus({
             host: this,
             orientation: 'horizontal',
-            items: () => this._buttons,
+            items: () => this._buttons.filter((btn) => !btn.disabled),
             // Same path a click takes, so an arrow key cannot drift from a press.
             select: (item) => this._selectIndex(this._buttons.findIndex((btn) => btn === item)),
         });
@@ -229,7 +276,7 @@ export class AdwToggleGroup extends HTMLElement {
             this._applyActiveName();
             return;
         }
-        // flat / round are styling-only.
+        // `sensitive`, flat and round: styling and per-button state, both `_render`.
         this._render();
     }
 
@@ -253,6 +300,10 @@ export class AdwToggleGroup extends HTMLElement {
     }
 
     private _selectIndex(index: number): void {
+        // `set_active_toggle` refuses a toggle that is not enabled (:720), so an insensitive
+        // one can never become the active one — the check is the core state machine's guard
+        // plus this one, in C's order.
+        if (!this._enabled[index]) return;
         // The core state machine guards the no-op/out-of-range cases and notifies
         // the subscriber (which re-renders) only on a real change.
         if (!this._state.setSelected(index)) return;
@@ -266,14 +317,38 @@ export class AdwToggleGroup extends HTMLElement {
         this.classList.toggle('flat', this.hasAttribute('flat'));
         this.classList.toggle('round', this.hasAttribute('round'));
         const active = this._state.selected;
+        const sensitive = this.sensitive;
+        // The group node's own `:disabled` rule (_toggle-group.scss:16) needs the UA's
+        // `:disabled`, which a custom element never is — `_expander.scss` records why, and
+        // writes the rule against the attribute for the same reason.
+        this.toggleAttribute('disabled', !sensitive);
         this._buttons.forEach((btn, index) => {
             const isActive = index === active;
             btn.classList.toggle('active', isActive);
             btn.setAttribute(this._stateAttr, String(isActive));
+            // `GtkWidget:sensitive` on the GROUP reaches every child in GTK, because
+            // `gtk_widget_is_sensitive` ANDs the parent chain; a `<button disabled>` is the
+            // browser's half of that, and it is also what takes the toggle out of the tab
+            // order and out of the roving walk.
+            btn.disabled = !sensitive || !this._enabled[index];
             // The roving tabindex: Tab enters on the ACTIVE toggle, the way
             // `adw_toggle_group_grab_focus` grabs it, and leaves the group from there.
             btn.tabIndex = isActive ? 0 : -1;
         });
+        // An insensitive toggle can never BE the active one, so an active-but-disabled toggle
+        // — `active="1"` authored next to `<adw-toggle enabled="false">` — would be a
+        // checked radio nothing can reach. Upstream cannot express the pair at all
+        // (`set_active_toggle` clears the selection instead, :720), so the selection moves
+        // to the first enabled toggle, which is the one Tab then enters on.
+        if (!this._enabled[active]) this._activateFirstEnabled();
+    }
+
+    /** Select the first enabled toggle, if there is one — the C's "no active" repair. */
+    private _activateFirstEnabled(): void {
+        const first = this._enabled.findIndex((enabled) => enabled);
+        if (first === -1) return;
+        this._state.setSelected(first);
+        this.setAttribute('active', String(first));
     }
 }
 
