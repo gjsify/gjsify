@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { sixAssemblerLang } from '@gjsify/gtksource-core/fixtures';
+import { sixAssemblerLang } from './fixtures.spec.js';
 
 import type { EditorDriver, EditorHost, EditorLayout } from './editor-driver.js';
 import { EditorSession } from './editor-session.js';

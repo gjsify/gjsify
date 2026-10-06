@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { learnStyle, learnStyleDark, sixAssemblerLang } from '@gjsify/gtksource-core/fixtures';
+import { learnStyle, learnStyleDark, sixAssemblerLang } from './fixtures.spec.js';
 
 import { LanguageManager } from './language-manager.js';
 import { paletteOf, StyleSchemeManager } from './style-scheme.js';
