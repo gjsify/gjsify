@@ -26,7 +26,11 @@ export const GtkButtonActionsNsTest = async () => {
             box.append(button as unknown as never);
             let ran = 0;
             let clicked = 0;
-            insertActionGroup(box as never, 'source-view', groupWith('copy', () => ran++));
+            insertActionGroup(
+                box as never,
+                'source-view',
+                groupWith('copy', () => ran++),
+            );
             button.connect('clicked', () => clicked++);
             tap(button);
             expect(ran).toBe(1);
@@ -40,7 +44,11 @@ export const GtkButtonActionsNsTest = async () => {
             button.actionName = 'win.missing';
             tap(button);
             let ran = 0;
-            insertActionGroup(button as never, 'win', groupWith('off', () => ran++, false));
+            insertActionGroup(
+                button as never,
+                'win',
+                groupWith('off', () => ran++, false),
+            );
             button.actionName = 'win.off';
             tap(button);
             expect(ran).toBe(0);
@@ -50,7 +58,11 @@ export const GtkButtonActionsNsTest = async () => {
         await it('an action name written from a .blp (action-name) dispatches the same way', () => {
             const button = build({ tag: 'GtkButton', props: { 'action-name': 'win.go' } }) as unknown as Gtk.Button;
             let ran = 0;
-            insertActionGroup(button as never, 'win', groupWith('go', () => ran++));
+            insertActionGroup(
+                button as never,
+                'win',
+                groupWith('go', () => ran++),
+            );
             tap(button);
             expect(ran).toBe(1);
         });
@@ -99,4 +111,3 @@ export const GtkButtonActionsNsTest = async () => {
         });
     });
 };
-

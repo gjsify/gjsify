@@ -27,10 +27,10 @@ export const AdwRegisterBarrelNsTest = async () => {
     await describe('registerBarrel', async () => {
         await it('refuses a tag no registered library claims', () => {
             const message = refusal(() => elementFor('GtkNowhereWidget'));
-            expect(message.includes('Module \'~/gtk\' has no member')).toBe(true);
+            expect(message.includes("Module '~/gtk' has no member")).toBe(true);
         });
 
-        await it('resolves a registered library\'s class under its prefix', () => {
+        await it("resolves a registered library's class under its prefix", () => {
             registerBarrel('gtkprobe', 'GtkProbe', { Widget: GtkProbeWidget });
             const element = elementFor('GtkProbeWidget');
             expect(element.xmlName).toBe('gtkprobe:Widget');
@@ -51,7 +51,7 @@ export const AdwRegisterBarrelNsTest = async () => {
 
         await it('refuses a registered library that lacks the member', () => {
             const message = refusal(() => elementFor('GtkProbeMissing'));
-            expect(message.includes('has no member for element \'gtkprobe:Missing\'')).toBe(true);
+            expect(message.includes("has no member for element 'gtkprobe:Missing'")).toBe(true);
         });
 
         await it('replaces a barrel registered twice under the same library', () => {

@@ -26,7 +26,7 @@ export const GtkSourceViewTreeNsTest = async () => {
             expect(view?.constructor.name).toBe('GtkSourceView');
         });
 
-        await it('writes the authored properties through the view\'s coercing setters', () => {
+        await it("writes the authored properties through the view's coercing setters", () => {
             const view = built().getViewById('sourceView') as unknown as GtkSourceView | undefined;
             expect(view?.autoIndent).toBe(true);
             expect(view?.indentWidth).toBe(4);

@@ -69,6 +69,8 @@ declare module '@nativescript/core' {
 
     /** Base view — every visual element. */
     export class View extends Observable {
+        /** Lifecycle hook NativeScript calls once the native view is created and attached. */
+        onLoaded(): void;
         /**
          * `ViewCommon` declares `private _measuredWidth`
          * (`ui/core/view/view-common.d.ts:80`). Declared here so a widget that

@@ -161,7 +161,10 @@ export class View extends Observable {
      * name replaces it, and every inherited-CSS pass then reads `viewRef` off the wrong object
      * (`Cannot read properties of undefined (reading 'get')`, measured on a device).
      */
-    _style: { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } = { direction: null, viewRef: new WeakRef(this) };
+    _style: { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } = {
+        direction: null,
+        viewRef: new WeakRef(this),
+    };
 
     get style(): { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } {
         return this._style;
