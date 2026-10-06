@@ -379,7 +379,9 @@ gallery derives its "no preview" reason from them, and a duplicate is a defect.
 - **Whether the build-time check should require `for=`.** Recommended optional; the runtime net
   keeps the unchecked path safe either way.
 - **i18n against a gettext catalog** on web or NativeScript. `translation-domain` is a loss until
-  a renderer translates.
+  a renderer translates. NativeScript takes a `translate(text, context)` option on `build`,
+  `buildInto` and `applyBreakpoints` for the strings the file marks with `_()`, and the app brings
+  its own catalog (`@nativescript/localize`); the domain itself is still a loss.
 - **iOS.** The NativeScript cells above were reasoned for the Android path; iOS is unverified
   (issue #1051 for icons) and inherits every UNVERIFIED mark.
 - **Hot reload and live re-projection** of a changed `.blp`.

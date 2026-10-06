@@ -177,6 +177,7 @@ interface BuildContext {
     breakpointHosts: { view: object; element: Element; node: SharedTreeNode }[];
     observeSize: SizeSource;
     scope: Readonly<Record<string, unknown>> | undefined;
+    translate: BuildOptions['translate'];
     /**
      * Where a VALUE object's id goes, when the caller can ask for it ({@link buildWithSiblings}).
      * Undefined for `build`, whose one return value cannot hand a dialog or a stack page back, so
@@ -197,12 +198,29 @@ interface PendingBind {
 /** Calls `onSize` with the view's measured size, now and on every change; returns its disposer. */
 export type SizeSource = (view: View, onSize: (size: BreakpointSize) => void) => () => void;
 
+/** The text of a `_()`-marked string through the caller's `translate`, and anything else untouched. */
+function translated(
+    translate: BuildOptions['translate'],
+    value: string | number | boolean,
+    marking: { context?: string } | undefined,
+): string | number | boolean {
+    if (marking === undefined || translate === undefined || typeof value !== 'string') return value;
+    return translate(value, marking.context);
+}
+
 /** What a caller hands {@link build} beside the tree. */
 export interface BuildOptions {
     /** Where a `breakpoints` node reads its size from; the view's post-layout size unless supplied. */
     observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
+    /**
+     * Translates a string the `.blp` marked with `_()` or `C_()`, as GtkBuilder does with its
+     * gettext domain. Called with the authored text and the `C_()` context, if any. Without it a
+     * marked string stays as authored, which is English: the marking is carried, not acted on.
+     * Covers properties, the labels of `responses`, `strings [ ]` items and breakpoint setters.
+     */
+    translate?: (text: string, context?: string) => string;
 }
 
 /**
@@ -352,6 +370,7 @@ function buildTree(
         breakpointHosts: [],
         observeSize: options.observeSize ?? observeWindowSize,
         scope: options.scope,
+        translate: options.translate,
         values: collectValues ? new Map() : undefined,
     };
     const root = buildNode(node, context, existing);
@@ -438,7 +457,7 @@ function bindBreakpoints(
     if (!(view instanceof View)) {
         throw new Error(`<${element.xmlName}> is not a view, so it has no size for a breakpoint to read.`);
     }
-    wireBreakpoints(element.xmlName, view, node.breakpoints ?? [], context.ids, context.observeSize);
+    wireBreakpoints(element.xmlName, view, node.breakpoints ?? [], context.ids, context.observeSize, context.translate);
 }
 
 /**
@@ -450,7 +469,7 @@ export function applyBreakpoints(
     host: View,
     breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
     ids: Readonly<Record<string, View>>,
-    options: Pick<BuildOptions, 'observeSize'> = {},
+    options: Pick<BuildOptions, 'observeSize' | 'translate'> = {},
 ): void {
     wireBreakpoints(
         host.constructor.name,
@@ -458,6 +477,7 @@ export function applyBreakpoints(
         breakpoints,
         new Map(Object.entries(ids)),
         options.observeSize ?? observeWindowSize,
+        options.translate,
     );
 }
 
@@ -467,6 +487,7 @@ function wireBreakpoints(
     breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
     ids: ReadonlyMap<string, View>,
     observeSize: SizeSource,
+    translate?: BuildOptions['translate'],
 ): void {
     const definitions = breakpoints.map((breakpoint) => {
         if (parseBreakpointCondition(breakpoint.condition) === null) {
@@ -485,7 +506,11 @@ function wireBreakpoints(
                 if (!(propertyOf(setter.property) in object)) {
                     throw new Error(`${where}: the target declares no '${propertyOf(setter.property)}'.`);
                 }
-                return { object, property: setter.property, value: { authored: setter.value } };
+                return {
+                    object,
+                    property: setter.property,
+                    value: { authored: translated(translate, setter.value, setter.translatable) },
+                };
             }),
         };
     });
@@ -674,7 +699,9 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
             context.pending.push({ view, element, prop, id: String(value) });
             continue;
         }
-        (view as unknown as Record<string, unknown>)[prop] = String(value);
+        (view as unknown as Record<string, unknown>)[prop] = String(
+            translated(context.translate, value, node.translatable?.[authored]),
+        );
     }
     // `styles ["card"]` in a `.blp`. Refused like an attribute when the widget has no
     // `styleClasses` setter: writing `className` instead would bypass the class list the
@@ -696,7 +723,7 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
                 `model holds them, so [${node.extensions.strings.map((string) => string.value).join(', ')}] would be dropped.`,
         );
     }
-    applyResponses(view, element, node);
+    applyResponses(view, element, node, context);
     return view;
 }
 
@@ -718,7 +745,7 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object, conte
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         const prop = propertyOf(authored);
         if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, value);
-        bag[prop] = value;
+        bag[prop] = translated(context.translate, value, node.translatable?.[authored]);
     }
     // ADR 0072's string-list items are CONSTRUCT data, the same `{ strings }` bag
     // `new Gtk.StringList({ strings })` takes in GJS. `append` is what marks a class as a list
@@ -732,10 +759,10 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object, conte
                     `[${strings.map((string) => string.value).join(', ')}] would be dropped.`,
             );
         }
-        bag.strings = strings.map((string) => string.value);
+        bag.strings = strings.map((string) => String(translated(context.translate, string.value, string.translatable)));
     }
     const built = new element.ctor(bag);
-    applyResponses(built, element, node);
+    applyResponses(built, element, node, context);
     if (node.id !== undefined && context.values !== undefined) {
         if (context.values.has(node.id) || context.ids.has(node.id)) {
             throw new Error(`Two nodes of this tree carry the id '${node.id}'; GtkBuilder refuses a duplicate id.`);
@@ -758,7 +785,7 @@ interface ExtensionDoors {
  * it presents through the platform's own dialog. A class with no such method is REFUSED rather
  * than skipped: a dialog without its buttons looks finished.
  */
-function applyResponses(built: object, element: Element, node: SharedTreeNode): void {
+function applyResponses(built: object, element: Element, node: SharedTreeNode, context: BuildContext): void {
     const doors = built as Partial<ExtensionDoors>;
     const responses = node.extensions?.responses;
     if (responses !== undefined) {
@@ -768,8 +795,8 @@ function applyResponses(built: object, element: Element, node: SharedTreeNode): 
                     `[${responses.map((response) => response.id).join(', ')}] would be dropped.`,
             );
         }
-        for (const { id, label, appearance, enabled } of responses) {
-            doors.add_response(id, label, {
+        for (const { id, label, appearance, enabled, translatable } of responses) {
+            doors.add_response(id, String(translated(context.translate, label, translatable)), {
                 ...(appearance === undefined ? {} : { appearance }),
                 ...(enabled === undefined ? {} : { enabled }),
             });

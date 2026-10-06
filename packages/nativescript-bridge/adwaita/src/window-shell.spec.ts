@@ -11,6 +11,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { build, buildInto, buildWithSiblings, registerTemplateClass } from './builder/index.js';
 import * as Adw from './namespace/adw.js';
+import type { AdwAlertDialog } from './widgets/adw-alert-dialog.js';
 import * as Gtk from './namespace/gtk.js';
 
 class ShellScreen extends Gtk.Box {}
@@ -171,6 +172,49 @@ export const AdwWindowShellNsTest = async () => {
             expect(run instanceof ShellButton).toBe(true);
             expect(run.halign).toBe('end');
             expect((root.getViewById('button') as unknown as { label: string }).label).toBe('Run');
+        });
+
+        await it('translates what the file marked, through the caller, and nothing else', () => {
+            const german: Record<string, string> = { Run: 'Ausführen', Cancel: 'Abbrechen', Narrow: 'Schmal' };
+            const tree: SharedTreeNode = {
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkButton', id: 'marked', props: { label: 'Run' }, translatable: { label: {} } },
+                    { tag: 'GtkButton', id: 'plain', props: { label: 'Run' } },
+                ],
+                siblings: [
+                    {
+                        tag: 'AdwAlertDialog',
+                        id: 'dialog',
+                        extensions: { responses: [{ id: 'cancel', label: 'Cancel', translatable: {} }] },
+                    },
+                ],
+                breakpoints: [
+                    {
+                        condition: NARROW,
+                        setters: [{ object: 'marked', property: 'label', value: 'Narrow', translatable: {} }],
+                    },
+                ],
+            };
+            let feed: ((size: { width: number; height: number }) => void) | undefined;
+            const contexts: (string | undefined)[] = [];
+            const { root, siblings } = buildWithSiblings(tree, {
+                translate: (text, context) => {
+                    contexts.push(context);
+                    return german[text] ?? text;
+                },
+                observeSize: (_view, onSize) => {
+                    feed = onSize;
+                    return () => {};
+                },
+            });
+            const probe = root as unknown as Probe;
+            expect(probe.getViewById('marked').label).toBe('Ausführen');
+            expect(probe.getViewById('plain').label).toBe('Run');
+            expect((siblings.get('dialog') as unknown as AdwAlertDialog).responses[0]?.label).toBe('Abbrechen');
+            feed!({ width: 390, height: 800 });
+            expect(probe.getViewById('marked').label).toBe('Schmal');
+            expect(contexts.every((context) => context === undefined)).toBe(true);
         });
 
         await it('refuses to build a template into an instance of another class', () => {
