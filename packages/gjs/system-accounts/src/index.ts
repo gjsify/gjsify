@@ -1,3 +1,4 @@
+export { createSystemAccounts } from './system-accounts.js';
 export { isUnavailable } from './no-account-store.js';
 export type {
     Account,
