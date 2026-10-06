@@ -32,11 +32,15 @@ interface SystemAccounts {
   getMailSettings(account: Account): Promise<MailSettings>; // IMAP + SMTP + sender
   getCredentials(account: Account, purpose: 'imap' | 'smtp'): Promise<Credentials>;
 }
-// Credentials = { kind: 'password'; secret } | { kind: 'oauth2'; token; expiresAt }
+// Credentials = { kind: 'password'; secret } | { kind: 'oauth2'; token; expiresAt } | Unavailable
+// Unavailable = { kind: 'unavailable'; reason }, also the other answer of getMailSettings
 ```
 
 - `capabilities()` is how a caller finds out that a host has no account store, or one that hands
   out no credentials. A missing capability is a value, never a thrown surprise.
+  The value is `Unavailable` with a reason (`no-account-store`, `unknown-account`, `not-supported`,
+  `credentials-unavailable`): the two-member `Credentials` above had no place for it, and a call that
+  must return something cannot report a missing capability any other way without throwing.
 - Credentials are returned to the caller and never logged, cached to disk or put in an error.
 - The package is named `@gjsify/system-accounts` as a working name; the name is open.
 - Drivers hang off the existing runtime slots (gjs, node, browser, nativescript, react-native).
@@ -68,9 +72,24 @@ interface SystemAccounts {
 ### Test approach
 
 As in ADR 0078: the spec exports a fake accounts service on a peer-to-peer `Gio.DBusServer` and
-drives the real GVariant marshalling, so CI needs no GNOME session. The fake must answer the
-D-Bus interfaces `libgoa` calls; that mapping is **to be verified** when the driver is written.
-The capability mapping itself runs as pure functions on every host.
+drives the real GVariant marshalling, so CI needs no GNOME session. The capability mapping
+itself runs as pure functions on every host.
+
+Verified when the driver was written (libgoa 3.58.1, GJS 1.88.1): `Goa.Client` has only `new`,
+`new_sync` and `new_finish`, no constructor taking a connection, and it dials the **session bus**.
+A peer-to-peer server therefore has to play that bus as well: the fake answers `Hello`,
+`GetNameOwner`, `StartServiceByName` and `AddMatch` on `org.freedesktop.DBus`, serves
+`GetManagedObjects` on `/org/gnome/OnlineAccounts` (the `Account`, `Mail`, `PasswordBased`,
+`OAuth2Based` and service interfaces as properties) and `GetPassword` / `GetAccessToken` on each
+account path, and the process's `DBUS_SESSION_BUS_ADDRESS` points at it. With that, libgoa's own
+client code runs unmodified against the fake. GLib caches the session connection for the life of
+the process, so the fake is one server per process and the spec refuses to run when the process is
+already bound to another bus (a developer's real accounts would otherwise reach the test).
+
+The `&optional` import costs a top-level await (ADR 0087 clause 9), and a `@gjsify/unit` run that
+reaches it wedges: `run()` enters a blocking `GLib.MainLoop.run()` from a promise job (ADR 0085
+clause 5). The driver and its specs therefore carry no `&optional` import; only the entry point
+`createSystemAccounts` does.
 
 ## Consequences
 
