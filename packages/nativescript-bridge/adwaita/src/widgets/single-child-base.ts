@@ -41,6 +41,25 @@ export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
         this.addRow(new ItemSpec(1, 'star'));
     }
 
+    private _columnIsStar = true;
+
+    // A star column takes the whole offered width even when this container is aligned `end` /
+    // `center`: a `halign: end` Bin the app overlays would span the window and park its child
+    // mid-screen. GTK sizes such a widget to its child, so the column follows the alignment as
+    // read at load (alignment is set before the widget is attached).
+    onLoaded(): void {
+        super.onLoaded();
+        this._syncColumnToAlignment();
+    }
+
+    private _syncColumnToAlignment(): void {
+        const star = this.horizontalAlignment === 'stretch';
+        if (star === this._columnIsStar) return;
+        this._columnIsStar = star;
+        this.removeColumns();
+        this.addColumn(new ItemSpec(1, star ? 'star' : 'auto'));
+    }
+
     // --- child ---
 
     /** The child, or `null`. */
