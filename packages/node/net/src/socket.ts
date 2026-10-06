@@ -619,23 +619,33 @@ export class Socket extends Duplex {
         }
     }
 
+    /**
+     * The kernel socket under `_connection`. `@gjsify/tls` parks a
+     * `Gio.TlsConnection` there once the handshake is done, and that wraps the
+     * `SocketConnection` that owns the socket (`get_socket` exists only on the
+     * latter) — a TLS-secured socket still carries TCP options.
+     */
+    private _gioSocket(): Gio.Socket | null {
+        let stream: Gio.IOStream | null = this._connection;
+        while (stream instanceof Gio.TlsConnection) stream = stream.base_io_stream;
+        return stream instanceof Gio.SocketConnection ? stream.get_socket() : null;
+    }
+
     /** Enable/disable TCP keep-alive. */
     setKeepAlive(enable?: boolean, _initialDelay?: number): this {
-        // No try/catch: get_socket/set_keepalive are plain property accessors
-        // with no throw path in the GIR — unlike setNoDelay's set_option below,
-        // which has `throws="1"` and genuinely needs its guard.
-        this._connection?.get_socket().set_keepalive(enable ?? false);
+        // No try/catch: set_keepalive is a plain property accessor with no
+        // throw path in the GIR — unlike setNoDelay's set_option below, which
+        // has `throws="1"` and genuinely needs its guard.
+        this._gioSocket()?.set_keepalive(enable ?? false);
         return this;
     }
 
     /** Enable/disable TCP_NODELAY (disable Nagle algorithm). */
     setNoDelay(noDelay?: boolean): this {
-        if (this._connection) {
-            try {
-                this._connection.get_socket().set_option(6, 1, noDelay !== false ? 1 : 0);
-            } catch {
-                /* ignore */
-            }
+        try {
+            this._gioSocket()?.set_option(6, 1, noDelay !== false ? 1 : 0);
+        } catch {
+            /* ignore */
         }
         return this;
     }
