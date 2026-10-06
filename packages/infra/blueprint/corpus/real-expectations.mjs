@@ -2278,4 +2278,68 @@ export const REAL_EXPECTATIONS = [
         },
         lost: [],
     },
+    {
+        file: 'packages/nativescript-bridge/gtksource/src/fixtures/source-view.blp',
+        node: {
+            tag: 'AdwBin',
+            template: 'SourceView',
+            styleClasses: ['source-view'],
+            children: [
+                {
+                    tag: 'GtkOverlay',
+                    children: [
+                        {
+                            tag: 'GtkScrolledWindow',
+                            id: 'scrolledWindow',
+                            props: { hexpand: true, vexpand: true, 'has-frame': false },
+                            children: [
+                                {
+                                    tag: 'GtkSourceView',
+                                    id: 'sourceView',
+                                    props: {
+                                        hexpand: true,
+                                        vexpand: true,
+                                        'auto-indent': true,
+                                        'indent-width': 4,
+                                        'show-line-numbers': true,
+                                        'highlight-current-line': true,
+                                        monospace: true,
+                                        editable: false,
+                                        'left-margin': 12,
+                                        'right-margin': 12,
+                                        'top-margin': 12,
+                                        'bottom-margin': 12,
+                                    },
+                                    children: [
+                                        {
+                                            tag: 'GtkSourceBuffer',
+                                            slot: 'buffer',
+                                            props: { text: 'LDA #$01\nSTA $0200', 'highlight-syntax': false },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'GtkButton',
+                            id: 'copyButton',
+                            slot: 'overlay',
+                            props: {
+                                halign: 'end',
+                                valign: 'start',
+                                'margin-end': 12,
+                                'margin-top': 12,
+                                'icon-name': 'edit-copy-symbolic',
+                                'tooltip-text': 'Copy',
+                                visible: false,
+                            },
+                            translatable: { 'tooltip-text': {} },
+                            styleClasses: ['osd'],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
 ];

@@ -720,6 +720,10 @@ export const CORPUS_REFUSALS = [
  */
 export const CORPUS_REAL_FILES = [
     {
+        slug: 'packages_nativescript-bridge_gtksource_src_fixtures_source-view',
+        source: 'packages/nativescript-bridge/gtksource/src/fixtures/source-view.blp',
+    },
+    {
         slug: 'showcases_dom_canvas2d-fireworks_src_gjs_fireworks-window',
         source: 'showcases/dom/canvas2d-fireworks/src/gjs/fireworks-window.blp',
     },
