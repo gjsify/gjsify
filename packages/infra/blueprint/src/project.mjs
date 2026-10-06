@@ -457,6 +457,31 @@ const projectObject = (object, slot, tag) => {
 };
 
 /**
+ * The object roots a file declares beside its kept widget root (ADR 0093): what the projection
+ * carries as `siblings`. A `menu` has its own loss kind and a second `template` stays a loss.
+ *
+ * @param {BlueprintFile} file @param {BlueprintFile['roots'][number] | undefined} kept
+ * @returns {ObjectNode[]}
+ */
+const siblingRootsOf = (file, kept) =>
+    /** @type {ObjectNode[]} */ (
+        file.roots.filter(
+            (candidate) => candidate !== kept && candidate.kind !== 'menu' && candidate.kind !== 'template',
+        )
+    );
+
+/**
+ * The `siblings` field a root node carries, or nothing where the file has no second object root.
+ *
+ * @param {BlueprintFile} file @param {BlueprintFile['roots'][number]} kept @param {(type: TypeRef) => string} tag
+ * @returns {{ siblings?: SharedNode[] }}
+ */
+const siblingsOf = (file, kept, tag) => {
+    const siblings = siblingRootsOf(file, kept).map((sibling) => projectObject(sibling, undefined, tag));
+    return siblings.length > 0 ? { siblings } : {};
+};
+
+/**
  * What the projection drops, by kind and line.
  *
  * @param {BlueprintFile} file
@@ -541,9 +566,10 @@ const lossesOf = (file, tag) => {
     if (file.translationDomain !== undefined) lost.push({ kind: 'translation-domain', line: 1 });
 
     // `SharedNode` is ONE tree and a file may hold several roots, so the projection keeps
-    // the first widget one and every other root is a loss: a `menu` by its own kind, because
-    // ADR 0042 already made menus a portable value and gives that loss a different future,
-    // and anything else as a plain sibling.
+    // the first widget one and carries every further OBJECT root beside it as `siblings` (ADR
+    // 0093). A `menu` is a loss by its own kind, because ADR 0042 already made menus a portable
+    // value and gives that loss a different future, and so is a second `template`, which has no
+    // spelling in a tree that has one `template` field.
     let keptWidget = false;
     for (const root of file.roots) {
         if (root.kind === 'menu') {
@@ -551,7 +577,8 @@ const lossesOf = (file, tag) => {
             continue;
         }
         if (keptWidget) {
-            lost.push({ kind: 'sibling-object', line: root.line });
+            if (root.kind === 'template') lost.push({ kind: 'sibling-object', line: root.line });
+            else walkObject(/** @type {ObjectNode} */ (root));
             continue;
         }
         keptWidget = true;
@@ -611,6 +638,10 @@ const usesOf = (file, tag) => {
     };
 
     const root = file.roots.find((candidate) => candidate.kind !== 'menu');
+    for (const sibling of siblingRootsOf(file, root)) {
+        uses.push({ kind: 'sibling-object', line: sibling.line });
+        walkObject(sibling);
+    }
     if (root?.kind === 'template') {
         // The root tag is the template's PARENT, or, with none, the class it defines. So the
         // `extern` use sits on the parent's line when the parent is extern, and on the
@@ -673,13 +704,17 @@ export function projectToSharedNode(file, options) {
                 ...(rootType.extern === true ? { extern: true } : {}),
                 template: templateClass,
                 ...projectBody(template.body, tag),
+                ...siblingsOf(file, root, tag),
             },
             lost: lossesOf(file, tag),
             uses: usesOf(file, tag),
         };
     }
     return {
-        node: projectObject(/** @type {ObjectNode} */ (root), undefined, tag),
+        node: {
+            ...projectObject(/** @type {ObjectNode} */ (root), undefined, tag),
+            ...siblingsOf(file, root, tag),
+        },
         lost: lossesOf(file, tag),
         uses: usesOf(file, tag),
     };

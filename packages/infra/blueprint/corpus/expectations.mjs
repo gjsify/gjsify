@@ -388,22 +388,19 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '20-accessibility.blp',
-        node: { tag: 'GtkButton', props: { label: 'described' } },
+        node: {
+            tag: 'GtkButton',
+            props: { label: 'described' },
+            siblings: [
+                { tag: 'GtkLabel', id: 'labelA' },
+                { tag: 'GtkLabel', id: 'labelB' },
+            ],
+        },
         lost: [
             {
                 kind: 'accessibility',
                 line: 6,
                 detail: 'the whole `accessibility { }` block — properties, relations, three states, a translatable property and a list-valued relation; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
-            },
-            {
-                kind: 'sibling-object',
-                line: 20,
-                detail: 'the whole `Gtk.Label labelA`, which `labelled-by` on line 16 points at — its id goes with it and is not counted twice',
-            },
-            {
-                kind: 'sibling-object',
-                line: 23,
-                detail: 'the whole `Gtk.Label labelB`, the other target of the same relation',
             },
         ],
         note: 'The block is dropped whole, so the projection is the one exit this file cannot measure the ARIA table through — every value type in it, and the three `<state>` lines that turn `true`, `true` and `mixed` into `1`, `true` and `2`, are held by the golden alone.',
@@ -450,12 +447,13 @@ export const RULE_EXPECTATIONS = [
                 { tag: 'GtkLabel', id: 'labelA' },
                 { tag: 'GtkLabel', id: 'labelB' },
             ],
+            siblings: [{ tag: 'GtkSizeGroup' }],
         },
         lost: [
             {
-                kind: 'sibling-object',
-                line: 11,
-                detail: 'the whole `Gtk.SizeGroup` — a second top-level object, and `SharedNode` is one tree, so the projection keeps the widget one',
+                kind: 'value-list',
+                line: 12,
+                detail: 'the `widgets [ ]` of the `Gtk.SizeGroup` beside the box, a list of object REFERENCES — the group itself is carried as a sibling, and what it groups is not',
             },
         ],
         note: 'Two losses that only matter together: dropping the ids is survivable until something else references them, and here the reference is what carries the meaning.',
@@ -688,6 +686,7 @@ export const RULE_EXPECTATIONS = [
                 { tag: 'GtkMenuButton', props: { 'menu-model': 'null' } },
                 { tag: 'GtkLabel', id: 'labelA' },
             ],
+            siblings: [{ tag: 'GtkSizeGroup' }],
         },
         lost: [
             {
@@ -696,9 +695,9 @@ export const RULE_EXPECTATIONS = [
                 detail: 'the whole `menu null { … }` — a sibling of the object and not a widget, the same loss as `12-menu.blp`',
             },
             {
-                kind: 'sibling-object',
-                line: 18,
-                detail: 'the whole `Gtk.SizeGroup`, a second top-level object where `SharedNode` is one tree',
+                kind: 'value-list',
+                line: 19,
+                detail: 'the `widgets [ ]` of the `Gtk.SizeGroup` beside the box, which is carried as a sibling without what it groups',
             },
         ],
         note: 'The projection keeps `menu-model` as the four characters `null`, exactly as it keeps an enum member: it reads the identifier and never asks what it points at. That is the same reading the XML exit had before this change, and it is right HERE — the object exists — which is why the fix is a lookup and not a ban on the spelling. The projection cannot make that distinction at all, holding no id index, so it is the XML exit that carries the rule and this expectation records the asymmetry rather than papering over it.',
@@ -801,15 +800,26 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '45-expression-property.blp',
-        node: { tag: 'GtkBoolFilter', id: 'filterOne' },
+        node: {
+            tag: 'GtkBoolFilter',
+            id: 'filterOne',
+            siblings: [
+                { tag: 'GtkBoolFilter' },
+                { tag: 'GtkBoolFilter' },
+                { tag: 'GtkBoolFilter' },
+                {
+                    tag: 'GtkBoolFilter',
+                    bindings: { expression: { source: 'filterOne', property: 'expression' } },
+                },
+            ],
+        },
         lost: [
             { kind: 'binding-expression', line: 4, detail: '`expr true` — an expression as a property VALUE' },
-            { kind: 'sibling-object', line: 7, detail: 'the parenthesised `item` cast' },
-            { kind: 'sibling-object', line: 11, detail: 'the same thing without the parentheses' },
-            { kind: 'sibling-object', line: 15, detail: '`item` inside a closure argument' },
-            { kind: 'sibling-object', line: 19, detail: '`expression: bind filterOne.expression`, which collapses' },
+            { kind: 'binding-expression', line: 8, detail: 'the parenthesised `item` cast' },
+            { kind: 'binding-expression', line: 12, detail: 'the same thing without the parentheses' },
+            { kind: 'binding-expression', line: 16, detail: '`item` inside a closure argument' },
         ],
-        note: 'A `Gtk.BoolFilter` is not a widget and the projection keeps it anyway — `SharedNode` has one tree, and the first root is it, whatever it is. So four of the five things this file measures are lost as SIBLINGS before their expressions are looked at, and the surviving root projects to a bare tag. Every `item` in the file is invisible here.',
+        note: 'A `Gtk.BoolFilter` is not a widget and the projection keeps it anyway — `SharedNode` has one tree, and the first root is it, whatever it is. The other four roots are SIBLINGS (ADR 0093), so each of them is looked at: three lose their expression and project to a bare tag, and the fourth, `bind filterOne.expression`, is the simple bind and survives as one. Every `item` in the file is invisible here.',
     },
     {
         file: '46-expression-cast-builtins.blp',
@@ -852,11 +862,12 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '47-expression-typeof.blp',
-        node: { tag: 'AdwEnumListModel', props: { 'enum-type': 'GtkOrientation' } },
-        lost: [
-            { kind: 'sibling-object', line: 8, detail: 'the same property holding an EXTERN type' },
-            { kind: 'sibling-object', line: 12, detail: 'a `typeof` inside a closure argument' },
-        ],
+        node: {
+            tag: 'AdwEnumListModel',
+            props: { 'enum-type': 'GtkOrientation' },
+            siblings: [{ tag: 'AdwEnumListModel', props: { 'enum-type': 'CorpusTypeofEnum' } }, { tag: 'GtkLabel' }],
+        },
+        lost: [{ kind: 'binding-expression', line: 13, detail: 'a `typeof` inside a closure argument' }],
         note: '`typeof<Gtk.Orientation>` is the one expression operand this exit does NOT lose: it is a type name, and a type name is the thing the projection already spells through the same seam the XML does. It takes the REFERENCE position of that seam, not the object one — `Gtk.Orientation` is an enum, and a check written for an instantiated class refuses it, which is the same trap `41-template-parent-abstract.blp` records.',
     },
     {
@@ -879,15 +890,10 @@ export const RULE_EXPECTATIONS = [
                 { tag: 'GdkCursor', slot: 'cursor', props: { name: 'pointer' } },
                 { tag: 'GtkNoSelection', slot: 'model', children: [{ tag: 'GListStore', slot: 'model' }] },
             ],
+            siblings: [{ tag: 'GObject', id: 'objectOne' }],
         },
-        lost: [
-            {
-                kind: 'sibling-object',
-                line: 17,
-                detail: 'the top-level `GObject.Object` and its id `objectOne` with it, whose tag is `GObject`',
-            },
-        ],
-        note: 'The tags are the whole assertion, and two of the three are the reason this file exists: `GListStore` and `GObject` are what the prefix `G` produces, and nothing in the spelling `Gio.ListStore` or `GObject.Object` carries either. The third, `GdkCursor`, is the case concatenation would also get right — it is here so the file cannot be read as being about a rule that only ever fires on `G`. The `GObject` one reaches this exit only as a declared loss, because the projection is one tree and the file writes two objects at top level.',
+        lost: [],
+        note: 'The tags are the whole assertion, and two of the three are the reason this file exists: `GListStore` and `GObject` are what the prefix `G` produces, and nothing in the spelling `Gio.ListStore` or `GObject.Object` carries either. The third, `GdkCursor`, is the case concatenation would also get right — it is here so the file cannot be read as being about a rule that only ever fires on `G`. The `GObject` one is the root written after the list view, carried as a sibling (ADR 0093).',
     },
     {
         file: '50-template-orphan.blp',

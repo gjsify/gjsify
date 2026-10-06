@@ -81,6 +81,13 @@ export interface SharedNode {
             translatable?: { context?: string };
         }[];
     }[];
+    /**
+     * Root only: the OBJECT roots the file declares beside this one — `Adw.AlertDialog dialog { }`
+     * or `$Learn learn { }` after the template — each a tree of its own (ADR 0093). They share the
+     * root's id scope, so a setter or a reference may name one, and a renderer hands the built
+     * object back to the code beside the file; none of them is a child of the root.
+     */
+    siblings?: SharedNode[];
     children?: SharedNode[];
 }
 

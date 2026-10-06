@@ -61,6 +61,9 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(SPLIT_VIEW_SLOTS, 'content');
 
+    /** What `connect()` and a `bind` on this widget may name: the one notify it dispatches. */
+    static readonly emittedSignals: readonly string[] = [NOTIFY_SHOW_SIDEBAR];
+
     protected _sidebar: View | null = null;
     protected _content: View | null = null;
     /** The three width PROPERTIES; the drawn width is derived from them. */

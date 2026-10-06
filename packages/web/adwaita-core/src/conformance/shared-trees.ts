@@ -231,6 +231,13 @@ export interface SharedTreeNode {
             readonly translatable?: { context?: string };
         }[];
     }[];
+    /**
+     * Root only: the OBJECT roots the file declares beside this one — `Adw.AlertDialog dialog { }`
+     * or `$Learn learn { }` after the template — each a tree of its own (ADR 0093). They share the
+     * root's id scope, so a setter or a reference may name one, and a renderer hands the built
+     * object back to the code beside the file; none of them is a child of the root.
+     */
+    siblings?: readonly SharedTreeNode[];
     children?: readonly SharedTreeNode[];
 }
 
@@ -358,9 +365,12 @@ function walk(node: SharedTreeNode, path: string, visit: (node: SharedTreeNode, 
 }
 
 /** Every authored node of `root`, in pre-order — the sequence a realised tree must reproduce. */
-export function authoredNodes(root: SharedTreeNode): { node: SharedTreeNode; path: string }[] {
+export function authoredNodes(
+    root: SharedTreeNode,
+    address: string = root.tag,
+): { node: SharedTreeNode; path: string }[] {
     const found: { node: SharedTreeNode; path: string }[] = [];
-    walk(root, root.tag, (node, path) => found.push({ node, path }));
+    walk(root, address, (node, path) => found.push({ node, path }));
     return found;
 }
 

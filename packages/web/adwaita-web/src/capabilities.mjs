@@ -15,4 +15,7 @@ export const capabilities = {
     signal: 'implemented',
     bind: 'implemented',
     breakpoint: 'implemented',
+    'sibling-object': {
+        refused: 'the web builder mounts one root element and has no consumer for a second root yet (ADR 0093)',
+    },
 };

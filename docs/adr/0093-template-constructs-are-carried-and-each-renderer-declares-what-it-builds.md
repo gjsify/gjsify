@@ -191,7 +191,7 @@ verifies it or turns the cell into a refusal.
 | `extern` / `$Name` | native | refused | port | port |
 | `accessibility` | native | port (0069) | port | refused until mapped |
 | `menu` | native | refused | port (0042 value) | port (0042 value) |
-| `sibling-object` | native | refused | port | port |
+| `sibling-object` | native | refused | refused | port |
 | `internal-child` | native | refused | refused | refused |
 | `action-widget` | native | refused | refused | refused |
 | `extensions.widgets`, `.items`, `.marks`, `.offsets`, file filters | native | refused | refused | refused |
@@ -242,7 +242,9 @@ The mapping behind each `port` cell:
 - **`menu`, `sibling-object`.** Value objects and menus are built once, registered by id, and
   referenced by any id-valued property — the NativeScript builder's `builderReferences`
   machinery, extended to siblings. Web and NativeScript take a menu as the ADR 0042 portable
-  value. The item shape (`label`, `action`, `target`, sections, submenus) is its own decision and
+  value. A sibling is carried as `siblings` on the root and built in the root's id scope; the web
+  has no consumer for one yet, so its cell is a refusal, and NativeScript hands the siblings back
+  from `buildWithSiblings` (see Progress 6). The item shape (`label`, `action`, `target`, sections, submenus) is its own decision and
   its own ADR, because the existing field shapes are flat and a menu is a tree.
 
 `internal-child`, `action-widget` and the list extensions are carried and refused everywhere
@@ -377,7 +379,9 @@ gallery derives its "no preview" reason from them, and a duplicate is a defect.
 - **Whether the build-time check should require `for=`.** Recommended optional; the runtime net
   keeps the unchecked path safe either way.
 - **i18n against a gettext catalog** on web or NativeScript. `translation-domain` is a loss until
-  a renderer translates.
+  a renderer translates. NativeScript takes a `translate(text, context)` option on `build`,
+  `buildInto` and `applyBreakpoints` for the strings the file marks with `_()`, and the app brings
+  its own catalog (`@nativescript/localize`); the domain itself is still a loss.
 - **iOS.** The NativeScript cells above were reasoned for the Android path; iOS is unverified
   (issue #1051 for icons) and inherits every UNVERIFIED mark.
 - **Hot reload and live re-projection** of a changed `.blp`.
@@ -393,6 +397,7 @@ Tracked in `status/open-todos/README.md`; this ADR records the *why*. Order and 
 | 3 | `signals` | the stage-D `<signal>` arm; a handler the scope lacks |
 | 4 | `bindings` | the stage-D binding arm; an unobservable source |
 | 5 | `breakpoints` | the stage-D `<setter>` arm; a device run on a tablet that switches layout |
+| 6 | `siblings` | the stage-D object-count and id arms; the `sibling-object` vector; a shell that no longer builds |
 
 ### Progress
 
@@ -403,3 +408,4 @@ Tracked in `status/open-todos/README.md`; this ADR records the *why*. Order and 
 | 3 | landed, plain handlers only. `signals` is carried (the `lost` kind `signal` is gone; `not-swapped` joins the flag union because the oracle writes it); `scope` is an option of `adwaita-web`'s `mountSharedTree` and `adwaita-nativescript`'s `build`/`buildDialog`. A signal is bound only if the element declares it (`static signals` on the web, a GTK→DOM event map; `static emittedSignals` on NativeScript), declared so far for `GtkButton` and `GtkToggleButton`. `swapped`, `after`, `not-swapped` and `object` are refused by name. NOT done: the scope defaulting to the instance of the registered template class |
 | 4 | landed, plain form only. `bindings` is carried (the `lost` kind `binding` is now `binding-expression`, for what stays an expression); the stage-D arm compares the oracle's `bind-source`/`bind-property`/`bind-flags` against the tree, in the order and with the `sync-create` default the compiler writes. `adwaita-web` and `adwaita-nativescript` bind id → id only: the target takes the source's value at build and follows each `notify::<property>` the source's class declares (`static signals` / `static emittedSignals`; so far `GtkToggleButton:active`). Verified by the `bind` vector on both. Refused by name: every flag (`inverted`, `bidirectional`, `no-sync-create`), the `template` source, a source class that declares no notify for the property, and an unknown id. NOT done: those flags and `template` sources; a bare `buildSharedTree` that is never attached follows once, because the web elements dispatch `notify::…` only while connected |
 | 5 | landed. `breakpoints` is carried on the PARENT (the `lost` kind `breakpoint` stays only for a setter the tree cannot carry, i.e. `null`); the stage-D arm compares the oracle's `<condition>` and `<setter object property>` (values are not compared: the golden holds resolved ones). `adwaita-core` gains `createBreakpointDriver`, which performs what `BreakpointBinState` returns through a renderer's property door; `adwaita-web` (`ResizeObserver` of the parent, `SizeSource` option) and `adwaita-nativescript` (`observeViewSize`, `layoutChanged`) are `implemented`, `gtk-host` `refused`. Verified on the Android tablet emulator (2560x1600, 276 dpi): the Learn6502 shell wires the GNOME window's two main conditions through `applyBreakpoints`; the tablet shows the subtitle, a 1080x2400 phone size hides it, and the restore ran live. The five browser showcases (fireworks, teapot, pixel, jelly-jumper, ldraw) mount their `.blp` through `mountSharedTree(tree, { into })`; the `[breakpoint]` bracket is optional in the projection (`14-breakpoint` has none, `25-bracket-breakpoint` has it) and `adw-overlay-split-view` dispatches `notify::show-sidebar`, so the toggle and the split view follow each other in Chromium at 600 and 1280 px. NOT done: a tree-built shell (Learn6502's is built in code), `template` as a setter object, a window-size source on `adwaita-web` (the parent's size stands in for it). `adwaita-nativescript` reads the window (the topmost ancestor, `observeWindowSize`): measured on the emulator at 975x610 dp, the toolbar view alone is 586 dp high and never satisfied `min-height: 600sp` |
+| 6 | landed. The second and later OBJECT roots of a file are carried as `siblings` on the root (the `lost` kind `sibling-object` stays for a second `template` only); their bodies are walked for losses and uses like any node. The corpus carried them as losses in six files, which now project a sibling and show what was hiding behind it: the `widgets [ ]` of a `Gtk.SizeGroup`, the expression of a `Gtk.BoolFilter`. `adwaita-nativescript` is `implemented`: `buildWithSiblings(tree)` returns the root widget, the `siblings` by id and `objects`, every id the tree names, widget or value (`GtkBuilder.get_object`); `build` and `buildDialog` refuse a tree with siblings, and an id on a value object (a `Gtk.StackPage`, a dialog), refused until now because `getViewById` could not find it, is accepted through `buildWithSiblings`. `adwaita-web` and `gtk-host` are `refused`. The consumer is Learn6502's Android shell, which builds `main.window.blp` itself: an `Adw.OverlaySplitView` now declares the `notify::show-sidebar` it already dispatched, so the toggle's `bind` is accepted. NOT done: the web, and a sibling as a `bind`/setter target that is a value object (a setter resolves views only) |

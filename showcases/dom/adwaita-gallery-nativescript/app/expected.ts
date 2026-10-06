@@ -67,6 +67,8 @@ export interface ExpectNode {
             translatable?: { context?: string };
         }[];
     }[];
+    /** The object roots written beside the root, as names — ADR 0093. */
+    siblings?: ExpectNode[];
     children?: ExpectNode[];
 }
 

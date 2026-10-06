@@ -177,6 +177,13 @@ interface BuildContext {
     breakpointHosts: { view: object; element: Element; node: SharedTreeNode }[];
     observeSize: SizeSource;
     scope: Readonly<Record<string, unknown>> | undefined;
+    translate: BuildOptions['translate'];
+    /**
+     * Where a VALUE object's id goes, when the caller can ask for it ({@link buildWithSiblings}).
+     * Undefined for `build`, whose one return value cannot hand a dialog or a stack page back, so
+     * an id on one is refused rather than dropped.
+     */
+    values: Map<string, object> | undefined;
 }
 
 interface PendingBind {
@@ -191,12 +198,29 @@ interface PendingBind {
 /** Calls `onSize` with the view's measured size, now and on every change; returns its disposer. */
 export type SizeSource = (view: View, onSize: (size: BreakpointSize) => void) => () => void;
 
+/** The text of a `_()`-marked string through the caller's `translate`, and anything else untouched. */
+function translated(
+    translate: BuildOptions['translate'],
+    value: string | number | boolean,
+    marking: { context?: string } | undefined,
+): string | number | boolean {
+    if (marking === undefined || translate === undefined || typeof value !== 'string') return value;
+    return translate(value, marking.context);
+}
+
 /** What a caller hands {@link build} beside the tree. */
 export interface BuildOptions {
     /** Where a `breakpoints` node reads its size from; the view's post-layout size unless supplied. */
     observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
+    /**
+     * Translates a string the `.blp` marked with `_()` or `C_()`, as GtkBuilder does with its
+     * gettext domain. Called with the authored text and the `C_()` context, if any. Without it a
+     * marked string stays as authored, which is English: the marking is carried, not acted on.
+     * Covers properties, the labels of `responses`, `strings [ ]` items and breakpoint setters.
+     */
+    translate?: (text: string, context?: string) => string;
 }
 
 /**
@@ -226,7 +250,8 @@ export interface BuildOptions {
  * The root is always a widget: a tree whose root is a value object has nothing to show.
  */
 export function build(node: SharedTreeNode, options: BuildOptions = {}): View {
-    const built = buildTree(node, options);
+    refuseSiblings(node, 'build');
+    const built = buildTree(node, options).root;
     if (!(built instanceof View)) {
         throw new Error(`\`${node.tag}\` is not a widget, so a tree cannot root at it: there is nothing to show.`);
     }
@@ -247,15 +272,95 @@ export interface PresentableRoot {
  * is for rather than by a class list.
  */
 export function buildDialog(node: SharedTreeNode, options: BuildOptions = {}): PresentableRoot {
-    const built = buildTree(node, options);
+    refuseSiblings(node, 'buildDialog');
+    const built = buildTree(node, options).root;
     if (built instanceof View || typeof (built as Partial<PresentableRoot>).present !== 'function') {
         throw new Error(`\`${node.tag}\` is not a dialog: it has no \`present()\`, so use \`build\` for it.`);
     }
     return built as PresentableRoot;
 }
 
+/** What {@link buildWithSiblings} hands back: the root widget and the objects built beside it. */
+export interface BuiltTree {
+    /** The widget the tree roots at, as {@link build} returns it. */
+    root: View;
+    /**
+     * The sibling objects by id — `Adw.AlertDialog unsavedChangesDialog { }` or `$Learn learn { }`
+     * written after the template. A sibling is built in the root's id scope (a setter or a
+     * reference may name it) but is no child of the root: the code beside the file decides where,
+     * or whether, it is placed.
+     */
+    siblings: ReadonlyMap<string, object>;
+    /**
+     * Every object the tree names by id, widget or value, siblings included: what
+     * `GtkBuilder.get_object` answers for in GTK. A value object (a `Gtk.StackPage`, a dialog)
+     * has no other way to be reached, because `getViewById` walks views.
+     */
+    objects: ReadonlyMap<string, object>;
+}
+
+/**
+ * A tree with sibling roots (ADR 0093): the root widget, and each sibling object by id.
+ *
+ * {@link build} and {@link buildDialog} refuse such a tree by name, because they return one
+ * object and the siblings would be built and then thrown away. A sibling with no id is refused
+ * too: nothing could ever ask for it, which is how a dropped object looks finished.
+ */
+export function buildWithSiblings(node: SharedTreeNode, options: BuildOptions = {}): BuiltTree {
+    const built = buildTree(node, options, true);
+    if (!(built.root instanceof View)) {
+        throw new Error(`\`${node.tag}\` is not a widget, so a tree cannot root at it: there is nothing to show.`);
+    }
+    return { root: built.root, siblings: built.siblings, objects: built.objects };
+}
+
+/**
+ * A template class's own internals (`init_template()` in GTK): builds the tree's contents INTO a
+ * root the class has already constructed, instead of creating one.
+ *
+ * ```ts
+ * class MainButton extends Adw.Bin {
+ *     constructor() {
+ *         super();
+ *         buildInto(this, mainButtonTree);
+ *     }
+ * }
+ * registerTemplateClass('MainButton', MainButton);
+ * ```
+ *
+ * Props, style classes, children, signals, binds and breakpoints of the tree's root are applied to
+ * `root`, whose class has to be the one the root names (or a subclass of it): a template of an
+ * `Adw.Bin` built into a `Gtk.Box` would be a different widget wearing the wrong tree. The ids of
+ * the tree stay reachable through `root.getViewById`. A tree with siblings is refused, as it is
+ * by {@link build}.
+ */
+export function buildInto(root: View, node: SharedTreeNode, options: BuildOptions = {}): void {
+    refuseSiblings(node, 'buildInto');
+    const element = elementOf(node);
+    if (!(root instanceof element.ctor)) {
+        throw new Error(
+            `\`buildInto\` was handed a ${root.constructor.name}, and the tree's root is \`${node.tag}\`: ` +
+                `a template builds into an instance of the class it extends (<${element.xmlName}>).`,
+        );
+    }
+    buildTree(node, options, false, root);
+}
+
+function refuseSiblings(node: SharedTreeNode, door: string): void {
+    if ((node.siblings?.length ?? 0) === 0) return;
+    throw new Error(
+        `\`${node.tag}\` carries ${node.siblings!.length} sibling object(s), and \`${door}\` returns one object ` +
+            'so they would be built and lost. Use `buildWithSiblings`, which hands them back by id.',
+    );
+}
+
 /** Every node, then every held-back object reference resolved against the ids the tree built. */
-function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
+function buildTree(
+    node: SharedTreeNode,
+    options: BuildOptions,
+    collectValues = false,
+    existing?: View,
+): { root: View | object } & Pick<BuiltTree, 'siblings' | 'objects'> {
     // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
     assertTreeConstructs('adwaita-nativescript', capabilities, node);
     const context: BuildContext = {
@@ -265,8 +370,19 @@ function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
         breakpointHosts: [],
         observeSize: options.observeSize ?? observeWindowSize,
         scope: options.scope,
+        translate: options.translate,
+        values: collectValues ? new Map() : undefined,
     };
-    const root = buildNode(node, context);
+    const root = buildNode(node, context, existing);
+    const siblings = new Map<string, object>();
+    for (const sibling of node.siblings ?? []) {
+        if (sibling.id === undefined) {
+            throw new Error(
+                `the sibling \`${sibling.tag}\` has no id, so nothing could ever ask for it: give it one in the .blp.`,
+            );
+        }
+        siblings.set(sibling.id, buildNode(sibling, context));
+    }
     for (const { view, element, prop, id } of context.pending) {
         const target = context.ids.get(id);
         if (target === undefined) {
@@ -279,7 +395,7 @@ function buildTree(node: SharedTreeNode, options: BuildOptions): View | object {
     }
     for (const bind of context.binds) bindProperty(bind, context);
     for (const host of context.breakpointHosts) bindBreakpoints(host, context);
-    return root;
+    return { root, siblings, objects: new Map([...context.ids, ...(context.values ?? [])]) };
 }
 
 /**
@@ -341,7 +457,7 @@ function bindBreakpoints(
     if (!(view instanceof View)) {
         throw new Error(`<${element.xmlName}> is not a view, so it has no size for a breakpoint to read.`);
     }
-    wireBreakpoints(element.xmlName, view, node.breakpoints ?? [], context.ids, context.observeSize);
+    wireBreakpoints(element.xmlName, view, node.breakpoints ?? [], context.ids, context.observeSize, context.translate);
 }
 
 /**
@@ -353,7 +469,7 @@ export function applyBreakpoints(
     host: View,
     breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
     ids: Readonly<Record<string, View>>,
-    options: Pick<BuildOptions, 'observeSize'> = {},
+    options: Pick<BuildOptions, 'observeSize' | 'translate'> = {},
 ): void {
     wireBreakpoints(
         host.constructor.name,
@@ -361,6 +477,7 @@ export function applyBreakpoints(
         breakpoints,
         new Map(Object.entries(ids)),
         options.observeSize ?? observeWindowSize,
+        options.translate,
     );
 }
 
@@ -370,6 +487,7 @@ function wireBreakpoints(
     breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
     ids: ReadonlyMap<string, View>,
     observeSize: SizeSource,
+    translate?: BuildOptions['translate'],
 ): void {
     const definitions = breakpoints.map((breakpoint) => {
         if (parseBreakpointCondition(breakpoint.condition) === null) {
@@ -388,7 +506,11 @@ function wireBreakpoints(
                 if (!(propertyOf(setter.property) in object)) {
                     throw new Error(`${where}: the target declares no '${propertyOf(setter.property)}'.`);
                 }
-                return { object, property: setter.property, value: { authored: setter.value } };
+                return {
+                    object,
+                    property: setter.property,
+                    value: { authored: translated(translate, setter.value, setter.translatable) },
+                };
             }),
         };
     });
@@ -423,10 +545,11 @@ function wireBreakpoints(
  * construction. An id and style classes are refused too — `getViewById` walks views and a
  * value object has no class list — rather than dropped.
  */
-function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
+function buildNode(node: SharedTreeNode, context: BuildContext, existing?: View): View | object {
     const element = elementOf(node);
-    const probe = new element.ctor();
-    const built = probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe);
+    const probe = existing ?? new element.ctor();
+    const built =
+        probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe, context);
     bindSignals(built, element, node, context);
     for (const [property, binding] of Object.entries(node.bindings ?? {})) {
         context.binds.push({
@@ -559,7 +682,7 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
     // The id is how the TypeScript beside a `.blp` reaches this view (`getViewById`),
     // the counterpart of `InternalChildren` on GTK and `querySelector('#…')` on the web.
     if (node.id !== undefined) {
-        if (context.ids.has(node.id)) {
+        if (context.ids.has(node.id) || context.values?.has(node.id)) {
             throw new Error(`Two nodes of this tree carry the id '${node.id}'; GtkBuilder refuses a duplicate id.`);
         }
         context.ids.set(node.id, view);
@@ -576,7 +699,9 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
             context.pending.push({ view, element, prop, id: String(value) });
             continue;
         }
-        (view as unknown as Record<string, unknown>)[prop] = String(value);
+        (view as unknown as Record<string, unknown>)[prop] = String(
+            translated(context.translate, value, node.translatable?.[authored]),
+        );
     }
     // `styles ["card"]` in a `.blp`. Refused like an attribute when the widget has no
     // `styleClasses` setter: writing `className` instead would bypass the class list the
@@ -598,15 +723,16 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
                 `model holds them, so [${node.extensions.strings.map((string) => string.value).join(', ')}] would be dropped.`,
         );
     }
-    applyResponses(view, element, node);
+    applyResponses(view, element, node, context);
     return view;
 }
 
-function buildValue(node: SharedTreeNode, element: Element, probe: object): object {
-    if (node.id !== undefined) {
+function buildValue(node: SharedTreeNode, element: Element, probe: object, context: BuildContext): object {
+    if (node.id !== undefined && context.values === undefined) {
         throw new Error(
             `<${element.xmlName} id="${node.id}"> reaches nothing: \`${node.tag}\` is not a view, and ` +
-                '`getViewById` walks views, so code beside the `.blp` could never look it up.',
+                '`getViewById` walks views, so code beside the `.blp` could never look it up. ' +
+                '`buildWithSiblings` hands every object back by id.',
         );
     }
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
@@ -619,7 +745,7 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object): obje
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         const prop = propertyOf(authored);
         if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, value);
-        bag[prop] = value;
+        bag[prop] = translated(context.translate, value, node.translatable?.[authored]);
     }
     // ADR 0072's string-list items are CONSTRUCT data, the same `{ strings }` bag
     // `new Gtk.StringList({ strings })` takes in GJS. `append` is what marks a class as a list
@@ -633,10 +759,16 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object): obje
                     `[${strings.map((string) => string.value).join(', ')}] would be dropped.`,
             );
         }
-        bag.strings = strings.map((string) => string.value);
+        bag.strings = strings.map((string) => String(translated(context.translate, string.value, string.translatable)));
     }
     const built = new element.ctor(bag);
-    applyResponses(built, element, node);
+    applyResponses(built, element, node, context);
+    if (node.id !== undefined && context.values !== undefined) {
+        if (context.values.has(node.id) || context.ids.has(node.id)) {
+            throw new Error(`Two nodes of this tree carry the id '${node.id}'; GtkBuilder refuses a duplicate id.`);
+        }
+        context.values.set(node.id, built);
+    }
     return built;
 }
 
@@ -653,7 +785,7 @@ interface ExtensionDoors {
  * it presents through the platform's own dialog. A class with no such method is REFUSED rather
  * than skipped: a dialog without its buttons looks finished.
  */
-function applyResponses(built: object, element: Element, node: SharedTreeNode): void {
+function applyResponses(built: object, element: Element, node: SharedTreeNode, context: BuildContext): void {
     const doors = built as Partial<ExtensionDoors>;
     const responses = node.extensions?.responses;
     if (responses !== undefined) {
@@ -663,8 +795,8 @@ function applyResponses(built: object, element: Element, node: SharedTreeNode): 
                     `[${responses.map((response) => response.id).join(', ')}] would be dropped.`,
             );
         }
-        for (const { id, label, appearance, enabled } of responses) {
-            doors.add_response(id, label, {
+        for (const { id, label, appearance, enabled, translatable } of responses) {
+            doors.add_response(id, String(translated(context.translate, label, translatable)), {
                 ...(appearance === undefined ? {} : { appearance }),
                 ...(enabled === undefined ? {} : { enabled }),
             });

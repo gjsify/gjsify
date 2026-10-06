@@ -87,8 +87,9 @@ for (const kind of reported) {
 for (const renderer of RENDERERS) {
     const table = read(renderer.table);
     const body = /capabilities[^=]*=\s*\{([\s\S]*)\};?\s*$/.exec(table)?.[1] ?? '';
-    // Top-level keys: an identifier at the start of a line, indented once.
-    const keys = [...body.matchAll(/^ {4}(\w+):/gm)].map((match) => match[1]);
+    // Top-level keys: an identifier at the start of a line, indented once — or a quoted name, which
+    // is how a hyphenated kind such as `sibling-object` has to be written.
+    const keys = [...body.matchAll(/^ {4}(?:(\w+)|'([^']+)'):/gm)].map((match) => match[1] ?? match[2]);
     const missing = kinds.filter((kind) => !keys.includes(kind));
     const extra = keys.filter((key) => !kinds.includes(key));
     if (missing.length > 0 || extra.length > 0) {

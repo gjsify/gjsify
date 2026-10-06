@@ -167,6 +167,7 @@ const NODE_FIELDS = new Set([
     'signals',
     'bindings',
     'breakpoints',
+    'siblings',
     'children',
 ]);
 
@@ -366,11 +367,22 @@ const validateNode = (node, where, isRoot = true) => {
         }
         node.children.forEach((child, i) => validateNode(child, `${where} > children[${i}]`, false));
     }
+    if (node.siblings !== undefined) {
+        if (!Array.isArray(node.siblings) || node.siblings.length === 0) {
+            problems.push(`${where}: "siblings" must be a non-empty array, and absent where the file has none.`);
+            return;
+        }
+        node.siblings.forEach((sibling, i) => validateNode(sibling, `${where} > siblings[${i}]`, false));
+    }
 };
+
+// The nodes below `node` for the walks that count, collect or compare: its children and, on a root,
+// the sibling objects written beside it (ADR 0093). A sibling is in the root's id scope.
+const subnodes = (node) => [...(node.children ?? []), ...(node.siblings ?? [])];
 
 // A carried `Adw.Breakpoint` is an `<object>` of the golden and a field of its parent, so it is counted here.
 const countNodes = (node) =>
-    1 + (node.breakpoints ?? []).length + (node.children ?? []).reduce((n, c) => n + countNodes(c), 0);
+    1 + (node.breakpoints ?? []).length + subnodes(node).reduce((n, c) => n + countNodes(c), 0);
 
 /**
  * How many GtkBuilder OBJECTS the reference compiler emitted for a file. `<template>` is
@@ -1062,7 +1074,7 @@ const checkAddressing = (job, result) => {
     const carried = [];
     const walk = (node) => {
         if (node.id !== undefined) carried.push(node.id);
-        for (const child of node.children ?? []) walk(child);
+        for (const child of subnodes(node)) walk(child);
     };
     walk(result.node);
     addressedIds += carried.length;
@@ -1125,7 +1137,7 @@ const checkMarkings = (job, result) => {
     const walk = (node) => {
         for (const [name, marking] of Object.entries(node.translatable ?? {}))
             carried.push(spell(name, marking.context));
-        for (const child of node.children ?? []) walk(child);
+        for (const child of subnodes(node)) walk(child);
     };
     walk(result.node);
     marked += carried.length;
@@ -1180,7 +1192,7 @@ const checkStyleClasses = (job, result) => {
     const carried = [];
     const walk = (node) => {
         carried.push(...(node.styleClasses ?? []));
-        for (const child of node.children ?? []) walk(child);
+        for (const child of subnodes(node)) walk(child);
     };
     walk(result.node);
     styled += carried.length;
@@ -1271,7 +1283,7 @@ const checkExtensions = (job, result) => {
                 }),
             );
         }
-        for (const child of node.children ?? []) walk(child);
+        for (const child of subnodes(node)) walk(child);
     };
     walk(result.node);
     extended += carried.length;
@@ -1310,7 +1322,7 @@ const checkLayout = (job, result) => {
     const walk = (node) => {
         for (const [name, value] of Object.entries(node.layout ?? {}))
             carried.push(`${name}=${String(value).toLowerCase()}`);
-        for (const child of node.children ?? []) walk(child);
+        for (const child of subnodes(node)) walk(child);
     };
     walk(result.node);
     laid += carried.length;
@@ -1372,7 +1384,7 @@ const checkUses = (job, result) => {
     const externs = [];
     const collect = (node) => {
         if (node.extern === true) externs.push(node);
-        for (const child of node.children ?? []) collect(child);
+        for (const child of subnodes(node)) collect(child);
     };
     collect(result.node);
     const externUses = result.uses.filter((use) => use.kind === 'extern').length;
@@ -1412,7 +1424,7 @@ const checkUses = (job, result) => {
                 ].join('|'),
             );
         }
-        for (const child of node.children ?? []) gather(child);
+        for (const child of subnodes(node)) gather(child);
     };
     gather(result.node);
     if (goldenSignals.sort().join('\n') !== treeSignals.sort().join('\n')) {
@@ -1446,7 +1458,7 @@ const checkUses = (job, result) => {
                 ].join('|'),
             );
         }
-        for (const child of node.children ?? []) collectBinds(child);
+        for (const child of subnodes(node)) collectBinds(child);
     };
     collectBinds(result.node);
     const siblingsLost = result.lost.some((loss) => loss.kind === 'sibling-object');
@@ -1484,7 +1496,7 @@ const checkUses = (job, result) => {
             );
             treeBreakpoints.push(`${breakpoint.condition}|${setters.join(',')}`);
         }
-        for (const child of node.children ?? []) collectBreakpoints(child);
+        for (const child of subnodes(node)) collectBreakpoints(child);
     };
     collectBreakpoints(result.node);
     // A breakpoint lost whole (a `null` setter) or inside a lost sibling root is in the golden only.

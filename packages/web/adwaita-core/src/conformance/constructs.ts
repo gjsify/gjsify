@@ -30,6 +30,7 @@ export const CONSTRUCT_KINDS = [
     'signal',
     'bind',
     'breakpoint',
+    'sibling-object',
 ] as const;
 
 export type ConstructKind = (typeof CONSTRUCT_KINDS)[number];
@@ -50,7 +51,24 @@ export interface ConstructUse {
 /** Every construct `root` uses, in pre-order. */
 export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
     const found: ConstructUse[] = [];
-    for (const { node, path } of authoredNodes(root)) {
+    // A sibling is a tree of its own beside the root, so its nodes are walked too and each
+    // sibling is one use of its own kind, addressed `<root> > sibling[<index>] <tag>`.
+    const trees = [
+        { tree: root, address: root.tag },
+        ...(root.siblings ?? []).map((tree, index) => ({
+            tree,
+            address: `${root.tag} > sibling[${index}] ${tree.tag}`,
+        })),
+    ];
+    trees.forEach(({ tree, address }, index) => {
+        if (index > 0) found.push({ kind: 'sibling-object', path: address });
+        collectUses(tree, address, found);
+    });
+    return found;
+}
+
+function collectUses(root: SharedTreeNode, address: string, found: ConstructUse[]): void {
+    for (const { node, path } of authoredNodes(root, address)) {
         if (node.layout !== undefined) found.push({ kind: 'layout', path });
         if (node.extensions?.strings !== undefined) found.push({ kind: 'strings', path });
         if (node.extensions?.responses !== undefined) found.push({ kind: 'responses', path });
@@ -60,7 +78,6 @@ export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
         Object.keys(node.bindings ?? {}).forEach(() => found.push({ kind: 'bind', path }));
         node.breakpoints?.forEach(() => found.push({ kind: 'breakpoint', path }));
     }
-    return found;
 }
 
 /** A tree uses a construct the renderer it was handed to refuses. */
@@ -221,11 +238,28 @@ export const CONSTRUCT_VECTORS: readonly ConstructVector[] = [
         },
         shows: ['wide', 'narrow', 'wide'],
     },
+    {
+        kind: 'sibling-object',
+        rule: "a `sibling` is built beside the root, outside its children, in the root's id scope, and handed back by its id (ADR 0093)",
+        tree: {
+            tag: 'GtkBox',
+            children: [{ tag: 'GtkLabel', id: 'caption', props: { label: 'in the root' } }],
+            siblings: [{ tag: 'GtkLabel', id: 'beside', props: { label: 'beside' } }],
+            breakpoints: [
+                {
+                    condition: 'max-width: 400px',
+                    setters: [{ object: 'beside', property: 'label', value: 'narrow' }],
+                },
+            ],
+        },
+        shows: { insideRoot: false, label: ['beside', 'narrow', 'beside'] },
+    },
 ];
 
 /**
- * The sizes a renderer feeds the `breakpoint` vector through its own size source, in order, and
- * reads the caption after each: wide, then narrow enough for the condition, then wide again.
+ * The sizes a renderer feeds the `breakpoint` and `sibling-object` vectors through its own size
+ * source, in order, and reads the label after each: wide, then narrow enough for the condition,
+ * then wide again.
  */
 export const BREAKPOINT_VECTOR_SIZES: readonly { readonly width: number; readonly height: number }[] = [
     { width: 800, height: 600 },

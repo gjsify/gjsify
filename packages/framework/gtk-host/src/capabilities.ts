@@ -37,4 +37,8 @@ export const capabilities: ConstructCapabilities = {
         refused:
             "gtk-host's tree builder resolves no setters between objects and has no Adw.Breakpoint; a GTK app loads the .blp through Gtk.Builder, or builds an Adw.Breakpoint in code",
     },
+    'sibling-object': {
+        refused:
+            "gtk-host's tree builder has one root and no id scope shared with a second object; a GTK app loads the .blp through Gtk.Builder, which builds every root",
+    },
 };
