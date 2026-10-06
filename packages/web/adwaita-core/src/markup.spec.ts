@@ -81,6 +81,27 @@ export default async () => {
             );
         });
 
+        // The builder writes a size request as the `min-*` it is, and an authored `false` of the
+        // expand pair as `"false"` — the two renderers must agree.
+        await it('writes a size request as min-size style and an authored expand false', async () => {
+            expect(
+                sharedTreeHtml({
+                    tag: 'GtkScrolledWindow',
+                    props: { 'width-request': 320, 'height-request': -1, hexpand: false, vexpand: true },
+                }),
+            ).toBe(
+                [
+                    '<gtk-scrolled-window',
+                    '  width-request="320"',
+                    '  height-request="-1"',
+                    '  hexpand="false"',
+                    '  vexpand',
+                    '  style="min-width: 320px;"',
+                    '></gtk-scrolled-window>',
+                ].join('\n'),
+            );
+        });
+
         // ADR 0072: what `writeExtensions` writes for each kind.
         await it('writes a string list as its `strings` attribute, a JSON array', async () => {
             const list: SharedTreeNode = {
@@ -161,6 +182,20 @@ export default async () => {
             expect(caught instanceof Error ? caught.message : undefined).toBe(
                 'sharedTreeNativeScriptXml: ShumateMap is not an Adw or Gtk class name',
             );
+        });
+
+        await it('refuses ADR 0093 behaviour by name instead of dropping it', () => {
+            const bound: SharedTreeNode = {
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkSwitch', id: 'a', bindings: { active: { source: 'b', property: 'active' } } }],
+            };
+            const adapting: SharedTreeNode = {
+                tag: 'AdwWindow',
+                breakpoints: [{ condition: 'max-width: 1sp', setters: [] }],
+            };
+            expect(() => sharedTreeHtml(bound)).toThrow("sharedTreeHtml has no markup for `GtkSwitch`'s bindings");
+            expect(() => sharedTreeHtml(adapting)).toThrow("`AdwWindow`'s breakpoints");
+            expect(() => sharedTreeNativeScriptXml(bound)).toThrow('sharedTreeNativeScriptXml has no markup');
         });
     });
 };

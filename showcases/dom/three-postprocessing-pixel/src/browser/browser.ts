@@ -1,17 +1,18 @@
 // Browser UI for three-postprocessing-pixel example.
-// Mirrors the GJS/Adwaita UI using @gjsify/adwaita-web.
+// The widget tree is the GJS window's own `pixel-window.blp`, projected and mounted by
+// @gjsify/adwaita-web — one authored file, so the sidebar toggle, the `bind`s between the toggle
+// and the split view and the two `[breakpoint]`s cannot drift from the GTK build.
 // Ported from refs/three/examples/webgl_postprocessing_pixel.html
 // Original: MIT license, three.js authors (https://threejs.org)
 
-import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
+import { mountSharedTree } from '@gjsify/adwaita-web'; // also registers the custom elements + self-injects the stylesheet
 // A showcase is served to whatever browser opens it, so it cannot assume the host has
 // Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
 // family and ships no `@font-face`, so without this call the chrome renders in the host's
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { Adw } from '@gjsify/adwaita-web';
-import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
+import tree from '../gjs/pixel-window.blp?shared-tree';
 import { start, type PixelDemo } from '../three-demo.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -29,106 +30,48 @@ export interface ShowcaseHandle {
     readonly isPaused: boolean;
 }
 
-/** Parse a trusted literal SVG string into an SVGElement. */
-function parseSvg(svgSource: string): SVGElement {
-    const doc = new DOMParser().parseFromString(svgSource, 'image/svg+xml');
-    return doc.documentElement as unknown as SVGElement;
+/** The one element of the mounted tree with this authored id. */
+function byId(root: HTMLElement, id: string): HTMLElement {
+    const el = root.querySelector<HTMLElement>(`#${id}`);
+    if (el === null) throw new Error(`pixel-window.blp declares no object with the id "${id}"`);
+    return el;
 }
 
-/** Replace a button's icon with a freshly-parsed copy of the given SVG source. */
-function setButtonIcon(btn: HTMLButtonElement, svgSource: string): void {
-    btn.replaceChildren(parseSvg(svgSource));
-}
+/**
+ * The SpinRow ranges. On GTK they are `Gtk.Adjustment`s the window's TypeScript constructs
+ * (`pixel-window.ts`), because Blueprint has no spelling for one here — so they are not in the
+ * tree, and this table is the browser's copy of those three adjustments. Keep the two in step.
+ * `<adw-spin-row>` has no `digits`, so the native `set_digits(2)` on the two edge rows has no
+ * counterpart here.
+ */
+const SPIN_ROWS = {
+    pixelSizeRow: { lower: 1, upper: 16, stepIncrement: 1, value: 4 },
+    normalEdgeRow: { lower: 0, upper: 2, stepIncrement: 0.05, value: 0.3 },
+    depthEdgeRow: { lower: 0, upper: 1, stepIncrement: 0.05, value: 0.4 },
+};
 
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
-    const win = document.createElement('adw-window');
-    win.setAttribute('width', '1100');
-    win.setAttribute('height', '700');
+    const { root: win } = mountSharedTree(tree, { into: container });
 
-    const headerBar = document.createElement('adw-header-bar') as Adw.HeaderBar;
-    headerBar.setAttribute('title', 'Pixel Post-Processing');
-
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'adw-header-btn adw-sidebar-toggle-icon active';
-    toggleBtn.title = 'Toggle Sidebar';
-
-    const pauseBtn = document.createElement('button');
-    pauseBtn.className = 'adw-header-btn';
-    pauseBtn.title = 'Pause Rendering';
-    setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
-
-    const splitView = document.createElement('adw-overlay-split-view') as Adw.OverlaySplitView;
-    splitView.setAttribute('min-sidebar-width', '280');
-    splitView.setAttribute('max-sidebar-width', '400');
-    splitView.setAttribute('sidebar-width-fraction', '0.30');
-    splitView.setAttribute('show-sidebar', '');
-
-    const sidebarContent = document.createElement('div');
-    sidebarContent.setAttribute('slot', 'sidebar');
-    sidebarContent.className = 'adw-sidebar-content';
-
-    const group = document.createElement('adw-preferences-group');
-    group.setAttribute('title', 'Post-Processing');
-
-    const pixelSizeRow = document.createElement('adw-spin-row');
-    pixelSizeRow.setAttribute('title', 'Pixel Size');
-    pixelSizeRow.setAttribute('min', '1');
-    pixelSizeRow.setAttribute('max', '16');
-    pixelSizeRow.setAttribute('step', '1');
-    pixelSizeRow.setAttribute('value', '4');
-
-    const normalEdgeRow = document.createElement('adw-spin-row');
-    normalEdgeRow.setAttribute('title', 'Normal Edge');
-    normalEdgeRow.setAttribute('min', '0');
-    normalEdgeRow.setAttribute('max', '2');
-    normalEdgeRow.setAttribute('step', '0.05');
-    normalEdgeRow.setAttribute('value', '0.30');
-
-    const depthEdgeRow = document.createElement('adw-spin-row');
-    depthEdgeRow.setAttribute('title', 'Depth Edge');
-    depthEdgeRow.setAttribute('min', '0');
-    depthEdgeRow.setAttribute('max', '1');
-    depthEdgeRow.setAttribute('step', '0.05');
-    depthEdgeRow.setAttribute('value', '0.40');
-
-    const pixelAlignRow = document.createElement('adw-switch-row');
-    pixelAlignRow.setAttribute('title', 'Pixel-Aligned Panning');
-    pixelAlignRow.setAttribute('active', '');
-
-    group.append(pixelSizeRow, normalEdgeRow, depthEdgeRow, pixelAlignRow);
-    sidebarContent.append(group);
+    for (const [id, range] of Object.entries(SPIN_ROWS))
+        byId(win, id).setAttribute('adjustment', JSON.stringify(range));
+    const pixelSizeRow = byId(win, 'pixelSizeRow');
+    const normalEdgeRow = byId(win, 'normalEdgeRow');
+    const depthEdgeRow = byId(win, 'depthEdgeRow');
+    const pixelAlignRow = byId(win, 'pixelAlignRow');
+    const pauseBtn = byId(win, 'pauseButton');
+    const splitView = byId(win, 'splitView');
 
     // Inline styles so the layout holds in the website embed too, which loads no showcase CSS.
-    const glContainer = document.createElement('div');
-    glContainer.setAttribute('slot', 'content');
-    glContainer.id = 'gl-area-container';
+    const glContainer = byId(win, 'glAreaContainer');
     glContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'webgl-canvas';
     canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     glContainer.append(canvas);
-
-    splitView.append(sidebarContent, glContainer);
-    win.append(headerBar, splitView);
-    container.append(win);
-
-    // AFTER DOM connection: connectedCallback is what creates the .adw-header-bar-start wrapper.
-    const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
-    if (startSection) {
-        startSection.appendChild(toggleBtn);
-    } else {
-        headerBar.prepend(toggleBtn);
-    }
-
-    const endSection = headerBar.endSection ?? headerBar.querySelector('.adw-header-bar-end');
-    if (endSection) {
-        endSection.appendChild(pauseBtn);
-    } else {
-        headerBar.append(pauseBtn);
-    }
 
     function syncCanvasSize() {
         const w = glContainer.clientWidth;
@@ -138,27 +81,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
             canvas.height = h;
         }
     }
-
-    toggleBtn.addEventListener('click', () => {
-        splitView.toggleSidebar();
-        toggleBtn.classList.toggle('active', splitView.showSidebar);
-    });
-
-    // Also fires for a backdrop click, which does not go through the button.
-    splitView.addEventListener('sidebar-toggled', () => {
-        toggleBtn.classList.toggle('active', splitView.showSidebar);
-    });
-
-    let lastCollapsed: boolean | null = null;
-    new ResizeObserver(([entry]) => {
-        const width = entry.contentRect.width;
-        const shouldCollapse = width < 800;
-        if (shouldCollapse === lastCollapsed) return;
-        lastCollapsed = shouldCollapse;
-        splitView.collapsed = shouldCollapse;
-        splitView.showSidebar = !shouldCollapse;
-        toggleBtn.classList.toggle('active', !shouldCollapse);
-    }).observe(win);
 
     // The demo reference lives in an outer closure so the pause button and the returned handle can
     // delegate to it once it exists.
@@ -191,8 +113,8 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     if (contentArea) sizeObserver.observe(contentArea);
 
     function updatePauseButton(paused: boolean): void {
-        setButtonIcon(pauseBtn, paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic);
-        pauseBtn.title = paused ? 'Resume Rendering' : 'Pause Rendering';
+        pauseBtn.setAttribute('icon-name', paused ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic');
+        pauseBtn.setAttribute('tooltip-text', paused ? 'Resume Rendering' : 'Pause Rendering');
     }
     pauseBtn.addEventListener('click', () => {
         if (demo) {

@@ -4,7 +4,8 @@
 // projected `.blp` hands them to `buildSharedTree` as attributes (`halign="center"`). Until
 // this partial nothing read them, so the gallery's bottom sheet stretched the button its
 // Blueprint centres. The margins are not here: an attribute cannot carry a length into CSS
-// portably, so `shared-tree-builder.ts` writes them as inline style.
+// portably, so `shared-tree-builder.ts` writes them as inline style — and so are
+// `width-request` / `height-request`, as the `min-width` / `min-height` they are.
 //
 // ALIGNMENT IS AN AUTO MARGIN, because that is the one CSS placement that means the same on
 // both axes of a flex container and of a grid: GTK allocates a non-FILL child its natural
@@ -49,7 +50,17 @@
   margin-block: auto;
 }
 
-gtk-box:not([orientation='vertical']) > [hexpand],
-gtk-box[orientation='vertical'] > [vexpand] {
+gtk-box:not([orientation='vertical']) > [hexpand]:not([hexpand='false']),
+gtk-box[orientation='vertical'] > [vexpand]:not([vexpand='false']) {
   flex-grow: 1;
+}
+
+// An AUTHORED `hexpand: false` is the one case where absence is not enough: a widget that
+// grows by default (`<gtk-scrolled-window>` is `flex: 1 1 0%`, the allocation of a window in a
+// column) must stop, and GTK then gives it its NATURAL size rather than nothing — hence the
+// `auto` basis, not just a zero grow. `width-request` (an inline `min-width`) is the floor.
+gtk-box:not([orientation='vertical']) > [hexpand='false'],
+gtk-box[orientation='vertical'] > [vexpand='false'] {
+  flex-grow: 0;
+  flex-basis: auto;
 }

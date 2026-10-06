@@ -6,7 +6,11 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
-adw-window {
+// `adw-application-window` is `adw-window` plus a menubar (it extends the class and adds nothing
+// else), so it is the same frame: without this an application window was an inline box with no
+// size at all, and a tree rooted at one measured 0 x 0.
+adw-window,
+adw-application-window {
   display: flex;
   flex-direction: column;
   background-color: var(--window-bg-color);
@@ -41,6 +45,14 @@ adw-window {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+}
+
+// A window hands its one child the WHOLE allocation, whatever that child's own expand flags say.
+// On the web a box is only as tall as what it holds, so the `Gtk.Box` a `.blp` roots its content
+// in stopped at its header bar and the split view below it drew a quarter of the window.
+.adw-window-content > gtk-box {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 // <gtk-window> — the GTK frame, in the SAME file upstream styles `Adw.Window` in: libadwaita

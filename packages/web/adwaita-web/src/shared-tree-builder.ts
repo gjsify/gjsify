@@ -36,7 +36,7 @@
 
 import { createBreakpointDriver, parseBreakpointCondition, type BreakpointSize } from '@gjsify/adwaita-core';
 import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
-import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from '@gjsify/adwaita-core/tags';
+import { GTK_WIDGET_EXPAND, attributeOf, hostTagOf, propertyOf, widgetLengthStyle } from '@gjsify/adwaita-core/tags';
 
 import { observeAdaptiveSize } from './breakpoints.js';
 import { capabilities } from './capabilities.mjs';
@@ -258,16 +258,24 @@ function bindProperty(bind: PendingBind, record: BuildRecord): void {
     from.addEventListener(event, follow);
 }
 
-/** One authored property, written as the element reads it; a breakpoint setter takes the same door. */
-function writeProp(el: HTMLElement, prop: string, value: string | number | boolean): void {
+/**
+ * One authored property, written as the element reads it; a breakpoint setter takes the same door.
+ * `hexpand` / `vexpand` keep an authored `false` as the attribute `"false"` and a later `true`
+ * rewrites it, which `toggleAttribute` would not.
+ */
+export function writeProp(el: HTMLElement, prop: string, value: string | number | boolean): void {
     const member = propertyOf(prop);
-    if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
+    const expand = GTK_WIDGET_EXPAND.find((name) => name === attributeOf(prop));
+    if (expand !== undefined && typeof value === 'boolean') el.setAttribute(expand, value ? '' : 'false');
+    else if (value === false && isWritable(el, member)) (el as unknown as Record<string, unknown>)[member] = false;
     else if (typeof value === 'boolean') el.toggleAttribute(attributeOf(prop), value);
     else el.setAttribute(attributeOf(prop), String(value));
-    // A margin is also inline style (`GTK_WIDGET_MARGIN_CSS` says why); the attribute
-    // stays, since it is what the tree authored and what a reader of the DOM looks for.
-    const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
-    if (margin !== undefined) el.style.setProperty(margin, `${Number(value)}px`);
+    // A margin or a size request is also inline style (`GTK_WIDGET_MARGIN_CSS` says why); the
+    // attribute stays, since it is what the tree authored and what a reader of the DOM looks for.
+    const length = widgetLengthStyle(attributeOf(prop), value);
+    if (length === undefined) return;
+    if (length[1] === null) el.style.removeProperty(length[0]);
+    else el.style.setProperty(length[0], length[1]);
 }
 
 function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
@@ -452,8 +460,21 @@ function refuseUnknownSlots(placed: readonly PlacedChild[]): void {
 export interface MountedSharedTree {
     /** The authored root — connected, so every custom element under it has upgraded and run. */
     root: HTMLElement;
-    /** Disconnects and discards the mount point. */
+    /** Disconnects the tree, and discards the mount point when this call made one. */
     unmount: () => void;
+}
+
+/** What {@link mountSharedTree} takes beside the tree. */
+export interface MountOptions {
+    /** The object a handler NAME is looked up on (ADR 0093 § 3). */
+    scope?: Readonly<Record<string, unknown>>;
+    /** The size source a `breakpoints` node is driven from. */
+    observeSize?: SizeSource;
+    /**
+     * Where the root is appended — a showcase's own container, which then lays the window out.
+     * Without it the tree gets a fresh host `<div>` in `document.body`, discarded on `unmount`.
+     */
+    into?: HTMLElement;
 }
 
 /**
@@ -462,14 +483,14 @@ export interface MountedSharedTree {
  * instantiation half a caller reading the corpus's elements normally wants; a bare
  * `buildSharedTree` is for a caller that already has somewhere of its own to attach it.
  */
-export function mountSharedTree(
-    node: SharedTreeNode,
-    options: { scope?: Readonly<Record<string, unknown>>; observeSize?: SizeSource } = {},
-): MountedSharedTree {
-    const host = document.createElement('div');
+export function mountSharedTree(node: SharedTreeNode, options: MountOptions = {}): MountedSharedTree {
+    const { into } = options;
+    const host = into ?? document.createElement('div');
     const record = newRecord(options.scope, options.observeSize);
-    host.append(buildSharedTree(node, record));
-    document.body.append(host);
+    const root = buildSharedTree(node, record);
+    host.append(root);
+    if (into === undefined) document.body.append(host);
+    const discard = () => (into === undefined ? host : root).remove();
     // After the append, because that is what upgrades the elements and runs the binds the
     // refusal reads; before the return, because a caller handed a tree back has no way left
     // to tell a placement that was honoured from one that was dropped.
@@ -478,14 +499,14 @@ export function mountSharedTree(
         refuseUnheldExtensions(record.extended);
     } catch (error) {
         for (const dispose of record.disposers) dispose();
-        host.remove();
+        discard();
         throw error;
     }
     return {
-        root: host.firstElementChild as HTMLElement,
+        root,
         unmount: () => {
             for (const dispose of record.disposers) dispose();
-            host.remove();
+            discard();
         },
     };
 }

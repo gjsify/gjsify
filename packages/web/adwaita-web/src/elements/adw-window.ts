@@ -20,6 +20,9 @@
 //   width, height — the size REQUEST in px, the one `gtk_widget_set_size_request
 //     (GTK_WIDGET (self), 360, 200)` makes in adw_window_init (C:344). Absent, the
 //     element keeps that default; an explicit attribute overrides it.
+//   default-width, default-height — `Gtk.Window:default-width` / `:default-height`, the size a
+//     `.blp` authors (`default-width: 1100`). A page has no window manager to open the window at
+//     that size, so it IS the box's size here, and it beats the request where both are present.
 //
 // Properties: `content` (the Adw.Window:content child), `breakpoints`,
 // `currentBreakpoint` (Adw.Window:current-breakpoint), `dialogs` and
@@ -51,7 +54,7 @@ export class AdwWindow extends HTMLElement {
     private _openDialogs: HTMLElement[] = [];
 
     static get observedAttributes() {
-        return ['width', 'height'];
+        return ['width', 'height', 'default-width', 'default-height'];
     }
 
     /** The content area — the Adw.Window:content property. */
@@ -128,7 +131,9 @@ export class AdwWindow extends HTMLElement {
         // The size request is read from the ATTRIBUTE, so it is applied on every
         // change — including one that arrived before the element was connected, which
         // is the ordinary case for markup already sitting in a document.
-        if (name === 'width' || name === 'height') this._applySizeRequest();
+        if (name === 'width' || name === 'height' || name === 'default-width' || name === 'default-height') {
+            this._applySizeRequest();
+        }
     }
 
     private _buildOnce() {
@@ -182,8 +187,8 @@ export class AdwWindow extends HTMLElement {
 
     /** The window's size request — GTK's, not CSS's, so an absent attribute means the default. */
     private _applySizeRequest() {
-        const width = this.getAttribute('width');
-        const height = this.getAttribute('height');
+        const width = this.getAttribute('default-width') ?? this.getAttribute('width');
+        const height = this.getAttribute('default-height') ?? this.getAttribute('height');
         this.style.width = width ? `${width}px` : `${DEFAULT_WIDTH}px`;
         this.style.height = height ? `${height}px` : `${DEFAULT_HEIGHT}px`;
     }

@@ -119,7 +119,8 @@ adw-header-bar {
 // would paint over them. Washing the stripes out with the bar's own opaque
 // background colour renders identically and leaves the content alone.
 .devel adw-header-bar,
-adw-window.devel adw-header-bar {
+adw-window.devel adw-header-bar,
+adw-application-window.devel adw-header-bar {
   background-image:
     linear-gradient(to bottom, transparent 0%, var(--headerbar-bg-color) 100%),
     repeating-linear-gradient(

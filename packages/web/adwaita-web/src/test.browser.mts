@@ -141,6 +141,8 @@ import { AdwSharedTreesTest } from './shared-trees.spec.js';
 import { AdwBlueprintTreeTest } from './blueprint-tree.spec.js';
 import { AdwValueListsTest } from './value-lists.spec.js';
 import { AdwBlueprintLayoutTest } from './blueprint-layout.spec.js';
+import { AdwWidgetSizeTest } from './widget-size.spec.js';
+import { AdwSharedTreeMountTest } from './shared-tree-mount.spec.js';
 import { AdwBlueprintMarkupTest } from './blueprint-markup.spec.js';
 import { AdwTagsTest } from './tags.spec.js';
 import { AdwFontStackTest } from './font-stack.spec.js';
@@ -151,6 +153,8 @@ run({
     AdwBlueprintTreeTest,
     AdwValueListsTest,
     AdwBlueprintLayoutTest,
+    AdwWidgetSizeTest,
+    AdwSharedTreeMountTest,
     AdwBlueprintMarkupTest,
     AdwTagsTest,
     AdwKeyboardOperableTest,

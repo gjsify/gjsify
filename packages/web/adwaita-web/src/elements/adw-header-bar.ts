@@ -53,6 +53,12 @@ export class AdwHeaderBar extends HTMLElement {
      * bare `Adw.HeaderBar {}` in a `.blp` page shows "Mailboxes" with no title of its own.
      */
     private _page: Element | null = null;
+    /**
+     * The window the bar sits in: `update_title`'s last stop before the application name
+     * (`gtk_window_get_title` of the root), so a bar with no title of its own, under no titled
+     * page, shows the window's.
+     */
+    private _window: Element | null = null;
     private _pageObserver: MutationObserver | null = null;
 
     static get observedAttributes() {
@@ -136,6 +142,7 @@ export class AdwHeaderBar extends HTMLElement {
         this._pageObserver?.disconnect();
         this._pageObserver = null;
         this._page = null;
+        this._window = null;
     }
 
     /**
@@ -146,9 +153,12 @@ export class AdwHeaderBar extends HTMLElement {
      */
     private _followPage() {
         this._page = this.closest('adw-navigation-page');
-        if (this._page === null) return;
+        this._window = this.closest('adw-window, adw-application-window');
         this._pageObserver ??= new MutationObserver(() => this._renderTitle());
-        this._pageObserver.observe(this._page, { attributes: true, attributeFilter: ['title'] });
+        for (const ancestor of [this._page, this._window]) {
+            if (ancestor !== null)
+                this._pageObserver.observe(ancestor, { attributes: true, attributeFilter: ['title'] });
+        }
     }
 
     /**
@@ -188,9 +198,13 @@ export class AdwHeaderBar extends HTMLElement {
         // keeps "unset" distinguishable from "set to empty" on the child.
         for (const name of ['title', 'subtitle']) {
             // The bar's own `title` is this port's declarative divergence (see the header) and
-            // wins; without one, the page's title is the first answer `update_title` has.
+            // wins; without one, the page's title is the first answer `update_title` has, then
+            // the window's.
             const value =
-                this.getAttribute(name) ?? (name === 'title' ? (this._page?.getAttribute('title') ?? null) : null);
+                this.getAttribute(name) ??
+                (name === 'title'
+                    ? (this._page?.getAttribute('title') ?? this._window?.getAttribute('title') ?? null)
+                    : null);
             if (value === null) this._titleEl.removeAttribute(name);
             else this._titleEl.setAttribute(name, value);
         }

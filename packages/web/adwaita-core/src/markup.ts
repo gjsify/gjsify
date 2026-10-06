@@ -20,7 +20,7 @@
 // `@nativescript/core` at module scope. This file needs only the case rules in `./tags`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
-import { GTK_WIDGET_MARGIN_CSS, attributeOf, hostTagOf, propertyOf } from './tags.js';
+import { GTK_WIDGET_EXPAND, attributeOf, hostTagOf, propertyOf, widgetLengthStyle } from './tags.js';
 
 const INDENT = '  ';
 
@@ -80,7 +80,23 @@ const htmlQuote: Quote = (value) => {
     return `${quote}${escaped}${quote}`;
 };
 
+/**
+ * ADR 0093's `bindings` and `breakpoints` are BEHAVIOUR, and this module writes static markup:
+ * neither has a spelling an HTML parse could restore. Refused by name rather than dropped — a
+ * split view whose toggle never follows it looks finished. `mountSharedTree` realises both.
+ */
+function refuseBehaviour(node: SharedTreeNode, writer = 'sharedTreeHtml'): void {
+    const fields = [node.bindings && 'bindings', node.breakpoints && 'breakpoints'].filter(Boolean);
+    if (fields.length > 0) {
+        throw new Error(
+            `${writer} has no markup for \`${node.tag}\`'s ${fields.join(' and ')} (ADR 0093); ` +
+                'a bound property and a breakpoint are behaviour, and a renderer has to observe them.',
+        );
+    }
+}
+
 function htmlElement(node: SharedTreeNode, depth: number): string {
+    refuseBehaviour(node);
     const attributes: Attribute[] = [];
     // `buildSharedTree`: the id, the props through `attributeOf`, the style classes as
     // `class`, then the placement as `slot=` — in that order.
@@ -88,15 +104,18 @@ function htmlElement(node: SharedTreeNode, depth: number): string {
     const style: string[] = [];
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         // A boolean is the attribute's PRESENCE (`toggleAttribute`), so `false` is no
-        // attribute at all and `true` is the bare name.
+        // attribute at all and `true` is the bare name — except the expand pair, whose
+        // `false` is written (`GTK_WIDGET_EXPAND` says why).
         if (typeof value === 'boolean') {
+            const expands = GTK_WIDGET_EXPAND.some((name) => name === attributeOf(prop));
             if (value) attributes.push([attributeOf(prop), null]);
+            else if (expands) attributes.push([attributeOf(prop), 'false']);
         } else {
             attributes.push([attributeOf(prop), String(value)]);
         }
-        // A margin is inline style as well, in the order the builder sets it.
-        const margin = GTK_WIDGET_MARGIN_CSS[attributeOf(prop)];
-        if (margin !== undefined) style.push(`${margin}: ${Number(value)}px;`);
+        // A margin or size request is inline style as well, in the order the builder sets it.
+        const length = widgetLengthStyle(attributeOf(prop), value);
+        if (length !== undefined && length[1] !== null) style.push(`${length[0]}: ${length[1]};`);
     }
     if (style.length > 0) attributes.push(['style', style.join(' ')]);
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
@@ -165,6 +184,7 @@ function prefixesOf(node: SharedTreeNode, into: Set<string>): Set<string> {
 const NATIVESCRIPT_XMLNS = 'http://schemas.nativescript.org/tns.xsd';
 
 function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonly Attribute[]): string {
+    refuseBehaviour(node, 'sharedTreeNativeScriptXml');
     const { prefix, member } = xmlNameOf(node.tag);
     const name = `${prefix}:${member}`;
     const attributes: Attribute[] = [...rootAttributes];
