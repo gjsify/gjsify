@@ -135,7 +135,10 @@ export default async () => {
             expect(files.join(',')).toBe('off_1');
         });
 
-        await driverIt('lists nothing for a store with no accounts', async () => {
+        // Not `driverIt`: the assertion holds on BOTH a real host and one
+        // without libgoa (the no-store driver also lists nothing), so an
+        // expected-fail marker would be stale the moment the typelib is absent.
+        await it('lists nothing for a store with no accounts', async () => {
             const { list } = await driver(goa, []);
             expect(list.length).toBe(0);
         });
