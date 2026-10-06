@@ -7,6 +7,9 @@
 // The label/icon visibility rules are HEADLESS and live in `@gjsify/adwaita-core`
 // (ADR 0004) as {@link ButtonRowState}; this element keeps only the DOM render half.
 //
+// Attributes: title, start-icon-name, end-icon-name, tooltip-text
+// (`Gtk.Widget:tooltip-text`).
+//
 // THERE IS NO `activatable` OPT-OUT, and inventing one would be wrong twice over: the
 // upstream template hardcodes `activatable=True` and the class docs say "AdwButtonRow is
 // always activatable", while `<adw-action-row>` in this same package reads `activatable`
@@ -21,6 +24,7 @@
 
 import { BUTTON_ROW_ACTIVATABLE, ButtonRowState } from '@gjsify/adwaita-core';
 
+import { applyRowTooltip } from '../row-tooltip.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRowActivation } from './row-activation.js';
 
@@ -34,7 +38,7 @@ export class AdwButtonRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'start-icon-name', 'end-icon-name'];
+        return ['title', 'start-icon-name', 'end-icon-name', 'tooltip-text'];
     }
 
     connectedCallback() {
@@ -81,6 +85,8 @@ export class AdwButtonRow extends HTMLElement {
 
         // Unconditional: an AdwButtonRow has no way to not be activatable.
         this.classList.toggle('activatable', BUTTON_ROW_ACTIVATABLE);
+        // The contents box is the whole row here, so it carries the tooltip for all of it.
+        applyRowTooltip(this, [this._contentsEl]);
     }
 
     /**

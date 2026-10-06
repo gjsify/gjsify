@@ -10,8 +10,8 @@
 // held to one table (`@gjsify/adwaita-core/conformance`).
 //
 // Attributes: title, text, editable, max-length, show-apply-button,
-//   activates-default. `text-length` is REFLECTED (read-only, mirrors
-//   `Adw.EntryRow:text-length`).
+//   activates-default, tooltip-text (`Gtk.Widget:tooltip-text`). `text-length` is
+//   REFLECTED (read-only, mirrors `Adw.EntryRow:text-length`).
 // Properties: text, editable, maxLength, textLength, showApplyButton,
 //   activatesDefault, editing.
 // Events:
@@ -37,6 +37,8 @@ import {
     type EntryRowRenderState,
 } from '@gjsify/adwaita-core';
 
+import { booleanAttribute } from '../attributes.js';
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren, type AdwSlottedChildren } from '../slotted-children.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 
@@ -49,11 +51,6 @@ import { type GtkImage, createGtkImage } from './gtk-image.js';
 function setPartVisible(part: HTMLElement, visible: boolean): void {
     part.hidden = !visible;
     part.style.display = visible ? '' : 'none';
-}
-
-/** Read a boolean attribute the HTML way, with an explicit `="false"` opt-out. */
-function boolAttribute(value: string | null): boolean {
-    return value !== null && value !== 'false';
 }
 
 export class AdwEntryRow extends HTMLElement {
@@ -81,7 +78,7 @@ export class AdwEntryRow extends HTMLElement {
     private _lastLength = 0;
 
     static get observedAttributes(): string[] {
-        return ['title', 'text', 'editable', 'max-length', 'show-apply-button', 'activates-default'];
+        return ['title', 'text', 'editable', 'max-length', 'show-apply-button', 'activates-default', 'tooltip-text'];
     }
 
     /**
@@ -158,8 +155,8 @@ export class AdwEntryRow extends HTMLElement {
         // before the element was connected survives.
         this._state.setMaxLength(Number.parseInt(this.getAttribute('max-length') ?? '', 10));
         this._state.setEditable(this.getAttribute('editable') !== 'false');
-        this._state.setShowApplyButton(boolAttribute(this.getAttribute('show-apply-button')));
-        this._state.setActivatesDefault(boolAttribute(this.getAttribute('activates-default')));
+        this._state.setShowApplyButton(booleanAttribute(this.getAttribute('show-apply-button'), false));
+        this._state.setActivatesDefault(booleanAttribute(this.getAttribute('activates-default'), false));
         if (this.hasAttribute('text')) this._state.setText(this.getAttribute('text') ?? '');
         this._renderTitle();
 
@@ -181,6 +178,7 @@ export class AdwEntryRow extends HTMLElement {
         this._lastText = this._state.text;
         this._lastLength = this._state.textLength;
         this._render(this._state.state);
+        applyRowTooltip(this, this._tooltipParts());
         this._state.subscribe((state) => this._onStateChanged(state));
     }
 
@@ -200,12 +198,24 @@ export class AdwEntryRow extends HTMLElement {
                 this._state.setMaxLength(Number.parseInt(value ?? '', 10));
                 break;
             case 'show-apply-button':
-                this._state.setShowApplyButton(boolAttribute(value));
+                this._state.setShowApplyButton(booleanAttribute(value, false));
                 break;
             case 'activates-default':
-                this._state.setActivatesDefault(boolAttribute(value));
+                this._state.setActivatesDefault(booleanAttribute(value, false));
+                break;
+            case 'tooltip-text':
+                applyRowTooltip(this, this._tooltipParts());
                 break;
         }
+    }
+
+    /**
+     * The parts `tooltip-text` lands on: the two slots and the editable area — NOT the
+     * apply button or the indicator, which carry tooltips of their own that the consumer
+     * reads for what they are.
+     */
+    private _tooltipParts(): readonly Element[] {
+        return [this._prefixes, this._area, this._suffixes];
     }
 
     /**

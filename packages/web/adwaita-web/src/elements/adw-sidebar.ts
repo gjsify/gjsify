@@ -64,6 +64,7 @@ import {
 
 import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
+import { booleanAttribute } from '../attributes.js';
 
 // The sidebar consumes its declared children and drops them from the tree, so a later
 // `setAttribute` on one cannot find its sidebar with `closest()`. These keep the link —
@@ -75,28 +76,51 @@ const sectionBindings = new WeakMap<AdwSidebarSection, { sidebar: AdwSidebar; sp
 /** A single sidebar item. Child of <adw-sidebar-section>; consumed at connect time. */
 export class AdwSidebarItem extends HTMLElement {
     static get observedAttributes() {
-        return ['title', 'subtitle', 'icon-name', 'disabled', 'hidden', 'needs-attention', 'badge-number'];
+        return [
+            'title',
+            'subtitle',
+            'icon-name',
+            'disabled',
+            'hidden',
+            'enabled',
+            'visible',
+            'needs-attention',
+            'badge-number',
+        ];
     }
 
     /**
-     * `AdwSidebarItem:enabled`, under the GIR name — the `disabled` attribute inverted. The
-     * property is what lets an authored `enabled: false` reach this item through the
+     * `AdwSidebarItem:enabled`, under the GIR name — the `disabled` attribute inverted.
+     * The property is what lets an authored `enabled: false` reach this item through the
      * shared-tree builder, which writes a `false` through the element's own property.
+     * Reads both the presence-based `disabled` and value-based `enabled` attributes.
      */
     get enabled(): boolean {
+        // Value-based `enabled` attribute takes precedence (shared-tree builder writes it).
+        const enabledAttr = this.getAttribute('enabled');
+        if (enabledAttr !== null) return booleanAttribute(enabledAttr, true);
+        // Fall back to presence-based `disabled` attribute.
         return !this.hasAttribute('disabled');
     }
 
     set enabled(value: boolean) {
+        // Write both for compatibility: value-based `enabled` and presence-based `disabled`.
+        this.setAttribute('enabled', value ? 'true' : 'false');
         this.toggleAttribute('disabled', !value);
     }
 
     /** `AdwSidebarItem:visible` — the `hidden` attribute inverted, for the same reason. */
     get visible(): boolean {
+        // Value-based `visible` attribute takes precedence (shared-tree builder writes it).
+        const visibleAttr = this.getAttribute('visible');
+        if (visibleAttr !== null) return booleanAttribute(visibleAttr, true);
+        // Fall back to presence-based `hidden` attribute.
         return !this.hasAttribute('hidden');
     }
 
     set visible(value: boolean) {
+        // Write both for compatibility: value-based `visible` and presence-based `hidden`.
+        this.setAttribute('visible', value ? 'true' : 'false');
         this.toggleAttribute('hidden', !value);
     }
 
@@ -109,7 +133,9 @@ export class AdwSidebarItem extends HTMLElement {
         else if (name === 'subtitle') binding.spec.subtitle = value;
         else if (name === 'icon-name') binding.spec.iconName = value;
         else if (name === 'disabled') binding.spec.enabled = newValue === null;
+        else if (name === 'enabled') binding.spec.enabled = booleanAttribute(newValue, true);
         else if (name === 'hidden') binding.spec.visible = newValue === null;
+        else if (name === 'visible') binding.spec.visible = booleanAttribute(newValue, true);
         else if (name === 'needs-attention') binding.spec.needsAttention = newValue === null;
         else if (name === 'badge-number') binding.spec.badgeNumber = Number.parseInt(value, 10) || 0;
 
@@ -263,8 +289,10 @@ export class AdwSidebar extends HTMLElement {
                     title: itemEl.getAttribute('title') ?? '',
                     subtitle: itemEl.getAttribute('subtitle') ?? '',
                     iconName: itemEl.getAttribute('icon-name') ?? '',
-                    enabled: !itemEl.hasAttribute('disabled'),
-                    visible: !itemEl.hasAttribute('hidden'),
+                    // Use the element's own property getters, which read both value-based
+                    // (`enabled`/`visible`) and presence-based (`disabled`/`hidden`) attributes.
+                    enabled: itemEl.enabled,
+                    visible: itemEl.visible,
                     badgeNumber: Number.parseInt(itemEl.getAttribute('badge-number') ?? '0', 10) || 0,
                     needsAttention: itemEl.hasAttribute('needs-attention'),
                 };

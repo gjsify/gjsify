@@ -32,6 +32,15 @@ adw-preferences-row {
   // stylesheet that resets selection.
   .adw-row-title {
     user-select: none;
+
+    // A row with NO content section has a `hidden` one, and `[hidden]` is
+    // `display: none !important` — so the row's free space belongs to no part at all and
+    // `tooltip-text`, which rides a part (`src/row-tooltip.ts`), reaches only the label's
+    // own width. Taking that space moves it into a box that draws nothing: the label is
+    // start-aligned and the content's items are `flex-end`, so nothing on screen moves.
+    &:has(~ .adw-preferences-row-content[hidden]) {
+      flex: 1 1 auto;
+    }
   }
 
   // The slot the `child` property lands in: the preference's own controls, which sit

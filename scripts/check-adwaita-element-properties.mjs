@@ -120,16 +120,12 @@ const KNOWN_GAPS = {
         // existing in the table when the carrier rule landed. The gap is older than
         // the check that found it.
         //
-        // `enabled` is the one with a written decision and an obligation attached —
-        // `status/open-todos.md` § `<adw-toggle>` has no `enabled`. Adding it means
-        // adding the roving-focus filter in the same change, and
-        // `keyboard-operable.spec.ts` pins `observedAttributes` so that commit fails
-        // until someone reads the entry.
-        //
         // `tooltip` LEFT this list with #1823. It was the accessible NAME for an
         // icon-only toggle, which is the one case that had no other text at all.
+        // `enabled` LEFT it with #1818, together with the roving-focus filter the
+        // ledger named as its price — the element reads it where `add_toggle` reads
+        // it (adw-toggle-group.c:871) and renders the same `<button>` it does.
         'description',
-        'enabled',
         'name',
         'use-underline',
     ],

@@ -87,7 +87,7 @@ export const propertyOf = (name: string) =>
     name.replace(/[-_]([a-z0-9])/g, (_match, next: string) => next.toUpperCase());
 
 /**
- * `GtkWidget`'s four margins, as the CSS property each one is — `start`/`end` the LOGICAL
+ * `GtkWidget`'s four margins, as the CSS property each is — `start`/`end` the LOGICAL
  * edges `gtk_widget_set_margin_start` documents, `top`/`bottom` physical as in GTK.
  *
  * A markup renderer writes them as inline style, because an attribute cannot carry a length
@@ -135,4 +135,70 @@ export function widgetLengthStyle(
     const size = GTK_WIDGET_SIZE_CSS[attribute];
     if (size === undefined) return undefined;
     return [size, Number(value) < 0 ? null : `${Number(value)}px`];
+}
+
+/**
+ * Kebab-case attribute names of GTK boolean properties that default to TRUE.
+ * These are VALUE-BASED: `attr="false"` means false, absent means true (the default).
+ * Style classes like `flat`/`round`/`compact` are PRESENCE-BASED and NOT in this set.
+ * ADR 0049, ADR 0034 own the presence vs. value split.
+ *
+ * @deprecated Use {@link isValueBasedBooleanAttr} instead. This flat set cannot express
+ *   that the same attribute name (e.g. `revealed`) is value-based for one widget
+ *   (`gtk-action-bar`) but presence-based for another (`adw-banner`).
+ */
+export const VALUE_BASED_BOOLEAN_ATTRS = new Set([
+    'sensitive',
+    'enabled',
+    'editable',
+    'visible',
+    'can-pop',
+    'revealed',
+    'show-apply-button',
+]);
+
+/**
+ * Per-widget declaration of which boolean attributes are VALUE-BASED.
+ * An attribute is value-based iff the element reads it through a value comparison
+ * (`=== 'false'` or {@link booleanAttribute}) rather than through presence
+ * (`hasAttribute`, `toggleAttribute`, `.contains`).
+ *
+ * Key: the element's tag name (e.g. `gtk-action-bar`, `adw-banner`).
+ * Value: Set of kebab-case attribute names that are value-based for that widget.
+ *
+ * This replaces the flat {@link VALUE_BASED_BOOLEAN_ATTRS} which keyed only on the
+ * attribute name and could not express that `revealed` has opposite conventions
+ * on `gtk-action-bar` (value-based, default TRUE) vs `adw-banner` (presence-based,
+ * default FALSE).
+ */
+const VALUE_BASED_BOOLEAN_ATTRS_BY_WIDGET: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+    ['adw-toggle-group', new Set(['sensitive'])],
+    ['adw-toggle', new Set(['enabled'])],
+    ['adw-alert-response', new Set(['enabled'])],
+    ['adw-sidebar-item', new Set(['enabled', 'visible'])],
+    ['gtk-editable-label', new Set(['editable'])],
+    ['adw-entry-row', new Set(['editable', 'show-apply-button'])],
+    ['gtk-text', new Set(['editable'])],
+    ['gtk-text-view', new Set(['editable'])],
+    ['adw-navigation-page', new Set(['can-pop'])],
+    ['gtk-action-bar', new Set(['revealed'])],
+    ['adw-password-entry-row', new Set(['revealed'])],
+    // `adw-banner`: `revealed` is PRESENCE-BASED (default FALSE) — NOT in this map.
+    // `adw-view-switcher-bar`: `revealed` is PRESENCE-BASED — NOT in this map.
+    // `gtk-password-entry`: `revealed` is PRESENCE-BASED — NOT in this map.
+]);
+
+/**
+ * Whether the given attribute on the given widget tag is VALUE-BASED.
+ *
+ * Value-based means: `attr="false"` spells false, absent spells the default (TRUE).
+ * Presence-based means: the attribute's PRESENCE spells true, absence spells false.
+ *
+ * @param tagName The element's tag name (e.g. `adw-banner`, `gtk-action-bar`).
+ * @param attrName The kebab-case attribute name (e.g. `revealed`, `can-pop`).
+ * @returns True if the attribute should be written as `attr="true"|"false"`.
+ */
+export function isValueBasedBooleanAttr(tagName: string, attrName: string): boolean {
+    const set = VALUE_BASED_BOOLEAN_ATTRS_BY_WIDGET.get(tagName);
+    return set !== undefined && set.has(attrName);
 }

@@ -622,21 +622,57 @@ export const AdwKeyboardOperableTest = async () => {
             // Prose cannot hold that: this line fails the commit that adds it.
             // `<adw-inline-view-switcher>` has the same gap (status/open-todos/README.md).
             // `active-name` joined the list without touching the axis: it picks a toggle.
-            expect([...AdwToggleGroup.observedAttributes]).toStrictEqual(['active', 'active-name', 'flat', 'round']);
+            // `sensitive` joined it for the same reason — it gates every button's `disabled`,
+            // never the axis. `keyboard-operable.spec.ts` below now pins the roving walk
+            // against a disabled toggle, which is what made that attribute safe to add.
+            expect([...AdwToggleGroup.observedAttributes]).toStrictEqual([
+                'active',
+                'active-name',
+                'flat',
+                'round',
+                'sensitive',
+            ]);
         });
 
         await it('adw-toggle has no state a roving walk would have to skip', async () => {
-            // `<adw-toggle-group>` passes its buttons to `attachRovingFocus` UNFILTERED,
-            // which is only safe while no `<adw-toggle>` attribute can produce a disabled
-            // or hidden button. That is a decision recorded in two comments and a ledger
-            // entry, and this is the line that fails when it stops being true — the first
-            // disabled toggle is otherwise a `focus()` the browser refuses, with nothing
-            // in the walk to step over it. Grow this list and add the filter and its spec
-            // in the same change (status/open-todos/README.md, `<adw-toggle>` has no `enabled`).
+            // `<adw-toggle-group>` FILTERS its buttons for `attachRovingFocus`, which is only
+            // necessary once some `<adw-toggle>` attribute can produce a disabled button.
+            // `enabled` is that attribute (`AdwToggle:enabled`), so this list is now the
+            // record of WHICH attributes can — `hidden` cannot, and no other one can.
+            // Grow it and the filter has to grow with it: an unskipped disabled toggle is a
+            // `focus()` the browser refuses, with nothing in the walk to step over it. The
+            // skip itself is pinned in the case below.
             //
-            // `tooltip` joined the list and is NOT a counterexample: it sets `title` and
-            // `aria-label`, which change neither reachability nor rendering.
-            expect([...AdwToggle.observedAttributes]).toStrictEqual(['label', 'icon-name', 'tooltip']);
+            // `tooltip` is not a counterexample: it sets `title` and `aria-label`, which
+            // change neither reachability nor rendering.
+            expect([...AdwToggle.observedAttributes]).toStrictEqual(['label', 'icon-name', 'tooltip', 'enabled']);
+        });
+
+        await it('adw-toggle-group arrow skips a disabled toggle', async () => {
+            // `AdwToggle:enabled` reached the web element with #1818, and the filter
+            // `roving-focus.ts` asks of every caller is the price of it — the same obligation
+            // `<adw-sidebar>` already pays ("arrow skips a disabled row", above). A disabled
+            // `<button>` cannot take focus, so leaving it in the walk strands the user on a
+            // `focus()` the browser refuses.
+            withWidget(
+                () => {
+                    const el = document.createElement('adw-toggle-group');
+                    el.innerHTML =
+                        '<adw-toggle label="One"></adw-toggle>' +
+                        '<adw-toggle label="Two" enabled="false"></adw-toggle>' +
+                        '<adw-toggle label="Three"></adw-toggle>';
+                    return el;
+                },
+                (el) => {
+                    const items = rovingCase('adw-toggle-group').items(el);
+                    expect(items.length).toBe(3);
+                    expect((items[1] as HTMLButtonElement).disabled).toBe(true);
+
+                    items[0].focus();
+                    press(items[0], 'ArrowRight');
+                    expect(document.activeElement).toBe(items[2]);
+                },
+            );
         });
 
         await it('adw-toggle-group notifies once per arrow, through the click path', async () => {

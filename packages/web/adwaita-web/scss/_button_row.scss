@@ -34,6 +34,11 @@ adw-button-row {
     justify-content: center;
     gap: var(--spacing-xs);
     min-width: 0;
+    // The row centres its one button (`justify-content: center` above), so without this the
+    // contents box is exactly as wide as the button and `tooltip-text` reaches only that
+    // much of the row. Growing it and letting its own `justify-content: centre` do the
+    // centring draws the same button in the same place.
+    flex: 1 1 auto;
   }
 
   .adw-button-row-title {

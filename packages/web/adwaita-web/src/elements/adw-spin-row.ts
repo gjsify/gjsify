@@ -27,7 +27,8 @@
 // ATTRIBUTES: `adjustment` (the range, JSON), `value`, `title`, `subtitle`, and
 // `title-lines` / `subtitle-lines` — clamp either label to N lines, `0` = unlimited,
 // the AdwActionRow pspec's sentinel (`@girs/adw-1`, min 0, default 0).
-//
+// `tooltip-text` (`Gtk.Widget:tooltip-text`) — the row's tooltip (`src/row-tooltip.ts`).
+
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
@@ -38,6 +39,7 @@ import { SpinState, deriveRowLabels, normalizeAdjustment, parseAdjustment } from
 import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { attributeOf } from '@gjsify/adwaita-core/tags';
 
+import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
@@ -63,6 +65,10 @@ function authoredAdjustment(node: Node): AdwAdjustmentInput {
 
 export class AdwSpinRow extends HTMLElement {
     private _input!: HTMLInputElement;
+    /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */
+    private _textEl!: HTMLDivElement;
+    /** The −/input/+ box — the other half of the row's surface. */
+    private _controlEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless adjustment: the range, the clamp and the two signals (ADR 0004, ADR 0047). */
@@ -70,7 +76,7 @@ export class AdwSpinRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'value', 'adjustment', 'title-lines', 'subtitle-lines'];
+        return ['title', 'subtitle', 'value', 'adjustment', 'tooltip-text', 'title-lines', 'subtitle-lines'];
     }
 
     get value(): number {
@@ -112,6 +118,7 @@ export class AdwSpinRow extends HTMLElement {
 
         const text = document.createElement('div');
         text.className = 'adw-row-text';
+        this._textEl = text;
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-row-title';
         this._subtitleEl = document.createElement('span');
@@ -120,6 +127,7 @@ export class AdwSpinRow extends HTMLElement {
 
         const control = document.createElement('div');
         control.className = 'adw-spin-control';
+        this._controlEl = control;
 
         const decBtn = document.createElement('button');
         decBtn.className = 'adw-spin-dec';
@@ -169,10 +177,16 @@ export class AdwSpinRow extends HTMLElement {
 
     attributeChangedCallback(name: string, _old: string | null, val: string | null) {
         if (!this._initialized) return;
-        if (name === 'title' || name === 'subtitle' || name === 'title-lines' || name === 'subtitle-lines') {
+        if (
+            name === 'title' ||
+            name === 'subtitle' ||
+            name === 'tooltip-text' ||
             // The two `*-lines` attributes are LABEL geometry, not the adjustment: without
             // this branch they fell through to the `setValue` below, so `title-lines="1"`
             // set the numeric value to 1 and clamped nothing.
+            name === 'title-lines' ||
+            name === 'subtitle-lines'
+        ) {
             this._renderText();
             return;
         }
@@ -194,6 +208,7 @@ export class AdwSpinRow extends HTMLElement {
         this._titleEl.hidden = !labels.titleVisible;
         this._subtitleEl.textContent = labels.subtitle;
         this._subtitleEl.hidden = !labels.subtitleVisible;
+        applyRowTooltip(this, [this._textEl, this._controlEl]);
         this._applyLineClamping();
     }
 

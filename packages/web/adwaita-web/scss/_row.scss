@@ -20,6 +20,16 @@ adw-combo-row {
   }
 }
 
+// A `tooltip-text` part must cover the ROW, not just the label text inside it: the browser
+// resolves a tooltip by walking UP from the hovered node, so a part that stops at the text's
+// own height lets the walk reach the host — whose `title` is the row's LABEL — over the rest
+// of the widget. Measured on a 54px `adw-action-row`: the label text is 18px of it. The
+// marker is `applyRowTooltip`'s (`src/row-tooltip.ts`); stretching changes nothing drawn,
+// because these columns centre their own children.
+[data-row-tooltip] {
+  align-self: stretch;
+}
+
 // Shared title/subtitle text column used by every row type (action/switch/
 // combo/spin). The title is the primary label; the subtitle is dimmed and
 // hidden when empty.

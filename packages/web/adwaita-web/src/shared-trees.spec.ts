@@ -295,6 +295,21 @@ export const AdwSharedTreesTest = async () => {
             });
         });
 
+        await it('Adw.Banner with revealed: false stays closed — attribute must be absent, not "false"', () => {
+            const tree = blueprintTree(`Adw.Banner {
+                title: "Test";
+                revealed: false;
+            }`);
+            mounted(tree, (root) => {
+                const banner = root as HTMLElement;
+                // The banner reads 'revealed' by PRESENCE (hasAttribute), so the attribute must be absent.
+                // Currently the builder writes revealed="false", which makes hasAttribute return true.
+                expect(banner.hasAttribute('revealed')).toBe(false);
+                expect(banner.classList.contains('revealed')).toBe(false);
+                expect(getComputedStyle(banner).display).toBe('none');
+            });
+        });
+
         await it('an authored false on a getter-only property keeps the presence rule instead of throwing', () => {
             // `<adw-split-button>` exposes `active` as a read-only getter; assigning through it
             // threw a bare TypeError out of the builder before the writability check.

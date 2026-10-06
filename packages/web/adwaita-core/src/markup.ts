@@ -20,7 +20,14 @@
 // `@nativescript/core` at module scope. This file needs only the case rules in `./tags`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
-import { GTK_WIDGET_EXPAND, attributeOf, hostTagOf, propertyOf, widgetLengthStyle } from './tags.js';
+import {
+    GTK_WIDGET_EXPAND,
+    attributeOf,
+    hostTagOf,
+    isValueBasedBooleanAttr,
+    propertyOf,
+    widgetLengthStyle,
+} from './tags.js';
 
 const INDENT = '  ';
 
@@ -102,19 +109,27 @@ function htmlElement(node: SharedTreeNode, depth: number): string {
     // `class`, then the placement as `slot=` — in that order.
     if (node.id !== undefined) attributes.push(['id', node.id]);
     const style: string[] = [];
+    // Value-based boolean attributes are keyed by (widget, property), not by attribute name alone.
+    // Derive the web component tag from the GIR class name (e.g. AdwBanner -> adw-banner).
+    const tagName = hostTagOf(node.tag);
     for (const [prop, value] of Object.entries(node.props ?? {})) {
-        // A boolean is the attribute's PRESENCE (`toggleAttribute`), so `false` is no
-        // attribute at all and `true` is the bare name — except the expand pair, whose
-        // `false` is written (`GTK_WIDGET_EXPAND` says why).
+        const attr = attributeOf(prop);
+        // Value-based boolean attributes (ADR 0049, ADR 0034): `true` writes `attr="true"`,
+        // `false` writes `attr="false"`. Presence-based: `true` writes bare attr, `false` omits —
+        // except the expand pair, whose authored `false` is written (`GTK_WIDGET_EXPAND` says why).
         if (typeof value === 'boolean') {
-            const expands = GTK_WIDGET_EXPAND.some((name) => name === attributeOf(prop));
-            if (value) attributes.push([attributeOf(prop), null]);
-            else if (expands) attributes.push([attributeOf(prop), 'false']);
+            if (isValueBasedBooleanAttr(tagName, attr)) {
+                attributes.push([attr, value ? 'true' : 'false']);
+            } else if (value) {
+                attributes.push([attr, null]);
+            } else if (GTK_WIDGET_EXPAND.some((name) => name === attr)) {
+                attributes.push([attr, 'false']);
+            }
         } else {
-            attributes.push([attributeOf(prop), String(value)]);
+            attributes.push([attr, String(value)]);
         }
         // A margin or size request is inline style as well, in the order the builder sets it.
-        const length = widgetLengthStyle(attributeOf(prop), value);
+        const length = widgetLengthStyle(attr, value);
         if (length !== undefined && length[1] !== null) style.push(`${length[0]}: ${length[1]};`);
     }
     if (style.length > 0) attributes.push(['style', style.join(' ')]);
