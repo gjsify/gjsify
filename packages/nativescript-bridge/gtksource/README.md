@@ -13,7 +13,9 @@ from the text `Layout` in `onDraw`, and `GtkSource.Buffer` / `LanguageManager` /
   GtkSourceView does not tie to `indent-width`. `auto-indent` copies the previous line's blanks.
 - The caret line's number is emphasised only under `highlight-current-line` (default false).
 - Android API used (R8): the consuming app must keep `android.widget.EditText`, `android.text.*`
-  spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist.
+  spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist. Shared
+  widget classes that come with `@gjsify/adwaita-nativescript` add `android.view.View`
+  (`setTooltipText`, API 26; duck-typed, no `TooltipCompat`) to that list.
 - The platform half (`native-editor.android.ts`) is not verified on a device yet.
 
 ## Using it from XML
@@ -52,5 +54,13 @@ highlight-syntax: false; };` as the view's `buffer` object child. `LanguageManag
 `StyleSchemeManager` are singletons you ask for a `Language` / `StyleScheme`, and `.blp` cannot
 call a method, so set `buffer.language` and `buffer.styleScheme` from code after building.
 
-`Gtk.Button`'s `action-name` is held as `actionName` and not dispatched (there is no `GAction`
-registry): connect the button's `clicked` yourself.
+`Gtk.Button`'s `action-name` runs through a minimal `GAction` registry of
+`@gjsify/adwaita-nativescript`: register a `Gio.SimpleAction` in a `Gio.SimpleActionGroup`, put the
+group on an ancestor with `insertActionGroup('source-view', group)`, and a tap on a button whose
+`action-name` is `source-view.copy` calls the action's `activate`. Parameter types, state,
+`app.` / `win.` resolution and accelerators are not modelled.
+
+`tooltip-text` also reaches Android's `View.setTooltipText` (long press, API 26) beside the
+accessibility hint. `registerIcons({ 'edit-copy-symbolic': '…' })` registers a generated icon module
+by GNOME name, so an icon-only `Gtk.Button` in a shared `.blp` finds its glyph; such a button wears
+the `image-button` class and renders flat and unlabelled.

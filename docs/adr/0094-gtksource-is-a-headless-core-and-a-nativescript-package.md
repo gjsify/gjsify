@@ -42,7 +42,9 @@ which the GNOME editors and the web twin already agree on.
    owns; `registerBarrel(prefix, library, namespace)` lets a package that depends on it add one
    more without the dependency running the other way. `@gjsify/gtksource-nativescript/builder`
    makes that call for `GtkSource`, and an app imports it once beside the adwaita builder, so
-   `using GtkSource 5; GtkSource.View { … }` builds unchanged. The class is named `GtkSourceView`,
+   `using GtkSource 5; GtkSource.View { … }` builds unchanged, including a `buffer: GtkSource.Buffer
+   { text: "…"; };` object child. A real `.blp` compiled with `?shared-tree` takes this path in the
+   specs; a device has not run it. The class is named `GtkSourceView`,
    because the builder holds a member to the GIR name the `.blp` wrote. `@gjsify/adwaita-nativescript`
    is a `peerDependency` (and a `devDependency` for the workspace), not a dependency: the view
    shares the adwaita package's colour-scheme state, and a second installed copy would own a state
@@ -58,7 +60,9 @@ Each is declared in `status/status.json` rather than left to be found.
   refused, never mistranslated.
 - **No word wrap.** Every logical line is one layout line and the view scrolls horizontally. The
   gutter is drawn from the text `Layout`, which stays exact only under that rule.
-- **`indent-width` is held and read back, not applied.** Android has no Tab key to apply it to.
+- **`indent-width` is held and read back, not applied.** An `EditText` has no indent step; its only
+  Tab is a hardware key that inserts `\t`, and `tab-width` would need a `TabStopSpan` per line that
+  GtkSourceView does not tie to `indent-width`. `auto-indent` copies the previous line's blanks.
 - **LGPL data is not bundled.** `def.lang` and the `Adwaita` scheme are GtkSourceView's and LGPL.
   The package ships a small stand-in under `Adwaita` / `Adwaita-dark` and takes the real files
   through `addSchemeFromXml()`.
@@ -76,9 +80,11 @@ in its `.blp` and registers `Gio.SimpleAction({ name: "copy" })` in a group unde
 `Gio.SimpleActionGroup`, `insertActionGroup` and a tap that resolves `prefix.name` up the
 parent chain (`widgets/actions.ts`). Not modelled: parameter types, state, `app.`/`win.`
 resolution through an application, accelerators. `tooltip-text` also reaches Android's
-`View.setTooltipText` (API 26, long press) beside the accessibility hint, and `registerIcons(map)`
+`View.setTooltipText` (API 26, long press; duck-typed, so no `TooltipCompat` and a no-op on older
+devices) beside the accessibility hint, and `registerIcons(map)`
 registers a generated icon module by GNOME name. An icon-only `Gtk.Button` wears
-`image-button` and `.osd` has a theme rule, so the shared `.blp` renders flat and unlabelled.
+`image-button` and `.osd` has a theme rule, so the shared `.blp` renders flat and unlabelled. An app's `native-api-usage.json` must list
+`android.view.View` for `setTooltipText`, besides the `EditText` classes of the editor itself.
 
 ## Consequences
 
