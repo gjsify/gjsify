@@ -93,7 +93,7 @@ export {
     surfaceSize,
 } from './window-state.js';
 export type { AdwDialogPresentationNick, DialogHost } from './window-state.js';
-export { NOTIFY_HEXPAND, NOTIFY_VEXPAND } from './widget-layout.js';
+export { NOTIFY_HEXPAND, NOTIFY_VEXPAND, withGtkWidgetLayout } from './widget-layout.js';
 export { lengthValue } from './ns-length.js';
 export type { NsLength } from './ns-length.js';
 export { GtkActionBar } from './gtk-action-bar.js';

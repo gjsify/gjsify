@@ -43,6 +43,7 @@ export {
     LIST_BOX_ROW_SELECTED,
     NOTIFY_HEXPAND,
     NOTIFY_VEXPAND,
+    withGtkWidgetLayout,
     NOTIFY_STACK_VISIBLE_CHILD,
     NOTIFY_STACK_VISIBLE_CHILD_NAME,
     DRAWING_AREA_REFUSAL,
@@ -238,6 +239,7 @@ export type {
     BreakpointDimension,
     BreakpointSize,
 } from './widgets/index.js';
+export type { GtkWidgetLayout } from './widgets/widget-layout.js';
 
 // ADR 0034 clause 2 — the widgets under their GIR names (`Adw.SwitchRow`, `Gtk.Entry`),
 // and since § Amendment 9 that is their ONLY name here: the prefixed `AdwSwitchRow` /
