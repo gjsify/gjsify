@@ -5,7 +5,6 @@
     "//shape": "Key = the npm name. Value = the queued action and who owns it. An empty value fails: an entry without a reason is an exemption, not a queued action. Empty `pending` is the correct steady state, not an oversight.",
     "pending": {
         "@gjsify/gtksource-core": "First publish of the new name, queued for the maintainer (needs npm credential and OTP) before the stack #2064-#2066 releases.",
-        "@gjsify/gtksource-nativescript": "First publish of the new name, queued for the maintainer (needs npm credential and OTP) before the stack #2064-#2066 releases.",
-        "@gjsify/system-accounts": "First publish of the new name, queued for the maintainer (needs npm credential and OTP) before the release that ships ADR 0095's package."
+        "@gjsify/gtksource-nativescript": "First publish of the new name, queued for the maintainer (needs npm credential and OTP) before the stack #2064-#2066 releases."
     }
 }
