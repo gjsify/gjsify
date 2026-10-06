@@ -33,8 +33,8 @@
         "build:test": "gjsify run build:test:gjs && gjsify run build:test:node && gjsify run build:test:trees:gjs && gjsify run build:test:trees:node",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-        "build:test:trees:gjs": "gjsify build src/test.trees.mts --app gjs --no-minify --alias @nativescript/core=$PWD/../adwaita/src/testing/ns-core.mjs --outfile test.trees.gjs.mjs",
-        "build:test:trees:node": "gjsify build src/test.trees.mts --app node --no-minify --alias @nativescript/core=$PWD/../adwaita/src/testing/ns-core.mjs --outfile test.trees.node.mjs",
+        "build:test:trees:gjs": "gjsify build src/test.trees.mts --app gjs --no-minify --alias @nativescript/core=@gjsify/adwaita-nativescript/testing/ns-core --outfile test.trees.gjs.mjs",
+        "build:test:trees:node": "gjsify build src/test.trees.mts --app node --no-minify --alias @nativescript/core=@gjsify/adwaita-nativescript/testing/ns-core --outfile test.trees.node.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs && gjsify run test.trees.gjs.mjs",
         "test:node": "node test.node.mjs && node test.trees.node.mjs"

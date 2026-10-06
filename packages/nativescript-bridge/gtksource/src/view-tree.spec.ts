@@ -9,6 +9,7 @@ import { build } from '@gjsify/adwaita-nativescript/builder';
 import { describe, expect, it } from '@gjsify/unit';
 
 import './builder.js';
+import { GtkSourceBuffer } from './buffer.js';
 import { GtkSourceView } from './view.js';
 
 import tree from './fixtures/source-view.blp?shared-tree';
@@ -35,6 +36,13 @@ export const GtkSourceViewTreeNsTest = async () => {
             expect(view?.editable).toBe(false);
             expect(view?.leftMargin).toBe(12);
             expect(view?.bottomMargin).toBe(12);
+        });
+
+        await it('takes a `buffer:` object child with its authored text', () => {
+            const view = built().getViewById('sourceView') as unknown as GtkSourceView | undefined;
+            expect(view?.buffer instanceof GtkSourceBuffer).toBe(true);
+            expect(view?.buffer.text).toBe('LDA #$01\nSTA $0200');
+            expect(view?.buffer.highlightSyntax).toBe(false);
         });
 
         await it('answers the GtkWidget layout properties the scrolled window asks it for', () => {

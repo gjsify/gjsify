@@ -14,6 +14,11 @@ template $SourceView: Adw.Bin {
       has-frame: false;
 
       GtkSource.View sourceView {
+        buffer: GtkSource.Buffer {
+          text: "LDA #$01\nSTA $0200";
+          highlight-syntax: false;
+        };
+
         hexpand: true;
         vexpand: true;
         auto-indent: true;

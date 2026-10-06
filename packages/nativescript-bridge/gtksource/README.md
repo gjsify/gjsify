@@ -8,7 +8,10 @@ from the text `Layout` in `onDraw`, and `GtkSource.Buffer` / `LanguageManager` /
 - No word wrap: every logical line is one layout line, the view scrolls horizontally.
 - GtkSourceView's `Adwaita` scheme and `def.lang` are LGPL and not bundled. A small own stand-in is
   registered under `Adwaita` / `Adwaita-dark`; add the real files with `addSchemeFromXml()`.
-- `indent-width` is held and read back; Android has no Tab key to apply it to.
+- `indent-width` is held and read back, not applied: an `EditText` has no indent step. Its only
+  Tab is a hardware key that inserts `\t`, and `tab-width` would need a `TabStopSpan` per line that
+  GtkSourceView does not tie to `indent-width`. `auto-indent` copies the previous line's blanks.
+- The caret line's number is emphasised only under `highlight-current-line` (default false).
 - Android API used (R8): the consuming app must keep `android.widget.EditText`, `android.text.*`
   spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist.
 - The platform half (`native-editor.android.ts`) is not verified on a device yet.
@@ -43,3 +46,11 @@ const view = build(tree);
 
 `@gjsify/adwaita-nativescript` is a peer dependency: install it once, so the view and your app share
 one colour-scheme state.
+
+What a `.blp` can write: `GtkSource.View`, and `buffer: GtkSource.Buffer { text: "…";
+highlight-syntax: false; };` as the view's `buffer` object child. `LanguageManager` and
+`StyleSchemeManager` are singletons you ask for a `Language` / `StyleScheme`, and `.blp` cannot
+call a method, so set `buffer.language` and `buffer.styleScheme` from code after building.
+
+`Gtk.Button`'s `action-name` is held as `actionName` and not dispatched (there is no `GAction`
+registry): connect the button's `clicked` yourself.

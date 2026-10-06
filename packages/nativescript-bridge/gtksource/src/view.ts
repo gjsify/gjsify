@@ -7,7 +7,7 @@
 import { View as NsView } from '@nativescript/core';
 import { adwaitaColorScheme, onAdwaitaColorSchemeChanged, withGtkWidgetLayout } from '@gjsify/adwaita-nativescript';
 
-import type { Buffer } from './buffer.js';
+import { GtkSourceBuffer, type Buffer } from './buffer.js';
 import { toBoolean, toNumber } from './coerce.js';
 import { EditorSession } from './editor-session.js';
 import { createEditorDriver } from './native-editor.js';
@@ -16,6 +16,9 @@ import type { NativeEditorDriver } from './native-editor.js';
 // Named by its GIR name, as the Adw and Gtk widgets are: the shared-tree builder reads a class off
 // the barrel and refuses one whose name is not the tag the `.blp` wrote (`GtkSourceView`).
 export class GtkSourceView extends withGtkWidgetLayout(NsView) {
+    /** The one slot a `.blp` fills with an object: `buffer: GtkSource.Buffer { … }`. */
+    static readonly builderSlots: readonly string[] = ['buffer'];
+
     private readonly driver: NativeEditorDriver = createEditorDriver();
     private readonly session: EditorSession;
     private unsubscribe: (() => void) | null = null;
@@ -42,6 +45,13 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         this.unsubscribe = null;
         this.driver.detach();
         super.disposeNativeView();
+    }
+
+    _addChildFromBuilder(name: string, child: object): void {
+        if (name !== 'buffer' || !(child instanceof GtkSourceBuffer)) {
+            throw new Error(`GtkSource.View takes only a \`buffer\` object child, not '${name}'.`);
+        }
+        this.buffer = child;
     }
 
     get buffer(): Buffer {
