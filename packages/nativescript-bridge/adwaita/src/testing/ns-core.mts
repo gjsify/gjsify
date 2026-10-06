@@ -157,6 +157,17 @@ const PARENTS = new WeakMap<object, View>();
 
 export class View extends Observable {
     /**
+     * `View` keeps its `Style` in `_style` and answers it from `style`: a subclass field of that
+     * name replaces it, and every inherited-CSS pass then reads `viewRef` off the wrong object
+     * (`Cannot read properties of undefined (reading 'get')`, measured on a device).
+     */
+    _style: { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } = { direction: null, viewRef: new WeakRef(this) };
+
+    get style(): { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } {
+        return this._style;
+    }
+
+    /**
      * UNSET, NOT EMPTY — a view nobody has written a class onto reads `undefined`.
      *
      * This field held `''` and the setter coerced `value ?? ''`, which made the suite
@@ -285,7 +296,6 @@ export class View extends Observable {
     accessibilityState: string | undefined;
     accessibilityLabel: string | undefined;
     accessibilityHint: string | undefined;
-    readonly style: { direction?: 'ltr' | 'rtl' | null } = { direction: null };
     /** The pseudo-classes `attachRowPressFeedback` toggles — observable, not styled. */
     readonly pseudoClasses: Set<string> = new Set();
 

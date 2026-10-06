@@ -19,6 +19,13 @@ const childrenOf = (layout: object): Label[] => {
 
 export const GtkStackNsTest = async () => {
     await describe('Gtk.Stack', async () => {
+        await it('leaves the view its own Style, which a subclass field must not replace', () => {
+            const stack = new Gtk.Stack() as unknown as { style: { viewRef?: unknown } };
+            expect(stack.style.viewRef === undefined).toBe(false);
+            const bin = new Gtk.Box() as unknown as { style: { viewRef?: unknown } };
+            expect(bin.style.viewRef === undefined).toBe(false);
+        });
+
         await it('shows the first page and collapses the rest', () => {
             const stack = new Gtk.Stack();
             const [one, two] = [label(), label()];
