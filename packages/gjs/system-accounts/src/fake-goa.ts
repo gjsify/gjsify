@@ -2,7 +2,7 @@
 // marshalling and libgoa's own client code run for real with no GNOME session.
 //
 // libgoa has no constructor taking a connection: `Goa.Client.new` dials the SESSION bus. So
-// the server also plays the three bus methods a client of that bus needs (Hello,
+// the server also plays the bus methods a client of that bus needs (Hello,
 // GetNameOwner, StartServiceByName, AddMatch) and the process's session address points at it.
 //
 // GLib caches the session connection for the life of the process. The fake is therefore one
