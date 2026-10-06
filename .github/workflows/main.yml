@@ -130,6 +130,7 @@ env:
     packages/gjs/unit
     packages/gjs/runtime
     packages/web/adwaita-core
+    packages/web/gtksource-core
     packages/framework/storybook-core
     packages/web/domparser
     packages/web/webstorage
@@ -1516,7 +1517,7 @@ jobs:
   #      shape as the CLI: build ONE engine-agnostic bundle, run it three times.
   cross-runtime:
     needs: [changes, setup, build, queue-proof]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) && needs.queue-proof.outputs.proven != 'true' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/gtksource-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) && needs.queue-proof.outputs.proven != 'true' }}
     strategy:
       fail-fast: false
       matrix:
