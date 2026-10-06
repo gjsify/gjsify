@@ -55,8 +55,12 @@ class Reader {
         try {
             translateRegex(source, { extended });
         } catch (error) {
-            if (!(error instanceof UnsupportedRegexError)) throw error;
-            this.flag(`regex: ${error.construct}`, where);
+            // A construct the translator refuses OR a pattern the JS engine rejects (raw
+            // SyntaxError when the translated source is invalid) both land in `unsupported` —
+            // never a throw, so a non-strict parse of one bad pattern survives with the rest.
+            if (error instanceof UnsupportedRegexError) this.flag(`regex: ${error.construct}`, where);
+            else if (error instanceof SyntaxError) this.flag(`regex: ${error.message}`, where);
+            else throw error;
         }
         return { source, extended };
     }

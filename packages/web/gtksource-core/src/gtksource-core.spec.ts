@@ -163,6 +163,21 @@ export default async () => {
             }
             expect(message).toContain('attribute once-only');
         });
+
+        await it('lists a pattern the JS engine rejects in non-strict mode instead of throwing', () => {
+            const fabricated = '<language id="t"><definitions><context id="t"><match>(a</match></context></definitions></language>';
+            const lang = parseLanguage(fabricated);
+            const regex = lang.unsupported.filter((entry) => entry.construct.startsWith('regex:'));
+            expect(regex.length).toBe(1);
+            expect(regex[0].where).toBe('language/definitions/context[id=t]/match');
+            let message = '';
+            try {
+                parseLanguage(fabricated, { strict: true });
+            } catch (error) {
+                message = error instanceof Error ? error.message : '';
+            }
+            expect(message).toContain('regex:');
+        });
     });
 
     await describe('gtksource-core: translateRegex', async () => {
@@ -231,6 +246,19 @@ export default async () => {
                 ['(?R)', 'recursion or a subroutine call'],
                 ['\\%{id}', '\\%{id} regex reference'],
                 ['\\x{41}', 'braced \\x{…} escape'],
+                ['\\p{L}', '\\p{…}/\\P{…} (Unicode property)'],
+                ['\\P{Alpha}', '\\p{…}/\\P{…} (Unicode property)'],
+                ['[\\p{L}]', '\\p{…}/\\P{…} (Unicode property)'],
+                ['\\e', '\\e (ESC character)'],
+                ['[a\\e]', '\\e (ESC character)'],
+                ['\\g<1>', '\\g<…>/\\g{…} (PCRE group reference)'],
+                ['\\g{name}', '\\g<…>/\\g{…} (PCRE group reference)'],
+                ["\\g'1'", '\\g<…>/\\g{…} (PCRE group reference)'],
+                ['[\\g{1}]', '\\g<…>/\\g{…} (PCRE group reference)'],
+                ['\\N{U+0041}', '\\N{U+…} (Unicode codepoint)'],
+                ['[\\N{U+0041}]', '\\N{U+…} (Unicode codepoint)'],
+                ['(?(1)a', 'a conditional group (?(…)'],
+                ['(?|a|b)', 'a branch reset group (?|…)'],
                 ['[[:alpha:]]', 'a POSIX character class'],
                 ['[\\h]', '\\h (horizontal space)'],
                 ['a[b', 'an unterminated character class'],

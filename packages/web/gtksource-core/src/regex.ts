@@ -31,6 +31,9 @@ const REFUSED_ESCAPES: Readonly<Record<string, string>> = {
 
 const BRACED_QUANTIFIER = /^\{\d+(?:,\d*)?\}/;
 
+/** The delimiter PCRE accepts after `\g` for a group reference (`\g<1>`, `\g{name}`, `\g'1'`). */
+const isGroupRefDelimiter = (c: string): boolean => c === '<' || c === '{' || c === "'";
+
 /**
  * Translates one GtkSourceView pattern (GRegex/PCRE dialect) into a JS `RegExp`.
  *
@@ -38,9 +41,10 @@ const BRACED_QUANTIFIER = /^\{\d+(?:,\d*)?\}/;
  * behind a backslash (`[\+\-\*]`, `a\+\+`, `\\A`) is never mistaken for the construct. It handles:
  * extended mode, `\%[`/`\%]` (GtkSourceView's word boundaries), a leading `(?i)`/`(?s)`/`(?x)`,
  * `(?P<n>…)`/`(?P=n)`, `(?#…)` comments, and the POSIX-less `[]…]` literal bracket.
- * It refuses, by name: possessive quantifiers, atomic groups, recursion and subroutine calls,
- * `\A \Z \z \G \K \Q \h \H \R`, `\%{id}` regex references, braced `\x{…}`, POSIX classes
- * and inline flags anywhere but the very start.
+ * It refuses, by name: possessive quantifiers, atomic groups, conditionals `(?(…)`, branch
+ * reset `(?|…)`, recursion and subroutine calls, `\A \Z \z \G \K \Q \h \H \R`,
+ * `\p{…}`/`\P{…}`, `\e`, `\g<…>`/`\g{…}` group references, `\N{U+…}`, `\%{id}` regex
+ * references, braced `\x{…}`, POSIX classes and inline flags anywhere but the very start.
  */
 export function translateRegex(source: string, options: TranslateRegexOptions): RegExp {
     let extended = options.extended;
@@ -80,6 +84,15 @@ export function translateRegex(source: string, options: TranslateRegexOptions): 
                 throw new UnsupportedRegexError('\\%{id} regex reference', i);
             }
             if (next === 'x' && source[i + 2] === '{') throw new UnsupportedRegexError('braced \\x{…} escape', i);
+            // \p/\P only mean a Unicode property with a brace; a bare `\g` is a PCRE error, but the
+            // delimited forms are the reference/subroutine syntax JS reads as a plain letter.
+            if ((next === 'p' || next === 'P') && source[i + 2] === '{')
+                throw new UnsupportedRegexError('\\p{…}/\\P{…} (Unicode property)', i);
+            if (next === 'e') throw new UnsupportedRegexError('\\e (ESC character)', i);
+            if (next === 'g' && isGroupRefDelimiter(source[i + 2]))
+                throw new UnsupportedRegexError('\\g<…>/\\g{…} (PCRE group reference)', i);
+            if (next === 'N' && source.slice(i + 2, i + 5) === '{U+')
+                throw new UnsupportedRegexError('\\N{U+…} (Unicode codepoint)', i);
             emit(ch + next);
             i += 2;
             continue;
@@ -106,6 +119,13 @@ export function translateRegex(source: string, options: TranslateRegexOptions): 
                     if (n === undefined) throw new UnsupportedRegexError('an unterminated character class', i);
                     if (n in REFUSED_ESCAPES) throw new UnsupportedRegexError(REFUSED_ESCAPES[n], j);
                     if (n === 'x' && source[j + 2] === '{') throw new UnsupportedRegexError('braced \\x{…} escape', j);
+                    if ((n === 'p' || n === 'P') && source[j + 2] === '{')
+                        throw new UnsupportedRegexError('\\p{…}/\\P{…} (Unicode property)', j);
+                    if (n === 'e') throw new UnsupportedRegexError('\\e (ESC character)', j);
+                    if (n === 'g' && isGroupRefDelimiter(source[j + 2]))
+                        throw new UnsupportedRegexError('\\g<…>/\\g{…} (PCRE group reference)', j);
+                    if (n === 'N' && source.slice(j + 2, j + 5) === '{U+')
+                        throw new UnsupportedRegexError('\\N{U+…} (Unicode codepoint)', j);
                     cls += c + n;
                     j += 2;
                     continue;
@@ -121,6 +141,8 @@ export function translateRegex(source: string, options: TranslateRegexOptions): 
         if (ch === '(' && source[i + 1] === '?') {
             const rest = source.slice(i + 2);
             if (rest.startsWith('>')) throw new UnsupportedRegexError('an atomic group (?>…)', i);
+            if (rest.startsWith('(')) throw new UnsupportedRegexError('a conditional group (?(…)', i);
+            if (rest.startsWith('|')) throw new UnsupportedRegexError('a branch reset group (?|…)', i);
             if (rest.startsWith('#')) {
                 const end = source.indexOf(')', i);
                 if (end === -1) throw new UnsupportedRegexError('an unterminated (?#…) comment', i);
