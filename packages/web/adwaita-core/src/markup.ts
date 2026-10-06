@@ -20,7 +20,14 @@
 // `@nativescript/core` at module scope. This file needs only the case rules in `./tags`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
-import { GTK_WIDGET_EXPAND, attributeOf, hostTagOf, isValueBasedBooleanAttr, propertyOf, widgetLengthStyle } from './tags.js';
+import {
+    GTK_WIDGET_EXPAND,
+    attributeOf,
+    hostTagOf,
+    isValueBasedBooleanAttr,
+    propertyOf,
+    widgetLengthStyle,
+} from './tags.js';
 
 const INDENT = '  ';
 
