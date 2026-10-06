@@ -190,6 +190,9 @@ export class AdwViewStack extends withSignals(GridLayout) {
         if (content) {
             this.removeChild(content);
             this._sourceIcons.delete(content);
+            // The stack collapsed this page while another was shown; a page that leaves the stack
+            // (to sit in a column, as Learn6502's wide layout does) must not stay hidden.
+            content.visibility = 'visible';
         }
         applyViewStackVisibility(this._state);
         return true;

@@ -217,6 +217,20 @@ export const AdwWindowShellNsTest = async () => {
             expect(contexts.every((context) => context === undefined)).toBe(true);
         });
 
+        await it('shows a page again once it leaves the view stack', () => {
+            const stack = new Adw.ViewStack();
+            const [first, second] = [new Gtk.Label(), new Gtk.Label()] as unknown as [
+                { visibility: string },
+                { visibility: string },
+            ];
+            stack.add(first as never, 'first', 'First');
+            stack.add(second as never, 'second', 'Second');
+            expect(second.visibility).toBe('collapse');
+            stack.remove(second as never);
+            expect(second.visibility).toBe('visible');
+            expect(first.visibility).toBe('visible');
+        });
+
         await it('refuses to build a template into an instance of another class', () => {
             expect(() => buildInto(new Gtk.Box() as never, shellButtonTree)).toThrow('AdwBin');
         });
