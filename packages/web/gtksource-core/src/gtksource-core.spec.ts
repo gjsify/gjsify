@@ -165,7 +165,8 @@ export default async () => {
         });
 
         await it('lists a pattern the JS engine rejects in non-strict mode instead of throwing', () => {
-            const fabricated = '<language id="t"><definitions><context id="t"><match>(a</match></context></definitions></language>';
+            const fabricated =
+                '<language id="t"><definitions><context id="t"><match>(a</match></context></definitions></language>';
             const lang = parseLanguage(fabricated);
             const regex = lang.unsupported.filter((entry) => entry.construct.startsWith('regex:'));
             expect(regex.length).toBe(1);
