@@ -25,7 +25,7 @@ function withWidget(make: () => HTMLElement, body: (el: HTMLElement) => void): v
 
 /** The parts `applyRowTooltip` is expected to have written `tooltip-text` onto. */
 const TOOLTIPPED_PARTS: Record<string, string[]> = {
-    'adw-action-row': ['.adw-action-row-prefix', '.adw-action-row-text', '.adw-action-row-suffix'],
+    'adw-action-row': ['.adw-action-row-prefix', '.adw-row-text', '.adw-action-row-suffix'],
     'adw-button-row': ['.adw-button-row-contents'],
     'adw-combo-row': ['.adw-row-text', '.adw-row-value', 'select'],
     'adw-expander-row': ['.adw-expander-row-header'],
