@@ -51,9 +51,9 @@ interface SystemAccounts {
 |---|---|---|
 | Linux, GNOME (GOA) | **planned, first driver** | postbote already runs this code on GJS and, through node-gi, on Node |
 | Linux, other desktops | **unexplored** | no GOA there; whether a Secret Service based driver is useful is open |
-| macOS | **unexplored** | research pending; the interface assumes nothing it offers |
-| Windows | **unexplored** | research pending |
-| Android, iOS (NativeScript) | **unexplored** | research pending; account access may be restricted by the OS |
+| macOS | **unexplored** | no system-account API for third-party apps found (not proven either way); the interface assumes nothing it offers. Keychain Services exists as a secret store, details not read |
+| Windows | **unexplored** | no system-account API found (not proven either way). Credential Locker (`PasswordVault`) and DPAPI exist as secret stores |
+| Android, iOS (NativeScript) | **unexplored** | Android `AccountManager` and iOS limits for third-party apps not read; the Android Keystore does not export key material |
 | Browser | **none** | no system account store |
 
 "Unexplored" means nobody has checked what the platform allows, not that it is impossible.
@@ -82,5 +82,9 @@ The capability mapping itself runs as pure functions on every host.
   `credentials.gjs.ts`. Until then its copy stays.
 - Whether the secret store (postbote's `SecretStore`) moves to gjsify is **open**; decide after
   the first consumer has used the accounts package.
+- Where there is no system account store, a driver would need OAuth in the browser (RFC 8252:
+  external user agent, loopback or private-use redirect, PKCE). Google and Microsoft both accept
+  XOAUTH2 for SMTP; Exchange Online's SMTP AUTH basic-auth timeline moved and is only confirmed
+  from secondary sources. This is a non-goal now and recorded so the interface keeps room for it.
 - Whether SMTP login by OAuth works with the user's providers is not a gjsify question, and is
   being measured separately in the consumer. The interface carries both shapes either way.
