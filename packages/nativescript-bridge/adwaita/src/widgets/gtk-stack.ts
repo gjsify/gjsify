@@ -56,7 +56,7 @@ export class GtkStack extends withSignals(GridLayout) {
     static readonly builderSlots: readonly string[] = [];
 
     private readonly _state = createViewStackState();
-    private readonly _style = new StyleClassList();
+    private readonly _classList = new StyleClassList();
     private _transitionType: GtkStackTransitionNick = 'none';
     private _transitionDuration = DEFAULT_STACK_TRANSITION_DURATION;
     private _hhomogeneous = true;
@@ -227,44 +227,44 @@ export class GtkStack extends withSignals(GridLayout) {
 
     /** `GtkWidget:css-classes`, spelled `styleClasses` (`style-classes.ts`). */
     get styleClasses(): string[] {
-        return this._style.classes;
+        return this._classList.classes;
     }
 
     set styleClasses(value: AdwStyleClassesInput) {
-        this._style.replace(value);
+        this._classList.replace(value);
         this._restyle();
     }
 
     /** `gtk_widget_add_css_class`. */
     add_css_class(name: string): void {
-        this._style.add(name);
+        this._classList.add(name);
         this._restyle();
     }
 
     /** `gtk_widget_remove_css_class`. */
     remove_css_class(name: string): void {
-        this._style.remove(name);
+        this._classList.remove(name);
         this._restyle();
     }
 
     /** `gtk_widget_has_css_class`. */
     has_css_class(name: string): boolean {
-        return this._style.has(name);
+        return this._classList.has(name);
     }
 
     /** `gtk_widget_get_css_classes`. */
     get_css_classes(): string[] {
-        return this._style.classes;
+        return this._classList.classes;
     }
 
     /** `gtk_widget_set_css_classes` — REPLACES the list. */
     set_css_classes(names: readonly string[]): void {
-        this._style.replaceAll(names);
+        this._classList.replaceAll(names);
         this._restyle();
     }
 
     private _restyle(): void {
-        this.className = this._style.className;
+        this.className = this._classList.className;
     }
 
     private _add(child: View, name: string, title?: string): AdwViewStackPageInfo {

@@ -101,6 +101,31 @@ export const AdwContainersNsTest = async () => {
         });
     });
 
+    await describe('single-child containers: alignment sizes the column', async () => {
+        const columns = (view: object): string[] =>
+            ((view as unknown as Record<string, { gridUnitType: string }[]>)._columns ?? []).map((s) => s.gridUnitType);
+
+        // The platform double has no `onLoaded` lifecycle to drive, so the load step is called directly.
+        const load = (bin: object): void =>
+            (bin as unknown as { _syncColumnToAlignment(): void })._syncColumnToAlignment();
+
+        await it('a stretched Bin keeps its star column', () => {
+            const bin = new Adw.Bin();
+            load(bin);
+            expect(columns(bin)).toStrictEqual(['star']);
+        });
+
+        await it('a Bin aligned end wraps its child: auto column, star again when stretched back', () => {
+            const bin = new Adw.Bin();
+            bin.horizontalAlignment = 'right';
+            load(bin);
+            expect(columns(bin)).toStrictEqual(['auto']);
+            bin.horizontalAlignment = 'stretch';
+            load(bin);
+            expect(columns(bin)).toStrictEqual(['star']);
+        });
+    });
+
     await describe('Gtk.Revealer', async () => {
         await it('does not reveal by default, as in C — the child is collapsed', () => {
             const revealer = new Gtk.Revealer();

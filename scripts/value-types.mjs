@@ -67,6 +67,16 @@ export const CONSTRUCTIBLE_VALUES = [
         why: "`Gio.Menu`'s item half — `set_label` / `set_detailed_action` — for the same reason, and unreachable without it the moment a pane writes anything past a bare `append`.",
     },
     {
+        member: 'Gio.SimpleAction',
+        gir: 'SimpleAction',
+        why: "GJS writes `new Gio.SimpleAction({ name: 'copy' })` and connects `activate`; a Blueprint button's `action-name` resolves to it. The NativeScript port carries a minimal registry (`widgets/actions.ts`) so a shared widget class registers its actions the same way on both sides.",
+    },
+    {
+        member: 'Gio.SimpleActionGroup',
+        gir: 'SimpleActionGroup',
+        why: "`Gio.SimpleAction`'s container — what `insertActionGroup` (`gtk_widget_insert_action_group`) puts under a prefix such as `source-view`, unreachable without it.",
+    },
+    {
         member: 'Gtk.Adjustment',
         gir: 'Adjustment',
         why: 'GJS writes `adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 })`, and ADR 0047 already made the VALUE behind it portable — the class IS `AdwAdjustment` wearing the GIR spelling. It closed the `Adw.SpinRow` pane divergence down to the one property the port has no counterpart for.',

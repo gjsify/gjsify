@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { parseColor } from './color.js';
-import { digitCount, gutterWidth, visibleLines } from './gutter.js';
+import { digitCount, emphasisedLine, gutterWidth, visibleLines } from './gutter.js';
 
 export default async () => {
     await describe('gtksource-nativescript: gutter and colour arithmetic', async () => {
@@ -17,6 +17,12 @@ export default async () => {
             expect(visibleLines(1000, top, bottom, 95, 125)).toStrictEqual({ first: 9, last: 12 });
             expect(visibleLines(0, top, bottom, 0, 10)).toBe(null);
             expect(visibleLines(3, top, bottom, 100, 200)).toBe(null);
+        });
+
+        await it('emphasises the caret line number only under highlight-current-line', () => {
+            expect(emphasisedLine(false, 0)).toBe(-1);
+            expect(emphasisedLine(true, 0)).toBe(0);
+            expect(emphasisedLine(true, 7)).toBe(7);
         });
 
         await it('parses CSS colours with the alpha last', () => {

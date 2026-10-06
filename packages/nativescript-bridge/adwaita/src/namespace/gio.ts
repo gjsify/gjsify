@@ -12,8 +12,10 @@
 // `check-vocabulary-alignment.mjs` derives their members from the widget files on disk.
 // GIO has no widgets: what lands here is the handful of GObject types an Adwaita author
 // CONSTRUCTS while building a widget tree — today the menu a `menuModel` property takes.
-// `Gio.File`, `Gio.Settings`, `Gio.SimpleAction` and the rest of the library are NOT this
+// `SimpleAction`/`SimpleActionGroup` ARE here — the `GAction` registry a Button's
+// `action-name` resolves through (`../widgets/actions.ts`). `Gio.File`, `Gio.Settings` and the rest of the library are NOT this
 // package's business; a namespace that grows past what the widgets consume is a second,
 // unheld vocabulary.
 
 export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
+export { SimpleAction, SimpleActionGroup } from '../widgets/actions.js';

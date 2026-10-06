@@ -59,6 +59,8 @@ import { labelDisplayText } from '@gjsify/adwaita-core';
 import { buttonSlotAfterWrite, buttonSlotDetaches, type ButtonSlot } from './button-slot.js';
 import { builderSlotsOf } from './builder-slots.js';
 import { GtkImage } from './gtk-image.js';
+import { activateWidgetAction } from './actions.js';
+import { applyNativeTooltip } from './native-tooltip.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { xmlBoolean } from './xml-values.js';
@@ -67,6 +69,9 @@ import { withSignals } from './signals.js';
 
 /** Event name emitted when the button is tapped. Mirrors `Gtk.Button::clicked`. */
 export const GTK_BUTTON_CLICKED = 'clicked';
+
+/** The class GTK puts on a button whose only content is an icon (`icon-name`). */
+export const GTK_BUTTON_IMAGE_CLASS = 'image-button';
 
 /** The class the button's own label carries, so the theme can give it Adwaita's type. */
 export const GTK_BUTTON_LABEL_CLASS = 'adw-button-label';
@@ -108,7 +113,10 @@ export class GtkButton extends withSignals(GridLayout) {
 
         this.addEventListener('tap', () => {
             this.notify({ eventName: GTK_BUTTON_CLICKED, object: this });
+            if (this.actionName) activateWidgetAction(this, this.actionName);
         });
+        // The native view exists only once loaded, and a tooltip written before that is lost.
+        this.addEventListener('loaded', () => applyNativeTooltip(this, this.tooltipText));
 
         applyConstructProps(this, props);
     }
@@ -132,6 +140,13 @@ export class GtkButton extends withSignals(GridLayout) {
     }
 
     /**
+     * `Gtk.Actionable:action-name` — `prefix.name`, resolved on click through the action
+     * groups `insertActionGroup` put on this button or an ancestor (`./actions.ts`). A name
+     * nothing answers is a no-op, where GTK logs a warning; `clicked` fires either way.
+     */
+    actionName: string | null = null;
+
+    /**
      * `Gtk.Button:icon-name` — an Adwaita symbolic SVG string, not a theme name (see the
      * header). Writing it replaces the child, as `gtk_button_set_icon_name` does.
      */
@@ -145,10 +160,10 @@ export class GtkButton extends withSignals(GridLayout) {
     }
 
     /**
-     * `GtkWidget:tooltip-text`. A phone has no hover, so there is no tooltip to show; GTK
-     * also hands the text to assistive technology as the widget's description, and that
-     * half has a home here: `accessibilityHint`. An icon-only button is where a `.blp`
-     * writes one, and the builder refused the whole tree for want of this door.
+     * `GtkWidget:tooltip-text`. GTK shows it on hover and hands it to assistive technology
+     * as the description: that half is `accessibilityHint`, and on Android the native view
+     * also gets `setTooltipText`, which shows it on long press (`./native-tooltip.ts`).
+     * An icon-only button is where a `.blp` writes one.
      */
     get tooltipText(): string {
         return this.accessibilityHint ?? '';
@@ -156,6 +171,7 @@ export class GtkButton extends withSignals(GridLayout) {
 
     set tooltipText(value: string) {
         this.accessibilityHint = value ?? '';
+        applyNativeTooltip(this, this.tooltipText);
     }
 
     /**
@@ -277,11 +293,16 @@ export class GtkButton extends withSignals(GridLayout) {
      */
     protected _restyle(): void {
         this.className = classNameWith('adw-button', [...this._styleClasses, ...this._stateClasses()]);
+        this._pinIconColor();
     }
 
-    /** The state classes a subclass wears beside the caller's list. A plain button has none. */
+    /**
+     * The state classes a button wears beside the caller's list. `image-button` is the one
+     * GTK adds itself: `gtk_button_set_icon_name` marks an icon-only button, and libadwaita
+     * sizes it (34×34, no label padding) through that class.
+     */
     protected _stateClasses(): readonly string[] {
-        return [];
+        return this._slot === 'icon' ? [GTK_BUTTON_IMAGE_CLASS] : [];
     }
 
     /**
@@ -294,7 +315,9 @@ export class GtkButton extends withSignals(GridLayout) {
     private _fill(wrote: 'label' | 'icon' | 'child', value: unknown): void {
         const next = buttonSlotAfterWrite(wrote, value);
         if (buttonSlotDetaches(this._slot, next)) this._detach();
+        const wasIcon = this._slot === 'icon';
         this._slot = next;
+        if (wasIcon !== (next === 'icon')) this._restyle();
 
         if (next === 'empty') {
             this._detach();
@@ -321,6 +344,19 @@ export class GtkButton extends withSignals(GridLayout) {
         }
         const image = this._content instanceof GtkImage ? this._content : this._adopt(new GtkImage());
         image.iconName = this._iconName;
+        this._pinIconColor();
+    }
+
+    /**
+     * A glyph is rasterised, so it cannot inherit `color`: on a fill that is dark in both
+     * schemes (`osd`, `suggested-action`) it is pinned white, as GTK's symbolic recolouring
+     * does there. Pinning is one-way (`GtkImage.iconColor`), so a class removed later keeps it.
+     */
+    private _pinIconColor(): void {
+        if (!(this._content instanceof GtkImage)) return;
+        if (this._styleClasses.some((name) => name === 'osd' || name === 'suggested-action')) {
+            this._content.iconColor = '#ffffff';
+        }
     }
 
     private _detach(): void {

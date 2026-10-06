@@ -41,7 +41,7 @@ import { templateClassFor } from './template-classes.js';
 
 export { registerTemplateClass } from './template-classes.js';
 
-// The two `xmlns` barrels an app declares, one module per library (ADR 0034 § Amendment 9).
+// The two `xmlns` barrels this package owns, one module per library (ADR 0034 § Amendment 9).
 // Imported as MODULE NAMESPACES because that is literally what this door is:
 // `component-builder`'s `createComponentInstance` ends in `instanceModule[elementName]`, and
 // the prefix selects the module. Importing the widget classes by name instead would be a
@@ -62,7 +62,44 @@ export interface Element {
     ctor: ElementClass;
 }
 
-const BARRELS: Readonly<Record<string, object>> = { adw: Adw, gtk: Gtk };
+/** One library's barrel: the `xmlns` prefix an app declares, the GIR name its classes start with, its module. */
+interface Barrel {
+    prefix: string;
+    library: string;
+    namespace: object;
+}
+
+const BARRELS: Barrel[] = [
+    { prefix: 'adw', library: 'Adw', namespace: Adw },
+    { prefix: 'gtk', library: 'Gtk', namespace: Gtk },
+];
+
+/**
+ * Teach {@link elementFor} one more library, so a `.blp` that says `using GtkSource 5;` builds.
+ *
+ * The barrels above are the two this package OWNS. Every other library's widgets live in a
+ * package that depends on THIS one (`@gjsify/gtksource-nativescript` imports
+ * `@gjsify/adwaita-nativescript`), so this package cannot import them back: the library
+ * registers itself instead, from its own `./builder` subpath, and an app opts in by importing
+ * that subpath once beside this one.
+ *
+ * `library` is the GIR namespace a tag starts with (`GtkSource` for `GtkSourceView`) and
+ * `namespace` is the module whose members are the classes, each named by its full GIR name as
+ * the `Adw` and `Gtk` barrels do. The longest library wins a tag, because `GtkSourceView`
+ * starts with `Gtk` too. Registering the same prefix twice replaces the first, which is what
+ * a hot reload does; a prefix that belongs to another library
+ * is refused, because two libraries behind one `xmlns` prefix is a widget built from the wrong one.
+ */
+export function registerBarrel(prefix: string, library: string, namespace: object): void {
+    const known = BARRELS.find((barrel) => barrel.prefix === prefix);
+    if (known !== undefined && known.library !== library) {
+        throw new Error(
+            `The prefix '${prefix}' already names \`${known.library}\`; it cannot also name \`${library}\`.`,
+        );
+    }
+    if (known === undefined) BARRELS.push({ prefix, library, namespace });
+    else known.namespace = namespace;
+}
 
 /**
  * The element a GIR class name is, in the `xmlns` barrel dialect.
@@ -81,11 +118,11 @@ const BARRELS: Readonly<Record<string, object>> = { adw: Adw, gtk: Gtk };
  * rather than resolving to a stranger.)
  */
 export function elementFor(tag: string): Element {
-    for (const [prefix, barrel] of Object.entries(BARRELS)) {
-        const library = `${prefix[0]!.toUpperCase()}${prefix.slice(1)}`;
+    const byLength = [...BARRELS].sort((a, b) => b.library.length - a.library.length);
+    for (const { prefix, library, namespace } of byLength) {
         if (!tag.startsWith(library)) continue;
         const member = tag.slice(library.length);
-        const exported = (barrel as Record<string, unknown>)[member];
+        const exported = (namespace as Record<string, unknown>)[member];
         if (typeof exported !== 'function') {
             throw new Error(
                 `Module '~/${prefix}' has no member for element '${prefix}:${member}' — the name ` +
@@ -103,7 +140,7 @@ export function elementFor(tag: string): Element {
         return { xmlName: `${prefix}:${member}`, ctor: exported as ElementClass };
     }
     throw new Error(
-        `\`${tag}\` starts with no library this dialect has a barrel for (${Object.keys(BARRELS).join(', ')}).`,
+        `\`${tag}\` starts with no library this dialect has a barrel for (${BARRELS.map((barrel) => barrel.prefix).join(', ')}).`,
     );
 }
 

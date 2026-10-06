@@ -35,6 +35,7 @@ import {
     iconValueKind,
     isIconAvailable,
     registerIcon,
+    registerIcons,
     registeredIconNames,
     resolveIconSource,
     unregisterIcon,
@@ -170,6 +171,15 @@ export default async () => {
             expect(unregisterIcon('weather-clear-symbolic')).toBe(true);
             expect(isIconAvailable('weather-clear-symbolic')).toBe(false);
             expect(resolveIconSource('weather-clear-symbolic')).toBe(resolveIconSource(ICON_FALLBACK_NAME));
+        });
+
+        await it('registerIcons registers a whole map by name', () => {
+            registerIcons({ 'weather-clear-symbolic': OWN_SVG, 'weather-few-clouds-symbolic': OWN_SVG });
+            expect(isIconAvailable('weather-clear-symbolic')).toBe(true);
+            expect(isIconAvailable('weather-few-clouds-symbolic')).toBe(true);
+            expect(() => registerIcons({ 'weather-storm-symbolic': 'not svg' })).toThrow();
+            unregisterIcon('weather-clear-symbolic');
+            unregisterIcon('weather-few-clouds-symbolic');
         });
 
         await it('replaces a glyph the subset already compiles, then gives it back', () => {

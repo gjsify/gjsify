@@ -37,6 +37,22 @@ which the GNOME editors and the web twin already agree on.
    template constructs, and `GtkSource.View` is a leaf view, not a renderer. A gate widened to
    cover it would model a claim nobody makes.
 
+4. **A `.blp` reaches it through a registered barrel, and the adwaita package is a peer.**
+   The shared-tree builder of `@gjsify/adwaita-nativescript` knows the `adw` and `gtk` barrels it
+   owns; `registerBarrel(prefix, library, namespace)` lets a package that depends on it add one
+   more without the dependency running the other way. `@gjsify/gtksource-nativescript/builder`
+   makes that call for `GtkSource`, and an app imports it once beside the adwaita builder, so
+   `using GtkSource 5; GtkSource.View { … }` builds unchanged, including a `buffer: GtkSource.Buffer
+   { text: "…"; };` object child. A real `.blp` compiled with `?shared-tree` takes this path in the
+   specs; a device has not run it. The class is named `GtkSourceView`,
+   because the builder holds a member to the GIR name the `.blp` wrote. `@gjsify/adwaita-nativescript`
+   is a `dependency`, declared with the same `workspace:^` range the app uses, so one installed
+   copy serves both: the view shares the adwaita package's colour-scheme state, and a second copy
+   would own a state the app's own copy never writes, leaving the editor in the wrong scheme. It was
+   first a `peerDependency`, but `gjsify foreach --topological` orders production dependencies
+   only, so CI built this package before the adwaita one it imports and failed on a missing
+   `registerBarrel`.
+
 ## Deliberate gaps
 
 Each is declared in `status/status.json` rather than left to be found.
@@ -47,7 +63,9 @@ Each is declared in `status/status.json` rather than left to be found.
   refused, never mistranslated.
 - **No word wrap.** Every logical line is one layout line and the view scrolls horizontally. The
   gutter is drawn from the text `Layout`, which stays exact only under that rule.
-- **`indent-width` is held and read back, not applied.** Android has no Tab key to apply it to.
+- **`indent-width` is held and read back, not applied.** An `EditText` has no indent step; its only
+  Tab is a hardware key that inserts `\t`, and `tab-width` would need a `TabStopSpan` per line that
+  GtkSourceView does not tie to `indent-width`. `auto-indent` copies the previous line's blanks.
 - **LGPL data is not bundled.** `def.lang` and the `Adwaita` scheme are GtkSourceView's and LGPL.
   The package ships a small stand-in under `Adwaita` / `Adwaita-dark` and takes the real files
   through `addSchemeFromXml()`.
@@ -56,6 +74,20 @@ Each is declared in `status/status.json` rather than left to be found.
 - **Android only, and unverified on a device.** `native-editor.android.ts` is held by type-checking
   alone; the specs drive `EditorSession` through a fake driver, which is not a device.
   There is no iOS driver.
+
+## Shared widget classes: actions, tooltips, icons
+
+A GtkSource-based widget class shared with a GNOME app writes `action-name: "source-view.copy"`
+in its `.blp` and registers `Gio.SimpleAction({ name: "copy" })` in a group under that prefix.
+`@gjsify/adwaita-nativescript` carries the minimum of that: `Gio.SimpleAction`,
+`Gio.SimpleActionGroup`, `insertActionGroup` and a tap that resolves `prefix.name` up the
+parent chain (`widgets/actions.ts`). Not modelled: parameter types, state, `app.`/`win.`
+resolution through an application, accelerators. `tooltip-text` also reaches Android's
+`View.setTooltipText` (API 26, long press; duck-typed, so no `TooltipCompat` and a no-op on older
+devices) beside the accessibility hint, and `registerIcons(map)`
+registers a generated icon module by GNOME name. An icon-only `Gtk.Button` wears
+`image-button` and `.osd` has a theme rule, so the shared `.blp` renders flat and unlabelled. An app's `native-api-usage.json` must list
+`android.view.View` for `setTooltipText`, besides the `EditText` classes of the editor itself.
 
 ## Consequences
 

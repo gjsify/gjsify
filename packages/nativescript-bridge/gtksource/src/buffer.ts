@@ -21,7 +21,15 @@ export interface TextEdit {
     readonly insertedLines: number;
 }
 
-export class Buffer extends SignalEmitter {
+/** What a `.blp` may construct a buffer with: `buffer: GtkSource.Buffer { text: "…"; }`. */
+export interface BufferProps {
+    text?: string;
+    highlightSyntax?: boolean;
+}
+
+// Named by its GIR name, like `GtkSourceView`: the shared-tree builder refuses a barrel member
+// whose class name is not the tag the `.blp` wrote. `Buffer` stays the name code imports.
+export class GtkSourceBuffer extends SignalEmitter {
     private lines: string[] = [''];
     /** `lineStarts[i]` is the offset of line `i`; valid for `i < startsValidTo`. */
     private lineStarts: number[] = [0];
@@ -31,9 +39,11 @@ export class Buffer extends SignalEmitter {
     private scheme: StyleScheme | null = null;
     private highlight = true;
 
-    constructor(text = '') {
+    constructor(init: string | BufferProps = '') {
         super();
+        const { text = '', highlightSyntax = true } = typeof init === 'string' ? { text: init } : init;
         if (text !== '') this.lines = text.split('\n');
+        this.highlight = highlightSyntax !== false && String(highlightSyntax) !== 'false';
     }
 
     get text(): string {
@@ -201,3 +211,5 @@ export class Buffer extends SignalEmitter {
         }
     }
 }
+
+export { GtkSourceBuffer as Buffer };

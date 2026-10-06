@@ -248,6 +248,16 @@ export function registerIcon(name: string, svg: string): void {
     registered.set(resolved, svg);
 }
 
+/**
+ * {@link registerIcon} for a whole set — `{ 'move-to-window-symbolic': svg, … }`, the shape an
+ * app's generated icon module exports, so it registers on import and no app code has to
+ * loop. Validation is per entry and throws on the first bad one, after the good ones before
+ * it were registered.
+ */
+export function registerIcons(icons: Readonly<Record<string, string>>): void {
+    for (const [name, svg] of Object.entries(icons)) registerIcon(name, svg);
+}
+
 /** Drop a registration, so the name falls back to the compiled subset. Test seam. */
 export function unregisterIcon(name: string): boolean {
     return registered.delete(normalizeIconName(name));

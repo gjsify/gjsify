@@ -19,6 +19,7 @@ import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
+import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
@@ -27,6 +28,7 @@ import { GtkControlsNsTest } from './gtk-controls.spec.js';
 import { GtkStackNsTest } from './gtk-stack.spec.js';
 import { GtkToggleButtonNsTest } from './gtk-toggle-button.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
+import { AdwRegisterBarrelNsTest } from './register-barrel.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
@@ -35,6 +37,7 @@ import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 
 run({
     AdwSharedTreesNsTest,
+    AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
     AdwConstructVectorsNsTest,
     AdwContainersNsTest,
@@ -47,6 +50,7 @@ run({
     AdwWidgetBaseNsTest,
     AdwWindowRootsNsTest,
     GtkToggleButtonNsTest,
+    GtkButtonActionsNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
     AdwValueListsNsTest,

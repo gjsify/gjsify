@@ -27,7 +27,8 @@ import { type AdwStyleClassesInput, classNameWith, StyleClassList } from './styl
 import { withSignals } from './signals.js';
 
 export abstract class AdwStyledLayoutBase extends withSignals(GridLayout) {
-    private readonly _style = new StyleClassList();
+    // Not `_style`: that is where NativeScript's `View` keeps its `Style`.
+    private readonly _classList = new StyleClassList();
 
     // Declared, though it adds nothing, because `check-nativescript-xml-doors.mjs` reads every
     // widget class for the one constructor that offers or refuses the construct-props bag.
@@ -42,39 +43,39 @@ export abstract class AdwStyledLayoutBase extends withSignals(GridLayout) {
      * live `Set` (`style-classes.ts`). From XML it is a space-separated list.
      */
     get styleClasses(): string[] {
-        return this._style.classes;
+        return this._classList.classes;
     }
 
     set styleClasses(value: AdwStyleClassesInput) {
-        this._style.replace(value);
+        this._classList.replace(value);
         this._restyle();
     }
 
     /** `gtk_widget_add_css_class`. */
     add_css_class(name: string): void {
-        this._style.add(name);
+        this._classList.add(name);
         this._restyle();
     }
 
     /** `gtk_widget_remove_css_class`. */
     remove_css_class(name: string): void {
-        this._style.remove(name);
+        this._classList.remove(name);
         this._restyle();
     }
 
     /** `gtk_widget_has_css_class`. */
     has_css_class(name: string): boolean {
-        return this._style.has(name);
+        return this._classList.has(name);
     }
 
     /** `gtk_widget_get_css_classes`. */
     get_css_classes(): string[] {
-        return this._style.classes;
+        return this._classList.classes;
     }
 
     /** `gtk_widget_set_css_classes` — REPLACES the list. */
     set_css_classes(names: readonly string[]): void {
-        this._style.replaceAll(names);
+        this._classList.replaceAll(names);
         this._restyle();
     }
 
@@ -88,6 +89,6 @@ export abstract class AdwStyledLayoutBase extends withSignals(GridLayout) {
     }
 
     protected _restyle(): void {
-        this.className = classNameWith(this._ownClass, this._style.classes);
+        this.className = classNameWith(this._ownClass, this._classList.classes);
     }
 }

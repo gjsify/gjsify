@@ -7,4 +7,4 @@
 export { Buffer } from '../buffer.js';
 export { LanguageManager, Language } from '../language-manager.js';
 export { StyleSchemeManager, StyleScheme } from '../style-scheme.js';
-export { View } from '../view.js';
+export { GtkSourceView as View } from '../view.js';

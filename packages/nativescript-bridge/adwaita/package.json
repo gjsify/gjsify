@@ -26,6 +26,7 @@
             "types": "./lib/types/capabilities.d.ts",
             "default": "./lib/esm/capabilities.js"
         },
+        "./testing/ns-core": "./src/testing/ns-core.mts",
         "./theme/adwaita.css": "./src/theme/adwaita.css",
         "./fonts": {
             "types": "./lib/types/fonts.d.ts",
@@ -36,7 +37,8 @@
         "lib",
         "!lib/types/**/*.d.mts",
         "!lib/types/**/*.spec.d.ts",
-        "src/theme/adwaita.css"
+        "src/theme/adwaita.css",
+        "src/testing/ns-core.mts"
     ],
     "scripts": {
         "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs test.trees.gjs.mjs test.trees.node.mjs",
