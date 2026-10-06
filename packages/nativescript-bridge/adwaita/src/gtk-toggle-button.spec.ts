@@ -75,6 +75,14 @@ export const GtkToggleButtonNsTest = async () => {
             expect(button.active).toBe(true);
         });
 
+        await it('holds action-name from a .blp without dispatching it', () => {
+            const button = build({
+                tag: 'GtkToggleButton',
+                props: { 'action-name': 'source-view.copy' },
+            }) as unknown as { actionName: string | null };
+            expect(button.actionName).toBe('source-view.copy');
+        });
+
         await it('inherits the button child slot', () => {
             const button = build({
                 tag: 'GtkToggleButton',

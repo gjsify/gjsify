@@ -132,6 +132,14 @@ export class GtkButton extends withSignals(GridLayout) {
     }
 
     /**
+     * `Gtk.Actionable:action-name` — HELD, NOT DISPATCHED. A `.blp` names the action a click
+     * runs (`action-name: "win.share"`), and the builder needs a door to write it through.
+     * NativeScript has no `GAction` registry to look the name up in, so the value is kept
+     * for the host to read and the app wires the click to `clicked` itself.
+     */
+    actionName: string | null = null;
+
+    /**
      * `Gtk.Button:icon-name` — an Adwaita symbolic SVG string, not a theme name (see the
      * header). Writing it replaces the child, as `gtk_button_set_icon_name` does.
      */

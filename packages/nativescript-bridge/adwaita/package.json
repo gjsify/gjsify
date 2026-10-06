@@ -26,6 +26,7 @@
             "types": "./lib/types/capabilities.d.ts",
             "default": "./lib/esm/capabilities.js"
         },
+        "./testing/ns-core": "./src/testing/ns-core.mts",
         "./theme/adwaita.css": "./src/theme/adwaita.css",
         "./fonts": {
             "types": "./lib/types/fonts.d.ts",
