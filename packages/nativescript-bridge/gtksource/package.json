@@ -50,10 +50,10 @@
         "editor"
     ],
     "dependencies": {
+        "@gjsify/adwaita-nativescript": "workspace:^",
         "@gjsify/gtksource-core": "workspace:^"
     },
     "peerDependencies": {
-        "@gjsify/adwaita-nativescript": "workspace:^",
         "@nativescript/core": "*"
     },
     "peerDependenciesMeta": {
@@ -62,7 +62,6 @@
         }
     },
     "devDependencies": {
-        "@gjsify/adwaita-nativescript": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

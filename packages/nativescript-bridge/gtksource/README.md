@@ -46,8 +46,9 @@ import tree from './source-view.blp?shared-tree';
 const view = build(tree);
 ```
 
-`@gjsify/adwaita-nativescript` is a peer dependency: install it once, so the view and your app share
-one colour-scheme state.
+`@gjsify/adwaita-nativescript` is a dependency, not a peer: the build order follows production
+dependencies only. Keep your app on the same version range, so the view and your app share one
+colour-scheme state.
 
 What a `.blp` can write: `GtkSource.View`, and `buffer: GtkSource.Buffer { text: "…";
 highlight-syntax: false; };` as the view's `buffer` object child. `LanguageManager` and

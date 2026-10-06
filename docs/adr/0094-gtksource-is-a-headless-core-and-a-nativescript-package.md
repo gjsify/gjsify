@@ -46,9 +46,12 @@ which the GNOME editors and the web twin already agree on.
    { text: "…"; };` object child. A real `.blp` compiled with `?shared-tree` takes this path in the
    specs; a device has not run it. The class is named `GtkSourceView`,
    because the builder holds a member to the GIR name the `.blp` wrote. `@gjsify/adwaita-nativescript`
-   is a `peerDependency` (and a `devDependency` for the workspace), not a dependency: the view
-   shares the adwaita package's colour-scheme state, and a second installed copy would own a state
-   the app's own copy never writes, so the editor would stay in the wrong scheme.
+   is a `dependency`, declared with the same `workspace:^` range the app uses, so one installed
+   copy serves both: the view shares the adwaita package's colour-scheme state, and a second copy
+   would own a state the app's own copy never writes, leaving the editor in the wrong scheme. It was
+   first a `peerDependency`, but `gjsify foreach --topological` orders production dependencies
+   only, so CI built this package before the adwaita one it imports and failed on a missing
+   `registerBarrel`.
 
 ## Deliberate gaps
 
