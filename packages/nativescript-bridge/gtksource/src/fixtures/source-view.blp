@@ -1,0 +1,46 @@
+using Gtk 4.0;
+using Adw 1;
+using GtkSource 5;
+
+// A source view in a scrolled window with an overlay button: the shape an application's
+// snippet widget has, written once and built on GTK (Gtk.Builder) and on NativeScript.
+template $SourceView: Adw.Bin {
+  css-classes: ["source-view"];
+
+  Overlay {
+    ScrolledWindow scrolledWindow {
+      hexpand: true;
+      vexpand: true;
+      has-frame: false;
+
+      GtkSource.View sourceView {
+        hexpand: true;
+        vexpand: true;
+        auto-indent: true;
+        indent-width: 4;
+        show-line-numbers: true;
+        highlight-current-line: true;
+        monospace: true;
+        editable: false;
+        left-margin: 12;
+        right-margin: 12;
+        top-margin: 12;
+        bottom-margin: 12;
+      }
+    }
+
+    [overlay]
+    Gtk.Button copyButton {
+      halign: end;
+      valign: start;
+      margin-end: 12;
+      margin-top: 12;
+      icon-name: "edit-copy-symbolic";
+      tooltip-text: _("Copy");
+      visible: false;
+      styles [
+        "osd",
+      ]
+    }
+  }
+}

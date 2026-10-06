@@ -26,3 +26,20 @@ export * from '@gjsify/gtksource-nativescript/gtksource';
 ```xml
 <gtksource:View xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:gtksource="~/gtksource" />
 ```
+
+## Using it from a `.blp`
+
+A Blueprint file that says `GtkSource.View` builds on Android through the shared-tree builder of
+`@gjsify/adwaita-nativescript`, the same file GNOME loads. Import the builder subpath once, for its
+effect, beside the adwaita builder:
+
+```ts
+import { build } from '@gjsify/adwaita-nativescript/builder';
+import '@gjsify/gtksource-nativescript/builder'; // registers the `GtkSource` library
+import tree from './source-view.blp?shared-tree';
+
+const view = build(tree);
+```
+
+`@gjsify/adwaita-nativescript` is a peer dependency: install it once, so the view and your app share
+one colour-scheme state.

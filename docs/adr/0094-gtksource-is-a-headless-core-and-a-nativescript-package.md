@@ -37,6 +37,17 @@ which the GNOME editors and the web twin already agree on.
    template constructs, and `GtkSource.View` is a leaf view, not a renderer. A gate widened to
    cover it would model a claim nobody makes.
 
+4. **A `.blp` reaches it through a registered barrel, and the adwaita package is a peer.**
+   The shared-tree builder of `@gjsify/adwaita-nativescript` knows the `adw` and `gtk` barrels it
+   owns; `registerBarrel(prefix, library, namespace)` lets a package that depends on it add one
+   more without the dependency running the other way. `@gjsify/gtksource-nativescript/builder`
+   makes that call for `GtkSource`, and an app imports it once beside the adwaita builder, so
+   `using GtkSource 5; GtkSource.View { … }` builds unchanged. The class is named `GtkSourceView`,
+   because the builder holds a member to the GIR name the `.blp` wrote. `@gjsify/adwaita-nativescript`
+   is a `peerDependency` (and a `devDependency` for the workspace), not a dependency: the view
+   shares the adwaita package's colour-scheme state, and a second installed copy would own a state
+   the app's own copy never writes, so the editor would stay in the wrong scheme.
+
 ## Deliberate gaps
 
 Each is declared in `status/status.json` rather than left to be found.
