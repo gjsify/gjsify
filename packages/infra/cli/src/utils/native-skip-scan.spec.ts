@@ -72,6 +72,19 @@ export default async () => {
             rmSync(dir, { recursive: true, force: true });
         });
 
+        // oxc's `configure_walk_builder` sets `.hidden(false)` and each tool skips VCS
+        // dirs itself, so a dot-directory like an agent `.worktrees` is walked (#2051).
+        await it('walks a hidden directory, as oxfmt does', async () => {
+            const dir = tree({
+                '.worktrees/wt/src/guide.md': '# x',
+                'src/index.ts': 'const x = 1;',
+            });
+            const result = scanForNativeSkips(['.'], dir);
+            expect(names(dir, result.skipped)).toStrictEqual(['.worktrees/wt/src/guide.md']);
+            expect(result.total).toBe(2);
+            rmSync(dir, { recursive: true, force: true });
+        });
+
         await it('honours the config ignorePatterns, relative to the config directory', async () => {
             const dir = tree({
                 '.oxfmtrc.json': '{\n  // comment\n  "ignorePatterns": ["**/*.md", "vendor",],\n}',
