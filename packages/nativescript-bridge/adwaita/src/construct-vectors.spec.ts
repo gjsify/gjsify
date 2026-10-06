@@ -11,7 +11,7 @@ import {
 } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
-import { applyBreakpoints, build, buildDialog, registerTemplateClass } from './builder/index.js';
+import { applyBreakpoints, build, buildDialog, buildWithSiblings, registerTemplateClass } from './builder/index.js';
 import { capabilities } from './capabilities.js';
 import { GtkBox } from './widgets/gtk-box.js';
 import type { GtkButton } from './widgets/gtk-button.js';
@@ -72,6 +72,24 @@ function observe(vector: ConstructVector): unknown {
                 feed!(size);
                 return root.getViewById('caption').label;
             });
+        }
+        case 'sibling-object': {
+            let feed: ((size: { width: number; height: number }) => void) | undefined;
+            const { root, siblings } = buildWithSiblings(vector.tree, {
+                observeSize: (_view, onSize) => {
+                    feed = onSize;
+                    return () => {};
+                },
+            });
+            const beside = siblings.get('beside') as unknown as { label: string; parent?: unknown };
+            const inside = (root as unknown as { getViewById(id: string): object | undefined }).getViewById('beside');
+            return {
+                insideRoot: inside !== undefined || beside.parent != null,
+                label: BREAKPOINT_VECTOR_SIZES.map((size) => {
+                    feed!(size);
+                    return beside.label;
+                }),
+            };
         }
         case 'extern': {
             const root = build(vector.tree) as unknown as { getViewById(id: string): object | undefined };
@@ -183,6 +201,40 @@ export const AdwConstructVectorsNsTest = async () => {
                     {},
                 ),
             ).toThrow("id 'x'");
+        });
+        await it('hands a sibling back by id, a dialog included, and builds none of them into the root', () => {
+            const tree: SharedTreeNode = {
+                tag: 'AdwApplicationWindow',
+                template: 'Shell',
+                children: [{ tag: 'GtkLabel', id: 'inside' }],
+                siblings: [
+                    { tag: 'AdwAlertDialog', id: 'confirm', props: { heading: 'Save?' } },
+                    { tag: EXTERN_VECTOR_CLASS, extern: true, id: 'screen' },
+                ],
+            };
+            const { root, siblings } = buildWithSiblings(tree);
+            expect([...siblings.keys()].join()).toBe('confirm,screen');
+            expect(siblings.get('screen') instanceof CorpusExtern).toBe(true);
+            expect((siblings.get('confirm') as unknown as AdwAlertDialog).heading).toBe('Save?');
+            expect((root as unknown as { getViewById(id: string): object | undefined }).getViewById('screen')).toBe(
+                undefined,
+            );
+        });
+        await it('refuses siblings through build and buildDialog, a sibling without an id, and a duplicate id', () => {
+            const withSiblings = (siblings: SharedTreeNode[]): SharedTreeNode => ({
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkLabel', id: 'taken' }],
+                siblings,
+            });
+            const labelled = withSiblings([{ tag: 'GtkLabel', id: 'beside' }]);
+            expect(() => build(labelled)).toThrow('buildWithSiblings');
+            expect(() => buildDialog(labelled)).toThrow('buildWithSiblings');
+            expect(() => buildWithSiblings(withSiblings([{ tag: 'GtkLabel' }]))).toThrow('has no id');
+            expect(() => buildWithSiblings(withSiblings([{ tag: 'GtkLabel', id: 'taken' }]))).toThrow("id 'taken'");
+        });
+        await it('refuses a breakpoint setter that names a sibling the tree does not carry', () => {
+            const tree = CONSTRUCT_VECTORS.find((each) => each.kind === 'sibling-object')!.tree;
+            expect(() => buildWithSiblings({ ...tree, siblings: [] })).toThrow("id 'beside'");
         });
         await it('builds the registered class with its own props and children, as for any widget', () => {
             const root = build({

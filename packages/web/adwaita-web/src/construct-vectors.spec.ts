@@ -23,7 +23,7 @@ customElements.define('corpus-extern', CorpusExtern);
 registerTemplateClass(EXTERN_VECTOR_CLASS, 'corpus-extern');
 
 function observe(vector: ConstructVector): unknown {
-    if (vector.kind === 'layout') {
+    if (vector.kind === 'layout' || vector.kind === 'sibling-object') {
         buildSharedTree(vector.tree);
         return undefined;
     }

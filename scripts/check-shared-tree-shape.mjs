@@ -101,6 +101,7 @@ const BINDINGS =
 const BREAKPOINTS =
     '- breakpoints?: { condition: string; setters: { object: string; property: string; value: string | number | ' +
     'boolean; translatable?: { context?: string }; }[]; }[]';
+const SIBLINGS = '- siblings?: Self[]';
 const SIGNALS =
     "- signals?: { name: string; detail?: string; handler: string; object?: string; flags?: ('swapped' | " +
     "'after' | 'not-swapped')[]; }[]";
@@ -175,6 +176,7 @@ const FAMILY = [
             `${SIGNALS}`,
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
+            `${SIBLINGS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -206,6 +208,7 @@ const FAMILY = [
             `${SIGNALS}`,
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
+            `${SIBLINGS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -235,6 +238,7 @@ const FAMILY = [
             `${SIGNALS}`,
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
+            `${SIBLINGS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -500,6 +504,7 @@ export interface SharedTreeNode {
             readonly translatable?: { context?: string };
         }[];
     }[];
+    siblings?: readonly SharedTreeNode[];
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -548,6 +553,7 @@ const VECTORS = [
             translatable?: { context?: string };
         }[];
     }[];
+    siblings?: SharedNode[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -596,6 +602,7 @@ const VECTORS = [
             translatable?: { context?: string };
         }[];
     }[];
+    siblings?: SharedNode[];
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -624,6 +631,7 @@ const VECTORS = [
             `${SIGNALS}`,
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
+            `${SIBLINGS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -669,6 +677,7 @@ const VECTORS = [
             translatable?: { context?: string };
         }[];
     }[];
+    siblings?: Lossy[];
     children?: Lossy[];
 }`,
         'Lossy',
@@ -718,6 +727,7 @@ const VECTORS = [
             translatable?: { context?: string };
         }[];
     }[];
+    siblings?: Callbacky[];
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -766,6 +776,7 @@ const VECTORS = [
             translatable?: { context?: string };
         }[];
     }[];
+    siblings?: Widened[];
     children?: (Widened | string)[];
 }`,
         'Widened',

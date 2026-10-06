@@ -19,4 +19,5 @@ export const capabilities: ConstructCapabilities = {
     signal: 'implemented',
     bind: 'implemented',
     breakpoint: 'implemented',
+    'sibling-object': 'implemented',
 };
