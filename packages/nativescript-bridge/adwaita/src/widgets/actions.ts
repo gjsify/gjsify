@@ -68,7 +68,7 @@ export class SimpleAction {
     /** `g_action_activate`. A disabled action swallows it, as GIO does. */
     activate(parameter: unknown = null): void {
         if (!this.enabled) return;
-        for (const handler of [...this._handlers.values()]) handler(this, parameter);
+        for (const handler of Array.from(this._handlers.values())) handler(this, parameter);
     }
 }
 

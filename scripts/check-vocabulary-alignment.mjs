@@ -797,6 +797,9 @@ const CHILD_DOOR_INSERT =
 const CHILD_DOOR_REMOVE =
     "`removeChild` is `LayoutBase`'s way out, and the GIR `remove` is offered beside it. The container overrides it so a removed child gives back what it was handed (a gap, a listener, a selection) and the tracks are re-derived.";
 
+const ON_LOADED =
+    "`onLoaded` is NativeScript's view lifecycle hook, called once the native view is attached; GTK has no such method, and the port uses it to read what is only settled by then (a single-child container's alignment).";
+
 const NS_METHOD_ALIGNMENT = {
     // ── A property of a type the port flattens. ───────────────────────────────────────
     'adw-tab-view.setPageTitle': { own: TAB_PAGE_PROPERTY },
@@ -817,6 +820,15 @@ const NS_METHOD_ALIGNMENT = {
     },
     'adw-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
     'adw-inline-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
+
+    // ── A NativeScript lifecycle hook. ────────────────────────────────────────────────
+    'adw-application-window.onLoaded': { own: ON_LOADED },
+    'adw-bin.onLoaded': { own: ON_LOADED },
+    'adw-dialog.onLoaded': { own: ON_LOADED },
+    'adw-window.onLoaded': { own: ON_LOADED },
+    'gtk-overlay.onLoaded': { own: ON_LOADED },
+    'gtk-revealer.onLoaded': { own: ON_LOADED },
+    'gtk-scrolled-window.onLoaded': { own: ON_LOADED },
 
     // ── A collection where GTK adds per item. ─────────────────────────────────────────
     'adw-tab-view.setViews': { own: LIST_BUILT_PER_ITEM('adw_tab_view_append()') },
