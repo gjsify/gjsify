@@ -293,6 +293,7 @@ export class GtkButton extends withSignals(GridLayout) {
      */
     protected _restyle(): void {
         this.className = classNameWith('adw-button', [...this._styleClasses, ...this._stateClasses()]);
+        this._pinIconColor();
     }
 
     /**
@@ -343,6 +344,19 @@ export class GtkButton extends withSignals(GridLayout) {
         }
         const image = this._content instanceof GtkImage ? this._content : this._adopt(new GtkImage());
         image.iconName = this._iconName;
+        this._pinIconColor();
+    }
+
+    /**
+     * A glyph is rasterised, so it cannot inherit `color`: on a fill that is dark in both
+     * schemes (`osd`, `suggested-action`) it is pinned white, as GTK's symbolic recolouring
+     * does there. Pinning is one-way (`GtkImage.iconColor`), so a class removed later keeps it.
+     */
+    private _pinIconColor(): void {
+        if (!(this._content instanceof GtkImage)) return;
+        if (this._styleClasses.some((name) => name === 'osd' || name === 'suggested-action')) {
+            this._content.iconColor = '#ffffff';
+        }
     }
 
     private _detach(): void {

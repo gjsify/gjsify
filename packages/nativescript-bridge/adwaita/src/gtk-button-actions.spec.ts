@@ -68,6 +68,17 @@ export const GtkButtonActionsNsTest = async () => {
             expect(button.className).toBe('adw-button osd image-button');
         });
 
+        await it('an osd icon button pins its glyph white, in either order of writes', () => {
+            const a = new Gtk.Button({ iconName: 'list-add-symbolic' });
+            a.styleClasses = 'osd';
+            const b = new Gtk.Button();
+            b.styleClasses = 'osd';
+            b.iconName = 'list-add-symbolic';
+            for (const button of [a, b]) {
+                expect((button as unknown as { _content: { iconColor: string } })._content.iconColor).toBe('#ffffff');
+            }
+        });
+
         await it('tooltip-text reaches the native view once it exists, and is cleared with empty', () => {
             const calls: Array<string | null> = [];
             const button = new Gtk.Button();
