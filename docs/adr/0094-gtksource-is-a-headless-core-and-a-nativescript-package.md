@@ -68,6 +68,18 @@ Each is declared in `status/status.json` rather than left to be found.
   alone; the specs drive `EditorSession` through a fake driver, which is not a device.
   There is no iOS driver.
 
+## Shared widget classes: actions, tooltips, icons
+
+A GtkSource-based widget class shared with a GNOME app writes `action-name: "source-view.copy"`
+in its `.blp` and registers `Gio.SimpleAction({ name: "copy" })` in a group under that prefix.
+`@gjsify/adwaita-nativescript` carries the minimum of that: `Gio.SimpleAction`,
+`Gio.SimpleActionGroup`, `insertActionGroup` and a tap that resolves `prefix.name` up the
+parent chain (`widgets/actions.ts`). Not modelled: parameter types, state, `app.`/`win.`
+resolution through an application, accelerators. `tooltip-text` also reaches Android's
+`View.setTooltipText` (API 26, long press) beside the accessibility hint, and `registerIcons(map)`
+registers a generated icon module by GNOME name. An icon-only `Gtk.Button` wears
+`image-button` and `.osd` has a theme rule, so the shared `.blp` renders flat and unlabelled.
+
 ## Consequences
 
 - A consumer gets `GtkSource.View` from one `.blp` on GTK, and on NativeScript Android once it has

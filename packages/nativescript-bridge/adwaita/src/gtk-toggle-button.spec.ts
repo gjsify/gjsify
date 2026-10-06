@@ -75,7 +75,7 @@ export const GtkToggleButtonNsTest = async () => {
             expect(button.active).toBe(true);
         });
 
-        await it('holds action-name from a .blp without dispatching it', () => {
+        await it('holds action-name from a .blp (dispatch is in gtk-button-actions.spec.ts)', () => {
             const button = build({
                 tag: 'GtkToggleButton',
                 props: { 'action-name': 'source-view.copy' },

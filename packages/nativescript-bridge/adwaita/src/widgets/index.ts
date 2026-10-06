@@ -336,6 +336,18 @@ export type {
 export { AdwAboutDialog, CLOSED as ABOUT_CLOSED } from './adw-about-dialog.js';
 export { AdwPreferencesDialog, CLOSED as PREFERENCES_CLOSED } from './adw-preferences-dialog.js';
 
+// --- Actions (`action-name` dispatch) ---
+// The `GAction` half a `.blp` button needs: `Gio.SimpleAction`, `Gio.SimpleActionGroup` and
+// `insertActionGroup` (= `gtk_widget_insert_action_group`).
+export {
+    SimpleAction,
+    SimpleActionGroup,
+    activateWidgetAction,
+    findActionGroup,
+    insertActionGroup,
+} from './actions.js';
+export type { ActionActivateHandler, ActionHost, SimpleActionProps } from './actions.js';
+
 // --- Interaction helpers ---
 // Wire Adwaita press-darken onto a custom activatable row (the built-in
 // activatable rows already call this internally).
@@ -369,6 +381,7 @@ export {
     iconValueKind,
     isIconAvailable,
     registerIcon,
+    registerIcons,
     registeredIconNames,
     resolveIconSource,
     unregisterIcon,

@@ -19,6 +19,7 @@ import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
+import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
@@ -49,6 +50,7 @@ run({
     AdwWidgetBaseNsTest,
     AdwWindowRootsNsTest,
     GtkToggleButtonNsTest,
+    GtkButtonActionsNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
     AdwValueListsNsTest,

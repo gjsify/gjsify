@@ -143,6 +143,7 @@ export class GtkToggleButton extends GtkButton {
     }
 
     protected _stateClasses(): readonly string[] {
-        return this._active ? [GTK_TOGGLE_BUTTON_CHECKED_CLASS] : [];
+        const inherited = super._stateClasses();
+        return this._active ? [...inherited, GTK_TOGGLE_BUTTON_CHECKED_CLASS] : inherited;
     }
 }

@@ -132,6 +132,10 @@ export {
     type GtkIconSizeNick,
     isGtkIconSizeNick,
     PIXEL_SIZE_UNSET,
+    // Actions: the registry a Button's `action-name` resolves through
+    activateWidgetAction,
+    findActionGroup,
+    insertActionGroup,
     // Interaction + icon helpers
     attachRowPressFeedback,
     // Icon theme: a NAME resolves through the compiled subset; `registerIcon` adds one.
@@ -140,6 +144,7 @@ export {
     iconValueKind,
     isIconAvailable,
     registerIcon,
+    registerIcons,
     registeredIconNames,
     resolveIconSource,
     unregisterIcon,
