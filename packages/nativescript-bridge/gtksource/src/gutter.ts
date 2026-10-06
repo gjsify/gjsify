@@ -42,3 +42,12 @@ export function visibleLines(
     }
     return { first, last: low };
 }
+
+/**
+ * The line whose number carries the `current-line-number` style, or `-1`. The style rides on
+ * `highlight-current-line`: that property defaults to false, so a read-only snippet's first
+ * line (where the caret rests at offset 0) must not look picked out.
+ */
+export function emphasisedLine(highlightCurrentLine: boolean, caretLine: number): number {
+    return highlightCurrentLine ? caretLine : -1;
+}

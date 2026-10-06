@@ -20,7 +20,7 @@ import type {
     AndroidPaint,
 } from './android-types.js';
 import type { EditorHost, EditorLayout } from './editor-driver.js';
-import { gutterWidth, visibleLines } from './gutter.js';
+import { emphasisedLine, gutterWidth, visibleLines } from './gutter.js';
 import { LineStore } from './line-store.js';
 import type { NativeEditorDriver } from './native-editor.js';
 import type { EditorPalette } from './style-scheme.js';
@@ -385,7 +385,10 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
             scrollY + view.getHeight(),
         );
         if (!visible) return;
-        const current = layout.getLineForOffset(view.getSelectionEnd());
+        const current = emphasisedLine(
+            this.layout.highlightCurrentLine,
+            layout.getLineForOffset(view.getSelectionEnd()),
+        );
         for (let line = visible.first; line <= visible.last; line++) {
             const isCurrent = line === current;
             if (isCurrent && palette.currentLineNumberBackground !== 0) {
