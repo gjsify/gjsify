@@ -49,6 +49,9 @@ const isGroupRefDelimiter = (c: string): boolean => c === '<' || c === '{' || c 
 export function translateRegex(source: string, options: TranslateRegexOptions): RegExp {
     let extended = options.extended;
     let flags = 'm';
+    // Duplicate flags make `new RegExp` throw; a caller passing `m`/`i` must not collide with
+    // the always-set `m` or a leading `(?i)`.
+    for (const flag of options.flags ?? '') if (!flags.includes(flag)) flags += flag;
     let out = '';
     let i = 0;
     let afterQuantifier = false;
@@ -203,5 +206,5 @@ export function translateRegex(source: string, options: TranslateRegexOptions): 
         i++;
     }
 
-    return new RegExp(out, flags + (options.flags ?? ''));
+    return new RegExp(out, flags);
 }

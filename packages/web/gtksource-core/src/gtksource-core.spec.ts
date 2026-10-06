@@ -212,6 +212,12 @@ export default async () => {
             expect(sticky.test('ba')).toBe(true);
         });
 
+        await it('dedupes caller flags against the always-set m and a leading (?i)', () => {
+            expect(translateRegex('a', { extended: false, flags: 'm' }).flags).toBe('m');
+            expect(translateRegex('a', { extended: false, flags: 'im' }).flags).toBe('im');
+            expect(translateRegex('(?i)a', { extended: false, flags: 'i' }).flags).toBe('im');
+        });
+
         await it('strips whitespace and comments in extended mode, but not inside a class', () => {
             expect(translateRegex('a b # note\n c', { extended: true }).test('abc')).toBe(true);
             expect(translateRegex('[ ]', { extended: true }).test(' ')).toBe(true);
