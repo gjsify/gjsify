@@ -355,6 +355,20 @@ export class TLSServer extends Server {
                         const internals = tlsSocket as unknown as SocketInternals;
                         internals._startReading();
 
+                        // A peer that aborts (RST, or a close without
+                        // close_notify — which GnuTLS reports as "closed
+                        // unexpectedly", not the clean EOF Node gets) makes
+                        // the TLS read below fail and `destroy(err)` emit
+                        // 'error'. With no listener that throw is uncaught
+                        // inside the runtime's GI-callback pump — fatal for
+                        // node-gi, where it derails the loop and delays OTHER
+                        // sockets' events (a client's own verification error
+                        // arrived only after the test's 10 s timeout). A no-op
+                        // default keeps the error observable to the consumer's
+                        // own listeners while never crashing the server for a
+                        // client that simply goes away.
+                        tlsSocket.on('error', () => {});
+
                         this.emit('secureConnection', tlsSocket);
                     } catch (err: unknown) {
                         const nodeErr = createNodeError(err, 'handshake', {});

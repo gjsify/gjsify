@@ -27,6 +27,7 @@ import { tlsCertToPeerCert, type PeerCertificate } from './internal/cert-utils.j
 import { createSecureContext, type SecureContext, type SecureContextOptions } from './secure-context.js';
 import { createSessionAccess, hasTlsSessionAccess } from './session-access.js';
 import type { NativeSessionAccess } from './session-access.js';
+import { createPeerVerifier, resolveRejectUnauthorized, type PeerVerifier } from './verify.js';
 
 export interface TlsConnectOptions extends SecureContextOptions {
     host?: string;
@@ -36,7 +37,7 @@ export interface TlsConnectOptions extends SecureContextOptions {
     ALPNProtocols?: string[];
     /** Pre-built secure context from createSecureContext(). */
     secureContext?: SecureContext;
-    /** Custom server-identity check (runs after the GnuTLS-level check). */
+    /** Replaces the default hostname check, as in Node; runs on a chain that verified. */
     checkServerIdentity?: (host: string, cert: PeerCertificate) => Error | undefined;
     /**
      * Previously serialized session blob to attempt resumption with.
@@ -167,8 +168,6 @@ export class TLSSocket extends Socket {
      * leaked the descriptor.
      */
     private _handshakeClaim: ClaimedConnection | null = null;
-    /** Why 'accept-certificate' refused the peer, as Node's error code + message. */
-    private _certRejection: { code: string; message: string } | null = null;
 
     constructor(socket?: Socket, options?: TlsConnectOptions) {
         super();
@@ -341,11 +340,16 @@ export class TLSSocket extends Socket {
         const servername = this.servername || options.servername || options.host || 'localhost';
         this.servername = servername;
         const port = options.port || this.remotePort || 443;
-        const rejectUnauthorized = options.rejectUnauthorized !== false;
+        const rejectUnauthorized = resolveRejectUnauthorized(options.rejectUnauthorized);
 
         const ctx = options.secureContext ?? createSecureContext(options);
         this._secureContext = ctx;
-        const customCheckServerIdentity = options.checkServerIdentity;
+        const verifier = createPeerVerifier({
+            caCertificates: ctx.caCertificates,
+            rejectUnauthorized: options.rejectUnauthorized,
+            host: servername,
+            checkServerIdentity: options.checkServerIdentity,
+        });
 
         // Claim (null out) this socket's OWN stream fields SYNCHRONOUSLY,
         // capturing `_connection` first: for the self-connect path (no
@@ -408,27 +412,19 @@ export class TLSSocket extends Socket {
                 tlsConn.set_advertised_protocols(options.ALPNProtocols);
             }
 
-            // Certificate validation: by default rely on system trust store +
-            // 'accept-certificate' returning false. With a custom CA we accept
-            // peer certs that validate against `ctx.caCertificates`. With
-            // `rejectUnauthorized: false`, accept everything.
-            tlsConn.connect(
-                'accept-certificate',
-                (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate, errors: Gio.TlsCertificateFlags): boolean => {
-                    if (!rejectUnauthorized) return true;
-                    let flags = errors;
-                    for (const ca of ctx.caCertificates) {
-                        try {
-                            flags = peerCert.verify(connectable, ca);
-                            if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return true;
-                        } catch {
-                            /* try next */
-                        }
-                    }
-                    this._certRejection = _certRejection(peerCert, flags, servername);
-                    return false;
-                },
-            );
+            // The peer is verified by `verifier` AFTER the handshake, never in an
+            // 'accept-certificate' handler: glib-networking runs that callback on
+            // its handshake thread whenever the main context is momentarily
+            // unowned, GJS refuses to re-enter JS from another thread, and the
+            // refusal reads as "reject" — a valid `ca` failed about one first
+            // connection in ten. With no validation flags Gio accepts every
+            // peer without emitting the signal at all.
+            tlsConn.set_validation_flags(Gio.TlsCertificateFlags.NO_FLAGS);
+
+            // glib-networking resumes a cached session without a certificate, so
+            // `ca`/`rejectUnauthorized` of the next connection to the host would
+            // never be consulted. Node resumes only on an explicit `session`.
+            (tlsConn as unknown as { session_resumption_enabled: boolean }).session_resumption_enabled = false;
 
             // `this._cancellable` is what `destroy()` cancels, and the
             // pending-I/O count makes its release wait for this callback
@@ -453,21 +449,29 @@ export class TLSSocket extends Socket {
                     }
                     this._handshakeClaim = null;
                     internals._ioSettled();
-                    if (handshakeError) {
+                    const verifyError = handshakeError ? null : this._verifyPeer(tlsConn, verifier, !!options.session);
+                    const failure = handshakeError ?? (rejectUnauthorized ? verifyError : null);
+                    if (failure) {
                         this.authorized = false;
-                        const rejection = this._certRejection;
-                        const err = rejection
-                            ? Object.assign(new Error(rejection.message), { code: rejection.code })
-                            : handshakeError;
-                        this.authorizationError = err instanceof Error ? err.message : String(err);
-                        // The raw streams go back onto `this` so the release
-                        // path closes them.
-                        internals._connection = claimed.connection;
-                        internals._ioStream = claimed.ioStream;
-                        fail(err);
+                        this.authorizationError = _authorizationError(failure);
+                        // Close the TLS connection, not the raw one, so the
+                        // release path sends close_notify: the handshake may
+                        // have finished while the PEER check failed (a wrong
+                        // `ca` or hostname is the common case), and hard-closing
+                        // the raw stream makes the peer's TLS read fail with
+                        // "closed unexpectedly" instead of a clean EOF. That
+                        // read error then surfaces as an unhandled 'error' on
+                        // the peer socket — a fatal throw inside node-gi's
+                        // GI-callback pump (the node/bun/deno consumer harness)
+                        // that derails the loop before this socket's own 'error'
+                        // (scheduled on the next tick) can fire, hanging the
+                        // caller where Node would emit the verification error.
+                        internals._connection = tlsConn as unknown as Gio.SocketConnection;
+                        internals._ioStream = tlsConn as unknown as Gio.IOStream;
+                        fail(failure);
                         return;
                     }
-                    this._secureEstablished(tlsConn, servername, rejectUnauthorized, customCheckServerIdentity);
+                    this._secureEstablished(tlsConn, verifyError ? _authorizationError(verifyError) : null);
                 },
             );
         } catch (err: unknown) {
@@ -475,29 +479,26 @@ export class TLSSocket extends Socket {
         }
     }
 
-    private _secureEstablished(
-        tlsConn: Gio.TlsConnection,
-        servername: string,
-        rejectUnauthorized: boolean,
-        customCheckServerIdentity: TlsConnectOptions['checkServerIdentity'],
-    ): void {
-        this.authorized = true;
+    /**
+     * The error the peer's certificate earns, or null when it is authorized.
+     * A resumed session carries no certificate, so there is nothing to verify:
+     * only an explicit `session` option — the caller asked for it — may
+     * proceed that way.
+     */
+    private _verifyPeer(tlsConn: Gio.TlsConnection, verifier: PeerVerifier, isSessionGiven: boolean): Error | null {
+        const peer = tlsConn.get_peer_certificate();
+        if (peer) {
+            verifier.accept(peer);
+            return verifier.error;
+        }
+        return isSessionGiven ? null : _noPeerCertificateError();
+    }
+
+    private _secureEstablished(tlsConn: Gio.TlsConnection, authorizationError: string | null): void {
+        this.authorized = authorizationError === null;
+        this.authorizationError = authorizationError ?? undefined;
         this._setupTlsStreams(tlsConn);
         this.alpnProtocol = this.getAlpnProtocol();
-
-        // Custom server-identity check (post-handshake, mirrors Node).
-        if (customCheckServerIdentity) {
-            const peer = this.getPeerCertificate();
-            const idErr = customCheckServerIdentity(servername, peer);
-            if (idErr) {
-                this.authorized = false;
-                this.authorizationError = idErr.message;
-                if (rejectUnauthorized) {
-                    this.destroy(idErr);
-                    return;
-                }
-            }
-        }
 
         const internals = this as unknown as SocketInternals;
         internals._reading = false;
@@ -809,31 +810,19 @@ function _destroyedError(): Error & { code: string } {
     return err;
 }
 
-/**
- * Map a refused peer certificate to the error Node's OpenSSL binding
- * reports, so callers can branch on the same `code` on both runtimes.
- */
-function _certRejection(
-    peerCert: Gio.TlsCertificate,
-    flags: Gio.TlsCertificateFlags,
-    servername: string,
-): { code: string; message: string } {
-    if (flags & Gio.TlsCertificateFlags.BAD_IDENTITY) {
-        return {
-            code: 'ERR_TLS_CERT_ALTNAME_INVALID',
-            message: `Hostname/IP does not match certificate's altnames: Host: ${servername}. is not in the cert's altnames`,
-        };
-    }
-    if (flags & Gio.TlsCertificateFlags.EXPIRED) {
-        return { code: 'CERT_HAS_EXPIRED', message: 'certificate has expired' };
-    }
-    if (flags & Gio.TlsCertificateFlags.NOT_ACTIVATED) {
-        return { code: 'CERT_NOT_YET_VALID', message: 'certificate is not yet valid' };
-    }
-    if (peerCert.subjectName && peerCert.subjectName === peerCert.issuerName) {
-        return { code: 'DEPTH_ZERO_SELF_SIGNED_CERT', message: 'self-signed certificate' };
-    }
-    return { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', message: 'unable to verify the first certificate' };
+/** Node's `TLSSocket.authorizationError`: the error's code, else its message. */
+function _authorizationError(err: unknown): string {
+    if (!(err instanceof Error)) return String(err);
+    return (err as Partial<NodeJS.ErrnoException>).code ?? err.message;
+}
+
+/** The peer sent no certificate (a resumed session), so nothing could be verified. */
+function _noPeerCertificateError(): Error & { code: string } {
+    const err = new Error('the peer presented no certificate (resumed TLS session); nothing to verify') as Error & {
+        code: string;
+    };
+    err.code = 'ERR_GJSIFY_TLS_NO_PEER_CERTIFICATE';
+    return err;
 }
 
 function _upgradeRaceError(): Error & { code: string } {

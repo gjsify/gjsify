@@ -81,7 +81,10 @@ export function createPeerVerifier(options: PeerVerifierOptions): PeerVerifier {
 
 // Identity is checkServerIdentity's job (Node's message + custom callback), so
 // Gio's own identity verdict never counts; verification runs without identity.
-const CHAIN_FLAGS = Gio.TlsCertificateFlags.VALIDATE_ALL & ~Gio.TlsCertificateFlags.BAD_IDENTITY;
+// A function, not a constant: `tls-socket.ts` imports this module, and the
+// Node test bundle evaluates it with no Gio behind `@girs/gio-2.0`.
+const chainFlagsMask = (): Gio.TlsCertificateFlags =>
+    Gio.TlsCertificateFlags.VALIDATE_ALL & ~Gio.TlsCertificateFlags.BAD_IDENTITY;
 
 function chainFlags(peer: Gio.TlsCertificate, anchors: Gio.TlsCertificate[]): Gio.TlsCertificateFlags {
     if (anchors.length === 0) {
@@ -97,7 +100,7 @@ function chainFlags(peer: Gio.TlsCertificate, anchors: Gio.TlsCertificate[]): Gi
     }
     let best = Gio.TlsCertificateFlags.UNKNOWN_CA;
     for (const anchor of anchors) {
-        const flags = peer.verify(null, anchor) & CHAIN_FLAGS;
+        const flags = peer.verify(null, anchor) & chainFlagsMask();
         if (flags === Gio.TlsCertificateFlags.NO_FLAGS) return flags;
         // An anchor that roots the chain but finds it expired says more than one that does not root it.
         if (!(flags & Gio.TlsCertificateFlags.UNKNOWN_CA)) best = flags;
@@ -122,7 +125,7 @@ function verifyError(code: string, message: string): TlsVerifyError {
  * UNABLE_TO_VERIFY_LEAF_SIGNATURE,UNABLE_TO_GET_ISSUER_CERT_LOCALLY}.
  */
 export function chainError(peer: Gio.TlsCertificate, anchors: Gio.TlsCertificate[] = []): TlsVerifyError | null {
-    const flags = chainFlags(peer, anchors) & CHAIN_FLAGS;
+    const flags = chainFlags(peer, anchors) & chainFlagsMask();
     const F = Gio.TlsCertificateFlags;
     if (flags === F.NO_FLAGS) return null;
     if (flags & F.UNKNOWN_CA) {
