@@ -26,7 +26,7 @@ import { Buffer } from 'node:buffer';
 import type { Socket } from 'node:net';
 import type { Server as NetServer } from 'node:net';
 import type { TLSSocket } from 'node:tls';
-import { type SocketInternals } from './tls-socket.js';
+import type { SocketInternals } from './tls-socket.js';
 // Relative import, not `node:tls`: needs the impl's own `SecureContext`
 // (which carries `.certificate`), not `@types/node`'s opaque public shape —
 // same rationale as the `SocketInternals` cast above (rule 2b, tests/AGENTS.md).
@@ -82,6 +82,41 @@ KlxAyDlDWaimGFPkNpOhSecv6anZibG9jwTXLv3iMsF9dV83ZjHVtLhw00BFOPvY
 gOJgz53VZ13ieimqe3njlwSR9dNzP8mnfasw9+m2mnG+PTfsfNTfcGmSPQZEy0JJ
 XPbThc36pK/5uQuLxWA4fgjGrvIbY1JkIxoILV4Wj5IwYifHwkOaO2FekopeIPGe
 XeP46WXXpYJLgQljoQ159Rk=
+-----END PRIVATE KEY-----
+`;
+
+// ECDSA test PKI shared with `ca-verify.spec.ts`: a `CN=localhost` leaf (SAN
+// DNS:localhost + IP:127.0.0.1) signed by `CA_PEM` — the shape of a real
+// SMTP/IMAP server behind a private CA, which a self-signed cert hides.
+const CA_PEM = `-----BEGIN CERTIFICATE-----
+MIIBmjCCAT+gAwIBAgIUaFUUnkak6beliDZlMdBByD7MZ8UwCgYIKoZIzj0EAwIw
+GTEXMBUGA1UEAwwOZ2pzaWZ5LXRlc3QtY2EwIBcNMjYxMDA2MTI1ODE3WhgPMjEy
+NjA5MTIxMjU4MTdaMBkxFzAVBgNVBAMMDmdqc2lmeS10ZXN0LWNhMFkwEwYHKoZI
+zj0CAQYIKoZIzj0DAQcDQgAEshoB+FIiofkf9f72NwJlzxgiyaKP72l2qg0YdKK0
+mHCkFDAxacfd01zABweDHqaxIdP/BMqmxe9ee4L3MUxZ2aNjMGEwHQYDVR0OBBYE
+FHUgysNA8swJnjEdtTdvlVupW03LMB8GA1UdIwQYMBaAFHUgysNA8swJnjEdtTdv
+lVupW03LMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49
+BAMCA0kAMEYCIQDtokTDDE0VIufvye+cKuNFo2LVjGYiR4CQdEzcbVjcsQIhAP+G
+QQDBQPsZpCSuu7k5Dk/kOeNnSxF3pcyuSd7AtdOX
+-----END CERTIFICATE-----
+`;
+const LEAF_PEM = `-----BEGIN CERTIFICATE-----
+MIIBvTCCAWSgAwIBAgIUNJG9oiMcVEOzNlafuZ4TCYzHATUwCgYIKoZIzj0EAwIw
+GTEXMBUGA1UEAwwOZ2pzaWZ5LXRlc3QtY2EwIBcNMjYxMDA2MTI1ODE3WhgPMjEy
+NjA5MTIxMjU4MTdaMBQxEjAQBgNVBAMMCWxvY2FsaG9zdDBZMBMGByqGSM49AgEG
+CCqGSM49AwEHA0IABPG/qPWz1YG4GG32a9NYpNYqDpOmCqCzi16vCHY5VAUc44GN
+AMe78rB5x8XtZ/jtpuNWtp1VSN/nte1soQP0DFqjgYwwgYkwGgYDVR0RBBMwEYIJ
+bG9jYWxob3N0hwR/AAABMAkGA1UdEwQCMAAwCwYDVR0PBAQDAgeAMBMGA1UdJQQM
+MAoGCCsGAQUFBwMBMB0GA1UdDgQWBBTCtwhnX4XGve7NMxhhoWxtwnc9lTAfBgNV
+HSMEGDAWgBR1IMrDQPLMCZ4xHbU3b5VbqVtNyzAKBggqhkjOPQQDAgNHADBEAiBx
+qVOs/9Znqclrm9IDaw41r4/fM8vpSkEnWpvi8YDiYQIgT3Jr8ngv73vM1NQYxh0Y
+tKwVJcr/xakizPZbhndyWH8=
+-----END CERTIFICATE-----
+`;
+const LEAF_KEY_PEM = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgJ5h1xpLdFirA96wk
+iHUKbvtf/pe3KxSw22XmslT+yc2hRANCAATxv6j1s9WBuBht9mvTWKTWKg6Tpgqg
+s4terwh2OVQFHOOBjQDHu/KwecfF7Wf47abjVradVUjf57XtbKED9Axa
 -----END PRIVATE KEY-----
 `;
 
@@ -197,6 +232,50 @@ function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
     });
 }
 
+/**
+ * Run the plaintext greeting + STARTTLS exchange against `port`, upgrade the
+ * SAME socket with `options`, and settle with how the handshake ended.
+ */
+function starttlsOutcome(
+    port: number,
+    options: tls.ConnectionOptions,
+): Promise<{ outcome: string; authorized: boolean; secure: TLSSocket }> {
+    return new Promise((resolve, reject) => {
+        const plain = net.connect(port, '127.0.0.1');
+        let stage: 'greeting' | 'ack' = 'greeting';
+        plain.once('error', reject);
+        plain.on('data', (chunk: Buffer) => {
+            const text = chunk.toString('utf8');
+            if (stage === 'greeting' && text.includes('220 greeting')) {
+                stage = 'ack';
+                plain.write('STARTTLS\r\n');
+            } else if (stage === 'ack' && text.includes('220 go-ahead')) {
+                plain.removeAllListeners('data');
+                const secure = tls.connect({ socket: plain, servername: 'localhost', ...options });
+                secure.once('secureConnect', () =>
+                    resolve({ outcome: 'secureConnect', authorized: secure.authorized, secure }),
+                );
+                secure.once('error', (err: NodeJS.ErrnoException) =>
+                    resolve({ outcome: err.code ?? err.message, authorized: secure.authorized, secure }),
+                );
+            }
+        });
+    });
+}
+
+/** Start the CA-signed STARTTLS server, run `body`, always tear both down. */
+async function withLeafServer<T>(body: (port: number) => Promise<T>): Promise<T> {
+    const certificate = createSecureContext({ cert: LEAF_PEM, key: LEAF_KEY_PEM }).certificate;
+    if (!certificate) throw new Error('test fixture: failed to parse the embedded cert/key');
+    const { server, port, conns } = await startStarttlsServer(certificate);
+    try {
+        return await body(port);
+    } finally {
+        for (const conn of conns) conn.destroy();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+}
+
 export default async () => {
     await on('Gjs', async () => {
         await describe(
@@ -277,6 +356,69 @@ export default async () => {
                 );
             },
             ITEST_TIMEOUT_MS,
+        );
+
+        await describe(
+            'STARTTLS verification — leaf signed by a separate CA',
+            async () => {
+                await it(
+                    'rejects the leaf when `ca` does not cover it',
+                    async () => {
+                        await withLeafServer(async (port) => {
+                            const result = await withTimeout(starttlsOutcome(port, {}), 'STARTTLS without ca');
+                            result.secure.destroy();
+                            expect(result.outcome).toBe('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
+                            expect(result.authorized).toBe(false);
+                        });
+                    },
+                    ITEST_TIMEOUT_MS,
+                );
+
+                await it(
+                    'accepts the leaf with the signing `ca` and a matching servername',
+                    async () => {
+                        await withLeafServer(async (port) => {
+                            const result = await withTimeout(starttlsOutcome(port, { ca: CA_PEM }), 'STARTTLS with ca');
+                            result.secure.destroy();
+                            expect(result.outcome).toBe('secureConnect');
+                            expect(result.authorized).toBe(true);
+                        });
+                    },
+                    ITEST_TIMEOUT_MS,
+                );
+
+                await it(
+                    'rejects a servername the leaf does not cover, even with the right `ca`',
+                    async () => {
+                        await withLeafServer(async (port) => {
+                            const result = await withTimeout(
+                                starttlsOutcome(port, { ca: CA_PEM, servername: 'wrong.example' }),
+                                'STARTTLS wrong servername',
+                            );
+                            result.secure.destroy();
+                            expect(result.outcome).toBe('ERR_TLS_CERT_ALTNAME_INVALID');
+                        });
+                    },
+                    ITEST_TIMEOUT_MS,
+                );
+
+                await it(
+                    'passes an unverifiable leaf with rejectUnauthorized: false, unauthorized',
+                    async () => {
+                        await withLeafServer(async (port) => {
+                            const result = await withTimeout(
+                                starttlsOutcome(port, { rejectUnauthorized: false }),
+                                'STARTTLS rejectUnauthorized false',
+                            );
+                            result.secure.destroy();
+                            expect(result.outcome).toBe('secureConnect');
+                            expect(result.authorized).toBe(false);
+                        });
+                    },
+                    ITEST_TIMEOUT_MS,
+                );
+            },
+            4 * ITEST_TIMEOUT_MS,
         );
 
         await describe(

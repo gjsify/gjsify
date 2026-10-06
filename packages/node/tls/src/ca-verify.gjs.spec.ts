@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: MIT
-// GJS-only — TCP options set on a TLS-secured socket must reach the kernel
-// socket: `get_socket` exists only on the Gio.SocketConnection that a
-// Gio.TlsConnection wraps, so asking the TLS connection for it threw.
+// GJS-only — pins HOW the client verifies a certificate against `ca`, which a
+// pure outcome test cannot: glib-networking runs the handshake on a worker
+// thread and, when it needs a verdict, `g_main_context_invoke`s
+// 'accept-certificate' on the main context. If the main thread is between
+// loop iterations at that instant the worker acquires the context and runs
+// the callback ITSELF; GJS refuses to re-enter JS from another thread
+// ("Attempting to call back into JSAPI on a different thread"), the handler
+// counts as "no", and a valid `ca` fails with Gio.TlsError "unacceptable
+// certificate" — about one in ten first connections of a top-level-await
+// script. The unit runner holds the main context for its whole run, so the
+// race itself cannot fire here; what can be asserted deterministically is
+// that the client connects NO JS 'accept-certificate' handler at all — it
+// verifies after the handshake instead — so there is nothing to misroute.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import Gio from '@girs/gio-2.0';
@@ -68,8 +78,64 @@ function secureConnect(options: tls.ConnectionOptions): Promise<GjsifyTLSSocket>
     });
 }
 
+/**
+ * Run `body` and return the signal names `@gjsify/tls` connected on every
+ * `Gio.TlsClientConnection` it created meanwhile.
+ */
+async function connectedSignals(body: () => Promise<void>): Promise<string[]> {
+    const names: string[] = [];
+    const create = Gio.TlsClientConnection.new;
+    Gio.TlsClientConnection.new = (...args: Parameters<typeof create>) => {
+        const conn = create(...args);
+        const connect = conn.connect.bind(conn);
+        conn.connect = ((name: string, callback: never) => {
+            names.push(name);
+            return connect(name, callback);
+        }) as typeof conn.connect;
+        return conn;
+    };
+    try {
+        await body();
+    } finally {
+        Gio.TlsClientConnection.new = create;
+    }
+    return names;
+}
+
 export default async () => {
     await on('Gjs', async () => {
+        await describe('TLSSocket verification — no JS callback on the handshake thread', async () => {
+            await it(
+                'verifies a leaf against `ca` without a JS accept-certificate handler',
+                async () => {
+                    await withServer(async (port) => {
+                        const signals = await connectedSignals(async () => {
+                            const client = await secureConnect({ port, ca: CA_PEM });
+                            expect(client.authorized).toBe(true);
+                            client.destroy();
+                        });
+                        expect(signals).not.toContain('accept-certificate');
+                    });
+                },
+                ITEST_TIMEOUT_MS,
+            );
+
+            await it(
+                'passes rejectUnauthorized: false without a JS accept-certificate handler',
+                async () => {
+                    await withServer(async (port) => {
+                        const signals = await connectedSignals(async () => {
+                            const client = await secureConnect({ port, rejectUnauthorized: false });
+                            expect(client.authorized).toBe(false);
+                            client.destroy();
+                        });
+                        expect(signals).not.toContain('accept-certificate');
+                    });
+                },
+                ITEST_TIMEOUT_MS,
+            );
+        });
+
         await describe('TLSSocket TCP options', async () => {
             await it(
                 'reach the kernel socket under the TLS connection',
@@ -83,6 +149,26 @@ export default async () => {
                         expect(socket.get_keepalive()).toBe(true);
                         client.setKeepAlive(false);
                         expect(socket.get_keepalive()).toBe(false);
+                        client.destroy();
+                    });
+                },
+                ITEST_TIMEOUT_MS,
+            );
+        });
+
+        await describe('TLSSocket session resumption', async () => {
+            await it(
+                'keeps the connection out of the process-wide session cache',
+                async () => {
+                    await withServer(async (port) => {
+                        const client = await secureConnect({ port, ca: CA_PEM });
+                        // glib-networking resumes a cached session without sending a
+                        // certificate, so `ca`/`rejectUnauthorized` of the NEXT
+                        // connection to this host would never be consulted.
+                        expect(
+                            (client._tlsConnection as unknown as { session_resumption_enabled: boolean })
+                                .session_resumption_enabled,
+                        ).toBe(false);
                         client.destroy();
                     });
                 },

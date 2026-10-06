@@ -127,6 +127,25 @@ export default async () => {
         );
 
         await it(
+            'passes an unverifiable leaf with rejectUnauthorized: false',
+            async () => {
+                await withServer(async (port) => {
+                    const client = tls.connect({
+                        port,
+                        host: '127.0.0.1',
+                        servername: 'localhost',
+                        rejectUnauthorized: false,
+                    });
+                    expect(await handshakeOutcome(client)).toStrictEqual({
+                        outcome: 'secureConnect',
+                        authorized: false,
+                    });
+                });
+            },
+            ITEST_TIMEOUT_MS,
+        );
+
+        await it(
             'does not let a session verified under `ca` skip verification for a later connection without it',
             async () => {
                 await withServer(async (port) => {

@@ -5,9 +5,10 @@
 // Where the Gio mapping is not a rename:
 //   - {minVersion}/{maxVersion}/{ciphers} are INERT — the GnuTLS backend owns
 //     them and Gio exposes no knob; we store them for diagnostics only.
-//   - {ca} anchors are verified by hand (per-PEM Gio.TlsCertificate +
-//     cert.verify()), and {rejectUnauthorized:false} means the
-//     'accept-certificate' signal returns true.
+//   - {ca} anchors are verified by hand after the handshake (verify.ts);
+//     Gio is told to accept every peer, so no 'accept-certificate' handler
+//     ever runs — glib-networking may invoke it on its handshake thread,
+//     where GJS refuses JS.
 //   - {SNICallback} needs a real ClientHello: peek via Gio.BufferedInputStream,
 //     parse the server_name extension, then pick the context (tls-server.ts).
 //   - server {requestCert,rejectUnauthorized} collapse onto one Gio property,
