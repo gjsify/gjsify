@@ -296,6 +296,38 @@ export function buildWithSiblings(node: SharedTreeNode, options: BuildOptions = 
     return { root: built.root, siblings: built.siblings, objects: built.objects };
 }
 
+/**
+ * A template class's own internals (`init_template()` in GTK): builds the tree's contents INTO a
+ * root the class has already constructed, instead of creating one.
+ *
+ * ```ts
+ * class MainButton extends Adw.Bin {
+ *     constructor() {
+ *         super();
+ *         buildInto(this, mainButtonTree);
+ *     }
+ * }
+ * registerTemplateClass('MainButton', MainButton);
+ * ```
+ *
+ * Props, style classes, children, signals, binds and breakpoints of the tree's root are applied to
+ * `root`, whose class has to be the one the root names (or a subclass of it): a template of an
+ * `Adw.Bin` built into a `Gtk.Box` would be a different widget wearing the wrong tree. The ids of
+ * the tree stay reachable through `root.getViewById`. A tree with siblings is refused, as it is
+ * by {@link build}.
+ */
+export function buildInto(root: View, node: SharedTreeNode, options: BuildOptions = {}): void {
+    refuseSiblings(node, 'buildInto');
+    const element = elementOf(node);
+    if (!(root instanceof element.ctor)) {
+        throw new Error(
+            `\`buildInto\` was handed a ${root.constructor.name}, and the tree's root is \`${node.tag}\`: ` +
+                `a template builds into an instance of the class it extends (<${element.xmlName}>).`,
+        );
+    }
+    buildTree(node, options, false, root);
+}
+
 function refuseSiblings(node: SharedTreeNode, door: string): void {
     if ((node.siblings?.length ?? 0) === 0) return;
     throw new Error(
@@ -309,6 +341,7 @@ function buildTree(
     node: SharedTreeNode,
     options: BuildOptions,
     collectValues = false,
+    existing?: View,
 ): { root: View | object } & Pick<BuiltTree, 'siblings' | 'objects'> {
     // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
     assertTreeConstructs('adwaita-nativescript', capabilities, node);
@@ -321,7 +354,7 @@ function buildTree(
         scope: options.scope,
         values: collectValues ? new Map() : undefined,
     };
-    const root = buildNode(node, context);
+    const root = buildNode(node, context, existing);
     const siblings = new Map<string, object>();
     for (const sibling of node.siblings ?? []) {
         if (sibling.id === undefined) {
@@ -487,9 +520,9 @@ function wireBreakpoints(
  * construction. An id and style classes are refused too — `getViewById` walks views and a
  * value object has no class list — rather than dropped.
  */
-function buildNode(node: SharedTreeNode, context: BuildContext): View | object {
+function buildNode(node: SharedTreeNode, context: BuildContext, existing?: View): View | object {
     const element = elementOf(node);
-    const probe = new element.ctor();
+    const probe = existing ?? new element.ctor();
     const built =
         probe instanceof View ? buildView(node, element, probe, context) : buildValue(node, element, probe, context);
     bindSignals(built, element, node, context);
