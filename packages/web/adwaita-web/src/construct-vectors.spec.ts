@@ -138,6 +138,71 @@ export const AdwConstructVectorsTest = async () => {
                 'plain handlers only',
             );
         });
+        await it('runs a CheckButton `toggled` handler on a click and on a programmatic change', () => {
+            let calls = 0;
+            const { root, unmount } = mountSharedTree(
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        { tag: 'GtkCheckButton', id: 'box', signals: [{ name: 'toggled', handler: 'onToggled' }] },
+                    ],
+                },
+                { scope: { onToggled: () => calls++ } },
+            );
+            try {
+                const box = root.querySelector('#box') as unknown as HTMLElement & { active: boolean };
+                box.click();
+                expect(box.active).toBe(true);
+                box.active = false;
+                expect(calls).toBe(2);
+            } finally {
+                unmount();
+            }
+        });
+        await it('makes a bind follow a CheckButton `active`', () => {
+            const { root, unmount } = mountSharedTree({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkCheckButton', id: 'box' },
+                    {
+                        tag: 'GtkToggleButton',
+                        id: 'target',
+                        bindings: { active: { source: 'box', property: 'active' } },
+                    },
+                ],
+            });
+            try {
+                const target = root.querySelector('#target') as unknown as { active: boolean };
+                expect(target.active).toBe(false);
+                (root.querySelector('#box') as HTMLElement).click();
+                expect(target.active).toBe(true);
+            } finally {
+                unmount();
+            }
+        });
+        await it('makes a bind follow a Switch `active`', () => {
+            const { root, unmount } = mountSharedTree({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkSwitch', id: 'source' },
+                    { tag: 'GtkSwitch', id: 'target', bindings: { active: { source: 'source', property: 'active' } } },
+                ],
+            });
+            try {
+                const target = root.querySelector('#target') as unknown as { active: boolean };
+                (root.querySelector('#source') as unknown as { active: boolean }).active = true;
+                expect(target.active).toBe(true);
+            } finally {
+                unmount();
+            }
+        });
+        await it('declares the notify each of DropDown, Stack and Switch dispatches', () => {
+            const declared = (tag: string) =>
+                (customElements.get(tag) as unknown as { signals: Record<string, string> }).signals;
+            expect(declared('gtk-drop-down')['notify::selected']).toBe('notify::selected');
+            expect(declared('gtk-stack')['notify::visible-child-name']).toBe('notify::visible-child-name');
+            expect(declared('gtk-switch')['notify::active']).toBe('notify::active');
+        });
         await it('refuses a bind to an id nothing has, to a source that dispatches no notify, and the flags', () => {
             const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
                 ({

@@ -39,7 +39,12 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import type { DispatchedSignals } from '../signals.js';
+
 export class GtkSwitch extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { 'notify::active': 'notify::active' };
+
     private _input!: HTMLInputElement;
     private _slider!: HTMLSpanElement;
     private _initialized = false;

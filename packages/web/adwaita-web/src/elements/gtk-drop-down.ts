@@ -69,6 +69,7 @@ import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwai
 import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import type { DispatchedSignals } from '../signals.js';
 import { stringListSlot } from '../string-list-slot.js';
 
 import { createGtkImage } from './gtk-image.js';
@@ -81,6 +82,9 @@ import { createGtkImage } from './gtk-image.js';
 export type GtkDropDownOption = AdwComboOption;
 
 export class GtkDropDown extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { 'notify::selected': 'notify::selected' };
+
     private _buttonEl!: HTMLButtonElement;
     private _labelEl!: HTMLSpanElement;
     private _popoverEl!: GtkPopover;
