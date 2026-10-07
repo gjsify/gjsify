@@ -67,6 +67,7 @@ export class AdwHeaderBar extends withSignals(GridLayout) {
     private _titleWidget: View;
     private _styleClasses: string[] = [];
     /** The padding last written to each side, so an unchanged reading writes (and lays out) nothing. */
+    private _balancePending = false;
     private readonly _balanced = { start: -1, end: -1 };
 
     constructor(props?: ConstructProps<AdwHeaderBar>) {
@@ -104,9 +105,28 @@ export class AdwHeaderBar extends withSignals(GridLayout) {
 
         // Both sides take the width of the wider one, so the title is centred on the bar as
         // `Adw.HeaderBar` does it, whatever the number of buttons on either side.
-        this.addEventListener('layoutChanged', () => this._balanceSides());
+        // A button shown or hidden on one side resizes that box and not the bar, so the bar's own
+        // layout never fires for it: listen on the sides as well. Safe against looping, as the
+        // reading is taken from the children and an unchanged result writes nothing.
+        this.addEventListener('layoutChanged', () => this._scheduleBalance());
+        startBox.addEventListener('layoutChanged', () => this._scheduleBalance());
+        endBox.addEventListener('layoutChanged', () => this._scheduleBalance());
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * `layoutChanged` fires while the box is being laid out, before its children have their new
+     * size, so a button shown just now still reads as zero wide. One read after the pass, however
+     * many sides fired.
+     */
+    private _scheduleBalance(): void {
+        if (this._balancePending) return;
+        this._balancePending = true;
+        setTimeout(() => {
+            this._balancePending = false;
+            this._balanceSides();
+        }, 0);
     }
 
     private _balanceSides(): void {
