@@ -66,6 +66,16 @@ import {
     type BottomSheetPanes,
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
+import {
+    type DragSample,
+    type SheetRest,
+    dragOffset,
+    dragProgress,
+    releaseVelocity,
+    settle,
+    sheetHeight,
+    sheetTravel,
+} from './bottom-sheet-drag.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -88,6 +98,28 @@ export function bottomSheetPanel(sheet: AdwBottomSheet): View {
 }
 export type { NotifyOpenEventData };
 
+/** A drag in progress: where it began and what it has to move. */
+interface SheetDrag {
+    readonly start: SheetRest;
+    readonly height: number;
+    readonly travel: number;
+    readonly samples: DragSample[];
+    offset: number;
+}
+
+/** The `'pan'` gesture's payload: the distance since the finger went down, in DIPs. */
+interface PanGestureEventData {
+    readonly state: number;
+    readonly deltaX: number;
+    readonly deltaY: number;
+}
+
+/** GestureStateTypes: `began`, `changed`, `ended`, with `cancelled` as 0. */
+const PAN_BEGAN = 1;
+const PAN_CHANGED = 2;
+/** How long the sheet takes to settle after a release, ms. */
+const SETTLE_DURATION = 180;
+
 /** Marker class applied to the view handed to {@link AdwBottomSheet.set_content}. */
 const CONTENT_CLASS = 'adw-bottom-sheet-content';
 /** Marker class applied to the view handed to {@link AdwBottomSheet.set_sheet}. */
@@ -106,8 +138,11 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     private readonly _dimming: GridLayout;
     /** The bottom-anchored bin holding both layers — libadwaita's `sheet_bin`. */
     protected readonly _sheetPanel: StackLayout;
-    /** The sheet page inside the bin: drag handle + sheet child. */
-    private readonly _sheetPage: StackLayout;
+    /** The sheet page inside the bin: drag handle over the sheet child, which takes the rest. */
+    private readonly _sheetPage: GridLayout;
+    private _drag: SheetDrag | null = null;
+    /** The height the panel has with the bar in it, what a drag that closes the sheet falls to. */
+    private _barHeight = 0;
     /** The bottom-bar bin — the bin's other layer, tapped to open the sheet. */
     private readonly _bottomBarBin: StackLayout;
     private _sheetChild: View | null = null;
@@ -154,18 +189,27 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         attachRowPressFeedback(bottomBarBin);
         sheetPanel.addChild(bottomBarBin);
 
-        const sheetPage = new StackLayout();
-        sheetPage.orientation = 'vertical';
+        // Two rows, so that the sheet child gets the height the panel was given and a scrolled
+        // window in it scrolls, rather than being measured at its whole content and clipped.
+        const sheetPage = new GridLayout();
+        sheetPage.className = 'adw-bottom-sheet-page';
+        sheetPage.addRow(new ItemSpec(1, 'auto'));
+        sheetPage.addRow(new ItemSpec(1, 'star'));
         sheetPanel.addChild(sheetPage);
 
         const handle = new Label();
-        handle.text = '━';
         handle.className = 'adw-bottom-sheet-handle';
         handle.horizontalAlignment = 'center';
         // can_target = FALSE (adw-bottom-sheet.c:1198) — the handle is decorative
-        // and must not swallow (or act on) a tap.
+        // and must not swallow (or act on) a tap. The drag it invites lands on the panel.
         handle.isUserInteractionEnabled = false;
+        GridLayout.setRow(handle, 0);
         sheetPage.addChild(handle);
+
+        // The whole panel is the grip: the bar, the handle and any part of the sheet that is
+        // not itself scrolling. `allow_mouse_drag = show_drag_handle || bottom_bar`.
+        sheetPanel.addEventListener('pan', (args) => this._onPan(args as unknown as PanGestureEventData));
+        dimming.addEventListener('pan', (args) => this._onPan(args as unknown as PanGestureEventData));
 
         this.addChild(sheetPanel);
         this._sheetPanel = sheetPanel;
@@ -174,8 +218,14 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         this._bottomBarBin = bottomBarBin;
         this._paintChrome();
 
+        this.addEventListener('layoutChanged', () => {
+            this._syncHeight();
+            if (!this._state.open && !this._drag) this._barHeight = this._sheetPanel.getActualSize().height;
+        });
+
         this._state.subscribe((open) => {
             this._paintChrome();
+            this._syncHeight();
             const data: NotifyOpenEventData = { eventName: NOTIFY_OPEN, object: this, open };
             this.notify(data);
         });
@@ -192,6 +242,85 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
             bottomBar: this._bottomBarBin,
         };
         applyBottomSheetChrome(panes, this._state.chrome);
+    }
+
+    /**
+     * The open sheet takes a share of the container, not all of it, and the bar stays its natural
+     * height: libadwaita sizes the sheet to its child, which on GNOME is a bit under half of the
+     * editor. A pane measured at its whole content would fill the container instead.
+     */
+    private _syncHeight(): void {
+        const panel = this._sheetPanel;
+        if (this._drag) return;
+        if (!this._state.open) {
+            if (panel.height !== 'auto') panel.height = 'auto';
+            return;
+        }
+        const wanted = sheetHeight(this.getActualSize().height);
+        if (wanted > 0 && panel.height !== wanted) panel.height = wanted;
+    }
+
+    private _onPan(args: PanGestureEventData): void {
+        if (args.state === PAN_BEGAN) this._beginDrag();
+        else if (args.state === PAN_CHANGED) this._moveDrag(args.deltaY);
+        else this._endDrag(args.deltaY, args.state === 0);
+    }
+
+    /**
+     * A drag from the bar opens, a drag on the open sheet closes: the sheet is laid out at its
+     * open height and slid by `translateY`, the way a finger moves it, so the bar's place is the
+     * sheet's top edge at the start. Whether the gate lets the drag through is asked at release.
+     */
+    private _beginDrag(): void {
+        if (this._drag) return;
+        const open = this._state.open;
+        if (!open && !this._bottomBar) return;
+        const height = sheetHeight(this.getActualSize().height);
+        if (height <= 0) return;
+        const travel = sheetTravel(height, this._barHeight);
+        const panel = this._sheetPanel;
+        this._drag = { start: open ? 'open' : 'closed', height, travel, samples: [], offset: open ? 0 : travel };
+        panel.height = height;
+        if (open) return;
+        this._dimming.visibility = 'visible';
+        this._dimming.opacity = 0;
+        this._bottomBarBin.visibility = 'collapse';
+        this._sheetPage.visibility = 'visible';
+        panel.visibility = 'visible';
+        panel.translateY = travel;
+    }
+
+    private _moveDrag(dy: number): void {
+        const drag = this._drag;
+        if (!drag) return;
+        drag.samples.push({ dy, time: Date.now() });
+        drag.offset = dragOffset(drag.start, dy, drag.travel);
+        this._sheetPanel.translateY = drag.offset;
+        if (drag.start === 'closed' || this._state.modal)
+            this._dimming.opacity = dragProgress(drag.offset, drag.travel);
+    }
+
+    private _endDrag(dy: number, cancelled: boolean): void {
+        const drag = this._drag;
+        if (!drag) return;
+        drag.samples.push({ dy, time: Date.now() });
+        drag.offset = dragOffset(drag.start, dy, drag.travel);
+        const rest = cancelled ? drag.start : settle(drag.offset, drag.travel, releaseVelocity(drag.samples));
+        const target = rest === 'open' ? 0 : drag.travel;
+        const done = () => {
+            this._drag = null;
+            this._sheetPanel.translateY = 0;
+            this._dimming.opacity = 1;
+            if (rest !== drag.start) {
+                if (rest === 'open') this.requestOpen('swipe');
+                else this.requestClose('swipe');
+            }
+            this._paintChrome();
+            this._syncHeight();
+        };
+        this._sheetPanel
+            .animate({ translate: { x: 0, y: target }, duration: SETTLE_DURATION, curve: 'easeOut' })
+            .then(done, done);
     }
 
     /** Set (or replace) the always-visible content layer (painted under the sheet) — `adw_bottom_sheet_set_content`. */
@@ -225,6 +354,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         this._sheetChild = view;
         if (view) {
             view.className = addMarkerClass(view.className, SHEET_CLASS);
+            GridLayout.setRow(view, 1);
             this._sheetPage.addChild(view);
         }
     }
