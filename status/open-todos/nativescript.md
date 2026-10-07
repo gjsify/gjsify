@@ -3,23 +3,14 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### The NativeScript `xmlns` barrels still cannot spell seven tags Learn6502's templates use
+### The NativeScript `xmlns` barrels cannot spell every tag a project's templates use
 
-Measured 2026-10-04 against the 24 shared templates in `easy6502/packages/app-gnome/src`: the
-window roots (`Adw.ApplicationWindow`, `Adw.Window`), the dialog (`Adw.Dialog`), `Adw.Bin`, the
-six containers of ADR 0034 § Amendment 21, `Gtk.Grid` and `Gtk.ListBox` now have a member in
-`packages/nativescript-bridge/adwaita/src/namespace/{adw,gtk}.ts`. Still without one:
-`Gtk.CheckButton` (21 uses, the commonest), `Gtk.Frame`, `Gtk.Separator`, `Gtk.TextView`,
-`Gtk.DrawingArea`, `GtkSource.View` and `Adw.Breakpoint` (a class exists, `widgets/breakpoint.ts`,
-but no `[breakpoint]` slot or barrel member reaches it). `elementFor` refuses a missing member by
-design, so each is a clean refusal and not a wrong widget.
-
-Two further things stand between those templates and a build, and neither is widget coverage:
-the template classes themselves (`template $Foo : Adw.Bin`, `$QuickHelpView {}`) and Blueprint's
-`bind` and signal handlers, which `?shared-tree` projects as losses. And one projection loss is
-specific to the grid: `layout { row: 0; column: 1; }` stays a named loss (ADR 0072's table), so a
-`Gtk.Grid` child's placement reaches the port from code, XML (`row` / `column` / `rowSpan` /
-`columnSpan` are the platform's own names) and `attach()`, but not yet from a `.blp`.
+Which tags, and in which templates, is printed by
+`node scripts/report-target-gap.mjs <project-dir>`; this entry carries no list because a hand
+measurement is stale as soon as a widget lands. `elementFor` refuses a tag with no member in
+`packages/nativescript-bridge/adwaita/src/namespace/{adw,gtk}.ts` by design, so each is a clean
+refusal and not a wrong widget. Each tag the report lists becomes a widget with a test, ranked by
+the report's summary. `GtkSource.View` goes through ADR 0094, not a one-off widget.
 
 
 ### `withSignals` shadows nothing in `@nativescript/core` today, and nothing holds "today"

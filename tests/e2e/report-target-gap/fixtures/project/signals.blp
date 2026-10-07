@@ -1,0 +1,18 @@
+using Gtk 4.0;
+
+Box {
+  ToggleButton pressed {
+    clicked => $onClicked();
+  }
+
+  Button {
+    sensitive: bind pressed.active;
+    clicked => $onClicked();
+    activate => $onActivate();
+  }
+
+  CheckButton {
+    sensitive: bind pressed.sensitive;
+    toggled => $onToggled();
+  }
+}

@@ -49,6 +49,9 @@ export const NOTIFY_STACK_VISIBLE_CHILD_NAME = 'notify::visible-child-name';
 export interface NotifyStackVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
 
 export class GtkStack extends withSignals(GridLayout) {
+    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
+    static readonly emittedSignals: readonly string[] = [NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME];
+
     /**
      * No named placement: a stack's XML children are its pages, in order, as GtkBuildable's
      * untyped `<child>` is. An empty list so the builder refuses an authored slot by name.

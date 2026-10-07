@@ -837,7 +837,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the forty-seven probes are fewer than thirty-three distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the forty-nine probes are fewer than thirty-three distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -2335,6 +2335,53 @@ export const REAL_EXPECTATIONS = [
                             },
                             translatable: { 'tooltip-text': {} },
                             styleClasses: ['osd'],
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'tests/e2e/report-target-gap/fixtures/project/signals.blp',
+        node: {
+            tag: 'GtkBox',
+            children: [
+                {
+                    tag: 'GtkToggleButton',
+                    id: 'pressed',
+                    signals: [{ name: 'clicked', handler: 'onClicked' }],
+                },
+                {
+                    tag: 'GtkButton',
+                    signals: [
+                        { name: 'clicked', handler: 'onClicked' },
+                        { name: 'activate', handler: 'onActivate' },
+                    ],
+                    bindings: { sensitive: { source: 'pressed', property: 'active' } },
+                },
+                {
+                    tag: 'GtkCheckButton',
+                    signals: [{ name: 'toggled', handler: 'onToggled' }],
+                    bindings: { sensitive: { source: 'pressed', property: 'sensitive' } },
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'tests/e2e/report-target-gap/fixtures/project/window.blp',
+        node: {
+            tag: 'AdwBin',
+            children: [
+                {
+                    tag: 'GtkGrid',
+                    slot: 'child',
+                    children: [
+                        {
+                            tag: 'GtkLabel',
+                            props: { label: 'report fixture' },
+                            layout: { row: 0, column: 0 },
                         },
                     ],
                 },

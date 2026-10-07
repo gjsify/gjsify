@@ -87,6 +87,8 @@
 
 import { RadioGroupState, resolveCheckState } from '@gjsify/adwaita-core';
 
+import type { DispatchedSignals } from '../signals.js';
+
 /**
  * The document's radio groups. ONE registry, as global as a bare
  * `<input type="radio" name="x">` outside a form is — two independent groups therefore
@@ -122,6 +124,15 @@ abstract class AdwCheckBase extends HTMLElement {
         // `toggleAttribute` with a force flag is a no-op when the attribute already
         // holds that state, so re-setting the current value never notifies.
         this.toggleAttribute('checked', !!value);
+    }
+
+    /** `Gtk.CheckButton:active`, the GObject name for {@link checked}. */
+    get active(): boolean {
+        return this.checked;
+    }
+
+    set active(value: boolean) {
+        this.checked = value;
     }
 
     /** Whether the control is in the third, inconsistent state. */
@@ -202,10 +213,17 @@ abstract class AdwCheckBase extends HTMLElement {
             this._label.textContent = this.getAttribute('label') ?? '';
         }
         this.render();
+        if (name === 'active') {
+            // The GObject spelling a projected `.blp` writes; `checked` stays the state.
+            this.checked = this.hasAttribute('active');
+        }
         if (name === 'checked') {
             this.dispatchEvent(
                 new CustomEvent('notify::checked', { bubbles: true, detail: { checked: this.checked } }),
             );
+            // `toggled` fires on every change of `active`, programmatic included.
+            this.dispatchEvent(new CustomEvent('toggled', { bubbles: true }));
+            this.dispatchEvent(new CustomEvent('notify::active', { bubbles: true, detail: { active: this.checked } }));
         }
     }
 
@@ -227,8 +245,14 @@ abstract class AdwCheckBase extends HTMLElement {
 
 /** The Adwaita checkbox — `checkbutton > check` as a custom element. */
 export class GtkCheckButton extends AdwCheckBase {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = {
+        toggled: 'toggled',
+        'notify::active': 'notify::active',
+    };
+
     static get observedAttributes() {
-        return ['checked', 'indeterminate', 'disabled', 'label'];
+        return ['checked', 'active', 'indeterminate', 'disabled', 'label'];
     }
 
     protected get inputType(): 'checkbox' {

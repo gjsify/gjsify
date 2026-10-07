@@ -56,6 +56,9 @@ export interface NotifyEntryTextEventData extends EventData {
 }
 
 export class GtkEntry extends withSignals(GridLayout) {
+    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
+    static readonly emittedSignals: readonly string[] = [NOTIFY_TEXT, ACTIVATE];
+
     /** The real input. Chrome-less: the box around it paints the Adwaita surface. */
     protected readonly _field: TextField;
     private _text = '';

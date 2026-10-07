@@ -334,16 +334,21 @@ export class AdwToolbarView extends withSignals(GridLayout) {
     private _applyInsets(insets: WindowInsets): void {
         this._insets = insets;
         const edges = resolveEdges(this._systemInsets, systemBarsConfig.bars.insets);
+        const shown = this._hasShownBottomBar();
         const padding = toolbarViewInsetPadding(
             insetsForEdges(insetsOwedBy(withKeyboard(insets), resolveHostInsets(this, insets)), edges),
             {
                 hasTopBar: this._topBarCount > 0,
                 hasBottomBar: this._bottomBarCount > 0,
-                // With the keyboard up the content pays for it, as nothing else is above it.
-                bottomBarShown: this._hasShownBottomBar() || (insets.ime ?? 0) > 0,
+                bottomBarShown: shown,
             },
         );
-        this._bottomBarShown = this._hasShownBottomBar();
+        // The SAME value the padding was computed from, because the only thing that can undo
+        // a stale payment is the guard that compares this against the bar's state later. It
+        // used to re-read half the inputs (the keyboard clause was left out of the record),
+        // so the one case where the two disagreed was the one case the guard could not see —
+        // and a slot paid while it was empty kept its band for the rest of the session.
+        this._bottomBarShown = shown;
         this._topBox.paddingTop = padding.topBarTop;
         this._bottomBox.paddingBottom = padding.bottomBarBottom;
         this.paddingTop = padding.contentTop;

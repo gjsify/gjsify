@@ -54,6 +54,9 @@ export interface NotifyDropDownSelectedEventData extends EventData {
 }
 
 export class GtkDropDown extends withSignals(StackLayout) {
+    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
+    static readonly emittedSignals: readonly string[] = [NOTIFY_SELECTED];
+
     /**
      * `model` only: `model: Gtk.StringList { strings [ … ] }` in a `.blp` places the list at
      * the property it sets (ADR 0072). `GtkDropDown` takes no child widget in GTK.

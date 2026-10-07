@@ -658,3 +658,18 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
+
+
+### Platform interfaces a shared component class reaches for have no portable form yet
+
+The report (`node scripts/report-target-gap.mjs <project-dir>`) lists the `gi://` members an app
+uses that a port cannot answer. The choice order for each is a web standard, then a `gi://` API
+ported into the two renderers, then a capability package like `@gjsify/system-accounts` (ADR 0095).
+The names below are proposals: `Gio.SimpleAction` / `Gio.ActionGroup` through a `Gio` renderer
+namespace bound to `action-name` (both ports already export a `Gio` barrel, and NativeScript
+carries `SimpleAction` in it, but `GI_RENDERERS` routes no `gi://Gio` to either); the
+`Adw.StyleManager` / `Gtk.Settings` color-scheme singleton (the browser does not use it yet, see
+the color-scheme entry in `adwaita-web.md`); `Adw.Toast` `timeout` in one unit (see the
+`AdwToastOverlay` entry above); application settings and a file chooser as capability packages;
+and `navigator.clipboard` answered on GJS and NativeScript, so the app writes the web call
+everywhere.
