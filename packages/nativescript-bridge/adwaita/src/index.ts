@@ -66,6 +66,7 @@ export {
     DEFAULT_CLAMP_MAX_SIZE,
     // System insets as padding
     padForSystemInsets,
+    padSheetForSystemInsets,
     bottomSheetPanel,
     // Presentation / layout
     AdwDataGrid,

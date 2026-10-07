@@ -1613,8 +1613,12 @@ Page.adw-window {
     border-top-right-radius: 16;
 }
 
+/* The bottom edge is MISSING on purpose: `<adw-bottom-sheet>` writes `paddingBottom` itself,
+   because a sheet whose child scrolls has to put that gap INSIDE the scrolling content and
+   leave the viewport running to the panel's edge (`widgets/bottom-sheet-insets.ts`). A value
+   here would be the second writer, and the one that clips. */
 .adw-bottom-sheet-page {
-    padding: 0 16 16 16;
+    padding: 0 16 0 16;
 }
 
 /* `> sheet > .drag-handle` (_bottom-sheet.scss): `min-width: 54px; min-height: 6px;
