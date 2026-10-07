@@ -54,6 +54,8 @@ import swipeTestSuite from './swipe.spec.js';
 import markupTestSuite from './markup.spec.js';
 import tagsTestSuite from './tags.spec.js';
 import sourceTestSuite from './source.spec.js';
+import gobjectTestSuite from './gobject.spec.js';
+import gobjectOracleTestSuite from './gobject.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -110,4 +112,6 @@ run({
     markupTestSuite,
     tagsTestSuite,
     sourceTestSuite,
+    gobjectTestSuite,
+    gobjectOracleTestSuite,
 });
