@@ -44,7 +44,7 @@ the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 | `bind …` | 9 | — | **no** — a GObject property binding, addressed by id |
 | `condition (…)` + `setters { }` | 7 + 7 | — | **no** — `Adw.Breakpoint`'s own grammar |
 
-**6** signal handlers (`=>`), zero `menu` blocks and **1** inline `Gtk.Adjustment` objects.
+**7** signal handlers (`=>`), zero `menu` blocks and **1** inline `Gtk.Adjustment` objects.
 
 Three labels say what they count, because the old ones undersold it. The `using` row counts
 EVERY import line — 46 `using Adw 1;` and 50 `using Gtk 4.0;`, since not every file
