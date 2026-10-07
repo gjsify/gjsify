@@ -93,9 +93,9 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'GJS infrastructure',
-        total: 3,
+        total: 4,
         full: 3,
-        partial: 0,
+        partial: 1,
         stub: 0,
     },
     {

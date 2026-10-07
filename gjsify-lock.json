@@ -16,6 +16,7 @@
     "@girs/adw-1@5.4.0",
     "@girs/glib-2.0@5.4.0",
     "@girs/gobject-2.0@5.4.0",
+    "@girs/goa-1.0@5.4.0",
     "loro-crdt@^1.13.6",
     "@types/three@^0.185.0",
     "three@0.185.1",
@@ -1901,6 +1902,18 @@
       "dependencies": {
         "@girs/gjs": "^5.4.0",
         "@girs/glib-2.0": "^5.4.0",
+        "@girs/gobject-2.0": "^5.4.0"
+      }
+    },
+    "node_modules/@girs/goa-1.0": {
+      "version": "5.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/goa-1.0/-/goa-1.0-5.4.0.tgz",
+      "integrity": "sha512-UrO3HnewIpLhWuNtmazW2ynH51dE3wE4DtmdSH9fkJaVghJB5S9/1vISKQtqzU/xAgkvqNVYGEY8uGpk219Exw==",
+      "dependencies": {
+        "@girs/gjs": "^5.4.0",
+        "@girs/gio-2.0": "^5.4.0",
+        "@girs/glib-2.0": "^5.4.0",
+        "@girs/gmodule-2.0": "^5.4.0",
         "@girs/gobject-2.0": "^5.4.0"
       }
     },

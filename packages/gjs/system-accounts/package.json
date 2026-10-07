@@ -1,0 +1,89 @@
+{
+    "name": "@gjsify/system-accounts",
+    "version": "0.55.0",
+    "description": "The accounts a user already set up on their system: find them, read their mail server settings, get credentials. GNOME Online Accounts on Linux.",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/fake-goa.d.ts",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}' 'src/test.gjs.mts' 'src/fake-goa.ts'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.gjs.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify env DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent XDG_RUNTIME_DIR=/nonexistent gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "accounts",
+        "gnome-online-accounts",
+        "goa",
+        "mail",
+        "imap",
+        "smtp"
+    ],
+    "dependencies": {
+        "@girs/gio-2.0": "5.4.0",
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@girs/goa-1.0": "5.4.0"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/system-accounts"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/system-accounts#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "native",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "headless": [
+            "Gdk",
+            "GdkPixbuf",
+            "Gsk",
+            "Gtk",
+            "Adw"
+        ],
+        "os": {
+            "linux": "supported",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "darwin": "No driver: the package answers with empty capabilities (ADR 0095). macOS has no system-account API for third-party apps that was found; this is not proven either way.",
+            "win32": "No driver: the package answers with empty capabilities (ADR 0095). No system-account API for third-party apps was found; this is not proven either way."
+        }
+    }
+}

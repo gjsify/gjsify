@@ -441,6 +441,11 @@
       "status": "full",
       "note": "Deprecated Node alias — re-exports `@gjsify/util`."
     },
+    "@gjsify/system-accounts": {
+      "status": "partial",
+      "missing": "Linux on GNOME Online Accounts is the only driver; every other host answers with empty capabilities (ADR 0095). The OAuth2 path has run against the fake accounts service only, never against a real provider account. The fake serves what libgoa's client calls on a peer-to-peer D-Bus server, so a change in libgoa's wire use is not caught until a real session is measured. The `&optional` entry point (`createSystemAccounts`) adds a top-level await to every bundle that imports it, so a `@gjsify/unit` run that reaches it wedges (ADR 0085 clause 5); its specs reach the driver directly.",
+      "note": "The accounts a user already set up on their system: `listAccounts`, `getMailSettings` (IMAP, SMTP, sender) and `getCredentials` (password or OAuth2 token). A missing capability is a value, never an exception: `capabilities()` is empty without libgoa, and every question then answers `unavailable` with a reason. Secrets are returned to the caller and never logged, cached or put in an error."
+    },
     "@gjsify/tar": {
       "status": "full",
       "note": "Streaming `.tar`/`.tar.gz` reader: ustar headers + PAX extended (path/linkpath/size), GNU long-name (L) + long-link (K), checksum-validated. `extractTarball()` strips the npm `package/` prefix, preserves modes, creates symlinks, refuses entries escaping destDir."
