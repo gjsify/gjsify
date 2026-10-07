@@ -36,7 +36,7 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE FORTY-SEVEN REAL FILES DO NOT REACH
+// WHAT THE FORTY-NINE REAL FILES DO NOT REACH
 //
 // They are a probe against reality, not a measure of breadth, and citing "thirty-three real
 // files" as coverage would be wrong twice over. What they still reach is `binding`,
@@ -72,7 +72,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The forty-seven `.blp` files this repo already builds are the reality probe ADR 0053
+// The forty-nine `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -719,6 +719,14 @@ export const CORPUS_REFUSALS = [
  * @type {readonly CorpusRealFile[]}
  */
 export const CORPUS_REAL_FILES = [
+    {
+        slug: 'tests_e2e_report-target-gap_fixtures_project_signals',
+        source: 'tests/e2e/report-target-gap/fixtures/project/signals.blp',
+    },
+    {
+        slug: 'tests_e2e_report-target-gap_fixtures_project_window',
+        source: 'tests/e2e/report-target-gap/fixtures/project/window.blp',
+    },
     {
         slug: 'packages_nativescript-bridge_gtksource_src_fixtures_source-view',
         source: 'packages/nativescript-bridge/gtksource/src/fixtures/source-view.blp',
