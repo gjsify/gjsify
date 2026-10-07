@@ -68,6 +68,7 @@ import {
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
 import {
+    GRIP_HEIGHT,
     NestedDragTracker,
     type DragSample,
     type SheetRest,
@@ -213,6 +214,19 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         GridLayout.setRow(handle, 0);
         sheetPage.addChild(handle);
 
+        // The grip: a transparent strip over the top of the content that takes the touch away
+        // from the scroll view there, so a drag on the handle moves the sheet and never scrolls
+        // the text under it. It takes no room: it shares the cell with the content.
+        const grip = new StackLayout();
+        grip.className = 'adw-bottom-sheet-grip';
+        grip.verticalAlignment = 'top';
+        grip.height = GRIP_HEIGHT;
+        // A view with no listener is not clickable on Android and hands the touch on to the
+        // scroll view under it; a tap listener makes it take the touch. The pan lands on the panel.
+        grip.addEventListener('tap', () => {});
+        GridLayout.setRow(grip, 0);
+        sheetPage.addChild(grip);
+
         // The whole panel is the grip: the bar, the handle and any part of the sheet that is
         // not itself scrolling. `allow_mouse_drag = show_drag_handle || bottom_bar`.
         sheetPanel.addEventListener('pan', (args) => this._onPan(args as unknown as PanGestureEventData));
@@ -303,8 +317,9 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     }
 
     private _onPan(args: PanGestureEventData): void {
-        // The nested pull has the touch; a pan that also fires must not drive the same sheet twice.
-        if (this._nested.dragging) return;
+        // The pan fires on the panel even while a scroll view inside it consumes the touch. A
+        // gesture that began in scrolling content belongs to the nested tracker alone.
+        if (this._nested.ignorePan(args.state)) return;
         if (args.state === PAN_BEGAN) this._beginDrag();
         else if (args.state === PAN_CHANGED) this._moveDrag(args.deltaY);
         else this._endDrag(args.deltaY, args.state === 0);

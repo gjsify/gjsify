@@ -104,6 +104,21 @@ export class NestedDragTracker {
     private _dragging = false;
     private _last = 0;
     private _scrolled = false;
+    private _touching = false;
+    private _ignoringPan = false;
+
+    /**
+     * Whether a pan event is to be ignored. The panel's pan fires even while a scroll view inside
+     * it consumes the touch, so a touch that went down in scrolling content (or is being pulled
+     * by this tracker) is decided at the pan's start and held until it ends: content that can
+     * still scroll must never move the sheet through the pan.
+     */
+    ignorePan(state: number): boolean {
+        if (state === 1) this._ignoringPan = this._touching || this._dragging;
+        const ignore = this._ignoringPan;
+        if (state !== 1 && state !== 2) this._ignoringPan = false;
+        return ignore;
+    }
 
     /** Whether the sheet is being pulled by this tracker. */
     get dragging(): boolean {
@@ -115,10 +130,17 @@ export class NestedDragTracker {
         this._last = y;
         this._dragging = false;
         this._scrolled = false;
+        this._touching = true;
     }
 
     /** `offset` is the content's scroll offset (dip): above zero it is not at its start. */
     move(y: number, offset: number): NestedDragStep {
+        // The scroll view's `down` is not always delivered (measured on Android: the first event
+        // is a `move`), so a move with no touch in progress is where the touch is taken to begin.
+        if (!this._touching) {
+            this.down(y);
+            return { kind: 'none' };
+        }
         this._last = y;
         if (this._dragging) return { kind: 'move', dy: Math.max(y - this._anchor, 0) };
         // Not at the start, or scrolling up: the content has the touch, and the pull restarts
@@ -139,8 +161,15 @@ export class NestedDragTracker {
 
     /** `cancelled` ends a drag where it began: the touch was taken away, not let go. */
     up(cancelled = false): NestedDragStep {
+        this._touching = false;
         if (!this._dragging) return { kind: 'none' };
         this._dragging = false;
         return { kind: 'end', dy: cancelled ? 0 : Math.max(this._last - this._anchor, 0) };
     }
 }
+
+/**
+ * Height of the transparent grip across the top of an open sheet, in dip. It lies over the
+ * content and takes no room of its own; 48 is the smallest target a thumb reliably hits.
+ */
+export const GRIP_HEIGHT = 48;
