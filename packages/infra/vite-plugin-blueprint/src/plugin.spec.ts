@@ -275,6 +275,63 @@ export default async () => {
             }
         });
 
+        await it('serves `?template` as the XML, the checked tree, or a refusal naming the flag (ADR 0096 § 4)', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'blp-template-'));
+            try {
+                const source = join(dir, 'grid.blp');
+                writeFileSync(
+                    source,
+                    'using Gtk 4.0;\n\nGtk.Grid {\n  Gtk.Label {\n    layout {\n      row: 0;\n      column: 1;\n    }\n  }\n}\n',
+                );
+                const table = (layout: string) => {
+                    const path = join(dir, `${layout}.mjs`);
+                    writeFileSync(
+                        path,
+                        `export const capabilities = { layout: ${layout === 'ok' ? "'implemented'" : "{ refused: 'no grid here' }"} };`,
+                    );
+                    return { resolve: () => Promise.resolve({ id: path }) };
+                };
+
+                // No target option (gjs, node): the value `./grid.blp` has.
+                const xml = await loadOf(pluginUnderTest())(`${source}?template`);
+                expect(xml).toBe(await loadOf(pluginUnderTest())(source));
+
+                // A renderer: the tree `?shared-tree` gives, checked without a `for=` at the site.
+                const withRenderer = blueprintPlugin({ sidecars: false, template: { renderer: 'x' } });
+                const tree = await loadOf(withRenderer)(`${source}?template`, table('ok'));
+                expect(tree).toBe(await loadOf(pluginUnderTest())(`${source}?shared-tree`));
+
+                let thrown: unknown;
+                try {
+                    await loadOf(withRenderer)(`${source}?template`, table('no'));
+                } catch (error) {
+                    thrown = error;
+                }
+                expect(thrown instanceof RendererRefusalError).toBe(true);
+                expect((thrown as Error).message.includes(`layout at ${source}:5 — no grid here`)).toBe(true);
+
+                // A target with no renderer composed: refused, naming the flag.
+                const refusing = blueprintPlugin({
+                    sidecars: false,
+                    template: { refusal: 'Pass --gi-renderer.' },
+                });
+                let refused: unknown;
+                try {
+                    await loadOf(refusing)(`${source}?template`);
+                } catch (error) {
+                    refused = error;
+                }
+                expect((refused as Error).message.includes('--gi-renderer')).toBe(true);
+
+                // `?template` is resolved like `?shared-tree`: query stripped, then put back.
+                expect(await resolveIdOf(pluginUnderTest())('./grid.blp?template')).toBe(
+                    '/resolved./grid.blp?template',
+                );
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
         await it('resolves the query by stripping it and putting it back', async () => {
             const resolve = resolveIdOf(pluginUnderTest());
             expect(await resolve('./main-window.blp?shared-tree')).toBe('/resolved./main-window.blp?shared-tree');

@@ -32,3 +32,16 @@ declare module '*.blp?shared-tree' {
     const tree: import('@gjsify/blueprint').SharedNode;
     export default tree;
 }
+
+/**
+ * The template a `registerClass` takes (ADR 0096 § 4): the XML string on `--app gjs`, the projected
+ * tree under `--gi-renderer`. Opaque, so application code cannot depend on which one it is.
+ */
+declare module '*.blp?template' {
+    const brand: unique symbol;
+    export interface BlueprintTemplate {
+        readonly [brand]: true;
+    }
+    const template: BlueprintTemplate;
+    export default template;
+}

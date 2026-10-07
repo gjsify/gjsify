@@ -30,6 +30,15 @@ export interface BlueprintPluginOptions {
      * A `.blp` under `node_modules` is never written, whatever this says — see `writeSidecar`.
      */
     sidecars?: boolean;
+    /**
+     * What `./x.blp?template` is on this build (ADR 0096 § 4). Unset, it is the module `./x.blp`
+     * is: the GtkBuilder XML, which is what `--app gjs` and `--app node` want. `renderer` makes
+     * it the projected tree checked against that renderer's capability table, as
+     * `?shared-tree&for=<renderer>` would be, so the import site names no renderer. `refusal`
+     * fails the build with that text: a target whose renderer is not composed has no value to
+     * give, and the XML string would be the one-specifier-two-meanings ADR 0070 § 1 forbids.
+     */
+    template?: { renderer: string } | { refusal: string };
 }
 
 // Blueprint's OWN two error types are not re-exported here, and that is the shape rather than
@@ -106,6 +115,14 @@ const SHARED_TREE_PARAM = 'shared-tree';
  */
 const RENDERER_PARAM = 'for';
 
+/**
+ * `./x.blp?template`: the exit a `registerClass` template comes through (ADR 0096 § 4). What it
+ * is depends on `BlueprintPluginOptions.template`, which the build target sets, because the same
+ * line has to mean "the template" on every target and not "the XML" on one and "the tree" on
+ * another.
+ */
+const TEMPLATE_PARAM = 'template';
+
 /** The specifier an import site writes: `./x.blp?shared-tree`. */
 export const SHARED_TREE_QUERY = `?${SHARED_TREE_PARAM}`;
 
@@ -121,14 +138,19 @@ export const SHARED_TREE_QUERY = `?${SHARED_TREE_PARAM}`;
  * Blueprint source would reach whatever loader runs next. Rolldown, which is what this repo
  * builds with, appends nothing, so the repo's own builds never show it.
  */
-function readId(id: string): { file: string; sharedTree: boolean; renderer?: string } | undefined {
+function readId(id: string): { file: string; sharedTree: boolean; template: boolean; renderer?: string } | undefined {
     const queryAt = id.indexOf('?');
     const file = queryAt === -1 ? id : id.slice(0, queryAt);
     if (!file.endsWith('.blp')) return undefined;
-    if (queryAt === -1) return { file, sharedTree: false };
+    if (queryAt === -1) return { file, sharedTree: false, template: false };
     const params = new URLSearchParams(id.slice(queryAt + 1));
     const renderer = params.get(RENDERER_PARAM) ?? undefined;
-    return { file, sharedTree: params.has(SHARED_TREE_PARAM), ...(renderer === undefined ? {} : { renderer }) };
+    return {
+        file,
+        sharedTree: params.has(SHARED_TREE_PARAM),
+        template: params.has(TEMPLATE_PARAM),
+        ...(renderer === undefined ? {} : { renderer }),
+    };
 }
 
 /**
@@ -216,7 +238,7 @@ async function refuseForRenderer(
 }
 
 export default function blueprintPlugin(options: BlueprintPluginOptions = {}): Plugin {
-    const { minify = false, verbose = false, sidecars = true } = options;
+    const { minify = false, verbose = false, sidecars = true, template } = options;
 
     return {
         name: 'vite-plugin-blueprint',
@@ -228,7 +250,7 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
         // the XML and the tree rather than whichever was loaded first.
         async resolveId(source, importer) {
             const asked = readId(source);
-            if (asked === undefined || !asked.sharedTree) return null;
+            if (asked === undefined || !(asked.sharedTree || asked.template)) return null;
             const resolved = await this.resolve(asked.file, importer, { skipSelf: true });
             // The WHOLE query goes back on, not just ours: anything the host added to the
             // specifier is the host's, and dropping it here would resolve to a different
@@ -251,10 +273,23 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
             // the construct, the file and the line: `BlueprintSyntaxError` before an AST
             // exists, `BlueprintEmitError` after. That is clause 3's declared trade against
             // output that looks plausible and means something else.
+            // `?template` is decided before anything is read, so a refusal names the flag and
+            // not a parse. It is then one of the two exits below, reusing their code rather than
+            // a copy: the tree with the `for=` check, or the XML module.
+            let { sharedTree, renderer } = asked;
+            if (asked.template) {
+                if (template !== undefined && 'refusal' in template) {
+                    throw new Error(`${asked.file}: \`?template\` has no value on this build. ${template.refusal}`);
+                }
+                if (template !== undefined) {
+                    sharedTree = true;
+                    renderer ??= template.renderer;
+                }
+            }
             const source = await readFile(asked.file, 'utf8');
             const ast = parseBlueprint(source, asked.file);
 
-            if (asked.sharedTree) {
+            if (sharedTree) {
                 // THE LOSSY EXIT REFUSES ITS LOSSES RATHER THAN SHIPPING THEM.
                 //
                 // `projectToSharedNode` declares what it dropped — ADR 0053 clause 1 calls the
@@ -270,7 +305,7 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
                 // not apply: it is an XML setting and this exit emits none.
                 const { node, lost, uses } = projectToSharedNode(ast, { gtypeName });
                 if (lost.length > 0) throw new BlueprintProjectionError(asked.file, lost);
-                if (asked.renderer !== undefined) await refuseForRenderer(this, asked.file, asked.renderer, uses);
+                if (renderer !== undefined) await refuseForRenderer(this, asked.file, renderer, uses);
                 if (verbose) console.log(`Projected ${asked.file} (@gjsify/blueprint)`);
                 return `export default ${JSON.stringify(node)};`;
             }
