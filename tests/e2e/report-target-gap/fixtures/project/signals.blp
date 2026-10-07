@@ -8,6 +8,7 @@ Box {
   Button {
     sensitive: bind pressed.active;
     clicked => $onClicked();
+    activate => $onActivate();
   }
 
   CheckButton {

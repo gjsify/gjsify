@@ -16,6 +16,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       <object class="GtkButton">
         <property name="sensitive" bind-source="pressed" bind-property="active" bind-flags="sync-create"/>
         <signal name="clicked" handler="onClicked"/>
+        <signal name="activate" handler="onActivate"/>
       </object>
     </child>
     <child>

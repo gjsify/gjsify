@@ -214,7 +214,7 @@ describe('report-target-gap', () => {
                 const issues = issuesOf(target).filter((issue) => issue.issue === 'undeclared-signal');
                 assert.deepEqual(
                     issues,
-                    [{ issue: 'undeclared-signal', tag: 'GtkCheckButton', name: 'toggled', line: 15 }],
+                    [{ issue: 'undeclared-signal', tag: 'GtkButton', name: 'activate', line: 11 }],
                     target,
                 );
             }
@@ -225,7 +225,7 @@ describe('report-target-gap', () => {
                 const issues = issuesOf(target).filter((issue) => issue.issue === 'undeclared-notify');
                 assert.deepEqual(
                     issues,
-                    [{ issue: 'undeclared-notify', tag: 'GtkToggleButton', name: 'sensitive', line: 14 }],
+                    [{ issue: 'undeclared-notify', tag: 'GtkToggleButton', name: 'sensitive', line: 15 }],
                     target,
                 );
             }
@@ -240,7 +240,7 @@ describe('report-target-gap', () => {
                     row.files,
                 ]);
                 assert.deepEqual(keys.sort(), [
-                    ['GtkCheckButton::toggled', ['signals.blp']],
+                    ['GtkButton::activate', ['signals.blp']],
                     ['GtkToggleButton::notify::sensitive', ['signals.blp']],
                 ]);
             }
