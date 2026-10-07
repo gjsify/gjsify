@@ -273,20 +273,37 @@ export const AdwContainersNsTest = async () => {
         const scrollOf = (window: object): ScrollView =>
             childrenOf(window).find((view) => view instanceof ScrollView) as ScrollView;
 
-        await it('wraps a real ScrollView and the child is its content', () => {
+        await it('wraps a real ScrollView and puts the child in its content box', () => {
             const window = new Gtk.ScrolledWindow();
             const child = label();
             window.child = child as unknown as never;
             expect(childrenOf(window).length).toBe(1);
-            expect(scrollOf(window).content).toBe(child);
+            // NOT the scroll view's content itself — see "THE CHILD IS NOT THE CONTENT".
+            // A margin on the platform's scroll content inset and clipped the VIEWPORT,
+            // which cut the first and last line of a scrolling sheet at every offset.
+            const box = scrollOf(window).content;
+            expect(box === (child as unknown)).toBe(false);
+            expect(childrenOf(box)).toStrictEqual([child]);
             expect(window.child === (child as unknown)).toBe(true);
         });
 
-        await it('removing the child empties the ScrollView', () => {
+        await it('keeps the content box empty-handed, so no margin reaches the scroll view', () => {
+            // The box is the whole fix: anything it carried of its own would be the inset again.
+            const box = scrollOf(new Gtk.ScrolledWindow()).content;
+            for (const edge of [box.marginTop, box.marginBottom, box.marginLeft, box.marginRight]) {
+                expect(edge === 0 || edge === undefined).toBe(true);
+            }
+        });
+
+        await it('removing the child empties the content box, never the ScrollView', () => {
             const window = new Gtk.ScrolledWindow();
+            const box = scrollOf(window).content;
             window.child = label() as unknown as never;
             window.child = null;
-            expect(scrollOf(window).content).toBe(null);
+            expect(childrenOf(box)).toStrictEqual([]);
+            // The box outlives the child: a scroll view left with no content is the state
+            // a later child's margin would reach the platform through.
+            expect(scrollOf(window).content).toBe(box);
         });
 
         await it('scrolls vertically by default and for `hscrollbar-policy: never`', () => {
@@ -321,13 +338,16 @@ export const AdwContainersNsTest = async () => {
             expect(window.hasFrame).toBe(true);
         });
 
-        await it('a bare child in a tree is THE child, and it lands inside the ScrollView', () => {
+        await it('a bare child in a tree is THE child, and it lands in the content box', () => {
+            // Learn6502's quick help, as its `.blp` authors it — the shape whose margins
+            // reached the scroll view and clipped both ends of the sheet.
             const window = build({
                 tag: 'GtkScrolledWindow',
                 children: [{ tag: 'AdwClamp', props: { 'maximum-size': 600 } }],
             }) as unknown as Gtk.ScrolledWindow;
             expect(window.child instanceof View).toBe(true);
-            expect(scrollOf(window).content instanceof Adw.Clamp).toBe(true);
+            expect(scrollOf(window).content instanceof Adw.Clamp).toBe(false);
+            expect(childrenOf(scrollOf(window).content)[0] instanceof Adw.Clamp).toBe(true);
         });
     });
 };
