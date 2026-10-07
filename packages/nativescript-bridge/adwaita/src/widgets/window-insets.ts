@@ -32,12 +32,25 @@ export interface WindowInsets {
     readonly bottom: number;
     readonly left: number;
     readonly right: number;
+    /**
+     * The on-screen keyboard's height, when it is up (the field is absent while it is not). The
+     * Android host that stays clear of the gesture area on its own needs it to tell the two
+     * cases apart: only the page's own padding also moves the window up for the keyboard.
+     */
+    readonly ime?: number;
 }
 
 /** What the toolbar view looks like, as far as inset assignment cares. */
 export interface ToolbarViewShape {
     readonly hasTopBar: boolean;
     readonly hasBottomBar: boolean;
+    /**
+     * Whether the bottom bar is on screen. A bar that exists but is collapsed (a view switcher
+     * bar on a wide window) still owns the bottom edge, so the content does not take its
+     * inset: it runs under the gesture area, and whatever must not sit there pads itself
+     * ({@link padWithInset}). Defaults to `true`.
+     */
+    readonly bottomBarShown?: boolean;
 }
 
 /** Extra padding each slot must add on top of whatever the theme gives it. */
@@ -94,9 +107,30 @@ export function toolbarViewInsetPadding(insets: WindowInsets, shape: ToolbarView
     return {
         topBarTop: shape.hasTopBar ? insets.top : 0,
         contentTop: shape.hasTopBar ? 0 : insets.top,
-        bottomBarBottom: shape.hasBottomBar ? insets.bottom : 0,
+        bottomBarBottom: shape.hasBottomBar && shape.bottomBarShown !== false ? insets.bottom : 0,
         contentBottom: shape.hasBottomBar ? 0 : insets.bottom,
     };
+}
+
+/**
+ * The insets with the keyboard folded into the bottom edge — `max(systemBars, ime)`, which is
+ * what the page's own padding paid before the app drew behind the gesture area.
+ */
+export function withKeyboard(insets: WindowInsets): WindowInsets {
+    const ime = insets.ime ?? 0;
+    return ime > insets.bottom ? { ...insets, bottom: ime } : insets;
+}
+
+/**
+ * A widget's own padding plus the inset it must clear.
+ *
+ * The base is read once off the view, and can be anything a native read hands back — a
+ * missing value must not turn a `padding` write into `NaN`, which NativeScript renders as
+ * zero padding and no error.
+ */
+export function padWithInset(base: number | undefined, inset: number): number {
+    const own = typeof base === 'number' && Number.isFinite(base) && base > 0 ? base : 0;
+    return own + (Number.isFinite(inset) && inset > 0 ? inset : 0);
 }
 
 /**
@@ -109,7 +143,14 @@ export function toolbarViewInsetPadding(insets: WindowInsets, shape: ToolbarView
 export function normaliseInsets(raw: Partial<WindowInsets> | null | undefined): WindowInsets {
     const at = (value: number | undefined): number =>
         typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
-    return { top: at(raw?.top), bottom: at(raw?.bottom), left: at(raw?.left), right: at(raw?.right) };
+    const ime = at(raw?.ime);
+    return {
+        top: at(raw?.top),
+        bottom: at(raw?.bottom),
+        left: at(raw?.left),
+        right: at(raw?.right),
+        ...(ime > 0 ? { ime } : {}),
+    };
 }
 
 /** Notified whenever the window's insets change. */
@@ -156,7 +197,8 @@ export class WindowInsetsBroadcast {
             next.top === this._last.top &&
             next.bottom === this._last.bottom &&
             next.left === this._last.left &&
-            next.right === this._last.right
+            next.right === this._last.right &&
+            next.ime === this._last.ime
         ) {
             return false;
         }

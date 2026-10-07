@@ -34,7 +34,7 @@ import {
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { resolveHostInsets } from './host-insets.js';
 import { observeWindowInsets } from './window-insets-source.js';
-import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
+import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding, withKeyboard } from './window-insets.js';
 import { observeSystemBars } from './system-bars-source.js';
 import { type SystemBarEdges, insetsForEdges, resolveEdges, systemBarsConfig } from './system-bars.js';
 import { xmlBoolean } from './xml-values.js';
@@ -72,6 +72,8 @@ export class AdwToolbarView extends withSignals(GridLayout) {
     private _insets: WindowInsets = NO_INSETS;
     private _topBarCount = 0;
     private _bottomBarCount = 0;
+    /** Whether a bottom bar is on screen, as of the last inset application. */
+    private _bottomBarShown = false;
     private _detachInsets: (() => void) | null = null;
     private _detachBars: (() => void) | null = null;
     private _detachConfig: (() => void) | null = null;
@@ -106,6 +108,13 @@ export class AdwToolbarView extends withSignals(GridLayout) {
         // `update_undershoots` runs from size_allocate, so the classes follow the
         // bars' real heights rather than a one-shot read at construction.
         this.addEventListener('layoutChanged', () => this._syncClasses());
+        // A bar that reveals or collapses (a view switcher bar, on a breakpoint) takes the
+        // bottom inset with it, and the one thing that moves then is the slot's own height.
+        bottomBox.addEventListener('layoutChanged', () => {
+            if (this._bottomBarCount > 0 && this._hasShownBottomBar() !== this._bottomBarShown) {
+                this._applyInsets(this._insets);
+            }
+        });
 
         // Window insets are the chrome's business, not each app's. Subscribing here
         // is what fixes every showcase and every consumer at once — doing it per app
@@ -298,6 +307,14 @@ export class AdwToolbarView extends withSignals(GridLayout) {
         }
     }
 
+    /** Whether any bar in the bottom slot is on screen (not collapsed or hidden). */
+    private _hasShownBottomBar(): boolean {
+        for (let index = 0; index < this._bottomBox.getChildrenCount(); index++) {
+            if (this._bottomBox.getChildAt(index).visibility === 'visible') return true;
+        }
+        return false;
+    }
+
     /**
      * Pay each edge's inset out of the slot that sits on it — the part of it this
      * widget still owes.
@@ -318,12 +335,15 @@ export class AdwToolbarView extends withSignals(GridLayout) {
         this._insets = insets;
         const edges = resolveEdges(this._systemInsets, systemBarsConfig.bars.insets);
         const padding = toolbarViewInsetPadding(
-            insetsForEdges(insetsOwedBy(insets, resolveHostInsets(this, insets)), edges),
+            insetsForEdges(insetsOwedBy(withKeyboard(insets), resolveHostInsets(this, insets)), edges),
             {
                 hasTopBar: this._topBarCount > 0,
                 hasBottomBar: this._bottomBarCount > 0,
+                // With the keyboard up the content pays for it, as nothing else is above it.
+                bottomBarShown: this._hasShownBottomBar() || (insets.ime ?? 0) > 0,
             },
         );
+        this._bottomBarShown = this._hasShownBottomBar();
         this._topBox.paddingTop = padding.topBarTop;
         this._bottomBox.paddingBottom = padding.bottomBarBottom;
         this.paddingTop = padding.contentTop;

@@ -13,7 +13,9 @@ import {
     WindowInsetsBroadcast,
     insetsOwedBy,
     normaliseInsets,
+    padWithInset,
     toolbarViewInsetPadding,
+    withKeyboard,
 } from './widgets/window-insets.js';
 
 /** A phone in portrait: status bar above, gesture area below. */
@@ -57,6 +59,22 @@ export default async () => {
                     expect(p.bottomBarBottom + p.contentBottom).toBe(PHONE.bottom);
                 }
             }
+        });
+
+        await it('leaves the bottom edge to the content while the bottom bar is collapsed', () => {
+            // A view switcher bar on a wide window: the bar still owns the edge, so the
+            // content does not take its inset — it runs under the gesture area, which is
+            // what paints the pane down to the screen edge. Padding the content here is
+            // the blank strip this rule removes (51 dp of it, measured).
+            const p = toolbarViewInsetPadding(PHONE, { hasTopBar: true, hasBottomBar: true, bottomBarShown: false });
+            expect(p.bottomBarBottom).toBe(0);
+            expect(p.contentBottom).toBe(0);
+            expect(p.topBarTop).toBe(24);
+        });
+
+        await it('pays the bottom bar again once it is shown', () => {
+            const p = toolbarViewInsetPadding(PHONE, { hasTopBar: true, hasBottomBar: true, bottomBarShown: true });
+            expect(p.bottomBarBottom).toBe(48);
         });
 
         await it('adds nothing when there is nothing to add', () => {
@@ -113,6 +131,37 @@ export default async () => {
         });
     });
 
+    await describe('withKeyboard', async () => {
+        await it('lifts the bottom edge to the keyboard while it is higher than the gesture area', () => {
+            expect(withKeyboard({ ...PHONE, ime: 280 }).bottom).toBe(280);
+        });
+
+        await it('keeps the gesture area when the keyboard is lower, and when there is none', () => {
+            expect(withKeyboard({ ...PHONE, ime: 10 })).toStrictEqual({ ...PHONE, ime: 10 });
+            expect(withKeyboard(PHONE)).toStrictEqual(PHONE);
+        });
+    });
+
+    await describe('padWithInset', async () => {
+        await it('adds the inset to the padding the widget already has', () => {
+            expect(padWithInset(12, 48)).toBe(60);
+            expect(padWithInset(0, 48)).toBe(48);
+        });
+
+        await it('is the plain inset when the native read gave nothing usable', () => {
+            // `view.paddingBottom` can come back undefined or NaN across the bridge; added
+            // as it is, that would write NaN, which renders as no padding and no error.
+            expect(padWithInset(undefined, 48)).toBe(48);
+            expect(padWithInset(Number.NaN, 48)).toBe(48);
+        });
+
+        await it('is the own padding when there is no inset, as on GTK or a desktop', () => {
+            expect(padWithInset(12, 0)).toBe(12);
+            expect(padWithInset(12, Number.NaN)).toBe(12);
+            expect(padWithInset(12, -4)).toBe(12);
+        });
+    });
+
     await describe('normaliseInsets', async () => {
         await it('passes finite positive values through', () => {
             expect(normaliseInsets(PHONE)).toStrictEqual(PHONE);
@@ -126,6 +175,14 @@ export default async () => {
             expect(normaliseInsets(null)).toStrictEqual(NO_INSETS);
             expect(normaliseInsets(undefined)).toStrictEqual(NO_INSETS);
             expect(normaliseInsets({ top: Number.NaN, bottom: Number.POSITIVE_INFINITY })).toStrictEqual(NO_INSETS);
+        });
+
+        await it('carries the keyboard only while it is up', () => {
+            // The field is how a host that stays off the bottom edge learns it has to pay it:
+            // absent means no keyboard, which is every reading but the one with it open.
+            expect(normaliseInsets({ ...PHONE, ime: 280 }).ime).toBe(280);
+            expect(normaliseInsets({ ...PHONE, ime: 0 })).toStrictEqual(PHONE);
+            expect(normaliseInsets({ ...PHONE, ime: Number.NaN })).toStrictEqual(PHONE);
         });
 
         await it('clamps a negative inset to zero', () => {
@@ -178,6 +235,19 @@ export default async () => {
             expect(broadcast.publish(PHONE)).toBe(true);
             expect(broadcast.publish({ ...PHONE })).toBe(false);
             expect(calls).toBe(2);
+        });
+
+        await it('publishes the keyboard opening and closing, though the bars did not move', () => {
+            // The bars read the same with the keyboard up, so a dedupe that ignored it would
+            // never tell the host to pay the bottom edge — and the field would sit under it.
+            const broadcast = new WindowInsetsBroadcast();
+            broadcast.publish(PHONE);
+
+            expect(broadcast.publish({ ...PHONE, ime: 280 })).toBe(true);
+            expect(broadcast.last.ime).toBe(280);
+            expect(broadcast.publish({ ...PHONE, ime: 280 })).toBe(false);
+            expect(broadcast.publish(PHONE)).toBe(true);
+            expect(broadcast.last.ime).toBe(undefined);
         });
 
         await it('normalises what the platform hands over', () => {

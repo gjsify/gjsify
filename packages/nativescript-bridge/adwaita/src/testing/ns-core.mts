@@ -313,6 +313,13 @@ export class View extends Observable {
         for (const token of value.split(/\s+/)) if (token !== '') this.cssClasses.add(token);
     }
 
+    /** No layout pass here; counted so a spec can see that one was asked for. */
+    layoutRequests = 0;
+    requestLayout(): void {
+        this.layoutRequests += 1;
+        this.parent?.requestLayout();
+    }
+
     get parent(): View | null {
         return PARENTS.get(this) ?? null;
     }

@@ -217,6 +217,8 @@ declare module '@nativescript/core' {
         /** The view this one is mounted in, or `null` at the root — the walk a
          *  nested widget offers an unhandled action up. */
         readonly parent: View | null;
+        /** Ask the native layout to measure this view and its ancestors again. */
+        requestLayout(): void;
         /** The `Page` this view is mounted in — `ViewBase.page` walks the parents and
          *  `Page` returns itself — or `null` while it is not mounted in one. */
         readonly page: Page | null;

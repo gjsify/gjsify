@@ -302,7 +302,7 @@ export { AdwSidebar, NOTIFY_SELECTED as NOTIFY_SIDEBAR_SELECTED } from './adw-si
 export type { NotifySidebarSelectedEventData } from './adw-sidebar.js';
 export { AdwSidebarItem, AdwSidebarSection } from '../values/sidebar.js';
 export type { AdwSidebarItemProps, AdwSidebarSectionProps } from '../values/sidebar.js';
-export { AdwBottomSheet, CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE } from './adw-bottom-sheet.js';
+export { AdwBottomSheet, bottomSheetPanel, CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE } from './adw-bottom-sheet.js';
 export type { NotifyOpenEventData } from './adw-bottom-sheet.js';
 
 // --- Feedback / dialogs ---
@@ -609,3 +609,7 @@ export function registerAdwaitaElements(): void {
 // --- System bars (status / navigation bar appearance and insets) ---
 export { configureSystemBars, systemBarsConfig, WINDOW_BACKGROUND } from './system-bars.js';
 export type { BarIcons, SystemBarEdges, SystemBarsOptions, ResolvedSystemBars } from './system-bars.js';
+
+// --- The system insets as padding on a widget that has to clear them ---
+export { padForSystemInsets } from './system-insets.js';
+export type { SystemInsetEdges } from './system-insets.js';

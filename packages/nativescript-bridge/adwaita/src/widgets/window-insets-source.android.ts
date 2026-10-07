@@ -42,7 +42,7 @@ declare const androidx:
                       setDecorFitsSystemWindows(window: unknown, decorFitsSystemWindows: boolean): void;
                   };
                   WindowInsetsCompat: {
-                      Type: { systemBars(): number; displayCutout(): number };
+                      Type: { systemBars(): number; displayCutout(): number; ime(): number };
                   };
                   OnApplyWindowInsetsListener: new (impl: {
                       onApplyWindowInsets(view: unknown, insets: AndroidWindowInsetsCompat): AndroidWindowInsetsCompat;
@@ -93,7 +93,9 @@ function install(): void {
         new view.OnApplyWindowInsetsListener({
             onApplyWindowInsets(_v: unknown, insets: AndroidWindowInsetsCompat) {
                 const bars = insets.getInsets(mask);
+                const keyboard = insets.getInsets(view.WindowInsetsCompat.Type.ime());
                 broadcast.publish({
+                    ime: toDips(keyboard.bottom),
                     top: toDips(bars.top),
                     bottom: toDips(bars.bottom),
                     left: toDips(bars.left),

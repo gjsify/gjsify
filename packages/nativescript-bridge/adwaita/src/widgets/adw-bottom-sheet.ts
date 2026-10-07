@@ -73,6 +73,19 @@ import { attachRowPressFeedback } from './row-press.js';
 import { withSignals } from './signals.js';
 
 export { CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE };
+
+const PANELS = new WeakMap<AdwBottomSheet, View>();
+
+/**
+ * The bin that holds a sheet's bottom bar AND its sheet page: the one view that sits on the
+ * screen edge whether the sheet is closed or open, so it is what pads for the gesture area
+ * (`padForSystemInsets`). Not a property of the widget because `Adw.BottomSheet` has none.
+ */
+export function bottomSheetPanel(sheet: AdwBottomSheet): View {
+    const panel = PANELS.get(sheet);
+    if (!panel) throw new Error('bottomSheetPanel: not an AdwBottomSheet');
+    return panel;
+}
 export type { NotifyOpenEventData };
 
 /** Marker class applied to the view handed to {@link AdwBottomSheet.set_content}. */
@@ -80,8 +93,8 @@ const CONTENT_CLASS = 'adw-bottom-sheet-content';
 /** Marker class applied to the view handed to {@link AdwBottomSheet.set_sheet}. */
 const SHEET_CLASS = 'adw-bottom-sheet-sheet';
 
-/** The three layers an XML child of a bottom sheet can ask for. */
-const BOTTOM_SHEET_SLOTS = ['sheet', 'bottomBar', 'content'] as const;
+/** The layers an XML child of a bottom sheet can ask for, the bottom bar under both its spellings. */
+const BOTTOM_SHEET_SLOTS = ['sheet', 'bottomBar', 'bottom-bar', 'content'] as const;
 
 export class AdwBottomSheet extends withSignals(GridLayout) {
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
@@ -156,6 +169,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
 
         this.addChild(sheetPanel);
         this._sheetPanel = sheetPanel;
+        PANELS.set(this, sheetPanel);
         this._sheetPage = sheetPage;
         this._bottomBarBin = bottomBarBin;
         this._paintChrome();
@@ -245,7 +259,9 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     _addChildFromBuilder(name: string, view: View): void {
         const slot = resolveBuilderSlot(name, BOTTOM_SHEET_SLOTS, 'content');
         if (slot === 'sheet') this.set_sheet(view);
-        else if (slot === 'bottomBar') this.set_bottom_bar(view);
+        // `bottomBar` is the XML complex-property spelling, `bottom-bar` the one a `.blp`
+        // property writes (`bottom-bar: Label { … }`), and the shared-tree builder hands it as is.
+        else if (slot === 'bottomBar' || slot === 'bottom-bar') this.set_bottom_bar(view);
         else this.set_content(view);
     }
 
