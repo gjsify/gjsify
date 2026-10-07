@@ -26,6 +26,7 @@
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, StackLayout } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
+import { type SideChild, balancedSideWidth, sideNaturalWidth } from './header-bar-balance.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { classNameWith, normalizeStyleClasses } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -40,6 +41,20 @@ import { withSignals } from './signals.js';
  */
 const HEADER_BAR_SLOTS = ['titleWidget', 'startBox', 'endBox', 'title-widget', 'start', 'end'] as const;
 
+function childrenOf(box: StackLayout): SideChild[] {
+    const out: SideChild[] = [];
+    for (let i = 0; i < box.getChildrenCount(); i++) {
+        const child = box.getChildAt(i);
+        out.push({
+            visible: child.visibility === 'visible',
+            width: child.getActualSize().width,
+            marginStart: Number(child.marginLeft) || 0,
+            marginEnd: Number(child.marginRight) || 0,
+        });
+    }
+    return out;
+}
+
 export class AdwHeaderBar extends withSignals(GridLayout) {
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(HEADER_BAR_SLOTS, 'startBox');
@@ -51,6 +66,8 @@ export class AdwHeaderBar extends withSignals(GridLayout) {
     /** The centered title widget (default {@link AdwWindowTitle}). */
     private _titleWidget: View;
     private _styleClasses: string[] = [];
+    /** The padding last written to each side, so an unchanged reading writes (and lays out) nothing. */
+    private readonly _balanced = { start: -1, end: -1 };
 
     constructor(props?: ConstructProps<AdwHeaderBar>) {
         super();
@@ -85,7 +102,23 @@ export class AdwHeaderBar extends withSignals(GridLayout) {
         this.addChild(endBox);
         this._endBox = endBox;
 
+        // Both sides take the width of the wider one, so the title is centred on the bar as
+        // `Adw.HeaderBar` does it, whatever the number of buttons on either side.
+        this.addEventListener('layoutChanged', () => this._balanceSides());
+
         applyConstructProps(this, props);
+    }
+
+    private _balanceSides(): void {
+        // The room each side's children need, read from the children: the box's own size
+        // includes the padding written here, which would only ever grow.
+        const start = sideNaturalWidth(childrenOf(this._startBox), 0);
+        const end = sideNaturalWidth(childrenOf(this._endBox), 0);
+        const width = balancedSideWidth(start, end);
+        // Padding on the inside edge keeps the buttons against the window's edge, which a
+        // minimum width would not: a horizontal stack lays its children out from the left.
+        if (this._balanced.start !== width - start) this._startBox.paddingRight = this._balanced.start = width - start;
+        if (this._balanced.end !== width - end) this._endBox.paddingLeft = this._balanced.end = width - end;
     }
 
     /** The header title — forwarded to the default {@link AdwWindowTitle}. */

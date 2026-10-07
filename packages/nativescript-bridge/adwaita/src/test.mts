@@ -5,6 +5,8 @@ import svgPathTestSuite from './svg-path.spec.js';
 import actionsTestSuite from './actions.spec.js';
 import iconThemeTestSuite from './icon-theme.spec.js';
 import { AdwBottomSheetNsTest } from './bottom-sheet.spec.js';
+import bottomSheetDragTestSuite from './bottom-sheet-drag.spec.js';
+import headerBarBalanceTestSuite from './header-bar-balance.spec.js';
 import { AdwCarouselNsTest } from './carousel.spec.js';
 import chromeTestSuite from './chrome.spec.js';
 import preferencesTestSuite from './preferences.spec.js';
@@ -46,6 +48,8 @@ import listBoxStateTestSuite from './list-box-state.spec.js';
 import nsLengthTestSuite from './ns-length.spec.js';
 
 run({
+    bottomSheetDragTestSuite,
+    headerBarBalanceTestSuite,
     constructPropsTestSuite,
     signalsTestSuite,
     iconSizeTestSuite,
