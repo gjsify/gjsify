@@ -91,6 +91,8 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import type { DispatchedSignals } from '../signals.js';
+
 /** `GtkStackTransitionType`, spelled as the GIR's enum nicks (gtkstack.c:95-121). */
 export type StackTransitionType =
     | 'none'
@@ -224,6 +226,9 @@ export interface GtkStackPageInfo {
 const PAGE_ATTRIBUTES = ['name', 'title', 'icon-name', 'use-underline', 'needs-attention'];
 
 export class GtkStack extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { 'notify::visible-child-name': 'notify::visible-child-name' };
+
     /** The child that is visible, or `null` — C's `priv->visible_child`. */
     private _visible: HTMLElement | null = null;
     /** C's `priv->last_visible_child`: the page being animated away. */

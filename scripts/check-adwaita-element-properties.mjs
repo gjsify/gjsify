@@ -156,20 +156,21 @@ const KNOWN_GAPS = {
     // NativeScript box declares.
     'gtk-box': ['baseline-child', 'baseline-position'],
     'gtk-button': ['can-shrink', 'has-frame', 'use-underline'],
-    // `active` and `inconsistent` are the two GIR names this element DELIBERATELY does
-    // not use: it wraps a real `<input>`, so the state is `checked` and `indeterminate`
-    // — the two spellings libadwaita's own cascade selects on (`_checks.scss`). GTK
-    // raises the same state flags for them (gtkcheckbutton.c:647-691), so the divergence
-    // is in the ATTRIBUTE NAME only. `use-underline` is a mnemonic hook on a `GtkLabel`
-    // child (gtkcheckbutton.c:693-702); the label here is a plain `<span>` with no
-    // keyval, so there is nothing for it to underline.
+    // `inconsistent` is the GIR name this element DELIBERATELY does not use: it wraps a
+    // real `<input>`, so the state is `indeterminate` — the spelling libadwaita's own
+    // cascade selects on (`_checks.scss`). GTK raises the same state flag for it
+    // (gtkcheckbutton.c:647-691), so the divergence is in the ATTRIBUTE NAME only.
+    // `active` is observed as an alias of `checked`, because a projected `.blp` writes
+    // and binds the GObject name (ADR 0093). `use-underline` is a mnemonic hook on a
+    // `GtkLabel` child (gtkcheckbutton.c:693-702); the label here is a plain `<span>`
+    // with no keyval, so there is nothing for it to underline.
     // The three GStrv credit lists (`char **`). `<adw-about-dialog>` sets its own
     // `developers` / `designers` / `artists` / `documenters` as PROPERTIES and its entry
     // above is the ledger for them, so this element's `authors` / `documenters` / `artists`
     // are properties too — an attribute is one string, and a credit line is a `char *` with
     // its own `<email>` / URL syntax inside it. `parseCreditPerson` reads them.
     'gtk-about-dialog': ['artists', 'authors', 'documenters'],
-    'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
+    'gtk-check-button': ['inconsistent', 'use-underline'],
     'gtk-drop-down': ['search-match-mode', 'show-arrow'],
     // `use-es` is DEPRECATED in GTK 4.12 and `allowed-apis` replaced it
     // (gtkglarea.c:969-971, :1235-1254). The element carries the replacement, so the
