@@ -21,7 +21,12 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { build } from './builder/index.js';
+import * as Adw from './namespace/adw.js';
 import { ViewStackPage } from './namespace/adw.js';
+import * as Gtk from './namespace/gtk.js';
+import { bottomSheetPanel } from './widgets/adw-bottom-sheet.js';
+import type { AdwBottomSheet } from './widgets/adw-bottom-sheet.js';
+import { padForSystemInsets } from './widgets/system-insets.js';
 import { Label, LayoutBase } from './testing/ns-core.mjs';
 
 import sheetTree from '../../../web/adwaita-core/src/conformance/blueprints/bottom-sheet-layout.blp?shared-tree';
@@ -114,6 +119,60 @@ export const AdwBlueprintTreesNsTest = async () => {
 
             expect(sheet.modal).toBe(false);
             expect(withClass(sheet, 'adw-bottom-sheet-dimming')[0]?.visibility).toBe('collapse');
+        });
+    });
+
+    await describe('a bottom sheet authored with `bottom-bar:`', async () => {
+        const authored = (): Built =>
+            built({
+                tag: 'AdwBottomSheet',
+                children: [
+                    { tag: 'GtkLabel', id: 'help', slot: 'bottom-bar', props: { label: 'Help' } },
+                    { tag: 'GtkLabel', id: 'code', slot: 'content', props: { label: 'Code' } },
+                ],
+            });
+
+        await it('takes the bar under the spelling a Blueprint property writes', () => {
+            // `editor.blp` writes `bottom-bar: Label { … }`; the widget only knew `bottomBar`, so the
+            // builder refused the tree and Learn6502's Android port had no way to open its quick help.
+            const sheet = authored();
+
+            expect(sheet.bottomBar).toBe(byId(sheet, 'help'));
+            expect(sheet.content).toBe(byId(sheet, 'code'));
+        });
+
+        await it('pads the one view on the screen edge for the gesture area, and gives the padding back', () => {
+            const panel = bottomSheetPanel(authored() as unknown as AdwBottomSheet) as unknown as {
+                paddingBottom?: number;
+            };
+            panel.paddingBottom = 6;
+
+            const release = padForSystemInsets(panel as never);
+            // No platform here, so the inset is zero and the widget keeps what it had.
+            expect(panel.paddingBottom).toBe(6);
+            release();
+            expect(panel.paddingBottom).toBe(6);
+        });
+    });
+
+    await describe('a view switcher bar that collapses', async () => {
+        await it('a view switcher bar that collapses has its parent measured again', () => {
+            // NativeScript leaves the slot around a collapsed child at the child's old height, which
+            // showed as a blank strip where the tabs had been.
+            const host = new Gtk.Box();
+            const stack = new Adw.ViewStack();
+            for (const name of ['a', 'b']) stack.add(new Gtk.Label() as unknown as never, name, name, '');
+            const bar = new Adw.ViewSwitcherBar();
+            host.append(bar as unknown as never);
+            bar.set_stack(stack);
+            bar.reveal = true;
+            expect(bar.revealed).toBe(true);
+
+            const before = (host as unknown as { layoutRequests: number }).layoutRequests;
+            bar.reveal = false;
+
+            expect(bar.visibility).toBe('collapse');
+            expect((host as unknown as { layoutRequests: number }).layoutRequests > before).toBe(true);
         });
     });
 

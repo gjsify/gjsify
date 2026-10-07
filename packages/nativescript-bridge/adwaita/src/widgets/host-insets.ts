@@ -14,8 +14,7 @@
 // and 63 px + 63 px below the content — 108 dp of dead chrome at the top, 48 dp at the
 // bottom, against GTK and browser twins that have neither.
 //
-// The two edges do NOT get the same answer, and the reason is measurable rather than
-// aesthetic:
+// The two edges got different answers, and the bottom one has changed since:
 //
 //   - TOP: the band the page pays is painted by the PAGE background; the band the
 //     toolbar view pays is painted by `.adw-toolbar-view-top`, i.e. the header colour.
@@ -24,12 +23,13 @@
 //     mismatched stripe between the clock and the header — the exact defect fixed one
 //     level down. The toolbar view is the only payer that can paint it right, so the
 //     HOST has to stop paying this edge.
-//   - BOTTOM: the page's payer is the only one that also carries the KEYBOARD.
-//     `LayoutBase$2.onApplyWindowInsets` pays `max(systemBars.bottom, ime.bottom)`, and
-//     only on the branch that pays the system bars at all. Taking that edge away from
-//     the page takes the IME with it: the window then pans instead of resizing, the
-//     header bar leaves the screen and the focused field slides under the keyboard.
-//     So the TOOLBAR VIEW stops paying this edge.
+//   - BOTTOM: the page's payer is the one that also carries the KEYBOARD
+//     (`max(systemBars.bottom, ime.bottom)`), which is why it was left paying. It also
+//     paints the gesture area in the page's colour — a blank band under a pane that
+//     should run to the screen edge (Learn6502's wide layout) — and flipping it off while
+//     the keyboard is down and on while it is up made the page pay the TOP a second time
+//     for good (measured). So the page pays nothing at the bottom either, and the toolbar
+//     view pays the keyboard itself (`withKeyboard`, from the `ime` field of the reading).
 //
 // The platform variants beside this file (`.android.ts`, `.ios.ts`) each answer for
 // their host; a consumer only ever writes `./host-insets.js`.

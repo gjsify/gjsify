@@ -64,6 +64,9 @@ export {
     DEFAULT_AVATAR_SIZE,
     avatarInitials,
     DEFAULT_CLAMP_MAX_SIZE,
+    // System insets as padding
+    padForSystemInsets,
+    bottomSheetPanel,
     // Presentation / layout
     AdwDataGrid,
     ROW_ACTIVATED,
@@ -229,6 +232,7 @@ export type {
     OrderedConfirmResponses,
     // Construct properties
     ConstructProps,
+    SystemInsetEdges,
     // Icon helpers
     IconValueKind,
     SymbolicIconOptions,

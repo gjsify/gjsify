@@ -32,17 +32,11 @@ import type { View } from '@nativescript/core';
 import { withPageClass } from './system-bars.js';
 import { type HostPaidEdges, NO_HOST_PAYMENT, type WindowInsets } from './window-insets.js';
 
-/**
- * The page pays the bottom edge — with the keyboard folded into it — and, after the
- * write below, nothing at the top.
- */
-const PAGE_PAYS_THE_BOTTOM: HostPaidEdges = { top: false, bottom: true };
-
 /** The theme's window fill (`Page.adw-window`), in both schemes. */
 const PAGE_CLASS = 'adw-window';
 
-/** `CoreTypes.AndroidOverflow`: let the content overflow the top edge, pay the rest. */
-const OVERFLOW_TOP = 'top';
+/** `CoreTypes.AndroidOverflow`: let the content overflow the top and the bottom edge. */
+const OVERFLOW_EDGES = 'top,bottom';
 
 /** Settle which window-inset edges `view` still owes. See {@link resolveHostInsets}. */
 export function resolveHostInsets(view: View, insets: WindowInsets): HostPaidEdges {
@@ -66,6 +60,11 @@ export function resolveHostInsets(view: View, insets: WindowInsets): HostPaidEdg
     // installs last owns the reading and the other's subscribers stay at zero forever.
     // Re-reading the guard on every application also covers a view re-attached to a
     // different page, which a one-shot at `loaded` would not.
-    if (insets.top > 0 && page.androidOverflowEdge !== OVERFLOW_TOP) page.androidOverflowEdge = OVERFLOW_TOP;
-    return PAGE_PAYS_THE_BOTTOM;
+    // The page pays nothing at the bottom either: the app draws behind the gesture area, which
+    // is what keeps that area from being a blank band in the page's colour. The keyboard, which
+    // only the page's padding used to move the window up for, is paid by the toolbar view
+    // instead (`withKeyboard`). Not by flipping this between `top` and `top,bottom` as the
+    // keyboard comes and goes: measured, the page then paid the top edge a second time for good.
+    if (insets.top > 0 && page.androidOverflowEdge !== OVERFLOW_EDGES) page.androidOverflowEdge = OVERFLOW_EDGES;
+    return NO_HOST_PAYMENT;
 }

@@ -258,5 +258,9 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
 
     private _applyRevealed(): void {
         this.visibility = this._barState.revealed ? 'visible' : 'collapse';
+        // A collapsed child does not make NativeScript re-measure the slot it sits in: the box
+        // around the bar kept the bar's height (measured: 51 dp of blank under a bar that was
+        // gone), so a wide layout showed a strip where the tabs had been.
+        this.parent?.requestLayout();
     }
 }

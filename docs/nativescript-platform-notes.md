@@ -62,6 +62,31 @@ The EXPANDED breakpoint is the strongest evidence for the design — the band is
 above the sidebar and `#1d1d20` above the content, two colours in one row, which a
 page-painted band cannot produce.
 
+## Edge-to-edge at the bottom — the page pays nothing, the owner of the edge does
+
+The page used to pay the bottom edge (it is the only layout whose padding also folds the
+keyboard in), painted in the window colour. A pane that should run down to the screen edge
+(Learn6502 wide: the columns, the editor) showed a blank band under the gesture area, plus
+51 dp where a collapsed view switcher bar had been, because **a `GridLayout`'s child that
+collapses does not make NativeScript re-measure the slot around it** — `AdwViewSwitcherBar`
+now asks its parent for a layout pass itself. Since then:
+
+- `host-insets.android.ts` writes `androidOverflowEdge = 'top,bottom'` and the page pays
+  neither edge. Toggling it with the keyboard (`top` while it is up) was tried and made the
+  page pay the top a second time for good.
+- The reading carries `ime` (the keyboard, while it is up) and `AdwToolbarView` pays
+  `max(systemBars, ime)` at the bottom (`withKeyboard`), so the window still sits above the
+  keyboard.
+- A bottom bar that exists but is **collapsed** still owns the bottom edge and pays nothing:
+  the content runs under the gesture area. What must not sit there pads itself with
+  `padForSystemInsets(view)` — the Help bar of the bottom sheet (`bottomSheetPanel(sheet)`)
+  and the scrolling content of the side columns. GTK has no insets and the NativeScript CSS
+  subset has no custom properties, so the shared `.blp` stays as it is and the app asks for
+  the number after building. With the keyboard up the toolbar view pays and the hook pads 0.
+- Measured on `Tablet_API_36` (2560×1600, gestural and three-button navigation) and a
+  1080×2400 phone size: the switcher bar paints under the gesture pill; with three buttons
+  the inset stays a fixed edge.
+
 ## The inset band takes the widget's colour, not the pane's
 
 `AdwToolbarView` pads its top-bar BOX with the status-bar inset, and
