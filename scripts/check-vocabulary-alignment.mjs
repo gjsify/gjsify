@@ -876,6 +876,9 @@ const NS_METHOD_ALIGNMENT = {
     'adw-password-entry-row.setCapsLockOn': {
         own: 'GDK reads the Caps Lock state off the keyboard for the warning icon; NativeScript exposes no keyboard modifier state, so the port has to be TOLD, and the method is that input (adw-password-entry-row.ts, COMPROMISE).',
     },
+    'adw-bottom-sheet.applyBottomInset': {
+        own: 'GTK has no window insets at all — a GNOME sheet reaches the window edge and nothing is drawn over it. On Android the sheet is the one widget always on the gesture area, in two shapes that need the inset in two different forms, so it is handed the reading and splits it itself (bottom-sheet-insets.ts).',
+    },
     'adw-bottom-sheet.requestClose': {
         own: 'GTK gates dismissal with `Adw.BottomSheet:can-close` and the `close-attempt` signal, with no method. The port routes every dismissal affordance — scrim tap, drag, back — through one gate and exposes it so a host can add its own (adw-bottom-sheet.ts).',
     },

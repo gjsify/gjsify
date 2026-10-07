@@ -611,5 +611,7 @@ export { configureSystemBars, systemBarsConfig, WINDOW_BACKGROUND } from './syst
 export type { BarIcons, SystemBarEdges, SystemBarsOptions, ResolvedSystemBars } from './system-bars.js';
 
 // --- The system insets as padding on a widget that has to clear them ---
-export { padForSystemInsets } from './system-insets.js';
-export type { SystemInsetEdges } from './system-insets.js';
+export { padForSystemInsets, padSheetForSystemInsets } from './system-insets.js';
+export type { BottomInsetPayer, SystemInsetEdges } from './system-insets.js';
+export { SHEET_CONTENT_BOTTOM_GAP, bottomSheetInsetPadding } from './bottom-sheet-insets.js';
+export type { BottomSheetInsetPadding, BottomSheetInsetShape } from './bottom-sheet-insets.js';

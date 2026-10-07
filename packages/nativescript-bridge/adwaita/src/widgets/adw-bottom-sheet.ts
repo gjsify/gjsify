@@ -67,6 +67,7 @@ import {
     type BottomSheetPanes,
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
+import { bottomSheetInsetPadding } from './bottom-sheet-insets.js';
 import {
     GRIP_HEIGHT,
     NestedDragTracker,
@@ -145,7 +146,15 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     private readonly _sheetPage: GridLayout;
     private _drag: SheetDrag | null = null;
     private readonly _nested = new NestedDragTracker();
-    private readonly _watched = new WeakSet<View>();
+    /**
+     * Every scrolling view inside the sheet child. Held by STRONG reference, unlike the
+     * `WeakSet` that only had to answer "watched already?": the bottom inset has to be
+     * re-applied to each of them on a later reading, so they have to be enumerable.
+     * `set_sheet` empties it, which is the same lifetime the views themselves have.
+     */
+    private readonly _scrolls = new Set<ScrollView>();
+    /** The bottom window inset this sheet owes — {@link applyBottomInset}. */
+    private _bottomInset = 0;
     /** The height the panel has with the bar in it, what a drag that closes the sheet falls to. */
     private _barHeight = 0;
     /** The bottom-bar bin — the bin's other layer, tapped to open the sheet. */
@@ -238,6 +247,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         this._sheetPage = sheetPage;
         this._bottomBarBin = bottomBarBin;
         this._paintChrome();
+        this._applyInsetPadding();
 
         this.addEventListener('layoutChanged', () => {
             this._syncHeight();
@@ -252,6 +262,37 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         });
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * Pay `inset` dip of bottom window inset — the gesture area a sheet on the screen's bottom
+     * edge sits on. Call it with `0` to stop paying; off Android every reading is `0` anyway.
+     *
+     * The WIDGET pays rather than the host, because only the widget knows which of its parts is
+     * at the edge in which state, and the two forms of payment are not interchangeable: see
+     * `bottom-sheet-insets.ts`. A host that wires this to a live reading uses
+     * `padSheetForSystemInsets` (`system-insets.ts`).
+     */
+    applyBottomInset(inset: number): void {
+        this._bottomInset = inset;
+        this._applyInsetPadding();
+    }
+
+    /** Split {@link applyBottomInset}'s reading over the bar, the scrolling content and the page. */
+    private _applyInsetPadding(): void {
+        const padding = bottomSheetInsetPadding(this._bottomInset, { sheetScrolls: this._scrolls.size > 0 });
+        this._bottomBarBin.paddingBottom = padding.bar;
+        // The page's own bottom padding is written from here and NOWHERE else — the stylesheet
+        // states the other three edges. One writer, because a `padding` in the CSS would be the
+        // viewport-shortening half of the very split this is making.
+        this._sheetPage.paddingBottom = padding.page;
+        for (const scroll of this._scrolls) {
+            // The padding goes on the CONTENT, not on the `ScrollView`: Android's ScrollView
+            // clips to its own padding (`clipToPadding` defaults to true), so padding it is the
+            // hard clip this exists to remove. Inside the content the same number scrolls.
+            const content = scroll.content;
+            if (content) content.paddingBottom = padding.scrollEnd;
+        }
     }
 
     /** Push the current chrome onto the three views — the widget's whole rendering step. */
@@ -288,9 +329,12 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
      */
     private _watchScrolling(view: View): void {
         if (view instanceof ScrollView) {
-            if (this._watched.has(view)) return;
-            this._watched.add(view);
+            if (this._scrolls.has(view)) return;
+            this._scrolls.add(view);
             view.addEventListener('touch', (args) => this._onNestedTouch(view, args as TouchGestureEventData));
+            // The sheet child arrives after the constructor, and whether it scrolls is what
+            // decides where the bottom inset goes — so the split is re-taken here.
+            this._applyInsetPadding();
             return;
         }
         const layout = view as unknown as { getChildrenCount?(): number; getChildAt?(i: number): View; content?: View };
@@ -409,6 +453,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         if (this._sheetChild) {
             this._sheetChild.className = removeMarkerClass(this._sheetChild.className, SHEET_CLASS);
             this._sheetPage.removeChild(this._sheetChild);
+            this._scrolls.clear();
         }
         this._sheetChild = view;
         if (view) {
@@ -419,6 +464,9 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
             this._watchScrolling(view);
             view.addEventListener('loaded', () => this._watchScrolling(view));
         }
+        // A sheet child with nothing scrolling in it reaches no `_watchScrolling` branch that
+        // re-splits, and neither does a cleared one — so the split is re-taken either way.
+        this._applyInsetPadding();
     }
 
     /**

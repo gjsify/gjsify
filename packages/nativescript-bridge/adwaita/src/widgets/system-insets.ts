@@ -41,3 +41,34 @@ export function padForSystemInsets(view: View, edges: SystemInsetEdges = { botto
         if (edges.bottom) view.paddingBottom = own.bottom;
     };
 }
+
+/**
+ * A widget that takes its bottom window inset as a number and decides itself where to put it.
+ *
+ * Structurally typed rather than `AdwBottomSheet`, so this module keeps importing no widget:
+ * every widget here `extends` an `@nativescript/core` class and cannot be resolved off a device.
+ */
+export interface BottomInsetPayer {
+    applyBottomInset(inset: number): void;
+}
+
+/**
+ * Keep `sheet` paying the live bottom system inset — for a bottom sheet that sits on the
+ * screen's bottom edge, as in a wide layout's editor column. Returns the release.
+ *
+ * NOT {@link padForSystemInsets} over the sheet's panel, which is what this replaces: padding
+ * the panel shortens the open sheet's viewport and hard-clips the last line of its content a
+ * gesture area above the screen edge. Only the widget knows which of its parts is at the edge
+ * in which state, so it is handed the number and splits it (`widgets/bottom-sheet-insets.ts`).
+ */
+export function padSheetForSystemInsets(sheet: BottomInsetPayer): () => void {
+    const detach = observeWindowInsets((insets) => {
+        // With the keyboard up the toolbar view pays the bottom edge, and the sheet must not —
+        // the same exemption {@link padForSystemInsets} makes.
+        sheet.applyBottomInset((insets.ime ?? 0) > 0 ? 0 : insets.bottom);
+    });
+    return () => {
+        detach();
+        sheet.applyBottomInset(0);
+    };
+}
