@@ -353,3 +353,12 @@ focus themselves, so a blanket "delegate to the first focusable child" would
 fight them. GTK's own spelling of the operation is `gtk_widget_activate()`;
 `click()` on a `<gtk-button>` that does not activate is the divergence from it.
 Fixing only `click()` would leave the focus half unclosed.
+
+
+### A project's templates name tags that `adwaita-web` has no element for
+
+Which tags, and in which templates, is printed by `node scripts/report-target-gap.mjs <project-dir>`
+and deliberately not written down here: a hand count is stale as soon as a widget lands (see the
+NativeScript entry on the `xmlns` barrels). Each tag the report lists
+becomes an element (or an alias on an existing one) with a browser test, in the order the report's
+summary ranks them. `GtkSource.View` follows ADR 0094, not a one-off element.

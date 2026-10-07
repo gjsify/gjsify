@@ -1,5 +1,5 @@
 ---
-order: 3
+order: 4
 tier: high
 ---
 **Keep the ledger measurable — the guards are exhausted, the reading pass is not.** Entries
