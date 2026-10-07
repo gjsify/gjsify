@@ -1,6 +1,6 @@
 # 96. A GObject subset runs on the browser and NativeScript, measured by the gap report
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-07)
 - Date: 2026-10-07
 - Deciders: Pascal Garber
 - Related: [ADR 0033 (declarative templates)](0033-declarative-templates-preferred.md),
@@ -95,8 +95,9 @@ subset is what the gap report lists, and nothing it does not list.**
 
 | GJS spelling | on the browser and NativeScript |
 |---|---|
-| `GObject.registerClass(meta, klass)` with `GTypeName`, `Template`, `InternalChildren`, `Properties`, `Signals`, `CssName` | implemented. Any other meta key is refused by name at registration |
-| `GObject.ParamSpec.{boolean,string,int,uint,double}`, `GObject.ParamFlags.{READABLE,WRITABLE,READWRITE,CONSTRUCT}` | implemented: an accessor per property, validated as GObject validates it (range for numbers), `notify` on a changed value |
+| `GObject.registerClass(meta, klass)` with `GTypeName`, `Template`, `InternalChildren`, `Properties`, `Signals`, `CssName` | implemented. Any other meta key (`Children`, `Implements`, `Requires`, `GTypeFlags`) is refused by name at registration |
+| the same keys as static class fields (`static [GObject.GTypeName] = …`, `GObject.properties`, …) | implemented. GJS's `registerClass` only copies the meta object onto these symbols, so they are the internal form here too, and a class written in the field form does not silently lose its keys to `static [undefined]` |
+| `GObject.ParamSpec.{boolean,string,int,uint,double}`, `GObject.ParamFlags.{READABLE,WRITABLE,READWRITE,CONSTRUCT}` | implemented, by GJS's rule (`_checkAccessors` / `_generateAccessors` in `modules/core/_common.js`): accessors the class defines are kept; a missing pair is generated, returning the ParamSpec default until set and calling `notify` only when the new value is `!==` the old one; a dashed name is reachable as `dash-name`, `dash_name` and `dashName`. A JS assignment is not range-checked, on GJS either |
 | `Signals: { name: { param_types } }`, `GObject.TYPE_{STRING,BOOLEAN,INT,UINT,DOUBLE}` | implemented. A param type outside that list is refused at registration |
 | `this.notify(name)`, `connect`/`disconnect`/`emit` on a registered instance, `connect('notify::x')` | implemented, for the class's own properties and signals and for those of the port widget it extends |
 | `GObject.type_ensure(klass.$gtype)` | implemented: `$gtype` is an opaque token, and `type_ensure` only proves the class module was evaluated, which is all Learn6502 uses it for |
@@ -122,12 +123,19 @@ is being converted, together with a vector. "GObject would have it" is not a rea
    `GTypeName` (`Hexdump` → `gjsify-hexdump`) and refuses a collision by name. `registerTemplateClass`
    stays the primitive for code that is not a GObject class; an application that uses
    `registerClass` never calls it.
-4. Wraps construction so that, when `super(params)` returns, the template is built and each id in
-   `InternalChildren` is `this._<camelCase id>`, as GJS does. Declared properties are taken out of
-   `params` before they reach the port's construct bag, so the NativeScript bag does not refuse
-   them; the rest goes through unchanged.
-5. Sets the template's handler scope and its `template` bind source to the instance. Bind flags
-   go through the binding engine.
+4. Wraps construction in GJS's order (`Gtk.Widget.prototype._init` and `_registerWidgetType` in
+   `modules/core/overrides/Gtk.js`): the template is built first (GTK's `init_template` runs in
+   instance init), then the construct properties are set, and only when that returns is each id in
+   `InternalChildren` installed as `this._<id>`, with `-` replaced by `_`. So `this._x` exists after
+   `super(params)` and is `undefined` inside a property setter run during construction, on GJS
+   and here alike; the GJS driver of the vectors pins that order. Declared properties are taken
+   out of `params` before they reach the port's construct bag, so the NativeScript bag does not
+   refuse them; the rest goes through unchanged.
+5. Sets the template's handler scope and its `template` bind source to the instance. A handler is
+   looked up on the instance and bound to the `object:` of the signal if it names one, else to the
+   instance; a missing handler throws `A handler called <name> was not defined on <instance>`, and
+   `swapped` is refused, both as GJS's `_createClosure` does. Bind flags go through the binding
+   engine.
 
 On the web, the built children are attached to the host on its first `connectedCallback`, not in
 the constructor, because the custom-element rules forbid children there. They exist and are
@@ -152,6 +160,10 @@ import Template from './hexdump.blp?template';
   `for=`, and a construct the port refuses fails the BUILD, naming the file and line.
 - Its type is an opaque `BlueprintTemplate` that only `registerClass` accepts. Application code
   cannot read it, so it cannot depend on what it is on one target.
+
+GJS's `registerClass` also takes a `resource://` or `file://` URI and raw bytes as `Template`.
+Those, and a `.ui` file imported as XML, stay GJS-only: the ports refuse a `Template` that is not
+a `?template` value, naming the class.
 
 Converting a component means changing this one import line. The GNOME app keeps working with it,
 because on GJS the value is the same string.
