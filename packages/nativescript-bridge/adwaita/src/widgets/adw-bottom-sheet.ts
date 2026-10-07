@@ -116,6 +116,9 @@ interface PanGestureEventData {
     readonly deltaY: number;
 }
 
+/** Height of the grip strip across the top of an open sheet, in DIPs. */
+const GRIP_HEIGHT = 28;
+
 /** GestureStateTypes: `began`, `changed`, `ended`, with `cancelled` as 0. */
 const PAN_BEGAN = 1;
 const PAN_CHANGED = 2;
@@ -213,6 +216,16 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         GridLayout.setRow(handle, 0);
         sheetPage.addChild(handle);
 
+        // The grip: a transparent strip over the top of the content that takes the touch away
+        // from the scroll view there, so a drag on the handle moves the sheet and never scrolls
+        // the text under it. It takes no room: it shares the cell with the content.
+        const grip = new StackLayout();
+        grip.className = 'adw-bottom-sheet-grip';
+        grip.verticalAlignment = 'top';
+        grip.height = GRIP_HEIGHT;
+        GridLayout.setRow(grip, 0);
+        sheetPage.addChild(grip);
+
         // The whole panel is the grip: the bar, the handle and any part of the sheet that is
         // not itself scrolling. `allow_mouse_drag = show_drag_handle || bottom_bar`.
         sheetPanel.addEventListener('pan', (args) => this._onPan(args as unknown as PanGestureEventData));
@@ -303,8 +316,9 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     }
 
     private _onPan(args: PanGestureEventData): void {
-        // The nested pull has the touch; a pan that also fires must not drive the same sheet twice.
-        if (this._nested.dragging) return;
+        // The pan fires on the panel even while a scroll view inside it consumes the touch. A
+        // gesture that began in scrolling content belongs to the nested tracker alone.
+        if (this._nested.ignorePan(args.state)) return;
         if (args.state === PAN_BEGAN) this._beginDrag();
         else if (args.state === PAN_CHANGED) this._moveDrag(args.deltaY);
         else this._endDrag(args.deltaY, args.state === 0);

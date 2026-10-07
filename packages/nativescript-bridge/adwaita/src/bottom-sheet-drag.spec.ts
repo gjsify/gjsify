@@ -171,4 +171,43 @@ export default async () => {
             expect(cancel.kind === 'end' ? cancel.dy : -1).toBe(0);
         });
     });
+
+    await describe('NestedDragTracker.ignorePan', async () => {
+        await it('leaves a pan alone that began outside scrolling content', () => {
+            const t = new NestedDragTracker();
+            expect(t.ignorePan(1)).toBe(false);
+            expect(t.ignorePan(2)).toBe(false);
+            expect(t.ignorePan(3)).toBe(false);
+        });
+
+        await it('ignores the whole pan of a touch that went down in scrolling content', () => {
+            const t = new NestedDragTracker();
+            t.down(100);
+            expect(t.ignorePan(1)).toBe(true);
+            t.move(160, 40);
+            expect(t.ignorePan(2)).toBe(true);
+            t.up();
+            // The touch is over, but the pan still ends: that end is ignored too, then it is reset.
+            expect(t.ignorePan(3)).toBe(true);
+            expect(t.ignorePan(1)).toBe(false);
+        });
+
+        await it('does not let mid-content scrolling move the sheet, whatever the distance', () => {
+            const t = new NestedDragTracker();
+            t.down(100);
+            t.ignorePan(1);
+            for (let y = 110; y < 500; y += 10) {
+                expect(t.move(y, 300).kind).toBe('none');
+                expect(t.ignorePan(2)).toBe(true);
+            }
+        });
+
+        await it('takes a touch whose down was never delivered to begin at its first move', () => {
+            const t = new NestedDragTracker();
+            expect(t.move(100, 300).kind).toBe('none');
+            expect(t.ignorePan(1)).toBe(true);
+            for (let y = 110; y < 400; y += 10) expect(t.move(y, 300).kind).toBe('none');
+            expect(t.dragging).toBe(false);
+        });
+    });
 };
