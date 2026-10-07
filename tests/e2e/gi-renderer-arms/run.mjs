@@ -278,6 +278,37 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
         });
     }
 
+    // ADR 0096 § 4: `./x.blp?template` is one specifier with one meaning per target.
+    for (const arm of ARMS) {
+        it(`--app ${arm.app} --gi-renderer serves ?template as the projected tree`, () => {
+            const built = build('template-ok.ts', arm.app, { name: `template-ok-${arm.app}` });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            assert.ok(!readFileSync(built.outFile, 'utf-8').includes('<interface'), 'the XML string was shipped');
+        });
+
+        it(`--app ${arm.app} refuses ?template without --gi-renderer, naming the flag`, () => {
+            const built = build('template-ok.ts', arm.app, { arm: false, name: `template-off-${arm.app}` });
+            assert.notEqual(built.status, 0, `?template built with no renderer\n${built.output}`);
+            assert.ok(built.output.includes('--gi-renderer'), 'the refusal does not name the flag');
+        });
+    }
+
+    it('--app browser --gi-renderer fails the build on a refused construct, naming file and line', () => {
+        const built = build('template-refused.ts', 'browser', { name: 'template-refused' });
+        assert.notEqual(built.status, 0, `a refused construct built anyway\n${built.output}`);
+        assert.match(built.output, /19-layout\.blp:\d+/, 'the refusal does not name file and line');
+    });
+
+    it('--app gjs serves ?template as the GtkBuilder XML string', () => {
+        const built = build('template-ok.ts', 'gjs', { arm: false, name: 'template-gjs' });
+        assert.equal(built.status, 0, `build failed\n${built.output}`);
+        assert.ok(readFileSync(built.outFile, 'utf-8').includes('<interface'), 'the XML string is missing');
+        // The default-options plugin writes ADR 0088's sidecar beside the corpus file; the corpus is not ours to dirty.
+        rmSync(join(MONOREPO_ROOT, 'packages/infra/blueprint/corpus/rules/01-object-minimal.d.blp.ts'), {
+            force: true,
+        });
+    });
+
     for (const app of ['gjs', 'node']) {
         it(`--gi-renderer is refused on --app ${app}, which already answers gi://`, () => {
             const built = build('probe.ts', app, { name: `no-arm-${app}` });
