@@ -358,7 +358,10 @@ export class GtkButton extends withSignals(GridLayout) {
      */
     private _pinIconColor(): void {
         if (!(this._content instanceof GtkImage)) return;
-        if (this._styleClasses.some((name) => name === 'osd' || name === 'suggested-action') || this._inOsdContainer()) {
+        if (
+            this._styleClasses.some((name) => name === 'osd' || name === 'suggested-action') ||
+            this._inOsdContainer()
+        ) {
             this._content.iconColor = '#ffffff';
         }
     }
