@@ -1,5 +1,5 @@
 ---
-order: 2
+order: 3
 tier: high
 ---
 **Make the gates prove what they claim.** A gate that passes without measuring anything is

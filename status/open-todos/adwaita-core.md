@@ -170,3 +170,26 @@ shapes of a class reads as covering the class. Closing this means deciding per
 chain whether the conceded rows matter, then either widening the specs or
 narrowing the reasons to the rows they really carry — reason work, not gate work.
 
+
+
+### A portable `gi://GObject` subset on the browser and NativeScript needs its ADR
+
+`GObject.registerClass` is what every Learn6502 component class calls, and neither
+`@gjsify/adwaita-web` nor `@gjsify/adwaita-nativescript` answers `gi://GObject`
+(`packages/infra/resolve-npm/lib/gi-renderers.mjs` has no row for it), so the same component class
+cannot yet run on all three targets. The ADR decides the subset and where it lives. Candidate home:
+`adwaita-core`, so both ports share one implementation. Scope: `registerClass` with `GTypeName`,
+`Template`, `InternalChildren`, `Properties` and `Signals`; `notify::<property>`; and
+`bind_property` with `BIDIRECTIONAL`, `INVERT_BOOLEAN` and `SYNC_CREATE`. The bound on the scope is
+`node scripts/report-target-gap.mjs <project-dir>`: a member it does not list among the value uses
+is not in the subset, and one used only as a type needs nothing from a renderer.
+The ADR also decides whether `registerTemplateClass` (ADR 0093 § 2) becomes a detail of
+`registerClass`, so an application registers a class once.
+
+
+### The portable `gi://GObject` subset is not implemented
+
+Follows the ADR above. Vectors for the subset in `adwaita-core/conformance`, driven by both ports;
+a `gi://GObject` row in `GI_RENDERERS`; an arm in `tests/e2e/gi-renderer-arms` that registers a
+class with a template and binds a property through `--gi-renderer`. The vectors come first: an
+implementation on one port with no vector is how the two ports diverged before.

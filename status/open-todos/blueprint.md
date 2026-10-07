@@ -567,3 +567,15 @@ in favour of `extends Children`, and decide deliberately that the `.d.blp.ts` tr
 file. Run the `create-app` e2e after, since it is the only thing that builds a scaffold the way a
 user does. For `@gjsify/storybook`: settle the packaging first, then the migration is the same three
 steps, and `gjsify run test:gjs` is the verification because it boots the templated window.
+
+
+### ADR 0093's carried constructs are not yet declared on every widget the report flags
+
+What ADR 0093's Progress table lists as landed is not repeated here. Three things are still open,
+and `node scripts/report-target-gap.mjs <project-dir>` names the instances in a project:
+signal and `notify::` declarations (`static signals` on the web, `static emittedSignals` on
+NativeScript) exist for few widgets, so a `signal` or `bind` on any other widget is refused by name;
+`accessibility` is still a projection loss and in neither port's `capabilities` table, and
+NativeScript has no accessibility-reference door for a relation such as `labelled-by`; and `menu`
+is a loss too and needs its own ADR for the item shape (a menu is a tree, the carried fields are
+flat) before either port can declare it.

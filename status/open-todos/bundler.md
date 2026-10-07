@@ -424,3 +424,12 @@ partials with no new code. `css-as-string.spec.ts` asserts the current behaviour
 so the day dart-sass changes it, that arm fails instead of quietly widening the
 gap. Sass is the narrow edge of this: `.scss` reaches a consumer only through
 this plugin's `load` hook, and the GJS-native backend never compiles Sass at all.
+
+
+### One app on every target has no guide, no scaffold and no CLI command
+
+Three pieces generalise what Learn6502 proves. A guide "One app, every target" for the suffix-file
+and package rules; a `gjsify create-app` template `adw-universal` that scaffolds one package with a
+`.blp` window, a registered component class and a build for gjs, browser and NativeScript; and the
+gap report as a `gjsify` CLI command instead of a script in this repository, so an application
+author runs it without a checkout. Each waits on the capability steps that make the scaffold build.

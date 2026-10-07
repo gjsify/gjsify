@@ -1,5 +1,5 @@
 ---
-order: 5
+order: 6
 tier: low
 ---
 **inspector** — GJS debugger integration (`gjs --debugger`). `Session.post()` and

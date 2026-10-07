@@ -1,5 +1,5 @@
 ---
-order: 4
+order: 5
 tier: low
 ---
 **cluster** — multi-process via a Gio.Subprocess pool. `isPrimary`/`isMaster`/`isWorker`
