@@ -33,6 +33,7 @@ import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { platformResolvePlugin, browserSuffixChain, BROWSER_REFUSED_SUFFIXES } from '../plugins/platform-resolve.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
+import { blueprintTemplateExit } from '../utils/blueprint-template-exit.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
@@ -164,7 +165,9 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         // its bytes and was never parsed by anything. It stays — a `--app browser` build of a
         // GJS app's sources must not start failing on an import that used to resolve — and the
         // exit a browser can actually use is now beside it.
-        blueprintPlugin() as RolldownPluginOption,
+        // `./x.blp?template` (ADR 0096 § 4): the tree checked against the renderer this target's
+        // `--gi-renderer` arm names, or a refusal naming the flag. Never the XML string here.
+        blueprintPlugin({ template: blueprintTemplateExit('browser', giRenderer) }) as RolldownPluginOption,
         // ADR 0079's addendum. The `window` define above replaces an assignment TARGET as
         // readily as a read, so `window = {…}` would emit `globalThis = {…}` — code that
         // replaces the whole global object. This transform runs first and leaves the define

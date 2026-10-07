@@ -49,6 +49,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
+import { blueprintTemplateExit } from '../utils/blueprint-template-exit.js';
 import {
     platformResolvePlugin,
     nativescriptSuffixChain,
@@ -196,7 +197,9 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // READER of the shared node shape, and the projection is what this target
         // consumes. A `.blp` whose projection loses anything is refused at build time
         // rather than rendered partially; see `SHARED_TREE_QUERY` in the plugin.
-        blueprintPlugin() as RolldownPluginOption,
+        // `./x.blp?template` (ADR 0096 § 4): the tree checked against the renderer this target's
+        // `--gi-renderer` arm names, or a refusal naming the flag. Never the XML string here.
+        blueprintPlugin({ template: blueprintTemplateExit('nativescript', giRenderer) }) as RolldownPluginOption,
         // ADR 0079's addendum, and the `define` comment above is why it is needed here:
         // a NativeScript app gates on the absence of `window`, but a WRITE to it is a
         // `ReferenceError` in a strict module body, not a gate. `globalThis.window = …`

@@ -52,6 +52,11 @@ import windowXml from './window.blp';
 const builder = Gtk.Builder.new_from_string(windowXml, -1);
 ```
 
+`import Template from './window.blp?template'` is the exit for `registerClass` (ADR 0096 § 4): the same XML string on
+`--app gjs` / `--app node`, and under `--gi-renderer` on `--app browser` / `--app nativescript` the projected tree,
+checked against that target's renderer capability table (a refused construct fails the build naming file and line).
+It is typed as an opaque `BlueprintTemplate`. On those two targets without `--gi-renderer` it is refused, naming the flag.
+
 Add type declarations by including `"@gjsify/vite-plugin-blueprint/types"` in your `tsconfig.json` `compilerOptions.types`.
 
 ## License
