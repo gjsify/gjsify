@@ -116,7 +116,11 @@ export class GtkButton extends withSignals(GridLayout) {
             if (this.actionName) activateWidgetAction(this, this.actionName);
         });
         // The native view exists only once loaded, and a tooltip written before that is lost.
-        this.addEventListener('loaded', () => applyNativeTooltip(this, this.tooltipText));
+        this.addEventListener('loaded', () => {
+            applyNativeTooltip(this, this.tooltipText);
+            // The dark fill is a container's (`toolbar.osd`) and only the mounted tree says so.
+            this._pinIconColor();
+        });
 
         applyConstructProps(this, props);
     }
@@ -354,9 +358,20 @@ export class GtkButton extends withSignals(GridLayout) {
      */
     private _pinIconColor(): void {
         if (!(this._content instanceof GtkImage)) return;
-        if (this._styleClasses.some((name) => name === 'osd' || name === 'suggested-action')) {
+        if (this._styleClasses.some((name) => name === 'osd' || name === 'suggested-action') || this._inOsdContainer()) {
             this._content.iconColor = '#ffffff';
         }
+    }
+
+    /**
+     * Whether a container above wears `osd`: its buttons sit on the same dark fill, so their
+     * glyphs need the same white (`.osd .adw-button` in the theme paints the fill away).
+     */
+    private _inOsdContainer(): boolean {
+        for (let parent = this.parent; parent; parent = parent.parent) {
+            if ((parent.className ?? '').split(/\s+/).includes('osd')) return true;
+        }
+        return false;
     }
 
     private _detach(): void {

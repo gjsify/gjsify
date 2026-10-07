@@ -110,4 +110,29 @@ export const GtkButtonActionsNsTest = async () => {
             expect(button.tooltipText).toBe('x');
         });
     });
+
+    await describe('an icon button on a dark container', async () => {
+        await it('an icon button mounted under an osd box gets a white glyph', () => {
+            // `toolbar.osd` is one dark bar; the glyph is rasterised, so only the button can pin it,
+            // and the button learns of the bar only once the tree is mounted.
+            const bar = new Gtk.Box();
+            bar.styleClasses = 'toolbar osd';
+            const button = new Gtk.Button({ iconName: 'play-symbolic' });
+            bar.append(button as unknown as never);
+            button.notify({ eventName: 'loaded', object: button as never });
+
+            const image = (button as unknown as { getChildAt(index: number): { iconColor: string } }).getChildAt(0);
+            expect(image.iconColor).toBe('#ffffff');
+        });
+
+        await it('a button outside any osd box keeps the scheme colour', () => {
+            const box = new Gtk.Box();
+            const button = new Gtk.Button({ iconName: 'play-symbolic' });
+            box.append(button as unknown as never);
+            button.notify({ eventName: 'loaded', object: button as never });
+
+            const image = (button as unknown as { getChildAt(index: number): { iconColor: string } }).getChildAt(0);
+            expect(image.iconColor === '#ffffff').toBe(false);
+        });
+    });
 };
