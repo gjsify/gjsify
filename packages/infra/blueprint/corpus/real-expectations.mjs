@@ -837,7 +837,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the forty-nine probes are fewer than thirty-three distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fifty probes are fewer than thirty-three distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -2382,6 +2382,33 @@ export const REAL_EXPECTATIONS = [
                             tag: 'GtkLabel',
                             props: { label: 'report fixture' },
                             layout: { row: 0, column: 0 },
+                        },
+                    ],
+                },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'packages/nativescript-bridge/adwaita/src/gobject-door.blp',
+        node: {
+            tag: 'AdwBin',
+            template: 'GoNsHexdump',
+            children: [
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        {
+                            tag: 'GtkToggleButton',
+                            id: 'toggle',
+                            bindings: {
+                                active: { source: 'template', property: 'enabled', flags: ['bidirectional'] },
+                            },
+                        },
+                        {
+                            tag: 'GtkButton',
+                            id: 'copyButton',
+                            signals: [{ name: 'clicked', handler: 'onCopy' }],
                         },
                     ],
                 },
