@@ -34,7 +34,14 @@
 // package's `exports` map ships only `.`, and a new subpath would buy nothing for a module
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
-import { createBreakpointDriver, parseBreakpointCondition, type BreakpointSize } from '@gjsify/adwaita-core';
+import {
+    createBreakpointDriver,
+    parseBreakpointCondition,
+    type BindingFlag,
+    type BreakpointSize,
+    type GObjectInstance,
+    type TemplateScope,
+} from '@gjsify/adwaita-core';
 import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import {
     GTK_WIDGET_EXPAND,
@@ -47,6 +54,7 @@ import {
 
 import { observeAdaptiveSize } from './breakpoints.js';
 import { capabilities } from './capabilities.mjs';
+import { endpointOf, hasElementApi, installElementApi } from './gobject-elements.js';
 import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
 import { templateTagFor } from './template-classes.js';
@@ -81,6 +89,8 @@ interface BuildRecord {
     observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
+    /** Present when the tree is the template of a registered class (ADR 0096): handlers and binds go through it. */
+    template?: TemplateScope;
 }
 
 /** Calls `onSize` with the host's measured size, now and on every change; returns its disposer. */
@@ -151,7 +161,11 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = newR
 }
 
 /** A fresh record, with the scope when the caller has one. */
-function newRecord(scope?: Readonly<Record<string, unknown>>, observeSize?: SizeSource): BuildRecord {
+function newRecord(
+    scope?: Readonly<Record<string, unknown>>,
+    observeSize?: SizeSource,
+    template?: TemplateScope,
+): BuildRecord {
     return {
         placed: [],
         extended: [],
@@ -161,6 +175,7 @@ function newRecord(scope?: Readonly<Record<string, unknown>>, observeSize?: Size
         disposers: [],
         ...(scope === undefined ? {} : { scope }),
         ...(observeSize === undefined ? {} : { observeSize }),
+        ...(template === undefined ? {} : { template }),
     };
 }
 
@@ -232,6 +247,7 @@ function bindBreakpoints(el: HTMLElement, node: SharedTreeNode, record: BuildRec
  * `notify::…` only while connected, so a tree built but never attached follows once, at build.
  */
 function bindProperty(bind: PendingBind, record: BuildRecord): void {
+    if (record.template !== undefined) return bindThroughEngine(bind, record.template, record);
     const { el, property, source, sourceProperty, flags } = bind;
     const where = `<${el.localName}> \`${property}: bind ${source}.${sourceProperty}\``;
     const from = record.ids.get(source);
@@ -265,6 +281,39 @@ function bindProperty(bind: PendingBind, record: BuildRecord): void {
     };
     follow();
     from.addEventListener(event, follow);
+}
+
+/**
+ * ADR 0096's `bind` inside the template of a registered class: the `template` source, the flags
+ * `bidirectional`, `inverted` and `no-sync-create`, all through the core's engine, which is
+ * per-instance and does not care whether an element is connected. An element end is wrapped so
+ * a GTK property name reaches its camelCase member ({@link endpointOf}), and a `notify::` on it
+ * is made to fire before the first connect (`ensureNotifying`).
+ */
+function bindThroughEngine(bind: PendingBind, template: TemplateScope, record: BuildRecord): void {
+    const { el, property, source, sourceProperty, flags } = bind;
+    const where = `<${el.localName}> \`${property}: bind ${source}.${sourceProperty}\``;
+    const from = source === 'template' ? template.instance : record.ids.get(source);
+    if (from === undefined) {
+        throw new Error(`${where} names no object: nothing in this tree has the id '${source}'.`);
+    }
+    const known = ['bidirectional', 'inverted', 'no-sync-create'];
+    const unknown = flags.filter((flag) => !known.includes(flag));
+    if (unknown.length > 0) throw new Error(`${where} carries ${unknown.join(', ')}, which is not a bind flag.`);
+    if (hasElementApi(el) && !isWritable(el, propertyOf(property))) {
+        throw new Error(`${where}: <${el.localName}> has no writable property '${propertyOf(property)}'.`);
+    }
+    const engineFlags: BindingFlag[] = [];
+    if (flags.includes('bidirectional')) engineFlags.push('bidirectional');
+    if (flags.includes('inverted')) engineFlags.push('invert-boolean');
+    if (!flags.includes('no-sync-create')) engineFlags.push('sync-create');
+    template.bind(
+        endpointOf(from as HTMLElement) as unknown as GObjectInstance,
+        sourceProperty,
+        endpointOf(el) as unknown as GObjectInstance,
+        property,
+        engineFlags,
+    );
 }
 
 /**
@@ -313,12 +362,24 @@ export function writeProp(el: HTMLElement, prop: string, value: string | number 
 function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     // An `extern` node is built by the class the application registered under its name (ADR 0093).
     const el = document.createElement(node.extern === true ? templateTagFor(node.tag) : hostTagOf(node.tag));
+    // A template's children talk GObject to the template: `connect`, `emit`, `notify` (ADR 0096).
+    if (record.template !== undefined) installElementApi(el);
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
     if (node.id !== undefined) {
         el.id = node.id;
         record.ids.set(node.id, el);
     }
+    collectNode(el, node, record);
+    writeLook(el, node);
+    bindSignals(el, node, record);
+    if (node.extensions !== undefined) record.extended.push({ el, node });
+    for (const child of buildChildren(el, node, record)) el.append(child);
+    return el;
+}
+
+/** What a node asks to be wired once every id exists: its binds and its breakpoints. */
+function collectNode(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): void {
     for (const [property, binding] of Object.entries(node.bindings ?? {})) {
         record.binds.push({
             el,
@@ -328,15 +389,26 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
             flags: binding.flags ?? [],
         });
     }
-    for (const [prop, value] of Object.entries(node.props ?? {})) writeProp(el, prop, value);
     if (node.breakpoints !== undefined) record.breakpointHosts.push({ el, node });
+}
+
+/**
+ * What a node looks like: its authored properties, style classes and extensions. Separate from the
+ * rest because a custom element may not gain attributes or children in its constructor, which is
+ * where a registered class's host is built (see {@link buildTemplateTree}).
+ */
+function writeLook(el: HTMLElement, node: SharedTreeNode): void {
+    for (const [prop, value] of Object.entries(node.props ?? {})) writeProp(el, prop, value);
     // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the
     // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) el.classList.add(...node.styleClasses);
     writeExtensions(el, node);
-    bindSignals(el, node, record);
-    if (node.extensions !== undefined) record.extended.push({ el, node });
+}
+
+/** The built children of `node`, placed (`page`, `slot`) but not yet appended to `el`. */
+function buildChildren(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): HTMLElement[] {
+    const built: HTMLElement[] = [];
     for (const child of node.children ?? []) {
         const childEl = buildNode(child, record);
         if (child.page !== undefined) writePage(el, childEl, child);
@@ -344,9 +416,38 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
             childEl.setAttribute('slot', child.slot);
             record.placed.push({ parent: el, child: childEl, slot: child.slot });
         }
-        el.append(childEl);
+        built.push(childEl);
     }
-    return el;
+    return built;
+}
+
+/** A template tree built for a registered class: its children are not attached, its look is not written. */
+export interface BuiltTemplateTree {
+    readonly children: HTMLElement[];
+    /** Every object the template names with an `id`. */
+    readonly objects: Record<string, HTMLElement>;
+    /** Writes the root's own properties, classes and extensions onto the host — at its first connect. */
+    finish(): void;
+}
+
+/**
+ * The template of a registered class (ADR 0096 § 3), built into `host`: children created and wired
+ * to their handlers and binds through `scope`, none appended and nothing written to `host`'s
+ * attributes, because `host` is still inside its constructor. `finish` and the caller's own append
+ * belong to the first `connectedCallback`.
+ */
+export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, host: HTMLElement): BuiltTemplateTree {
+    assertTreeConstructs('adwaita-web', capabilities, tree);
+    const record = newRecord(undefined, undefined, scope);
+    if (tree.id !== undefined) record.ids.set(tree.id, host);
+    collectNode(host, tree, record);
+    bindSignals(host, tree, record);
+    const children = buildChildren(host, tree, record);
+    for (const bind of record.binds) bindProperty(bind, record);
+    for (const breakpointHost of record.breakpointHosts) {
+        bindBreakpoints(breakpointHost.el, breakpointHost.node, record);
+    }
+    return { children, objects: Object.fromEntries(record.ids), finish: () => writeLook(host, tree) };
 }
 
 /**
@@ -367,6 +468,29 @@ function bindSignals(el: HTMLElement, node: SharedTreeNode, record: BuildRecord)
                 `<${el.localName}> declares no signal '${name}', so the handler '${signal.handler}' would never ` +
                     `run. It dispatches: ${Object.keys(declared).join(', ') || 'none'}.`,
             );
+        }
+        if (record.template !== undefined) {
+            if (signal.flags?.includes('after') === true) {
+                throw new Error(
+                    `the handler '${signal.handler}' for '${name}' uses after, which is not in the GObject subset.`,
+                );
+            }
+            const object =
+                signal.object === undefined
+                    ? undefined
+                    : signal.object === 'template'
+                      ? record.template.instance
+                      : record.ids.get(signal.object);
+            if (signal.object !== undefined && object === undefined) {
+                throw new Error(
+                    `the handler '${signal.handler}' for '${name}' names the object '${signal.object}', which nothing in this tree has.`,
+                );
+            }
+            (el as unknown as GObjectInstance).connect(
+                name,
+                record.template.handler(signal.handler, { object, flags: signal.flags }),
+            );
+            continue;
         }
         if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {
             throw new Error(
