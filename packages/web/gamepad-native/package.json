@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gamepad-native",
-    "version": "0.55.0",
+    "version": "0.56.0",
     "description": "SDL3's gamepad subsystem, statically linked and trimmed, behind a GObject API that speaks the W3C standard layout — the backend of @gjsify/gamepad (ADR 0075). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
     "type": "module",
     "files": [],

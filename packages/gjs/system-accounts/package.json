@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/system-accounts",
-    "version": "0.55.0",
+    "version": "0.56.0",
     "description": "The accounts a user already set up on their system: find them, read their mail server settings, get credentials. GNOME Online Accounts on Linux.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

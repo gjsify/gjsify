@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.56.0](https://github.com/gjsify/gjsify/compare/v0.55.0...v0.56.0) (2026-10-07)
+
+### Features
+
+* **adwaita-nativescript:** android parity, insets, osd bar ([#2077](https://github.com/gjsify/gjsify/issues/2077)) ([491fcc5](https://github.com/gjsify/gjsify/commit/491fcc59a9b45e367d8a666e170b1befbf6ce3fc))
+* **adwaita-nativescript:** build window shells from a tree ([#2072](https://github.com/gjsify/gjsify/issues/2072)) ([32797b9](https://github.com/gjsify/gjsify/commit/32797b9cbe8336504eaeed13062361a21c765f3a))
+* **adwaita-nativescript:** drag the bottom sheet ([#2078](https://github.com/gjsify/gjsify/issues/2078)) ([5d83d37](https://github.com/gjsify/gjsify/commit/5d83d375844ce020b59a1ef69e7464e187576082))
+* **adwaita-nativescript:** sheet overscroll close ([#2080](https://github.com/gjsify/gjsify/issues/2080)) ([a084f48](https://github.com/gjsify/gjsify/commit/a084f48730c4f1262a4a92d5d74c22d3f0a90d04))
+* **adwaita-web:** compact adw-status-page ([#2054](https://github.com/gjsify/gjsify/issues/2054)) ([e603be2](https://github.com/gjsify/gjsify/commit/e603be2fd1003e752d9b880b79df6118cc4904d2)), closes [#1826](https://github.com/gjsify/gjsify/issues/1826)
+* **adwaita-web:** row tooltips, insensitive toggle groups ([#2059](https://github.com/gjsify/gjsify/issues/2059)) ([343f370](https://github.com/gjsify/gjsify/commit/343f370594864338f0905dc2fbb5f125036e5692)), closes [#1818](https://github.com/gjsify/gjsify/issues/1818)
+* **adwaita-web:** wrap row titles/subtitles by default, add title-lines/subtitle-lines ([#2057](https://github.com/gjsify/gjsify/issues/2057)) ([e2ddfb7](https://github.com/gjsify/gjsify/commit/e2ddfb7db32e695626b9c9d6820e20e5d59fb8e4))
+* **gtksource-core:** headless GtkSourceView language engine ([#2064](https://github.com/gjsify/gjsify/issues/2064)) ([9e723ab](https://github.com/gjsify/gjsify/commit/9e723abc8034cc21f60914affb466991bf22a108))
+* **gtksource-nativescript:** add GtkSource.View for Android ([#2065](https://github.com/gjsify/gjsify/issues/2065)) ([1f9969f](https://github.com/gjsify/gjsify/commit/1f9969fc5ce613bf9b877cc4e0a3d525c1f2c5ad))
+* **gtksource-nativescript:** build GtkSource.View from a .blp ([#2067](https://github.com/gjsify/gjsify/issues/2067)) ([39b55c3](https://github.com/gjsify/gjsify/commit/39b55c3ba18b2653013766d91563c6f6692d9631))
+* **gtksource-nativescript:** wire GtkSource namespace ([#2066](https://github.com/gjsify/gjsify/issues/2066)) ([971346b](https://github.com/gjsify/gjsify/commit/971346bdd76be5dc6e059066727370d1028c6564))
+* **showcases:** share one .blp across GTK and browser ([#2042](https://github.com/gjsify/gjsify/issues/2042)) ([abc2810](https://github.com/gjsify/gjsify/commit/abc2810fe18115f0cba344046928d636c1106c31))
+* **system-accounts:** read accounts through GOA ([#2073](https://github.com/gjsify/gjsify/issues/2073)) ([749a038](https://github.com/gjsify/gjsify/commit/749a03863365a629985bfc230756427e6e275c82))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** breakpoints read the window ([#2063](https://github.com/gjsify/gjsify/issues/2063)) ([a1105a9](https://github.com/gjsify/gjsify/commit/a1105a947f31edd7da70bba3192cb4129bcee61b))
+* **adwaita-nativescript:** rebalance header on change ([#2079](https://github.com/gjsify/gjsify/issues/2079)) ([1f62967](https://github.com/gjsify/gjsify/commit/1f629673e5891189fcab05671b040dc5c3d1a868))
+* **adwaita-web:** type gtk-window title as a string ([#2062](https://github.com/gjsify/gjsify/issues/2062)) ([f67cea6](https://github.com/gjsify/gjsify/commit/f67cea68c076250170163ef52d0993fafb329389))
+* clear the [#2051](https://github.com/gjsify/gjsify/issues/2051) showcase and lint leftovers ([#2055](https://github.com/gjsify/gjsify/issues/2055)) ([3058891](https://github.com/gjsify/gjsify/commit/30588914891d3ffd78ec666f26aaaa8dd39cb39e))
+* **tls:** verify the peer after the handshake ([#2071](https://github.com/gjsify/gjsify/issues/2071)) ([7c85c7c](https://github.com/gjsify/gjsify/commit/7c85c7c1f2d1cc5783b4a843d40a02df97924f9d))
+
+### Documentation
+
+* **adr:** price the namespace, fix two drifts ([#2056](https://github.com/gjsify/gjsify/issues/2056)) ([ed7c318](https://github.com/gjsify/gjsify/commit/ed7c318c898ee85c5966ab75cd74a9d213abf006)), closes [#1850](https://github.com/gjsify/gjsify/issues/1850) [#1527](https://github.com/gjsify/gjsify/issues/1527)
+* **adr:** propose system accounts by capability ([#2070](https://github.com/gjsify/gjsify/issues/2070)) ([5bd7d3e](https://github.com/gjsify/gjsify/commit/5bd7d3e0791ada2c4aa08f24fe54cb9c378b8f47))
+* **prebuilds:** document the language recipes ([#2052](https://github.com/gjsify/gjsify/issues/2052)) ([b863f31](https://github.com/gjsify/gjsify/commit/b863f317a19ae1e07043c2ae6720b354dae61355))
+
+### Continuous Integration
+
+* **node-gi:** unlink openssl@1.1 before brew install ([#2061](https://github.com/gjsify/gjsify/issues/2061)) ([3d7a142](https://github.com/gjsify/gjsify/commit/3d7a14209a32418729484e0a3d40e46c63835048))
+* **release:** add 'only' input for targeted publish ([#2060](https://github.com/gjsify/gjsify/issues/2060)) ([83506a1](https://github.com/gjsify/gjsify/commit/83506a12957ec486a642af1e93160c99423df95d))
+
+### Maintenance
+
+* **release:** clear the gtksource bootstrap ledger ([#2076](https://github.com/gjsify/gjsify/issues/2076)) ([a274a81](https://github.com/gjsify/gjsify/commit/a274a81c24ce271a1dfa228b7488d7bb512e8978))
+* update native prebuilds [skip ci] ([1151d3d](https://github.com/gjsify/gjsify/commit/1151d3d144508eb27853694331d3ac0f644ad7c9))
+
+### Tests
+
+* **e2e:** implicit-global-assign through the CLI ([#2058](https://github.com/gjsify/gjsify/issues/2058)) ([591658b](https://github.com/gjsify/gjsify/commit/591658b1c6092c73401d2c33f72621fc9899a973)), closes [#2018](https://github.com/gjsify/gjsify/issues/2018) [#2022](https://github.com/gjsify/gjsify/issues/2022)
+* **gtk-host:** pin the Revealer child adoption ([#2053](https://github.com/gjsify/gjsify/issues/2053)) ([f5c9e86](https://github.com/gjsify/gjsify/commit/f5c9e86b26a87fc397e0d88a7bb558a02fa5b1c7))
+
 ## [0.55.0](https://github.com/gjsify/gjsify/compare/v0.54.0...v0.55.0) (2026-10-05)
 
 ### Features
