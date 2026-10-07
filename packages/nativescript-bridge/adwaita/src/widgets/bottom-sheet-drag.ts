@@ -167,3 +167,9 @@ export class NestedDragTracker {
         return { kind: 'end', dy: cancelled ? 0 : Math.max(this._last - this._anchor, 0) };
     }
 }
+
+/**
+ * Height of the transparent grip across the top of an open sheet, in dip. It lies over the
+ * content and takes no room of its own; 48 is the smallest target a thumb reliably hits.
+ */
+export const GRIP_HEIGHT = 48;

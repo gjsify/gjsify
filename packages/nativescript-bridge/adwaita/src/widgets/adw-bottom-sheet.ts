@@ -68,6 +68,7 @@ import {
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
 import {
+    GRIP_HEIGHT,
     NestedDragTracker,
     type DragSample,
     type SheetRest,
@@ -115,9 +116,6 @@ interface PanGestureEventData {
     readonly deltaX: number;
     readonly deltaY: number;
 }
-
-/** Height of the grip strip across the top of an open sheet, in DIPs. */
-const GRIP_HEIGHT = 28;
 
 /** GestureStateTypes: `began`, `changed`, `ended`, with `cancelled` as 0. */
 const PAN_BEGAN = 1;
@@ -223,6 +221,9 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         grip.className = 'adw-bottom-sheet-grip';
         grip.verticalAlignment = 'top';
         grip.height = GRIP_HEIGHT;
+        // A view with no listener is not clickable on Android and hands the touch on to the
+        // scroll view under it; a tap listener makes it take the touch. The pan lands on the panel.
+        grip.addEventListener('tap', () => {});
         GridLayout.setRow(grip, 0);
         sheetPage.addChild(grip);
 

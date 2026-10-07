@@ -8,6 +8,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import {
     FLING_VELOCITY,
+    GRIP_HEIGHT,
     NestedDragTracker,
     OVERSCROLL_SLOP,
     SHEET_MIN_HEIGHT,
@@ -208,6 +209,12 @@ export default async () => {
             expect(t.ignorePan(1)).toBe(true);
             for (let y = 110; y < 400; y += 10) expect(t.move(y, 300).kind).toBe('none');
             expect(t.dragging).toBe(false);
+        });
+    });
+
+    await describe('grip', async () => {
+        await it('is at least a 48 dip touch target', () => {
+            expect(GRIP_HEIGHT >= 48).toBe(true);
         });
     });
 };
