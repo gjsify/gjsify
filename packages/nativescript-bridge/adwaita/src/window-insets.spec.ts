@@ -81,6 +81,44 @@ export default async () => {
             const p = toolbarViewInsetPadding(NO_INSETS, { hasTopBar: true, hasBottomBar: true });
             expect(p.topBarTop + p.contentTop + p.bottomBarBottom + p.contentBottom).toBe(0);
         });
+
+        await it('never pays a slot with nothing in it, keyboard or no keyboard', () => {
+            // The band this rule removes: an empty bar slot paints the page background, so
+            // whatever it is paid shows as a strip under the whole window. Measured with the
+            // keyboard up over a wide Learn6502 window: the collapsed switcher bar was handed
+            // all 368 dip of it.
+            const collapsed = { hasTopBar: true, hasBottomBar: true, bottomBarShown: false };
+            expect(toolbarViewInsetPadding(withKeyboard({ ...PHONE, ime: 368 }), collapsed).bottomBarBottom).toBe(0);
+            expect(toolbarViewInsetPadding(PHONE, collapsed).bottomBarBottom).toBe(0);
+        });
+
+        await it('gives the keyboard to the content when no bar is on the edge', () => {
+            // A collapsed bar keeps the GESTURE area (that is edge-to-edge), but never the
+            // keyboard: content under a keyboard is content the user cannot see.
+            const p = toolbarViewInsetPadding(withKeyboard({ ...PHONE, ime: 368 }), {
+                hasTopBar: true,
+                hasBottomBar: true,
+                bottomBarShown: false,
+            });
+            expect(p.contentBottom).toBe(368);
+        });
+
+        await it('leaves the keyboard to a bar that is on the edge', () => {
+            const p = toolbarViewInsetPadding(withKeyboard({ ...PHONE, ime: 368 }), {
+                hasTopBar: true,
+                hasBottomBar: true,
+                bottomBarShown: true,
+            });
+            expect(p.bottomBarBottom).toBe(368);
+            expect(p.contentBottom).toBe(0);
+        });
+
+        await it('still runs the gesture area under a collapsed bar', () => {
+            // The edge-to-edge rule the keyboard case must not take with it.
+            const p = toolbarViewInsetPadding(PHONE, { hasTopBar: true, hasBottomBar: true, bottomBarShown: false });
+            expect(p.bottomBarBottom).toBe(0);
+            expect(p.contentBottom).toBe(0);
+        });
     });
 
     await describe('insetsOwedBy', async () => {

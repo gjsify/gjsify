@@ -48,7 +48,8 @@ export interface ToolbarViewShape {
      * Whether the bottom bar is on screen. A bar that exists but is collapsed (a view switcher
      * bar on a wide window) still owns the bottom edge, so the content does not take its
      * inset: it runs under the gesture area, and whatever must not sit there pads itself
-     * ({@link padWithInset}). Defaults to `true`.
+     * ({@link padWithInset}) — the keyboard excepted, see {@link toolbarViewInsetPadding}.
+     * Defaults to `true`.
      */
     readonly bottomBarShown?: boolean;
 }
@@ -102,13 +103,29 @@ export function insetsOwedBy(insets: WindowInsets, paidByHost: HostPaidEdges): W
  *
  * Total per edge is always exactly the inset — never doubled across two slots, which
  * would leave a visible gap the width of the status bar, and never dropped.
+ *
+ * THE KEYBOARD IS NOT AN EDGE TO DRAW UNDER, and that is the one case where a collapsed
+ * bottom bar does not keep the edge. Running under the gesture area is the point of
+ * edge-to-edge; running under the keyboard means the field being typed into is hidden.
+ * So while `ime` is up the payer is whoever is actually ON the edge — a shown bar, else
+ * the content — and never a slot with nothing in it.
+ *
+ * MEASURED, and the reason this rule exists: with the keyboard up over a wide Learn6502
+ * window, whose view switcher bar is collapsed, the EMPTY bar slot was handed the whole
+ * 368 dip of keyboard. An empty slot paints the page background, so the app sat on a band
+ * of it; and because nothing re-reads a payment a shown bar never made, the band outlived
+ * the keyboard — 32 dip of page background under the editor, the sheet and the columns,
+ * with the quick help clipped above it.
  */
 export function toolbarViewInsetPadding(insets: WindowInsets, shape: ToolbarViewShape): InsetPadding {
+    // `withKeyboard` has already folded the keyboard into `bottom`; `ime` says whether it did.
+    const keyboardUp = (insets.ime ?? 0) > 0;
+    const barOnEdge = shape.hasBottomBar && shape.bottomBarShown !== false;
     return {
         topBarTop: shape.hasTopBar ? insets.top : 0,
         contentTop: shape.hasTopBar ? 0 : insets.top,
-        bottomBarBottom: shape.hasBottomBar && shape.bottomBarShown !== false ? insets.bottom : 0,
-        contentBottom: shape.hasBottomBar ? 0 : insets.bottom,
+        bottomBarBottom: barOnEdge ? insets.bottom : 0,
+        contentBottom: barOnEdge || (shape.hasBottomBar && !keyboardUp) ? 0 : insets.bottom,
     };
 }
 
