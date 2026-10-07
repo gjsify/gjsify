@@ -97,7 +97,7 @@ subset is what the gap report lists, and nothing it does not list.**
 |---|---|
 | `GObject.registerClass(meta, klass)` with `GTypeName`, `Template`, `InternalChildren`, `Properties`, `Signals`, `CssName` | implemented. Any other meta key (`Children`, `Implements`, `Requires`, `GTypeFlags`) is refused by name at registration |
 | the same keys as static class fields (`static [GObject.GTypeName] = …`, `GObject.properties`, …) | implemented. GJS's `registerClass` only copies the meta object onto these symbols, so they are the internal form here too, and a class written in the field form does not silently lose its keys to `static [undefined]` |
-| `GObject.ParamSpec.{boolean,string,int,uint,double}`, `GObject.ParamFlags.{READABLE,WRITABLE,READWRITE,CONSTRUCT}` | implemented, by GJS's rule (`_checkAccessors` / `_generateAccessors` in `modules/core/_common.js`): accessors the class defines are kept; a missing pair is generated, returning the ParamSpec default until set and calling `notify` only when the new value is `!==` the old one; a dashed name is reachable as `dash-name`, `dash_name` and `dashName`. A JS assignment is not range-checked, on GJS either |
+| `GObject.ParamSpec.{boolean,string,int,uint,double}`, `GObject.ParamFlags.{READABLE,WRITABLE,READWRITE,CONSTRUCT}` | implemented, by GJS's rule (`_checkAccessors` / `_generateAccessors` in `modules/core/_common.js`): accessors the class defines are kept; a missing pair is generated, returning the ParamSpec default until set and calling `notify` only when the new value is `!==` the stored one — and the slot starts unset, so the FIRST assignment notifies even when it equals the default, as on GJS; a dashed name is reachable as `dash-name`, `dash_name` and `dashName`. A JS assignment is not range-checked, on GJS either |
 | `Signals: { name: { param_types } }`, `GObject.TYPE_{STRING,BOOLEAN,INT,UINT,DOUBLE}` | implemented. A param type outside that list is refused at registration |
 | `this.notify(name)`, `connect`/`disconnect`/`emit` on a registered instance, `connect('notify::x')` | implemented, for the class's own properties and signals and for those of the port widget it extends |
 | `GObject.type_ensure(klass.$gtype)` | implemented: `$gtype` is an opaque token, and `type_ensure` only proves the class module was evaluated, which is all Learn6502 uses it for |
@@ -134,8 +134,14 @@ is being converted, together with a vector. "GObject would have it" is not a rea
 5. Sets the template's handler scope and its `template` bind source to the instance. A handler is
    looked up on the instance and bound to the `object:` of the signal if it names one, else to the
    instance; a missing handler throws `A handler called <name> was not defined on <instance>`, and
-   `swapped` is refused, both as GJS's `_createClosure` does. Bind flags go through the binding
-   engine.
+   `swapped` is refused, both with `_createClosure`'s message. On GJS that throw is caught by
+   GtkBuilder and only logged as a `Gtk-CRITICAL`, and construction goes on; the ports let it
+   propagate, because a handler that silently never runs is the drop ADR 0071 § 3 forbids. Bind
+   flags go through the binding engine.
+
+Refusals are the subset's own claims. GJS accepts every meta key and `vfunc_*`, so a vector that
+asserts a refusal is marked as holding on the subset only and is not run on the oracle; every
+other vector must hold on GJS.
 
 On the web, the built children are attached to the host on its first `connectedCallback`, not in
 the constructor, because the custom-element rules forbid children there. They exist and are
