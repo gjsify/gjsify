@@ -29,7 +29,14 @@
 // with the function they belong to. The two about ids (an unknown one, a duplicate one) are
 // GtkBuilder's own refusals, restated where the ids are resolved.
 
-import { createBreakpointDriver, parseBreakpointCondition, type BreakpointSize } from '@gjsify/adwaita-core';
+import {
+    createBreakpointDriver,
+    parseBreakpointCondition,
+    type BindingFlag,
+    type BreakpointSize,
+    type GObjectInstance,
+    type TemplateScope,
+} from '@gjsify/adwaita-core';
 import { assertTreeConstructs, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 import { View } from '@nativescript/core';
@@ -177,6 +184,7 @@ interface BuildContext {
     breakpointHosts: { view: object; element: Element; node: SharedTreeNode }[];
     observeSize: SizeSource;
     scope: Readonly<Record<string, unknown>> | undefined;
+    template: TemplateScope | undefined;
     translate: BuildOptions['translate'];
     /**
      * Where a VALUE object's id goes, when the caller can ask for it ({@link buildWithSiblings}).
@@ -214,6 +222,13 @@ export interface BuildOptions {
     observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
+    /**
+     * The template instance of a class `registerClass` registered (ADR 0096 § 3). Present, it is the
+     * scope of every handler (looked up on the instance, as `_createClosure` does) and the source
+     * `bind template.x` names, and the bind flags `bidirectional`, `inverted` and `no-sync-create`
+     * go through the core's binding engine instead of being refused. Absent, all of that stays refused.
+     */
+    template?: TemplateScope;
     /**
      * Translates a string the `.blp` marked with `_()` or `C_()`, as GtkBuilder does with its
      * gettext domain. Called with the authored text and the `C_()` context, if any. Without it a
@@ -331,10 +346,11 @@ export function buildWithSiblings(node: SharedTreeNode, options: BuildOptions = 
  * Props, style classes, children, signals, binds and breakpoints of the tree's root are applied to
  * `root`, whose class has to be the one the root names (or a subclass of it): a template of an
  * `Adw.Bin` built into a `Gtk.Box` would be a different widget wearing the wrong tree. The ids of
- * the tree stay reachable through `root.getViewById`. A tree with siblings is refused, as it is
+ * the tree stay reachable through `root.getViewById`, and the returned map holds every object the
+ * tree names by id (what `InternalChildren` installs). A tree with siblings is refused, as it is
  * by {@link build}.
  */
-export function buildInto(root: View, node: SharedTreeNode, options: BuildOptions = {}): void {
+export function buildInto(root: View, node: SharedTreeNode, options: BuildOptions = {}): ReadonlyMap<string, object> {
     refuseSiblings(node, 'buildInto');
     const element = elementOf(node);
     if (!(root instanceof element.ctor)) {
@@ -343,7 +359,7 @@ export function buildInto(root: View, node: SharedTreeNode, options: BuildOption
                 `a template builds into an instance of the class it extends (<${element.xmlName}>).`,
         );
     }
-    buildTree(node, options, false, root);
+    return buildTree(node, options, false, root).objects;
 }
 
 function refuseSiblings(node: SharedTreeNode, door: string): void {
@@ -370,6 +386,7 @@ function buildTree(
         breakpointHosts: [],
         observeSize: options.observeSize ?? observeWindowSize,
         scope: options.scope,
+        template: options.template,
         translate: options.translate,
         values: collectValues ? new Map() : undefined,
     };
@@ -399,22 +416,27 @@ function buildTree(
 }
 
 /**
- * ADR 0093's `bindings`, the simple form: the target property takes the source's value now and
- * again on every `notify::<property>` the source emits (`G_BINDING_SYNC_CREATE`, which is what
- * GtkBuilder's `bind-flags` default means).
+ * ADR 0093's `bindings`: the target property takes the source's value now and again on every
+ * `notify::<property>` the source emits (`G_BINDING_SYNC_CREATE`, which is what GtkBuilder's
+ * `bind-flags` default means).
  *
- * Refused by name, never dropped: a source that is not an id of this tree (`template` included),
- * a source class that does not emit `notify::<property>`, a target without that property, and
- * any flag, which this first slice has not verified.
+ * Without a template instance this is the plain form only. With one (ADR 0096 § 3), `template` is a
+ * source, and `bidirectional`, `inverted` and `no-sync-create` go through the core's binding engine.
+ *
+ * Refused by name, never dropped: a source that is not an id of this tree (`template` included
+ * when there is no instance), a source class that does not emit `notify::<property>`, a target
+ * without that property, a bidirectional target that does not emit it, and any flag without an
+ * instance.
  */
 function bindProperty(bind: PendingBind, context: BuildContext): void {
     const { target, element, property, source, sourceProperty, flags } = bind;
     const where = `<${element.xmlName}> \`${property}: bind ${source}.${sourceProperty}\``;
-    const from = context.ids.get(source);
+    const template = context.template;
+    const from = source === 'template' && template !== undefined ? template.instance : context.ids.get(source);
     if (from === undefined) {
         throw new Error(`${where} names no object: nothing in this tree has the id '${source}'.`);
     }
-    if (flags.length > 0) {
+    if (flags.length > 0 && template === undefined) {
         throw new Error(
             `${where} carries ${flags.join(', ')}: adwaita-nativescript binds the plain form only until each flag ` +
                 'is verified against GObject.',
@@ -433,11 +455,61 @@ function bindProperty(bind: PendingBind, context: BuildContext): void {
     if (!(targetProp in target)) {
         throw new Error(`${where}: the target has no property '${targetProp}'.`);
     }
+    if (template !== undefined) {
+        bindThroughEngine(template, { ...bind, from, where, notification });
+        return;
+    }
     const follow = () => {
         (target as Record<string, unknown>)[targetProp] = (from as unknown as Record<string, unknown>)[sourceProp];
     };
     follow();
     (from as unknown as { connect(name: string, callback: () => void): number }).connect(notification, follow);
+}
+
+/** `bind-flags` as the core's engine spells them; `sync-create` is GtkBuilder's default. */
+function engineFlags(flags: readonly string[], where: string): BindingFlag[] {
+    for (const flag of flags) {
+        if (flag !== 'bidirectional' && flag !== 'inverted' && flag !== 'no-sync-create') {
+            throw new Error(`${where} carries the unknown flag '${flag}'.`);
+        }
+    }
+    const engine: BindingFlag[] = flags.includes('no-sync-create') ? [] : ['sync-create'];
+    if (flags.includes('bidirectional')) engine.push('bidirectional');
+    if (flags.includes('inverted')) engine.push('invert-boolean');
+    return engine;
+}
+
+/**
+ * The engine reads and writes `object[name]` and subscribes to `notify::name` with ONE spelling,
+ * and a widget here spells the property in camel case and the notification as authored. This
+ * view translates the first and leaves the rest, binding methods to the real object so the core's
+ * per-instance state stays keyed on it.
+ */
+function viaProperties(object: object): GObjectInstance {
+    const key = (name: string | symbol) => (typeof name === 'string' ? propertyOf(name) : name);
+    return new Proxy(object, {
+        get(real, name) {
+            const value: unknown = Reflect.get(real, key(name));
+            return typeof value === 'function' ? value.bind(real) : value;
+        },
+        set: (real, name, value) => Reflect.set(real, key(name), value),
+    }) as GObjectInstance;
+}
+
+function bindThroughEngine(
+    template: TemplateScope,
+    bind: PendingBind & { from: object; where: string; notification: string },
+): void {
+    const { target, from, property, sourceProperty, flags, where } = bind;
+    const engine = engineFlags(flags, where);
+    const emitted = (target.constructor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    if (engine.includes('bidirectional') && !emitted.includes(`notify::${property}`)) {
+        throw new Error(
+            `${where}: bidirectional, but ${target.constructor.name} does not emit 'notify::${property}', so the ` +
+                `source would never follow the target back. It emits: ${emitted.join(', ') || 'none'}.`,
+        );
+    }
+    template.bind(viaProperties(from), sourceProperty, viaProperties(target), property, engine);
 }
 
 /**
@@ -597,12 +669,18 @@ function bindSignals(built: object, element: Element, node: SharedTreeNode, cont
                     `run. It emits: ${emitted.join(', ') || 'none'}.`,
             );
         }
-        if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {
+        // With a template instance `swapped` is the core's to refuse, with `_createClosure`'s message.
+        const unverified = (signal.flags ?? []).filter((flag) => context.template === undefined || flag !== 'swapped');
+        if (signal.object !== undefined || unverified.length > 0) {
             throw new Error(
                 `the handler '${signal.handler}' for '${name}' uses ${signal.object === undefined ? '' : 'an object '}` +
                     `${(signal.flags ?? []).join(', ')}: adwaita-nativescript binds plain handlers only until each ` +
                     'of those is verified against GTK.',
             );
+        }
+        if (context.template !== undefined) {
+            connectable.connect(name, context.template.handler(signal.handler, { flags: signal.flags }));
+            continue;
         }
         const handler = context.scope?.[signal.handler];
         if (typeof handler !== 'function') {
