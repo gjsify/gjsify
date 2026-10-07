@@ -50,8 +50,12 @@ const NS_BUILT = join(MONOREPO_ROOT, 'packages/nativescript-bridge/adwaita/lib/e
  * a check reading its subject's own table agrees with it by construction.
  */
 const ARMS = [
-    { app: 'browser', renderer: '@gjsify/adwaita-web', namespaces: { Adw: '1', Gtk: '4.0' } },
-    { app: 'nativescript', renderer: '@gjsify/adwaita-nativescript', namespaces: { Adw: '1', Gtk: '4.0' } },
+    { app: 'browser', renderer: '@gjsify/adwaita-web', namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0' } },
+    {
+        app: 'nativescript',
+        renderer: '@gjsify/adwaita-nativescript',
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0' },
+    },
 ];
 
 const skip = e2eSkipReason(SUITE, [
@@ -96,7 +100,9 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
 
     /** Evaluate a built bundle in a child process under the target's stub host. */
     function evaluate(outFile, app, mode = 'load') {
-        const result = spawnSync(process.execPath, [RUNNER, app, outFile, mode], {
+        // `ns-core.mts` uses parameter properties, which strip-only type removal refuses.
+        const flags = mode === 'template' ? ['--experimental-transform-types', '--no-warnings'] : [];
+        const result = spawnSync(process.execPath, [...flags, RUNNER, app, outFile, mode], {
             cwd: MONOREPO_ROOT,
             encoding: 'utf-8',
             timeout: 2 * 60 * 1000,
@@ -195,6 +201,28 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
                 true,
                 'the subclass does not extend the namespace member it was taken from',
             );
+        });
+
+        it(`--app ${app} --gi-renderer answers gi://GObject?version=2.0 and registers a class`, () => {
+            const built = build('gobject-class.ts', app, { name: 'gobject-class' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app);
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'GObject.registerClass is not a function');
+            assert.equal(report.descends, true, 'the registered class does not descend from Gtk.Button');
+        });
+
+        it(`--app ${app} --gi-renderer builds a registered class from a .blp?template`, () => {
+            const built = build('gobject-class.ts', app, { name: 'gobject-template' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'template');
+            assert.equal(report.templateError, undefined, `the template did not build: ${report.templateError}`);
+            assert.deepEqual(report.template, {
+                initial: false,
+                propertyToChild: true,
+                childToProperty: false,
+                copies: 1,
+            });
         });
 
         it(`--app ${app} --gi-renderer carries @girs/adw-1 through to the same namespace`, () => {
@@ -347,6 +375,13 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
         );
         for (const arm of ARMS) {
             for (const [namespace, version] of Object.entries(arm.namespaces)) {
+                if (!fromGir.has(namespace)) {
+                    // gtk-host generates no widgets from this namespace, so its stamp is silent.
+                    // The version is still a GIR fact: the typings package for it must exist.
+                    const girs = join(MONOREPO_ROOT, 'node_modules/@girs', `${namespace.toLowerCase()}-${version}`);
+                    assert.ok(existsSync(girs), `--app ${arm.app} answers ${namespace} ${version}; no ${girs}`);
+                    continue;
+                }
                 assert.equal(
                     fromGir.get(namespace),
                     version,

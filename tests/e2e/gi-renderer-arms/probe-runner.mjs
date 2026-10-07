@@ -37,6 +37,11 @@ function domStub(label) {
     });
 }
 
+const NS_CORE_DOUBLE = join(
+    dirname(new URL(import.meta.url).pathname),
+    '../../../packages/nativescript-bridge/adwaita/src/testing/ns-core.mts',
+);
+
 const registry = new Map();
 
 function installBrowserHost() {
@@ -88,12 +93,17 @@ function installNativescriptHost() {
     const projectDir = join(dirname(bundlePath), 'ns-host');
     const coreDir = join(projectDir, 'node_modules', '@nativescript', 'core');
     mkdirSync(coreDir, { recursive: true });
+    // The `template` row drives live widgets, which need the port's own runtime double of the
+    // platform (`testing/ns-core.mts`, the one its tree specs build against) rather than one
+    // empty class per name. `--app nativescript` keeps core external, so it is supplied here.
     writeFileSync(
         join(coreDir, 'index.js'),
-        [...names]
-            .sort()
-            .map((n) => `export class ${n} {}`)
-            .join('\n') + '\n',
+        mode === 'template'
+            ? `export * from ${JSON.stringify(pathToFileURL(NS_CORE_DOUBLE).href)};\n`
+            : [...names]
+                  .sort()
+                  .map((n) => `export class ${n} {}`)
+                  .join('\n') + '\n',
     );
     writeFileSync(
         join(coreDir, 'package.json'),
@@ -113,7 +123,39 @@ function installNativescriptHost() {
     return homed;
 }
 
-const entry = host === 'browser' ? installBrowserHost() : installNativescriptHost();
+/**
+ * The `template` row builds and drives a live widget tree, which a recording stub cannot
+ * answer (`instance._toggle.active` has to read back what was written), so it gets a real DOM.
+ */
+async function installLiveBrowserHost() {
+    const { JSDOM } = await import('jsdom');
+    const { window } = new JSDOM('<!doctype html><html><head></head><body></body></html>');
+    for (const name of [
+        'HTMLElement',
+        'Element',
+        'Node',
+        'Event',
+        'CustomEvent',
+        'MutationObserver',
+        'DocumentFragment',
+    ]) {
+        globalThis[name] = window[name];
+    }
+    globalThis.customElements = window.customElements;
+    globalThis.document = window.document;
+    globalThis.window = globalThis;
+    for (const name of ['addEventListener', 'removeEventListener', 'matchMedia', 'getComputedStyle']) {
+        if (typeof window[name] === 'function') globalThis[name] = window[name].bind(window);
+    }
+    return bundlePath;
+}
+
+const entry =
+    host === 'browser'
+        ? mode === 'template'
+            ? await installLiveBrowserHost()
+            : installBrowserHost()
+        : installNativescriptHost();
 
 const report = { host, mode, loaded: false, error: null };
 let bundleModule;
@@ -135,9 +177,16 @@ if (mode === 'member') {
     } catch (error) {
         report.refusal = error.message;
     }
+} else if (mode === 'template') {
+    try {
+        report.template = bundleModule.exercise();
+    } catch (error) {
+        report.templateError = `${error.constructor.name}: ${error.message}`;
+    }
 } else {
     const subclass = bundleModule.ProbeRow ?? bundleModule.ProbeButton ?? null;
     const base = bundleModule.actionRow ?? bundleModule.button ?? null;
+    report.descends = bundleModule.descends ?? null;
     report.protoIdentity = subclass !== null && base !== null && Object.getPrototypeOf(subclass) === base;
     if (host === 'browser') {
         report.registrySize = registry.size;
