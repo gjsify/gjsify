@@ -44,7 +44,8 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { View } from '@nativescript/core';
-import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, ScrollView, StackLayout } from '@nativescript/core';
+import type { TouchGestureEventData } from '@nativescript/core';
 import type {
     BottomSheetCloseOutcome,
     BottomSheetCloseSource,
@@ -67,6 +68,7 @@ import {
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
 import {
+    NestedDragTracker,
     type DragSample,
     type SheetRest,
     dragOffset,
@@ -141,6 +143,8 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     /** The sheet page inside the bin: drag handle over the sheet child, which takes the rest. */
     private readonly _sheetPage: GridLayout;
     private _drag: SheetDrag | null = null;
+    private readonly _nested = new NestedDragTracker();
+    private readonly _watched = new WeakSet<View>();
     /** The height the panel has with the bar in it, what a drag that closes the sheet falls to. */
     private _barHeight = 0;
     /** The bottom-bar bin — the bin's other layer, tapped to open the sheet. */
@@ -193,7 +197,6 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         // window in it scrolls, rather than being measured at its whole content and clipped.
         const sheetPage = new GridLayout();
         sheetPage.className = 'adw-bottom-sheet-page';
-        sheetPage.addRow(new ItemSpec(1, 'auto'));
         sheetPage.addRow(new ItemSpec(1, 'star'));
         sheetPanel.addChild(sheetPage);
 
@@ -203,6 +206,10 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         // can_target = FALSE (adw-bottom-sheet.c:1198) — the handle is decorative
         // and must not swallow (or act on) a tap. The drag it invites lands on the panel.
         handle.isUserInteractionEnabled = false;
+        // An overlay in the same cell as the sheet child, painted after it and with no
+        // background or row of its own: the content scrolls visibly behind the pill, as it does
+        // under `Adw.BottomSheet`'s drag handle.
+        handle.verticalAlignment = 'top';
         GridLayout.setRow(handle, 0);
         sheetPage.addChild(handle);
 
@@ -260,7 +267,44 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         if (wanted > 0 && panel.height !== wanted) panel.height = wanted;
     }
 
+    /**
+     * Content that scrolls owns the touch, so a pan never reaches the sheet from it. Reading the
+     * touch alongside the scroll gives the nested-scroll rule: at the top of the content, a
+     * finger that keeps going down closes the sheet (see {@link NestedDragTracker}).
+     */
+    private _watchScrolling(view: View): void {
+        if (view instanceof ScrollView) {
+            if (this._watched.has(view)) return;
+            this._watched.add(view);
+            view.addEventListener('touch', (args) => this._onNestedTouch(view, args as TouchGestureEventData));
+            return;
+        }
+        const layout = view as unknown as { getChildrenCount?(): number; getChildAt?(i: number): View; content?: View };
+        if (layout.content) this._watchScrolling(layout.content);
+        const count = layout.getChildrenCount?.() ?? 0;
+        for (let i = 0; i < count; i++) this._watchScrolling(layout.getChildAt!(i));
+    }
+
+    private _onNestedTouch(scroll: ScrollView, args: TouchGestureEventData): void {
+        if (!this._state.open && !this._nested.dragging) return;
+        // Off the sheet's own frame: the view moves with the sheet while it is pulled.
+        const y = args.getY() + (this._sheetPanel.translateY || 0);
+        let step;
+        if (args.action === 'down') {
+            if (this._drag) return;
+            this._nested.down(y);
+            return;
+        }
+        if (args.action === 'move') step = this._nested.move(y, scroll.verticalOffset);
+        else step = this._nested.up(args.action === 'cancel');
+        if (step.kind === 'begin') this._beginDrag();
+        else if (step.kind === 'move') this._moveDrag(step.dy);
+        else if (step.kind === 'end') this._endDrag(step.dy, false);
+    }
+
     private _onPan(args: PanGestureEventData): void {
+        // The nested pull has the touch; a pan that also fires must not drive the same sheet twice.
+        if (this._nested.dragging) return;
         if (args.state === PAN_BEGAN) this._beginDrag();
         else if (args.state === PAN_CHANGED) this._moveDrag(args.deltaY);
         else this._endDrag(args.deltaY, args.state === 0);
@@ -354,8 +398,11 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         this._sheetChild = view;
         if (view) {
             view.className = addMarkerClass(view.className, SHEET_CLASS);
-            GridLayout.setRow(view, 1);
-            this._sheetPage.addChild(view);
+            GridLayout.setRow(view, 0);
+            // Under the handle, which is the last child and so paints on top.
+            this._sheetPage.insertChild(view, 0);
+            this._watchScrolling(view);
+            view.addEventListener('loaded', () => this._watchScrolling(view));
         }
     }
 

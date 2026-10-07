@@ -8,6 +8,8 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import {
     FLING_VELOCITY,
+    NestedDragTracker,
+    OVERSCROLL_SLOP,
     SHEET_MIN_HEIGHT,
     dragOffset,
     dragProgress,
@@ -115,6 +117,58 @@ export default async () => {
 
         await it('does not treat a gentle release as a fling', () => {
             expect(settle(280, travel, -(FLING_VELOCITY - 1))).toBe('closed');
+        });
+    });
+
+    await describe('NestedDragTracker', async () => {
+        await it('lets content that is not at its start scroll without pulling the sheet', () => {
+            const t = new NestedDragTracker();
+            t.down(100);
+            expect(t.move(160, 40).kind).toBe('none');
+            expect(t.move(260, 20).kind).toBe('none');
+            expect(t.dragging).toBe(false);
+            expect(t.up().kind).toBe('none');
+        });
+
+        await it('pulls the sheet once the finger keeps going down from the start', () => {
+            const t = new NestedDragTracker();
+            t.down(100);
+            expect(t.move(100 + OVERSCROLL_SLOP - 1, 0).kind).toBe('none');
+            expect(t.move(100 + OVERSCROLL_SLOP, 0).kind).toBe('begin');
+            const step = t.move(180, 0);
+            expect(step.kind).toBe('move');
+            expect(step.kind === 'move' ? step.dy : -1).toBe(80 - OVERSCROLL_SLOP);
+        });
+
+        await it('picks the pull up where the content comes back to its start', () => {
+            const t = new NestedDragTracker();
+            t.down(100);
+            expect(t.move(200, 30).kind).toBe('none');
+            expect(t.move(260, 0).kind).toBe('none');
+            expect(t.move(260 + OVERSCROLL_SLOP, 0).kind).toBe('begin');
+        });
+
+        await it('does not pull on an upward move, and never past its start', () => {
+            const t = new NestedDragTracker();
+            t.down(300);
+            expect(t.move(200, 0).kind).toBe('none');
+            t.move(200 + OVERSCROLL_SLOP, 0);
+            const back = t.move(150, 0);
+            expect(back.kind === 'move' ? back.dy : -1).toBe(0);
+        });
+
+        await it('ends where it was let go, or at its start when cancelled', () => {
+            const t = new NestedDragTracker();
+            t.down(0);
+            t.move(20, 0);
+            t.move(120, 0);
+            const end = t.up();
+            expect(end.kind === 'end' ? end.dy : -1).toBe(100);
+            t.down(0);
+            t.move(20, 0);
+            t.move(120, 0);
+            const cancel = t.up(true);
+            expect(cancel.kind === 'end' ? cancel.dy : -1).toBe(0);
         });
     });
 };

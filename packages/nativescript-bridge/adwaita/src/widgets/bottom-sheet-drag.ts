@@ -81,3 +81,66 @@ export function settle(offset: number, travel: number, velocity: number): SheetR
     if (velocity >= FLING_VELOCITY) return 'closed';
     return dragProgress(offset, travel) >= SETTLE_PROGRESS ? 'open' : 'closed';
 }
+
+/** How far the finger must travel down from the top of the content before it is a close drag (dip). */
+export const OVERSCROLL_SLOP = 8;
+
+/** What a touch inside the sheet's scrolling content turned into. */
+export type NestedDragStep =
+    | { readonly kind: 'none' }
+    | { readonly kind: 'begin' }
+    | { readonly kind: 'move'; readonly dy: number }
+    | { readonly kind: 'end'; readonly dy: number };
+
+/**
+ * The nested-scroll rule of a Material bottom sheet: content scrolls on its own until it sits at
+ * its start, and a finger that keeps going down from there pulls the sheet instead. The
+ * scrolling content owns the touch, so no pan reaches the sheet; this reads the touch stream
+ * alongside it. `y` must be in a frame that does not move with the sheet (the view's own
+ * `getY()` plus the sheet's `translateY`), or the drag would chase itself.
+ */
+export class NestedDragTracker {
+    private _anchor = 0;
+    private _dragging = false;
+    private _last = 0;
+    private _scrolled = false;
+
+    /** Whether the sheet is being pulled by this tracker. */
+    get dragging(): boolean {
+        return this._dragging;
+    }
+
+    down(y: number): void {
+        this._anchor = y;
+        this._last = y;
+        this._dragging = false;
+        this._scrolled = false;
+    }
+
+    /** `offset` is the content's scroll offset (dip): above zero it is not at its start. */
+    move(y: number, offset: number): NestedDragStep {
+        this._last = y;
+        if (this._dragging) return { kind: 'move', dy: Math.max(y - this._anchor, 0) };
+        // Not at the start, or scrolling up: the content has the touch, and the pull restarts
+        // from wherever the finger is when it gets back to the start.
+        // The move that brings the content back to its start was spent scrolling it, so the
+        // pull measures from where the finger is then, not from where the content was left.
+        const wasScrolled = this._scrolled;
+        this._scrolled = offset > 0;
+        if (offset > 0 || wasScrolled || y < this._anchor) {
+            this._anchor = y;
+            return { kind: 'none' };
+        }
+        if (y - this._anchor < OVERSCROLL_SLOP) return { kind: 'none' };
+        this._dragging = true;
+        this._anchor = y;
+        return { kind: 'begin' };
+    }
+
+    /** `cancelled` ends a drag where it began: the touch was taken away, not let go. */
+    up(cancelled = false): NestedDragStep {
+        if (!this._dragging) return { kind: 'none' };
+        this._dragging = false;
+        return { kind: 'end', dy: cancelled ? 0 : Math.max(this._last - this._anchor, 0) };
+    }
+}
