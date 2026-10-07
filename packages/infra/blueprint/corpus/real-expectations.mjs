@@ -2354,7 +2354,10 @@ export const REAL_EXPECTATIONS = [
                 },
                 {
                     tag: 'GtkButton',
-                    signals: [{ name: 'clicked', handler: 'onClicked' }],
+                    signals: [
+                        { name: 'clicked', handler: 'onClicked' },
+                        { name: 'activate', handler: 'onActivate' },
+                    ],
                     bindings: { sensitive: { source: 'pressed', property: 'active' } },
                 },
                 {
