@@ -136,6 +136,52 @@ export const AdwConstructVectorsNsTest = async () => {
                 'plain handlers only',
             );
         });
+        await it('runs a CheckButton `toggled` handler on every change of `active`', () => {
+            let calls = 0;
+            const root = build(
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        { tag: 'GtkCheckButton', id: 'box', signals: [{ name: 'toggled', handler: 'onToggled' }] },
+                    ],
+                },
+                { scope: { onToggled: () => calls++ } },
+            ) as unknown as { getViewById(id: string): { active: boolean } };
+            const box = root.getViewById('box');
+            box.active = true;
+            box.active = false;
+            expect(calls).toBe(2);
+        });
+        await it('makes a bind follow a CheckButton `active`', () => {
+            const root = build({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkCheckButton', id: 'box' },
+                    {
+                        tag: 'GtkToggleButton',
+                        id: 'target',
+                        bindings: { active: { source: 'box', property: 'active' } },
+                    },
+                ],
+            }) as unknown as { getViewById(id: string): { active: boolean } };
+            const target = root.getViewById('target');
+            expect(target.active).toBe(false);
+            root.getViewById('box').active = true;
+            expect(target.active).toBe(true);
+        });
+        await it('declares the signals Entry, DropDown and Stack emit', () => {
+            const emitted = (tag: string) =>
+                (
+                    build({ tag: 'GtkBox', children: [{ tag, id: 'x' }] }) as unknown as {
+                        getViewById(id: string): { constructor: { emittedSignals: readonly string[] } };
+                    }
+                )
+                    .getViewById('x')
+                    .constructor.emittedSignals.join();
+            expect(emitted('GtkEntry')).toBe('notify::text,activate');
+            expect(emitted('GtkDropDown')).toBe('notify::selected');
+            expect(emitted('GtkStack')).toBe('notify::visible-child,notify::visible-child-name');
+        });
         await it('refuses a bind to an id nothing has, to a source that emits no notify, and the flags', () => {
             const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
                 ({
