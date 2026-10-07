@@ -20,8 +20,8 @@ and to `@gjsify/adwaita-nativescript` on `--app nativescript` (`GI_RENDERERS`,
 It is written like this:
 
 ```ts
-import GObject from 'gi://GObject';
-import Adw from 'gi://Adw';
+import GObject from 'gi://GObject?version=2.0';
+import Adw from 'gi://Adw?version=1';
 import Template from './hexdump.blp';
 
 export class Hexdump extends Adw.Bin {
