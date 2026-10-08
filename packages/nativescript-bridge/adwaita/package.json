@@ -18,6 +18,10 @@
             "types": "./lib/types/namespace/gtk.d.ts",
             "default": "./lib/esm/namespace/gtk.js"
         },
+        "./gobject": {
+            "types": "./lib/types/namespace/gobject.d.ts",
+            "default": "./lib/esm/namespace/gobject.js"
+        },
         "./builder": {
             "types": "./lib/types/builder/index.d.ts",
             "default": "./lib/esm/builder/index.js"

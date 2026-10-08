@@ -91,6 +91,8 @@ export interface GObjectSignals {
     connect(eventName: string, callback: (self: this, data: EventData) => void): number;
     /** Remove exactly the handler `connect` returned this id for. Throws on an id nothing holds. */
     disconnect(handlerId: number): void;
+    /** `g_signal_emit_by_name`: run every handler `connect` added for `eventName`, with `args` in the payload. */
+    emit(eventName: string, ...args: unknown[]): void;
 }
 
 /**
@@ -139,6 +141,10 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
             }
             this.removeEventListener(handler.eventName, handler.listener);
             HANDLERS.get(this)?.delete(handlerId);
+        }
+
+        emit(eventName: string, ...args: unknown[]): void {
+            this.notify({ eventName, object: this, args });
         }
     }
     return WithSignals;

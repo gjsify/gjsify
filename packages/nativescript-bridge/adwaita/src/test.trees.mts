@@ -21,6 +21,7 @@ import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
+import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
@@ -41,6 +42,7 @@ run({
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
     AdwConstructVectorsNsTest,
+    AdwGObjectDoorNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
     GtkGridNsTest,

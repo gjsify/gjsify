@@ -119,6 +119,10 @@ export * as Gtk from './namespace/gtk.js';
 // program here as on GJS — `./namespace/gio.ts` says what does not go in it.
 export * as Gio from './namespace/gio.js';
 
+// The fourth, and the one that makes an unmodified GNOME component class run (ADR 0096): the GObject
+// subset, `registerClass` first. `./namespace/gobject.ts` says what it is.
+export * as GObject from './namespace/gobject.js';
+
 // WHAT DID NOT MOVE INTO THE NAMESPACE, and the rule that decides it. A member exists
 // for an element whose GIR tag names a real widget; `WEB_ELEMENT_ALIGNMENT` declares the
 // rest `webOnly`, meaning no widget in the reference vocabulary stands behind it, so

@@ -352,6 +352,9 @@ async function walkSource(dir, signals) {
         // up guarding nothing.
         if (!SOURCE_EXT_RE.test(entry.name)) continue;
         if (GJS_SPEC_RE.test(entry.name)) continue;
+        // A generated `x.d.blp.ts` sidecar (ADR 0088) is declaration-only: its `import type`
+        // from `gi://` types a `.blp` and is never bundled, so it says nothing about the runtime.
+        if (entry.name.endsWith('.d.blp.ts')) continue;
         signals.file_count++;
         const text = await readFile(full, 'utf8');
         if (GIRS_VALUE_RE.test(text)) signals.girs_value = true;

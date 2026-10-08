@@ -43,7 +43,10 @@ import type { DispatchedSignals } from '../signals.js';
 
 export class GtkSwitch extends HTMLElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
-    static readonly signals: DispatchedSignals = { 'notify::active': 'notify::active' };
+    static readonly signals: DispatchedSignals = {
+        'notify::active': 'notify::active',
+        'notify::state': 'notify::state',
+    };
 
     private _input!: HTMLInputElement;
     private _slider!: HTMLSpanElement;

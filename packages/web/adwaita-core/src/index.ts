@@ -979,3 +979,45 @@ export {
     tokenizeAsm6502,
 } from './source.js';
 export type { AdwSourcePalette, AdwSourceSyntaxRole, AdwSourceTokenClass, AdwSourceTokenStream } from './source.js';
+
+// --- The GObject subset (ADR 0096): property store, signals, bindings, registerClass ---
+export {
+    GObjectObject,
+    META_SYMBOLS,
+    ParamFlags,
+    ParamSpec,
+    TYPE_BOOLEAN,
+    TYPE_DOUBLE,
+    TYPE_INT,
+    TYPE_STRING,
+    TYPE_UINT,
+    UnsupportedGObjectError,
+    bindProperties,
+    connectInstance,
+    constructRegistered,
+    createClosure,
+    createGObject,
+    disconnectInstance,
+    emitInstance,
+    notifyInstance,
+    registeredClassOf,
+} from './gobject.js';
+export type {
+    Binding,
+    BindingFlag,
+    BlueprintTemplate,
+    BuiltTemplate,
+    ClassLike,
+    ClassMeta,
+    GObjectConstructor,
+    GObjectDoor,
+    GObjectInstance,
+    GObjectNamespace,
+    GType,
+    ParamKind,
+    RegisterClass,
+    RegisteredClass,
+    SignalHandler,
+    SignalMeta,
+    TemplateScope,
+} from './gobject.js';

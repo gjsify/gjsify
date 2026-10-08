@@ -103,7 +103,15 @@ export declare function listDeclaredRuntimes(): Promise<
  * module, which is what every target but `gjs` and `node` did before the arms existed.
  */
 export declare const GI_RENDERERS: Readonly<
-    Record<string, { renderer: string; namespaces: Readonly<Record<string, string>> }>
+    Record<
+        string,
+        {
+            renderer: string;
+            namespaces: Readonly<Record<string, string>>;
+            /** Namespace → the module it is imported from, when not the renderer's root barrel. */
+            specifiers?: Readonly<Record<string, string>>;
+        }
+    >
 >;
 
 /** The `--app` values {@link GI_RENDERERS} has a row for, so a refused flag can name them. */

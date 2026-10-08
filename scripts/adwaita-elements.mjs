@@ -141,6 +141,15 @@ const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`]((?:adw|gtk)-[a-z0
 // whole tree is blind to, and counting only what matched can never show that.
 const DEFINE_CALL = /customElements\s*\.\s*define\(/g;
 
+// The one file allowed a define this reader cannot read, and the exact call it is allowed.
+// `GObject.registerClass` (ADR 0096 § 3) defines an APPLICATION class under a tag derived from
+// its `GTypeName` (`gjsify-<name>`). That is not an element the package ships, so it has no
+// matrix row and no ADR 0010 reset entry to miss. Any other unreadable call there still fails.
+const APPLICATION_DEFINE = {
+    file: `${ADWAITA_WEB_SRC}/gobject-door.ts`,
+    call: /customElements\s*\.\s*define\(\s*tag\s*,/g,
+};
+
 /**
  * Every non-spec `.ts` source file of the web renderer, absolute.
  *
@@ -702,7 +711,10 @@ export function adwaitaWebElements(root) {
     for (const file of files) {
         const text = readFileSync(file, 'utf8');
         const calls = (text.match(DEFINE_CALL) ?? []).length;
-        let matched = 0;
+        let matched =
+            toPosixPath(relative(root, file)) === APPLICATION_DEFINE.file
+                ? (text.match(APPLICATION_DEFINE.call) ?? []).length
+                : 0;
         for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
             matched += 1;
             const expected = tagClass(tag);

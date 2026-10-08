@@ -702,3 +702,7 @@ export type {
     ConstructUse,
     ConstructVector,
 } from './constructs.js';
+
+// --- The GObject subset: vectors, held on real GJS and on each port (ADR 0096) ---
+export { GOBJECT_ROWS, GOBJECT_VECTORS, driveGObjectVectors } from './gobject.js';
+export type { GObjectRow, GObjectSubject, GObjectTemplateSource, GObjectVector } from './gobject.js';

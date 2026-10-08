@@ -80,6 +80,16 @@ export interface GiRendererOptions {
     renderer: string;
     /** GI namespace → the version this arm answers for, from `@gjsify/resolve-npm`. */
     namespaces: Readonly<Record<string, string>>;
+    /** Namespace → a module whose exports ARE that namespace, when it is not a member of `renderer`'s root barrel. */
+    specifiers?: Readonly<Record<string, string>>;
+}
+
+/** A namespace with its own module IS that module; otherwise it is a member of the renderer's root barrel. */
+function importLine(options: GiRendererOptions, namespace: string): string {
+    const own = options.specifiers?.[namespace];
+    return own === undefined
+        ? `import { ${namespace} as namespace } from ${JSON.stringify(options.renderer)};\n`
+        : `import * as namespace from ${JSON.stringify(own)};\n`;
 }
 
 /**
@@ -108,7 +118,7 @@ export interface GiRendererOptions {
  */
 export function giRendererShimSource(options: GiRendererOptions, namespace: string, version: string): string {
     return (
-        `import { ${namespace} as namespace } from ${JSON.stringify(options.renderer)};\n` +
+        importLine(options, namespace) +
         `const RENDERER = ${JSON.stringify(options.renderer)};\n` +
         `const APP = ${JSON.stringify(options.app)};\n` +
         `const NS = ${JSON.stringify(namespace)};\n` +
