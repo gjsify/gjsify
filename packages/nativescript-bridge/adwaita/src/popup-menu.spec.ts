@@ -20,9 +20,16 @@ import {
     type PopupMenuSurface,
 } from './widgets/popup-menu.js';
 
+/**
+ * Records the calls AND keeps Android's checked state, because the state is where the platform
+ * surprises: in an exclusive group `MenuItemImpl.setChecked` calls `setExclusiveItemChecked`
+ * whatever the value, so `setChecked(false)` checks the item and unchecks its siblings.
+ */
 class RecordingMenu implements PopupMenuLike {
     readonly name: string;
     readonly log: string[];
+    private readonly items: Array<{ group: number; title: string; checked: boolean }> = [];
+    private readonly exclusive = new Set<number>();
     constructor(name: string, log: string[]) {
         this.name = name;
         this.log = log;
@@ -30,11 +37,21 @@ class RecordingMenu implements PopupMenuLike {
     add(group: number, id: number, order: number, title: string): PopupMenuItemLike {
         this.log.push(`${this.name}.add(${group},${id},${order},${title})`);
         const log = this.log;
+        const row = { group, title, checked: false };
+        this.items.push(row);
         return {
             setEnabled: (value) => void log.push(`${title}.enabled=${value}`),
             setCheckable: (value) => void log.push(`${title}.checkable=${value}`),
-            setChecked: (value) => void log.push(`${title}.checked=${value}`),
+            setChecked: (value) => {
+                log.push(`${title}.checked=${value}`);
+                if (!this.exclusive.has(group)) row.checked = value;
+                else for (const other of this.items) if (other.group === group) other.checked = other === row;
+            },
         };
+    }
+    /** The titles Android would draw as checked. */
+    checked(): string[] {
+        return this.items.filter((row) => row.checked).map((row) => row.title);
     }
     addSubMenu(group: number, id: number, order: number, title: string): PopupMenuLike {
         this.log.push(`${this.name}.addSubMenu(${group},${id},${order},${title})`);
@@ -42,6 +59,7 @@ class RecordingMenu implements PopupMenuLike {
     }
     setGroupCheckable(group: number, checkable: boolean, exclusive: boolean): void {
         this.log.push(`${this.name}.setGroupCheckable(${group},${checkable},${exclusive})`);
+        if (exclusive) this.exclusive.add(group);
     }
     setGroupDividerEnabled(enabled: boolean): void {
         this.log.push(`${this.name}.setGroupDividerEnabled(${enabled})`);
@@ -81,11 +99,25 @@ export default async () => {
                 'root.add(2,2,1,List)',
                 'root.add(2,3,2,Grid)',
                 'root.setGroupCheckable(2,true,true)',
-                'List.checked=false',
                 'Grid.checked=true',
                 'root.setGroupDividerEnabled(true)',
                 'show',
             ]);
+        });
+
+        await it('checks the radio the state names even when it is not the last one', () => {
+            const log: string[] = [];
+            const { surface } = surfaceOf(log);
+            const model = normalizeMenuModel([
+                {
+                    section: [
+                        { label: 'List', action: 'win.view::list' },
+                        { label: 'Grid', action: 'win.view::grid' },
+                    ],
+                },
+            ]);
+            openPopupMenu({ surface, model, actions: { 'win.view': { state: 'list' } }, activate: () => {} });
+            expect((surface.menu as RecordingMenu).checked()).toStrictEqual(['List']);
         });
 
         await it('inlines sections without a rule below API 28', () => {

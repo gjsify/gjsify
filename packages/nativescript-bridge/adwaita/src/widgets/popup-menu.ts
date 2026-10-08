@@ -77,7 +77,7 @@ function fillLevel(menu: PopupMenuLike, level: PopupMenuLevelPlan, apiLevel: num
     let order = 0;
     level.groups.forEach((group, index) => {
         const groupId = index + 1;
-        const radios: Array<[PopupMenuItemLike, boolean]> = [];
+        let checkedRadio: PopupMenuItemLike | undefined;
         for (const entry of group.entries) {
             const itemId = source.next++;
             if (entry.kind === 'submenu') {
@@ -90,12 +90,14 @@ function fillLevel(menu: PopupMenuLike, level: PopupMenuLevelPlan, apiLevel: num
             if (entry.checkable) {
                 item.setCheckable(true);
                 item.setChecked(entry.checked);
-            } else if (entry.role === 'radio') radios.push([item, entry.checked]);
+            } else if (entry.role === 'radio' && entry.checked) checkedRadio = item;
         }
-        // The group is made exclusive BEFORE a radio is checked: `setChecked` on an item of an
-        // exclusive group is what unchecks its siblings.
+        // The group is made exclusive BEFORE its radio is checked, and only the checked one is
+        // touched: in an exclusive group `MenuItemImpl.setChecked` calls `setExclusiveItemChecked`
+        // whatever the value, so `setChecked(false)` CHECKS the item and unchecks its siblings —
+        // the last radio written would win (seen on the API 36 emulator).
         if (group.checkable === 'exclusive') menu.setGroupCheckable(groupId, true, true);
-        for (const [item, checked] of radios) item.setChecked(checked);
+        checkedRadio?.setChecked(true);
     });
     if (level.groups.length > 1 && apiLevel >= GROUP_DIVIDER_API) menu.setGroupDividerEnabled?.(true);
 }
