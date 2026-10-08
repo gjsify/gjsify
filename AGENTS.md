@@ -135,7 +135,7 @@ Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subj
 A full CI pass is ~25 minutes, and that cost is per PR, not per commit: **land one
 large feature PR rather than several small stacked ones.** The measurement (four
 stacked PRs → three main-merge rounds, two bundle rebuilds before anything landed)
-is in [docs/governance.md](docs/governance.md). When a stack is unavoidable, make it a NATIVE one (`gh stack`), not hand-chained bases: GitHub then rebases the rest after each squash. Merge a stacked PR with `gh api -X PUT repos/gjsify/gjsify/pulls/<n>/merge-async` and NO `merge_method` (the queue owns it; `gh pr merge` is refused).
+is in [docs/governance.md](docs/governance.md). When a stack is unavoidable, make it a NATIVE one (`gh stack`), not hand-chained bases: GitHub then rebases the rest after each squash. Merge one via `gh api -X PUT …/pulls/<n>/merge-async`, no `merge_method` (`gh pr merge` is refused).
 
 **Open PRs as draft, push in batches, mark ready when done** (`gh pr ready`): heavy CI skips
 on drafts and runs on `ready_for_review` ([why](docs/ci-selective.md)). Lint, format and the
