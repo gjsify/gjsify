@@ -21,6 +21,7 @@ import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
+import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
@@ -57,6 +58,7 @@ run({
     AdwWindowShellNsTest,
     GtkToggleButtonNsTest,
     GtkButtonActionsNsTest,
+    GtkMenuTreeNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
     AdwValueListsNsTest,
