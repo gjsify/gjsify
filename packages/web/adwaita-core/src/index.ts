@@ -1001,7 +1001,30 @@ export {
     emitInstance,
     notifyInstance,
     registeredClassOf,
+    registerBaseClass,
+    UNLOCKED_VFUNCS,
+    GIR_TYPE,
 } from './gobject.js';
+export {
+    ApplicationFlags,
+    GioApplicationBase,
+    GtkApplicationBase,
+    withGtkApplication,
+    isValidApplicationId,
+} from './application.js';
+export type { ApplicationHost } from './application.js';
+export {
+    ActionRegistry,
+    SimpleAction,
+    actionRegistryOf,
+    activateWidgetAction,
+    applicationOfWindow,
+    findActionGroup,
+    insertActionGroup,
+    installActionMap,
+    linkWindow,
+} from './gio-actions.js';
+export type { ActionActivateHandler, ActionGroupLike, ActionLike, SimpleActionProps } from './gio-actions.js';
 export type {
     Binding,
     BindingFlag,

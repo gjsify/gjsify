@@ -56,6 +56,8 @@ import tagsTestSuite from './tags.spec.js';
 import sourceTestSuite from './source.spec.js';
 import gobjectTestSuite from './gobject.spec.js';
 import gobjectOracleTestSuite from './gobject.gjs.spec.js';
+import applicationTestSuite from './application.spec.js';
+import applicationOracleTestSuite from './application.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -114,4 +116,6 @@ run({
     sourceTestSuite,
     gobjectTestSuite,
     gobjectOracleTestSuite,
+    applicationTestSuite,
+    applicationOracleTestSuite,
 });

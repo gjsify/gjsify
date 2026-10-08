@@ -633,6 +633,28 @@ type Klass = { prototype: object; name: string } & Record<PropertyKey, unknown>;
 
 const own = (target: object, key: PropertyKey): boolean => Object.prototype.hasOwnProperty.call(target, key);
 
+/** A core class declares the GIR type its `vfunc_*` are listed under in {@link UNLOCKED_VFUNCS}. */
+export const GIR_TYPE = Symbol('GIR type');
+
+/**
+ * The `vfunc_*` a registered class may override (ADR 0098 § 1a), keyed by the GIR class that declares
+ * them. Every other `vfunc_*` is refused by name. An entry needs a vector of `APPLICATION_VECTORS`
+ * (`unlocks`) that holds on real GJS; `application.spec.ts` fails an entry without one.
+ */
+export const UNLOCKED_VFUNCS: Readonly<Record<string, readonly string[]>> = {
+    'Gio.Application': ['vfunc_startup', 'vfunc_activate'],
+};
+
+/** The vfuncs unlocked for a class: the lists of every GIR type on its static chain, itself included. */
+function unlockedVfuncsOf(klass: object): Set<string> {
+    const found = new Set<string>();
+    for (let each: unknown = klass; typeof each === 'function'; each = Object.getPrototypeOf(each)) {
+        const girType = own(each, GIR_TYPE) ? (each as unknown as Record<symbol, unknown>)[GIR_TYPE] : undefined;
+        if (typeof girType === 'string') for (const name of UNLOCKED_VFUNCS[girType] ?? []) found.add(name);
+    }
+    return found;
+}
+
 function refusal(className: string, feature: string, detail = ''): UnsupportedGObjectError {
     return new UnsupportedGObjectError(
         feature,
@@ -664,10 +686,19 @@ function registerWith(door: GObjectDoor, args: readonly unknown[]): ClassLike {
     for (const [feature, symbol] of Object.entries(REFUSED_META)) {
         if (own(klass, symbol)) throw refusal(className, feature);
     }
+    const unlocked = unlockedVfuncsOf(klass);
     for (const target of [klass as object, klass.prototype]) {
         for (const key of Object.getOwnPropertyNames(target)) {
-            if (key.startsWith('vfunc_') && typeof Object.getOwnPropertyDescriptor(target, key)?.value === 'function') {
-                throw refusal(className, key, ' (a virtual function override)');
+            if (
+                key.startsWith('vfunc_') &&
+                typeof Object.getOwnPropertyDescriptor(target, key)?.value === 'function' &&
+                !unlocked.has(key)
+            ) {
+                throw refusal(
+                    className,
+                    key,
+                    ' (a virtual function override that UNLOCKED_VFUNCS does not list, ADR 0098 § 1a)',
+                );
             }
         }
     }
@@ -734,6 +765,41 @@ function registerWith(door: GObjectDoor, args: readonly unknown[]): ClassLike {
     REGISTRY.set(klass, info);
     door.register(info.klass, info);
     return info.klass;
+}
+
+/**
+ * Registers a core class that is no widget and has no template (`Gio.Application`), so its signals
+ * resolve through the registry like a registered class's own. The door is one that names the
+ * missing widget model: such a class has no event system to fall through to.
+ */
+export function registerBaseClass(
+    klass: ClassLike,
+    typeName: string,
+    signals: Readonly<Record<string, readonly GType[]>>,
+    properties: readonly ParamSpec[] = [],
+): void {
+    const missing = (event: string): never => {
+        throw new Error(`No signal '${event}' on object '${typeName}'`);
+    };
+    const gtype = makeType(typeName);
+    Object.defineProperty(klass, '$gtype', { get: () => gtype, enumerable: false, configurable: false });
+    for (const spec of properties) checkAccessors(klass.prototype, spec);
+    REGISTRY.set(klass, {
+        klass,
+        typeName,
+        gtype,
+        properties,
+        signals,
+        internalChildren: [],
+        door: {
+            name: typeName,
+            dispatch: (_target, event) => missing(event),
+            listen: (_target, event) => missing(event),
+            createFromTree: () => missing('template'),
+            attach() {},
+            register() {},
+        },
+    });
 }
 
 // --- The base class and the namespace --------------------------------------------------------

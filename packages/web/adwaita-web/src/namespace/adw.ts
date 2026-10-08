@@ -109,3 +109,4 @@ export { AdwViewSwitcherBar as ViewSwitcherBar } from '../elements/adw-view-swit
 export { AdwWindow as Window } from '../elements/adw-window.js';
 export { AdwWindowTitle as WindowTitle } from '../elements/adw-window-title.js';
 export { AdwWrapBox as WrapBox } from '../elements/adw-wrap-box.js';
+export { AdwApplication as Application } from '../application.js';

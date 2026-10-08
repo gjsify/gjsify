@@ -139,6 +139,7 @@ import { AdwKeyboardOperableTest } from './keyboard-operable.spec.js';
 import { AdwFontsTest } from './adw-fonts.spec.js';
 import { AdwConstructVectorsTest } from './construct-vectors.spec.js';
 import { GObjectDoorTest } from './gobject-door.spec.js';
+import { ApplicationTest } from './application.spec.js';
 import { AdwSharedTreesTest } from './shared-trees.spec.js';
 import { AdwBlueprintTreeTest } from './blueprint-tree.spec.js';
 import { AdwValueListsTest } from './value-lists.spec.js';
@@ -153,6 +154,7 @@ run({
     AdwSharedTreesTest,
     AdwConstructVectorsTest,
     GObjectDoorTest,
+    ApplicationTest,
     AdwBlueprintTreeTest,
     AdwValueListsTest,
     AdwBlueprintLayoutTest,

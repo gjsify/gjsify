@@ -95,3 +95,4 @@ export { GtkWindow as Window } from '../elements/gtk-window.js';
 export { GtkWindowControls as WindowControls } from '../elements/gtk-window-controls.js';
 export { GtkViewport as Viewport } from '../elements/gtk-viewport.js';
 export { GtkWindowHandle as WindowHandle } from '../elements/gtk-window-handle.js';
+export { GtkApplication as Application } from '../application.js';
