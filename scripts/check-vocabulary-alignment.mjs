@@ -247,6 +247,7 @@ import {
     writeSurfaces,
 } from './nativescript-xml-doors.mjs';
 import { METHODS_FILE, methodsOf, readMethodTable, snakeOf } from './widget-methods.mjs';
+import { ENUM_VALUES_FILE, readNumberRecord, splitKey } from './enum-values.mjs';
 import { readValueTypes, VALUE_TYPES_FILE } from './value-types.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
@@ -1384,11 +1385,12 @@ function namespacePlace(tag) {
  *   classOf: (widget: string) => string,
  *   describe: (widget: string) => string,
  *   values: { member: string, gir: string, why: string }[],
+ *   enums?: ReadonlySet<string>,
  * }} surface
  * @returns {string[]}
  */
 function namespaceProblems(surface) {
-    const { package: pkg, source, widgets, namespace, tagOf, classOf, describe, flatExports, values } = surface;
+    const { package: pkg, source, widgets, namespace, tagOf, classOf, describe, flatExports, values, enums } = surface;
     const problems = [];
     if (namespace === null) {
         return [
@@ -1489,6 +1491,11 @@ function namespaceProblems(surface) {
             // the ledger is one list and the surfaces are several, so failing here too would
             // ask for one fix as many times as there are surfaces carrying the member.
             if (declaredValue) continue;
+            // A GIR ENUM (`Gtk.PolicyType`) is neither a widget nor a constructible value: an
+            // app reads its constants off the namespace, as it does under GJS. The committed
+            // `enum-values.mts` is the oracle, so a member cannot be excused by naming an enum
+            // the GIR does not have.
+            if (enums?.has(`${name}${member}`)) continue;
             problems.push(
                 `${source} names \`${name}.${member}\`, which no ${pkg} widget corresponds to — drop it, ` +
                     'ship the widget it promises, or declare it a constructible value in ' +
@@ -1750,6 +1757,7 @@ const webNamespaceSurface = (world, runtimeTags) => ({
     widgets: world.webElements,
     namespace: world.webNamespace,
     values: world.valueLedger,
+    enums: world.enumTypes,
     flatExports: world.flatExports.get(WEB_SURFACE) ?? new Set(),
     tagOf: (element) => {
         if (runtimeTags.has(element)) return element;
@@ -1768,12 +1776,13 @@ const webNamespaceSurface = (world, runtimeTags) => ({
  * table does not carry resolves to nothing here: `rendererWidgetProblems` has already
  * failed on it, and a second failure would ask for two fixes for one edit.
  */
-const rendererNamespaceSurface = (surface, runtime, runtimeTags, flatExports, values) => ({
+const rendererNamespaceSurface = (surface, runtime, runtimeTags, flatExports, values, enums) => ({
     package: surface.package,
     source: surface.namespaceSource,
     widgets: surface.widgets,
     namespace: surface.namespace,
     values,
+    enums,
     flatExports: flatExports.get(surface.package) ?? new Set(),
     tagOf: (widget) => {
         if (runtimeTags.has(widget)) return widget;
@@ -2368,7 +2377,14 @@ export function alignmentProblems(world) {
         if (surface.namespace !== undefined) {
             problems.push(
                 ...namespaceProblems(
-                    rendererNamespaceSurface(surface, runtime, runtimeTags, world.flatExports, world.valueLedger),
+                    rendererNamespaceSurface(
+                        surface,
+                        runtime,
+                        runtimeTags,
+                        world.flatExports,
+                        world.valueLedger,
+                        world.enumTypes,
+                    ),
                 ),
             );
         }
@@ -2545,8 +2561,16 @@ const WORLD = () => ({
     // neither gets a member — the two no-member shapes the web fixture cannot show.
     nsNamespace: new Map([
         ['Adw', new Map([['Bin', 'AdwBin']])],
-        ['Gtk', new Map([['Button', 'AdwButton']])],
+        [
+            'Gtk',
+            new Map([
+                ['Button', 'AdwButton'],
+                ['PolicyType', 'PolicyType'],
+            ]),
+        ],
     ]),
+    // The GIR enums the committed `enum-values.mts` carries; `Gtk.PolicyType` above is one.
+    enumTypes: new Set(['GtkPolicyType']),
     surfaces: {
         declared: [
             { name: '@gjsify/fixture-host', rel: 'packages/fixture-host', declaration: { role: 'reference' } },
@@ -2571,7 +2595,13 @@ const WORLD = () => ({
             namespaceSource: NS_NAMESPACE_SOURCE,
             namespace: new Map([
                 ['Adw', new Map([['Bin', 'AdwBin']])],
-                ['Gtk', new Map([['Button', 'AdwButton']])],
+                [
+                    'Gtk',
+                    new Map([
+                        ['Button', 'AdwButton'],
+                        ['PolicyType', 'PolicyType'],
+                    ]),
+                ],
             ]),
         },
         // A second renderer with an EMPTY table, so the shape a newly enrolled surface
@@ -2861,6 +2891,11 @@ const VECTORS = [
                 ]),
             }),
         'names `Adw.Ghost`, which no @gjsify/adwaita-nativescript widget corresponds to',
+    ],
+    [
+        'a namespace enum the committed GIR enum values do not carry',
+        (w) => ({ ...w, enumTypes: new Set() }),
+        'names `Gtk.PolicyType`, which no @gjsify/adwaita-nativescript widget corresponds to',
     ],
     [
         'a NativeScript namespace member bound to another widget',
@@ -3646,6 +3681,9 @@ try {
         // rule reading a constant directly is one no vector can make go red.
         valueLedger: CONSTRUCTIBLE_VALUES,
         valueTypes: readValueTypes(read(VALUE_TYPES_FILE)),
+        enumTypes: new Set(
+            [...readNumberRecord(read(ENUM_VALUES_FILE), 'ENUM_VALUES').keys()].map((key) => splitKey(key)[0]),
+        ),
         nsMethods: new Map([...nsFiles.keys()].map((tag) => [tag, nsMethodsOf(tagClass(tag))])),
         methodLedger: NS_METHOD_ALIGNMENT,
     };

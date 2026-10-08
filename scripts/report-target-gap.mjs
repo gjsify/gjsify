@@ -59,6 +59,7 @@ import ts from 'typescript';
 
 import { gtypeName, parseBlueprint, projectToSharedNode } from '../packages/infra/blueprint/src/index.mjs';
 import { GI_RENDERERS } from '../packages/infra/resolve-npm/lib/gi-renderers.mjs';
+import { bindFormIssues, exportedValueNames, hasTemplateScope } from './lib/target-gap-barrel.mjs';
 import { hostTagOf } from '../packages/web/adwaita-core/src/tags.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -143,6 +144,13 @@ for (const group of readdirSync(join(ROOT, 'packages'))) {
 const barrelOf = (file) => {
     const entries = new Map();
     for (const statement of parse(file).statements) {
+        // `export const registerClass = …` is a member as much as `export { registerClass }` is.
+        if (ts.isVariableStatement(statement)) {
+            for (const name of exportedValueNames({ statements: [statement] })) {
+                entries.set(name, { className: name, file });
+            }
+            continue;
+        }
         if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
         if (statement.exportClause === undefined || !ts.isNamedExports(statement.exportClause)) continue;
         const from = statement.moduleSpecifier ? sourceOf(file, statement.moduleSpecifier.text) : file;
@@ -430,6 +438,9 @@ const sitesOf = (file, node) => {
 const signalIssues = (renderer, sites) => {
     const ids = new Map(sites.filter((site) => site.id !== undefined).map((site) => [site.id, site]));
     const issues = [];
+    // `bind template.x` and the bind flags go through the template scope a `registerClass` class
+    // supplies (ADR 0096 § 3); a target whose `GObject` namespace has no `registerClass` has none.
+    const templateScoped = hasTemplateScope(renderer.barrels);
     let unresolved = 0;
     const declares = (tag, name) => {
         const declared = renderer.signalsOfTag(tag);
@@ -458,18 +469,8 @@ const signalIssues = (renderer, sites) => {
             }
         }
         for (const binding of site.bindings) {
-            if ((binding.flags ?? []).length > 0) {
-                issues.push({
-                    issue: 'refused-bind-flag',
-                    tag: site.tag,
-                    name: binding.flags.join(','),
-                    line: binding.line,
-                });
-            }
-            if (binding.source === 'template') {
-                issues.push({ issue: 'refused-bind-source', tag: site.tag, name: 'template', line: binding.line });
-                continue;
-            }
+            issues.push(...bindFormIssues(binding, site.tag, templateScoped));
+            if (binding.source === 'template') continue;
             const source = ids.get(binding.source);
             if (source === undefined) {
                 issues.push({ issue: 'unknown-bind-source', tag: site.tag, name: binding.source, line: binding.line });
