@@ -335,6 +335,35 @@ export default async () => {
             expect(emitted[0].row).toBe(row);
         });
 
+        // AdwActionRow overrides activate() as VOID: it emits `activated` itself, yet the
+        // strict `=== true` check read that as "not activated", so the fallback emitted
+        // row-activated too — which AdwActionRow re-emits as a SECOND `activated`.
+        await it('fires an activatable AdwActionRow exactly once (no activate() + row-activated double)', async () => {
+            let activated = 0;
+            let rowActivated = 0;
+            const listbox = {
+                constructor: { $gtype: { name: 'GtkListBox' } },
+                select_row: () => {},
+                emit: (signal: string) => {
+                    if (signal === 'row-activated') {
+                        rowActivated++;
+                        activated++; // AdwActionRow re-emits `activated` from row-activated
+                    }
+                },
+            };
+            const row = {
+                constructor: { $gtype: { name: 'GtkListBoxRow' } },
+                activate: () => {
+                    activated++;
+                    return undefined as unknown as boolean;
+                },
+                get_parent: () => listbox,
+            };
+            expect(activateWidget(asWidget(row))).toBe(true);
+            expect(activated).toBe(1);
+            expect(rowActivated).toBe(1);
+        });
+
         await it('does NOT drive the row when the parent is not a GtkListBox', async () => {
             let touched = false;
             const box = {
