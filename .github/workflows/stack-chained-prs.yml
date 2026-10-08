@@ -1,0 +1,49 @@
+name: Stack chained PRs
+
+# A PR whose base is another open PR's branch becomes a native GitHub stack, so a squash merge
+# of the lower PR rebases it instead of stranding it. `scripts/stack-chained-pr.mjs` holds the
+# reasoning and what it refuses to do. ADVISORY: never a required check.
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  stack:
+    name: Stack a chained PR
+    # Only a PR that does not target the default branch can be a chained one; a fork PR's token
+    # is read-only and stacks are same-repository only.
+    if: >-
+      github.event.pull_request.base.ref != github.event.repository.default_branch &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    # A write token, so no head code: the script comes from `base.sha`, sparse.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Check out the script
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/stack-chained-pr.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Stack this PR onto the one below it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # The base is the LOWER PR's branch, which may predate the script.
+          if [ ! -f scripts/stack-chained-pr.mjs ]; then
+              echo "::notice::the base branch predates scripts/stack-chained-pr.mjs; nothing stacked."
+              exit 0
+          fi
+
+          node scripts/stack-chained-pr.mjs
