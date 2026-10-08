@@ -39,7 +39,7 @@
 // one anyway, because from the READER's side the loss is real, and stage D drops that kind
 // before comparing rather than teaching this file to invent it.
 
-/** @import { BlueprintFile, ObjectBody, ObjectNode, SourceLocation, TemplateNode, TypeRef, Value } from './ast.d.mts' */
+/** @import { BlueprintFile, MenuItem, MenuNode, ObjectBody, ObjectNode, SourceLocation, TemplateNode, TypeRef, Value } from './ast.d.mts' */
 /** @import { ProjectedLoss, ProjectedUse, SharedNode, SharedNodeProjection } from './shared-node.d.mts' */
 import { numberLiteral } from './number-literal.mjs';
 
@@ -340,6 +340,8 @@ const projectBody = (body, tag) => {
     const extensions = {};
     /** @type {NonNullable<SharedNode['bindings']>} */
     const bindings = {};
+    /** @type {NonNullable<SharedNode['menuModels']>} */
+    const menuModels = {};
     /** @type {SharedNode['layout']} */
     let layout;
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
@@ -372,6 +374,12 @@ const projectBody = (body, tag) => {
         if (property.value.kind === 'binding') {
             const binding = bindingOf(property.value);
             if (binding !== undefined) bindings[property.name] = binding;
+            continue;
+        }
+        if (property.value.kind === 'menu') {
+            // A menu written at the property is the model itself, id or not (ADR 0097 § 1);
+            // `menus` holds root menus only.
+            menuModels[property.name] = property.value.menu.items.map(menuNodeOf);
             continue;
         }
         const scalar = scalarOf(property.value, tag);
@@ -427,6 +435,7 @@ const projectBody = (body, tag) => {
         ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
         ...(signals === undefined ? {} : { signals }),
         ...(Object.keys(bindings).length > 0 ? { bindings } : {}),
+        ...(Object.keys(menuModels).length > 0 ? { menuModels } : {}),
         ...(breakpoints.length > 0 ? { breakpoints } : {}),
         ...(children.length > 0 ? { children } : {}),
     };
@@ -454,6 +463,110 @@ const projectObject = (object, slot, tag) => {
         ...(slot === undefined ? {} : { slot }),
         ...body,
     };
+};
+
+// ------------------------------------------------------------------ menus (ADR 0097 § 1)
+
+/** Item attributes `AdwMenuItem` has a field for, by their GMenu name. */
+const MENU_ITEM_FIELDS = {
+    label: 'label',
+    action: 'action',
+    icon: 'icon',
+    'verb-icon': 'verbIcon',
+    accel: 'accel',
+    'hidden-when': 'hiddenWhen',
+    custom: 'custom',
+    'use-markup': 'useMarkup',
+};
+const MENU_SECTION_FIELDS = { label: 'label', 'display-hint': 'displayHint', 'text-direction': 'textDirection' };
+const MENU_SUBMENU_FIELDS = {
+    label: 'label',
+    icon: 'icon',
+    'submenu-action': 'submenuAction',
+    'gtk-macos-special': 'macosSpecial',
+};
+
+/**
+ * `app.view` + target `'list'` → `app.view::list`, and any other GVariant text → `app.view(2)`.
+ * No field is added for the target (ADR 0042 § 3): the detailed name is the one string GIO reads.
+ *
+ * @param {string} action @param {string} target
+ */
+const detailedActionOf = (action, target) => {
+    const quoted = /^'([^'\\]*)'$/.exec(target);
+    return quoted === null ? `${action}(${target})` : `${action}::${quoted[1]}`;
+};
+
+/**
+ * One menu member as the `AdwMenuNode` a renderer takes. An attribute `AdwMenuNode` has no field
+ * for is refused by name and line, never dropped (ADR 0097 § 1).
+ *
+ * @param {MenuItem} member @returns {Record<string, unknown>}
+ */
+const menuNodeOf = (member) => {
+    const fields =
+        member.kind === 'item'
+            ? MENU_ITEM_FIELDS
+            : member.kind === 'section'
+              ? MENU_SECTION_FIELDS
+              : MENU_SUBMENU_FIELDS;
+    /** @type {Record<string, unknown>} */
+    const node = { kind: member.kind };
+    let target;
+    for (const attribute of member.attributes) {
+        if (attribute.name === 'target' && member.kind === 'item') {
+            target = attribute;
+            continue;
+        }
+        const field = /** @type {Record<string, string>} */ (fields)[attribute.name];
+        if (field === undefined) {
+            throw new Error(
+                `line ${attribute.line}: the menu ${member.kind} attribute '${attribute.name}' has no field in the ` +
+                    'portable menu model (ADR 0042), so it would be dropped; refused instead (ADR 0097 § 1).',
+            );
+        }
+        node[field] = field === 'useMarkup' ? attribute.value.value === 'true' : attribute.value.value;
+    }
+    if (target !== undefined) {
+        if (typeof node.action !== 'string') {
+            throw new Error(`line ${target.line}: a menu item has a 'target' and no 'action' for it to belong to.`);
+        }
+        node.action = detailedActionOf(node.action, target.value.value);
+    }
+    if (member.kind !== 'item') node.items = member.items.map(menuNodeOf);
+    if (member.kind === 'submenu' && node.label === undefined) node.label = '';
+    return node;
+};
+
+/**
+ * The menus a file names by id (ADR 0097 § 1): each root `menu id { }`, and every named `section`
+ * or `submenu` inside one, because GtkBuilder makes each of those an object `menu-model: id` can
+ * point at (measured with `Gtk.Builder.get_object` on corpus file 56). An inline menu is not here:
+ * it is the model at its property (`menuModels`).
+ *
+ * @param {BlueprintFile} file @returns {Record<string, unknown[]> | undefined}
+ */
+const menusOf = (file) => {
+    /** @type {Record<string, unknown[]>} */
+    const menus = {};
+    /** @param {MenuNode | MenuItem} menu @param {unknown[]} nodes the projected `menu.items` */
+    const register = (menu, nodes) => {
+        if (menu.id !== undefined) menus[menu.id] = nodes;
+        menu.items.forEach((member, index) => {
+            if (member.kind === 'item') return;
+            register(member, /** @type {{ items: unknown[] }} */ (nodes[index]).items);
+        });
+    };
+    for (const root of file.roots) {
+        if (root.kind === 'menu') register(root, root.items.map(menuNodeOf));
+    }
+    return Object.keys(menus).length > 0 ? menus : undefined;
+};
+
+/** @param {BlueprintFile} file */
+const menusField = (file) => {
+    const menus = menusOf(file);
+    return menus === undefined ? {} : { menus };
 };
 
 /**
@@ -505,12 +618,6 @@ const lossesOf = (file, tag) => {
                 if (styleClassesOf(property) === undefined && stringsOf(property) === undefined) {
                     lost.push({ kind: 'value-list', line: property.line });
                 }
-            } else if (value.kind === 'menu') {
-                // A menu written AT the property. `SharedNode` has no menu form — a top-level
-                // one is already a `menu` loss, and this is the same loss in a second position.
-                // Without this arm it left through no arm at all: measured, `inline_menu.blp`
-                // projected a bare `GtkMenuButton` with an EMPTY loss list.
-                lost.push({ kind: 'menu', line: property.line });
             } else if (value.kind === 'object') walkObject(value.object);
         }
         // `responses` is carried in `extensions` (ADR 0072) and a scalar `layout` in `layout`
@@ -572,10 +679,7 @@ const lossesOf = (file, tag) => {
     // spelling in a tree that has one `template` field.
     let keptWidget = false;
     for (const root of file.roots) {
-        if (root.kind === 'menu') {
-            lost.push({ kind: 'menu', line: root.line });
-            continue;
-        }
+        if (root.kind === 'menu') continue;
         if (keptWidget) {
             if (root.kind === 'template') lost.push({ kind: 'sibling-object', line: root.line });
             else walkObject(/** @type {ObjectNode} */ (root));
@@ -705,6 +809,7 @@ export function projectToSharedNode(file, options) {
                 template: templateClass,
                 ...projectBody(template.body, tag),
                 ...siblingsOf(file, root, tag),
+                ...menusField(file),
             },
             lost: lossesOf(file, tag),
             uses: usesOf(file, tag),
@@ -714,6 +819,7 @@ export function projectToSharedNode(file, options) {
         node: {
             ...projectObject(/** @type {ObjectNode} */ (root), undefined, tag),
             ...siblingsOf(file, root, tag),
+            ...menusField(file),
         },
         lost: lossesOf(file, tag),
         uses: usesOf(file, tag),

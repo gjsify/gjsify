@@ -31,6 +31,7 @@
 
 import {
     createBreakpointDriver,
+    menuAssignments,
     parseBreakpointCondition,
     type BindingFlag,
     type BreakpointSize,
@@ -183,6 +184,7 @@ interface BuildContext {
     /** The nodes that carry `breakpoints`, wired once every id exists (a setter may name a later sibling). */
     breakpointHosts: { view: object; element: Element; node: SharedTreeNode }[];
     observeSize: SizeSource;
+    menus: SharedTreeNode['menus'];
     scope: Readonly<Record<string, unknown>> | undefined;
     template: TemplateScope | undefined;
     translate: BuildOptions['translate'];
@@ -385,6 +387,7 @@ function buildTree(
         binds: [],
         breakpointHosts: [],
         observeSize: options.observeSize ?? observeWindowSize,
+        menus: node.menus,
         scope: options.scope,
         template: options.template,
         translate: options.translate,
@@ -767,7 +770,13 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
         view.id = node.id;
     }
     const references = declaredBuilderReferences(element.ctor);
+    for (const [authored, model] of menuAssignments(node, context.menus)) {
+        const prop = propertyOf(authored);
+        if (!(prop in view)) throw unknownProperty(element, node.tag, authored, prop, authored);
+        (view as unknown as Record<string, unknown>)[prop] = model;
+    }
     for (const [authored, value] of Object.entries(node.props ?? {})) {
+        if (authored === 'menu-model') continue;
         // A projected `.blp` spells a property as GObject does (`maximum-size`); the widget
         // declares it in camel case (`maximumSize`). Without the case rule every hyphenated
         // property of a real `.blp` was refused below, so only hand-authored trees built.

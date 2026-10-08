@@ -34,6 +34,7 @@ import {
     normalizeMenuModel,
     parseMenuModel,
 } from '@gjsify/adwaita-core';
+import { activateElementMenuItem, menuActionsOfElement } from '../application.js';
 import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
 
 import { PopoverMenuView } from './popover-menu.js';
@@ -197,6 +198,7 @@ export class GtkMenuButton extends HTMLElement {
             if (item === null) return;
             this._popoverEl.popdown();
             this._buttonEl.focus();
+            activateElementMenuItem(this, item);
             this.dispatchEvent(
                 new CustomEvent('menu-item-activated', {
                     bubbles: true,
@@ -246,7 +248,10 @@ export class GtkMenuButton extends HTMLElement {
     private _onPopoverToggled(open: boolean): void {
         this.classList.toggle('active', open);
         this._buttonEl.setAttribute('aria-expanded', String(open));
-        if (open) this._menuView.focusableRows[0]?.focus();
+        if (open) {
+            this._refreshActions();
+            this._menuView.focusableRows[0]?.focus();
+        }
         // A dismissal returns the popup to its top page: a menu that reopens inside a
         // submenu is one the reader cannot get out of.
         else this._menuView.reset();
@@ -268,6 +273,12 @@ export class GtkMenuButton extends HTMLElement {
         this._buttonEl.setAttribute('aria-label', this.getAttribute('menu-title') || 'Menu');
 
         this._renderMenu();
+    }
+
+    /** The registry's answer, unless the application wrote `actions` itself (ADR 0097 § 2). */
+    private _refreshActions(): void {
+        this._menuView.setActions(this._actions ?? menuActionsOfElement(this, this._model));
+        this._menuView.render();
     }
 
     private _renderMenu(): void {

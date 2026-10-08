@@ -81,6 +81,7 @@ import {
     normalizeMenuModel,
     parseMenuModel,
 } from '@gjsify/adwaita-core';
+import { activateElementMenuItem, menuActionsOfElement } from '../application.js';
 import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, AdwMenuPath } from '@gjsify/adwaita-core';
 
 import { GtkPopover } from './gtk-popover.js';
@@ -187,8 +188,11 @@ export class GtkPopoverMenu extends GtkPopover {
         // with `gtk_popover_menu_set_open_submenu (widget, NULL)` (gtkpopovermenu.c:573-579):
         // a menu that reopens three levels deep is one the reader cannot get out of.
         this.subscribe((open) => {
-            if (open) this._menuView.focusableRows[0]?.focus();
-            else this._menuView.reset();
+            if (open) {
+                this._menuView.setActions(this._actions ?? menuActionsOfElement(this, this._model));
+                this._menuView.render();
+                this._menuView.focusableRows[0]?.focus();
+            } else this._menuView.reset();
         });
     }
 
@@ -308,6 +312,7 @@ export class GtkPopoverMenu extends GtkPopover {
         this.popdown();
         this.anchor?.focus();
         if (target === null) return;
+        activateElementMenuItem(this, target);
         this.dispatchEvent(
             new CustomEvent('menu-item-activated', {
                 bubbles: true,

@@ -9,8 +9,13 @@ import {
     GioApplicationBase,
     withGtkApplication,
     activateWidgetAction as activateIn,
+    activateMenuItem,
     applicationOfWindow,
+    menuActionsFor,
     installActionMap,
+    type AdwMenuItem,
+    type AdwMenuActions,
+    type AdwMenuModel,
     type ApplicationHost,
 } from '@gjsify/adwaita-core';
 
@@ -43,6 +48,16 @@ export function parentOfElement(node: object): object | null {
 /** What a `Gtk.Actionable` does on activation: the action `prefix.name` found from `widget`. */
 export function activateWidgetAction(widget: Element, fullName: string, parameter: unknown = null): boolean {
     return activateIn(widget, fullName, parentOfElement, parameter);
+}
+
+/** What the items of `model` read from the actions registered above `el` (ADR 0097 § 3). */
+export function menuActionsOfElement(el: Element, model: AdwMenuModel): AdwMenuActions {
+    return menuActionsFor(model, el, parentOfElement);
+}
+
+/** What choosing `item` in a menu owned by `el` does: the action it names fires. */
+export function activateElementMenuItem(el: Element, item: AdwMenuItem): boolean {
+    return activateMenuItem(item, el, parentOfElement);
 }
 
 export class GioApplication extends GioApplicationBase {

@@ -624,6 +624,19 @@ export type {
 // Prefixed here, as clause 1 prefixes every class: the ports re-export them as
 // `Gio.Menu` / `Gio.MenuItem`, which is the name an author writes.
 export { GioMenu, GioMenuItem } from './gio-menu.js';
+export { activateMenuItem, menuActionsFor } from './menu-actions.js';
+export { assertPopupMenuPlan, planPopupMenu } from './popup-menu-plan.js';
+export type {
+    PopupMenuEntryPlan,
+    PopupMenuGroupPlan,
+    PopupMenuItemPlan,
+    PopupMenuLevelPlan,
+    PopupMenuPlan,
+    PopupMenuRefusal,
+    PopupMenuSubmenuPlan,
+} from './popup-menu-plan.js';
+export { menuAssignments } from './menu-tree.js';
+export type { MenuTreeNode } from './menu-tree.js';
 
 // --- The portable menu model (GMenuModel as plain data — ADR 0042) ---
 export {

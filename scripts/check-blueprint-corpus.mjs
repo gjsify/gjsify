@@ -168,6 +168,8 @@ const NODE_FIELDS = new Set([
     'bindings',
     'breakpoints',
     'siblings',
+    'menus',
+    'menuModels',
     'children',
 ]);
 

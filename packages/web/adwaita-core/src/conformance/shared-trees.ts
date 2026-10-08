@@ -45,9 +45,13 @@
 // Reference: refs/libadwaita/src/adw-entry-row.c, adw-switch-row.c, adw-banner.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import type { AdwMenuNode } from '../menu.js';
 import { BANNER_BUTTON_TEXT_VECTORS, BANNER_BUTTON_VISIBLE_VECTORS } from './banner.js';
 import { ENTRY_TEXT_LENGTH_VECTORS } from './entry-row.js';
 import { SWITCH_ROW_NOTIFY_VECTORS } from './action-row.js';
+
+/** One node of an authored menu: the normalised model of ADR 0042 (ADR 0097 § 1). */
+export type MenuNodeShape = AdwMenuNode;
 
 /**
  * One node of an authored tree — the shape `ADWAITA_GALLERY_SHARED_TREES` is written in.
@@ -238,6 +242,16 @@ export interface SharedTreeNode {
      * object back to the code beside the file; none of them is a child of the root.
      */
     siblings?: readonly SharedTreeNode[];
+    /**
+     * Root only: the root `menu id { }` of the file, by id (ADR 0097 § 1). A `menu-model: id`
+     * property stays the scalar id; the builder resolves it here.
+     */
+    menus?: Readonly<Record<string, readonly MenuNodeShape[]>>;
+    /**
+     * The menu written AT a property (`menu-model: menu { }`), by property name: the model itself,
+     * not an id into `menus` (ADR 0097 § 1).
+     */
+    menuModels?: Readonly<Record<string, readonly MenuNodeShape[]>>;
     children?: readonly SharedTreeNode[];
 }
 
