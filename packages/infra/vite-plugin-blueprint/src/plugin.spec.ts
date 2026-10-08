@@ -111,10 +111,10 @@ const projectionOf = (file: string) =>
  * run so each ADR that closed a loss family moved the answer instead of breaking the test. The
  * last family closed when breakpoints became tree constructs (ADR 0093 step 5): all shipped files
  * now project losslessly, which is the goal arriving. The refusal path still exists, so its
- * vector is a fixture that loses a `menu` — a construct the tree has no node for.
+ * vector is a fixture that loses a `translation-domain` — a file-level setting the tree has no
+ * node for.
  */
-const LOSSY_BLP =
-    'using Gtk 4.0;\n\nGtk.Label {\n  label: "hi";\n}\n\nmenu primary {\n  item {\n    label: "A";\n  }\n}\n';
+const LOSSY_BLP = 'using Gtk 4.0;\n\ntranslation-domain "x";\n\nGtk.Label {\n  label: "hi";\n}\n';
 
 export default async () => {
     await describe('vite-plugin-blueprint', async () => {
