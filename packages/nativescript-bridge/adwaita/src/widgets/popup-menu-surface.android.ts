@@ -1,10 +1,10 @@
 // `android.widget.PopupMenu` as the surface of a portable menu (ADR 0097 § 2). Rationale for the
 // split: `popup-menu-surface.ts`.
 //
-// UNVERIFIED ON A DEVICE. Every call below is the documented `PopupMenu` / `Menu` API, and the
-// plan it is driven by is specced off-device; what no spec can show is that Android draws the
-// groups, rules, checks and submenus as the plan says. ADR 0097 § 5 keeps the NativeScript cell at
-// UNVERIFIED until an emulator run does.
+// Verified on the API 36 emulator (Learn6502's header menu, 2026-10-08): groups with a rule, a
+// check, an exclusive radio group, a disabled row and a submenu draw as the plan says, and a tap
+// activates its item once. That run found the radio rule `popup-menu.ts` now follows. Still
+// UNVERIFIED below API 28, where sections are inlined without a rule.
 //
 // Reference: android.widget.PopupMenu (getMenu, setOnMenuItemClickListener, setOnDismissListener,
 // show, dismiss), android.os.Build.VERSION.SDK_INT

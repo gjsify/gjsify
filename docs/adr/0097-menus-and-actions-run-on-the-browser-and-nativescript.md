@@ -164,7 +164,7 @@ refusal). Until it lands the call throws rather than leaving a dead shortcut (AD
 - Vectors: projection equals `fromGioMenu` of the `blueprint-compiler` output for the same `.blp`; a
   tap on `win.x` activates it once; `app.x` resolves through the Application; the popover-from-button
   resolution of § 3; a disabled action is dimmed (web) and shown disabled (NativeScript); a missing
-  action is insensitive; a nearer group shadows a farther one; no group dims nothing; CHECK toggles
+  action is insensitive; a nearer group shadows a farther one; no group leaves it insensitive (§ 3); CHECK toggles
   and RADIO selects. Refusal vectors (unprefixed name, `custom`, a mixed-section radio, a
   `PopoverMenu` `pointing_to`) are subset-only and are not run on GJS.
 - The `PopupMenu` mapping is verified on an Android device or emulator before the NativeScript cell
