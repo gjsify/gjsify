@@ -8,6 +8,22 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
+/**
+ * True on native Node older than 26.<minor>. GJS is checked first: `@gjsify/process` reports
+ * `versions.node === '20.0.0'`, which a bare version test would read as an old Node and so
+ * excuse a failure of our own implementation.
+ */
+const nativeNodeBefore26 = (minor: number): boolean => {
+    const versions = (globalThis as { process?: { versions?: { node?: string; gjs?: string } } }).process?.versions;
+    if (typeof versions?.gjs === 'string' || typeof versions?.node !== 'string') return false;
+    const [major = 0, nodeMinor = 0] = versions.node.split('.').map(Number);
+    return major < 26 || (major === 26 && nodeMinor < minor);
+};
+// Measured: 24.19-24.21, 25.9, 26.0-26.8.2 throw NotSupportedError for a wrong-kind spki/pkcs8
+// export; 26.9.0 and later throw InvalidAccessError. A raw private-key export follows at 26.11.
+const NATIVE_NODE_BEFORE_26_9 = nativeNodeBefore26(9);
+const NATIVE_NODE_BEFORE_26_11 = nativeNodeBefore26(11);
+
 const hex = (s: string): Uint8Array<ArrayBuffer> => {
     const out = new Uint8Array(s.length / 2);
     for (let i = 0; i < out.length; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
@@ -225,14 +241,38 @@ export default async () => {
             );
         });
 
-        await it('refuses to export a key in the wrong format', async () => {
-            const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as Pair;
-            expect(await rejectsWith(subtle.exportKey('pkcs8', pair.publicKey))).toBe('InvalidAccessError');
-            expect(await rejectsWith(subtle.exportKey('spki', pair.privateKey))).toBe('InvalidAccessError');
-            expect(await rejectsWith(subtle.exportKey('raw', pair.privateKey))).toBe('NotSupportedError');
+        await it('refuses to export a non-extractable key', async () => {
             const locked = (await subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify'])) as Pair;
             expect(await rejectsWith(subtle.exportKey('pkcs8', locked.privateKey))).toBe('InvalidAccessError');
         });
+
+        await it.failing(
+            'refuses a spki / pkcs8 export of the wrong key kind with InvalidAccessError',
+            async () => {
+                const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as Pair;
+                expect(await rejectsWith(subtle.exportKey('pkcs8', pair.publicKey))).toBe('InvalidAccessError');
+                expect(await rejectsWith(subtle.exportKey('spki', pair.privateKey))).toBe('InvalidAccessError');
+            },
+            'Native Node answered NotSupportedError for a wrong-kind spki/pkcs8 export until 26.9, and ' +
+                'InvalidAccessError since (the format is valid for the algorithm, only this key cannot take ' +
+                'it). On the Node target this row runs against NATIVE WebCrypto, so older hosts are right ' +
+                'to disagree; @gjsify/webcrypto throws InvalidAccessError and must keep doing so.',
+            { when: NATIVE_NODE_BEFORE_26_9 },
+        );
+
+        await it.failing(
+            'refuses a raw export of a private key with InvalidAccessError',
+            async () => {
+                const pair = (await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as Pair;
+                expect(await rejectsWith(subtle.exportKey('raw', pair.privateKey))).toBe('InvalidAccessError');
+            },
+            'WICG secure-curves "export key" says a raw export of a non-public key is InvalidAccessError. ' +
+                'Native Node answered NotSupportedError until 26.11 (its exportKeySync had no private-key ' +
+                'case for "raw" and fell through to the generic error); 24.x and 25.x still do. On the Node ' +
+                'target this row runs against NATIVE WebCrypto, so the host is right to disagree there; ' +
+                '@gjsify/webcrypto follows the spec and must keep doing so.',
+            { when: NATIVE_NODE_BEFORE_26_11 },
+        );
 
         await it('answers the WPT small-order cases', async () => {
             for (const [id, pub, message, signature, verified] of SMALL_ORDER) {

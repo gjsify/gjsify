@@ -206,16 +206,9 @@ export function cfrgExportKey(format: string, key: CryptoKey): ArrayBuffer | Jso
     const keyObject = keyObjectOf(key);
     switch (format) {
         case 'raw': {
-            // Node's exportKeySync has no private-key case for plain "raw" (only "raw-seed"
-            // does, under a different format string) — a private key falls through its
-            // switch with no result and hits the generic NotSupportedError, not this
-            // function's own InvalidAccessError.
-            if (key.type !== 'public') {
-                throw new DOMException(
-                    `Unable to export ${key.algorithm.name} ${key.type} key using ${format} format`,
-                    'NotSupportedError',
-                );
-            }
+            // WICG secure-curves "export key": a non-public key is InvalidAccessError (older Node
+            // threw NotSupportedError here; 26.11 follows the spec).
+            if (key.type !== 'public') throw wrongKindForFormat(key, format);
             const x = (keyObject.export({ format: 'jwk' }) as { x: string }).x;
             return toArrayBuffer(base64urlDecode(x));
         }
