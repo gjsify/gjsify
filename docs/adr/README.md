@@ -115,6 +115,7 @@ the TODO records the *what's left*.
 | [0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md) | Template constructs are carried as fields, and each renderer declares which it builds or refuses | Accepted |
 | [0094](0094-gtksource-is-a-headless-core-and-a-nativescript-package.md) | GtkSourceView is a headless core plus a NativeScript package, with named gaps | Proposed |
 | [0095](0095-system-accounts-are-asked-by-capability.md) | System accounts are asked by capability, not by GNOME Online Accounts | Proposed |
+| [0096](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md) | A GObject subset runs on the browser and NativeScript, measured by the gap report | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
