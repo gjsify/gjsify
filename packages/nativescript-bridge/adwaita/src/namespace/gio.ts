@@ -19,3 +19,5 @@
 
 export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
 export { SimpleAction, SimpleActionGroup } from '../widgets/actions.js';
+export { ApplicationFlags } from '@gjsify/adwaita-core';
+export { GioApplication as Application } from '../widgets/application.js';
