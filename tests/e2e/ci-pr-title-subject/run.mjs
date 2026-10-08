@@ -138,7 +138,11 @@ describe('check-pr-title-subject: the wiring', () => {
 
     it('is given both halves of the composed subject', () => {
         // A step with the title and no number checks a string GitHub never writes.
-        assert.match(workflow, /PR_TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
+        // The title is the repaired one when `repair-text` ran, the event's otherwise.
+        assert.match(
+            workflow,
+            /PR_TITLE: \$\{\{ needs\.repair-text\.outputs\.repaired == 'true' && needs\.repair-text\.outputs\.title \|\| github\.event\.pull_request\.title \}\}/,
+        );
         assert.match(workflow, /PR_NUMBER: \$\{\{ github\.event\.pull_request\.number \}\}/);
     });
 

@@ -158,7 +158,6 @@ describe('decide-commitlint-verdict: whose text this run judged', () => {
         assert.deepEqual(verdict.failed, [
             'body-lines (did not run)',
             'closing-keywords (did not run)',
-            'commits (did not run)',
             'title-form (did not run)',
             'title-subject (did not run)',
         ]);
@@ -179,10 +178,32 @@ describe('decide-commitlint-verdict: whose text this run judged', () => {
         assert.deepEqual(onPush({ commits: 'skipped' }), ['commits (did not run)']);
     });
 
+    it('accepts the commit lint as skipped on a pull_request, and nothing else', () => {
+        // `main` is squash-only: a PR's branch commits never land, so the step that lints them
+        // runs on push and merge_group only. Every PR-text step must still have run.
+        const onPr = (outcomes) => findingsFrom({ event: 'pull_request', outcomes });
+        assert.deepEqual(onPr({ ...ALL_GREEN, commits: 'skipped' }), []);
+        assert.deepEqual(onPr({ ...ALL_GREEN, commits: 'skipped', 'body-lines': 'skipped' }), [
+            'body-lines (did not run)',
+        ]);
+    });
+
+    it('does NOT void on a trailing newline alone', () => {
+        // The repaired body reaches the verdict through `$GITHUB_OUTPUT`, the current one through
+        // the API, and the two may disagree on a final newline and nothing else.
+        const verdict = decide({
+            examined: { title: TITLE, body: BODY.trimEnd() },
+            current: { title: TITLE, body: `${BODY}\n` },
+            outcomes: { ...ALL_GREEN, 'body-lines': 'failure' },
+        });
+        assert.equal(verdict.state, 'current-fail');
+    });
+
     it('REFUSES to void when no later run exists to judge what the edit changed to', () => {
-        // Reachable only by an edit that starts no run — one authored with `GITHUB_TOKEN`. No
-        // workflow here holds `pull-requests: write` today, so this is latent; it is also the
-        // one branch where voiding would be SILENT, taking the commit green with the current
+        // Reachable only by an edit that starts no run — one authored with `GITHUB_TOKEN`. The
+        // repair job edits that way and hands its text on as the EXAMINED text, so its own edit
+        // never lands here; any other such edit would. It is also the one branch where voiding
+        // would be SILENT, taking the commit green with the current
         // description judged by nobody.
         const moved = { current: { title: TITLE, body: `${BODY}\nan edit no run witnessed` } };
         assert.equal(decide({ ...moved, successor: false }).state, 'moved-no-successor');
@@ -449,8 +470,14 @@ describe('commitlint.yml: the wiring', () => {
     it('reads the CURRENT title and body through env, never into the run: text', () => {
         // PR-controlled strings become program text in neither script nor shell — the rule
         // `cancel-pr-runs.yml` follows for the head branch name.
-        assert.match(lintJob, /COMMITLINT_EXAMINED_TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
-        assert.match(lintJob, /COMMITLINT_EXAMINED_BODY: \$\{\{ github\.event\.pull_request\.body \}\}/);
+        assert.match(
+            lintJob,
+            /COMMITLINT_EXAMINED_TITLE: \$\{\{ needs\.repair-text\.outputs\.repaired == 'true' && needs\.repair-text\.outputs\.title \|\| github\.event\.pull_request\.title \}\}/,
+        );
+        assert.match(
+            lintJob,
+            /COMMITLINT_EXAMINED_BODY: \$\{\{ needs\.repair-text\.outputs\.repaired == 'true' && needs\.repair-text\.outputs\.body \|\| github\.event\.pull_request\.body \}\}/,
+        );
         assert.match(lintJob, /gh api "repos\/\$\{REPO\}\/pulls\/\$\{PR_NUMBER\}"/);
     });
 
