@@ -59,7 +59,12 @@ import ts from 'typescript';
 
 import { gtypeName, parseBlueprint, projectToSharedNode } from '../packages/infra/blueprint/src/index.mjs';
 import { GI_RENDERERS } from '../packages/infra/resolve-npm/lib/gi-renderers.mjs';
-import { bindFormIssues, exportedValueNames, hasTemplateScope } from './lib/target-gap-barrel.mjs';
+import {
+    bindFormIssues,
+    exportedValueNames,
+    hasTemplateScope,
+    registeredBarrelFiles,
+} from './lib/target-gap-barrel.mjs';
 import { hostTagOf } from '../packages/web/adwaita-core/src/tags.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -356,6 +361,17 @@ const loadRenderer = async (target, { renderer, namespaces }) => {
         const barrel = barrelOf(file);
         barrels.set(ns, new Set(barrel.keys()));
         for (const { className, file: classFile } of barrel.values()) classIndex.set(className, classFile);
+    }
+    // A package that depends on the renderer adds a barrel with `registerBarrel(prefix, 'Library', …)`
+    // in its `src/builder.ts` (ADR 0094). Its classes make a tag buildable, but the namespace is not
+    // answered by `gi://` on this target, so they join the class index and nothing else.
+    // NativeScript only: the web renderer has no `registerBarrel`, its tags are `customElements.define`s.
+    if (renderer === '@gjsify/adwaita-nativescript') {
+        for (const barrelFile of registeredBarrelFiles(packageDirs.values(), dir)) {
+            for (const { className, file: classFile } of barrelOf(barrelFile).values()) {
+                classIndex.set(className, classFile);
+            }
+        }
     }
     // Only the web builder asks a registry; the native one asks the barrel, so only it needs the scan.
     const elements = existsSync(join(dir, 'src/elements')) ? definedElements(join(dir, 'src')) : undefined;

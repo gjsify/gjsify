@@ -113,7 +113,7 @@ the TODO records the *what's left*.
 | [0090](0090-platform-design-languages-on-top-of-adwaita.md) | Platform design languages sit on top of Adwaita, in three layers: tokens, platform integration, and widgets with no Adwaita equivalent | Proposed |
 | [0092](0092-layout-placement-becomes-a-node-field.md) | A `layout { }` block becomes a `layout` field, and a renderer places the child or refuses it | Proposed |
 | [0093](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md) | Template constructs are carried as fields, and each renderer declares which it builds or refuses | Accepted |
-| [0094](0094-gtksource-is-a-headless-core-and-a-nativescript-package.md) | GtkSourceView is a headless core plus a NativeScript package, with named gaps | Proposed |
+| [0094](0094-gtksource-is-a-headless-core-and-a-nativescript-package.md) | GtkSourceView is a headless core plus a NativeScript package, with named gaps | Accepted |
 | [0095](0095-system-accounts-are-asked-by-capability.md) | System accounts are asked by capability, not by GNOME Online Accounts | Proposed |
 | [0096](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md) | A GObject subset runs on the browser and NativeScript, measured by the gap report | Accepted |
 | [0097](0097-menus-and-actions-run-on-the-browser-and-nativescript.md) | A `.blp` menu and its actions run on the browser and NativeScript | Accepted |

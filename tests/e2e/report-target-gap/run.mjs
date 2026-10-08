@@ -23,7 +23,12 @@ import { join } from 'node:path';
 import ts from 'typescript';
 
 import { MONOREPO_ROOT } from '../helpers.mjs';
-import { bindFormIssues, exportedValueNames, hasTemplateScope } from '../../../scripts/lib/target-gap-barrel.mjs';
+import {
+    bindFormIssues,
+    exportedValueNames,
+    hasTemplateScope,
+    registeredBarrelFiles,
+} from '../../../scripts/lib/target-gap-barrel.mjs';
 
 const REPORT = join(MONOREPO_ROOT, 'scripts/report-target-gap.mjs');
 const FIXTURE = join(MONOREPO_ROOT, 'tests/e2e/report-target-gap/fixtures/project');
@@ -347,5 +352,24 @@ describe('report-target-gap', () => {
             assert.equal(result.status, 2);
             assert.match(result.stderr, /unknown flag --nope/);
         });
+    });
+
+    it('reads a barrel a package registers in src/builder.ts, and only a barrel that exists', () => {
+        const make = (name, builder, barrel) => {
+            const dir = join(scratch, name);
+            mkdirSync(join(dir, 'src/namespace'), { recursive: true });
+            if (builder) writeFileSync(join(dir, 'src/builder.ts'), builder);
+            if (barrel) writeFileSync(join(dir, 'src/namespace/probelib.ts'), barrel);
+            return dir;
+        };
+        const call = "registerBarrel('probelib', 'ProbeLib', ProbeLib);\n";
+        const registered = make('registered', call, "export { Thing as View } from '../thing.js';\n");
+        const noBuilder = make('no-builder', undefined, "export { Thing as View } from '../thing.js';\n");
+        const noBarrel = make('no-barrel', call, undefined);
+        const own = make('own', call, "export { Thing as View } from '../thing.js';\n");
+        assert.deepEqual(registeredBarrelFiles([registered, noBuilder, noBarrel], own), [
+            join(registered, 'src/namespace/probelib.ts'),
+        ]);
+        assert.deepEqual(registeredBarrelFiles([own], own), [], 'the renderer’s own package is not a registration');
     });
 });
