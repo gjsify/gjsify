@@ -190,7 +190,7 @@ verifies it or turns the cell into a refusal.
 | `breakpoint` | native | refused | port | port, UNVERIFIED on a tablet |
 | `extern` / `$Name` | native | refused | port | port |
 | `accessibility` | native | port (0069) | port | refused until mapped |
-| `menu` | native | refused | port (0042 value) | port (0042 value) |
+| `menu` | native | refused | port: `menus` / `menuModels` resolved by the builder (0097 § 1, `MENU_TREE_VECTORS`) | port: the same; the `PopupMenu` surface is UNVERIFIED on a device (0097 § 2) |
 | `sibling-object` | native | refused | refused | port |
 | `internal-child` | native | refused | refused | refused |
 | `action-widget` | native | refused | refused | refused |
@@ -242,10 +242,12 @@ The mapping behind each `port` cell:
 - **`menu`, `sibling-object`.** Value objects and menus are built once, registered by id, and
   referenced by any id-valued property — the NativeScript builder's `builderReferences`
   machinery, extended to siblings. Web and NativeScript take a menu as the ADR 0042 portable
-  value. A sibling is carried as `siblings` on the root and built in the root's id scope; the web
+  value: a root `menu id { }` is carried in `menus` and a `menu-model: id` is resolved against it,
+  and a menu written at the property is `menuModels` (ADR 0097 § 1, which supersedes the
+  "registered by id" wording for menus). A sibling is carried as `siblings` on the root and built in the root's id scope; the web
   has no consumer for one yet, so its cell is a refusal, and NativeScript hands the siblings back
-  from `buildWithSiblings` (see Progress 6). The item shape (`label`, `action`, `target`, sections, submenus) is its own decision and
-  its own ADR, because the existing field shapes are flat and a menu is a tree.
+  from `buildWithSiblings` (see Progress 6).
+  The item shape (`label`, `action`, `target`, sections, submenus) is decided in ADR 0097.
 
 `internal-child`, `action-widget` and the list extensions are carried and refused everywhere
 except GTK. They name GTK-specific parent mechanisms (`GtkDialog` action areas, a combo's items)
