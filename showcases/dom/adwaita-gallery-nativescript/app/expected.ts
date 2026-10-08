@@ -13,6 +13,9 @@ import { Label, StackLayout, type View } from '@nativescript/core';
 
 import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 
+/** One node of an authored menu; the probe never reads one. */
+export type MenuNodeShape = Record<string, unknown>;
+
 /** One node of a declared template tree. */
 export interface ExpectNode {
     /** The XML element name as the template writes it, e.g. `adw:Clamp` or `Label`. */
@@ -69,6 +72,13 @@ export interface ExpectNode {
     }[];
     /** The object roots written beside the root, as names — ADR 0093. */
     siblings?: ExpectNode[];
+    /** Root only: the menus the file declares, by id — ADR 0097. No gallery block authors one. */
+    menus?: Record<string, MenuNodeShape[]>;
+    /**
+     * The menu written AT a property (`menu-model: menu { }`), by property name: the model itself,
+     * not an id into `menus` (ADR 0097 § 1).
+     */
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: ExpectNode[];
 }
 

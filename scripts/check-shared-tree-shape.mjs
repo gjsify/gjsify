@@ -102,6 +102,8 @@ const BREAKPOINTS =
     '- breakpoints?: { condition: string; setters: { object: string; property: string; value: string | number | ' +
     'boolean; translatable?: { context?: string }; }[]; }[]';
 const SIBLINGS = '- siblings?: Self[]';
+const MENUS = '- menus?: Record<string, MenuNodeShape[]>';
+const MENU_MODELS = '- menuModels?: Record<string, MenuNodeShape[]>';
 const SIGNALS =
     "- signals?: { name: string; detail?: string; handler: string; object?: string; flags?: ('swapped' | " +
     "'after' | 'not-swapped')[]; }[]";
@@ -177,6 +179,8 @@ const FAMILY = [
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
             `${SIBLINGS}`,
+            `${MENUS}`,
+            `${MENU_MODELS}`,
             '~ children?: VectorNode[] | canon children?: Self[]',
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
@@ -209,6 +213,8 @@ const FAMILY = [
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
             `${SIBLINGS}`,
+            `${MENUS}`,
+            `${MENU_MODELS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
         why:
@@ -239,6 +245,8 @@ const FAMILY = [
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
             `${SIBLINGS}`,
+            `${MENUS}`,
+            `${MENU_MODELS}`,
             '~ children: Self[] | canon children?: Self[]',
             '~ tag: string | null | canon tag: string',
         ],
@@ -505,6 +513,8 @@ export interface SharedTreeNode {
         }[];
     }[];
     siblings?: readonly SharedTreeNode[];
+    menus?: Readonly<Record<string, readonly MenuNodeShape[]>>;
+    menuModels?: Readonly<Record<string, readonly MenuNodeShape[]>>;
     children?: readonly SharedTreeNode[];
 }
 `;
@@ -554,6 +564,8 @@ const VECTORS = [
         }[];
     }[];
     siblings?: SharedNode[];
+    menus?: Record<string, MenuNodeShape[]>;
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -603,6 +615,8 @@ const VECTORS = [
         }[];
     }[];
     siblings?: SharedNode[];
+    menus?: Record<string, MenuNodeShape[]>;
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: SharedNode[];
 }`,
         'SharedNode',
@@ -632,6 +646,8 @@ const VECTORS = [
             `${BINDINGS}`,
             `${BREAKPOINTS}`,
             `${SIBLINGS}`,
+            `${MENUS}`,
+            `${MENU_MODELS}`,
             '~ props?: Record<string, unknown> | canon props?: Record<string, string | number | boolean>',
         ],
     ],
@@ -678,6 +694,8 @@ const VECTORS = [
         }[];
     }[];
     siblings?: Lossy[];
+    menus?: Record<string, MenuNodeShape[]>;
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: Lossy[];
 }`,
         'Lossy',
@@ -728,6 +746,8 @@ const VECTORS = [
         }[];
     }[];
     siblings?: Callbacky[];
+    menus?: Record<string, MenuNodeShape[]>;
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: Callbacky[];
 }`,
         'Callbacky',
@@ -777,6 +797,8 @@ const VECTORS = [
         }[];
     }[];
     siblings?: Widened[];
+    menus?: Record<string, MenuNodeShape[]>;
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: (Widened | string)[];
 }`,
         'Widened',

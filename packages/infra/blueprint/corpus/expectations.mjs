@@ -252,14 +252,16 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '12-menu.blp',
-        node: { tag: 'GtkMenuButton', props: { 'menu-model': 'mainMenu' } },
-        lost: [
-            {
-                kind: 'menu',
-                line: 3,
-                detail: 'the whole `menu mainMenu { … }`, which is a sibling of the object and not a widget at all',
+        node: {
+            tag: 'GtkMenuButton',
+            props: { 'menu-model': 'mainMenu' },
+            menus: {
+                mainMenu: [
+                    { kind: 'section', items: [{ kind: 'item', label: 'Preferences', action: 'app.preferences' }] },
+                ],
             },
-        ],
+        },
+        lost: [],
         note: 'The file has TWO top-level things and `SharedNode` is one tree, so the projection has to pick; it keeps the widget. ADR 0042 already made menus a portable value, so this is the loss most likely to be closed by a shape change rather than by a refusal.',
     },
     {
@@ -429,14 +431,35 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '22-menu-nested.blp',
-        node: { tag: 'GtkMenuButton', props: { 'menu-model': 'nestedMenu' } },
-        lost: [
-            {
-                kind: 'menu',
-                line: 3,
-                detail: 'the whole menu, one level deeper than in `12` and with four items written in the `item (…)` shorthand — one, two and three arguments, and a `C_()` label',
+        node: {
+            tag: 'GtkMenuButton',
+            props: { 'menu-model': 'nestedMenu' },
+            menus: {
+                nestedMenu: [
+                    {
+                        kind: 'section',
+                        items: [
+                            {
+                                kind: 'submenu',
+                                label: 'More',
+                                items: [
+                                    { kind: 'item', label: 'Deep', action: 'app.deep' },
+                                    { kind: 'item', label: 'Marked', action: 'app.marked' },
+                                    {
+                                        kind: 'item',
+                                        label: 'Context',
+                                        action: 'app.context',
+                                        icon: 'edit-copy-symbolic',
+                                    },
+                                    { kind: 'item', label: 'Alone' },
+                                ],
+                            },
+                        ],
+                    },
+                ],
             },
-        ],
+        },
+        lost: [],
         note: 'The first two shorthand items differ only in `_()`, and the golden marks exactly the marked one. So the shorthand IS sugar for the long form, and `translatable="yes"` follows the marking and never the form — a parser that ties the attribute to the form is wrong in both directions. The third argument is the `icon` attribute, and the second is as optional as it: `item ("Alone")` is a label and nothing else.',
     },
     {
@@ -495,14 +518,13 @@ export const RULE_EXPECTATIONS = [
             styleClasses: ['flat'],
             signals: [{ name: 'clicked', handler: 'onClicked' }],
             children: [{ tag: 'GtkLabel' }],
-        },
-        lost: [
-            {
-                kind: 'menu',
-                line: 3,
-                detail: 'the whole `menu oneLineMenu { }`, whose submenu writes an item and an attribute on one line',
+            menus: {
+                oneLineMenu: [
+                    { kind: 'submenu', label: 'More', items: [{ kind: 'item', label: 'Deep', action: 'app.deep' }] },
+                ],
             },
-        ],
+        },
+        lost: [],
         note: 'Written for the ORDER, which no tree here can show: the golden puts the child before the property on line 8, the signal before the property on line 10, the style block before the property on line 12 and the menu item before the attribute on line 4, and sorting by line alone cannot produce any of them. `SharedNode` has no menu, so the projection still sees only a fraction of what this file pins — but the style block on line 12 now lands in `styleClasses`, which is what makes the one-line `styles ["flat"] margin-bottom: 4;` a case the projection reads rather than skips.',
     },
     {
@@ -687,13 +709,9 @@ export const RULE_EXPECTATIONS = [
                 { tag: 'GtkLabel', id: 'labelA' },
             ],
             siblings: [{ tag: 'GtkSizeGroup' }],
+            menus: { null: [{ kind: 'item', label: 'Preferences' }] },
         },
         lost: [
-            {
-                kind: 'menu',
-                line: 3,
-                detail: 'the whole `menu null { … }` — a sibling of the object and not a widget, the same loss as `12-menu.blp`',
-            },
             {
                 kind: 'value-list',
                 line: 19,
@@ -974,7 +992,20 @@ export const RULE_EXPECTATIONS = [
     },
     {
         file: '54-internal-child-menu-domain.blp',
-        node: { tag: 'GtkDialog', children: [{ tag: 'GtkBox', children: [{ tag: 'GtkMenuButton' }] }] },
+        node: {
+            tag: 'GtkDialog',
+            children: [
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        {
+                            tag: 'GtkMenuButton',
+                            menuModels: { 'menu-model': [{ kind: 'item', label: 'Inline', action: 'app.inline' }] },
+                        },
+                    ],
+                },
+            ],
+        },
         lost: [
             {
                 kind: 'translation-domain',
@@ -986,7 +1017,6 @@ export const RULE_EXPECTATIONS = [
                 line: 6,
                 detail: 'the `content_area` annotation; the box survives, its placement does not',
             },
-            { kind: 'menu', line: 9, detail: 'the inline menu, the same loss a top-level one takes' },
         ],
         note: 'All three widgets survive and all three ANNOTATIONS are lost, which is the shape of this file: nothing here changes a tag, and everything here changes where or how the tag is used. The internal-child loss is on the BRACKET line and the menu loss on the property line, each where a reader would go looking.',
     },
@@ -1005,9 +1035,16 @@ export const RULE_EXPECTATIONS = [
                 { tag: 'GtkButton', id: 'numericButton', props: { label: 'Nine' } },
                 { tag: 'GtkButton', id: 'okButton', props: { label: 'OK' } },
             ],
+            menus: {
+                topMenu: [
+                    { kind: 'section', items: [{ kind: 'item', label: 'A', action: 'app.a' }] },
+                    { kind: 'submenu', items: [{ kind: 'item', label: 'B', action: 'app.b' }], label: '' },
+                ],
+                namedSection: [{ kind: 'item', label: 'A', action: 'app.a' }],
+                namedSub: [{ kind: 'item', label: 'B', action: 'app.b' }],
+            },
         },
         lost: [
-            { kind: 'menu', line: 3, detail: 'the whole menu, its named section and submenu with it' },
             { kind: 'action-widget', line: 14, detail: 'the `cancel` response' },
             { kind: 'action-widget', line: 19, detail: 'the numeric response `9`' },
             { kind: 'action-widget', line: 24, detail: 'the `ok` response, and that it is the default' },

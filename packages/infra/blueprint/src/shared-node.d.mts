@@ -139,8 +139,48 @@ export interface SharedNode {
      * object back to the code beside the file; none of them is a child of the root.
      */
     siblings?: SharedNode[];
+    /**
+     * Root only: the root `menu id { }` of the file, by id (ADR 0097 § 1). A `menu-model: id`
+     * property stays the scalar id; the builder resolves it here.
+     */
+    menus?: Record<string, MenuNodeShape[]>;
+    /**
+     * The menu written AT a property (`menu-model: menu { }`), by property name: the model itself,
+     * not an id into `menus` (ADR 0097 § 1).
+     */
+    menuModels?: Record<string, MenuNodeShape[]>;
     children?: SharedNode[];
 }
+
+/** One node of a projected menu: the `AdwMenuNode` of ADR 0042, spelled structurally. */
+export type MenuNodeShape =
+    | {
+          kind: 'item';
+          label: string;
+          action?: string;
+          icon?: string;
+          verbIcon?: string;
+          accel?: string;
+          hiddenWhen?: 'action-disabled' | 'action-missing' | 'macos-menubar';
+          custom?: string;
+          useMarkup?: boolean;
+          id?: string;
+      }
+    | {
+          kind: 'section';
+          label?: string;
+          displayHint?: 'horizontal-buttons' | 'circular-buttons' | 'inline-buttons';
+          textDirection?: 'ltr' | 'rtl' | 'none';
+          items: MenuNodeShape[];
+      }
+    | {
+          kind: 'submenu';
+          label: string;
+          icon?: string;
+          submenuAction?: string;
+          macosSpecial?: string;
+          items: MenuNodeShape[];
+      };
 
 /**
  * One thing the projection dropped, by kind and by the line it was dropped from.
