@@ -267,6 +267,9 @@ export * as Gtk from './namespace/gtk.js';
 // program here as on GJS — `./namespace/gio.ts` says what does not go in it.
 export * as Gio from './namespace/gio.js';
 
+// GLib's timers (`idle_add`, `timeout_add`, `source_remove`): `./namespace/glib.ts` says what is absent.
+export * as GLib from './namespace/glib.js';
+
 // Fonts
 export {
     ADWAITA_SANS_FONT_FAMILY,

@@ -40,6 +40,7 @@ import constructPropsTestSuite from './construct-props.spec.js';
 import signalsTestSuite from './signals.spec.js';
 import iconSizeTestSuite from './icon-size.spec.js';
 import gioMenuTestSuite from './gio-menu.spec.js';
+import glibTestSuite from './glib.spec.js';
 import transitionTypeTestSuite from './transition-type.spec.js';
 import scrolledWindowPolicyTestSuite from './scrolled-window-policy.spec.js';
 import revealerStateTestSuite from './revealer-state.spec.js';
@@ -56,6 +57,7 @@ run({
     signalsTestSuite,
     iconSizeTestSuite,
     gioMenuTestSuite,
+    glibTestSuite,
     transitionTypeTestSuite,
     scrolledWindowPolicyTestSuite,
     revealerStateTestSuite,
