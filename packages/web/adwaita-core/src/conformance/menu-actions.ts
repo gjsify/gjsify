@@ -6,8 +6,9 @@
 // The scene supplies only the chain and its parent link; the registry, the walk and the item
 // state are the core's, so a port cannot answer differently without leaving the vector.
 //
-// GJS is the oracle for the walk (`gtk_widget_insert_action_group`, nearest group wins); the
-// gjs driver of these rows needs a headless GTK display and is not wired yet.
+// GJS is the oracle (`menu-actions.gjs.spec.ts`). Measured there: a group inserted on the window is
+// found from a popover's content, one on an intermediate ancestor of the MenuButton is NOT (GTK
+// links a popover to its parent's action muxer only when that muxer exists), so `outer` is the root.
 
 import { ActionRegistry, SimpleAction, insertActionGroup } from '../gio-actions.js';
 import { activateMenuItem, menuActionsFor } from '../menu-actions.js';
@@ -63,21 +64,60 @@ export const MENU_ACTION_VECTORS: ReadonlyArray<MenuActionVector> = [
         fired: [],
     },
     {
-        rule: 'no group for the prefix is not an empty group: nothing is dimmed',
+        rule: 'no group for the prefix leaves the action missing, so the item is insensitive (GTK; 0097 § 3 said nothing is dimmed)',
         groups: [{ at: 'outer', prefix: 'elsewhere', actions: { go: true } }],
         action: 'grp.go',
-        sensitive: true,
+        sensitive: false,
         fired: [],
     },
 ];
 
 export interface MenuActionScene {
-    /** A fresh chain: `button` is a descendant of `outer`. */
+    /** A fresh chain: `outer` is the ROOT (the window) and `button` a descendant of it, and is where resolution starts. */
     chain(): { outer: object; button: object };
-    parent(node: object): object | null | undefined;
+    /** Insert a group of `actions` (name → enabled) at `widget`; `onActivate` hears each activation by name. */
+    insertGroup(
+        widget: object,
+        prefix: string,
+        actions: Readonly<Record<string, boolean>>,
+        onActivate: (action: string) => void,
+    ): void;
+    /** Whether an item naming `detailed` reads as sensitive from `button`. */
+    sensitive(button: object, detailed: string): boolean;
+    /** What choosing an item that names `detailed` does from `button`. */
+    activate(button: object, detailed: string): void;
 }
 
-/** Runs {@link MENU_ACTION_VECTORS} on a port's tree walk. */
+/** The registry of ADR 0098 over a port's parent link: what the browser and NativeScript drive. */
+export function registryMenuActionScene(
+    chain: () => { outer: object; button: object },
+    parent: (node: object) => object | null | undefined,
+): MenuActionScene {
+    const itemOf = (detailed: string) => {
+        const [item] = normalizeMenuModel([{ label: 'x', action: detailed }]);
+        if (item === undefined || item.kind !== 'item') throw new Error('vector model is not an item');
+        return item;
+    };
+    return {
+        chain,
+        insertGroup(widget, prefix, actions, onActivate) {
+            const registry = new ActionRegistry();
+            for (const [action, enabled] of Object.entries(actions)) {
+                const simple = new SimpleAction({ name: action, enabled });
+                simple.connect('activate', () => onActivate(action));
+                registry.add(simple);
+            }
+            insertActionGroup(widget, prefix, registry);
+        },
+        sensitive(button, detailed) {
+            const item = itemOf(detailed);
+            return resolveMenuItemState(item, menuActionsFor([item], button, parent)).sensitive;
+        },
+        activate: (button, detailed) => void activateMenuItem(itemOf(detailed), button, parent),
+    };
+}
+
+/** Runs {@link MENU_ACTION_VECTORS} on a port's tree walk, or on GTK itself (the oracle). */
 export async function driveMenuActionVectors(
     name: string,
     scene: MenuActionScene,
@@ -89,19 +129,12 @@ export async function driveMenuActionVectors(
                 const { outer, button } = scene.chain();
                 const fired: string[] = [];
                 for (const spec of vector.groups) {
-                    const registry = new ActionRegistry();
-                    for (const [action, enabled] of Object.entries(spec.actions)) {
-                        const simple = new SimpleAction({ name: action, enabled });
-                        simple.connect('activate', () => fired.push(`${spec.at}:${action}`));
-                        registry.add(simple);
-                    }
-                    insertActionGroup(spec.at === 'outer' ? outer : button, spec.prefix, registry);
+                    scene.insertGroup(spec.at === 'outer' ? outer : button, spec.prefix, spec.actions, (action) =>
+                        fired.push(`${spec.at}:${action}`),
+                    );
                 }
-                const [item] = normalizeMenuModel([{ label: 'x', action: vector.action }]);
-                if (item === undefined || item.kind !== 'item') throw new Error('vector model is not an item');
-                const actions = menuActionsFor([item], button, (node) => scene.parent(node));
-                expect(resolveMenuItemState(item, actions).sensitive).toBe(vector.sensitive);
-                activateMenuItem(item, button, (node) => scene.parent(node));
+                expect(scene.sensitive(button, vector.action)).toBe(vector.sensitive);
+                scene.activate(button, vector.action);
                 expect(fired.join(',')).toBe(vector.fired.join(','));
             });
         }

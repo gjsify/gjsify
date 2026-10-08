@@ -11,6 +11,7 @@ import splitButtonTestSuite from './split-button.spec.js';
 import menuTestSuite from './menu.spec.js';
 import popupMenuPlanTestSuite from './popup-menu-plan.spec.js';
 import menuActionsTestSuite from './menu-actions.spec.js';
+import menuActionsOracleTestSuite from './menu-actions.gjs.spec.js';
 import menuTreeTestSuite from './menu-tree.spec.js';
 import viewSwitcherTestSuite from './view-switcher.spec.js';
 import gridNavigationTestSuite from './grid-navigation.spec.js';
@@ -102,6 +103,7 @@ run({
     menuTestSuite,
     popupMenuPlanTestSuite,
     menuActionsTestSuite,
+    menuActionsOracleTestSuite,
     menuTreeTestSuite,
     viewSwitcherTestSuite,
     gridNavigationTestSuite,

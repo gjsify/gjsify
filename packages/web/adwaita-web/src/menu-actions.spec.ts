@@ -4,6 +4,7 @@ import {
     MENU_ACTION_VECTORS,
     MENU_TREE_VECTORS,
     driveMenuActionVectors,
+    registryMenuActionScene,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
@@ -18,17 +19,14 @@ export const MenuActionsTest = async () => {
     expect(MENU_ACTION_VECTORS.length > 0).toBe(true);
     await driveMenuActionVectors(
         'adwaita-web (gtk-menu-button)',
-        {
-            chain() {
-                const outer = document.createElement('div');
-                const button = document.createElement('gtk-menu-button');
-                outer.append(button);
-                document.body.append(outer);
-                made.push(outer);
-                return { outer, button };
-            },
-            parent: parentOfElement,
-        },
+        registryMenuActionScene(() => {
+            const outer = document.createElement('div');
+            const button = document.createElement('gtk-menu-button');
+            outer.append(button);
+            document.body.append(outer);
+            made.push(outer);
+            return { outer, button };
+        }, parentOfElement),
         { describe, it, expect },
     );
 
