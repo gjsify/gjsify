@@ -1766,9 +1766,20 @@ jobs:
       # Shards are balanced by recorded duration (`scripts/e2e-shard-timings.json`),
       # and every shard records this run's durations for the next refresh — the
       # upload below. `E2E_TIMINGS_OUT` crosses `su`, which keeps the environment.
+      # `gi-renderer-arms` bundles apps against `@gjsify/adwaita-web` and
+      # `@gjsify/adwaita-nativescript`. The restored build cache carries `lib/` but not
+      # web's gitignored `src/styles.generated.ts`, so without this step the suite sees
+      # a missing precondition on every run. Builds are idempotent: a restored `lib/`
+      # makes the NativeScript one a no-op.
+      - name: Build what the gi-renderer-arms suite bundles against
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" sh -c "for w in @gjsify/adwaita-fonts @gjsify/adwaita-web @gjsify/adwaita-nativescript; do gjsify workspace \$w build || exit 1; done"'
+      # `GJSIFY_E2E_REQUIRE` turns a skip of the named suite into a failure, so a missing
+      # build above cannot go green having measured nothing. `report-target-gap` has no
+      # skip gate (a missing precondition throws on import), so it needs no entry.
       - name: E2E tests (shard ${{ matrix.shard }}/4)
         env:
           E2E_TIMINGS_OUT: .gjsify-cache/e2e-timings
+          GJSIFY_E2E_REQUIRE: gi-renderer-arms
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
       # `always()`: a red shard's durations are as good a weight as a green one's.
       # `warn`: a shard that died before its first suite recorded nothing, and the

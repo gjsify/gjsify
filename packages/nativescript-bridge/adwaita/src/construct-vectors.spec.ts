@@ -208,7 +208,7 @@ export const AdwConstructVectorsNsTest = async () => {
                     .getViewById('x')
                     .constructor.emittedSignals.join();
             expect(emitted('GtkEntry')).toBe('changed,notify::text,activate');
-            expect(emitted('GtkDropDown')).toBe('notify::selected');
+            expect(emitted('GtkDropDown')).toBe('notify::selected,notify::selected-item');
             expect(emitted('GtkStack')).toBe('notify::visible-child,notify::visible-child-name');
         });
         await it('refuses a bind to an id nothing has, to a source that emits no notify, and the flags', () => {

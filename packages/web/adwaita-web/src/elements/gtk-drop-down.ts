@@ -47,6 +47,8 @@
 // Events:
 //   `notify::selected` (CustomEvent, bubbles, detail = { selected }) — the index
 //     changed (mirrors the Gtk.DropDown `notify::selected` GObject signal).
+//   `notify::selected-item` (CustomEvent, bubbles, detail = { 'selected-item' }) — fired
+//     right after `notify::selected`, on the same real change.
 //   `change`           (CustomEvent, bubbles, detail = { index, value, label }) —
 //     a convenience event carrying the full selection. Fires ONLY on a user
 //     pick — `ComboState`'s `interactive` flag is what tells the two apart.
@@ -83,7 +85,10 @@ export type GtkDropDownOption = AdwComboOption;
 
 export class GtkDropDown extends HTMLElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
-    static readonly signals: DispatchedSignals = { 'notify::selected': 'notify::selected' };
+    static readonly signals: DispatchedSignals = {
+        'notify::selected': 'notify::selected',
+        'notify::selected-item': 'notify::selected-item',
+    };
 
     private _buttonEl!: HTMLButtonElement;
     private _labelEl!: HTMLSpanElement;
@@ -246,6 +251,13 @@ export class GtkDropDown extends HTMLElement {
             // `notify::selected` mirrors GObject property-notify: EVERY change,
             // programmatic included.
             this.dispatchEvent(new CustomEvent('notify::selected', { bubbles: true, detail: { selected: index } }));
+            // `gtk_drop_down_set_selected` notifies `selected-item` right after `selected`.
+            this.dispatchEvent(
+                new CustomEvent('notify::selected-item', {
+                    bubbles: true,
+                    detail: { 'selected-item': option ?? null },
+                }),
+            );
             // `change` mirrors the DOM <select> contract: ONLY a user-initiated change. A
             // programmatic assignment stays silent, just as native `select.value = x` fires
             // no `change`, so consumers can set the value without guarding against it.

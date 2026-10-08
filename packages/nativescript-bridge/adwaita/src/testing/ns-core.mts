@@ -477,10 +477,13 @@ export class StackLayout extends LayoutBase {
 export type GridUnitType = 'auto' | 'star' | 'pixel';
 
 export class ItemSpec {
-    constructor(
-        readonly value: number,
-        readonly gridUnitType: GridUnitType,
-    ) {}
+    readonly value: number;
+    readonly gridUnitType: GridUnitType;
+
+    constructor(value: number, gridUnitType: GridUnitType) {
+        this.value = value;
+        this.gridUnitType = gridUnitType;
+    }
 }
 
 /** Per-child grid placement — an own property on a widget is a name it could collide with. */
@@ -726,7 +729,11 @@ export class ImageSource {
     readonly width: number = 0;
     readonly height: number = 0;
 
-    constructor(readonly nativeSource?: unknown) {}
+    readonly nativeSource?: unknown;
+
+    constructor(nativeSource?: unknown) {
+        this.nativeSource = nativeSource;
+    }
 }
 
 export class Image extends View {
@@ -744,9 +751,8 @@ export class SegmentedBar extends View {
     selectedIndex = 0;
 }
 
-export enum GestureTypes {
-    tap = 1,
-}
+export const GestureTypes = { tap: 1 } as const;
+export type GestureTypes = (typeof GestureTypes)[keyof typeof GestureTypes];
 
 export interface ConfirmOptions {
     title?: string;
@@ -791,33 +797,35 @@ export function action(_options: ActionOptions): Promise<string> {
 /** Every stylesheet fragment {@link Application.addCss} was handed, newest last. */
 const APPLIED_CSS: string[] = [];
 
-export namespace Application {
-    export function addCss(cssText: string, _attributeScoped?: boolean): void {
+const LIFECYCLE = new Map<string, ((args: unknown) => void)[]>();
+
+// An object, not a `namespace`: the gi-renderer-arms e2e loads this file with Node's strip-only
+// type removal, which refuses every non-erasable construct.
+export const Application = {
+    addCss(cssText: string, _attributeScoped?: boolean): void {
         APPLIED_CSS.push(cssText);
-    }
+    },
 
     /** What the accent layer appended — the read-back a device gives through the engine. */
-    export function appliedCss(): readonly string[] {
+    appliedCss(): readonly string[] {
         return [...APPLIED_CSS];
-    }
+    },
 
-    const LIFECYCLE = new Map<string, ((args: unknown) => void)[]>();
-
-    export function on(event: string, callback: (args: unknown) => void): void {
+    on(event: string, callback: (args: unknown) => void): void {
         const existing = LIFECYCLE.get(event);
         if (existing === undefined) LIFECYCLE.set(event, [callback]);
         else existing.push(callback);
-    }
+    },
 
-    export function off(event: string, callback: (args: unknown) => void): void {
+    off(event: string, callback: (args: unknown) => void): void {
         const existing = LIFECYCLE.get(event);
         if (existing === undefined) return;
         const at = existing.indexOf(callback);
         if (at !== -1) existing.splice(at, 1);
-    }
+    },
 
     /** Absent, as on every platform that is not Android — and this is not Android. */
-    export const android: undefined = undefined;
+    android: undefined as undefined,
     /** Absent, as on every platform that is not iOS — and this is not iOS. */
-    export const ios: undefined = undefined;
-}
+    ios: undefined as undefined,
+};

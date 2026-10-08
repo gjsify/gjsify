@@ -100,8 +100,9 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
 
     /** Evaluate a built bundle in a child process under the target's stub host. */
     function evaluate(outFile, app, mode = 'load') {
-        // `ns-core.mts` uses parameter properties, which strip-only type removal refuses.
-        const flags = mode === 'template' ? ['--experimental-transform-types', '--no-warnings'] : [];
+        // The template mode loads `ns-core.mts` as TypeScript. It stays erasable syntax, because
+        // Node 26.11 dropped `--experimental-transform-types` and only strips types.
+        const flags = mode === 'template' ? ['--no-warnings'] : [];
         const result = spawnSync(process.execPath, [...flags, RUNNER, app, outFile, mode], {
             cwd: MONOREPO_ROOT,
             encoding: 'utf-8',

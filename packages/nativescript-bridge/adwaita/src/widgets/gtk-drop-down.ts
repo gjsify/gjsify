@@ -43,6 +43,9 @@ import { withSignals } from './signals.js';
 /** Event name emitted when {@link GtkDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
 
+/** Mirrors GObject `notify::selected-item`; fired right after the one above, on the same change. */
+export const NOTIFY_SELECTED_ITEM = 'notify::selected-item';
+
 /** Payload of the `notify::selected` event. */
 export interface NotifyDropDownSelectedEventData extends EventData {
     /** The newly-selected index. */
@@ -55,7 +58,7 @@ export interface NotifyDropDownSelectedEventData extends EventData {
 
 export class GtkDropDown extends withSignals(StackLayout) {
     /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [NOTIFY_SELECTED];
+    static readonly emittedSignals: readonly string[] = [NOTIFY_SELECTED, NOTIFY_SELECTED_ITEM];
 
     /**
      * `model` only: `model: Gtk.StringList { strings [ … ] }` in a `.blp` places the list at
@@ -101,14 +104,16 @@ export class GtkDropDown extends withSignals(StackLayout) {
         this._state.subscribe((change) => {
             this._label.text = change.label;
             if (change.interactive) {
-                const data: NotifyDropDownSelectedEventData = {
-                    eventName: NOTIFY_SELECTED,
-                    object: this,
-                    selected: change.selected,
-                    value: change.value,
-                    label: change.label,
-                };
-                this.notify(data);
+                for (const eventName of [NOTIFY_SELECTED, NOTIFY_SELECTED_ITEM]) {
+                    const data: NotifyDropDownSelectedEventData = {
+                        eventName,
+                        object: this,
+                        selected: change.selected,
+                        value: change.value,
+                        label: change.label,
+                    };
+                    this.notify(data);
+                }
             }
         });
 
