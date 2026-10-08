@@ -196,6 +196,57 @@ export const AdwConstructVectorsTest = async () => {
                 unmount();
             }
         });
+        await it('runs an Entry `changed` and `notify::text` handler on typing and on a programmatic set', () => {
+            const seen: string[] = [];
+            const { root, unmount } = mountSharedTree(
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        {
+                            tag: 'GtkEntry',
+                            id: 'entry',
+                            signals: [
+                                { name: 'changed', handler: 'onChanged' },
+                                { name: 'notify::text', handler: 'onText' },
+                            ],
+                        },
+                    ],
+                },
+                { scope: { onChanged: () => seen.push('changed'), onText: () => seen.push('notify::text') } },
+            );
+            try {
+                const entry = root.querySelector('#entry') as unknown as HTMLElement & {
+                    text: string;
+                    input: HTMLInputElement;
+                };
+                entry.input.value = 'typed';
+                entry.input.dispatchEvent(new Event('input'));
+                entry.text = 'set';
+                entry.text = 'set';
+                expect(seen.join()).toBe('changed,notify::text,changed,notify::text');
+            } finally {
+                unmount();
+            }
+        });
+        await it('dispatches ViewStack `notify::visible-child-name` when the visible page changes', () => {
+            const stack = document.createElement('adw-view-stack') as HTMLElement & {
+                addTitled(c: HTMLElement, name: string, title: string): unknown;
+                visibleChildName: string;
+            };
+            const names: string[] = [];
+            stack.addEventListener('notify::visible-child-name', (e) =>
+                names.push((e as CustomEvent).detail['visible-child-name']),
+            );
+            document.body.append(stack);
+            try {
+                stack.addTitled(document.createElement('div'), 'a', 'A');
+                stack.addTitled(document.createElement('div'), 'b', 'B');
+                stack.visibleChildName = 'b';
+                expect(names.join()).toBe('a,b');
+            } finally {
+                stack.remove();
+            }
+        });
         await it('declares the notify each of DropDown, Stack and Switch dispatches', () => {
             const declared = (tag: string) =>
                 (customElements.get(tag) as unknown as { signals: Record<string, string> }).signals;
