@@ -720,4 +720,6 @@ export type {
     ApplicationVector,
     SimpleActionLike,
 } from './application.js';
+export { GLIB_TIMER_ROWS, GLIB_TIMER_VECTORS, driveGLibTimerVectors } from './glib-timers.js';
+export type { GLibTimerRow, GLibTimersLike, GLibTimersSubject, GLibTimerVector } from './glib-timers.js';
 export type { GObjectRow, GObjectSubject, GObjectTemplateSource, GObjectVector } from './gobject.js';

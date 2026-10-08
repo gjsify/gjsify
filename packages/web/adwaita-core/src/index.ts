@@ -424,6 +424,8 @@ export type {
 
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
+export { createGLibTimers } from './glib-timers.js';
+export type { GLibTimers, SourceFunc, TimerHost } from './glib-timers.js';
 
 // --- View stack selection (Adw.ViewStack) ---
 export { ViewStackState, normalizeIconName, resolvePageTitle } from './view-stack.js';
