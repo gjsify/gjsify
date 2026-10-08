@@ -291,6 +291,8 @@ export const AdwSplitButtonTest = async () => {
             const { el, host } = mount({
                 'menu-model': '[{"label":"Copy","action":"app.copy"},{"label":"Copy","action":"app.copy-special"}]',
             });
+            // GTK dims an item whose action is missing (0097 § 3), so the app declares both.
+            el.actions = { 'app.copy': {}, 'app.copy-special': {} };
             const activated: Array<{ label: string; action?: string; id: string; path: number[] }> = [];
             el.addEventListener('menu-activated', (event) => activated.push((event as CustomEvent).detail));
 
