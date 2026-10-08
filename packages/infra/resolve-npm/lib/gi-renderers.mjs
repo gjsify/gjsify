@@ -41,7 +41,7 @@ export const GI_RENDERERS = {
     },
     nativescript: {
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0' },
         specifiers: { GObject: '@gjsify/adwaita-nativescript/gobject' },
     },
 };
