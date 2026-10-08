@@ -723,3 +723,10 @@ export type {
 export { GLIB_TIMER_ROWS, GLIB_TIMER_VECTORS, driveGLibTimerVectors } from './glib-timers.js';
 export type { GLibTimerRow, GLibTimersLike, GLibTimersSubject, GLibTimerVector } from './glib-timers.js';
 export type { GObjectRow, GObjectSubject, GObjectTemplateSource, GObjectVector } from './gobject.js';
+
+export { POPUP_MENU_PLAN_VECTORS, popupMenuOutline } from './popup-menu-plan.js';
+export type { PopupMenuPlanVector } from './popup-menu-plan.js';
+export { MENU_ACTION_VECTORS, driveMenuActionVectors } from './menu-actions.js';
+export type { MenuActionGroupSpec, MenuActionScene, MenuActionVector } from './menu-actions.js';
+export { MENU_TREE_VECTORS } from './menu-tree.js';
+export type { MenuTreeVector } from './menu-tree.js';

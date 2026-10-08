@@ -9,6 +9,9 @@ import entryRowTestSuite from './entry-row.spec.js';
 import splitViewTestSuite from './split-view.spec.js';
 import splitButtonTestSuite from './split-button.spec.js';
 import menuTestSuite from './menu.spec.js';
+import popupMenuPlanTestSuite from './popup-menu-plan.spec.js';
+import menuActionsTestSuite from './menu-actions.spec.js';
+import menuTreeTestSuite from './menu-tree.spec.js';
 import viewSwitcherTestSuite from './view-switcher.spec.js';
 import gridNavigationTestSuite from './grid-navigation.spec.js';
 import tabViewTestSuite from './tab-view.spec.js';
@@ -97,6 +100,9 @@ run({
     splitViewTestSuite,
     splitButtonTestSuite,
     menuTestSuite,
+    popupMenuPlanTestSuite,
+    menuActionsTestSuite,
+    menuTreeTestSuite,
     viewSwitcherTestSuite,
     gridNavigationTestSuite,
     tabViewTestSuite,
