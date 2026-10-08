@@ -257,6 +257,11 @@ const MODULE_REASONS = {
     // `gtk-value-doors.spec.ts`, which asserts that the widget cannot tell the class from the
     // plain array or object literal it replaces.
     'gio-menu': { table: 'MENU_NORMALIZE_VECTORS' },
+    // The action half of the application (ADR 0098): ActionMap, `SimpleAction` and the
+    // `app.` / `win.` resolution. Its vectors are rows of the application table, which each
+    // port drives through its OWN `SimpleAction` and window classes — so the table reaches
+    // this module through the ports, never through a value import of its own.
+    'gio-actions': { table: 'APPLICATION_VECTORS' },
     'gtk-adjustment': { table: 'ADJUSTMENT_AUTHORED_VECTORS' },
     'gtk-string-list': { table: 'LIST_NORMALIZE_VECTORS' },
     // Text, not a derivation: `markup.ts` prints a shared tree through the case rules in

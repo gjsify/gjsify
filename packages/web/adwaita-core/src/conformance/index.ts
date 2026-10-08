@@ -705,4 +705,19 @@ export type {
 
 // --- The GObject subset: vectors, held on real GJS and on each port (ADR 0096) ---
 export { GOBJECT_ROWS, GOBJECT_VECTORS, driveGObjectVectors } from './gobject.js';
+export {
+    APPLICATION_ROWS,
+    APPLICATION_VECTORS,
+    driveApplicationVectors,
+    unprovenVfuncs,
+    unlockedVfuncNames,
+} from './application.js';
+export type {
+    ApplicationLike,
+    ApplicationRow,
+    ApplicationScene,
+    ApplicationSubject,
+    ApplicationVector,
+    SimpleActionLike,
+} from './application.js';
 export type { GObjectRow, GObjectSubject, GObjectTemplateSource, GObjectVector } from './gobject.js';
