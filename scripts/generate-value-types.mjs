@@ -83,14 +83,21 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
     }
     namespaces.add(namespace);
     const info = repo.find_by_name(namespace, entry.gir);
-    if (info === null || !(info instanceof GIRepository.ObjectInfo)) {
+    // A `flags: true` entry is a GLib flags type (`Gio.ApplicationFlags`): no GObject, but a value
+    // a namespace carries, and the typelib still has to declare it as exactly that.
+    const kind = entry.flags === true ? GIRepository.FlagsInfo : GIRepository.ObjectInfo;
+    if (info === null || !(info instanceof kind)) {
         // DECLARED, not skipped, and one row for both shapes: a name the namespace does not
         // carry and a name that is not a GObject are the same finding for a ledger whose
         // entries are all "a GObject you construct", and the gate asks one question of it.
         undeclared.push([entry.member, `${namespace}-${repo.get_version(namespace)}`]);
         continue;
     }
-    declared.push([entry.member, info.get_type_name(), ancestryOf(info).includes('GtkWidget')]);
+    declared.push([
+        entry.member,
+        info.get_type_name(),
+        entry.flags === true ? false : ancestryOf(info).includes('GtkWidget'),
+    ]);
 }
 
 declared.sort((a, b) => (a[0] < b[0] ? -1 : 1));

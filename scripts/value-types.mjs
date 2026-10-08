@@ -72,6 +72,27 @@ export const CONSTRUCTIBLE_VALUES = [
         why: "GJS writes `new Gio.SimpleAction({ name: 'copy' })` and connects `activate`; a Blueprint button's `action-name` resolves to it. The NativeScript port carries a minimal registry (`widgets/actions.ts`) so a shared widget class registers its actions the same way on both sides.",
     },
     {
+        member: 'Gio.Application',
+        gir: 'Application',
+        why: 'GJS writes `class extends Gio.Application` and `runAsync`; ADR 0098 carries the strict subset (startup, activate, actions, id) so the entry point of an application is a class both ports run.',
+    },
+    {
+        member: 'Gtk.Application',
+        gir: 'Application',
+        why: '`Gio.Application` plus the windows (`add_window`, `active_window`) — the class every GNOME `Application` extends, ADR 0098 stage 1. A GObject, not a widget.',
+    },
+    {
+        member: 'Adw.Application',
+        gir: 'Application',
+        why: '`Gtk.Application` under the libadwaita name an Adwaita app extends, ADR 0098 stage 1. A GObject, not a widget.',
+    },
+    {
+        member: 'Gio.ApplicationFlags',
+        gir: 'ApplicationFlags',
+        flags: true,
+        why: 'GJS writes `super({ applicationId, flags: Gio.ApplicationFlags.DEFAULT_FLAGS })`; ADR 0098 accepts only the default and refuses any other flag by name. A flags type, not a widget.',
+    },
+    {
         member: 'Gio.SimpleActionGroup',
         gir: 'SimpleActionGroup',
         why: "`Gio.SimpleAction`'s container — what `insertActionGroup` (`gtk_widget_insert_action_group`) puts under a prefix such as `source-view`, unreachable without it.",
