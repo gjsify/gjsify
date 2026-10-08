@@ -138,7 +138,14 @@ conformance vector, run against GJS, that proves it**: an action inserted on an 
 start before that vector is green.
 
 A missing action makes the item insensitive and `action-name` logs once, as GTK does. No group for the
-prefix is not an empty group (0042 § 2): nothing is dimmed.
+prefix is not an empty group (0042 § 2), but GTK still leaves the item insensitive, and so do the ports.
+
+**Measured on GJS (2026-10-08, `menu-actions.gjs.spec.ts`).** Two sentences above were corrected
+against the oracle. A group on the window is found from the popover's content, and a nearer group
+shadows it. A group inserted on an intermediate ancestor of the `MenuButton` after the popover is
+attached is NOT found, because GTK links a popover to its parent's action muxer only if that muxer
+already exists. And a prefix with no group leaves the item insensitive, where this section first said
+nothing is dimmed. The vectors follow GTK.
 
 Refused by name, at registration or at the first resolution: an `action-name` or `action` without a
 prefix; `Gio.PropertyAction`, `add_action_entries`, other `Gio.ActionGroup`/`ActionMap` implementations;
