@@ -22,6 +22,8 @@
 
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 
+import type { DispatchedSignals } from '../signals.js';
+
 export class GtkEntry extends HTMLElement {
     /**
      * `protected`, not `private`: `GtkPasswordEntry` and `GtkSearchEntry` subclass this
@@ -32,9 +34,18 @@ export class GtkEntry extends HTMLElement {
     protected _input!: HTMLInputElement;
     private _initialized = false;
     private _maxLength = 0;
+    /** The text last announced, so `changed` fires on a real change only — as `gtk_editable_changed` does. */
+    private _announced = '';
+
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = {
+        changed: 'changed',
+        'notify::text': 'notify::text',
+        activate: 'activate',
+    };
 
     static get observedAttributes() {
-        return ['value', 'placeholder-text', 'placeholder', 'width-request', 'type', 'disabled', 'maxlength'];
+        return ['value', 'text', 'placeholder-text', 'placeholder', 'width-request', 'type', 'disabled', 'maxlength'];
     }
 
     get value(): string {
@@ -43,8 +54,28 @@ export class GtkEntry extends HTMLElement {
 
     set value(v: string) {
         const clamped = clampEntryText(v ?? '', this._maxLength);
-        if (this._input) this._input.value = clamped;
-        else this.setAttribute('value', clamped);
+        if (this._input) {
+            this._input.value = clamped;
+            this._announceText();
+        } else this.setAttribute('value', clamped);
+    }
+
+    /** `Gtk.Editable:text`, the GObject name for {@link value}. */
+    get text(): string {
+        return this.value;
+    }
+
+    set text(v: string) {
+        this.value = v;
+    }
+
+    /** `changed` then `notify::text`, once per real change of the text, typed or set from code. */
+    private _announceText(): void {
+        const text = this._input.value;
+        if (text === this._announced) return;
+        this._announced = text;
+        this.dispatchEvent(new CustomEvent('changed', { bubbles: true }));
+        this.dispatchEvent(new CustomEvent('notify::text', { bubbles: true, detail: { text } }));
     }
 
     /** `Gtk.Entry:max-length` — 0 means unlimited. Counted in CODE POINTS. */
@@ -56,7 +87,10 @@ export class GtkEntry extends HTMLElement {
         this._maxLength = Number.isFinite(value)
             ? Math.min(ENTRY_ROW_MAX_LENGTH_LIMIT, Math.max(0, Math.trunc(value)))
             : 0;
-        if (this._input) this._input.value = clampEntryText(this._input.value, this._maxLength);
+        if (this._input) {
+            this._input.value = clampEntryText(this._input.value, this._maxLength);
+            this._announceText();
+        }
     }
 
     /** `Gtk.Entry:text-length` — code points, not UTF-16 units. */
@@ -92,7 +126,7 @@ export class GtkEntry extends HTMLElement {
         const input = document.createElement('input');
         input.className = 'adw-entry';
         input.type = this.getAttribute('type') || 'text';
-        input.value = clampEntryText(this.getAttribute('value') ?? '', this._maxLength);
+        input.value = clampEntryText(this.getAttribute('value') ?? this.getAttribute('text') ?? '', this._maxLength);
         input.placeholder = this.placeholderAttribute();
         this.applyWidthRequest();
         input.disabled = this.hasAttribute('disabled');
@@ -101,6 +135,7 @@ export class GtkEntry extends HTMLElement {
         input.addEventListener('input', () => {
             const clamped = clampEntryText(input.value, this._maxLength);
             if (clamped !== input.value) input.value = clamped;
+            this._announceText();
         });
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -109,6 +144,7 @@ export class GtkEntry extends HTMLElement {
         });
 
         this._input = input;
+        this._announced = input.value;
         this.replaceChildren(input);
     }
 
@@ -129,8 +165,10 @@ export class GtkEntry extends HTMLElement {
             return;
         }
         if (!this._input) return;
-        if (name === 'value') this._input.value = clampEntryText(value ?? '', this._maxLength);
-        else if (name === 'placeholder-text' || name === 'placeholder')
+        if (name === 'value' || name === 'text') {
+            this._input.value = clampEntryText(value ?? '', this._maxLength);
+            this._announceText();
+        } else if (name === 'placeholder-text' || name === 'placeholder')
             this._input.placeholder = this.placeholderAttribute();
         else if (name === 'type') this._input.type = value || 'text';
         else if (name === 'disabled') this._input.disabled = value !== null;
