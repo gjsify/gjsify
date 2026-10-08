@@ -637,22 +637,19 @@ set **and** the model has at least one item.
 
     const app = new Gtk.Application({ application_id: 'org.example.Editor' });
 
-    // The menubar is the APPLICATION's model (gtkapplicationwindow.c:337-348), so the
-    // window only ever says whether it may show it.
-    const menu = new Gio.Menu();
-    const file = new Gio.Menu();
-    file.append('_New', 'win.new');
-    file.append('_Open…', 'win.open');
-    menu.append_section(null, file);
-    app.set_menubar(menu);
+    // `set_menubar` is refused by name here (ADR 0098 § 1): Android has no menubar, so
+    // the application's actions reach the window through `win.` / `app.` alone.
+    const save = new Gio.SimpleAction({ name: 'save' });
+    save.connect('activate', () => console.log('save'));
+    app.add_action(save);
 
-    const window = new Gtk.ApplicationWindow({ application: app, default_width: 440, default_height: 180 });
-    window.set_titlebar(new Gtk.HeaderBar());
-    window.set_child(new Gtk.Box());
-
-    // BOTH halves, or nothing shows: `update_menubar` asks whether the section has any
-    // items at all before it builds the bar (gtkapplicationwindow.c:400-402).
-    window.show_menubar = true;
+    app.connect('activate', () => {
+        const window = new Gtk.ApplicationWindow({ application: app, default_width: 440, default_height: 180 });
+        window.set_titlebar(new Gtk.HeaderBar());
+        window.set_child(new Gtk.Box());
+        window.present();
+    });
+    app.runAsync([]);
     ```
   </Fragment>
 </AdwWidget>
