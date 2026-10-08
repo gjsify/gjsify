@@ -40,6 +40,9 @@ export type { AdwViewStackPageInfo };
 /** Event name emitted when the visible child changes. Mirrors GObject `notify::visible-child`. */
 export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
 
+/** Event name emitted when the visible page's name changes. Mirrors GObject `notify::visible-child-name`. */
+export const NOTIFY_VISIBLE_CHILD_NAME = 'notify::visible-child-name';
+
 /**
  * Payload of the {@link NOTIFY_VISIBLE_CHILD} event. `index` is `-1` and
  * `name`/`title` are `''` when nothing is selected — the state an empty stack, a
@@ -48,6 +51,9 @@ export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
 export interface NotifyVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
 
 export class AdwViewStack extends withSignals(GridLayout) {
+    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
+    static readonly emittedSignals: readonly string[] = [NOTIFY_VISIBLE_CHILD, NOTIFY_VISIBLE_CHILD_NAME];
+
     /**
      * No named placement: a stack's XML children are its pages, in order, as GtkBuildable's
      * untyped `<child>` is (`adw_view_stack_buildable_add_child`). An empty list, not an absent
@@ -79,6 +85,7 @@ export class AdwViewStack extends withSignals(GridLayout) {
                 ...viewStackNotifyPayload(change),
             };
             this.notify(data);
+            this.notify({ ...data, eventName: NOTIFY_VISIBLE_CHILD_NAME });
         });
 
         applyConstructProps(this, props);

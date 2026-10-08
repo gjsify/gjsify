@@ -47,6 +47,9 @@ export const NOTIFY_TEXT = 'notify::text';
 /** Event name emitted when the return key is pressed — `Gtk.Entry::activate`. */
 export const ACTIVATE = 'activate';
 
+/** `Gtk.Editable::changed` — every change of the text, typed or set. */
+export const CHANGED = 'changed';
+
 /** Payload of the `notify::text` event. */
 export interface NotifyEntryTextEventData extends EventData {
     /** The new text value (already truncated to `maxLength`). */
@@ -57,7 +60,7 @@ export interface NotifyEntryTextEventData extends EventData {
 
 export class GtkEntry extends withSignals(GridLayout) {
     /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [NOTIFY_TEXT, ACTIVATE];
+    static readonly emittedSignals: readonly string[] = [CHANGED, NOTIFY_TEXT, ACTIVATE];
 
     /** The real input. Chrome-less: the box around it paints the Adwaita surface. */
     protected readonly _field: TextField;
@@ -111,6 +114,7 @@ export class GtkEntry extends withSignals(GridLayout) {
             text: clamped,
             textLength: entryTextLength(clamped),
         };
+        this.notify({ eventName: CHANGED, object: this });
         this.notify(data);
     }
 

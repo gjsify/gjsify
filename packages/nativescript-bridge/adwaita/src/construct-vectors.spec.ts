@@ -169,6 +169,35 @@ export const AdwConstructVectorsNsTest = async () => {
             root.getViewById('box').active = true;
             expect(target.active).toBe(true);
         });
+        await it('runs an Entry `changed` and `notify::text` handler on a text change', () => {
+            const seen: string[] = [];
+            const root = build(
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        {
+                            tag: 'GtkEntry',
+                            id: 'entry',
+                            signals: [
+                                { name: 'changed', handler: 'onChanged' },
+                                { name: 'notify::text', handler: 'onText' },
+                            ],
+                        },
+                    ],
+                },
+                { scope: { onChanged: () => seen.push('changed'), onText: () => seen.push('notify::text') } },
+            ) as unknown as { getViewById(id: string): { text: string } };
+            const entry = root.getViewById('entry');
+            entry.text = 'set';
+            entry.text = 'set';
+            expect(seen.join()).toBe('changed,notify::text');
+        });
+        await it('declares the signals a ViewStack emits', () => {
+            const stack = build({ tag: 'AdwViewStack' }) as unknown as {
+                constructor: { emittedSignals: readonly string[] };
+            };
+            expect(stack.constructor.emittedSignals.join()).toBe('notify::visible-child,notify::visible-child-name');
+        });
         await it('declares the signals Entry, DropDown and Stack emit', () => {
             const emitted = (tag: string) =>
                 (
@@ -178,7 +207,7 @@ export const AdwConstructVectorsNsTest = async () => {
                 )
                     .getViewById('x')
                     .constructor.emittedSignals.join();
-            expect(emitted('GtkEntry')).toBe('notify::text,activate');
+            expect(emitted('GtkEntry')).toBe('changed,notify::text,activate');
             expect(emitted('GtkDropDown')).toBe('notify::selected');
             expect(emitted('GtkStack')).toBe('notify::visible-child,notify::visible-child-name');
         });
