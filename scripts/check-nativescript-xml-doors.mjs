@@ -118,6 +118,7 @@ import {
     readRecordLiteral,
     readStringArray,
     readTypeSources,
+    isApplication,
     readWidgets,
     SETTER_ONLY_ON_BASE,
     settersOf,
@@ -340,6 +341,7 @@ for (const [tag, why] of Object.entries(NO_CONSTRUCT_PROPS)) {
 
 let bagged = 0;
 for (const [tag, { file, text }] of [...sources].sort()) {
+    if (isApplication(sources, tag)) continue;
     const exempt = NO_CONSTRUCT_PROPS[tag];
     const ctor = constructorOf(text, tag);
     if (ctor === null) {
@@ -530,6 +532,7 @@ if (coreClasses.size === 0)
 let wrapped = 0;
 let inherited = 0;
 for (const [tag, { file, text }] of [...sources].sort()) {
+    if (isApplication(sources, tag)) continue;
     const head = extendsOf(text, tag);
     if (head === null) {
         failures.push(
