@@ -1,6 +1,9 @@
 // The two decisions of `report-target-gap.mjs` that a test has to reach without running the report:
 // which members a namespace barrel exports, and which bind forms a target refuses.
 
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import ts from 'typescript';
 
 const isExported = (statement) =>
@@ -44,4 +47,21 @@ export const bindFormIssues = (binding, tag, templateScoped) => {
         issues.push({ issue: 'refused-bind-source', tag, name: 'template', line: binding.line });
     }
     return issues;
+};
+
+/**
+ * The barrel files that packages other than `ownDir` add to a renderer with
+ * `registerBarrel(prefix, 'Library', …)` in `src/builder.ts` (ADR 0094): the file is
+ * `src/namespace/<library>.ts`. A builder that names no such file contributes nothing.
+ */
+export const registeredBarrelFiles = (packageDirs, ownDir) => {
+    const files = [];
+    for (const packageDir of packageDirs) {
+        const builder = join(packageDir, 'src/builder.ts');
+        if (packageDir === ownDir || !existsSync(builder)) continue;
+        const registered = /registerBarrel\(\s*'[^']+'\s*,\s*'(\w+)'/.exec(readFileSync(builder, 'utf8'));
+        const file = registered && join(packageDir, 'src/namespace', `${registered[1].toLowerCase()}.ts`);
+        if (file && existsSync(file)) files.push(file);
+    }
+    return files;
 };
