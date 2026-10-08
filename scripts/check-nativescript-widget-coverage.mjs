@@ -142,6 +142,10 @@ const MIN_REASON = 40;
  * has drifted twice.
  */
 const KNOWN_GAPS = {
+    'gtk-popover-menu': {
+        gaps: ['visibleSubmenu'],
+        why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',
+    },
     'adw-about-dialog': {
         gaps: [
             'appdataResourcePath',

@@ -4,6 +4,7 @@ import {
     MENU_ACTION_VECTORS,
     MENU_TREE_VECTORS,
     driveMenuActionVectors,
+    registryMenuActionScene,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
@@ -16,15 +17,15 @@ export const GtkMenuTreeNsTest = async () => {
     // The owning button sits below an ancestor, as a header bar holds it; the walk reads View.parent.
     await driveMenuActionVectors(
         'adwaita-nativescript (GtkMenuButton)',
-        {
-            chain() {
+        registryMenuActionScene(
+            () => {
                 const outer = new Gtk.Box();
                 const button = new Gtk.MenuButton();
                 outer.append(button as never);
                 return { outer, button };
             },
-            parent: (node) => (node as { parent?: object | null }).parent,
-        },
+            (node) => (node as { parent?: object | null }).parent,
+        ),
         { describe, it, expect },
     );
     await describe('adwaita-nativescript: menus in a shared tree (ADR 0097 § 1)', async () => {

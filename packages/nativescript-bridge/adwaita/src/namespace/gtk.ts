@@ -38,6 +38,7 @@ export { GtkImage as Image } from '../widgets/gtk-image.js';
 export { GtkLabel as Label } from '../widgets/gtk-label.js';
 export { GtkListBox as ListBox } from '../widgets/gtk-list-box.js';
 export { GtkMenuButton as MenuButton } from '../widgets/gtk-menu-button.js';
+export { GtkPopoverMenu as PopoverMenu } from '../widgets/gtk-popover-menu.js';
 export { GtkOverlay as Overlay } from '../widgets/gtk-overlay.js';
 export { GtkRevealer as Revealer } from '../widgets/gtk-revealer.js';
 export { GtkScrolledWindow as ScrolledWindow } from '../widgets/gtk-scrolled-window.js';

@@ -151,15 +151,18 @@ export { GtkLabel } from './gtk-label.js';
 export { labelDisplayText, labelMarkupIsUnparseable } from '@gjsify/adwaita-core';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
+export { GtkPopoverMenu } from './gtk-popover-menu.js';
 export type { MenuItemActivatedEventData } from './gtk-menu-button.js';
 export {
-    MENU_CANCEL_LABEL,
-    menuSheetActions,
-    menuSheetRows,
-    presentMenuSheet,
-    resolveMenuChoice,
-} from './menu-sheet.js';
-export type { MenuSheetPresenter, MenuSheetRow } from './menu-sheet.js';
+    GROUP_DIVIDER_API,
+    assertPopupMenuAssignable,
+    fillPopupMenu,
+    openPopupMenu,
+    refuseMenuString,
+} from './popup-menu.js';
+export type { OpenPopupMenuOptions, PopupMenuItemLike, PopupMenuLike, PopupMenuSurface } from './popup-menu.js';
+export { showMenuPopup } from './popup-menu-view.js';
+export type { MenuPopupHandle, MenuPopupOptions } from './popup-menu-view.js';
 export { GtkImage, DEFAULT_GTK_IMAGE_SIZE } from './gtk-image.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AVATAR_DEFAULT_ICON, AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';

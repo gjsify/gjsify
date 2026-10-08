@@ -129,3 +129,28 @@ export function openPopupMenu(options: OpenPopupMenuOptions): PopupMenuPlan {
     surface.show();
     return plan;
 }
+
+/**
+ * Throw if `model` holds what `PopupMenu` can never draw, at the ASSIGNMENT: a `custom` item or a
+ * section label. A radio run that shares a group needs the actions to be known, so it throws when
+ * the menu is opened.
+ */
+export function assertPopupMenuAssignable(model: AdwMenuModel): void {
+    assertPopupMenuPlan(planPopupMenu(model));
+}
+
+/**
+ * A JSON string is not a menu model here: NativeScript's XML Builder writes an attribute straight
+ * onto the property, so accepting one would open an XML door nothing can prove, and
+ * `normalizeMenuModel` would turn it into an EMPTY menu with nothing saying why.
+ */
+export function refuseMenuString(value: unknown, widget: string): void {
+    if (typeof value !== 'string') return;
+    throw new TypeError(
+        `${widget}.menuModel takes a menu model, not the string ${JSON.stringify(value.slice(0, 40))}. ` +
+            `NativeScript's XML Builder writes an attribute straight onto the property, so a ` +
+            `menuModel="…" in a view file arrives here as text — which this port deliberately does not ` +
+            `parse (ADR 0042). Assign the model from code, or keep this menu on a surface whose ` +
+            `attribute door is open.`,
+    );
+}

@@ -4,7 +4,7 @@
 // main action part (an `GtkImage` symbolic OR a text `Label`) linked to a tappable
 // dropdown-arrow part (a REAL pan-* / open-menu `GtkImage`, not a `⌄` glyph).
 // Mirrors `Adw.SplitButton`: tapping the main part emits `clicked`; tapping the
-// arrow opens a native `action()` menu from {@link AdwSplitButton.menu} and emits
+// arrow opens a `PopupMenu` from {@link AdwSplitButton.menu} and emits
 // `menuTapped`.
 //
 // The BEHAVIOUR — which content slot is filled (label/icon/child are mutually
@@ -12,28 +12,22 @@
 // tooltip fallback — is headless in `@gjsify/adwaita-core` (ADR 0004) as
 // `SplitButtonState`; this class only renders it.
 //
-// FIDELITY: approximated for the menu. `Adw.SplitButton` shows an in-app popover; the
-// NS subset has none, so the dropdown opens the platform `action()` sheet (the same
-// substitution `AdwComboRow` makes). What that costs — and what it does with a section,
-// a submenu, a disabled item and a check — is decided once in `menu-sheet.ts` for this
-// widget and `GtkMenuButton` together (ADR 0042). The two-part linked shape and the
-// symbolic icons are faithful.
+// FIDELITY: a native menu rather than a popover. `Adw.SplitButton` shows an in-app popover;
+// the dropdown opens `android.widget.PopupMenu` anchored at the arrow half (ADR 0097 § 2), for
+// this widget and `GtkMenuButton` together. What it cannot draw is refused by name
+// (`popup-menu.ts`). The two-part linked shape and the symbolic icons are faithful.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.split-button)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { action, GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
-import {
-    ADW_MENU_SURFACE_NATIVESCRIPT,
-    SPLIT_BUTTON_DISABLED_OPACITY,
-    SplitButtonState,
-    assertMenuRenderable,
-} from '@gjsify/adwaita-core';
+import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
+import { SPLIT_BUTTON_DISABLED_OPACITY, SplitButtonState } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
-import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sheet.js';
+import { assertPopupMenuAssignable, refuseMenuString } from './popup-menu.js';
+import { showMenuPopup } from './popup-menu-view.js';
 import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -140,7 +134,7 @@ export class AdwSplitButton extends withSignals(GridLayout) {
             this.notify(data);
         });
         dropdownPart.addEventListener('tap', () => {
-            void this._openMenu();
+            this._openMenu();
         });
 
         // Both halves darken on press, like Adwaita's linked `.split-button`.
@@ -154,40 +148,41 @@ export class AdwSplitButton extends withSignals(GridLayout) {
     }
 
     /**
-     * Present the dropdown menu and dispatch the choice BY POSITION.
+     * Show the dropdown menu at the arrow half and dispatch the choice BY POSITION.
      *
      * Nothing happens without a menu: "if the menu model is `NULL`, the dropdown
      * is disabled" (adw-split-button.c:376-378).
      */
-    private async _openMenu(): Promise<void> {
-        // A sheet is already up — the platform owns the interaction until it
-        // resolves, so a second tap must not present a second one.
+    private _openMenu(): void {
+        // A popup is already up, so a second tap must not open a second one.
         if (!this._sensitive || this._state.open || !this._state.dropdownEnabled) return;
 
         this._state.toggleMenu();
-        const path = await presentMenuSheet(action, this._state.menuModel ?? [], {
-            // The label of the CURRENT content only — an icon-mode button has
-            // none, where the old code handed over the hidden stale label.
-            title: this._state.label ?? undefined,
-            actions: this._actions ?? undefined,
-            cancelLabel: MENU_CANCEL_LABEL,
-        });
-
-        const item = path === null ? null : this._state.activateMenuItem(path);
-        if (item === null || path === null) {
-            // Dismissed, or a choice that maps to no position.
+        try {
+            showMenuPopup(this._dropdownPart, {
+                model: this._state.menuModel ?? [],
+                actions: this._actions,
+                onActivated: (_item, path) => {
+                    const item = this._state.activateMenuItem(path);
+                    if (item === null) return;
+                    const data: MenuTappedEventData = {
+                        eventName: MENU_TAPPED,
+                        object: this,
+                        item: item.label,
+                        id: item.id ?? item.label,
+                        path,
+                        action: item.action,
+                    };
+                    this.notify(data);
+                },
+                // Dismissed with or without a choice: the state machine hears either.
+                onDismiss: () => this._state.closeMenu(),
+            });
+        } catch (error) {
+            // A refusal throws BEFORE anything is shown, and the arrow must not stay pressed.
             this._state.closeMenu();
-            return;
+            throw error;
         }
-        const data: MenuTappedEventData = {
-            eventName: MENU_TAPPED,
-            object: this,
-            item: item.label,
-            id: item.id ?? item.label,
-            path,
-            action: item.action,
-        };
-        this.notify(data);
     }
 
     /** Repaint both halves from the state machine. */
@@ -244,8 +239,8 @@ export class AdwSplitButton extends withSignals(GridLayout) {
     }
 
     /**
-     * The dropdown menu, normalised (ADR 0042) — opened as a native `action()` sheet on
-     * an arrow tap.
+     * The dropdown menu, normalised (ADR 0042) — opened as a `PopupMenu` on an
+     * arrow tap.
      *
      * Accepts everything the portable model does, INCLUDING the bare `string[]` this
      * widget used to be alone in taking: that shorthand is now one of the model's own
@@ -271,16 +266,16 @@ export class AdwSplitButton extends withSignals(GridLayout) {
     set menuModel(value: AdwMenuInput) {
         refuseMenuString(value, 'AdwSplitButton');
         this._state.setMenuModel(value);
-        // LOUD, at the assignment: a `custom` item names an application widget, and a
-        // sheet row is a string — a surface that ignored it would offer a blank row.
-        assertMenuRenderable(this._state.menuModel ?? [], ADW_MENU_SURFACE_NATIVESCRIPT);
+        // LOUD, at the assignment: a `custom` item names an application widget, which a
+        // PopupMenu row cannot host — a surface that ignored it would offer a blank row.
+        assertPopupMenuAssignable(this._state.menuModel ?? []);
     }
 
     /**
      * What the action group publishes about the actions this menu names — the portable
      * stand-in for a `GActionGroup`, and the only source of a menu's enabled/checked
-     * state (ADR 0042). A sheet has no disabled row, so an insensitive item is not
-     * offered; a checked one wears a tick.
+     * state (ADR 0042). Left `null`, the registry above the button answers; an insensitive item
+     * is shown disabled and a checked one checked.
      */
     get actions(): AdwMenuActions | null {
         return this._actions;
@@ -301,7 +296,7 @@ export class AdwSplitButton extends withSignals(GridLayout) {
 
     /**
      * The dropdown tooltip as set — `''` while unset. Resolve it through
-     * `resolveDropdownTooltip()` for what should be shown; the NS sheet has no
+     * `resolveDropdownTooltip()` for what should be shown; a PopupMenu has no
      * tooltip surface, so this is carried for parity and for host bindings.
      */
     get dropdownTooltip(): string {

@@ -37,18 +37,7 @@ import {
     SPLIT_BUTTON_TOOLTIP_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 import { ARROW_SVGS, setActionIcon, splitButtonArrowSvg } from './widgets/split-button.js';
-import {
-    MENU_CANCEL_LABEL,
-    menuSheetActions,
-    menuSheetRows,
-    presentMenuSheet,
-    refuseMenuString,
-    resolveMenuChoice,
-} from './widgets/menu-sheet.js';
-
-/** The path a sheet row addresses, or `null` — the round trip in one call. */
-const chooseRow = (model: AdwMenuModel, text: string): AdwMenuPath | null =>
-    resolveMenuChoice(menuSheetRows(model), text)?.path ?? null;
+import { refuseMenuString } from './widgets/popup-menu.js';
 
 /** Which of the two action views the widget parents for a given state. */
 function parentedView(state: SplitButtonState): 'icon' | 'label' {
@@ -156,111 +145,20 @@ export const AdwSplitButtonNsTest = async () => {
         });
     });
 
-    await describe('the action() sheet, page by page (shared conformance vectors)', async () => {
-        for (const { model, rows, rule } of MENU_FLATTEN_VECTORS) {
-            await it(`the sheet offers exactly the rows the model draws — ${rule}`, () => {
-                // Sections are INLINED into the sheet and a submenu stays one row, which
-                // is `flattenMenu`'s answer; the sheet adds only the chevron that says
-                // the row opens something.
-                expect(menuSheetActions(menuSheetRows(model))).toStrictEqual(
-                    rows.map((row) => (row.label === 'More' ? 'More ›' : row.label)),
-                );
-            });
-        }
-
+    await describe('choosing a menu item (shared conformance vectors)', async () => {
         for (const { model, path, activated, rule } of SPLIT_BUTTON_MENU_ACTIVATION_VECTORS) {
-            // Only rows the sheet actually offers can be tapped; the out-of-range paths
-            // are the core's business.
-            const rows = menuSheetRows(model, path.slice(0, -1));
-            const row = rows.find((r) => r.path.join('.') === path.join('.'));
-            if (row === undefined || row.submenu) continue;
-
-            await it(`tapping ${JSON.stringify(row.action)} dispatches ${JSON.stringify(activated)} — ${rule}`, () => {
+            await it(`activating ${JSON.stringify(path)} dispatches ${JSON.stringify(activated)} — ${rule}`, () => {
                 const state = new SplitButtonState();
                 state.setMenuModel(model);
-                // The platform hands back the STRING it displayed.
-                const chosen = resolveMenuChoice(rows, row.action);
-                expect(state.activateMenuItem(chosen?.path ?? [])).toStrictEqual(activated);
+                expect(state.activateMenuItem(path)).toStrictEqual(activated);
             });
         }
-
-        await it('gives duplicate labels distinct sheet strings that still read the same', () => {
-            const model = normalizeMenuModel([{ label: 'Copy' }, { label: 'Copy' }]);
-            const actions = menuSheetActions(menuSheetRows(model));
-            expect(actions).toHaveLength(2);
-            expect(actions[0]).not.toBe(actions[1]);
-            // The disambiguator is zero-width, so nothing changes on screen.
-            expect(actions[0]!.replace(/\u200B/g, '')).toBe('Copy');
-            expect(actions[1]!.replace(/\u200B/g, '')).toBe('Copy');
-            expect(chooseRow(model, actions[1]!)).toStrictEqual([1]);
-        });
-
-        await it('tells an entry called Cancel from a dismissed sheet', () => {
-            const model = normalizeMenuModel([{ label: MENU_CANCEL_LABEL }, { label: 'Print' }]);
-            const rows = menuSheetRows(model);
-            // Dismissing resolves with the cancel button's own text.
-            expect(resolveMenuChoice(rows, MENU_CANCEL_LABEL)).toBe(null);
-            // Tapping the entry resolves with its (disambiguated) sheet string.
-            expect(resolveMenuChoice(rows, rows[0]!.action)?.path).toStrictEqual([0]);
-        });
-
-        await it('treats an undefined choice as a dismissal', () => {
-            const rows = menuSheetRows(normalizeMenuModel([{ label: 'Print' }]));
-            expect(resolveMenuChoice(rows, undefined)).toBe(null);
-            expect(resolveMenuChoice(rows, null)).toBe(null);
-        });
 
         await it('a dismissal activates nothing', () => {
             const state = new SplitButtonState();
             state.setMenuModel([{ label: 'Print', action: 'app.print' }]);
             expect(state.activateMenuItem([])).toBe(null);
         });
-
-        await it('a submenu opens a SECOND sheet, titled with its own label', async () => {
-            const model = normalizeMenuModel([
-                { label: 'Print' },
-                { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
-            ]);
-            const presented: Array<{ title?: string; actions: string[] }> = [];
-            const path = await presentMenuSheet(
-                (options) => {
-                    presented.push({ title: options.title, actions: options.actions });
-                    // Choose the submenu on the first sheet, its second item on the next.
-                    return Promise.resolve(presented.length === 1 ? options.actions[1] : options.actions[1]);
-                },
-                model,
-                { title: 'Save' },
-            );
-            expect(presented).toHaveLength(2);
-            expect(presented[0]).toStrictEqual({ title: 'Save', actions: ['Print', 'More ›'] });
-            expect(presented[1]).toStrictEqual({ title: 'More', actions: ['Rename', 'Duplicate'] });
-            expect(path).toStrictEqual([1, 1]);
-        });
-
-        await it('a dismissal inside a submenu ends the interaction — a sheet has no Back', async () => {
-            const model = normalizeMenuModel([{ label: 'More', submenu: [{ label: 'Rename' }] }]);
-            let sheets = 0;
-            const path = await presentMenuSheet((options) => {
-                sheets += 1;
-                return Promise.resolve(sheets === 1 ? options.actions[0] : undefined);
-            }, model);
-            expect(sheets).toBe(2);
-            expect(path).toBe(null);
-        });
-
-        for (const { item, actions, state, rule } of MENU_ITEM_STATE_VECTORS) {
-            await it(`the sheet offers only what can be chosen — ${rule}`, () => {
-                const rows = menuSheetRows(normalizeMenuModel([item]), [], actions);
-                // A platform sheet has no disabled row and no check node: an item that
-                // cannot be activated is NOT OFFERED, and a checked one wears a tick.
-                if (!state.visible || !state.sensitive) {
-                    expect(rows).toStrictEqual([]);
-                    return;
-                }
-                expect(rows).toHaveLength(1);
-                expect(rows[0]!.action).toBe(state.toggled ? `✓ ${item.label}` : item.label);
-            });
-        }
     });
 
     await describe('dropdown sensitivity (shared conformance vectors)', async () => {
@@ -269,7 +167,7 @@ export const AdwSplitButtonNsTest = async () => {
                 const state = new SplitButtonState();
                 if (popover) state.setPopover({ popover: true });
                 if (model.length > 0) state.setMenuModel(model);
-                // The `_openMenu()` guard: no menu ⇒ the sheet is never presented,
+                // The `_openMenu()` guard: no menu ⇒ the popup is never shown,
                 // and the arrow half is dimmed instead of looking live.
                 expect(state.dropdownEnabled).toBe(enabled);
                 expect(state.openMenu()).toBe(canOpen);
