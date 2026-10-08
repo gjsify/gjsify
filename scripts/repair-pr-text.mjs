@@ -11,24 +11,38 @@
 // stacked PR and every worktree checked out on it).
 //
 // WHAT IT LEAVES ALONE, so the checks keep reporting it: a type that is not in the
-// enum (choosing one is a decision about the CHANGELOG), a subject too long for
-// `<title> (#N)` (shortening means choosing words), a heading or a single word over the
-// line limit, and a closing keyword list. A repair that guesses is worse than a red check.
+// enum and not one of the synonyms below (choosing one is a decision about the
+// CHANGELOG), and a title with no conventional header when the head branch carries no
+// type. A repair that guesses is worse than a red check.
 //
 // WHAT IT CHANGES, title:
 //   - whitespace runs, `Feat :`-style type spelling, a trailing full stop;
+//   - type synonyms mapped onto the enum: feature/features → feat, bugfix/bug/
+//     hotfix/fixes → fix, doc/documentation → docs, tests/testing → test, chores →
+//     chore, refactoring → refactor, performance → perf, builds → build;
 //   - an upper-case first word of the subject (#1275, #1590): a plain capitalised word
 //     is lower-cased, anything else (`GJS`, `TypeScript`) is quoted in backticks, which
-//     commitlint strips before judging `subject-case`.
+//     commitlint strips before judging `subject-case`;
+//   - a missing conventional header, when the head branch starts with a type's word
+//     (`docs/…`, `hotfix-…`): the type is prepended — the branch stating the decision a
+//     header would have made;
+//   - a subject too long for `<title> (#N)`: the scope is dropped first, then the
+//     subject is cut at a word boundary, and the cut DROPS no words: the full title is
+//     moved to the top of the body under `Full title:`.
 // body:
 //   - drops `claude.ai/code/session_…` lines and `Co-Authored-By: Claude` trailers
 //     (#1699 — see `check-pr-body-lines.mjs`);
+//   - repeats a closing keyword before every reference of a list
+//     (`Closes #1, #2` → `Closes #1, closes #2`), the form
+//     `check-closing-keywords.mjs` demands;
 //   - re-wraps a prose line over the limit at word boundaries, keeping list and quote
 //     prefixes, never starting a continuation with something markdown would read as a
 //     new block;
-//   - moves a table or fenced block holding a line over the limit into a PR COMMENT,
-//     which is not part of the commit, and leaves a pointer in its place. That is the
-//     fix `check-pr-body-lines.mjs` has always told people to make by hand.
+//   - turns an over-long heading into bold prose **…** wrapped under the limit;
+//   - moves a table, a fenced block, or a prose line that cannot be wrapped (a single
+//     long URL) into a PR COMMENT, which is not part of the commit, and leaves a
+//     pointer in its place. That is the fix `check-pr-body-lines.mjs` has always told
+//     people to make by hand.
 //
 // RUNS WITH A WRITE TOKEN AND NO HEAD CODE: the workflow checks this file out from
 // `base.sha`, and the PR text reaches it as data through the API, never as program text.
@@ -36,7 +50,7 @@
 // this script hands on through `$GITHUB_OUTPUT` instead of waiting for an `edited` event.
 //
 // Usage (in a pull_request job):
-//   GH_TOKEN=… REPO=owner/name PR_NUMBER=… node scripts/repair-pr-text.mjs
+//   GH_TOKEN=… REPO=owner/name PR_NUMBER=… HEAD_REF=… node scripts/repair-pr-text.mjs
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
@@ -58,9 +72,75 @@ const CO_AUTHOR_CLAUDE = /^Co-Authored-By:\s*Claude\b/i;
 /** Tokens that would open a new markdown block if a wrap put them first on a line. */
 const BLOCK_OPENER = /^([-*+]|\d+[.)]|#{1,6}|>|\||```|~~~|=+|-{3,})$/;
 
+/** A line that opens or closes a fenced block — the boundary of `check-closing-keywords.mjs`' `blankCode`. */
+const FENCE_START = /^\s*(```|~~~)/;
+
+/**
+ * Type spellings a hand reaches for that are not the enum's own. Each maps onto a
+ * type that IS in the enum (`typeEnum()`), and only onto one of those — see
+ * `typeFor`, which refuses anything else so an unknown type stays a decision.
+ */
+const TYPE_SYNONYMS = {
+    feature: 'feat',
+    features: 'feat',
+    bugfix: 'fix',
+    bug: 'fix',
+    hotfix: 'fix',
+    fixes: 'fix',
+    doc: 'docs',
+    documentation: 'docs',
+    tests: 'test',
+    testing: 'test',
+    chores: 'chore',
+    refactoring: 'refactor',
+    performance: 'perf',
+    builds: 'build',
+};
+
+/**
+ * GitHub's closing keywords, verbatim from `check-closing-keywords.mjs`, whose regexes
+ * this mirrors because that script cannot export them — it runs its CLI at import time.
+ * A keyword repeated before every reference is what it accepts; see its header for why.
+ */
+const CLOSING_KEYWORDS = ['close', 'closes', 'closed', 'fix', 'fixes', 'fixed', 'resolve', 'resolves', 'resolved'];
+const CLOSING_REF = String.raw`(?:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)?#\d+`;
+const CLOSING_GAP = String.raw`[^\S\n]*(?:\n[^\S\n]*)?`;
+const CLOSING_SEPARATOR = String.raw`(?:${CLOSING_GAP}[,;&]${CLOSING_GAP}(?:and[^\S\n]+)?|[^\S\n]+and[^\S\n]+)`;
+const TAIL_CLOSING_REF = new RegExp(CLOSING_REF, 'g');
+/** An inline code span — exempt in the check, which blanks spans before scanning. */
+const INLINE_CODE = /`+[^`\n]*`+/g;
+
 function typeEnum() {
     const rule = require('../commitlint.config.cjs').rules?.['type-enum'];
     return Array.isArray(rule) && Array.isArray(rule[2]) ? rule[2] : [];
+}
+
+/**
+ * A type can be spelled several ways; the enum cannot. Resolve synonyms onto the enum
+ * and refuse everything else — an unknown type is a CHANGELOG decision.
+ *
+ * @param {string} word
+ * @param {string[]} types
+ * @returns {string | null}
+ */
+function typeFor(word, types) {
+    const lower = String(word).toLowerCase();
+    const target = TYPE_SYNONYMS[lower] ?? lower;
+    return types.includes(target) ? target : null;
+}
+
+/**
+ * The type a head branch names: its first `<word>/` or `<word>-` segment (`feat/…`,
+ * `hotfix-123`). The branch is checked out precisely because it is that item of work,
+ * so it has already stated the decision a header would have made.
+ *
+ * @param {string} branch
+ * @param {string[]} types
+ * @returns {string | null}
+ */
+function branchType(branch, types) {
+    const word = String(branch ?? '').split(/[/-]/)[0];
+    return word ? typeFor(word, types) : null;
 }
 
 /**
@@ -82,20 +162,101 @@ function repairSubjectCase(subject) {
 
 /**
  * @param {string} title
- * @param {{ types?: string[] }} [options]
+ * @param {{ types?: string[], branch?: string }} [options]
  * @returns {string}
  */
-export function repairTitle(title, { types = typeEnum() } = {}) {
+export function repairTitle(title, { types = typeEnum(), branch = '' } = {}) {
     const collapsed = String(title ?? '')
         .replace(/\s+/g, ' ')
         .trim();
     const header = LOOSE_HEADER.exec(collapsed);
-    if (!header) return collapsed;
-    const [, rawType, scope = '', bang = '', rawSubject] = header;
-    const type = types.includes(rawType.toLowerCase()) ? rawType.toLowerCase() : rawType;
-    let subject = rawSubject.replace(/\.+$/, '').trimEnd();
-    if (subject) subject = repairSubjectCase(subject);
-    return `${type}${scope}${bang}: ${subject}`;
+    if (header) {
+        const [, rawType, scope = '', bang = '', rawSubject] = header;
+        const type = typeFor(rawType, types) ?? rawType;
+        let subject = rawSubject.replace(/\.+$/, '').trimEnd();
+        if (subject) subject = repairSubjectCase(subject);
+        return `${type}${scope}${bang}: ${subject}`;
+    }
+    // No conventional header at all. The head branch often names the type — prepend
+    // it; this is the branch stating the decision the form check would ask for.
+    const type = branchType(branch, types);
+    if (!type) return collapsed;
+    const subject = collapsed.replace(/\.+$/, '').trimEnd();
+    return `${type}: ${repairSubjectCase(subject)}`;
+}
+
+/** Shed the scope: it is the first thing a capped squash subject does not need. */
+function dropScope(title) {
+    const header = LOOSE_HEADER.exec(title);
+    if (!header?.[2]) return title;
+    const [, type, , bang = '', subject] = header;
+    return `${type}${bang}: ${subject}`;
+}
+
+/**
+ * Cut the subject at the last word boundary that still fits `max` characters. When
+ * even the first word does not fit it is hard-cut instead — an empty subject would
+ * fail `subject-empty`, a sliced one is at worst ugly.
+ *
+ * @param {string} title a conventional header (or unchanged, callers decide)
+ * @param {number} max
+ * @returns {string}
+ */
+function cutToFit(title, max) {
+    const header = LOOSE_HEADER.exec(title);
+    if (!header) return title;
+    const [, type, scope = '', bang = '', subject] = header;
+    const prefix = `${type}${scope}${bang}: `;
+    const kept = [];
+    let length = prefix.length;
+    for (const word of subject.split(' ')) {
+        const gap = kept.length === 0 ? 0 : 1;
+        if (length + gap + word.length > max) break;
+        kept.push(word);
+        length += gap + word.length;
+    }
+    if (kept.length === 0) {
+        kept.push(subject.slice(0, Math.max(1, max - prefix.length)));
+    }
+    return `${prefix}${kept.join(' ')}`.trimEnd();
+}
+
+/**
+ * The whole PR text — the repairs are not independent: cutting the title to fit
+ * `<title> (#N)` must put what it cut somewhere the checks still accept, the body.
+ *
+ * @param {{ title?: string, body?: string | null, number: string | number, branch?: string, types?: string[] }} pr
+ * @returns {{ title: string, body: string, moved: string[] }} `moved` as in `repairBody`
+ */
+export function repairPr({ title, body, number, branch, types = typeEnum() }) {
+    const originalTitle = String(title ?? '');
+    const repairedTitle = repairTitle(originalTitle, { types, branch });
+    const suffix = number ? ` (#${number})` : '';
+
+    // The same arithmetic `check-pr-title-subject.mjs` applies: `<title> (#N)` must
+    // fit 100 characters. Scope first, words only if that is not enough.
+    const fits = (text) => text.length + suffix.length <= MAX_LINE_LENGTH;
+    const withoutScope = fits(repairedTitle) ? repairedTitle : dropScope(repairedTitle);
+    let fit = withoutScope;
+    let wordsCut = false;
+    if (!fits(fit)) {
+        fit = cutToFit(fit, MAX_LINE_LENGTH - suffix.length);
+        // A header-less title comes back unchanged; no cut, nothing moved to the body.
+        wordsCut = fit !== withoutScope;
+    }
+
+    let nextBody = String(body ?? '');
+    if (wordsCut) {
+        // The PR still carries the full title; the commit only gets the cut. Keep the
+        // cut words in history by prepending them to the body, wrapped like any prose.
+        const paragraphLine = `Full title: ${originalTitle}`;
+        const paragraph =
+            paragraphLine.length <= MAX_LINE_LENGTH ? [paragraphLine] : (wrapLine(paragraphLine) ?? [paragraphLine]);
+        nextBody = `${paragraph.join('\n')}\n\n${nextBody}`.trimEnd();
+    }
+
+    const { body: repairedBody, moved } = repairBody(nextBody);
+    return { title: fit, body: repairedBody, moved };
 }
 
 /**
@@ -137,18 +298,50 @@ export function wrapLine(line, limit = MAX_LINE_LENGTH) {
 }
 
 /**
+ * An over-long heading → bold prose: a wrapped line starting with `#` would open a
+ * new (nested) heading, `**…**` keeps the emphasis with no block semantics.
+ *
+ * @param {string} line
+ * @param {number} limit
+ * @returns {string[] | null} null when the heading is one unbreakable word
+ */
+function headingToBold(line, limit) {
+    const text = line.replace(/^\s*#{1,6}\s+/, '').trimEnd();
+    const single = `**${text}**`;
+    if (single.length <= limit) return [single];
+    // The closing `**` rides on the last wrapped line, so the text itself is wrapped
+    // two columns narrower than the limit.
+    const wrapped = wrapLine(`**${text}`, limit - 2);
+    if (!wrapped) return null;
+    return [...wrapped.slice(0, -1), `${wrapped[wrapped.length - 1]}**`];
+}
+
+/**
+ * Index one past the fenced block that starts at `i` — its closing fence included, EOF
+ * when the fence never closes (a fence is a fence to the check either way).
+ *
+ * @param {string[]} lines
+ * @param {number} i
+ * @returns {number}
+ */
+function fenceEnd(lines, i) {
+    const fence = FENCE_START.exec(lines[i]);
+    let end = i + 1;
+    while (end < lines.length && !lines[end].trimStart().startsWith(fence[1])) end++;
+    return end + 1;
+}
+
+/**
  * @param {string[]} lines
  * @returns {{ kind: 'fence' | 'table' | 'line', lines: string[] }[]}
  */
 function blocksOf(lines) {
     const blocks = [];
     for (let i = 0; i < lines.length;) {
-        const fence = /^\s*(```|~~~)/.exec(lines[i]);
-        if (fence) {
-            let end = i + 1;
-            while (end < lines.length && !lines[end].trimStart().startsWith(fence[1])) end++;
-            blocks.push({ kind: 'fence', lines: lines.slice(i, end + 1) });
-            i = end + 1;
+        if (FENCE_START.test(lines[i])) {
+            const end = fenceEnd(lines, i);
+            blocks.push({ kind: 'fence', lines: lines.slice(i, end) });
+            i = end;
         } else if (/^\s*\|/.test(lines[i])) {
             let end = i;
             while (end + 1 < lines.length && /^\s*\|/.test(lines[end + 1])) end++;
@@ -163,6 +356,56 @@ function blocksOf(lines) {
 }
 
 /**
+ * @param {string} prose prose without fences
+ * @returns {string}
+ */
+function repairProseChains(prose) {
+    const spans = [...prose.matchAll(INLINE_CODE)].map((m) => [m.index, m.index + m[0].length]);
+    const overSpan = (start, end) => spans.some(([s, e]) => start < e && end > s);
+    const chains = new RegExp(
+        String.raw`\b(${CLOSING_KEYWORDS.join('|')})(:?)\s+(${CLOSING_REF})((?:${CLOSING_SEPARATOR}${CLOSING_REF})+)`,
+        'gi',
+    );
+    return prose.replace(chains, (whole, keyword, colon, first, tail, offset) => {
+        // Inline code is exempt in the check (`blankCode` blanks spans); leave one be.
+        if (overSpan(offset, offset + whole.length)) return whole;
+        const dangling = tail.match(TAIL_CLOSING_REF) ?? [];
+        if (dangling.length === 0) return whole;
+        // The original keyword spelling for the first reference, lower-case for the
+        // rest: `Closes #1, closes #2, closes #3`.
+        return dangling.reduce(
+            (text, ref) => `${text}, ${keyword.toLowerCase()} ${ref}`,
+            `${keyword}${colon} ${first}`,
+        );
+    });
+}
+
+/**
+ * Repeats a closing keyword before every reference its chain leaves keyword-less. A
+ * chain may wrap across lines (`Closes #1,\n#2`), so prose runs are repaired whole;
+ * fenced blocks are code to the check and stay verbatim.
+ *
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+function repairClosingKeywordChains(lines) {
+    const out = [];
+    for (let i = 0; i < lines.length;) {
+        if (FENCE_START.test(lines[i])) {
+            const end = fenceEnd(lines, i);
+            out.push(...lines.slice(i, end));
+            i = end;
+        } else {
+            let end = i + 1;
+            while (end < lines.length && !FENCE_START.test(lines[end])) end++;
+            out.push(...repairProseChains(lines.slice(i, end).join('\n')).split('\n'));
+            i = end;
+        }
+    }
+    return out;
+}
+
+/**
  * @param {string | null | undefined} body
  * @param {{ limit?: number }} [options]
  * @returns {{ body: string, moved: string[] }} `moved` are the blocks for the PR comment
@@ -173,16 +416,29 @@ export function repairBody(body, { limit = MAX_LINE_LENGTH } = {}) {
         .replaceAll('\r\n', '\n')
         .split('\n')
         .filter((line) => !SESSION_LINK.test(line) && !CO_AUTHOR_CLAUDE.test(line.trim()));
+    const keyworded = repairClosingKeywordChains(lines);
 
     const out = [];
     const moved = [];
-    for (const block of blocksOf(lines)) {
+    for (const block of blocksOf(keyworded)) {
         const tooLong = block.lines.some((line) => line.length > limit);
         if (!tooLong) {
             out.push(...block.lines);
         } else if (block.kind === 'line') {
             const isHeading = /^\s*#{1,6}\s/.test(block.lines[0]);
-            out.push(...((!isHeading && wrapLine(block.lines[0], limit)) || block.lines));
+            const wrapped = isHeading ? headingToBold(block.lines[0], limit) : wrapLine(block.lines[0], limit);
+            if (wrapped) {
+                out.push(...wrapped);
+            } else if (isHeading) {
+                // A heading that is one unbreakable word has nothing to shorten; the
+                // check keeps naming it rather than this putting a guess in history.
+                out.push(block.lines[0]);
+            } else {
+                // A prose line wrapLine cannot fit (a long URL) has nothing left to
+                // shorten; move it whole to the comment, like a table or a fence.
+                moved.push(block.lines[0]);
+                out.push('_A long line moved to a PR comment: it does not fit the commit body._');
+            }
         } else {
             moved.push(block.lines.join('\n'));
             const what = block.kind === 'table' ? 'A table' : 'A code block';
@@ -209,7 +465,7 @@ function setOutput(name, value) {
 }
 
 function main() {
-    const { REPO, PR_NUMBER } = process.env;
+    const { REPO, PR_NUMBER, HEAD_REF } = process.env;
     if (!REPO || !PR_NUMBER) {
         console.error('::error::REPO and PR_NUMBER are required — this runs in a pull_request job.');
         process.exit(1);
@@ -218,8 +474,7 @@ function main() {
     // The CURRENT text, not the event's: the event may be several edits old, and writing a
     // repair of stale text back would undo whatever was edited since.
     const pr = JSON.parse(gh(['api', `repos/${REPO}/pulls/${PR_NUMBER}`, '--jq', '{title: .title, body: .body}']));
-    const title = repairTitle(pr.title);
-    const { body, moved } = repairBody(pr.body);
+    const { title, body, moved } = repairPr({ title: pr.title, body: pr.body, number: PR_NUMBER, branch: HEAD_REF });
     const titleChanged = title !== pr.title;
     const bodyChanged = body !== String(pr.body ?? '');
 
