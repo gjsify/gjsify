@@ -36,6 +36,7 @@
 
 import {
     createBreakpointDriver,
+    menuAssignments,
     parseBreakpointCondition,
     type BindingFlag,
     type BreakpointSize,
@@ -89,6 +90,8 @@ interface BuildRecord {
     observeSize?: SizeSource;
     /** The object a signal handler's NAME is resolved against (ADR 0093 § 3), as `Gtk.BuilderScope` does. */
     scope?: Readonly<Record<string, unknown>>;
+    /** The root menus of the tree (ADR 0097), which a `menu-model: id` anywhere below resolves against. */
+    menus?: SharedTreeNode['menus'];
     /** Present when the tree is the template of a registered class (ADR 0096): handlers and binds go through it. */
     template?: TemplateScope;
 }
@@ -154,6 +157,7 @@ export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = newR
     // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
     // created. A refused `layout` is named with its node and the reason the table gives.
     assertTreeConstructs('adwaita-web', capabilities, node);
+    if (node.menus !== undefined) record.menus = node.menus;
     const root = buildNode(node, record);
     for (const bind of record.binds) bindProperty(bind, record);
     for (const host of record.breakpointHosts) bindBreakpoints(host.el, host.node, record);
@@ -371,7 +375,7 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
         record.ids.set(node.id, el);
     }
     collectNode(el, node, record);
-    writeLook(el, node);
+    writeLook(el, node, record.menus);
     bindSignals(el, node, record);
     if (node.extensions !== undefined) record.extended.push({ el, node });
     for (const child of buildChildren(el, node, record)) el.append(child);
@@ -397,8 +401,14 @@ function collectNode(el: HTMLElement, node: SharedTreeNode, record: BuildRecord)
  * rest because a custom element may not gain attributes or children in its constructor, which is
  * where a registered class's host is built (see {@link buildTemplateTree}).
  */
-function writeLook(el: HTMLElement, node: SharedTreeNode): void {
-    for (const [prop, value] of Object.entries(node.props ?? {})) writeProp(el, prop, value);
+function writeLook(el: HTMLElement, node: SharedTreeNode, menus?: SharedTreeNode['menus']): void {
+    // A menu is a value, not an attribute: the id the projection keeps would parse as no menu.
+    for (const [prop, value] of Object.entries(node.props ?? {})) {
+        if (prop !== 'menu-model') writeProp(el, prop, value);
+    }
+    for (const [prop, model] of menuAssignments(node, menus)) {
+        (el as unknown as Record<string, unknown>)[propertyOf(prop)] = model;
+    }
     // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the
     // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
@@ -439,6 +449,7 @@ export interface BuiltTemplateTree {
 export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, host: HTMLElement): BuiltTemplateTree {
     assertTreeConstructs('adwaita-web', capabilities, tree);
     const record = newRecord(undefined, undefined, scope);
+    record.menus = tree.menus;
     if (tree.id !== undefined) record.ids.set(tree.id, host);
     collectNode(host, tree, record);
     bindSignals(host, tree, record);
@@ -447,7 +458,7 @@ export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, ho
     for (const breakpointHost of record.breakpointHosts) {
         bindBreakpoints(breakpointHost.el, breakpointHost.node, record);
     }
-    return { children, objects: Object.fromEntries(record.ids), finish: () => writeLook(host, tree) };
+    return { children, objects: Object.fromEntries(record.ids), finish: () => writeLook(host, tree, tree.menus) };
 }
 
 /**

@@ -57,6 +57,7 @@ import type {
     SplitButtonChange,
     SplitButtonDirection,
 } from '@gjsify/adwaita-core';
+import { activateElementMenuItem, menuActionsOfElement } from '../application.js';
 
 import { PopoverMenuView } from './popover-menu.js';
 
@@ -336,6 +337,7 @@ export class AdwSplitButton extends HTMLElement {
         this._menuView = new PopoverMenuView(this._menuEl, 'adw-split-button-menu', (path) => {
             const activated = this._state.activateMenuItem(path);
             if (activated === null) return;
+            activateElementMenuItem(this, activated);
             this.dispatchEvent(
                 new CustomEvent('menu-activated', {
                     bubbles: true,
@@ -525,7 +527,9 @@ export class AdwSplitButton extends HTMLElement {
 
     private _renderMenu(): void {
         this._menuEl.open = this._state.open;
-        this._menuView.setMenuModel(this._state.menuModel ?? []);
+        const model = this._state.menuModel ?? [];
+        this._menuView.setMenuModel(model);
+        this._menuView.setActions(this._actions ?? menuActionsOfElement(this, model));
         this._menuView.render();
     }
 }

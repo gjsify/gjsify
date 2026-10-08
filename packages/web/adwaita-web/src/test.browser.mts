@@ -141,6 +141,7 @@ import { AdwConstructVectorsTest } from './construct-vectors.spec.js';
 import { GObjectDoorTest } from './gobject-door.spec.js';
 import { ApplicationTest } from './application.spec.js';
 import { GLibTest } from './glib.spec.js';
+import { MenuActionsTest } from './menu-actions.spec.js';
 import { AdwSharedTreesTest } from './shared-trees.spec.js';
 import { AdwBlueprintTreeTest } from './blueprint-tree.spec.js';
 import { AdwValueListsTest } from './value-lists.spec.js';
@@ -157,6 +158,7 @@ run({
     GObjectDoorTest,
     ApplicationTest,
     GLibTest,
+    MenuActionsTest,
     AdwBlueprintTreeTest,
     AdwValueListsTest,
     AdwBlueprintLayoutTest,
