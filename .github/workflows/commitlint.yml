@@ -88,6 +88,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # The repair derives a missing header from the head branch's name. The branch
+          # is PR-controlled, so it reaches the script through env: only, never through
+          # the `run:` text — the same rule the verdict step below follows.
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
 

@@ -4,14 +4,20 @@
 // The oracle is NOT this file's idea of a good title: every repaired string is fed to the
 // check scripts the required `Lint commit messages` check runs, and a repair counts only if
 // they pass it. The other direction matters as much — what needs a decision (an unknown type,
-// a subject too long for `<title> (#N)`) must come back unchanged so the check still reports it.
+// a header no branch can supply) must come back unchanged so the check still reports it.
+//
+// Two of the repairs have no local check that reds the ORIGINAL: the type-enum and the
+// title-FORM rules live in `amannn/action-semantic-pull-request`, which this suite cannot
+// run. Rows for those carry `judgedHere: false`, like `Feat :` below — they still prove the
+// repaired string passes `check-pr-title-subject.mjs`.
 //
 // The INCIDENT rows are the merges the checks exist for; see the check scripts' headers.
 
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawnSync, execFileSync } from 'node:child_process';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,11 +27,11 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const REPAIR = join(MONOREPO_ROOT, 'scripts', 'repair-pr-text.mjs');
 const WORKFLOW = join(MONOREPO_ROOT, '.github', 'workflows', 'commitlint.yml');
 
-const { repairTitle, repairBody, wrapLine } = await import(`file://${REPAIR}`);
+const { repairTitle, repairBody, repairPr, wrapLine } = await import(`file://${REPAIR}`);
 
-function check(script, env) {
+function check(script, env, { cwd = MONOREPO_ROOT } = {}) {
     const result = spawnSync(process.execPath, [join(MONOREPO_ROOT, 'scripts', script)], {
-        cwd: MONOREPO_ROOT,
+        cwd,
         encoding: 'utf-8',
         env: { ...process.env, ...env },
     });
@@ -37,8 +43,9 @@ const bodyPasses = (body) => check('check-pr-body-lines.mjs', { PR_BODY: body })
 
 describe('repair-pr-text: the title', () => {
     /**
-     * `[title, repaired, note, judgedHere]`. `judgedHere` is false where the title-FORM rule
-     * catches the original — `amannn/action-semantic-pull-request`, which this suite cannot run.
+     * `[title, repaired, note, judgedHere = true, options]`. `judgedHere` is false where the
+     * title-FORM or type-enum rule catches the original — `amannn/action-semantic-pull-request`,
+     * which this suite cannot run — and where `options.branch` drives the repair.
      */
     const REPAIRED = [
         [
@@ -60,11 +67,34 @@ describe('repair-pr-text: the title', () => {
         ['Feat : add a thing.', 'feat: add a thing', 'type case, colon spacing and the full stop', false],
         ['fix(scope)!:   Break   it', 'fix(scope)!: break it', 'the `!` header and whitespace runs', false],
         ['docs: Ärger mit Umlauten', 'docs: ärger mit Umlauten', 'upper case is not ASCII-only'],
+        ['Features: Add things', 'feat: add things', '`Features` → `feat`, red on subject-case too'],
+        ['feature: add a thing', 'feat: add a thing', '`feature` is `feat`', false],
+        ['bugfix: retry the fetch', 'fix: retry the fetch', '`bugfix` is `fix`', false],
+        ['Documentation: rewrite the guide', 'docs: rewrite the guide', '`Documentation` is `docs`', false],
+        ['performance: warm the cache', 'perf: warm the cache', '`performance` is `perf`', false],
+        ['chores: tidy the fixtures', 'chore: tidy the fixtures', '`chores` is `chore`', false],
+        ['Refactoring: split the client', 'refactor: split the client', '`Refactoring` is `refactor`', false],
+        ['builds: rebuild the bundle', 'build: rebuild the bundle', '`builds` is `build`', false],
+        ['tests: exercise the matrix', 'test: exercise the matrix', '`tests` is `test`', false],
+        [
+            'Add the transparent addon matrix in CI',
+            'ci: add the transparent addon matrix in CI',
+            'the branch `ci/…` supplies the missing type',
+            false,
+            { branch: 'ci/transparent-addon-matrix' },
+        ],
+        [
+            'Support the hotfixed path',
+            'fix: support the hotfixed path',
+            'a `hotfix-…` branch and its synonym',
+            false,
+            { branch: 'hotfix-1234' },
+        ],
     ];
-    for (const [title, expected, note, judgedHere = true] of REPAIRED) {
+    for (const [title, expected, note, judgedHere = true, options = {}] of REPAIRED) {
         it(`repairs "${title}" — ${note}`, () => {
             if (judgedHere) assert.equal(titlePasses(title), false, 'the row must start red, or it tests nothing');
-            const repaired = repairTitle(title);
+            const repaired = repairTitle(title, options);
             assert.equal(repaired, expected);
             assert.ok(titlePasses(repaired), `the check still rejects "${repaired}"`);
         });
@@ -74,15 +104,53 @@ describe('repair-pr-text: the title', () => {
     const LEFT = [
         ['feat: add the thing', 'already fine'],
         ['feat: `Effect` on GJS', 'already quoted'],
-        ['feature: add a thing', 'a type outside the enum is a CHANGELOG decision'],
-        ['Add a thing', 'no conventional header at all'],
-        [`feat: ${'long '.repeat(20).trim()}`, 'too long for the squash subject'],
+        ['wip: add a thing', 'a type outside the enum is a CHANGELOG decision'],
+        ['Add a thing', 'no conventional header, and no branch was given'],
+        [`feat: ${'long '.repeat(20).trim()}`, "too long for the squash subject — cutting is `repairPr`'s job"],
     ];
     for (const [title, note] of LEFT) {
         it(`leaves "${title.slice(0, 40)}" alone — ${note}`, () => {
             assert.equal(repairTitle(title), title);
         });
     }
+});
+
+describe('repair-pr-text: the PR as a whole', () => {
+    it('keeps the scope of a title that already fits', () => {
+        // A first draft shed the scope unconditionally: a dry run over 150 real PRs rewrote
+        // 135 green titles, every one of them losing the package it names.
+        const title = 'fix(webcrypto): raw-export non-public key as InvalidAccess';
+        assert.equal(repairPr({ title, body: '', number: 2093, branch: '' }).title, title);
+    });
+
+    it('drops the scope so the squash subject fits, and touches nothing else', () => {
+        // 107 with the scope, 83 without — over and under the 100 the suffix eats into.
+        const title =
+            'feat(rolldown-plugin-gjsify): apply the underline style to every component that supports it on every target';
+        assert.equal(titlePasses(title), false, 'the row must start red, or it tests nothing');
+        const { title: out, body, moved } = repairPr({ title, body: 'Summary.', number: 2100, branch: 'ci/demo' });
+        assert.ok(titlePasses(out));
+        assert.equal(out, 'feat: apply the underline style to every component that supports it on every target');
+        assert.equal(body, 'Summary.');
+        assert.deepEqual(moved, []);
+    });
+
+    it('cuts the subject at a word boundary and keeps the full title in the body', () => {
+        const phrase = 'support every target that ships a gjs runtime';
+        const title = `feat: ${`${phrase} `.repeat(3)}bundle`;
+        assert.equal(titlePasses(title), false, 'the row must start red, or it tests nothing');
+        const { title: out, body, moved } = repairPr({ title, body: 'Summary.', number: 2100, branch: 'ci/demo' });
+        assert.ok(titlePasses(out));
+        assert.deepEqual(moved, []);
+        assert.ok(bodyPasses(body));
+        assert.match(body, /^Full title: /);
+        // The full title is in the body (wrapped), and the cut kept whole words.
+        assert.ok(body.replace(/\n/g, ' ').includes(phrase));
+        const words = new Set(phrase.split(' '));
+        for (const word of out.slice(out.indexOf(': ') + 2).split(' ')) {
+            assert.ok(words.has(word), `the cut broke a word: "${word}"`);
+        }
+    });
 });
 
 describe('repair-pr-text: the body', () => {
@@ -155,11 +223,92 @@ describe('repair-pr-text: the body', () => {
         assert.equal(repairBody(null).body, '');
     });
 
-    it('leaves a heading and an unbreakable word long, so the check still names them', () => {
-        const heading = `## ${'heading '.repeat(15)}`;
+    it('wraps an over-long heading as bold prose under the limit', () => {
+        const heading = `## ${'heading '.repeat(14)}rest`;
+        assert.equal(bodyPasses(heading), false);
+        const { body, moved } = repairBody(heading);
+        assert.deepEqual(moved, []);
+        assert.ok(bodyPasses(body));
+        assert.match(body, /^\*\*/);
+        assert.match(body, /\*\*$/);
+        for (const line of body.split('\n')) assert.ok(line.length <= 100);
+    });
+
+    it('moves an unwrappable line (a long URL) into the comment and leaves a pointer', () => {
         const url = `https://example.org/${'a'.repeat(120)}`;
+        assert.equal(bodyPasses(url), false);
+        const { body, moved } = repairBody(url);
+        assert.deepEqual(moved, [url]);
+        assert.ok(bodyPasses(body));
+        assert.equal(body, '_A long line moved to a PR comment: it does not fit the commit body._');
+    });
+
+    it('leaves a heading that is one unbreakable word, so the check still names it', () => {
+        const heading = `# ${'w'.repeat(130)}`;
         assert.equal(repairBody(heading).body, heading);
-        assert.equal(repairBody(url).body, url);
+    });
+});
+
+describe('repair-pr-text: closing keyword lists', () => {
+    // `check-closing-keywords.mjs` also reads the PR's commit messages, so it needs a real
+    // range — a throwaway repo with two commits, walked from its own directory.
+    const repo = mkdtempSync(join(tmpdir(), 'ci-pr-text-closing-'));
+    const git = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const identity = ['-c', 'user.name=repair test', '-c', 'user.email=repair-test@example.com'];
+    let baseSha;
+    let headSha;
+
+    before(() => {
+        git(['init', '-q']);
+        git([...identity, 'commit', '--allow-empty', '-m', 'base']);
+        baseSha = git(['rev-parse', 'HEAD']).trim();
+        git([...identity, 'commit', '--allow-empty', '-m', 'head']);
+        headSha = git(['rev-parse', 'HEAD']).trim();
+    });
+    after(() => rmSync(repo, { recursive: true, force: true }));
+
+    const closingPasses = (body) =>
+        check(
+            'check-closing-keywords.mjs',
+            { PR_BODY: body, PR_BASE_SHA: baseSha, PR_HEAD_SHA: headSha },
+            { cwd: repo },
+        ) === 0;
+
+    const CHAINS = [
+        [
+            'Closes #99001, #99002, #99003, #99004.',
+            'Closes #99001, closes #99002, closes #99003, closes #99004.',
+            'the #1565 shape',
+        ],
+        ['Fixes #99001 and #99002', 'Fixes #99001, fixes #99002', '`and`'],
+        ['Fixes #99001 & #99002', 'Fixes #99001, fixes #99002', '`&`'],
+        [
+            'Resolves #99001, #99002, and #99003',
+            'Resolves #99001, resolves #99002, resolves #99003',
+            'the oxford `and`',
+        ],
+        ['closes #99001, #99002', 'closes #99001, closes #99002', 'lowercase keeps its keyword case'],
+        ['Closes #99001,\n#99002', 'Closes #99001, closes #99002', 'a list wrapped after the comma'],
+    ];
+    for (const [input, expected, note] of CHAINS) {
+        it(`repeats the keyword before every reference — ${note}`, () => {
+            assert.equal(closingPasses(input), false, 'the row must start red, or it tests nothing');
+            const { body } = repairBody(input);
+            assert.equal(body, expected);
+            assert.ok(closingPasses(body), `the check still rejects "${body}"`);
+        });
+    }
+
+    it('leaves a chain inside a fenced block, which the check exempts as code', () => {
+        const input = ['```', 'Closes #99001, #99002', '```'].join('\n');
+        assert.equal(repairBody(input).body, input);
+        assert.ok(closingPasses(input));
+    });
+
+    it('leaves a chain inside inline code, which the check blanks', () => {
+        const input = 'Write `Closes #99001, #99002` and it stays.';
+        assert.equal(repairBody(input).body, input);
+        assert.ok(closingPasses(input));
     });
 });
 
@@ -172,6 +321,12 @@ describe('repair-pr-text: the wiring', () => {
         assert.match(repairJob, /pull-requests: write/);
         assert.match(repairJob, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
         assert.match(repairJob, /sparse-checkout: \|\n\s+commitlint\.config\.cjs\n\s+scripts\/repair-pr-text\.mjs/);
+    });
+
+    it('gives the repair the head branch through env only, never the run text', () => {
+        assert.match(repairJob, /HEAD_REF: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/);
+        const step = repairJob.slice(repairJob.indexOf('        run: |'));
+        assert.doesNotMatch(step, /HEAD_REF|\$\{\{ github\.event\.pull_request\.head\.ref \}\}/);
     });
 
     it('runs before the lint, and the lint still runs when the repair did not', () => {
