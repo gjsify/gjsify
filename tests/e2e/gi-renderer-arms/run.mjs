@@ -270,7 +270,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.equal(built.status, 0, `build failed\n${built.output}`);
             const report = evaluate(built.outFile, app, 'member');
             assert.notEqual(report.refusal, null, 'reading an absent namespace member returned silently');
-            assert.match(report.refusal, /ApplicationWindow/, 'the refusal does not name the member');
+            assert.match(report.refusal, /SwipeTracker/, 'the refusal does not name the member');
             assert.ok(report.refusal.includes(renderer), `the refusal does not name ${renderer}`);
             // It has to print what IS there — a refusal that only says "no" leaves the
             // caller with nothing to correct the import to.

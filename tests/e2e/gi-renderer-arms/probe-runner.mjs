@@ -56,6 +56,17 @@ function installBrowserHost() {
     };
     globalThis.document = domStub('document');
     globalThis.window = globalThis;
+    // `@gjsify/adwaita-web` follows the desktop appearance on import (`followDesktopAppearance`),
+    // which observes `document.head` and listens for `focus` on the window. Every real browser
+    // has both, so the host must too; they stay inert because nothing here mutates a DOM.
+    globalThis.MutationObserver = class MutationObserver {
+        observe() {}
+        disconnect() {}
+        takeRecords() {
+            return [];
+        }
+    };
+    globalThis.addEventListener = () => {};
     return bundlePath;
 }
 
