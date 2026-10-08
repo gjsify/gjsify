@@ -26,8 +26,11 @@
 
 import type { AdwSlot } from '../slotted-children.js';
 import { GtkWindow } from './gtk-window.js';
+import { defineWindowApplication } from '../application.js';
 
 export class GtkApplicationWindow extends GtkWindow {
+    /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
+    declare application: object | null;
     private _menubar: HTMLDivElement | null = null;
     private _menubarObserver: MutationObserver | null = null;
 
@@ -106,3 +109,5 @@ export class GtkApplicationWindow extends GtkWindow {
 }
 
 customElements.define('gtk-application-window', GtkApplicationWindow);
+
+defineWindowApplication(GtkApplicationWindow.prototype);

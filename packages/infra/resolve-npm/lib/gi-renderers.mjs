@@ -37,7 +37,7 @@
 export const GI_RENDERERS = {
     browser: {
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0' },
     },
     nativescript: {
         renderer: '@gjsify/adwaita-nativescript',

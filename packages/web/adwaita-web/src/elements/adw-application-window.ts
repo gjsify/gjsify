@@ -41,8 +41,11 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { AdwWindow } from './adw-window.js';
+import { defineWindowApplication } from '../application.js';
 
 export class AdwApplicationWindow extends AdwWindow {
+    /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
+    declare application: object | null;
     private _menubarEl: HTMLDivElement | null = null;
     private _model: AdwMenuModel = [];
 
@@ -152,3 +155,5 @@ export class AdwApplicationWindow extends AdwWindow {
 }
 
 customElements.define('adw-application-window', AdwApplicationWindow);
+
+defineWindowApplication(AdwApplicationWindow.prototype);

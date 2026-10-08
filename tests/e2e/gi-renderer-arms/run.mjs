@@ -245,7 +245,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
         it(`--app ${app} --gi-renderer refuses a namespace with no renderer, by name`, () => {
             const built = build('unanswered-namespace.ts', app);
             assert.notEqual(built.status, 0, `an unanswerable namespace built anyway\n${built.output}`);
-            assert.match(built.output, /gi:\/\/Gio/, 'the refusal does not name the specifier it refused');
+            assert.match(built.output, /gi:\/\/Soup/, 'the refusal does not name the specifier it refused');
             assert.ok(built.output.includes(renderer), `the refusal does not name ${renderer}`);
             for (const namespace of Object.keys(arm.namespaces)) {
                 assert.ok(built.output.includes(namespace), `the refusal does not say it answers ${namespace}`);
@@ -254,7 +254,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             // And the pre-arm behaviour is untouched: the same import is still a silent
             // empty module for a build that did not ask for the arm.
             const control = build('unanswered-namespace.ts', app, { arm: false, name: 'unanswered-off' });
-            assert.equal(control.status, 0, `the flag-less build stopped accepting gi://Gio\n${control.output}`);
+            assert.equal(control.status, 0, `the flag-less build stopped accepting gi://Soup\n${control.output}`);
         });
 
         it(`--app ${app} --gi-renderer refuses a version it does not answer, by name`, () => {
@@ -272,7 +272,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.equal(built.status, 0, `a gi:// string literal was read as an import\n${built.output}`);
 
             const bundle = readFileSync(built.outFile, 'utf-8');
-            assert.match(bundle, /gi:\/\/Gio\?version=2\.0/, 'the unanswerable-namespace literal did not survive');
+            assert.match(bundle, /gi:\/\/Soup\?version=3\.0/, 'the unanswerable-namespace literal did not survive');
             assert.match(bundle, /gi:\/\/Adw\?version=9/, 'the wrong-version literal did not survive');
 
             // The leak guard in the `resolves gi://Adw` row reads `bundle.includes('gi://')`.
