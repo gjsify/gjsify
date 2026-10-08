@@ -20,7 +20,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import ts from 'typescript';
+
 import { MONOREPO_ROOT } from '../helpers.mjs';
+import { bindFormIssues, exportedValueNames, hasTemplateScope } from '../../../scripts/lib/target-gap-barrel.mjs';
 
 const REPORT = join(MONOREPO_ROOT, 'scripts/report-target-gap.mjs');
 const FIXTURE = join(MONOREPO_ROOT, 'tests/e2e/report-target-gap/fixtures/project');
@@ -246,7 +249,7 @@ describe('report-target-gap', () => {
             }
         });
 
-        it('reports a `template` source as its own refused form, and a bind flag', () => {
+        it('accepts a `template` source and a bind flag on a target whose GObject has registerClass', () => {
             const project = join(scratch, 'forms-blp');
             mkdirSync(project, { recursive: true });
             writeFileSync(
@@ -258,11 +261,44 @@ describe('report-target-gap', () => {
                     issue.issue,
                     issue.name,
                 ]);
-                assert.deepEqual(issues, [
-                    ['refused-bind-source', 'template'],
-                    ['refused-bind-flag', 'inverted'],
-                ]);
+                assert.deepEqual(issues, []);
             }
+        });
+    });
+
+    describe('template bind forms follow the target GObject barrel', () => {
+        const binds = [
+            { source: 'template', property: 'title', flags: [], line: 1 },
+            { source: 'pressed', property: 'active', flags: ['inverted'], line: 2 },
+        ];
+        const barrelOf = (text) =>
+            new Map([['GObject', exportedValueNames(ts.createSourceFile('gobject.ts', text, ts.ScriptTarget.Latest))]]);
+        const issuesOn = (barrels) =>
+            binds
+                .flatMap((bind) => bindFormIssues(bind, 'GtkBox', hasTemplateScope(barrels)))
+                .map((i) => [i.issue, i.name]);
+
+        it('refuses the template source and the flag when the GObject barrel has no registerClass', () => {
+            const refused = [
+                ['refused-bind-flag', 'inverted'],
+                ['refused-bind-source', 'template'],
+            ];
+            assert.deepEqual(issuesOn(barrelOf('export const type_ensure = 1;')).sort(), refused.sort());
+        });
+
+        it('refuses them when the target has no GObject barrel at all', () => {
+            assert.equal(hasTemplateScope(new Map()), false);
+            assert.equal(issuesOn(new Map()).length, 2);
+        });
+
+        it('accepts them when the barrel exports registerClass, as a const or as a re-export', () => {
+            assert.deepEqual(issuesOn(barrelOf('export const registerClass = 1;')), []);
+            assert.deepEqual(issuesOn(barrelOf("export { registerClass } from './x.js';")), []);
+        });
+
+        it('does not count a type-only or a non-exported registerClass', () => {
+            assert.equal(hasTemplateScope(barrelOf('const registerClass = 1;')), false);
+            assert.equal(hasTemplateScope(barrelOf("export type { registerClass } from './x.js';")), false);
         });
     });
 
