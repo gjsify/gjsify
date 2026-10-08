@@ -46,8 +46,65 @@ on:
 # IS NOW, so no stale conclusion is left for any rule to weigh.
 
 jobs:
+  # REPAIR BEFORE JUDGING. Most of what the PR-text checks below find is mechanical — a
+  # capitalised first word, a session URL, an over-long line, a pasted table — and the strings
+  # live on the PR rather than in git, so fixing them needs no push and no rewrite. This job
+  # edits the title and body itself (`scripts/repair-pr-text.mjs` says what it will and will
+  # not touch) and hands the result on, because an edit made with `GITHUB_TOKEN` starts no new
+  # run: the checks below judge THAT text, which is also what the PR now carries, so the
+  # verdict step sees no move.
+  #
+  # ITS OWN JOB FOR THE SAME REASON AS `clear-superseded`: it holds `pull-requests: write`, so it
+  # materialises no head code — the script comes from `base.sha`. A fork PR's read-only token
+  # refuses the edit; the job then hands nothing on and the checks judge the event's text.
+  repair-text:
+    name: Repair the PR title and body
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    outputs:
+      repaired: ${{ steps.repair.outputs.repaired }}
+      title: ${{ steps.repair.outputs.title }}
+      body: ${{ steps.repair.outputs.body }}
+
+    steps:
+      - name: Check out the repair
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          sparse-checkout: |
+            commitlint.config.cjs
+            scripts/repair-pr-text.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Repair what needs no decision
+        id: repair
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Same guard as `clear-superseded`: a base cut before the script landed has no copy.
+          if [ ! -f scripts/repair-pr-text.mjs ]; then
+              echo "::notice::this PR's base predates scripts/repair-pr-text.mjs; nothing repaired. Rebase on main to enable it."
+              exit 0
+          fi
+
+          node scripts/repair-pr-text.mjs
+
   commitlint:
     name: Lint commit messages
+    needs: repair-text
+    # Runs whatever the repair did, and on a push or merge_group, where the repair is skipped.
+    # A required check that does not run blocks the PR forever.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
 
     # READ-ONLY, and that is a tightening rather than a formality: this job materialises HEAD
@@ -83,16 +140,23 @@ jobs:
 
       # Self-contained commitlint action: brings its own @commitlint/cli +
       # @commitlint/config-conventional, auto-detects the repo's
-      # commitlint.config.cjs, and lints every commit in the PR. Avoids running
+      # commitlint.config.cjs, and lints the commits that land. Avoids running
       # `npm install` in this Yarn `workspace:`-protocol repo (which npm rejects
       # with EUNSUPPORTEDPROTOCOL).
-      - name: Lint PR commits
+      #
+      # NOT ON A PULL REQUEST. `main` is squash-only, so a PR's branch commits never
+      # reach history and failing a PR over them was red over strings nobody keeps —
+      # repairable only by a force-push, which breaks a stacked PR and every worktree on
+      # the branch. What lands is the title and body, judged below; on a merge_group the
+      # queue's squash commit and on a push the release cut are linted here.
+      - name: Lint the landing commits
         id: commits
         continue-on-error: true
+        if: github.event_name != 'pull_request'
         uses: wagoid/commitlint-github-action@v6
 
-      # The step above lints the PR's COMMITS. With squash merges what actually
-      # lands on main is the PR TITLE — the one string nothing looked at. #849
+      # With squash merges what actually lands on main is the PR TITLE — until
+      # this step, the one string nothing looked at. #849
       # merged as "Run the transparent addon matrix in CI (#849)" with no
       # conventional prefix and is absent from the v0.26.1 CHANGELOG entirely:
       # the work shipped with no release note. This workflow already triggers on
@@ -126,7 +190,7 @@ jobs:
         continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_TITLE: ${{ needs.repair-text.outputs.repaired == 'true' && needs.repair-text.outputs.title || github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node scripts/check-pr-title-subject.mjs
 
@@ -149,7 +213,7 @@ jobs:
         continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
-          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BODY: ${{ needs.repair-text.outputs.repaired == 'true' && needs.repair-text.outputs.body || github.event.pull_request.body }}
         run: node scripts/check-pr-body-lines.mjs
 
       # The two steps above cover the title. The BODY is the third string GitHub
@@ -166,7 +230,7 @@ jobs:
         continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
-          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BODY: ${{ needs.repair-text.outputs.repaired == 'true' && needs.repair-text.outputs.body || github.event.pull_request.body }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/check-closing-keywords.mjs
@@ -199,8 +263,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           COMMITLINT_EVENT: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          COMMITLINT_EXAMINED_TITLE: ${{ github.event.pull_request.title }}
-          COMMITLINT_EXAMINED_BODY: ${{ github.event.pull_request.body }}
+          # The text the checks above judged: the repair's when it ran, else the event's. An
+          # empty repaired body falls back to the event's, which then reads as a move with no
+          # successor — red, never green over nothing.
+          COMMITLINT_EXAMINED_TITLE: ${{ needs.repair-text.outputs.repaired == 'true' && needs.repair-text.outputs.title || github.event.pull_request.title }}
+          COMMITLINT_EXAMINED_BODY: ${{ needs.repair-text.outputs.repaired == 'true' && needs.repair-text.outputs.body || github.event.pull_request.body }}
           COMMITLINT_OUTCOMES: >-
             {"commits": "${{ steps.commits.outcome }}",
             "title-form": "${{ steps.title-form.outcome }}",

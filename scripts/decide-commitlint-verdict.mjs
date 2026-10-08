@@ -47,8 +47,9 @@
 //
 // AND THE VOID REQUIRES A WITNESS. "The run started by that edit decides this commit" is an
 // assumption until something checks it, and it is false for an edit that starts no run — one
-// authored with `GITHUB_TOKEN`. No workflow here holds `pull-requests: write` today, so it is
-// latent; it is also SILENT, because the commit would go green with the current description
+// authored with `GITHUB_TOKEN`, which is how the `repair-text` job edits. That job hands the
+// text it wrote to this run as the EXAMINED text, so its own edit is never a move; the case
+// stays for an edit by anything else. It is also SILENT, because the commit would go green with the current description
 // judged by nobody. {@link successorExists} is the check: without a later run on this commit
 // the void is refused, this run's own findings stand, and the job says so at warning level
 // rather than passing quietly.
@@ -79,9 +80,22 @@ import { pathToFileURL } from 'node:url';
  */
 const PULL_REQUEST_ONLY = new Set(['title-form', 'title-subject', 'body-lines', 'closing-keywords']);
 
-/** Text as the comparison sees it: absent is empty, and CRLF is LF. */
+/**
+ * The mirror image: the commit lint runs only where a COMMIT is what lands. `main` is
+ * squash-only, so on a pull request the branch commits never reach history — the title and
+ * body do, and the steps above judge those.
+ */
+const NOT_ON_PULL_REQUEST = new Set(['commits']);
+
+/**
+ * Text as the comparison sees it: absent is empty, CRLF is LF, and trailing whitespace is
+ * not an edit — `$GITHUB_OUTPUT` does not round-trip a final newline faithfully, and a void
+ * on that alone would be green over nothing.
+ */
 function normalise(value) {
-    return String(value ?? '').replaceAll('\r\n', '\n');
+    return String(value ?? '')
+        .replaceAll('\r\n', '\n')
+        .trimEnd();
 }
 
 /**
@@ -99,7 +113,9 @@ export function findingsFrom({ event, outcomes }) {
         .flatMap(([step, outcome]) => {
             if (outcome === 'success') return [];
             if (outcome === 'skipped') {
-                return event !== 'pull_request' && PULL_REQUEST_ONLY.has(step) ? [] : [`${step} (did not run)`];
+                const explained =
+                    event === 'pull_request' ? NOT_ON_PULL_REQUEST.has(step) : PULL_REQUEST_ONLY.has(step);
+                return explained ? [] : [`${step} (did not run)`];
             }
             return [step];
         })
