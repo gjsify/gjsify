@@ -50,11 +50,15 @@ const NS_BUILT = join(MONOREPO_ROOT, 'packages/nativescript-bridge/adwaita/lib/e
  * a check reading its subject's own table agrees with it by construction.
  */
 const ARMS = [
-    { app: 'browser', renderer: '@gjsify/adwaita-web', namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0' } },
+    {
+        app: 'browser',
+        renderer: '@gjsify/adwaita-web',
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0' },
+    },
     {
         app: 'nativescript',
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0' },
     },
 ];
 
@@ -240,6 +244,16 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
                 code: 0,
                 windowApplication: true,
             });
+        });
+
+        it(`--app ${app} --gi-renderer answers gi://GLib?version=2.0 and runs its timers`, () => {
+            const built = build('glib-timers.ts', app, { name: 'glib-timers' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'application');
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'GLib.timeout_add is not a function');
+            assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
+            assert.deepEqual(report.application, { runs: 3, idled: true, removed: true, refusesMainLoop: true });
         });
 
         it(`--app ${app} --gi-renderer carries @girs/adw-1 through to the same namespace`, () => {
