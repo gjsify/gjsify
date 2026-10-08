@@ -9,6 +9,8 @@
   [ADR 0070 (a second specifier)](0070-a-blp-reaches-a-renderer-through-a-second-specifier.md),
   [ADR 0088 (typed ids)](0088-a-blp-exports-its-ids-as-typed-names.md),
   [ADR 0093 (template constructs per renderer)](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md)
+- Amended by [ADR 0098](0098-a-minimal-application-runs-on-the-browser-and-nativescript.md) § 1: `vfunc_*`
+  is no longer refused as a block; each one is unlocked on its own (§ 2 row `vfunc_*`, § 3 item 1).
 - Completes: the "NOT done" items of ADR 0093 Progress rows 3 and 4 (the scope defaulting to the
   template instance, a `template` bind source, the bind flags). Extends ADR 0070 § 1 by one exit.
 
@@ -101,7 +103,7 @@ subset is what the gap report lists, and nothing it does not list.**
 | `Signals: { name: { param_types } }`, `GObject.TYPE_{STRING,BOOLEAN,INT,UINT,DOUBLE}` | implemented. A param type outside that list is refused at registration |
 | `this.notify(name)`, `connect`/`disconnect`/`emit` on a registered instance, `connect('notify::x')` | implemented, for the class's own properties and signals and for those of the port widget it extends |
 | `GObject.type_ensure(klass.$gtype)` | implemented: `$gtype` is an opaque token, and `type_ensure` only proves the class module was evaluated, which is all Learn6502 uses it for |
-| `vfunc_*` | refused at registration, naming the method. A port that drives one (a candidate is `map`/`unmap`) flips that method in its own PR, with a vector |
+| `vfunc_*` | refused at registration, naming the method, unless ADR 0098 § 1 has unlocked it (amended). Unlocking is per vfunc, in the port's own PR, with a vector |
 | `GObject.Value`, `signal_stop_emission_by_name` | out of this subset. Both appear only beside clipboard and GtkSource code, which have their own decisions (ADR 0094; the clipboard as `navigator.clipboard`) |
 
 The binding engine implements `SYNC_CREATE`, `BIDIRECTIONAL` and `INVERT_BOOLEAN`, because the
