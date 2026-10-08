@@ -1,6 +1,6 @@
 # 94. GtkSourceView is a headless core plus a NativeScript package, with named gaps
 
-- Status: **Proposed** (2026-10-05)
+- Status: **Accepted** (2026-10-08)
 - Date: 2026-10-05
 - Deciders: Pascal Garber
 - Related: [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md),
