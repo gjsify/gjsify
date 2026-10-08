@@ -247,10 +247,49 @@ export const AdwConstructVectorsTest = async () => {
                 stack.remove();
             }
         });
+        await it('dispatches DropDown `notify::selected-item` after `notify::selected`, on a real change only', () => {
+            const dropDown = document.createElement('gtk-drop-down') as HTMLElement & {
+                model: string[];
+                selected: number;
+            };
+            const seen: string[] = [];
+            for (const name of ['notify::selected', 'notify::selected-item'])
+                dropDown.addEventListener(name, () => seen.push(name));
+            document.body.append(dropDown);
+            try {
+                dropDown.model = ['a', 'b'];
+                seen.length = 0;
+                dropDown.selected = 1;
+                dropDown.selected = 1;
+                expect(seen.join()).toBe('notify::selected,notify::selected-item');
+            } finally {
+                dropDown.remove();
+            }
+        });
+        await it('dispatches Stack `notify::visible-child` before `notify::visible-child-name`', () => {
+            const stack = document.createElement('gtk-stack') as HTMLElement & { visibleChildName: string | null };
+            const a = document.createElement('div');
+            a.setAttribute('name', 'a');
+            const b = document.createElement('div');
+            b.setAttribute('name', 'b');
+            stack.append(a, b);
+            document.body.append(stack);
+            try {
+                const seen: string[] = [];
+                for (const name of ['notify::visible-child', 'notify::visible-child-name'])
+                    stack.addEventListener(name, () => seen.push(name));
+                stack.visibleChildName = 'b';
+                expect(seen.join()).toBe('notify::visible-child,notify::visible-child-name');
+            } finally {
+                stack.remove();
+            }
+        });
         await it('declares the notify each of DropDown, Stack and Switch dispatches', () => {
             const declared = (tag: string) =>
                 (customElements.get(tag) as unknown as { signals: Record<string, string> }).signals;
             expect(declared('gtk-drop-down')['notify::selected']).toBe('notify::selected');
+            expect(declared('gtk-drop-down')['notify::selected-item']).toBe('notify::selected-item');
+            expect(declared('gtk-stack')['notify::visible-child']).toBe('notify::visible-child');
             expect(declared('gtk-stack')['notify::visible-child-name']).toBe('notify::visible-child-name');
             expect(declared('gtk-switch')['notify::active']).toBe('notify::active');
         });

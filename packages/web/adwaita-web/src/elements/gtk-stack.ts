@@ -227,7 +227,10 @@ const PAGE_ATTRIBUTES = ['name', 'title', 'icon-name', 'use-underline', 'needs-a
 
 export class GtkStack extends HTMLElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
-    static readonly signals: DispatchedSignals = { 'notify::visible-child-name': 'notify::visible-child-name' };
+    static readonly signals: DispatchedSignals = {
+        'notify::visible-child': 'notify::visible-child',
+        'notify::visible-child-name': 'notify::visible-child-name',
+    };
 
     /** The child that is visible, or `null` — C's `priv->visible_child`. */
     private _visible: HTMLElement | null = null;
