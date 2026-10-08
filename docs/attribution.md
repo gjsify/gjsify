@@ -14,3 +14,4 @@ Templates — **A** direct adaptation: `SPDX-License-Identifier: MIT` + `Adapted
 ### Linked into a shipped binary (not in `refs/`)
 
 |SDL3 → Sam Lantinga + SDL contributors, zlib — statically linked into `@gjsify/gamepad-native`'s prebuilds, pinned by `packages/web/gamepad-native/subprojects/sdl3.wrap`
+
