@@ -102,7 +102,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
     function evaluate(outFile, app, mode = 'load') {
         // The template mode loads `ns-core.mts` as TypeScript. It stays erasable syntax, because
         // Node 26.11 dropped `--experimental-transform-types` and only strips types.
-        const flags = mode === 'template' ? ['--no-warnings'] : [];
+        const flags = mode === 'template' || mode === 'application' ? ['--no-warnings'] : [];
         const result = spawnSync(process.execPath, [...flags, RUNNER, app, outFile, mode], {
             cwd: MONOREPO_ROOT,
             encoding: 'utf-8',
@@ -223,6 +223,22 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
                 propertyToChild: true,
                 childToProperty: false,
                 copies: 1,
+            });
+        });
+
+        it(`--app ${app} --gi-renderer answers gi://Gio?version=2.0 and runs an application`, () => {
+            const built = build('application.ts', app, { name: 'gio-application' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'application');
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'Gio.Application is not a function');
+            assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
+            assert.deepEqual(report.application, {
+                chain: true,
+                id: 'org.gjsify.GiArmsProbe',
+                seen: ['startup', 'activate'],
+                code: 0,
+                windowApplication: true,
             });
         });
 

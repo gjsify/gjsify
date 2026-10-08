@@ -249,7 +249,9 @@ export class GioApplicationBase extends GObjectObject {
                 this.emit('startup');
                 this.emit('activate');
                 this.vfunc_activate();
-                if (state.windows.length === 0 && host.requiresWindow) {
+                // An application that already ended inside `activate` (the last window left) has
+                // nothing to show, so it owes the platform no window.
+                if (state.running && state.windows.length === 0 && host.requiresWindow) {
                     throw new Error(
                         `Gio.Application.runAsync(): activate added no window on ${host.name}; ` +
                             'a window must be added synchronously by activate (ADR 0098 § 3).',

@@ -811,6 +811,13 @@ export const Application = {
         return [...APPLIED_CSS];
     },
 
+    /** Like the platform, `create` runs once it is ready — here, the next microtask. */
+    run(entry: { create: () => View }): void {
+        queueMicrotask(() => {
+            entry.create();
+        });
+    },
+
     on(event: string, callback: (args: unknown) => void): void {
         const existing = LIFECYCLE.get(event);
         if (existing === undefined) LIFECYCLE.set(event, [callback]);

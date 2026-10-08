@@ -634,6 +634,35 @@ export function readNamespaceSpellings(root) {
 export const widgetClassOf = (spelling, spellings) =>
     spelling.includes('.') ? (spellings.get(spelling) ?? null) : spelling;
 
+/** Where the platform-neutral core keeps the classes the port's `Application` chain ends in. */
+export const CORE_SRC_DIR = 'packages/web/adwaita-core/src';
+
+/** Core class texts a port chain can leave the package into, keyed by the widget `sources` map. */
+const CORE_BASES = new WeakMap();
+
+/**
+ * What a core class contributes, as source text a member reader can scan.
+ *
+ * `Gio.Application`'s members are not all in its class body: `add_action` and the
+ * `Gio.ActionGroup` verbs are installed on its prototype by `installActionMap(…)`, from the
+ * `MAP_METHODS` / `GROUP_METHODS` literals in `gio-actions.ts`. Reading only the class
+ * would call a working `app.add_action(…)` phantom; reading the whole of `gio-actions.ts`
+ * would bless `SimpleAction`'s own members on the application. So the call is followed, and
+ * only the literals it installs are added.
+ */
+function coreApplicationTexts(root) {
+    const application = readFileSync(join(root, CORE_SRC_DIR, 'application.ts'), 'utf8');
+    const actions = readFileSync(join(root, CORE_SRC_DIR, 'gio-actions.ts'), 'utf8');
+    const literal = (name) => new RegExp(`^const ${name} = \\{[\\s\\S]*?\\n\\};`, 'm').exec(actions)?.[0];
+    const texts = new Map();
+    for (const [, klass, group] of application.matchAll(/^installActionMap\((\w+)\.prototype(, true)?\);/gm)) {
+        const installed = [literal('MAP_METHODS'), group === undefined ? undefined : literal('GROUP_METHODS')];
+        texts.set(klass, [application, ...installed.filter((text) => text !== undefined)]);
+    }
+    if (texts.size === 0) throw new Error(`${CORE_SRC_DIR}/application.ts installs no action map on a class`);
+    return texts;
+}
+
 /** Every widget source, indexed by the class it declares. */
 export function readWidgets(root) {
     const sources = new Map();
@@ -647,8 +676,22 @@ export function readWidgets(root) {
         const declares = new RegExp(`export (?:abstract )?class (${WIDGET_CLASS})`, 'g');
         for (const [, name] of text.matchAll(declares)) sources.set(name, { file, text });
     }
+    CORE_BASES.set(sources, coreApplicationTexts(root));
     return { sources, files };
 }
+
+/**
+ * Is this class an `Application` rather than a view?
+ *
+ * Its chain ends in a core class (`GioApplicationBase`), not a `@nativescript/core` view, so
+ * it has no XML element, no children and no construct-props bag to apply last, and it gets
+ * `connect` from the core's `GObject` rather than from `withSignals(…)`. The view arms
+ * (construct-props, signals door) hold views; this is the one way they tell the two apart.
+ */
+export const isApplication = (sources, tag) => {
+    const core = CORE_BASES.get(sources);
+    return core !== undefined && chainOf(sources, tag).some((text) => [...core.values()].some((t) => t[0] === text));
+};
 
 /** The `ELEMENTS` map in the widgets barrel: what the port offers for XML use. */
 export function readElements(root) {
@@ -658,13 +701,31 @@ export function readElements(root) {
     return new Set(block === null ? [] : [...block[1].matchAll(listed)].map((m) => m[1]));
 }
 
-/** A class and every ancestor of it inside this package, nearest first. */
+/**
+ * A class and every ancestor of it, nearest first: inside this package, then — for the
+ * `Application` chain — the core class it ends in.
+ *
+ * The base is read through a mixin (`extends withGtkApplication(GioApplication)`), and a
+ * base that is not a widget but is declared in the same file (`GioApplication`) is hopped
+ * over. The chain then ends in a core class, whose members `application_id`, `runAsync`
+ * and `add_action` the port does not redeclare — a reader that stopped at the package
+ * edge called every one of them a phantom on a class that ships them.
+ */
 export function chainOf(sources, tag) {
     const chain = [];
+    const core = CORE_BASES.get(sources) ?? new Map();
+    const baseOf = (text, name) =>
+        new RegExp(`(?:export )?(?:abstract )?class ${name}\\b[^{]*?extends (?:with\\w+\\()?(\\w+)`).exec(text)?.[1];
     for (let name = tag; name !== undefined && sources.has(name);) {
         const { text } = sources.get(name);
         chain.push(text);
-        name = new RegExp(`export (?:abstract )?class ${name}\\b[^{]*?extends (${WIDGET_CLASS})`).exec(text)?.[1];
+        let base = baseOf(text, name);
+        while (base !== undefined && !sources.has(base) && !core.has(base)) base = baseOf(text, base);
+        if (base !== undefined && core.has(base)) {
+            chain.push(...core.get(base));
+            break;
+        }
+        name = base;
     }
     return chain;
 }

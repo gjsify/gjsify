@@ -16,7 +16,9 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { normalizeMenuModel } from '@gjsify/adwaita-core';
 
-import { Menu, MenuItem } from './namespace/gio.js';
+// From the core the barrel re-exports: `namespace/gio.js` also holds `Application`, which needs
+// `@nativescript/core`, and this pure entry cannot resolve it.
+import { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
 
 /** What a `menuModel` property does with a value, on both spellings. */
 const model = (value: readonly unknown[]) => JSON.stringify(normalizeMenuModel(value as never));

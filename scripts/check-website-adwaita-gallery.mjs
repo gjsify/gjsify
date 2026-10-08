@@ -737,6 +737,10 @@ const PANE_TEXT_DIVERGENCES = {
     'Adw.InlineViewSwitcher':
         'property: the port has no displayMode enum — an empty title is icons-only and an absent icon is ' +
         'labels-only — and the switcher takes its pages through setViews() rather than binding a stack.',
+    'Gtk.ApplicationWindow':
+        'property: the port refuses set_menubar by name in ADR 0098 stage 1 (Android has no menubar), so ' +
+        'its pane registers an app. action and builds the window in activate where GTK fills the menubar ' +
+        'and sets show_menubar.',
     'Gtk.Entry':
         'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
         'surface to put them on.',

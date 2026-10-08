@@ -583,6 +583,12 @@ declare module '@nativescript/core' {
          */
         export function addCss(cssText: string, attributeScoped?: boolean): void;
 
+        /**
+         * Start the application: `create` is called when the platform is ready and returns the
+         * root view. The entry is the one field of `NavigationEntry` this package uses.
+         */
+        export function run(entry: { create: () => View }): void;
+
         /** Subscribe to an application lifecycle event (`resume`, `suspend`, …). */
         export function on(event: string, callback: (args: unknown) => void): void;
         /** Drop a subscription made with {@link on}. */
@@ -610,6 +616,7 @@ declare module '@nativescript/core' {
     /** As much of `android.app.Activity` as the inset source needs. */
     export interface AndroidActivityLike {
         getWindow?(): AndroidWindowLike | null;
+        finish?(): void;
     }
 
     /** As much of `android.view.Window` as the inset source needs. */

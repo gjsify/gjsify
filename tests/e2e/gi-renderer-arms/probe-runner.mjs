@@ -98,7 +98,7 @@ function installNativescriptHost() {
     // empty class per name. `--app nativescript` keeps core external, so it is supplied here.
     writeFileSync(
         join(coreDir, 'index.js'),
-        mode === 'template'
+        mode === 'template' || mode === 'application'
             ? `export * from ${JSON.stringify(pathToFileURL(NS_CORE_DOUBLE).href)};\n`
             : [...names]
                   .sort()
@@ -152,7 +152,7 @@ async function installLiveBrowserHost() {
 
 const entry =
     host === 'browser'
-        ? mode === 'template'
+        ? mode === 'template' || mode === 'application'
             ? await installLiveBrowserHost()
             : installBrowserHost()
         : installNativescriptHost();
@@ -176,6 +176,12 @@ if (mode === 'member') {
         report.refusal = null;
     } catch (error) {
         report.refusal = error.message;
+    }
+} else if (mode === 'application') {
+    try {
+        report.application = await bundleModule.exercise();
+    } catch (error) {
+        report.applicationError = `${error.constructor.name}: ${error.message}`;
     }
 } else if (mode === 'template') {
     try {
