@@ -42,6 +42,7 @@ import constructPropsTestSuite from './construct-props.spec.js';
 import signalsTestSuite from './signals.spec.js';
 import iconSizeTestSuite from './icon-size.spec.js';
 import gioMenuTestSuite from './gio-menu.spec.js';
+import gdkTestSuite from './gdk.spec.js';
 import glibTestSuite from './glib.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import transitionTypeTestSuite from './transition-type.spec.js';
@@ -60,6 +61,7 @@ run({
     signalsTestSuite,
     iconSizeTestSuite,
     gioMenuTestSuite,
+    gdkTestSuite,
     glibTestSuite,
     styleManagerTestSuite,
     transitionTypeTestSuite,

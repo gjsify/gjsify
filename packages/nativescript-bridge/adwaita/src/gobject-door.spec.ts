@@ -14,6 +14,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { build } from './builder/index.js';
 import * as GObject from './namespace/gobject.js';
 import * as Adw from './namespace/adw.js';
+import * as Gdk from './namespace/gdk.js';
 import * as Gtk from './namespace/gtk.js';
 
 import hexdumpTree from './gobject-door.blp?shared-tree';
@@ -84,6 +85,20 @@ export const AdwGObjectDoorNsTest = async () => {
 
             (hexdump._copyButton as unknown as GObjectInstance).emit('clicked');
             expect(seen.join()).toBe('after super:object,copy');
+        });
+
+        await it('exports the string Value of the subset', () => {
+            const value = new GObject.Value().init(GObject.TYPE_STRING);
+            value.set_string('x');
+            expect(value.get_string()).toBe('x');
+        });
+
+        await it('puts get_display and get_clipboard on a registered class', () => {
+            class GoNsDisplay extends Adw.Bin {}
+            GObject.registerClass({ GTypeName: 'GoNsDisplay' }, GoNsDisplay);
+            const widget = new GoNsDisplay() as unknown as { get_display(): unknown; get_clipboard(): unknown };
+            expect(widget.get_display()).toBe(Gdk.Display.get_default());
+            expect(widget.get_clipboard()).toBe(Gdk.Display.get_default().get_clipboard());
         });
 
         await it('refuses a bind flag and `template` as a source when no template instance is present', () => {
