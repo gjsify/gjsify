@@ -1,8 +1,12 @@
+import { unprovenVfuncs } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 import { sixAssemblerLang } from './fixtures.js';
+import { GUTTER_PAINT_VECTORS } from './gutter-paint-vectors.js';
 
 import type { EditorDriver, EditorHost, EditorLayout } from './editor-driver.js';
 import { EditorSession } from './editor-session.js';
+import { GutterRendererText, GutterSet, WINDOW_LEFT } from './gutter-renderer.js';
+import type { GutterLines } from './gutter-renderer.js';
 import { LanguageManager } from './language-manager.js';
 import { StyleSchemeManager } from './style-scheme.js';
 import type { EditorPalette } from './style-scheme.js';
@@ -18,6 +22,10 @@ class FakeDriver implements EditorDriver {
     palette: EditorPalette | null = null;
     painted = new Map<number, readonly StyledRun[]>();
     paintCalls: number[] = [];
+    invalidations = 0;
+    invalidateGutter(): void {
+        this.invalidations++;
+    }
     bind(host: EditorHost): void {
         this.host = host;
     }
@@ -115,6 +123,86 @@ export default async () => {
             expect(driver.layout?.showLineNumbers).toBe(true);
             expect(driver.layout?.leftMargin).toBe(12);
             expect(driver.layout?.monospace).toBe(true);
+        });
+    });
+
+    await describe('gtksource-core: EditorSession gutter columns', async () => {
+        const withGutter = () => {
+            const { driver, session } = make();
+            const owner = {};
+            const gutters = new GutterSet(owner);
+            session.bindGutters(gutters);
+            session.buffer.text = 'a\nb\nc\nd';
+            return { driver, session, left: gutters.get(WINDOW_LEFT)!, owner };
+        };
+
+        await it('asks vfunc_query_data once per line, in order, with the range and the cursor line', () => {
+            const { session, left, owner } = withGutter();
+            const seen: [number, number, number, boolean, unknown][] = [];
+            class Numbers extends GutterRendererText {
+                vfunc_query_data(lines: GutterLines, line: number): void {
+                    seen.push([line, lines.get_first(), lines.get_last(), lines.is_cursor(line), lines.get_view()]);
+                    this.text = `#${line}`;
+                }
+            }
+            left.insert(new Numbers(), 0);
+            session.buffer.placeCursor(session.buffer.getLine(0).length + 1);
+            const columns = session.queryGutter(1, 3);
+            expect(seen.map((entry) => entry[0])).toStrictEqual([1, 2, 3]);
+            expect(seen.map((entry) => entry[2])).toStrictEqual([3, 3, 3]);
+            expect(seen.map((entry) => entry[3])).toStrictEqual([true, false, false]);
+            expect(seen[0][4]).toBe(owner);
+            expect(columns[0].cells.map((cell) => cell.text)).toStrictEqual(['#1', '#2', '#3']);
+        });
+
+        await it('reads markup into styled runs and lets it replace text', () => {
+            const { session, left } = withGutter();
+            const renderer = new GutterRendererText({ text: 'plain' });
+            left.insert(renderer, 0);
+            renderer.markup = '<b>x</b> &amp; <i>y</i>';
+            const [cell] = session.queryGutter(0, 0)[0].cells;
+            expect(cell.text).toBe('x & y');
+            expect(cell.runs?.map((run) => [run.text, run.bold, run.italic])).toStrictEqual([
+                ['x', true, false],
+                [' & ', false, false],
+                ['y', false, true],
+            ]);
+        });
+
+        await it('reports the metrics and the insert position, left to right', () => {
+            const { session, left } = withGutter();
+            left.insert(new GutterRendererText({ width_request: 30, margin_start: 2 }), 5);
+            left.insert(new GutterRendererText({ margin_end: 4 }), -1);
+            expect(
+                session.gutterColumns().map((c) => [c.position, c.widthRequest, c.marginStart, c.marginEnd]),
+            ).toStrictEqual([
+                [-1, -1, 0, 4],
+                [5, 30, 2, 0],
+            ]);
+        });
+
+        await it('tells the driver when a column is added, resized, redrawn or removed', () => {
+            const { driver, left } = withGutter();
+            const renderer = new GutterRendererText();
+            left.insert(renderer, 0);
+            expect(driver.invalidations).toBe(1);
+            renderer.width_request = 40;
+            renderer.width_request = 40;
+            renderer.queue_draw();
+            left.queue_draw();
+            expect(driver.invalidations).toBe(4);
+            left.remove(renderer);
+            expect(driver.invalidations).toBe(5);
+        });
+
+        await it('has a paint vector for every GtkSource entry of UNLOCKED_VFUNCS', () => {
+            expect(unprovenVfuncs(GUTTER_PAINT_VECTORS, 'GtkSource.').join()).toBe('');
+            expect(unprovenVfuncs([], 'GtkSource.').length > 0).toBe(true);
+        });
+
+        await it('answers no columns when the gutter holds none', () => {
+            const { session } = withGutter();
+            expect(session.queryGutter(0, 3).length).toBe(0);
         });
     });
 };

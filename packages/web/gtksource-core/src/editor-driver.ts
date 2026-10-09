@@ -5,14 +5,42 @@
 // told what to show (text, spans, palette, layout) and reports what the user did (edits,
 // selection) through the `EditorHost` it is bound to.
 
+import type { MarkupRun } from './gutter-renderer.js';
 import type { EditorPalette } from './style-scheme.js';
 import type { StyledRun } from './token-styler.js';
+
+/** The size a left-gutter renderer asks for, in device-independent pixels. */
+export interface GutterMetrics {
+    /** The insert position: below 0 the column sits left of the line numbers, otherwise right of them. */
+    readonly position: number;
+    readonly widthRequest: number;
+    readonly marginStart: number;
+    readonly marginEnd: number;
+}
+
+/** What a renderer showed for one line: plain `text`, and `runs` when it was set as `markup`. */
+export interface GutterCell {
+    readonly text: string;
+    readonly runs: readonly MarkupRun[] | null;
+}
+
+/** One renderer's column for the lines `first..last`: `cells[i]` is line `first + i`. */
+export interface GutterColumn extends GutterMetrics {
+    readonly cells: readonly GutterCell[];
+}
 
 /** What the driver reports back. Offsets are UTF-16 code units, valid AFTER the edit. */
 export interface EditorHost {
     /** The user replaced `removedLength` characters at `start` with `inserted`. */
     onNativeEdit(start: number, removedLength: number, inserted: string): void;
     onNativeSelection(start: number, end: number): void;
+    /** The left gutter's renderers, in paint order and without cells. */
+    gutterColumns(): readonly GutterMetrics[];
+    /**
+     * Asks every left-gutter renderer to fill its cell for each line of `first..last` (inclusive) with
+     * `vfunc_query_data`, the lines the driver is about to paint. Call it once per paint pass.
+     */
+    queryGutter(first: number, last: number): readonly GutterColumn[];
 }
 
 export interface EditorLayout {
@@ -48,4 +76,9 @@ export interface EditorDriver extends HighlightSink {
     setSelection(start: number, end: number): void;
     setLineCount(count: number): void;
     setLayout(layout: EditorLayout): void;
+    /**
+     * A left-gutter renderer was added, moved, resized or asked to repaint. Idempotent and cheap: a
+     * burst of calls costs one repaint per task, as `queue_draw` does in GTK.
+     */
+    invalidateGutter(): void;
 }

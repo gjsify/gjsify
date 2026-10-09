@@ -10,7 +10,16 @@
 
 import { Buffer } from './buffer.js';
 import type { TextEdit } from './buffer.js';
-import type { EditorDriver, EditorHost, EditorLayout } from './editor-driver.js';
+import type {
+    EditorDriver,
+    EditorHost,
+    EditorLayout,
+    GutterCell,
+    GutterColumn,
+    GutterMetrics,
+} from './editor-driver.js';
+import { GutterLines, GutterRendererText, WINDOW_LEFT, parseMarkup } from './gutter-renderer.js';
+import type { GutterRenderer, GutterSet } from './gutter-renderer.js';
 import { HighlightController } from './highlight-controller.js';
 import { StyleSchemeManager } from './style-scheme.js';
 import type { ColorSchemeVariant } from './style-scheme.js';
@@ -21,6 +30,16 @@ export function leadingWhitespace(line: string): string {
     return /^[ \t]*/.exec(line)![0];
 }
 
+/** What `renderer` shows now: `markup` wins over `text`, a renderer that shows no string shows nothing. */
+function cellOf(renderer: GutterRenderer): GutterCell {
+    if (!(renderer instanceof GutterRendererText)) return { text: '', runs: null };
+    if (renderer.markup !== null) {
+        const runs = parseMarkup(renderer.markup);
+        return { text: runs.map((run) => run.text).join(''), runs };
+    }
+    return { text: renderer.text ?? '', runs: null };
+}
+
 export class EditorSession extends SignalEmitter implements EditorHost {
     private current!: Buffer;
     private controller!: HighlightController;
@@ -28,6 +47,7 @@ export class EditorSession extends SignalEmitter implements EditorHost {
     private mirroring = false;
     private fromNative = false;
     private variant: ColorSchemeVariant;
+    private gutters: GutterSet | null = null;
 
     private props = {
         autoIndent: false,
@@ -102,6 +122,51 @@ export class EditorSession extends SignalEmitter implements EditorHost {
     private onBufferCursor(): void {
         if (this.fromNative || this.mirroring) return;
         this.driver.setSelection(this.current.selectionBoundPosition, this.current.cursorPosition);
+    }
+
+    // --- the gutter: renderers beside the text --------------------------------------------------
+
+    /** Paints the left gutter of `gutters`: its changes reach the driver, and `queryGutter` answers from it. */
+    bindGutters(gutters: GutterSet): void {
+        this.gutters = gutters;
+        gutters.watch((gutter) => {
+            if (gutter.window_type === WINDOW_LEFT) this.driver.invalidateGutter();
+        });
+    }
+
+    private leftRenderers(): { renderers: readonly GutterRenderer[]; positions: readonly number[] } {
+        const gutter = this.gutters?.get(WINDOW_LEFT);
+        return { renderers: gutter?.renderers ?? [], positions: gutter?.positions ?? [] };
+    }
+
+    private metricsOf(renderer: GutterRenderer, position: number): GutterMetrics {
+        return {
+            position,
+            widthRequest: renderer.width_request,
+            marginStart: renderer.margin_start,
+            marginEnd: renderer.margin_end,
+        };
+    }
+
+    gutterColumns(): readonly GutterMetrics[] {
+        const { renderers, positions } = this.leftRenderers();
+        return renderers.map((renderer, at) => this.metricsOf(renderer, positions[at]));
+    }
+
+    queryGutter(first: number, last: number): readonly GutterColumn[] {
+        const { renderers, positions } = this.leftRenderers();
+        if (renderers.length === 0 || this.gutters === null) return [];
+        const lines = new GutterLines(this.gutters.view, this.current, first, last);
+        return renderers.map((renderer, at) => {
+            const query = (renderer as unknown as { vfunc_query_data?: (lines: GutterLines, line: number) => void })
+                .vfunc_query_data;
+            const cells: GutterCell[] = [];
+            for (let line = first; line <= last; line++) {
+                query?.call(renderer, lines, line);
+                cells.push(cellOf(renderer));
+            }
+            return { ...this.metricsOf(renderer, positions[at]), cells };
+        });
     }
 
     // --- EditorHost: what the user did ---------------------------------------------------------
