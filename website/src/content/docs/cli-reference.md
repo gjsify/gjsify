@@ -666,6 +666,7 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 | `--save-peer` | `false` | Save to `peerDependencies`. |
 | `-O`, `--save-optional` | `false` | Save to `optionalDependencies`. |
 | `--immutable` | `false` | Install strictly from `gjsify-lock.json`, failing if it is missing or stale. Same idea as `yarn --immutable` or `npm ci`. |
+| `--focus <workspace…>` | none | Install only the named workspaces, the workspaces they depend on and the packages those need, like `yarn workspaces focus`. Reads the complete `gjsify-lock.json` and never rewrites it; a missing or stale lockfile is an error. The root is part of the focus only when named. Combines with `--immutable`. |
 | `--refresh-lockfile` | `false` | Re-resolve every dependency to the newest version its range allows and rewrite the lockfile. Without it, versions already pinned are preserved and only new or changed deps are resolved. |
 | `--backend <native\|npm>` | `native` | `native` goes through `@gjsify/{semver,npm-registry,tar}`. `npm` shells out to `npm install` as an escape hatch for cases the native backend does not model yet, such as Yarn PnP repos and lifecycle scripts. Wins over `GJSIFY_INSTALL_BACKEND`. |
 | `--progress` | `true` on a TTY | TTY-aware progress bar for resolve, download and extract. Off under `--verbose` or `--quiet`. |
@@ -1870,6 +1871,7 @@ gjsify flatpak sources --print-module
 | `--type <gjsify\|npm\|yarn\|pnpm>` | from the filename | Lockfile format. |
 | `--out <path>` | `gjsify-sources.json` | Output sources file. |
 | `--cache-root <dir>` | `flatpak-gjsify-cache` | Directory the tarballs download into. Point `XDG_CACHE_HOME` here in the build. Tarballs land at `<cache-root>/gjsify/tarballs/v1/<algo>/<shard>/<hex>.tgz`. |
+| `--focus <workspace…>` | none | List only the tarballs the named workspaces and their workspace dependencies need, the same closure as `gjsify install --focus`. `gjsify-lock.json` only. |
 | `--print-module` | `false` | Also print a ready-to-paste manifest module snippet to stderr. |
 
 #### `gjsify flatpak ci`
