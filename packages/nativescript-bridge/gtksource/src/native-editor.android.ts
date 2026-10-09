@@ -42,11 +42,17 @@ interface DrawingDriver {
     drawBehind(view: AndroidEditText, canvas: AndroidCanvas): void;
     drawGutter(view: AndroidEditText, canvas: AndroidCanvas): void;
     selectionChanged(start: number, end: number): void;
+    /** The Copy action ran with `defaultCopy` as the platform's own: false when it must not (a handler stopped it). */
+    copyRequested(defaultCopy: () => boolean): boolean;
 }
 
 /** `this` inside an `.extend()` implementation: the Java instance plus the runtime's `super` proxy. */
 type ExtendedEditText = AndroidEditText & {
-    super: { onDraw(canvas: AndroidCanvas): void; onSelectionChanged(start: number, end: number): void };
+    super: {
+        onDraw(canvas: AndroidCanvas): void;
+        onSelectionChanged(start: number, end: number): void;
+        onTextContextMenuItem(id: number): boolean;
+    };
 };
 
 let editTextClass: (new (context: unknown) => AndroidEditText) | undefined;
@@ -65,6 +71,12 @@ function gutterEditText(): new (context: unknown) => AndroidEditText {
         onSelectionChanged(this: ExtendedEditText, start: number, end: number) {
             this.super.onSelectionChanged(start, end);
             (this.driver as DrawingDriver | undefined)?.selectionChanged(start, end);
+        },
+        // The toolbar's and the keyboard's Copy both arrive here. Unverified on a device (ADR 0094).
+        onTextContextMenuItem(this: ExtendedEditText, id: number): boolean {
+            const driver = this.driver as DrawingDriver | undefined;
+            if (id !== android.R.id.copy || !driver) return this.super.onTextContextMenuItem(id);
+            return driver.copyRequested(() => this.super.onTextContextMenuItem(id));
         },
     })!;
     return editTextClass;
@@ -94,6 +106,25 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
 
     bind(host: EditorHost): void {
         this.host = host;
+    }
+
+    private platformCopy: (() => boolean) | null = null;
+
+    // `copy-clipboard` first, with the platform's copy as the emission's class handler (`copySelection`),
+    // so a `connect_after` handler that writes its own text lands after it. The action is consumed either way.
+    copyRequested(defaultCopy: () => boolean): boolean {
+        this.platformCopy = defaultCopy;
+        try {
+            this.host?.onNativeCopy();
+        } finally {
+            this.platformCopy = null;
+        }
+        return true;
+    }
+
+    copySelection(): void {
+        this.platformCopy?.();
+        this.platformCopy = null;
     }
 
     createNativeView(context: unknown): object {

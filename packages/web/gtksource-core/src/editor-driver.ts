@@ -89,4 +89,11 @@ export interface EditorDriver extends HighlightSink {
      * burst of calls costs one repaint per task, as `queue_draw` does in GTK.
      */
     invalidateGutter(): void;
+    /**
+     * Copies the selection the platform's own way. Only a driver whose platform copies BEFORE the
+     * handlers of `copy-clipboard` run needs it: the class handler of the emission calls it, so a
+     * `connect_after` handler that puts its own text on the clipboard replaces the default, as in GTK.
+     * The web has none: its default runs after the `copy` event and is cancelled instead.
+     */
+    copySelection?(): void;
 }

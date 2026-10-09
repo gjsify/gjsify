@@ -240,6 +240,7 @@ export class EditorSession extends SignalEmitter implements EditorHost {
     // behaviour, which `defaultRan` reports back, so a stopped emission leaves the platform alone.
     protected override classHandler(name: string): unknown {
         if (name !== 'extend-selection' && name !== 'copy-clipboard') return undefined;
+        if (name === 'copy-clipboard') this.driver.copySelection?.();
         this.defaultRan = true;
         return true;
     }

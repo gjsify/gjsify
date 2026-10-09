@@ -94,5 +94,6 @@ export interface AndroidNamespace {
         };
     };
     view: { Gravity: { TOP: number; START: number } };
-    // `onDraw` and `onSelectionChanged` are overridden through `.extend()`, see native-editor.android.ts.
+    R: { id: { copy: number } };
+    // `onDraw`, `onSelectionChanged` and `onTextContextMenuItem` are overridden through `.extend()`, see native-editor.android.ts.
 }
