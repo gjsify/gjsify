@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.57.0](https://github.com/gjsify/gjsify/compare/v0.56.0...v0.57.0) (2026-10-09)
+
+### Features
+
+* **adwaita-nativescript:** application subset (ADR 0098) ([#2102](https://github.com/gjsify/gjsify/issues/2102)) ([c2edfcd](https://github.com/gjsify/gjsify/commit/c2edfcd72e26c23eb81c7f7c0b89f5b473558193)), closes [#2101](https://github.com/gjsify/gjsify/issues/2101)
+* **adwaita-nativescript:** close the app gap ([#2097](https://github.com/gjsify/gjsify/issues/2097)) ([9b7bb37](https://github.com/gjsify/gjsify/commit/9b7bb371f088d2d3438b6c07e9e3434d422e5057))
+* **adwaita-nativescript:** menus as PopupMenu (ADR 0097) ([#2109](https://github.com/gjsify/gjsify/issues/2109)) ([9486031](https://github.com/gjsify/gjsify/commit/9486031736d378c81150ce8478d9646442a8f4d0))
+* **adwaita-web:** checkbutton toggled and notify ([#2086](https://github.com/gjsify/gjsify/issues/2086)) ([95426ca](https://github.com/gjsify/gjsify/commit/95426ca59ac80da924a2754478b6ee75e925687b))
+* **adwaita:** drop-down and stack notify signals ([#2096](https://github.com/gjsify/gjsify/issues/2096)) ([7d7807c](https://github.com/gjsify/gjsify/commit/7d7807c56fb07eeada9563a44a3d091a68c2154a)), closes [#2086](https://github.com/gjsify/gjsify/issues/2086)
+* **adwaita:** entry and view stack notify signals ([#2092](https://github.com/gjsify/gjsify/issues/2092)) ([5fd5f1c](https://github.com/gjsify/gjsify/commit/5fd5f1ca2b51a314c0d8460c87e3e18e2345b136))
+* **adwaita:** gi://GLib timer subset ([#2105](https://github.com/gjsify/gjsify/issues/2105)) ([6ea6309](https://github.com/gjsify/gjsify/commit/6ea6309e8f79a96995eb1f532beb7e33d81967b5))
+* **adwaita:** portable application subset (ADR 0098) ([#2101](https://github.com/gjsify/gjsify/issues/2101)) ([74c9e4e](https://github.com/gjsify/gjsify/commit/74c9e4e6bcdfd8695e6580cc9cb21d081ad23f56))
+* **adwaita:** portable GObject subset (ADR 0096) ([#2094](https://github.com/gjsify/gjsify/issues/2094)) ([8ea83b7](https://github.com/gjsify/gjsify/commit/8ea83b7a3cb1146c45b006e7c5fd249070b99744))
+* **adwaita:** portable menus, slice 1 (ADR 0097) ([#2106](https://github.com/gjsify/gjsify/issues/2106)) ([d24dbab](https://github.com/gjsify/gjsify/commit/d24dbabd470190af2892e8602b32bf993c3f379f))
+* **cli:** add --focus to install and sources ([#2123](https://github.com/gjsify/gjsify/issues/2123)) ([b1d4da1](https://github.com/gjsify/gjsify/commit/b1d4da14d3fd75d4ec3734ff35e4b12c01579933)), closes [#2122](https://github.com/gjsify/gjsify/issues/2122)
+* **gtksource-nativescript:** route gi://GtkSource ([#2112](https://github.com/gjsify/gjsify/issues/2112)) ([5265243](https://github.com/gjsify/gjsify/commit/5265243925aab2ec87d244c77ce35ab0ab8f39e0))
+* **gtksource-web:** add a web GtkSource namespace ([#2116](https://github.com/gjsify/gjsify/issues/2116)) ([cf6d55a](https://github.com/gjsify/gjsify/commit/cf6d55a745d77846a41364bc3c6f76fac242dbe8)), closes [#2112](https://github.com/gjsify/gjsify/issues/2112)
+* **gtksource:** add the Buffer surface on web and NS ([#2121](https://github.com/gjsify/gjsify/issues/2121)) ([ce3dfee](https://github.com/gjsify/gjsify/commit/ce3dfee374eba77d227edb8406500db2094ac127))
+* **gtksource:** add the View surface on web and NS ([#2125](https://github.com/gjsify/gjsify/issues/2125)) ([41e33ab](https://github.com/gjsify/gjsify/commit/41e33ab1501adf39a67f9a64bb9a9521036c59df))
+* **scripts:** report a project's gap per target ([#2084](https://github.com/gjsify/gjsify/issues/2084)) ([1043ad6](https://github.com/gjsify/gjsify/commit/1043ad6cc807b556bfb2d8a69a0be8917c903559))
+* **vite-plugin-blueprint:** blp ?template exit ([#2089](https://github.com/gjsify/gjsify/issues/2089)) ([71b9efb](https://github.com/gjsify/gjsify/commit/71b9efb83a23eebbcd1de9de3bcf76c9c425b375))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** follow scheme live ([#2119](https://github.com/gjsify/gjsify/issues/2119)) ([4967891](https://github.com/gjsify/gjsify/commit/4967891cc004cd33bc224671dfef90b72744b76b))
+* **adwaita-nativescript:** guard tooltips below API 26 ([#2114](https://github.com/gjsify/gjsify/issues/2114)) ([5ef17d2](https://github.com/gjsify/gjsify/commit/5ef17d259ce8dba043ced1a97ed4f2cfffd5aadc))
+* **adwaita-nativescript:** never pay an empty bar slot ([#2085](https://github.com/gjsify/gjsify/issues/2085)) ([4c7521e](https://github.com/gjsify/gjsify/commit/4c7521eedf07b8d69de1d4c346d4276b39da04fc))
+* **adwaita-nativescript:** scroll a child's margins ([#2088](https://github.com/gjsify/gjsify/issues/2088)) ([15b924b](https://github.com/gjsify/gjsify/commit/15b924b3cbbe60d981540d76b553db93781ddd59))
+* **adwaita-nativescript:** scroll sheet before pulling ([#2081](https://github.com/gjsify/gjsify/issues/2081)) ([1ad6545](https://github.com/gjsify/gjsify/commit/1ad654558daf660fd28d5dc52bb9f9189c4219f3))
+* **adwaita-nativescript:** scroll the sheet inset ([#2082](https://github.com/gjsify/gjsify/issues/2082)) ([2b7db72](https://github.com/gjsify/gjsify/commit/2b7db72f6f4ffd2260aeb26b5cf58b3e3b07b2f4))
+* **adwaita-web:** emit valid Application typings ([#2126](https://github.com/gjsify/gjsify/issues/2126)) ([21ddd47](https://github.com/gjsify/gjsify/commit/21ddd47da59357d5e2638ec0d230538a479fca2b)), closes [#2062](https://github.com/gjsify/gjsify/issues/2062)
+* **ci:** clear the stale openssl link before the macOS bundle install ([#2083](https://github.com/gjsify/gjsify/issues/2083)) ([e1c2bf4](https://github.com/gjsify/gjsify/commit/e1c2bf480035b58ba73a754cd759cdb35a5e6922)), closes [#2061](https://github.com/gjsify/gjsify/issues/2061)
+* **devtools:** activate a list-box row exactly once ([#2110](https://github.com/gjsify/gjsify/issues/2110)) ([6a8b1cd](https://github.com/gjsify/gjsify/commit/6a8b1cdc6790299ce0ab333057eccb0d6183f674))
+* **scripts:** refuse nested duplicates in bundle check ([#2118](https://github.com/gjsify/gjsify/issues/2118)) ([faa91ff](https://github.com/gjsify/gjsify/commit/faa91ff40a495d6fc8dc04b8ddea1e6d16f88e4e))
+* **vite-plugin-gjsify:** dedupe @gjsify in NativeScript ([#2120](https://github.com/gjsify/gjsify/issues/2120)) ([511bca4](https://github.com/gjsify/gjsify/commit/511bca46fe0dd32ca9592d2fda3170a250c6051c)), closes [#2118](https://github.com/gjsify/gjsify/issues/2118)
+* **webcrypto:** raw-export non-public key as InvalidAccess ([#2093](https://github.com/gjsify/gjsify/issues/2093)) ([3f811ab](https://github.com/gjsify/gjsify/commit/3f811ab0ea3f56d1cab48bd6d473b5434aae7a21))
+
+### Documentation
+
+* **adr:** 0096 portable GObject subset ([#2087](https://github.com/gjsify/gjsify/issues/2087)) ([4d733d4](https://github.com/gjsify/gjsify/commit/4d733d428abc4172c4fc4525fa478df6f5efdc54))
+* **adr:** accept gtksource core and ns package ([#2100](https://github.com/gjsify/gjsify/issues/2100)) ([2367d22](https://github.com/gjsify/gjsify/commit/2367d22cb01fb0b865fba78c5819e7e86a36bacf))
+* **adr:** accept minimal application on web, ns ([#2098](https://github.com/gjsify/gjsify/issues/2098)) ([6f2ae34](https://github.com/gjsify/gjsify/commit/6f2ae34c3df8eef967991212ca5416bc8e16a17f))
+* **adr:** adopt portals as the platform seam ([#2115](https://github.com/gjsify/gjsify/issues/2115)) ([be3c984](https://github.com/gjsify/gjsify/commit/be3c984435775b7fd77f2e2e7c49d1367efa0dbc)), closes [#2111](https://github.com/gjsify/gjsify/issues/2111)
+* **adr:** propose app settings and file chooser ([#2111](https://github.com/gjsify/gjsify/issues/2111)) ([6124a2f](https://github.com/gjsify/gjsify/commit/6124a2fe37d57c3ceeff30c6b5460a63422963f2))
+* **adr:** propose install and sources focus ([#2122](https://github.com/gjsify/gjsify/issues/2122)) ([6bd8a59](https://github.com/gjsify/gjsify/commit/6bd8a59304656873baa55fbd4aa54e317bd55006))
+* **adr:** propose portable menus and actions (0097) ([#2095](https://github.com/gjsify/gjsify/issues/2095)) ([a930fec](https://github.com/gjsify/gjsify/commit/a930fec4b9417d1dd3c74c0c7f3686515681473d))
+
+### Continuous Integration
+
+* **commitlint:** repair more of the PR text ([#2103](https://github.com/gjsify/gjsify/issues/2103)) ([59f80a4](https://github.com/gjsify/gjsify/commit/59f80a4bdd2f2aa4f30efd21dd112a7034056637)), closes [#1](https://github.com/gjsify/gjsify/issues/1)
+* **commitlint:** repair PR text, stack chained PRs ([#2099](https://github.com/gjsify/gjsify/issues/2099)) ([5703bfb](https://github.com/gjsify/gjsify/commit/5703bfba3bbf52118e2fb5dca3b23357b2cd43bc))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([e9980b0](https://github.com/gjsify/gjsify/commit/e9980b01f4e43ab26d98029835540a87ac26a487))
+
+### Tests
+
+* **e2e:** fix gi-renderer-arms red rows ([#2090](https://github.com/gjsify/gjsify/issues/2090)) ([1abd8f6](https://github.com/gjsify/gjsify/commit/1abd8f6c28cf09294c281727bc8a1d3a1f68facd))
+* **e2e:** report-target-gap probes a free signal ([#2091](https://github.com/gjsify/gjsify/issues/2091)) ([edc3018](https://github.com/gjsify/gjsify/commit/edc3018e139a4c4f226cda46bf98d0e4ee4b1093))
+* **react-native:** settle frames after narrowing ([#2113](https://github.com/gjsify/gjsify/issues/2113)) ([952351c](https://github.com/gjsify/gjsify/commit/952351c73ada59a5ff6703a32de6179a95fb1b71)), closes [#2109](https://github.com/gjsify/gjsify/issues/2109)
+
 ## [0.56.0](https://github.com/gjsify/gjsify/compare/v0.55.0...v0.56.0) (2026-10-07)
 
 ### Features

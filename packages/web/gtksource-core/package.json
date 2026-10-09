@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gtksource-core",
-    "version": "0.56.0",
+    "version": "0.57.0",
     "description": "Headless GtkSourceView language/style parsing (renderer-free) — parse .lang and style scheme XML into typed data with JS regex translation, strict unsupported reporting",
     "type": "module",
     "module": "lib/esm/index.js",
