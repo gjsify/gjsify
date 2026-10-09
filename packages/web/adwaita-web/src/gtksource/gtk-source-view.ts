@@ -12,7 +12,7 @@
 // `connect`/`disconnect`. Not yet: the GJS snake_case accessors, `cursor_visible`, adjustments,
 // gutters and the `buffer:` object child of a `.blp` (ADR 0094 amendment lists them).
 //
-// Reference: refs/gtksourceview/gtksourceview/gtksourceview.c (properties and defaults)
+// Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { adwaitaColorScheme, onAdwaitaColorSchemeChanged } from '@gjsify/adwaita-core';
@@ -107,9 +107,22 @@ const ATTRIBUTES: Readonly<Record<string, readonly [string, boolean | number, Co
     'bottom-margin': ['bottomMargin', 0, toNumber],
 };
 
+const OBSERVED_ATTRIBUTES = [
+    'auto-indent',
+    'indent-width',
+    'show-line-numbers',
+    'highlight-current-line',
+    'monospace',
+    'editable',
+    'left-margin',
+    'right-margin',
+    'top-margin',
+    'bottom-margin',
+];
+
 export class GtkSourceView extends HTMLElement {
     static get observedAttributes(): string[] {
-        return Object.keys(ATTRIBUTES);
+        return OBSERVED_ATTRIBUTES;
     }
 
     private readonly session: EditorSession;
