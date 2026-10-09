@@ -118,6 +118,8 @@ the TODO records the *what's left*.
 | [0096](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md) | A GObject subset runs on the browser and NativeScript, measured by the gap report | Accepted |
 | [0097](0097-menus-and-actions-run-on-the-browser-and-nativescript.md) | A `.blp` menu and its actions run on the browser and NativeScript | Accepted |
 | [0098](0098-a-minimal-application-runs-on-the-browser-and-nativescript.md) | A minimal `Gtk.Application` / `Adw.Application` runs on the browser and NativeScript, as a strict subset of GIO/GTK | Accepted |
+| [0099](0099-gio-settings-runs-on-the-browser-and-nativescript.md) | `Gio.Settings` runs on the browser and NativeScript, as `@gjsify/app-settings` | Accepted |
+| [0100](0100-file-dialog-and-gio-file-run-on-the-browser-and-nativescript.md) | `Gtk.FileDialog` and `Gio.File` run on the browser and NativeScript, as `@gjsify/file-chooser` | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
