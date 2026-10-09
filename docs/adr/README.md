@@ -122,7 +122,7 @@ the TODO records the *what's left*.
 | [0100](0100-file-dialog-and-gio-file-run-on-the-browser-and-nativescript.md) | `Gtk.FileDialog` and `Gio.File` run on the browser and NativeScript, as `@gjsify/file-chooser` | Accepted |
 | [0101](0101-portals-are-the-platform-seam-below-the-gtk-api.md) | xdg-desktop-portal interfaces are the platform seam below the GTK API | Accepted |
 | [0102](0102-install-and-flatpak-sources-take-a-focus.md) | `install` and `flatpak sources` take `--focus`: a workspace closure, computed from the one full lockfile | Accepted |
-| [0103](0103-a-gtksource-gutter-is-a-column-model-with-one-painter-per-platform.md) | A GtkSource gutter is a column model with one painter per platform | Proposed |
+| [0103](0103-a-gtksource-gutter-is-a-column-model-with-one-painter-per-platform.md) | A GtkSource gutter is a column model with one painter per platform | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

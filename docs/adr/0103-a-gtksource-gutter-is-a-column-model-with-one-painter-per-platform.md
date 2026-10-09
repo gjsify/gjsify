@@ -1,6 +1,6 @@
 # 103. A GtkSource gutter is a column model with one painter per platform
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-09)
 - Date: 2026-10-09
 - Deciders: Pascal Garber
 - Related: [ADR 0094](0094-gtksource-is-a-headless-core-and-a-nativescript-package.md) (the headless core, the
