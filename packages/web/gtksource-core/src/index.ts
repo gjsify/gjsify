@@ -18,5 +18,6 @@ export * from './editor-driver.js';
 export * from './editor-session.js';
 export * from './line-store.js';
 export * from './gutter.js';
+export * from './gutter-renderer.js';
 export * from './coerce.js';
 export * from './init.js';

@@ -7,7 +7,7 @@
 import { View as NsView } from '@nativescript/core';
 import { adwaitaColorScheme, onAdwaitaColorSchemeChanged, withGtkWidgetLayout } from '@gjsify/adwaita-nativescript';
 
-import { GtkSourceBuffer, type Buffer } from '@gjsify/gtksource-core';
+import { GtkSourceBuffer, GutterSet, type Buffer, type Gutter } from '@gjsify/gtksource-core';
 import { toBoolean, toNumber } from '@gjsify/gtksource-core';
 import { EditorSession } from '@gjsify/gtksource-core';
 import { Adjustment as GtkAdjustment } from '@gjsify/adwaita-nativescript/gtk';
@@ -26,6 +26,7 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
     private readonly vadj = new GtkAdjustment();
     private readonly hadj = new GtkAdjustment();
     private direction = 1;
+    private readonly gutters = new GutterSet(this);
 
     constructor() {
         super();
@@ -184,9 +185,9 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         return (this as unknown as { parent?: unknown }).parent ?? null;
     }
 
-    /** Gutters are slice 6 (ADR 0094). */
-    get_gutter(_window_type: number): never {
-        throw new Error('GtkSource.View.get_gutter is not implemented');
+    /** `null` for any side but LEFT and RIGHT, as in GtkSourceView (ADR 0103). */
+    get_gutter(window_type: number): Gutter | null {
+        return this.gutters.get(window_type);
     }
 
     get leftMargin(): number {

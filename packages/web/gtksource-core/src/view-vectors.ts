@@ -47,6 +47,32 @@ export interface ViewLike {
     get_first_child(): unknown;
     get_next_sibling(): unknown;
     get_parent(): unknown;
+    get_gutter(windowType: number): GutterLike | null;
+}
+
+export interface GutterRendererLike {
+    text: string | null;
+    markup: string | null;
+    margin_start: number;
+    marginStart: number;
+    margin_end: number;
+    width_request: number;
+    focusable: boolean;
+    focus_on_click: boolean;
+    get_view(): unknown;
+    set_text(text: string, length: number): void;
+    set_markup(markup: string, length: number): void;
+    queue_draw(): void;
+}
+
+export interface GutterLike {
+    readonly view: unknown;
+    readonly window_type: number;
+    get_view(): unknown;
+    insert(renderer: GutterRendererLike, position: number): boolean;
+    remove(renderer: GutterRendererLike): void;
+    reorder(renderer: GutterRendererLike, position: number): void;
+    queue_draw(): void;
 }
 
 export interface ScrolledWindowLike {
@@ -57,7 +83,7 @@ export interface ScrolledWindowLike {
     get_vadjustment(): AdjustmentLike;
 }
 
-/** The parts of `Gtk` and `GtkSource` the slice-4 vectors read. */
+/** The parts of `Gtk` and `GtkSource` the slice-4 and slice-6 vectors read. */
 export interface GtkSourceViewSurfaceLike {
     Gtk: {
         TextWindowType: Record<string, number>;
@@ -69,6 +95,10 @@ export interface GtkSourceViewSurfaceLike {
     GtkSource: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         View: new (properties?: any) => ViewLike;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        GutterRenderer: new (properties?: any) => GutterRendererLike;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        GutterRendererText: new (properties?: any) => GutterRendererLike;
     };
 }
 
@@ -220,5 +250,158 @@ export const GTKSOURCE_VIEW_SURFACE_VECTORS: readonly GtkSourceViewSurfaceVector
             return [window.get_vadjustment() === view.vadjustment, window.vadjustment === view.vadjustment];
         },
         shows: [true, true],
+    },
+    {
+        rule: 'get_gutter answers one gutter per side, LEFT and RIGHT apart',
+        instance: true,
+        observe: ({ Gtk, GtkSource }) => {
+            const view = new GtkSource.View();
+            const { LEFT, RIGHT } = Gtk.TextWindowType;
+            return [
+                view.get_gutter(LEFT) !== null,
+                view.get_gutter(LEFT) === view.get_gutter(LEFT),
+                view.get_gutter(RIGHT) === view.get_gutter(RIGHT),
+                view.get_gutter(LEFT) !== view.get_gutter(RIGHT),
+            ];
+        },
+        shows: [true, true, true, true],
+    },
+    {
+        rule: 'a gutter knows its view and its side',
+        instance: true,
+        observe: ({ Gtk, GtkSource }) => {
+            const view = new GtkSource.View();
+            const left = view.get_gutter(Gtk.TextWindowType.LEFT) as GutterLike;
+            const right = view.get_gutter(Gtk.TextWindowType.RIGHT) as GutterLike;
+            return [left.get_view() === view, left.view === view, left.window_type, right.window_type];
+        },
+        shows: [true, true, 3, 4],
+    },
+    {
+        rule: 'get_gutter answers null for a side that has no gutter',
+        instance: true,
+        observe: ({ Gtk, GtkSource }) => {
+            const view = new GtkSource.View();
+            const { TEXT, WIDGET, TOP } = Gtk.TextWindowType;
+            return [view.get_gutter(TEXT), view.get_gutter(WIDGET), view.get_gutter(TOP)];
+        },
+        shows: [null, null, null],
+    },
+    {
+        rule: 'a text renderer starts empty with the widget defaults',
+        instance: true,
+        observe: ({ GtkSource }) => {
+            const renderer = new GtkSource.GutterRendererText();
+            return [
+                renderer.text,
+                renderer.markup,
+                renderer.margin_start,
+                renderer.margin_end,
+                renderer.width_request,
+                renderer.focusable,
+                renderer.focus_on_click,
+                renderer.get_view(),
+            ];
+        },
+        shows: [null, null, 0, 0, -1, false, true, null],
+    },
+    {
+        rule: 'a text renderer takes widget properties at construction, snake_case or camelCase',
+        instance: true,
+        observe: ({ GtkSource }) => {
+            const renderer = new GtkSource.GutterRendererText({
+                margin_start: 12,
+                margin_end: 8,
+                width_request: 36,
+                focusable: true,
+                focus_on_click: false,
+                text: 'q',
+            });
+            const camel = new GtkSource.GutterRendererText({ marginStart: 3 });
+            camel.marginStart = 5;
+            return [
+                renderer.margin_start,
+                renderer.margin_end,
+                renderer.width_request,
+                renderer.focusable,
+                renderer.focus_on_click,
+                renderer.text,
+                camel.margin_start,
+            ];
+        },
+        shows: [12, 8, 36, true, false, 'q', 5],
+    },
+    {
+        rule: 'a renderer refuses a property it does not have',
+        instance: true,
+        observe: ({ GtkSource }) => {
+            try {
+                new GtkSource.GutterRendererText({ bogus: 1 });
+                return 'accepted';
+            } catch {
+                return 'threw';
+            }
+        },
+        shows: 'threw',
+    },
+    {
+        rule: 'GutterRenderer is abstract',
+        instance: true,
+        observe: ({ GtkSource }) => {
+            try {
+                new GtkSource.GutterRenderer();
+                return 'accepted';
+            } catch {
+                return 'threw';
+            }
+        },
+        shows: 'threw',
+    },
+    {
+        rule: 'text and markup replace each other, and a length cuts the string in bytes',
+        instance: true,
+        observe: ({ GtkSource }) => {
+            const renderer = new GtkSource.GutterRendererText();
+            renderer.set_text('abcdef', 3);
+            const cut = [renderer.text, renderer.markup];
+            renderer.set_markup('<b>x</b>', -1);
+            const marked = [renderer.text, renderer.markup];
+            renderer.text = 'zz';
+            return [cut, marked, [renderer.text, renderer.markup]];
+        },
+        shows: [
+            ['abc', null],
+            [null, '<b>x</b>'],
+            ['zz', null],
+        ],
+    },
+    {
+        rule: 'insert claims a renderer for the view, a second insert is refused, remove gives it back',
+        instance: true,
+        observe: ({ Gtk, GtkSource }) => {
+            const view = new GtkSource.View();
+            const left = view.get_gutter(Gtk.TextWindowType.LEFT) as GutterLike;
+            const right = view.get_gutter(Gtk.TextWindowType.RIGHT) as GutterLike;
+            const renderer = new GtkSource.GutterRendererText();
+            const inserted = left.insert(renderer, 0);
+            const held = renderer.get_view() === view;
+            const again = [left.insert(renderer, 1), right.insert(renderer, 1)];
+            left.remove(renderer);
+            const released = renderer.get_view();
+            return [inserted, held, again, released, right.insert(renderer, 0)];
+        },
+        shows: [true, true, [false, false], null, true],
+    },
+    {
+        rule: 'reorder and queue_draw answer nothing',
+        instance: true,
+        observe: ({ Gtk, GtkSource }) => {
+            const view = new GtkSource.View();
+            const left = view.get_gutter(Gtk.TextWindowType.LEFT) as GutterLike;
+            const renderer = new GtkSource.GutterRendererText();
+            left.insert(renderer, 0);
+            return [left.reorder(renderer, 3), left.queue_draw(), renderer.queue_draw()];
+        },
+        shows: [undefined, undefined, undefined],
     },
 ];

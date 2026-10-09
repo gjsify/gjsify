@@ -10,14 +10,14 @@
 // IN THIS SLICE: `buffer`, `auto-indent`, `indent-width` (held and read back, as on Android),
 // `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, `cursor-visible`, the four
 // margins, `connect`/`disconnect`, the GJS snake_case accessors, `vadjustment`/`hadjustment`,
-// `set_direction`, `get_first_child`/`get_next_sibling`. Not yet: gutters (`get_gutter` throws).
+// `set_direction`, `get_first_child`/`get_next_sibling`, `get_gutter` (the model; no column is painted yet).
 //
 // Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { adwaitaColorScheme, GtkAdjustment, onAdwaitaColorSchemeChanged } from '@gjsify/adwaita-core';
-import type { Buffer } from '@gjsify/gtksource-core';
-import { EditorSession, toBoolean, toNumber } from '@gjsify/gtksource-core';
+import type { Buffer, Gutter } from '@gjsify/gtksource-core';
+import { EditorSession, GutterSet, toBoolean, toNumber } from '@gjsify/gtksource-core';
 
 import { WebEditorDriver } from './web-editor-driver.js';
 
@@ -138,6 +138,7 @@ export class GtkSourceView extends HTMLElement {
     private readonly vadj = new GtkAdjustment();
     private readonly hadj = new GtkAdjustment();
     private direction = 1;
+    private readonly gutters = new GutterSet(this);
 
     constructor() {
         super();
@@ -328,9 +329,9 @@ export class GtkSourceView extends HTMLElement {
         return this.parentElement;
     }
 
-    /** Gutters are slice 6 (ADR 0094). */
-    get_gutter(_window_type: number): never {
-        throw new Error('GtkSource.View.get_gutter is not implemented');
+    /** `null` for any side but LEFT and RIGHT, as in GtkSourceView (ADR 0103). */
+    get_gutter(window_type: number): Gutter | null {
+        return this.gutters.get(window_type);
     }
 
     get leftMargin(): number {
