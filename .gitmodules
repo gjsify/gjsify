@@ -296,3 +296,9 @@
 [submodule "refs/whitesur-gtk-theme"]
 	path = refs/whitesur-gtk-theme
 	url = https://github.com/vinceliuice/WhiteSur-gtk-theme.git
+[submodule "refs/tuba"]
+	path = refs/tuba
+	url = https://codeberg.org/GeopJr/Tuba.git
+[submodule "refs/gtk-android-builder"]
+	path = refs/gtk-android-builder
+	url = https://github.com/sp1ritCS/gtk-android-builder.git
