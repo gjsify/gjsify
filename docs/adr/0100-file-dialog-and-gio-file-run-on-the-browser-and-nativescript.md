@@ -244,19 +244,19 @@ A developer overrides any of them per platform with their own code (ADR 0101).
   `src/resources/ui/nautilus-file-chooser.blp` (Blueprint; compiled to the GtkBuilder resource
   `/org/gnome/nautilus/ui/nautilus-file-chooser.ui`).
 
-**Decision.** The drawn dialog follows that design and takes its structure from the Nautilus template:
-an `Adw.Window` with an `Adw.OverlaySplitView`; a sidebar with a header bar and places; a content area
+**Decision.** The drawn dialog follows that design, with the structure of the Nautilus template as
+inspiration: an `Adw.Window` with an `Adw.OverlaySplitView`; a sidebar with a header bar and places; a content area
 with a toolbar, the file list, and a bottom bar holding the filter drop-down, the file-name entry (save)
 and the accept button, with a wide and a narrow `Adw.Layout`. It shows only what OPFS has: the places
 sidebar lists the OPFS root, not drives, network or recent files, because the origin sees no real
 device; "Search Everywhere", history controls and the choices menu are left out until a consumer needs
 them.
 
-**Licence, flagged, not resolved.** gjsify is MIT (`LICENSE`, `package.json`). Nautilus'
+**Licence: clean-room re-implementation.** gjsify is MIT (`LICENSE`, `package.json`). Nautilus'
 `nautilus-file-chooser.c` carries `SPDX-License-Identifier: GPL-3.0-or-later`; the `.blp` has no header
-of its own. Copying the template into an MIT package conflicts with that. GTK's tree is LGPL
-(`COPYING` of `GNOME/gtk`), which is a different question. Pascal decides: copy, re-derive from
-the design only, or use the GTK widget's layout.
+of its own. So the design and structure of Nautilus' file-chooser mode serve as inspiration only:
+gjsify writes its own template and code and copies no code, template or string from Nautilus. GTK's
+LGPL `gtkfilechooserwidget.ui` (`COPYING` of `GNOME/gtk`) may be consulted the same way.
 
 `open()` and `save()` need transient user activation in the browser. A call without it rejects with
 a `Gtk.DialogError.FAILED` naming that cause; GJS never has this condition.
@@ -318,6 +318,19 @@ directly on every target, GJS included: there a `.gtk` platform file re-exports 
 `packages/infra/rolldown-plugin-gjsify/src/plugins/platform-resolve.ts`). Same names and semantics
 either way.
 
+### Recommended import path
+
+`@gjsify/file-chooser` is the recommended import for cross-platform apps: it is built for that case
+and can address each platform's situation and the developer's needs better than a bare `gi://Gtk`.
+`gi://Gtk` stays the way for Linux GTK apps and keeps working cross-platform, because the package
+is the true subset behind it.
+
+The package exports the `Gtk.FileDialog`, `Gtk.FileFilter` and `Gio.File` subset with identical names
+and semantics. It MAY add gjsify-named extras that GIO/GTK have no equivalent for, such as
+registering a driver (ADR 0101), an OPFS `navigator.storage.persist()` hook and an explicit export
+action. Extras are additive only: they never change the semantics of a GIO/GTK name and are not
+reachable through `gi://`. `FILE_CHOOSER_VECTORS` enforces the subset part.
+
 ## Consequences
 
 - Learn6502's `file.service.ts` runs on three targets with no change: `bootstrap.ts`, the dialog code
@@ -346,7 +359,6 @@ either way.
 - `Gio.OutputStream` and `GLib.Bytes` beyond the calls in § 3, folders and multiple selection, drag-and-drop files, and the
   clipboard.
 - Handles across restarts, and iOS (document picker is the obvious cell, not reasoned here).
-- Recommended import path: open, Pascal decides.
 
 ## Implementation
 

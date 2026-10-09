@@ -177,6 +177,18 @@ and `localStorage` / `ApplicationSettings` become the two default backends. The 
 `GLib.Variant`, which § 2 refuses, so the hook waits for the `GLib.Variant` decision.
 **Not measured:** a backend on the browser or NativeScript; no such code exists.
 
+### Recommended import path
+
+`@gjsify/app-settings` is the recommended import for cross-platform apps: it is built for that case and
+can address each platform's situation and the developer's needs better than a bare `gi://Gio`.
+`gi://Gio` stays the way for Linux GTK apps and keeps working cross-platform, because the package
+is the true subset behind it.
+
+The package exports the `Gio.Settings` subset with identical names and semantics. It MAY add
+gjsify-named extras that GIO has no equivalent for, such as registering a storage backend (the
+swappable driver of `backend`, above). Extras are additive only: they never change the semantics of
+a GIO name and are not reachable through `gi://`. `SETTINGS_VECTORS` enforces the subset part.
+
 ## Consequences
 
 - `theme.service.ts` and `main.window.ts` in Learn6502 run on three targets with `import Gio from
@@ -203,7 +215,6 @@ and `localStorage` / `ApplicationSettings` become the two default backends. The 
 - `GLib.Variant` in general, and `Gio.Settings` relocatable schemas.
 - A sync server or protocol, and iOS (`NSUserDefaults` is the obvious cell, not reasoned here).
 - `Gio.PropertyAction` over a setting (refused by ADR 0097).
-- Recommended import path: open, Pascal decides.
 
 ## Implementation
 
