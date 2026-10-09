@@ -53,12 +53,12 @@ const ARMS = [
     {
         app: 'browser',
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', GtkSource: '5' },
     },
     {
         app: 'nativescript',
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', GtkSource: '5' },
     },
 ];
 
@@ -256,6 +256,21 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.equal(report.kind, 'function', 'GLib.timeout_add is not a function');
             assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
             assert.deepEqual(report.application, { runs: 3, idled: true, removed: true, refusesMainLoop: true });
+        });
+
+        it(`--app ${app} --gi-renderer answers gi://Gdk?version=4.0 and publishes a string clipboard`, () => {
+            const built = build('gdk-clipboard.ts', app, { name: 'gdk-clipboard' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'application');
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'Gdk.ContentProvider.new_for_value is not a function');
+            assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
+            assert.deepEqual(report.application, {
+                accepted: true,
+                text: 'hello',
+                offersString: true,
+                refusesTexture: true,
+            });
         });
 
         it(`--app ${app} --gi-renderer answers the path, action-group and style-manager helpers`, () => {

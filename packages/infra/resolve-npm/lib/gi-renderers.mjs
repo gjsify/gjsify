@@ -39,11 +39,11 @@
 export const GI_RENDERERS = {
     browser: {
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', GtkSource: '5' },
     },
     nativescript: {
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', GtkSource: '5' },
         specifiers: {
             GObject: '@gjsify/adwaita-nativescript/gobject',
             GtkSource: '@gjsify/gtksource-nativescript/gtksource',
