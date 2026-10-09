@@ -1,6 +1,6 @@
 # 101. xdg-desktop-portal interfaces are the platform seam below the GTK API
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-09)
 - Date: 2026-10-09
 - Deciders: Pascal Garber
 - Related: [ADR 0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md)
@@ -8,8 +8,8 @@
   [ADR 0095](0095-system-accounts-are-asked-by-capability.md) (`system-accounts`),
   [ADR 0096](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md) (a GObject subset),
   [ADR 0098](0098-a-minimal-application-runs-on-the-browser-and-nativescript.md) (a minimal Application),
-  ADR 0099 (`Gio.Settings`) and ADR 0100 (`Gtk.FileDialog`, `Gio.File`), both proposed in PR #2111
-  and not on `main` yet
+  [ADR 0099](0099-gio-settings-runs-on-the-browser-and-nativescript.md) (`Gio.Settings`) and
+  [ADR 0100](0100-file-dialog-and-gio-file-run-on-the-browser-and-nativescript.md) (`Gtk.FileDialog`, `Gio.File`)
 
 ## Rule for every stage
 
@@ -254,7 +254,7 @@ appears, `SystemAccounts` is re-expressed as that portal's contract, the GOA dri
 backend behind it, and the capability vocabulary moves with it. Until then it stays. The Secret portal
 is not a candidate: it is a per-application master secret, which is not what `getCredentials` returns.
 
-### Relation to ADR 0099 and ADR 0100 (PR #2111)
+### Relation to ADR 0099 and ADR 0100
 
 - **ADR 0099, `Gio.Settings`, is not a portal.** The Settings portal is read-only and "not for general
   purpose settings". An app's own keys live in `Gio.Settings` / the platform's key-value store (ADR 0099).
