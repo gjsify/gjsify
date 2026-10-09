@@ -58,9 +58,11 @@ const ARMS = [
     {
         app: 'nativescript',
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
     },
 ];
+
+const GTKSOURCE_NS_BUILT = join(MONOREPO_ROOT, 'packages/nativescript-bridge/gtksource/lib/esm/index.js');
 
 const skip = e2eSkipReason(SUITE, [
     ['the CLI is built (`gjsify run build:infra`)', existsSync(CLI_ENTRY)],
@@ -336,6 +338,27 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.match(report.refusal, /ActionRow/, 'the refusal does not print the members that exist');
         });
     }
+
+    // ADR 0094: the NativeScript row answers `GtkSource` out of its own package, and the browser
+    // row, which has no GtkSource, still refuses it by name rather than handing back `{}`.
+    it('--app nativescript --gi-renderer answers gi://GtkSource?version=5 with init() and a view class', () => {
+        assert.ok(existsSync(GTKSOURCE_NS_BUILT), `${GTKSOURCE_NS_BUILT} is not built`);
+        const built = build('gtksource-probe.ts', 'nativescript', { name: 'gtksource-probe' });
+        assert.equal(built.status, 0, `build failed\n${built.output}`);
+        assert.ok(!readFileSync(built.outFile, 'utf-8').includes('gi://'), 'the bundle leaks a gi:// specifier');
+        const report = evaluate(built.outFile, 'nativescript');
+        assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+        assert.equal(report.kind, 'function', 'GtkSource.init is not a function');
+        assert.equal(report.initReturns, true, 'GtkSource.init() did not return undefined');
+        assert.equal(report.protoIdentity, true, 'the subclass does not extend GtkSource.View');
+        assert.equal(report.reachesCore, true, 'GtkSource.View does not descend from an @nativescript/core class');
+    });
+
+    it('--app browser --gi-renderer refuses gi://GtkSource, by name', () => {
+        const built = build('gtksource-probe.ts', 'browser', { name: 'gtksource-browser' });
+        assert.notEqual(built.status, 0, `gi://GtkSource built on a target with no GtkSource\n${built.output}`);
+        assert.match(built.output, /gi:\/\/GtkSource/, 'the refusal does not name the specifier it refused');
+    });
 
     // ADR 0096 § 4: `./x.blp?template` is one specifier with one meaning per target.
     for (const arm of ARMS) {

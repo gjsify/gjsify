@@ -30,7 +30,9 @@
  * the GIR namespace versions that arm accepts. `specifiers` names a module whose exports ARE a
  * namespace, for one that is not a member of the renderer's root barrel: `@gjsify/adwaita-nativescript`
  * keeps `GObject` in its `/gobject` subpath (ADR 0096), the web renderer exports it from the
- * root. A namespace with no entry is read from `renderer`.
+ * root, and `@gjsify/gtksource-nativescript` is a package of its own that depends on the renderer
+ * (ADR 0094), so its `GtkSource` namespace can only be named by specifier. A namespace with no entry
+ * is read from `renderer`. The browser row has no `GtkSource`: nothing there implements it.
  *
  * @type {Readonly<Record<string, { renderer: string, namespaces: Readonly<Record<string, string>>, specifiers?: Readonly<Record<string, string>> }>>}
  */
@@ -41,8 +43,11 @@ export const GI_RENDERERS = {
     },
     nativescript: {
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0' },
-        specifiers: { GObject: '@gjsify/adwaita-nativescript/gobject' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
+        specifiers: {
+            GObject: '@gjsify/adwaita-nativescript/gobject',
+            GtkSource: '@gjsify/gtksource-nativescript/gtksource',
+        },
     },
 };
 

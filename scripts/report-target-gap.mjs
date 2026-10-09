@@ -345,7 +345,7 @@ const declaredSignals = (file, className, depth = 0) => {
     return { names: inherited.names, complete: inherited.complete };
 };
 
-const loadRenderer = async (target, { renderer, namespaces }) => {
+const loadRenderer = async (target, { renderer, namespaces, specifiers = {} }) => {
     const dir = packageDirs.get(renderer);
     if (!dir)
         throw new Error(`GI_RENDERERS names ${renderer} for ${target}, and no package under packages/ has that name`);
@@ -355,7 +355,9 @@ const loadRenderer = async (target, { renderer, namespaces }) => {
     const barrels = new Map();
     const classIndex = new Map();
     for (const ns of Object.keys(namespaces)) {
-        const file = join(dir, 'src/namespace', `${ns.toLowerCase()}.ts`);
+        // A namespace named by specifier may live in another package (`GtkSource`, ADR 0094).
+        const owner = specifiers[ns]?.startsWith('@') ? specifiers[ns].split('/').slice(0, 2).join('/') : renderer;
+        const file = join(packageDirs.get(owner) ?? dir, 'src/namespace', `${ns.toLowerCase()}.ts`);
         if (!existsSync(file))
             throw new Error(`${renderer} is routed ${ns} by GI_RENDERERS and has no ${relative(ROOT, file)}`);
         const barrel = barrelOf(file);
