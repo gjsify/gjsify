@@ -13,7 +13,7 @@ import {
 export default async () => {
     await on('Gjs', async () => {
         const GtkSource = (await import('gi://GtkSource?version=5' as string)).default;
-        const GObject = (await import('gi://GObject' as string)).default;
+        const GObject = (await import('gi://GObject?version=2.0' as string)).default;
         const Gtk = (await import('gi://Gtk?version=4.0' as string)).default;
         const display = Gtk.init_check();
         const surface = { GtkSource, GObject } as unknown as GtkSourceStopSurface;
