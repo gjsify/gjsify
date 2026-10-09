@@ -67,8 +67,7 @@ widget defaults are `margin_start` 0, `width_request` -1, `focusable` false, `fo
 - **Equal positions.** The model keeps insertion order. Real GTK's order for two renderers at one
   position is not observable through the API subset, so no vector holds it. Learn6502 inserts at 0 with
   the built-in numbers off, so it is unaffected.
-- **`GObject.registerClass` on a renderer.** ADR 0096 covers widgets. A `GutterRendererText` subclass with
-  `Properties` is the first non-widget base; slice 7, where a subclass first matters, checks it.
+- **`GObject.registerClass` on a renderer.** Resolved in slice 7, see the amendment below.
 - **Tap on a column.** Nothing in Learn6502 uses `activate`; a gesture on web and Android is not designed.
 
 ## Consequences
@@ -94,4 +93,21 @@ widget defaults are `margin_start` 0, `width_request` -1, `focusable` false, `fo
 ## Implementation
 
 Tracked in `status/open-todos/`. This PR: the model, `get_gutter` on both views, the namespace rows and the
-conformance vectors against real `gi://GtkSource`. Next: `vfunc_query_data` and the painters (slice 7).
+conformance vectors against real `gi://GtkSource`. Slice 7: `vfunc_query_data` and the painters.
+
+## Amendment (slice 7): `vfunc_query_data` and the painters
+
+- **`registerClass` works on a renderer.** `GutterRenderer` extends the core `GObject.Object` with
+  `GIR_TYPE = 'GtkSource.GutterRenderer'`, so a registered `GutterRendererText` subclass with `Properties`
+  is accepted by the web and NativeScript doors. Only `vfunc_query_data` is unlocked
+  (`UNLOCKED_VFUNCS`), proved against real `gi://GtkSource` by `GUTTER_PAINT_VECTORS`; `vfunc_begin` and
+  `vfunc_end` are not called.
+- **`GutterLines` is a minimal subset:** `get_first`, `get_last`, `get_buffer`, `get_view`, `is_cursor`.
+  Learn6502 does not read it. The rest of the real class stays absent.
+- **The text setters do not `queue_draw`.** `query_data` sets them, so a repaint there would loop. Changing
+  `width_request` or a margin, and `insert`/`remove`/`reorder`/`queue_draw`, do repaint; the drivers
+  coalesce them (web: one microtask; Android: `invalidate`).
+- **Only the LEFT gutter is painted.** The right gutter stays a model.
+- **Markup** is read for `<b>`, `<i>`, `<u>`, `<s>` and the five XML entities; other tags are dropped and
+  their text kept. The web paints the styles; Android paints the plain text.
+- **Position:** a negative position puts the column left of the line numbers, otherwise right of them.

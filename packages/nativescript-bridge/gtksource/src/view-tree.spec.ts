@@ -11,12 +11,15 @@ import { describe, expect, it } from '@gjsify/unit';
 import './builder.js';
 import { GtkSourceBuffer } from '@gjsify/gtksource-core';
 import {
+    GUTTER_PAINT_VECTORS,
     GTKSOURCE_BUFFER_VECTORS,
     GTKSOURCE_VIEW_SURFACE_VECTORS,
     type GtkSourceBufferLike,
     type GtkSourceViewSurfaceLike,
+    type GutterPaintSurface,
 } from '@gjsify/gtksource-core/conformance';
 
+import * as GObject from '@gjsify/adwaita-nativescript/gobject';
 import * as Gtk from '@gjsify/adwaita-nativescript/gtk';
 
 import * as GtkSource from './namespace/gtksource.js';
@@ -58,6 +61,19 @@ export const GtkSourceViewTreeNsTest = async () => {
         for (const vector of GTKSOURCE_BUFFER_VECTORS) {
             await it(`GtkSource.Buffer: ${vector.rule}`, () => {
                 expect(vector.observe(GtkSource as unknown as GtkSourceBufferLike)).toStrictEqual(vector.shows);
+            });
+        }
+
+        // A pass needs pixels; the device runs the rest, so only what is observable without one is proved here.
+        for (const vector of GUTTER_PAINT_VECTORS.filter((candidate) => !candidate.paints)) {
+            await it(`gutter: ${vector.rule}`, async () => {
+                const never = () => Promise.reject(new Error('a vector without a pass does not present a view'));
+                expect(
+                    await vector.observe({ Gtk, GtkSource, GObject } as unknown as GutterPaintSurface, {
+                        present: never,
+                        settle: never,
+                    }),
+                ).toStrictEqual(vector.shows);
             });
         }
 

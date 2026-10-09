@@ -689,6 +689,8 @@ export const GIR_TYPE = Symbol('GIR type');
  */
 export const UNLOCKED_VFUNCS: Readonly<Record<string, readonly string[]>> = {
     'Gio.Application': ['vfunc_startup', 'vfunc_activate'],
+    // Proven by the gutter paint vectors of `@gjsify/gtksource-core` (ADR 0103), against real GtkSource.
+    'GtkSource.GutterRenderer': ['vfunc_query_data'],
 };
 
 /** The vfuncs unlocked for a class: the lists of every GIR type on its static chain, itself included. */

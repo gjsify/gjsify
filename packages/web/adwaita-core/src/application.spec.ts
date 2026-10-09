@@ -88,12 +88,12 @@ export default async () => {
 
     await describe('Gtk.Application core (ADR 0098 § 1a)', async () => {
         await it('has a vector for every entry of UNLOCKED_VFUNCS', () => {
-            expect(unprovenVfuncs().join()).toBe('');
+            expect(unprovenVfuncs(APPLICATION_VECTORS, 'Gio.').join()).toBe('');
         });
 
         await it('fails an entry that has no vector', () => {
-            expect(unprovenVfuncs([]).length > 0).toBe(true);
-            expect(unprovenVfuncs(APPLICATION_VECTORS).length).toBe(0);
+            expect(unprovenVfuncs([], 'Gio.').length > 0).toBe(true);
+            expect(unprovenVfuncs(APPLICATION_VECTORS, 'Gio.').length).toBe(0);
         });
 
         await it('rejects a runAsync that activates into a host needing a window', async () => {

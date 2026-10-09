@@ -58,7 +58,7 @@ export const ApplicationTest = async () => {
 
     await describe('adwaita-web: Application (ADR 0098 § 3)', async () => {
         await it('has a vector for every unlocked vfunc', () => {
-            expect(unprovenVfuncs(APPLICATION_VECTORS).length).toBe(0);
+            expect(unprovenVfuncs(APPLICATION_VECTORS, 'Gio.').length).toBe(0);
         });
         await it('Adw.Application is a Gtk.Application', () => {
             expect(Adw.Application.prototype instanceof Gtk.Application).toBe(true);

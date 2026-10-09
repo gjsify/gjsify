@@ -26,6 +26,7 @@ class UnsupportedEditorDriver implements NativeEditorDriver {
     setSelection(): void {}
     setLineCount(): void {}
     setLayout(): void {}
+    invalidateGutter(): void {}
     spliceLines(): void {}
     paintLine(): void {}
     clearAll(): void {}

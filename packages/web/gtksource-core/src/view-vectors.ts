@@ -48,6 +48,7 @@ export interface ViewLike {
     get_next_sibling(): unknown;
     get_parent(): unknown;
     get_gutter(windowType: number): GutterLike | null;
+    buffer: { text: string };
 }
 
 export interface GutterRendererLike {

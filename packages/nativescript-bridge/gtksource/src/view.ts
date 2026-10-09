@@ -32,6 +32,7 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         super();
         this.className = 'gtksource-view';
         this.session = new EditorSession(this.driver, undefined, adwaitaColorScheme());
+        this.session.bindGutters(this.gutters);
     }
 
     createNativeView(): object {

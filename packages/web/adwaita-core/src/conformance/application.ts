@@ -445,10 +445,16 @@ export function unlockedVfuncNames(): string[] {
     return Object.entries(UNLOCKED_VFUNCS).flatMap(([type, names]) => names.map((name) => `${type}.${name}`));
 }
 
-/** The entries of `UNLOCKED_VFUNCS` no vector proves. */
-export function unprovenVfuncs(vectors: readonly ApplicationVector[] = APPLICATION_VECTORS): string[] {
+/**
+ * The entries of `UNLOCKED_VFUNCS` no vector proves. `prefix` narrows the check to the GIR namespace
+ * a vector family owns (`Gio.` here, `GtkSource.` in `@gjsify/gtksource-core`).
+ */
+export function unprovenVfuncs(
+    vectors: readonly Pick<ApplicationVector, 'unlocks'>[] = APPLICATION_VECTORS,
+    prefix = '',
+): string[] {
     const proven = new Set(vectors.flatMap((vector) => vector.unlocks ?? []));
-    return unlockedVfuncNames().filter((name) => !proven.has(name));
+    return unlockedVfuncNames().filter((name) => name.startsWith(prefix) && !proven.has(name));
 }
 
 /** Holds a subject to the vectors. Windowed vectors need `subject.scene`. */

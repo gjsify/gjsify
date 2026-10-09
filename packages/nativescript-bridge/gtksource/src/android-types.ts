@@ -68,12 +68,13 @@ export interface AndroidEditText {
     addTextChangedListener(watcher: unknown): void;
     removeTextChangedListener(watcher: unknown): void;
     invalidate(): void;
+    post(action: unknown): boolean;
 }
 
 export interface AndroidNamespace {
     widget: { EditText: new (context: unknown) => AndroidEditText & { onDraw(canvas: AndroidCanvas): void } };
     graphics: {
-        Paint: (new (flags: number) => AndroidPaint) & { Align: { RIGHT: unknown } };
+        Paint: (new (flags: number) => AndroidPaint) & { Align: { RIGHT: unknown; LEFT: unknown } };
         Typeface: { MONOSPACE: unknown; DEFAULT: unknown; BOLD: number; ITALIC: number; BOLD_ITALIC: number };
     };
     text: {
