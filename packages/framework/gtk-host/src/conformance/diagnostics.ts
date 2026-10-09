@@ -89,14 +89,14 @@ const PLATFORM_MESSAGES: Readonly<Record<string, readonly string[]>> = {
     darwin: ['gdk_frame_timings_presented() called on skipped frame.'],
 };
 
-function hostPlatform(): string | undefined {
-    return (globalThis as { process?: { platform?: string } }).process?.platform;
+function hostPlatform(): string | null {
+    return (globalThis as { process?: { platform?: string } }).process?.platform ?? null;
 }
 
 /** Whether `message` describes the host's graphics stack rather than the tree. */
-export function isEnvironmentDiagnostic(message: string, platform: string | undefined = hostPlatform()): boolean {
+export function isEnvironmentDiagnostic(message: string, platform: string | null = hostPlatform()): boolean {
     if (ENVIRONMENT_PREFIXES.some((prefix) => message.startsWith(prefix))) return true;
-    return platform !== undefined && (PLATFORM_MESSAGES[platform] ?? []).includes(message);
+    return platform !== null && (PLATFORM_MESSAGES[platform] ?? []).includes(message);
 }
 
 let installed: DiagnosticsGate | null = null;

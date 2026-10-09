@@ -103,7 +103,7 @@ export default async () => {
             const skipped = 'gdk_frame_timings_presented() called on skipped frame.';
             expect(isEnvironmentDiagnostic(skipped, 'darwin')).toBe(true);
             expect(isEnvironmentDiagnostic(skipped, 'linux')).toBe(false);
-            expect(isEnvironmentDiagnostic(skipped, undefined)).toBe(false);
+            expect(isEnvironmentDiagnostic(skipped, null)).toBe(false);
             expect(isEnvironmentDiagnostic(skipped + ' extra', 'darwin')).toBe(false);
             // The control side, which is the half that makes the vector worth
             // anything: the messages this module was written to catch are NOT
