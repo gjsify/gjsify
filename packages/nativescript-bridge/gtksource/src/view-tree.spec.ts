@@ -10,7 +10,14 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import './builder.js';
 import { GtkSourceBuffer } from '@gjsify/gtksource-core';
-import { GTKSOURCE_BUFFER_VECTORS, type GtkSourceBufferLike } from '@gjsify/gtksource-core/conformance';
+import {
+    GTKSOURCE_BUFFER_VECTORS,
+    GTKSOURCE_VIEW_SURFACE_VECTORS,
+    type GtkSourceBufferLike,
+    type GtkSourceViewSurfaceLike,
+} from '@gjsify/gtksource-core/conformance';
+
+import * as Gtk from '@gjsify/adwaita-nativescript/gtk';
 
 import * as GtkSource from './namespace/gtksource.js';
 import { GtkSourceView } from './view.js';
@@ -53,6 +60,18 @@ export const GtkSourceViewTreeNsTest = async () => {
                 expect(vector.observe(GtkSource as unknown as GtkSourceBufferLike)).toStrictEqual(vector.shows);
             });
         }
+
+        for (const vector of GTKSOURCE_VIEW_SURFACE_VECTORS) {
+            await it(`surface: ${vector.rule}`, () => {
+                expect(vector.observe({ Gtk, GtkSource } as unknown as GtkSourceViewSurfaceLike)).toStrictEqual(
+                    vector.shows,
+                );
+            });
+        }
+
+        await it('refuses get_gutter by name until slice 6', () => {
+            expect(() => new GtkSourceView().get_gutter(Gtk.TextWindowType.LEFT)).toThrow(/get_gutter/);
+        });
 
         await it('answers the GtkWidget layout properties the scrolled window asks it for', () => {
             const view = built().getViewById('sourceView') as unknown as GtkSourceView | undefined;

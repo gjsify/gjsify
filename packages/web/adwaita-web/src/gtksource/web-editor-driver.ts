@@ -163,6 +163,7 @@ export class WebEditorDriver implements EditorDriver {
         area.readOnly = !layout.editable;
         root.classList.toggle('monospace', layout.monospace);
         root.classList.toggle('show-line-numbers', layout.showLineNumbers);
+        root.classList.toggle('cursor-hidden', !layout.cursorVisible);
         root.style.setProperty('--gsv-margin-left', `${layout.leftMargin}px`);
         root.style.setProperty('--gsv-margin-right', `${layout.rightMargin}px`);
         root.style.setProperty('--gsv-margin-top', `${layout.topMargin}px`);

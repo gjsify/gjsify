@@ -20,6 +20,8 @@ export interface EditorLayout {
     readonly monospace: boolean;
     readonly editable: boolean;
     readonly highlightCurrentLine: boolean;
+    /** `GtkTextView:cursor-visible`: whether the insertion cursor is drawn. */
+    readonly cursorVisible: boolean;
     /** The `left-margin` … `bottom-margin` of `Gtk.TextView`, in device-independent pixels. */
     readonly leftMargin: number;
     readonly rightMargin: number;

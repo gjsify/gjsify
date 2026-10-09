@@ -297,7 +297,7 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
             Math.round(layout.bottomMargin * density),
         );
         view.setKeyListener(layout.editable ? this.keyListener : null);
-        view.setCursorVisible(layout.editable);
+        view.setCursorVisible(layout.cursorVisible);
         view.invalidate();
     }
 

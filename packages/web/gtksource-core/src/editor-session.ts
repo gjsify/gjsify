@@ -36,6 +36,7 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         monospace: false,
         editable: true,
         highlightCurrentLine: false,
+        cursorVisible: true,
         leftMargin: 0,
         rightMargin: 0,
         topMargin: 0,
@@ -158,6 +159,7 @@ export class EditorSession extends SignalEmitter implements EditorHost {
             monospace: props.monospace,
             editable: props.editable,
             highlightCurrentLine: props.highlightCurrentLine,
+            cursorVisible: props.cursorVisible,
             leftMargin: props.leftMargin,
             rightMargin: props.rightMargin,
             topMargin: props.topMargin,
@@ -206,6 +208,13 @@ export class EditorSession extends SignalEmitter implements EditorHost {
     }
     set highlightCurrentLine(value: boolean) {
         this.setProp('highlightCurrentLine', value, 'highlight-current-line');
+    }
+
+    get cursorVisible(): boolean {
+        return this.props.cursorVisible;
+    }
+    set cursorVisible(value: boolean) {
+        this.setProp('cursorVisible', value, 'cursor-visible');
     }
 
     get leftMargin(): number {
