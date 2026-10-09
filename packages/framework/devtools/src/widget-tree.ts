@@ -127,13 +127,17 @@ export function widgetIsA(object: unknown, typeName: string): boolean {
  */
 export function activateWidget(widget: Gtk.Widget): boolean {
     const w = widget as unknown as { activate?: () => boolean; get_parent?: () => unknown };
-    // 1. The widget's own default activation (Button/Entry/Toggle/…).
-    if (typeof w.activate === 'function' && w.activate() === true) return true;
-    // 2. Row fallback: reproduce a click on a GtkListBox row — select + activate.
+    const parent = typeof w.get_parent === 'function' ? w.get_parent() : null;
     // `widgetIsA`, not an exact GType: an app's own list-box subclass parents rows
     // exactly the same way, and the exact comparison left those rows undrivable (#1582).
-    const parent = typeof w.get_parent === 'function' ? w.get_parent() : null;
-    if (parent && widgetIsA(parent, 'GtkListBox')) {
+    const inListBox = !!parent && widgetIsA(parent, 'GtkListBox');
+    // 1. The widget's own default activation (Button/Entry/Toggle/…). Skipped for a
+    // row in a list box: AdwActionRow.activate() returns void yet emits `activated`,
+    // and the row-activated emit below makes it re-emit `activated` — a second time.
+    const isListBoxRow = inListBox && widgetIsA(widget, 'GtkListBoxRow');
+    if (!isListBoxRow && typeof w.activate === 'function' && w.activate() === true) return true;
+    // 2. Row fallback: reproduce a click on a GtkListBox row — select + activate.
+    if (inListBox) {
         const box = parent as {
             select_row?: (row: unknown) => void;
             emit?: (signal: string, ...args: unknown[]) => void;
