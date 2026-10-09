@@ -119,3 +119,19 @@ mirrors the Android driver. Like Android it has no word wrap and holds `indent-w
 it. The GJS snake_case manager verbs (`get_default`, `get_language`, `get_scheme`) exist, with vectors run
 against real `gi://GtkSource`. Everything else (`TextIter`, `TextMark`, gutters, the `buffer:` object
 child of a `.blp`) is absent and refused by name. Status unchanged.
+
+## Amendment (2026-10-09): the Buffer surface
+
+`GtkSource.Buffer` on the web and NativeScript doors now answers the GJS verbs Learn6502 calls:
+`get_insert`, `get_selection_bound`, `get_start_iter`, `get_end_iter`, `get_selection_bounds`,
+`get_text(start, end, include_hidden)`, `move_mark`, `insert_at_cursor(text, -1)`, `delete(start, end)`,
+`set_language`, `set_style_scheme`, `cursor_position`, `begin_user_action`, `end_user_action`,
+`undo`, `redo`, `can_undo`, `can_redo`, and `connect_after`. `TextIter` offers `get_offset` and
+`set_offset` (counted in characters, as GTK does; the buffer's own offsets stay UTF-16), and `TextMark`
+offers `name`, for the two marks `insert` and `selection_bound`. The signals `mark-set` (iterator, mark),
+`cursor-moved`, `begin-user-action`, `end-user-action`, `undo` and `redo` are emitted in GTK's order;
+`connect` of any other signal name throws by name. `text =` is not undoable and clears the history; a
+native edit counts as a user action. Undo coalescing across separate edits is not implemented: each
+edit outside a user action is its own step. Vectors (`GTKSOURCE_BUFFER_VECTORS`) run against real
+`gi://GtkSource`, the core, and both doors. Not here: arbitrary marks, tags, `signal_stop_emission_by_name`
+(so a handler cannot veto `mark-set`), and the view-side verbs. Status unchanged.

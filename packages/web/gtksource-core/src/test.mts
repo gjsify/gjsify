@@ -10,6 +10,8 @@ import gutterTestSuite from './gutter.spec.js';
 import managerVectorsTestSuite from './managers-vectors.spec.js';
 import managerOracleTestSuite from './managers-vectors.gjs.spec.js';
 import viewOracleTestSuite from './view-vectors.gjs.spec.js';
+import bufferVectorsTestSuite from './buffer-vectors.spec.js';
+import bufferOracleTestSuite from './buffer-vectors.gjs.spec.js';
 import initTestSuite from './init.spec.js';
 import initOracleTestSuite from './init.gjs.spec.js';
 
@@ -25,6 +27,8 @@ run({
     managerVectorsTestSuite,
     managerOracleTestSuite,
     viewOracleTestSuite,
+    bufferVectorsTestSuite,
+    bufferOracleTestSuite,
     initTestSuite,
     initOracleTestSuite,
 });

@@ -10,6 +10,7 @@ import managersTestSuite from './managers.spec.js';
 import sessionTestSuite from './editor-session.spec.js';
 import gutterTestSuite from './gutter.spec.js';
 import managerVectorsTestSuite from './managers-vectors.spec.js';
+import bufferVectorsTestSuite from './buffer-vectors.spec.js';
 import initTestSuite from './init.spec.js';
 
 run({
@@ -22,5 +23,6 @@ run({
     sessionTestSuite,
     gutterTestSuite,
     managerVectorsTestSuite,
+    bufferVectorsTestSuite,
     initTestSuite,
 });
