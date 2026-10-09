@@ -53,19 +53,17 @@ function byteSlice(text: string, length: number): string {
     return text.slice(0, end);
 }
 
-export interface GutterRenderer {
-    margin_start: number;
-    marginStart: number;
-    margin_end: number;
-    marginEnd: number;
-    width_request: number;
-    widthRequest: number;
-    focusable: boolean;
-    focus_on_click: boolean;
-    focusOnClick: boolean;
-}
-
 export abstract class GutterRenderer {
+    declare margin_start: number;
+    declare marginStart: number;
+    declare margin_end: number;
+    declare marginEnd: number;
+    declare width_request: number;
+    declare widthRequest: number;
+    declare focusable: boolean;
+    declare focus_on_click: boolean;
+    declare focusOnClick: boolean;
+
     private owner: Gutter | null = null;
     private readonly widget = new Map<WidgetPropertyName, number | boolean>(
         WIDGET_PROPERTIES.map(([name, , fallback]) => [name, fallback]),
