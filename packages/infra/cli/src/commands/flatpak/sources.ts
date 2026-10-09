@@ -20,7 +20,10 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Buffer } from 'node:buffer';
+import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../../types/index.js';
+import { planFocus } from '../../utils/install-focus.js';
+import { parseSpecName, readLockfileNodes, reachableInstallPaths } from '../../utils/install-backend-native.js';
 import { FLATPAK_SOURCES_FILE } from './utils.js';
 
 type LockfileType = 'gjsify' | 'npm' | 'yarn' | 'pnpm';
@@ -31,6 +34,7 @@ interface FlatpakSourcesOptions {
     out?: string;
     cacheRoot?: string;
     printModule?: boolean;
+    focus?: string[];
 }
 
 /** One vendored tarball: its download URL + its SRI integrity (`sha512-…`). */
@@ -216,6 +220,25 @@ function defaultLockfile(cwd: string): string {
     return 'gjsify-lock.json'; // surfaces a clear "not found" later
 }
 
+/**
+ * `--focus` (ADR 0102): the tarballs the focused workspace closure installs. The same
+ * `planFocus` + `reachableInstallPaths` pair `gjsify install --focus` uses, so the
+ * Flatpak cache holds exactly what the offline install reads. Workspace-named
+ * packages are dropped as the installer drops them (they are symlinks, not fetches).
+ */
+export function focusedTarballs(lockfile: string, focus: string[]): Tarball[] {
+    const root = dirname(lockfile);
+    const workspaces = discoverWorkspaces(root, { includeRoot: true });
+    const plan = planFocus(workspaces, focus, 'gjsify flatpak sources');
+    const nodes = readLockfileNodes(lockfile);
+    if (!nodes) throw new Error(`gjsify flatpak sources: ${lockfile} is not a readable gjsify-lock.json.`);
+    const reachable = reachableInstallPaths(nodes, plan.specs.map(parseSpecName));
+    const workspaceNames = new Set(workspaces.map((w) => w.name));
+    return nodes
+        .filter((n) => reachable.has(n.installPath) && !workspaceNames.has(n.name))
+        .flatMap((n) => (n.tarballUrl && n.integrity ? [{ url: n.tarballUrl, integrity: n.integrity }] : []));
+}
+
 function parseLockfile(path: string, type: LockfileType): Tarball[] {
     const text = readFileSync(path, 'utf-8');
     if (type === 'yarn') return parseYarnClassic(text);
@@ -260,6 +283,12 @@ export const flatpakSourcesCommand: Command<unknown, FlatpakSourcesOptions> = {
                 type: 'string',
                 default: 'flatpak-gjsify-cache',
             })
+            .option('focus', {
+                description:
+                    'Only the tarballs the named workspaces (package names), the workspaces they depend on, and their external dependencies need, as `gjsify install --focus` installs them. gjsify-lock.json only.',
+                type: 'string',
+                array: true,
+            })
             .option('print-module', {
                 description: 'Also print a ready-to-paste flatpak manifest module snippet to stderr',
                 type: 'boolean',
@@ -277,7 +306,14 @@ export const flatpakSourcesCommand: Command<unknown, FlatpakSourcesOptions> = {
         }
         const type = (args.type as LockfileType | undefined) ?? detectType(lockfile);
 
-        const tarballs = parseLockfile(lockfile, type);
+        const focus = args.focus as string[] | undefined;
+        if (focus && focus.length > 0 && type !== 'gjsify') {
+            throw new Error(
+                `gjsify flatpak sources: --focus reads the per-package edges of gjsify-lock.json; ` +
+                    `${type} lockfiles are not supported with it.`,
+            );
+        }
+        const tarballs = focus && focus.length > 0 ? focusedTarballs(lockfile, focus) : parseLockfile(lockfile, type);
         const cacheRoot = (args.cacheRoot as string | undefined) ?? 'flatpak-gjsify-cache';
 
         // Dedupe by content hash — the same tarball is locked at many install

@@ -321,6 +321,17 @@ export interface NativeInstallOptions extends InstallOptions {
      * been written from the full resolved tree.
      */
     linkedNames?: Set<string>;
+    /**
+     * `--focus` (ADR 0102): the external `"<name>@<range>"` specs of the focused
+     * workspace closure. Only the packages reachable from these are fetched and
+     * extracted. `specs` stays the FULL set, because the drift check compares it
+     * against the lockfile's `requested` and the lockfile stays complete.
+     *
+     * Implies a lockfile-authoritative install: a missing or stale lockfile throws
+     * instead of resolving (a resolve would reach the toolchains the focus excludes),
+     * and nothing is ever written back, so the file cannot become a subset.
+     */
+    focusSpecs?: string[];
 }
 
 export async function installPackagesNative(opts: NativeInstallOptions): Promise<InstalledTopLevel[]> {
@@ -378,24 +389,27 @@ async function installPackagesNativeLocked(
      * resolve nothing.
      */
     let skippedEdges = new Set<string>();
-    if (opts.frozen) {
+    if (opts.frozen || opts.focusSpecs) {
         // --immutable / --frozen: the lockfile is authoritative. Reject a missing,
         // version-mismatched or drifted file — silently honouring a stale lockfile
-        // masks the real dep churn `--immutable` exists to catch.
+        // masks the real dep churn `--immutable` exists to catch. `--focus` is the
+        // same promise without the tree check: it reads the lockfile, never resolves.
+        const flag = opts.frozen ? '--immutable' : '--focus';
+        const retry = opts.frozen ? '(without --immutable)' : '(without --focus)';
         if (!existingLock) {
             throw new Error(
-                `install: --immutable requires ${LOCKFILE_NAME} at ${opts.prefix} — none found. ` +
-                    `Run \`gjsify install\` (without --immutable) to generate one and commit it.`,
+                `install: ${flag} requires ${LOCKFILE_NAME} at ${opts.prefix} — none found. ` +
+                    `Run \`gjsify install\` ${retry} to generate one and commit it.`,
             );
         }
         const drift = describeLockfileDrift(existingLock, opts.specs);
         if (drift) {
             throw new Error(
-                `install: --immutable but ${lockfilePath} is stale.\n${drift}\n` +
-                    `Re-run \`gjsify install\` (without --immutable) to refresh the lockfile.`,
+                `install: ${flag} but ${lockfilePath} is stale.\n${drift}\n` +
+                    `Re-run \`gjsify install\` ${retry} to refresh the lockfile.`,
             );
         }
-        log('install: --immutable, using lockfile (%d package(s))', Object.keys(existingLock.packages).length);
+        log('install: %s, using lockfile (%d package(s))', flag, Object.keys(existingLock.packages).length);
         nodes = lockfileToNodes(existingLock);
         // ...and the tree must hold NOTHING ELSE. The installer only adds, so without
         // this an undescribed package survives the install and exits 0 — the CI cache
@@ -403,8 +417,16 @@ async function installPackagesNativeLocked(
         // Before the download so a wrong tree costs seconds, not the extract phase,
         // and with the FULL lockfile set: the workspace filter below removes nodes
         // that ARE described, and judging against the smaller set would call them
-        // strangers.
-        assertNoExtraneous(opts.prefix, nodes);
+        // strangers. `--focus` alone skips it: a tree an earlier full install left is
+        // not extraneous, and nothing here promises the tree matches the lockfile.
+        if (opts.frozen) assertNoExtraneous(opts.prefix, nodes);
+        // The focus narrows AFTER the extraneous check, which judges the full set, and
+        // before the optional-flag fixpoint, which must see only what will be installed.
+        if (opts.focusSpecs) {
+            const reachable = reachableInstallPaths(nodes, opts.focusSpecs.map(parseSpecName));
+            log('install: --focus keeps %d of %d lockfile package(s)', reachable.size, nodes.length);
+            nodes = nodes.filter((n) => reachable.has(n.installPath));
+        }
     } else if (
         !opts.refreshLockfile &&
         existingLock &&
@@ -471,7 +493,7 @@ async function installPackagesNativeLocked(
     // before `writeLockfile` (so the persisted flag is final), before the platform
     // verdict (which reads it for fatal vs. inert), and before the workspace filter
     // below (which removes nodes and would truncate the walk).
-    computeOptionalFlags(nodes, requiredTopLevelNames(opts.specs, opts.optionalSpecs), log);
+    computeOptionalFlags(nodes, requiredTopLevelNames(opts.focusSpecs ?? opts.specs, opts.optionalSpecs), log);
     assertRequiredEdgesResolved(nodes, skippedEdges);
 
     if (resolved && opts.lockfile) {
@@ -708,7 +730,7 @@ function topLevelResolutions(specs: string[], nodes: ResolvedNode[]): InstalledT
     return out;
 }
 
-function parseSpecName(spec: string): string {
+export function parseSpecName(spec: string): string {
     if (spec.startsWith('@')) {
         const slash = spec.indexOf('/');
         if (slash === -1) return spec;
@@ -1293,6 +1315,47 @@ export function computeOptionalFlags(nodes: ResolvedNode[], requiredNames: Set<s
         nodes.length,
         corrected > 0 ? `; corrected ${corrected} incoming flag(s)` : '',
     );
+}
+
+/**
+ * The `installPath`s reachable from the top-level packages named in `seedNames`, through
+ * `dependencies`, `optionalDependencies` and REQUIRED peers — what `--focus` (ADR 0102)
+ * keeps. Optional edges are followed on purpose: whether one installs is a per-host
+ * verdict (`applyPlatformFilter`), and a closure that left them out would depend on the
+ * host that computed it. An optional peer is not an edge, as the resolver never places it.
+ *
+ * Same walk as {@link computeOptionalFlags} — seeds are exact because a top-level spec
+ * always takes the root slot, and an edge resolves through {@link findVisible} the way
+ * the requester will at runtime. A seed with no placement is a workspace member (its
+ * symlink is wired elsewhere) or a name absent from the lockfile; both are skipped.
+ */
+export function reachableInstallPaths(nodes: readonly ResolvedNode[], seedNames: Iterable<string>): Set<string> {
+    const byPath = new Map<string, ResolvedNode>();
+    for (const node of nodes) byPath.set(node.installPath, node);
+
+    const reached = new Set<string>();
+    const worklist: ResolvedNode[] = [];
+    const enter = (node: ResolvedNode | null | undefined): void => {
+        if (!node || reached.has(node.installPath)) return;
+        reached.add(node.installPath);
+        worklist.push(node);
+    };
+    for (const name of seedNames) enter(byPath.get(`node_modules/${name}`));
+    for (let node = worklist.pop(); node; node = worklist.pop()) {
+        const edges = [
+            ...Object.keys(node.dependencies),
+            ...Object.keys(node.optionalDependencies),
+            ...requiredPeerEntries(node).map(([name]) => name),
+        ];
+        for (const name of edges) enter(findVisible(node.installPath, name, byPath));
+    }
+    return reached;
+}
+
+/** The nodes the lockfile at `lockfilePath` describes, or null when it is missing or unreadable. */
+export function readLockfileNodes(lockfilePath: string): ResolvedNode[] | null {
+    const lock = readLockfile(lockfilePath);
+    return lock ? lockfileToNodes(lock) : null;
 }
 
 /**

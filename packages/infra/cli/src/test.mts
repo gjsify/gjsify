@@ -139,6 +139,7 @@ import jsxConfigSuite from './utils/jsx-config.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import prunePrefixSuite from './utils/prune-prefix.spec.js';
 import installExtraneousSuite from './utils/install-extraneous.spec.js';
+import installFocusSuite from './utils/install-focus.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
@@ -396,6 +397,7 @@ run(
         nodeBundleGuardSuite,
         prunePrefixSuite,
         installExtraneousSuite,
+        installFocusSuite,
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
         doubleDashArgsSuite,

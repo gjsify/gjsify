@@ -33,6 +33,7 @@ import { acquireInstallLock } from '../utils/install-lock.js';
 import { nodeBinary } from '../utils/run-node.js';
 import { spawnToCompletion } from '../utils/spawn.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { planFocus } from '../utils/install-focus.js';
 import {
     binDirOnPath,
     BUNDLER_ENGINE_PACKAGE,
@@ -92,6 +93,7 @@ interface InstallOptions {
     immutable?: boolean;
     prune?: boolean;
     'refresh-lockfile'?: boolean;
+    focus?: string[];
     verbose: boolean;
     quiet?: boolean;
     progress?: boolean;
@@ -140,6 +142,12 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'Re-resolve every dependency to the newest version satisfying its range and rewrite the lockfile (bumps in-range transitive deps). Without it, a resolve preserves versions already pinned in the lockfile and only resolves new/changed deps — the npm/yarn/pnpm default. Mirrors yarn install --mode=update-lockfile.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('focus', {
+                description:
+                    'Install only the named workspaces (package names), the workspaces they depend on, and their external dependencies, as if they were the only members of the monorepo (yarn workspaces focus). Reads gjsify-lock.json and never rewrites it; fails if it is missing or stale. Workspace projects only.',
+                type: 'string',
+                array: true,
             })
             .option('verbose', {
                 description: 'Verbose install logging.',
@@ -748,6 +756,11 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
         throw new Error(`gjsify install: ${cwd} has a "workspaces" field but no workspaces were discovered`);
     }
     const byName = new Map(workspaces.map((w) => [w.name, w] as const));
+    // `--focus`: the members that are installed. The lockfile and its drift check
+    // still cover EVERY member (ADR 0102 § 2), so `externalSpecs` below stays the full set.
+    const focusPlan =
+        args.focus && args.focus.length > 0 ? planFocus(workspaces, args.focus, 'gjsify install') : undefined;
+    const active = focusPlan ? new Set(focusPlan.workspaces) : undefined;
     const externalSpecs = new Set<string>();
     // `"<name>@<range>"` → the members that declared it. Feeds the resolver's
     // version-conflict warning so it can attribute both sides of a conflict.
@@ -778,6 +791,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
                     // Only an EXPLICIT out-of-workspace protocol opts out.
                     const explicitOverride = /^(link|file|portal|git\+|https?):/.test(spec);
                     if (!explicitOverride) {
+                        if (active && !active.has(ws)) continue;
                         symlinks.push({
                             fromWorkspaceName: ws.name,
                             depName,
@@ -822,7 +836,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
     // the workspace without its runner shim (`node_modules/.bin/gjsify`), and a
     // stale shim is refreshed even when a later phase aborts. Rewritten at the end
     // of this function so the GJS preamble reflects the installed tree.
-    writeWorkspaceBinShims(cwd, workspaces);
+    writeWorkspaceBinShims(cwd, focusPlan?.workspaces ?? workspaces);
 
     // Per-requester links (`<requester>/node_modules/<dep>`) plus a root hoist of
     // every workspace into `node_modules/<name>`, so transitive workspace deps
@@ -886,7 +900,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
         // runtime with `Module not found`.
         const rootBinDir = join(cwd, 'node_modules');
         let rootHoisted = 0;
-        for (const ws of workspaces) {
+        for (const ws of focusPlan?.workspaces ?? workspaces) {
             // The root workspace cannot symlink itself into its own node_modules.
             if (ws.location === cwd) continue;
             if (!ws.name) continue;
@@ -937,7 +951,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
     const wsLocalSpecs = new Map<string, Set<string>>(); // wsLocation → name@range set
     const droppedFromExternal = new Set<string>();
     if (extracted && extracted.scoped.size > 0) {
-        for (const ws of workspaces) {
+        for (const ws of focusPlan?.workspaces ?? workspaces) {
             const wsManifest = ws.manifest;
             for (const kind of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
                 const deps = wsManifest[kind] as Record<string, string> | undefined;
@@ -1006,6 +1020,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
             // Aggregated over EVERY member, because the specs are: a name any member
             // declares as a plain dependency stays required.
             optionalSpecs: optionalDependencyNames(workspaces.map((w) => w.manifest as PackageJson)),
+            focusSpecs: focusPlan?.specs,
         };
         await installPackages(rootOpts);
     } else if (args.verbose) {
@@ -1050,7 +1065,7 @@ async function workspaceInstallLocked(cwd: string, args: InstallOptions, signal?
     // fresh checkout `detectNativePackages` finds nothing before extraction).
     // Running last also keeps workspace shims authoritative over any same-named
     // external bin the backend linked — yarn semantics: workspace bins win.
-    const wsBinsCreated = writeWorkspaceBinShims(cwd, workspaces);
+    const wsBinsCreated = writeWorkspaceBinShims(cwd, focusPlan?.workspaces ?? workspaces);
     if (wsBinsCreated > 0) {
         console.log(`gjsify install: linked ${wsBinsCreated} workspace bin(s) into node_modules/.bin/`);
     }
