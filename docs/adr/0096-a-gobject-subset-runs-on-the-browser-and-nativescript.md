@@ -11,6 +11,7 @@
   [ADR 0093 (template constructs per renderer)](0093-template-constructs-are-carried-and-each-renderer-declares-what-it-builds.md)
 - Amended by [ADR 0098](0098-a-minimal-application-runs-on-the-browser-and-nativescript.md) § 1: `vfunc_*`
   is no longer refused as a block; each one is unlocked on its own (§ 2 row `vfunc_*`, § 3 item 1).
+- Amended by Amendment 1 below: `signal_stop_emission_by_name` enters the subset.
 - Completes: the "NOT done" items of ADR 0093 Progress rows 3 and 4 (the scope defaulting to the
   template instance, a `template` bind source, the bind flags). Extends ADR 0070 § 1 by one exit.
 
@@ -104,7 +105,8 @@ subset is what the gap report lists, and nothing it does not list.**
 | `this.notify(name)`, `connect`/`disconnect`/`emit` on a registered instance, `connect('notify::x')` | implemented, for the class's own properties and signals and for those of the port widget it extends |
 | `GObject.type_ensure(klass.$gtype)` | implemented: `$gtype` is an opaque token, and `type_ensure` only proves the class module was evaluated, which is all Learn6502 uses it for |
 | `vfunc_*` | refused at registration, naming the method, unless ADR 0098 § 1 has unlocked it (amended). Unlocking is per vfunc, in the port's own PR, with a vector |
-| `GObject.Value`, `signal_stop_emission_by_name` | out of this subset. Both appear only beside clipboard and GtkSource code, which have their own decisions (ADR 0094; the clipboard as `navigator.clipboard`) |
+| `GObject.Value` | out of this subset. It appears only beside clipboard and GtkSource code, which have their own decisions (ADR 0094; the clipboard as `navigator.clipboard`) |
+| `signal_stop_emission_by_name` | implemented (Amendment 1) |
 
 The binding engine implements `SYNC_CREATE`, `BIDIRECTIONAL` and `INVERT_BOOLEAN`, because the
 template builders need them. The public `bind_property` method is not exported until a consumer
@@ -232,3 +234,23 @@ Tracked in `status/open-todos/adwaita-core.md`. One PR, a commit per step: the c
 vectors (the oracle first); the NativeScript door; the web door; the `?template` exit with the
 build-time check; the `GI_RENDERERS` row and the e2e arm. The first consumer is one Learn6502
 component, converted in its own repository once a release carries this.
+
+## Amendment 1: `signal_stop_emission_by_name`
+
+Learn6502's `SourceView` calls it from the handlers of `extend-selection` and `mark-set`, which is the
+"consumer being converted" § 2 asks for. Status unchanged.
+
+- `GObject.signal_stop_emission_by_name(instance, detailed_signal)` stops the innermost emission in
+  progress of that signal on that instance (`g_signal_stop_emission`): handlers connected after the
+  current one do not run, and the next emission runs all of them. `notify::<prop>` is a signal here, with
+  the property's aliases as for `connect`.
+- With no emission of it in progress, or a name the instance does not have, GLib warns and does nothing;
+  so does this (`console.warn`). A stop never outlives its emission. A nested emission of the same signal
+  is stopped on its own; the outer one goes on.
+- Scope: signals of a registered class (`Signals`, `notify::`). An object of no registered class (the
+  GtkSource ones) throws `UnsupportedGObjectError` naming it, until the port that emits those signals
+  has a stoppable dispatch.
+- Not carried: `connect_after`, `signal_handler_block`/`unblock`, `GObject.Value`. Learn6502 calls
+  `connect_after` only on GtkSource objects, which are not registered classes; the registry has no
+  class-closure or after stage to order them against.
+- Vectors: two rows of `instance API` in `GOBJECT_VECTORS`, held by real `gi://GObject` first.

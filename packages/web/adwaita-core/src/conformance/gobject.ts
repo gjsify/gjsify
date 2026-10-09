@@ -276,6 +276,84 @@ export const GOBJECT_VECTORS: readonly GObjectVector[] = [
         },
     },
     {
+        row: 'instance API',
+        rule: 'signal_stop_emission_by_name stops the emission in progress: later handlers do not run, the next emission runs all',
+        holds: 'oracle',
+        observe(s) {
+            const { GObject: G } = s;
+            const { ParamSpec: P, ParamFlags: F } = G;
+            const K = G.registerClass(
+                {
+                    GTypeName: 'GoVecStopEmission',
+                    Properties: { code: P.string('code', '', '', F.READWRITE, '') },
+                    Signals: { ping: { param_types: [] } },
+                },
+                class extends G.Object {},
+            );
+            const o = new K();
+            const seen: string[] = [];
+            let stop = true;
+            o.connect('ping', () => {
+                seen.push('a');
+                if (stop) G.signal_stop_emission_by_name(o, 'ping');
+            });
+            o.connect('ping', () => seen.push('b'));
+            o.emit('ping');
+            const stopped = seen.join('');
+            seen.length = 0;
+            stop = false;
+            o.emit('ping');
+            const next = seen.join('');
+            const notified: string[] = [];
+            o.connect('notify::code', () => {
+                notified.push('a');
+                G.signal_stop_emission_by_name(o, 'notify::code');
+            });
+            o.connect('notify::code', () => notified.push('b'));
+            o.code = 'x';
+            return { stopped, next, notified: notified.join('') };
+        },
+        shows: { stopped: 'a', next: 'ab', notified: 'a' },
+    },
+    {
+        row: 'instance API',
+        rule: 'signal_stop_emission_by_name stops only the innermost emission of ITS signal; with none in progress it does nothing and leaves nothing behind',
+        holds: 'oracle',
+        observe(s) {
+            const { GObject: G } = s;
+            const K = G.registerClass(
+                { GTypeName: 'GoVecStopNested', Signals: { ping: { param_types: [] }, pong: { param_types: [] } } },
+                class extends G.Object {},
+            );
+            const o = new K();
+            const idle = attempt(() => G.signal_stop_emission_by_name(o, 'ping'));
+            const seen: string[] = [];
+            let depth = 0;
+            o.connect('ping', () => {
+                seen.push(`a${depth}`);
+                if (depth === 0) {
+                    depth = 1;
+                    o.emit('ping');
+                    depth = 0;
+                } else {
+                    G.signal_stop_emission_by_name(o, 'ping');
+                }
+            });
+            o.connect('ping', () => seen.push(`b${depth}`));
+            o.emit('ping');
+            const nested = seen.join(',');
+            seen.length = 0;
+            o.connect('pong', () => {
+                seen.push('p');
+                G.signal_stop_emission_by_name(o, 'ping');
+            });
+            o.connect('pong', () => seen.push('q'));
+            o.emit('pong');
+            return { idleThrows: idle !== null, nested, otherSignal: seen.join('') };
+        },
+        shows: { idleThrows: false, nested: 'a0,a1,b0', otherSignal: 'pq' },
+    },
+    {
         row: 'field-form',
         rule: 'meta given as static symbol fields registers like the meta object (GJS only copies the object onto them)',
         holds: 'oracle',

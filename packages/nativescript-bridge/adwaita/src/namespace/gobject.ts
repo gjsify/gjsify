@@ -167,6 +167,7 @@ const {
     __gtkChildren__,
     __gtkInternalChildren__,
     type_ensure,
+    signal_stop_emission_by_name,
 } = created;
 
 export {
@@ -190,4 +191,5 @@ export {
     __gtkChildren__,
     __gtkInternalChildren__,
     type_ensure,
+    signal_stop_emission_by_name,
 };
