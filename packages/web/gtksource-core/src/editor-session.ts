@@ -72,7 +72,7 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         // Connected BEFORE the controller, so the widget's text is up to date when spans are painted onto it.
         this.bufferHandlers.push(
             buffer.connect('changed', (_buffer, edit: TextEdit) => this.onBufferChanged(edit)),
-            buffer.connect('mark-set', (_buffer, offset: number) => this.onBufferCursor(offset)),
+            buffer.connect('mark-set', () => this.onBufferCursor()),
         );
         this.mirroring = true;
         try {
@@ -98,9 +98,9 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         if (edit.insertedLines !== edit.removedLines) this.driver.setLineCount(this.current.lineCount);
     }
 
-    private onBufferCursor(offset: number): void {
+    private onBufferCursor(): void {
         if (this.fromNative || this.mirroring) return;
-        this.driver.setSelection(offset, offset);
+        this.driver.setSelection(this.current.selectionBoundPosition, this.current.cursorPosition);
     }
 
     // --- EditorHost: what the user did ---------------------------------------------------------
@@ -108,10 +108,13 @@ export class EditorSession extends SignalEmitter implements EditorHost {
     onNativeEdit(start: number, removedLength: number, inserted: string): void {
         if (this.mirroring) return;
         this.fromNative = true;
+        // A native edit is what GTK calls a user action: `end-user-action` is how a consumer hears of it.
+        this.current.begin_user_action();
         try {
             this.current.replace(start, start + removedLength, inserted);
         } finally {
             this.fromNative = false;
+            this.current.end_user_action();
         }
         if (this.props.autoIndent && inserted === '\n') {
             // The line the newline ended is the one whose indentation carries over.
@@ -123,10 +126,16 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         }
     }
 
-    onNativeSelection(_start: number, end: number): void {
+    onNativeSelection(start: number, end: number): void {
         if (this.mirroring) return;
         // Android reports the selection while a text change is still settling; clamp rather than throw into the platform.
-        this.current.placeCursor(Math.min(Math.max(0, end), this.current.length));
+        const clamp = (n: number): number => Math.min(Math.max(0, n), this.current.length);
+        this.fromNative = true;
+        try {
+            this.current.selectRange(clamp(end), clamp(start));
+        } finally {
+            this.fromNative = false;
+        }
     }
 
     // --- properties -----------------------------------------------------------------------------

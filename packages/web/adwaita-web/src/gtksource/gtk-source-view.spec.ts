@@ -1,11 +1,23 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { GTKSOURCE_VIEW_DEFAULT_VECTORS } from '@gjsify/gtksource-core/conformance';
+import {
+    GTKSOURCE_BUFFER_VECTORS,
+    GTKSOURCE_VIEW_DEFAULT_VECTORS,
+    type GtkSourceBufferLike,
+} from '@gjsify/gtksource-core/conformance';
+
+import * as GtkSource from '../namespace/gtksource.js';
 
 import './gtk-source-view.js';
 import { GtkSourceView } from './gtk-source-view.js';
 
 export const GtkSourceViewTest = async () => {
     await describe('<gtk-source-view>: GtkSource.View', async () => {
+        for (const vector of GTKSOURCE_BUFFER_VECTORS) {
+            await it(`GtkSource.Buffer: ${vector.rule}`, () => {
+                expect(vector.observe(GtkSource as unknown as GtkSourceBufferLike)).toStrictEqual(vector.shows);
+            });
+        }
+
         for (const vector of GTKSOURCE_VIEW_DEFAULT_VECTORS) {
             await it(`${vector.property} defaults to ${vector.shows}`, () => {
                 const view = new GtkSourceView();

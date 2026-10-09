@@ -9,6 +9,7 @@
 import type { Language } from './language-manager.js';
 import { SignalEmitter } from './signals.js';
 import type { StyleScheme } from './style-scheme.js';
+import { TextIter, TextMark } from './text-iter.js';
 
 /** What `changed` carries: one contiguous replacement. */
 export interface TextEdit {
@@ -27,6 +28,29 @@ export interface BufferProps {
     highlightSyntax?: boolean;
 }
 
+/** One undoable step: the edits of a user action, or a single edit made outside one. */
+interface UndoGroup {
+    readonly edits: TextEdit[];
+    readonly before: number;
+}
+
+// What `connect` accepts; the rest of GtkSource.Buffer's signals are refused by name.
+const BUFFER_SIGNALS: ReadonlySet<string> = new Set([
+    'changed',
+    'mark-set',
+    'begin-user-action',
+    'end-user-action',
+    'undo',
+    'redo',
+    'cursor-moved',
+    'notify::language',
+    'notify::style-scheme',
+    'notify::highlight-syntax',
+    'notify::cursor-position',
+    'notify::can-undo',
+    'notify::can-redo',
+]);
+
 // Named by its GIR name, like `GtkSourceView`: the shared-tree builder refuses a barrel member
 // whose class name is not the tag the `.blp` wrote. `Buffer` stays the name code imports.
 export class GtkSourceBuffer extends SignalEmitter {
@@ -35,6 +59,16 @@ export class GtkSourceBuffer extends SignalEmitter {
     private lineStarts: number[] = [0];
     private startsValidTo = 1;
     private cursor = 0;
+    private bound = 0;
+    private readonly insertMark = new TextMark('insert');
+    private readonly boundMark = new TextMark('selection_bound');
+    private undoStack: UndoGroup[] = [];
+    private redoStack: UndoGroup[] = [];
+    private open: UndoGroup | null = null;
+    private depth = 0;
+    private recording = true;
+    private reportedUndo = false;
+    private reportedRedo = false;
     private lang: Language | null = null;
     private scheme: StyleScheme | null = null;
     private highlight = true;
@@ -55,8 +89,18 @@ export class GtkSourceBuffer extends SignalEmitter {
      * insert mark ends after the new text, so the cursor lands at the end.
      */
     set text(value: string) {
-        this.replace(0, this.length, value ?? '');
-        this.placeCursor(this.length);
+        // Like `gtk_text_buffer_set_text` on a GtkSource.Buffer, it is not undoable and drops the history.
+        this.recording = false;
+        try {
+            this.replace(0, this.length, value ?? '');
+            this.placeCursor(this.length);
+        } finally {
+            this.recording = true;
+        }
+        this.undoStack = [];
+        this.redoStack = [];
+        if (this.open) this.open.edits.length = 0;
+        this.syncUndoState();
     }
 
     get length(): number {
@@ -114,8 +158,15 @@ export class GtkSourceBuffer extends SignalEmitter {
         this.replace(offset, offset, text);
     }
 
-    delete(start: number, end: number): void {
-        this.replace(start, end, '');
+    /** Offsets in UTF-16 units, or the two `TextIter`s of `gtk_text_buffer_delete` (any order). */
+    delete(start: number | TextIter, end: number | TextIter): void {
+        if (typeof start === 'number' && typeof end === 'number') {
+            this.replace(start, end, '');
+            return;
+        }
+        const a = typeof start === 'number' ? start : this.ownIter(start, 'delete');
+        const b = typeof end === 'number' ? end : this.ownIter(end, 'delete');
+        this.replace(Math.min(a, b), Math.max(a, b), '');
     }
 
     /** The one mutation every other one goes through. An edit that changes nothing emits nothing. */
@@ -140,18 +191,27 @@ export class GtkSourceBuffer extends SignalEmitter {
         this.startsValidTo = Math.min(this.startsValidTo, first + 1);
 
         const oldCursor = this.cursor;
-        if (oldCursor >= end) this.cursor = oldCursor - removedText.length + text.length;
-        else if (oldCursor > start) this.cursor = start + text.length;
+        const shift = (position: number): number =>
+            position >= end
+                ? position - removedText.length + text.length
+                : position > start
+                  ? start + text.length
+                  : position;
+        this.cursor = shift(this.cursor);
+        this.bound = shift(this.bound);
 
-        this.emit('changed', {
+        const edit: TextEdit = {
             start,
             removedText,
             insertedText: text,
             firstLine: first,
             removedLines: last - first + 1,
             insertedLines: replacement.length,
-        } satisfies TextEdit);
-        if (this.cursor !== oldCursor) this.emitCursor();
+        };
+        this.record(edit, oldCursor);
+        this.emit('changed', edit);
+        if (this.cursor !== oldCursor) this.emit('notify::cursor-position');
+        this.emit('cursor-moved');
     }
 
     /** `GtkTextBuffer:cursor-position`. */
@@ -159,17 +219,193 @@ export class GtkSourceBuffer extends SignalEmitter {
         return this.cursor;
     }
 
-    /** Moves the insert mark; emits `mark-set` and `notify::cursor-position` when it moved. */
-    placeCursor(offset: number): void {
-        this.checkOffset(offset);
-        if (offset === this.cursor) return;
-        this.cursor = offset;
-        this.emitCursor();
+    /** The GJS spelling of `GtkTextBuffer:cursor-position`, in characters like `TextIter.get_offset`. */
+    get cursor_position(): number {
+        return new TextIter(this, this.cursor).get_offset();
     }
 
-    private emitCursor(): void {
-        this.emit('mark-set', this.cursor, 'insert');
+    /** Where `selection_bound` is; equal to `cursorPosition` when nothing is selected. */
+    get selectionBoundPosition(): number {
+        return this.bound;
+    }
+
+    /** Moves both marks like `gtk_text_buffer_select_range`; a mark already there is left alone. */
+    selectRange(cursor: number, bound: number): void {
+        this.checkOffset(cursor);
+        this.checkOffset(bound);
+        if (cursor !== this.cursor) this.moveInsert(cursor);
+        if (bound !== this.bound) this.moveBound(bound);
+    }
+
+    /** Collapses the selection onto `offset`. */
+    placeCursor(offset: number): void {
+        this.selectRange(offset, offset);
+    }
+
+    // `move_mark` always reports, even when the mark does not move; the edit-driven paths do not.
+    private moveInsert(offset: number): void {
+        this.cursor = offset;
+        this.emit('mark-set', new TextIter(this, offset), this.insertMark);
+        this.emit('cursor-moved');
         this.emit('notify::cursor-position');
+    }
+
+    private moveBound(offset: number): void {
+        this.bound = offset;
+        this.emit('mark-set', new TextIter(this, offset), this.boundMark);
+    }
+
+    // --- the GJS surface -----------------------------------------------------------------------
+
+    get_insert(): TextMark {
+        return this.insertMark;
+    }
+
+    get_selection_bound(): TextMark {
+        return this.boundMark;
+    }
+
+    get_start_iter(): TextIter {
+        return new TextIter(this, 0);
+    }
+
+    get_end_iter(): TextIter {
+        return new TextIter(this, this.length);
+    }
+
+    /** `[has_selection, start, end]`, start before end whichever mark is which. */
+    get_selection_bounds(): [boolean, TextIter, TextIter] {
+        const low = Math.min(this.cursor, this.bound);
+        const high = Math.max(this.cursor, this.bound);
+        return [low !== high, new TextIter(this, low), new TextIter(this, high)];
+    }
+
+    /** The buffer has no tags, so no text is hidden and `include_hidden` changes nothing. */
+    get_text(start: TextIter, end: TextIter, _includeHidden: boolean): string {
+        const a = this.ownIter(start, 'get_text');
+        const b = this.ownIter(end, 'get_text');
+        return this.getText(Math.min(a, b), Math.max(a, b));
+    }
+
+    move_mark(mark: TextMark, where: TextIter): void {
+        const offset = this.ownIter(where, 'move_mark');
+        if (mark === this.insertMark) this.moveInsert(offset);
+        else if (mark === this.boundMark) this.moveBound(offset);
+        else throw new Error("GtkSource.Buffer.move_mark: only the 'insert' and 'selection_bound' marks exist");
+    }
+
+    /** Only `len` -1 (the whole string): GTK counts bytes there, and nothing here needs a prefix. */
+    insert_at_cursor(text: string, len: number): void {
+        if (len !== -1) throw new Error('GtkSource.Buffer.insert_at_cursor: only len -1 is implemented');
+        this.insert(this.cursor, text);
+    }
+
+    set_language(language: Language | null): void {
+        this.language = language;
+    }
+
+    set_style_scheme(scheme: StyleScheme | null): void {
+        this.styleScheme = scheme;
+    }
+
+    // --- user actions and history --------------------------------------------------------------
+
+    /** Edits between the outermost begin and its end are one undo step. */
+    begin_user_action(): void {
+        if (this.depth++ > 0) return;
+        this.open = { edits: [], before: this.cursor };
+        this.emit('begin-user-action');
+    }
+
+    end_user_action(): void {
+        if (this.depth === 0) return;
+        if (--this.depth > 0) return;
+        const group = this.open;
+        this.open = null;
+        if (group && group.edits.length > 0) this.push(group);
+        this.emit('end-user-action');
+    }
+
+    get can_undo(): boolean {
+        return this.undoStack.length > 0;
+    }
+
+    get can_redo(): boolean {
+        return this.redoStack.length > 0;
+    }
+
+    undo(): void {
+        const group = this.depth === 0 ? this.undoStack.pop() : undefined;
+        if (!group) return;
+        this.emit('undo');
+        this.applyHistory(() => {
+            for (const edit of [...group.edits].reverse()) {
+                this.replace(edit.start, edit.start + edit.insertedText.length, edit.removedText);
+            }
+        });
+        this.moveInsert(group.before);
+        this.moveBound(group.before);
+        this.redoStack.push(group);
+        this.syncUndoState();
+    }
+
+    redo(): void {
+        const group = this.depth === 0 ? this.redoStack.pop() : undefined;
+        if (!group) return;
+        this.emit('redo');
+        this.applyHistory(() => {
+            for (const edit of group.edits)
+                this.replace(edit.start, edit.start + edit.removedText.length, edit.insertedText);
+        });
+        const last = group.edits[group.edits.length - 1];
+        const after = last.start + last.insertedText.length;
+        this.moveInsert(after);
+        this.moveBound(after);
+        this.undoStack.push(group);
+        this.syncUndoState();
+    }
+
+    private applyHistory(apply: () => void): void {
+        this.recording = false;
+        try {
+            apply();
+        } finally {
+            this.recording = true;
+        }
+    }
+
+    private record(edit: TextEdit, cursorBefore: number): void {
+        if (!this.recording) return;
+        this.redoStack = [];
+        if (this.open) this.open.edits.push(edit);
+        else this.push({ edits: [edit], before: cursorBefore });
+    }
+
+    private push(group: UndoGroup): void {
+        this.undoStack.push(group);
+        this.syncUndoState();
+    }
+
+    private syncUndoState(): void {
+        const undo = this.can_undo;
+        const redo = this.can_redo;
+        const undoChanged = undo !== this.reportedUndo;
+        const redoChanged = redo !== this.reportedRedo;
+        this.reportedUndo = undo;
+        this.reportedRedo = redo;
+        if (undoChanged) this.emit('notify::can-undo');
+        if (redoChanged) this.emit('notify::can-redo');
+    }
+
+    protected override checkSignal(name: string): void {
+        if (!BUFFER_SIGNALS.has(name)) throw new Error(`GtkSource.Buffer: signal '${name}' is not implemented`);
+    }
+
+    private ownIter(iter: TextIter, verb: string): number {
+        if (!(iter instanceof TextIter) || iter.source !== this) {
+            throw new TypeError(`GtkSource.Buffer.${verb}: the iterator belongs to another buffer`);
+        }
+        return iter.utf16Offset;
     }
 
     /** `GtkSource.Buffer:language` — what to highlight with; `null` highlights nothing. */
@@ -213,3 +449,4 @@ export class GtkSourceBuffer extends SignalEmitter {
 }
 
 export { GtkSourceBuffer as Buffer };
+export { TextIter, TextMark } from './text-iter.js';

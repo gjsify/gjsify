@@ -8,11 +8,27 @@ type Handler = (...args: never[]) => void;
 let nextHandlerId = 1;
 
 export class SignalEmitter {
-    private readonly handlers = new Map<number, { readonly name: string; readonly callback: Handler }>();
+    private readonly handlers = new Map<
+        number,
+        { readonly name: string; readonly callback: Handler; readonly after: boolean }
+    >();
 
     connect(name: string, callback: (self: this, ...args: never[]) => void): number {
+        return this.add(name, callback, false);
+    }
+
+    /** `g_signal_connect_after`: runs once every plain handler of the emission has run. */
+    connect_after(name: string, callback: (self: this, ...args: never[]) => void): number {
+        return this.add(name, callback, true);
+    }
+
+    /** An emitter that knows its signals overrides this and throws for a name it does not have. */
+    protected checkSignal(_name: string): void {}
+
+    private add(name: string, callback: (self: this, ...args: never[]) => void, after: boolean): number {
+        this.checkSignal(name);
         const id = nextHandlerId++;
-        this.handlers.set(id, { name, callback: callback as unknown as Handler });
+        this.handlers.set(id, { name, callback: callback as unknown as Handler, after });
         return id;
     }
 
@@ -23,8 +39,11 @@ export class SignalEmitter {
 
     protected emit(name: string, ...args: unknown[]): void {
         // A snapshot, so a handler may disconnect itself or others while the signal runs.
-        for (const handler of Array.from(this.handlers.values())) {
-            if (handler.name === name) (handler.callback as (...a: unknown[]) => void)(this, ...args);
+        const snapshot = Array.from(this.handlers.values()).filter((handler) => handler.name === name);
+        for (const after of [false, true]) {
+            for (const handler of snapshot) {
+                if (handler.after === after) (handler.callback as (...a: unknown[]) => void)(this, ...args);
+            }
         }
     }
 }

@@ -10,6 +10,9 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import './builder.js';
 import { GtkSourceBuffer } from '@gjsify/gtksource-core';
+import { GTKSOURCE_BUFFER_VECTORS, type GtkSourceBufferLike } from '@gjsify/gtksource-core/conformance';
+
+import * as GtkSource from './namespace/gtksource.js';
 import { GtkSourceView } from './view.js';
 
 import tree from './fixtures/source-view.blp?shared-tree';
@@ -44,6 +47,12 @@ export const GtkSourceViewTreeNsTest = async () => {
             expect(view?.buffer.text).toBe('LDA #$01\nSTA $0200');
             expect(view?.buffer.highlightSyntax).toBe(false);
         });
+
+        for (const vector of GTKSOURCE_BUFFER_VECTORS) {
+            await it(`GtkSource.Buffer: ${vector.rule}`, () => {
+                expect(vector.observe(GtkSource as unknown as GtkSourceBufferLike)).toStrictEqual(vector.shows);
+            });
+        }
 
         await it('answers the GtkWidget layout properties the scrolled window asks it for', () => {
             const view = built().getViewById('sourceView') as unknown as GtkSourceView | undefined;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { Buffer } from './buffer.js';
-import type { TextEdit } from './buffer.js';
+import type { TextEdit, TextIter, TextMark } from './buffer.js';
 
 export default async () => {
     await describe('gtksource-core: Buffer', async () => {
@@ -48,12 +48,15 @@ export default async () => {
 
         await it('moves the cursor with edits and signals mark-set', () => {
             const buffer = new Buffer('hello');
-            const marks: number[] = [];
-            buffer.connect('mark-set', (_self, offset: number) => marks.push(offset));
+            const marks: string[] = [];
+            buffer.connect('mark-set', (_self, iter: TextIter, mark: TextMark) =>
+                marks.push(`${mark.name}:${iter.get_offset()}`),
+            );
             buffer.placeCursor(5);
             buffer.insert(0, '>> ');
             expect(buffer.cursorPosition).toBe(8);
-            expect(marks).toStrictEqual([5, 8]);
+            // An edit shifts the marks silently, as in GTK; only an explicit move reports.
+            expect(marks).toStrictEqual(['insert:5', 'selection_bound:5']);
         });
 
         await it('disconnects a handler by id and rejects an unknown id', () => {

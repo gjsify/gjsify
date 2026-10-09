@@ -10,7 +10,7 @@
 // IN THIS SLICE: `buffer`, `auto-indent`, `indent-width` (held and read back, as on Android),
 // `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, the four margins,
 // `connect`/`disconnect`. Not yet: the GJS snake_case accessors, `cursor_visible`, adjustments,
-// gutters and the `buffer:` object child of a `.blp` (ADR 0094 amendment lists them).
+// gutters (ADR 0094 amendment lists them).
 //
 // Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
