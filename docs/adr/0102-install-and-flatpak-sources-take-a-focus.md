@@ -1,6 +1,6 @@
 # 102. `install` and `flatpak sources` take `--focus`: a workspace closure, computed from the one full lockfile
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-09)
 - Date: 2026-10-09
 - Deciders: Pascal Garber
 - Related: [ADR 0065 (a development link is an override)](0065-a-development-link-is-an-override-not-a-manifest.md),
@@ -111,11 +111,15 @@ dependencies like any unselected workspace.
 What Learn6502's Flatpak build needs from the root, measured in `meson.build`: the CLI at
 `node_modules/@gjsify/cli`, and `@gjsify/rolldown-native` and `@gjsify/lightningcss-native` for the prebuilds
 (`GI_TYPELIB_PATH`/`LD_LIBRARY_PATH`). The first is also an `app-gnome` devDependency, the other two are
-root-only. With Yarn's rule the consumer has two correct answers and picks one: name the root
+root-only. With Yarn's rule the consumer has two correct answers: name the root
 (`--focus @learn6502/app-gnome learn6502`, which also installs the root's lint and release tooling), or
-declare the two prebuild packages where they are used, in `app-gnome`. The ADR does not choose for the
-consumer. An implicit root would make a focused install quietly larger than its name says and hide the
-second answer.
+declare the two prebuild packages where they are used, in `app-gnome`. An implicit root would make a focused
+install quietly larger than its name says and hide the second answer.
+
+**Decision for the motivating consumer (Pascal, 2026-10-09):** the root is not implicit in a focus. A consumer
+moves the build-time dependencies a workspace needs into that workspace. Learn6502 moves
+`@gjsify/rolldown-native` and `@gjsify/lightningcss-native` into `app-gnome`'s devDependencies instead of
+naming the root in `--focus`. Naming the root stays possible.
 
 A root with no `name` cannot be named and is never in a focused closure.
 
@@ -178,7 +182,6 @@ against. Omitted. Revisit when a consumer measures the need.
 
 ## What this does not decide
 
-- Whether Learn6502 names its root or moves two devDependencies. That is its decision, with § 3's evidence.
 - `--production`, `--all` and a no-argument form that focuses the cwd's workspace (Yarn's default): each
   is addable later without changing § 1 to § 6.
 - Focused builds for other commands (`gjsify build`, `gjsify workspace`).
