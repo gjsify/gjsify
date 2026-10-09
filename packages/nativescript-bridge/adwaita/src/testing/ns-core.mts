@@ -811,6 +811,11 @@ export const Application = {
         return [...APPLIED_CSS];
     },
 
+    /** The double never boots an application, so there is no root view. */
+    getRootView(): View | undefined {
+        return undefined;
+    },
+
     /** Like the platform, `create` runs once it is ready — here, the next microtask. */
     run(entry: { create: () => View }): void {
         queueMicrotask(() => {
