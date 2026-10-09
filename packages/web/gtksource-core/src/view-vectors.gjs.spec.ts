@@ -39,8 +39,8 @@ export default async () => {
             }
         });
         if (!display) return;
-        const GObject = (await import('gi://GObject' as string)).default as GutterPaintSurface['GObject'];
-        const GLib = (await import('gi://GLib' as string)).default as {
+        const GObject = (await import('gi://GObject?version=2.0' as string)).default as GutterPaintSurface['GObject'];
+        const GLib = (await import('gi://GLib?version=2.0' as string)).default as {
             PRIORITY_DEFAULT: number;
             SOURCE_REMOVE: boolean;
             timeout_add(priority: number, ms: number, callback: () => boolean): number;
