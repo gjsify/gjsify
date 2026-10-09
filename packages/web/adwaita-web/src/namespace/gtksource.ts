@@ -3,7 +3,17 @@
 // the NativeScript port publishes. `export * as GtkSource from './namespace/gtksource.js'` in
 // `src/index.ts` makes it the namespace the `gi://GtkSource` arm answers from.
 //
-// A TRUE SUBSET: GtkSource's gutters, completion, search and the rest are absent, and the arm
-// refuses each by name.
-export { Buffer, Language, LanguageManager, StyleScheme, StyleSchemeManager, init } from '@gjsify/gtksource-core';
+// A TRUE SUBSET: GtkSource's completion, search and the rest are absent, and the arm refuses each
+// by name.
+export {
+    Buffer,
+    Gutter,
+    GutterRenderer,
+    GutterRendererText,
+    Language,
+    LanguageManager,
+    StyleScheme,
+    StyleSchemeManager,
+    init,
+} from '@gjsify/gtksource-core';
 export { GtkSourceView as View } from '../gtksource/gtk-source-view.js';

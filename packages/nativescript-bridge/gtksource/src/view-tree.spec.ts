@@ -69,10 +69,6 @@ export const GtkSourceViewTreeNsTest = async () => {
             });
         }
 
-        await it('refuses get_gutter by name until slice 6', () => {
-            expect(() => new GtkSourceView().get_gutter(Gtk.TextWindowType.LEFT)).toThrow(/get_gutter/);
-        });
-
         await it('answers the GtkWidget layout properties the scrolled window asks it for', () => {
             const view = built().getViewById('sourceView') as unknown as GtkSourceView | undefined;
             expect(view?.hexpand).toBe(true);

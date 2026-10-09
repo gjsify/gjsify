@@ -36,10 +36,6 @@ export const GtkSourceViewTest = async () => {
             });
         }
 
-        await it('refuses get_gutter by name until slice 6', () => {
-            expect(() => new GtkSourceView().get_gutter(Gtk.TextWindowType.LEFT)).toThrow(/get_gutter/);
-        });
-
         await it('writes through attributes with GTK semantics', () => {
             const view = document.createElement('gtk-source-view') as GtkSourceView;
             view.setAttribute('show-line-numbers', 'true');

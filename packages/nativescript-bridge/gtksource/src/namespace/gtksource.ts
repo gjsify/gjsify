@@ -8,4 +8,5 @@ export { Buffer } from '@gjsify/gtksource-core';
 export { LanguageManager, Language } from '@gjsify/gtksource-core';
 export { StyleSchemeManager, StyleScheme } from '@gjsify/gtksource-core';
 export { GtkSourceView as View } from '../view.js';
+export { Gutter, GutterRenderer, GutterRendererText } from '@gjsify/gtksource-core';
 export { init } from '@gjsify/gtksource-core';
