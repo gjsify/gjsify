@@ -99,6 +99,12 @@ export default async () => {
                     "gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed",
                 ),
             ).toBe(true);
+            // darwin only, exact text: the same message elsewhere is still a failure.
+            const skipped = 'gdk_frame_timings_presented() called on skipped frame.';
+            expect(isEnvironmentDiagnostic(skipped, 'darwin')).toBe(true);
+            expect(isEnvironmentDiagnostic(skipped, 'linux')).toBe(false);
+            expect(isEnvironmentDiagnostic(skipped, undefined)).toBe(false);
+            expect(isEnvironmentDiagnostic(skipped + ' extra', 'darwin')).toBe(false);
             // The control side, which is the half that makes the vector worth
             // anything: the messages this module was written to catch are NOT
             // environment, and a message that merely mentions Vulkan is not either —
