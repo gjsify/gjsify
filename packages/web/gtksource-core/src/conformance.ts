@@ -5,3 +5,4 @@ export * from './init-vectors.js';
 export * from './managers-vectors.js';
 export * from './view-vectors.js';
 export * from './gutter-paint-vectors.js';
+export * from './signal-stop-vectors.js';

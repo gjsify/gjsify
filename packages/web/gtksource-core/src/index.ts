@@ -21,3 +21,5 @@ export * from './gutter.js';
 export * from './gutter-renderer.js';
 export * from './coerce.js';
 export * from './init.js';
+// The key a view implements to take part in `GObject.signal_stop_emission_by_name`.
+export { STOP_EMISSION } from '@gjsify/adwaita-core';

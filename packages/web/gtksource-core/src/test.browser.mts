@@ -12,6 +12,7 @@ import gutterTestSuite from './gutter.spec.js';
 import managerVectorsTestSuite from './managers-vectors.spec.js';
 import bufferVectorsTestSuite from './buffer-vectors.spec.js';
 import initTestSuite from './init.spec.js';
+import stopVectorsTestSuite from './signal-stop-vectors.spec.js';
 
 run({
     xmlTestSuite,
@@ -25,4 +26,5 @@ run({
     managerVectorsTestSuite,
     bufferVectorsTestSuite,
     initTestSuite,
+    stopVectorsTestSuite,
 });
