@@ -38,7 +38,8 @@
     ],
     "scripts": {
         "clear": "gjsify clear lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss src/styles.generated.ts",
-        "check": "gjsify run build:scss && gjsify tsc --noEmit",
+        "check": "gjsify run build:scss && gjsify tsc --noEmit && gjsify run check:consumer",
+        "check:consumer": "gjsify tsc -p tsconfig.consumer.json",
         "build": "gjsify run build:scss && gjsify run build:types",
         "build:scss": "node scripts/build-scss.mjs",
         "build:types": "gjsify tsc",

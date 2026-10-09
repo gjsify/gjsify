@@ -1027,7 +1027,7 @@ export {
     withGtkApplication,
     isValidApplicationId,
 } from './application.js';
-export type { ApplicationHost } from './application.js';
+export type { ApplicationHost, GtkApplicationMembers, GtkApplicationConstructor } from './application.js';
 export {
     ActionRegistry,
     SimpleAction,

@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "lib": ["ESNext", "DOM"],
+        "moduleResolution": "bundler",
+        "noEmit": true,
+        "skipLibCheck": false,
+        "strict": true,
+        "types": []
+    },
+    "files": ["lib/types/index.d.ts", "lib/types/source-view/index.d.ts", "lib/types/fonts.d.ts"]
+}
