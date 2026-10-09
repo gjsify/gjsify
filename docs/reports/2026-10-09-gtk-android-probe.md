@@ -54,6 +54,8 @@ Nothing here is built by us: the APKs are GeopJr's GTK4Android demo builds, prod
   Android, which nothing here measured. Out of scope for this repository; it would be its own
   project.
 
+The decision built on this report: [ADR 0104](../adr/0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md).
+
 ## Not measured
 
 Scroll and animation smoothness (frames go to the `SurfaceView`, not to HWUI, so `gfxinfo`
