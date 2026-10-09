@@ -1060,3 +1060,5 @@ export type {
     TemplateScope,
 } from './gobject.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
+export { StyleManagerBase } from './style-manager.js';
+export type { StyleSource } from './style-manager.js';

@@ -66,6 +66,8 @@ import glibTimersTestSuite from './glib-timers.spec.js';
 import glibTimersOracleTestSuite from './glib-timers.gjs.spec.js';
 import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
+import styleManagerTestSuite from './style-manager.spec.js';
+import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -134,4 +136,6 @@ run({
     glibTimersOracleTestSuite,
     glibPathsTestSuite,
     glibPathsOracleTestSuite,
+    styleManagerTestSuite,
+    styleManagerOracleTestSuite,
 });

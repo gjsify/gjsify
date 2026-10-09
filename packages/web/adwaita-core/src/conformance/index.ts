@@ -732,3 +732,11 @@ export { MENU_TREE_VECTORS } from './menu-tree.js';
 export type { MenuTreeVector } from './menu-tree.js';
 export { GLIB_PATH_ROWS, GLIB_PATH_VECTORS, driveGLibPathVectors } from './glib-paths.js';
 export type { GLibPathRow, GLibPathsLike, GLibPathsSubject, GLibPathVector } from './glib-paths.js';
+export { STYLE_MANAGER_ROWS, STYLE_MANAGER_VECTORS, driveStyleManagerVectors } from './style-manager.js';
+export type {
+    AdwStyleLike,
+    StyleManagerLike,
+    StyleManagerRow,
+    StyleManagerSubject,
+    StyleManagerVector,
+} from './style-manager.js';
