@@ -2,8 +2,8 @@
 //
 // The split button's BEHAVIOUR is headless and lives in `@gjsify/adwaita-core`
 // (ADR 0004). NativeScript-specific is the platform seam: the NS subset has no
-// popover, so the dropdown opens a `Dialogs.action()` sheet — which `menu-sheet.ts`
-// now owns for BOTH menu-bearing widgets (ADR 0042) — and the action half's icon is an
+// popover, so the dropdown opens an Android `PopupMenu` — which `popup-menu.ts` drives
+// for BOTH menu-bearing widgets (ADR 0097 § 2) — and the action half's icon is an
 // SVG string rather than an icon-theme name.
 //
 // Free of `@nativescript/core` value imports so the spec suite can exercise the real

@@ -22,6 +22,7 @@ import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
+import { PopupMenuWidgetsNsTest } from './popup-menu-widgets.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
@@ -59,6 +60,7 @@ run({
     GtkToggleButtonNsTest,
     GtkButtonActionsNsTest,
     GtkMenuTreeNsTest,
+    PopupMenuWidgetsNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
     AdwValueListsNsTest,

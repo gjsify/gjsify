@@ -27,10 +27,15 @@
 // Reference: GLib gio/gsimpleaction.c, gio/gsimpleactiongroup.c
 
 import {
+    activateMenuItem as activateMenuItemIn,
     activateWidgetAction as activateIn,
+    menuActionsFor,
     findActionGroup as findIn,
     insertActionGroup as insertIn,
     type ActionGroupLike,
+    type AdwMenuActions,
+    type AdwMenuItem,
+    type AdwMenuModel,
     type SimpleAction,
 } from '@gjsify/adwaita-core';
 
@@ -97,4 +102,14 @@ export function findActionGroup(widget: ActionHost, prefix: string): ActionGroup
  */
 export function activateWidgetAction(widget: ActionHost, fullName: string, parameter: unknown = null): boolean {
     return activateIn(widget, fullName, parentOf, parameter);
+}
+
+/** What the items of `model` read from the actions registered at or above `widget` (ADR 0097 § 3). */
+export function menuActionsOfView(widget: ActionHost, model: AdwMenuModel): AdwMenuActions {
+    return menuActionsFor(model, widget, parentOf);
+}
+
+/** What choosing `item` in a menu owned by `widget` does: the action it names fires, as GTK's tracker does. */
+export function activateViewMenuItem(widget: ActionHost, item: AdwMenuItem): boolean {
+    return activateMenuItemIn(item, widget, parentOf);
 }

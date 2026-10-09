@@ -40,7 +40,6 @@ import {
 } from './fonts.js';
 // `row-press.js` and `icon-path.js` are TYPE-only / pure, so the REAL helpers load here.
 import { attachRowPressFeedback } from './widgets/row-press.js';
-import { presentMenuSheet } from './widgets/menu-sheet.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
 // `builder-slots.js` is pure too — no `@nativescript/core` — so the rule every
@@ -246,23 +245,6 @@ class MockViewSwitcherBar {
     get visibility(): string {
         return this._revealed ? 'visible' : 'collapse';
     }
-}
-
-// GtkMenuButton's action()-resolution used to be MIRRORED here by a mock, and the
-// mirror is what a mock costs: the widget's own resolution moved into `menu-sheet.ts`
-// (ADR 0042), where it is free of `@nativescript/core` and can be driven directly. The
-// helper below drives the REAL modules — `presentMenuSheet` decides the rows and the
-// round trip, `menuItemAt` resolves the answer — so what is asserted is the shipping
-// code rather than a copy of it that cannot notice a divergence.
-async function chooseMenuItem(
-    input: AdwMenuInput,
-    pick: (actions: string[]) => string | undefined,
-): Promise<{ id: string; label: string; path: readonly number[] } | null> {
-    const model = normalizeMenuModel(input);
-    const path = await presentMenuSheet((options) => Promise.resolve(pick(options.actions)), model);
-    if (path === null) return null;
-    const item = menuItemAt(model, path);
-    return item === null ? null : { id: item.id ?? item.label, label: item.label, path };
 }
 
 // Mirrors AdwCarousel's clamped scrollToPage + dot-active + nPages.
@@ -763,36 +745,6 @@ export default async () => {
             expect(bar.visibility).toBe('visible');
             bar.revealed = false;
             expect(bar.visibility).toBe('collapse');
-        });
-    });
-
-    await describe('GtkMenuButton activation (the real sheet modules)', async () => {
-        await it('emits id/label/path for a chosen item', async () => {
-            const chosen = await chooseMenuItem(
-                [
-                    { id: 'about', label: 'About' },
-                    { id: 'prefs', label: 'Preferences' },
-                ],
-                (actions) => actions[1],
-            );
-            expect(chosen).toStrictEqual({ id: 'prefs', label: 'Preferences', path: [1] });
-        });
-
-        await it('falls back to label as id, and a cancel emits nothing', async () => {
-            expect(await chooseMenuItem([{ label: 'Quit' }], () => undefined)).toBe(null);
-            expect(await chooseMenuItem([{ label: 'Quit' }], (actions) => actions[0])).toStrictEqual({
-                id: 'Quit',
-                label: 'Quit',
-                path: [0],
-            });
-        });
-
-        await it('reaches an item inside a submenu, which no flat index could name', async () => {
-            const chosen = await chooseMenuItem(
-                [{ label: 'About' }, { label: 'More', submenu: [{ id: 'quit', label: 'Quit' }] }],
-                (actions) => actions[actions.length - 1],
-            );
-            expect(chosen).toStrictEqual({ id: 'quit', label: 'Quit', path: [1, 0] });
         });
     });
 

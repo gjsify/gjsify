@@ -190,7 +190,7 @@ verifies it or turns the cell into a refusal.
 | `breakpoint` | native | refused | port | port, UNVERIFIED on a tablet |
 | `extern` / `$Name` | native | refused | port | port |
 | `accessibility` | native | port (0069) | port | refused until mapped |
-| `menu` | native | refused | port: `menus` / `menuModels` resolved by the builder (0097 § 1, `MENU_TREE_VECTORS`) | port: the same; the `PopupMenu` surface is UNVERIFIED on a device (0097 § 2) |
+| `menu` | native | refused | port: `menus` / `menuModels` resolved by the builder (0097 § 1, `MENU_TREE_VECTORS`) | port: the same; the `PopupMenu` surface verified on the API 36 emulator (0097 § 2): groups with a rule, check, radio, disabled, submenu, one activation per tap. Below API 28 (no rule) UNVERIFIED |
 | `sibling-object` | native | refused | refused | port |
 | `internal-child` | native | refused | refused | refused |
 | `action-widget` | native | refused | refused | refused |

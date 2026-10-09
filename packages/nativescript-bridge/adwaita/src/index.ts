@@ -193,8 +193,6 @@ export type {
     NotifyExpandedEventData,
     ExpanderStateListener,
     MenuItemActivatedEventData,
-    MenuSheetPresenter,
-    MenuSheetRow,
     // Presentation / layout
     MenuTappedEventData,
     RowActivatedEventData,

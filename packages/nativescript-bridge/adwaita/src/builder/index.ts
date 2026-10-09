@@ -109,6 +109,13 @@ export function registerBarrel(prefix: string, library: string, namespace: objec
     else known.namespace = namespace;
 }
 
+/** Classes with no spelling on this port, and why: a name in the error is better than a missing member. */
+const REFUSED_ELEMENTS: Readonly<Record<string, string>> = {
+    GtkPopoverMenuBar:
+        "Android has no menu-bar surface, and a row of PopupMenus would be a design choice, not GTK's " +
+        'widget (ADR 0097 § 2). Use a GtkMenuButton or a GtkPopoverMenu.',
+};
+
 /**
  * The element a GIR class name is, in the `xmlns` barrel dialect.
  *
@@ -126,6 +133,8 @@ export function registerBarrel(prefix: string, library: string, namespace: objec
  * rather than resolving to a stranger.)
  */
 export function elementFor(tag: string): Element {
+    const refusal = REFUSED_ELEMENTS[tag];
+    if (refusal !== undefined) throw new Error(`\`${tag}\` is refused on this port: ${refusal}`);
     const byLength = [...BARRELS].sort((a, b) => b.library.length - a.library.length);
     for (const { prefix, library, namespace } of byLength) {
         if (!tag.startsWith(library)) continue;
@@ -829,7 +838,13 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object, conte
         );
     }
     const bag: Record<string, unknown> = {};
+    for (const [authored, model] of menuAssignments(node, context.menus)) {
+        const prop = propertyOf(authored);
+        if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, authored);
+        bag[prop] = model;
+    }
     for (const [authored, value] of Object.entries(node.props ?? {})) {
+        if (authored === 'menu-model') continue;
         const prop = propertyOf(authored);
         if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, value);
         bag[prop] = translated(context.translate, value, node.translatable?.[authored]);

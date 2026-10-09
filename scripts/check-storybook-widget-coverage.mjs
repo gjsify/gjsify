@@ -376,10 +376,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    'popover-menu': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     'popover-menu-bar': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
