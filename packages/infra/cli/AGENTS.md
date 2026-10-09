@@ -22,7 +22,7 @@ gjsify trust [pkg] | gjsify onboard [--packages <glob>]  # Trusted-Publisher / p
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [--exact] [-p glob]   # workspace deps; --check gates, --align repairs, --exact pins
 gjsify ship [linux|darwin|windows] [--target <fmt..>] [--stage]   # phase 1: assemble ONE staged payload for that OS's LAYOUT (ADR 0024)
 gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
-gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
+gjsify install [--immutable|--refresh-lockfile|--focus <ws…>] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consumer against a LOCAL gjsify checkout (ADR 0065)
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
