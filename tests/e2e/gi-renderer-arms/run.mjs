@@ -355,7 +355,11 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.equal(report.initReturns, true, 'GtkSource.init() did not return undefined');
             assert.equal(report.protoIdentity, true, 'the subclass does not extend GtkSource.View');
             if (app === 'nativescript') {
-                assert.equal(report.reachesCore, true, 'GtkSource.View does not descend from an @nativescript/core class');
+                assert.equal(
+                    report.reachesCore,
+                    true,
+                    'GtkSource.View does not descend from an @nativescript/core class',
+                );
             }
         });
 

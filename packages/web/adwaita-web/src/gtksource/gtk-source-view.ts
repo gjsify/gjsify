@@ -161,7 +161,12 @@ export class GtkSourceView extends HTMLElement {
     attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
         const [property, fallback, coerce] = ATTRIBUTES[name];
         // Presence is true for a boolean written as a bare attribute (`toggleAttribute`).
-        const next = value === null ? fallback : value === '' && typeof fallback === 'boolean' ? true : coerce(value, `GtkSource.View.${property}`);
+        const next =
+            value === null
+                ? fallback
+                : value === '' && typeof fallback === 'boolean'
+                  ? true
+                  : coerce(value, `GtkSource.View.${property}`);
         (this as unknown as Record<string, unknown>)[property] = next;
     }
 
@@ -246,8 +251,7 @@ export class GtkSourceView extends HTMLElement {
 
     /** GJS `connect(name, cb) → id`; the handler's first argument is this view. */
     connect(name: string, callback: (self: GtkSourceView, ...args: never[]) => void): number {
-        return this.session.connect(name, ((_session: unknown, ...args: never[]) =>
-            callback(this, ...args)) as never);
+        return this.session.connect(name, ((_session: unknown, ...args: never[]) => callback(this, ...args)) as never);
     }
 
     disconnect(id: number): void {
