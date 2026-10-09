@@ -258,6 +258,24 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.deepEqual(report.application, { runs: 3, idled: true, removed: true, refusesMainLoop: true });
         });
 
+        it(`--app ${app} --gi-renderer answers the path, action-group and style-manager helpers`, () => {
+            const built = build('gtksource-helpers.ts', app, { name: 'gtksource-helpers' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'application');
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'GLib.build_filenamev is not a function');
+            assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
+            assert.deepEqual(report.application, {
+                joined: 'a/b/c',
+                max: 4294967295,
+                dirs: ['string', true],
+                ran: ['copy'],
+                sameManager: true,
+                dark: 'boolean',
+                refusesHomeDir: true,
+            });
+        });
+
         it(`--app ${app} --gi-renderer carries @girs/adw-1 through to the same namespace`, () => {
             const withArm = build('girs-probe.ts', app, { name: 'girs-on' });
             assert.equal(withArm.status, 0, `build failed\n${withArm.output}`);
