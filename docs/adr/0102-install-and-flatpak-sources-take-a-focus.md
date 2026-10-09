@@ -74,9 +74,10 @@ lockfile-shaped `packages` map.
    `link:`/`file:`/`portal:`/`git+`/`http(s):` specs excluded, so the two cannot disagree.
 2. **Seeds.** The external `name@range` specs of the closure's manifests, same filters as today.
 3. **Package closure.** From each seed's `node_modules/<name>` entry, follow `dependencies`,
-   `optionalDependencies` and `peerDependencies` through `findVisible`. Optional and peer edges are
+   `optionalDependencies` and REQUIRED `peerDependencies` through `findVisible`. Optional edges are
    followed because the install later decides them per host (`applyPlatformFilter`); leaving them out would
-   make the closure depend on the host that computed it. The result is a set of install paths.
+   make the closure depend on the host that computed it. An optional peer is not followed: the resolver
+   does not place it either. The result is a set of install paths.
 
 `install` uses the set to filter what is fetched and extracted; `flatpak sources` uses the same set to
 choose which entries become tarball sources. The Flatpak cache and the offline install therefore agree
@@ -168,9 +169,10 @@ against. Omitted. Revisit when a consumer measures the need.
 - Unfocused workspaces are not built or linked after a focused install. A script that runs a workspace
   outside the closure fails with an ordinary missing-module error, which is the same trade Yarn's
   `workspaces focus` makes.
-- `flatpak sources --focus` supports lockfiles that carry per-package edges: `gjsify-lock.json` and npm's
-  `package-lock.json` (same `packages` shape). It refuses `yarn.lock` and `pnpm-lock.yaml` with a message
-  naming the flag, instead of returning the unfocused set.
+- `flatpak sources --focus` supports `gjsify-lock.json`, the one format that records the edges and that
+  the offline install consumes. It refuses `package-lock.json`, `yarn.lock` and `pnpm-lock.yaml` with a
+  message naming the flag, instead of returning the unfocused set: npm's file also holds workspace and
+  link entries this walk does not model, and the other two have no per-package edges in the shape read here.
 - No lockfile bytes change, so a consumer's CI cache key and `check:flatpak:sources` keep working; the
   generated sources file does change when `--focus` is added to its generating command.
 
