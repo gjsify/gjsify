@@ -21,9 +21,11 @@
 // Reference: refs/libadwaita/src/adw-application-window.c (AdwApplicationWindow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, type View } from '@nativescript/core';
+import { adwaitaColorScheme, onAdwaitaColorSchemeChanged } from '@gjsify/adwaita-core';
+import { Application, GridLayout, type View } from '@nativescript/core';
 
 import { builderSlotsOf } from './builder-slots.js';
+import { type SchemeClassView, syncColorSchemeClasses } from './color-scheme-classes.js';
 import { AdwSingleChildBase } from './single-child-base.js';
 import { type DialogHost, surfaceSize } from './window-state.js';
 import { xmlNumber } from './xml-values.js';
@@ -34,6 +36,21 @@ import { xmlNumber } from './xml-values.js';
  * into a bare layout looks like the page it would have been.
  */
 export const ADW_WINDOW_CLASS = 'adw-window';
+
+let schemeSyncWired = false;
+
+/**
+ * A window is the root a tree builds into, so the first one makes the whole application tree
+ * follow the color scheme (see `color-scheme-classes.ts`); one subscription serves them all.
+ */
+function wireColorSchemeSync(): void {
+    if (schemeSyncWired) return;
+    schemeSyncWired = true;
+    onAdwaitaColorSchemeChanged(() => {
+        const root = Application.getRootView?.() as unknown as SchemeClassView | undefined;
+        if (root !== undefined) syncColorSchemeClasses(root, adwaitaColorScheme());
+    });
+}
 
 export abstract class AdwWindowBase extends AdwSingleChildBase implements DialogHost {
     /** `content` is the one destination, so it is also the fallback. */
@@ -46,6 +63,7 @@ export abstract class AdwWindowBase extends AdwSingleChildBase implements Dialog
 
     constructor() {
         super();
+        wireColorSchemeSync();
         this._restyle();
     }
 

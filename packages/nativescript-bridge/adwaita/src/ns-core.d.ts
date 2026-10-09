@@ -589,6 +589,9 @@ declare module '@nativescript/core' {
          */
         export function run(entry: { create: () => View }): void;
 
+        /** The root view the application runs, once it exists. */
+        export function getRootView(): View | undefined;
+
         /** Subscribe to an application lifecycle event (`resume`, `suspend`, …). */
         export function on(event: string, callback: (args: unknown) => void): void;
         /** Drop a subscription made with {@link on}. */
