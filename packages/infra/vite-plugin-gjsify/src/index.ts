@@ -54,6 +54,7 @@ import {
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import { ALIASES_NODE_FOR_NATIVESCRIPT } from '@gjsify/resolve-npm';
+import { installedGjsifyPackages } from './nativescript-dedupe.js';
 
 export interface GjsifyBrowserOptions {
     /**
@@ -438,6 +439,7 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
                     alias: { ...nodePrefixAliases, ...nativescriptCssTreeAlias(root), ...options.aliases },
                     conditions: ['import', 'nativescript'],
                     mainFields: ['nativescript', 'module', 'main'],
+                    dedupe: installedGjsifyPackages(root),
                 },
                 define: {
                     global: 'globalThis',
