@@ -2,9 +2,12 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     GTKSOURCE_BUFFER_VECTORS,
     GTKSOURCE_VIEW_DEFAULT_VECTORS,
+    GTKSOURCE_VIEW_SURFACE_VECTORS,
+    type GtkSourceViewSurfaceLike,
     type GtkSourceBufferLike,
 } from '@gjsify/gtksource-core/conformance';
 
+import * as Gtk from '../namespace/gtk.js';
 import * as GtkSource from '../namespace/gtksource.js';
 
 import './gtk-source-view.js';
@@ -24,6 +27,18 @@ export const GtkSourceViewTest = async () => {
                 expect((view as unknown as Record<string, unknown>)[vector.member]).toStrictEqual(vector.shows);
             });
         }
+
+        for (const vector of GTKSOURCE_VIEW_SURFACE_VECTORS) {
+            await it(`surface: ${vector.rule}`, () => {
+                expect(vector.observe({ Gtk, GtkSource } as unknown as GtkSourceViewSurfaceLike)).toStrictEqual(
+                    vector.shows,
+                );
+            });
+        }
+
+        await it('refuses get_gutter by name until slice 6', () => {
+            expect(() => new GtkSourceView().get_gutter(Gtk.TextWindowType.LEFT)).toThrow(/get_gutter/);
+        });
 
         await it('writes through attributes with GTK semantics', () => {
             const view = document.createElement('gtk-source-view') as GtkSourceView;

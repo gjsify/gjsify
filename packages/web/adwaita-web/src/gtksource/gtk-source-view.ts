@@ -8,14 +8,14 @@
 // and what is absent is absent. The editing itself is the browser's (see `web-editor-driver.ts`).
 //
 // IN THIS SLICE: `buffer`, `auto-indent`, `indent-width` (held and read back, as on Android),
-// `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, the four margins,
-// `connect`/`disconnect`. Not yet: the GJS snake_case accessors, `cursor_visible`, adjustments,
-// gutters (ADR 0094 amendment lists them).
+// `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, `cursor-visible`, the four
+// margins, `connect`/`disconnect`, the GJS snake_case accessors, `vadjustment`/`hadjustment`,
+// `set_direction`, `get_first_child`/`get_next_sibling`. Not yet: gutters (`get_gutter` throws).
 //
 // Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import { adwaitaColorScheme, onAdwaitaColorSchemeChanged } from '@gjsify/adwaita-core';
+import { adwaitaColorScheme, GtkAdjustment, onAdwaitaColorSchemeChanged } from '@gjsify/adwaita-core';
 import type { Buffer } from '@gjsify/gtksource-core';
 import { EditorSession, toBoolean, toNumber } from '@gjsify/gtksource-core';
 
@@ -80,6 +80,7 @@ gtk-source-view .gsv-area {
   color: transparent;
   caret-color: var(--gsv-fg, currentColor);
 }
+gtk-source-view.cursor-hidden .gsv-area { caret-color: transparent; }
 gtk-source-view .gsv-area::selection { background: var(--gsv-selection); color: transparent; }
 `;
 
@@ -101,6 +102,7 @@ const ATTRIBUTES: Readonly<Record<string, readonly [string, boolean | number, Co
     'highlight-current-line': ['highlightCurrentLine', false, toBoolean],
     monospace: ['monospace', false, toBoolean],
     editable: ['editable', true, toBoolean],
+    'cursor-visible': ['cursorVisible', true, toBoolean],
     'left-margin': ['leftMargin', 0, toNumber],
     'right-margin': ['rightMargin', 0, toNumber],
     'top-margin': ['topMargin', 0, toNumber],
@@ -114,6 +116,7 @@ const OBSERVED_ATTRIBUTES = [
     'highlight-current-line',
     'monospace',
     'editable',
+    'cursor-visible',
     'left-margin',
     'right-margin',
     'top-margin',
@@ -132,6 +135,9 @@ export class GtkSourceView extends HTMLElement {
     private readonly gutter = document.createElement('div');
     private readonly backdrop = document.createElement('div');
     private readonly area = document.createElement('textarea');
+    private readonly vadj = new GtkAdjustment();
+    private readonly hadj = new GtkAdjustment();
+    private direction = 1;
 
     constructor() {
         super();
@@ -151,8 +157,17 @@ export class GtkSourceView extends HTMLElement {
         this.session = new EditorSession(this.driver, undefined, adwaitaColorScheme());
     }
 
+    private syncAdjustments(): void {
+        const { area } = this;
+        this.vadj.configure(area.scrollTop, 0, area.scrollHeight, 20, area.clientHeight, area.clientHeight);
+        this.hadj.configure(area.scrollLeft, 0, area.scrollWidth, 20, area.clientWidth, area.clientWidth);
+    }
+
+    private readonly onAreaScroll = (): void => this.syncAdjustments();
+
     connectedCallback(): void {
         ensureStyleInjected();
+        this.area.addEventListener('scroll', this.onAreaScroll);
         if (!this.built) {
             this.built = true;
             const stage = document.createElement('div');
@@ -166,6 +181,7 @@ export class GtkSourceView extends HTMLElement {
     }
 
     disconnectedCallback(): void {
+        this.area.removeEventListener('scroll', this.onAreaScroll);
         this.unsubscribe?.();
         this.unsubscribe = null;
         this.driver.detach();
@@ -232,6 +248,89 @@ export class GtkSourceView extends HTMLElement {
     }
     set editable(value: boolean | string) {
         this.session.editable = toBoolean(value, 'GtkSource.View.editable');
+    }
+
+    /** `GtkTextView:cursor-visible` — whether the insertion cursor is drawn; TRUE by default. */
+    get cursorVisible(): boolean {
+        return this.session.cursorVisible;
+    }
+    set cursorVisible(value: boolean | string) {
+        this.session.cursorVisible = toBoolean(value, 'GtkSource.View.cursorVisible');
+    }
+
+    // The GJS snake_case names of the same properties.
+    get cursor_visible(): boolean {
+        return this.cursorVisible;
+    }
+    set cursor_visible(value: boolean) {
+        this.cursorVisible = value;
+    }
+    get_cursor_visible(): boolean {
+        return this.cursorVisible;
+    }
+    set_cursor_visible(value: boolean): void {
+        this.cursorVisible = value;
+    }
+    get_editable(): boolean {
+        return this.editable;
+    }
+    set_editable(value: boolean): void {
+        this.editable = value;
+    }
+    get highlight_current_line(): boolean {
+        return this.highlightCurrentLine;
+    }
+    set highlight_current_line(value: boolean) {
+        this.highlightCurrentLine = value;
+    }
+    get show_line_numbers(): boolean {
+        return this.showLineNumbers;
+    }
+    set show_line_numbers(value: boolean) {
+        this.showLineNumbers = value;
+    }
+
+    /** `GtkScrollable:vadjustment` — one stable adjustment that follows the textarea's scroll. */
+    get vadjustment(): GtkAdjustment {
+        return this.vadj;
+    }
+    get hadjustment(): GtkAdjustment {
+        return this.hadj;
+    }
+    get_vadjustment(): GtkAdjustment {
+        return this.vadj;
+    }
+    get_hadjustment(): GtkAdjustment {
+        return this.hadj;
+    }
+
+    /** `gtk_widget_set_direction`: held, and mirrored onto `dir` for LTR and RTL. */
+    set_direction(direction: number): void {
+        if (![0, 1, 2].includes(direction)) {
+            throw new TypeError(`${direction} is not a valid value for enum argument dir`);
+        }
+        this.direction = direction;
+        if (direction === 0) this.removeAttribute('dir');
+        else this.dir = direction === 2 ? 'rtl' : 'ltr';
+    }
+    get_direction(): number {
+        return this.direction;
+    }
+
+    /** A view has no widget children of its own here: its parts are the browser's. */
+    get_first_child(): null {
+        return null;
+    }
+    get_next_sibling(): Element | null {
+        return this.nextElementSibling;
+    }
+    get_parent(): Element | null {
+        return this.parentElement;
+    }
+
+    /** Gutters are slice 6 (ADR 0094). */
+    get_gutter(_window_type: number): never {
+        throw new Error('GtkSource.View.get_gutter is not implemented');
     }
 
     get leftMargin(): number {

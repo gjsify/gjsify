@@ -10,6 +10,7 @@ import { adwaitaColorScheme, onAdwaitaColorSchemeChanged, withGtkWidgetLayout } 
 import { GtkSourceBuffer, type Buffer } from '@gjsify/gtksource-core';
 import { toBoolean, toNumber } from '@gjsify/gtksource-core';
 import { EditorSession } from '@gjsify/gtksource-core';
+import { Adjustment as GtkAdjustment } from '@gjsify/adwaita-nativescript/gtk';
 import { createEditorDriver } from './native-editor.js';
 import type { NativeEditorDriver } from './native-editor.js';
 
@@ -22,6 +23,9 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
     private readonly driver: NativeEditorDriver = createEditorDriver();
     private readonly session: EditorSession;
     private unsubscribe: (() => void) | null = null;
+    private readonly vadj = new GtkAdjustment();
+    private readonly hadj = new GtkAdjustment();
+    private direction = 1;
 
     constructor() {
         super();
@@ -102,6 +106,87 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
     }
     set editable(value: boolean | string) {
         this.session.editable = toBoolean(value, 'GtkSource.View.editable');
+    }
+
+    /** `GtkTextView:cursor-visible` — TRUE by default. */
+    get cursorVisible(): boolean {
+        return this.session.cursorVisible;
+    }
+    set cursorVisible(value: boolean | string) {
+        this.session.cursorVisible = toBoolean(value, 'GtkSource.View.cursorVisible');
+    }
+
+    // The GJS snake_case names of the same properties.
+    get cursor_visible(): boolean {
+        return this.cursorVisible;
+    }
+    set cursor_visible(value: boolean) {
+        this.cursorVisible = value;
+    }
+    get_cursor_visible(): boolean {
+        return this.cursorVisible;
+    }
+    set_cursor_visible(value: boolean): void {
+        this.cursorVisible = value;
+    }
+    get_editable(): boolean {
+        return this.editable;
+    }
+    set_editable(value: boolean): void {
+        this.editable = value;
+    }
+    get highlight_current_line(): boolean {
+        return this.highlightCurrentLine;
+    }
+    set highlight_current_line(value: boolean) {
+        this.highlightCurrentLine = value;
+    }
+    get show_line_numbers(): boolean {
+        return this.showLineNumbers;
+    }
+    set show_line_numbers(value: boolean) {
+        this.showLineNumbers = value;
+    }
+
+    /** `GtkScrollable:vadjustment` — one stable adjustment (the platform scrolls the text itself). */
+    get vadjustment(): GtkAdjustment {
+        return this.vadj;
+    }
+    get hadjustment(): GtkAdjustment {
+        return this.hadj;
+    }
+    get_vadjustment(): GtkAdjustment {
+        return this.vadj;
+    }
+    get_hadjustment(): GtkAdjustment {
+        return this.hadj;
+    }
+
+    /** `gtk_widget_set_direction`: held and read back; no widget mirrors under RTL here. */
+    set_direction(direction: number): void {
+        if (![0, 1, 2].includes(direction)) {
+            throw new TypeError(`${direction} is not a valid value for enum argument dir`);
+        }
+        this.direction = direction;
+    }
+    get_direction(): number {
+        return this.direction;
+    }
+
+    /** A view has no widget children of its own here: its parts are the platform's. */
+    get_first_child(): null {
+        return null;
+    }
+    get_next_sibling(): null {
+        return null;
+    }
+    get_parent(): unknown {
+        return (this as unknown as { parent?: unknown }).parent ?? null;
+    }
+
+    /** Gutters are slice 6 (ADR 0094). */
+    get_gutter(_window_type: number): never {
+        throw new Error('GtkSource.View.get_gutter is not implemented');
     }
 
     get leftMargin(): number {

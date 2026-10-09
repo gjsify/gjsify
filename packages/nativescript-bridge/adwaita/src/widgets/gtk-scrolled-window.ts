@@ -37,12 +37,14 @@
 // Reference: refs/gtk gtk/gtkscrolledwindow.c (GtkScrolledWindow)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
+import { GtkAdjustment } from '@gjsify/adwaita-core';
 import { GridLayout, ScrollView, StackLayout, type View } from '@nativescript/core';
 
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { builderSlotsOf } from './builder-slots.js';
 import {
     DEFAULT_SCROLLBAR_POLICY,
+    GTK_POLICY_TYPES,
     normalizePolicy,
     scrollOrientationFor,
     type GtkPolicyNick,
@@ -60,6 +62,8 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     private _hscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _vscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _hasFrame = false;
+    private _hadjustment: GtkAdjustment | null = null;
+    private _vadjustment: GtkAdjustment | null = null;
 
     constructor(props?: ConstructProps<GtkScrolledWindow>) {
         super();
@@ -89,6 +93,50 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     set vscrollbarPolicy(value: GtkPolicyNick) {
         this._vscrollbarPolicy = normalizePolicy(value, 'vscrollbar-policy');
         this._applyOrientation();
+    }
+
+    /** `gtk_scrolled_window_get_policy`: `[hscrollbar, vscrollbar]` as `Gtk.PolicyType` constants. */
+    get_policy(): [number, number] {
+        return [GTK_POLICY_TYPES.indexOf(this._hscrollbarPolicy), GTK_POLICY_TYPES.indexOf(this._vscrollbarPolicy)];
+    }
+
+    /** `gtk_scrolled_window_set_policy`; a value that is not a `Gtk.PolicyType` constant throws. */
+    set_policy(hscrollbar_policy: number, vscrollbar_policy: number): void {
+        for (const [value, name] of [
+            [hscrollbar_policy, 'hscrollbar_policy'],
+            [vscrollbar_policy, 'vscrollbar_policy'],
+        ] as const) {
+            if (!Number.isInteger(value) || GTK_POLICY_TYPES[value] === undefined) {
+                throw new TypeError(`${value} is not a valid value for enum argument ${name}`);
+            }
+        }
+        this.hscrollbarPolicy = GTK_POLICY_TYPES[hscrollbar_policy]!;
+        this.vscrollbarPolicy = GTK_POLICY_TYPES[vscrollbar_policy]!;
+    }
+
+    /** `Gtk.ScrolledWindow:hadjustment` — the one it was given, else a window-owned one. */
+    get hadjustment(): GtkAdjustment {
+        return (this._hadjustment ??= new GtkAdjustment());
+    }
+
+    get vadjustment(): GtkAdjustment {
+        return (this._vadjustment ??= new GtkAdjustment());
+    }
+
+    get_hadjustment(): GtkAdjustment {
+        return this.hadjustment;
+    }
+
+    get_vadjustment(): GtkAdjustment {
+        return this.vadjustment;
+    }
+
+    set_hadjustment(adjustment: GtkAdjustment): void {
+        this._hadjustment = adjustment;
+    }
+
+    set_vadjustment(adjustment: GtkAdjustment): void {
+        this._vadjustment = adjustment;
     }
 
     /** `Gtk.ScrolledWindow:has-frame` — held and read back; no frame is drawn (see the header). */

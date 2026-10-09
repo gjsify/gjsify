@@ -29,5 +29,8 @@ export const PolicyType = Object.freeze(
 /** `Gtk.TextDirection`: `NONE` 0, `LTR` 1, `RTL` 2. */
 export const TextDirection = Object.freeze({ NONE: 0, LTR: 1, RTL: 2 } as const);
 
+/** `Gtk.TextWindowType`: `WIDGET` 1, `TEXT` 2, `LEFT` 3, `RIGHT` 4, `TOP` 5, `BOTTOM` 6. */
+export const TextWindowType = Object.freeze({ WIDGET: 1, TEXT: 2, LEFT: 3, RIGHT: 4, TOP: 5, BOTTOM: 6 } as const);
+
 /** `Gtk.License`. */
 export const License = GTK_LICENSE;

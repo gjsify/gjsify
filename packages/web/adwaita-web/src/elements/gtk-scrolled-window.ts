@@ -86,6 +86,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { GtkAdjustment } from '@gjsify/adwaita-core';
 import type { AdwAdjustment } from '@gjsify/adwaita-core';
 
 import { AdwScrollShading } from '../scroll-shading.js';
@@ -112,6 +113,8 @@ export type GtkPositionType = 'left' | 'right' | 'top' | 'bottom';
 export type GtkDirectionType = 'forward' | 'backward';
 
 const POLICIES: readonly GtkPolicyType[] = ['always', 'never', 'automatic', 'external'];
+/** The nicks in `Gtk.PolicyType`'s numeric order, which is not the order above. */
+const POLICY_BY_VALUE: readonly GtkPolicyType[] = ['always', 'automatic', 'never', 'external'];
 const CORNERS: readonly GtkCornerType[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 
 /** An unknown nick is the pspec's default, which is what GtkBuilder's rejection leaves behind. */
@@ -205,6 +208,9 @@ export class GtkScrolledWindow extends HTMLElement {
     private _hoverable: MediaQueryList | null = null;
     private _fadeTimer: ReturnType<typeof setTimeout> | null = null;
     private _built = false;
+    /** What an unbuilt window answers before it has a viewport to read. */
+    private readonly _standIn: { hadjustment?: AdwAdjustment; vadjustment?: AdwAdjustment } = {};
+    private readonly _adopted: { hadjustment?: AdwAdjustment; vadjustment?: AdwAdjustment } = {};
 
     static get observedAttributes() {
         return [
@@ -238,6 +244,58 @@ export class GtkScrolledWindow extends HTMLElement {
 
     set vscrollbarPolicy(value: GtkPolicyType) {
         this.setAttribute('vscrollbar-policy', value);
+    }
+
+    /** `gtk_scrolled_window_get_policy`: `[hscrollbar, vscrollbar]` as `Gtk.PolicyType` constants. */
+    get_policy(): [number, number] {
+        return [POLICY_BY_VALUE.indexOf(this.hscrollbarPolicy), POLICY_BY_VALUE.indexOf(this.vscrollbarPolicy)];
+    }
+
+    /** `gtk_scrolled_window_set_policy`; a value that is not a `Gtk.PolicyType` throws, as GJS's enum marshalling does. */
+    set_policy(hscrollbar_policy: number, vscrollbar_policy: number): void {
+        const nick = (value: number, name: string): GtkPolicyType => {
+            const found = Number.isInteger(value) ? POLICY_BY_VALUE[value] : undefined;
+            if (found === undefined) throw new TypeError(`${value} is not a valid value for enum argument ${name}`);
+            return found;
+        };
+        const h = nick(hscrollbar_policy, 'hscrollbar_policy');
+        const v = nick(vscrollbar_policy, 'vscrollbar_policy');
+        this.hscrollbarPolicy = h;
+        this.vscrollbarPolicy = v;
+    }
+
+    /** `GtkScrollable:hadjustment` as the window reports it: the one it was given, else the viewport's. */
+    get hadjustment(): AdwAdjustment {
+        return (
+            this._adopted.hadjustment ??
+            (this._viewport as GtkViewport | undefined)?.hadjustment ??
+            (this._standIn.hadjustment ??= new GtkAdjustment())
+        );
+    }
+
+    get vadjustment(): AdwAdjustment {
+        return (
+            this._adopted.vadjustment ??
+            (this._viewport as GtkViewport | undefined)?.vadjustment ??
+            (this._standIn.vadjustment ??= new GtkAdjustment())
+        );
+    }
+
+    get_hadjustment(): AdwAdjustment {
+        return this.hadjustment;
+    }
+
+    get_vadjustment(): AdwAdjustment {
+        return this.vadjustment;
+    }
+
+    /** Adopts `adjustment` as what `get_hadjustment` answers; the scroll position keeps following the viewport. */
+    set_hadjustment(adjustment: AdwAdjustment): void {
+        this._adopted.hadjustment = adjustment;
+    }
+
+    set_vadjustment(adjustment: AdwAdjustment): void {
+        this._adopted.vadjustment = adjustment;
     }
 
     /** `GtkScrolledWindow:window-placement` — where the contents sit against the bars. */

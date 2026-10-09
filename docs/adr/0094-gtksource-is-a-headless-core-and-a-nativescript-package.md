@@ -135,3 +135,17 @@ native edit counts as a user action. Undo coalescing across separate edits is no
 edit outside a user action is its own step. Vectors (`GTKSOURCE_BUFFER_VECTORS`) run against real
 `gi://GtkSource`, the core, and both doors. Not here: arbitrary marks, tags, `signal_stop_emission_by_name`
 (so a handler cannot veto `mark-set`), and the view-side verbs. Status unchanged.
+
+## Amendment (2026-10-09): the View surface
+
+`GtkSource.View` on the web and NativeScript doors now answers the verbs Learn6502 calls on the view:
+`cursor_visible` (default TRUE), `get_/set_editable`, `highlight_current_line`, `show_line_numbers`,
+`vadjustment` and `hadjustment` (one stable `Gtk.Adjustment` each; on the web it follows the textarea's
+scroll), `set_direction`/`get_direction`, `get_first_child`, `get_next_sibling` and `get_parent`. A view
+has no widget children of its own on these doors, so `get_first_child` answers null where real GTK
+answers an internal child. `Gtk.ScrolledWindow` gains `get_policy`, `set_policy` and
+`set_/get_vadjustment`/`hadjustment`, and `Gtk` gains the enums `PolicyType`, `TextDirection` and
+`TextWindowType`, with GTK's numeric values. Vectors (`GTKSOURCE_VIEW_SURFACE_VECTORS`) run against real
+`gi://GtkSource` and `gi://Gtk` (instance vectors only where a display exists), the web door and the
+NativeScript door. Not here: `get_gutter` (slice 6) and the later-slice members, which throw by name.
+Status unchanged.
