@@ -18,6 +18,7 @@ const GObjectObject = gobject.Object;
 export { GObjectObject as Object };
 export const registerClass = gobject.registerClass;
 export const type_ensure = gobject.type_ensure;
+export const signal_stop_emission_by_name = gobject.signal_stop_emission_by_name;
 export const ParamSpec = gobject.ParamSpec;
 export const ParamFlags = gobject.ParamFlags;
 export const TYPE_STRING = gobject.TYPE_STRING;

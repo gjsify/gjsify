@@ -287,6 +287,8 @@ interface InstanceState {
     readonly values: Map<string, unknown>;
     readonly handlers: Map<string, { id: number; handler: SignalHandler }[]>;
     readonly connections: Map<number, () => void>;
+    /** The emissions in progress, innermost last: `signal_stop_emission_by_name` marks the last match. */
+    readonly emissions: { readonly key: string; stopped: boolean }[];
 }
 
 const STATE = new WeakMap<object, InstanceState>();
@@ -295,7 +297,7 @@ let nextHandlerId = 0;
 function stateOf(instance: object): InstanceState {
     let state = STATE.get(instance);
     if (!state) {
-        state = { values: new Map(), handlers: new Map(), connections: new Map() };
+        state = { values: new Map(), handlers: new Map(), connections: new Map(), emissions: [] };
         STATE.set(instance, state);
     }
     return state;
@@ -323,11 +325,55 @@ function addHandler(instance: object, key: string, handler: SignalHandler): numb
 
 function runHandlers(instance: GObjectInstance, key: string, args: readonly unknown[]): void {
     const state = stateOf(instance);
-    // A copy: a handler may connect or disconnect during the emission.
-    for (const { id, handler } of (state.handlers.get(key) ?? []).slice()) {
-        // A handler disconnected by an earlier one of the same emission must not run.
-        if (state.connections.has(id)) handler(instance, ...args);
+    const emission = { key, stopped: false };
+    state.emissions.push(emission);
+    try {
+        // A copy: a handler may connect or disconnect during the emission.
+        for (const { id, handler } of (state.handlers.get(key) ?? []).slice()) {
+            if (emission.stopped) break;
+            // A handler disconnected by an earlier one of the same emission must not run.
+            if (state.connections.has(id)) handler(instance, ...args);
+        }
+    } finally {
+        state.emissions.pop();
     }
+}
+
+/**
+ * `GObject.signal_stop_emission_by_name`: stops the innermost emission in progress of the signal on the
+ * instance, so the handlers after the current one do not run. With none in progress GLib warns and
+ * does nothing (`g_signal_stop_emission`: "no emission of signal ... to stop").
+ */
+export function stopEmissionByName(instance: GObjectInstance, detailedSignal: string): void {
+    if (typeof instance !== 'object' || instance === null) {
+        throw new TypeError('GObject.signal_stop_emission_by_name: not a GObject instance');
+    }
+    const chain = chainOfInstance(instance);
+    const typeName = typeNameOf(instance, chain);
+    const { name, detail } = parseSignal(detailedSignal);
+    let key: string | undefined;
+    if (name === 'notify' && detail !== undefined) {
+        const spec = findProperty(chain, detail);
+        if (spec) key = `notify::${spec.name}`;
+    } else if (detail === undefined && findSignal(chain, name)) key = name;
+    if (key === undefined) {
+        if (!chain[0])
+            throw new UnsupportedGObjectError(
+                'signal_stop_emission_by_name',
+                `'${detailedSignal}' on '${typeName}' is not a signal of a registered class; only those can be stopped.`,
+            );
+        console.warn(`signal '${detailedSignal}' is invalid for instance of type '${typeName}'`);
+        return;
+    }
+    const emissions = stateOf(instance).emissions;
+    for (let index = emissions.length - 1; index >= 0; index--) {
+        const emission = emissions[index]!;
+        if (emission.key === key && !emission.stopped) {
+            emission.stopped = true;
+            return;
+        }
+    }
+    console.warn(`no emission of signal "${detailedSignal}" to stop for instance of type '${typeName}'`);
 }
 
 export function connectInstance(instance: GObjectInstance, signal: string, handler: SignalHandler): number {
@@ -869,6 +915,7 @@ export interface GObjectNamespace {
     readonly __gtkChildren__: symbol;
     readonly __gtkInternalChildren__: symbol;
     type_ensure(gtype: GType): void;
+    signal_stop_emission_by_name(instance: GObjectInstance, detailedSignal: string): void;
 }
 
 /**
@@ -900,5 +947,6 @@ export function createGObject(door: GObjectDoor): GObjectNamespace {
         type_ensure(gtype) {
             if (!KNOWN_TYPES.has(gtype)) throw new TypeError('GObject.type_ensure: not a GType of this GObject');
         },
+        signal_stop_emission_by_name: stopEmissionByName,
     };
 }
