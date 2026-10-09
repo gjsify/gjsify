@@ -92,7 +92,7 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         this.host = host;
     }
 
-    createNativeView(context: unknown): unknown {
+    createNativeView(context: unknown): object {
         const view = new (gutterEditText())(context);
         view.driver = this;
         return view;

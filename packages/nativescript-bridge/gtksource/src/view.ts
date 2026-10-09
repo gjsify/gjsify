@@ -33,7 +33,7 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         this.session = new EditorSession(this.driver, undefined, adwaitaColorScheme());
     }
 
-    createNativeView(): unknown {
+    createNativeView(): object {
         return this.driver.createNativeView(this._context);
     }
 
