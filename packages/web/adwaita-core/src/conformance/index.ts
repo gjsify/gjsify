@@ -730,3 +730,5 @@ export { MENU_ACTION_VECTORS, driveMenuActionVectors, registryMenuActionScene } 
 export type { MenuActionGroupSpec, MenuActionScene, MenuActionVector } from './menu-actions.js';
 export { MENU_TREE_VECTORS } from './menu-tree.js';
 export type { MenuTreeVector } from './menu-tree.js';
+export { GLIB_PATH_ROWS, GLIB_PATH_VECTORS, driveGLibPathVectors } from './glib-paths.js';
+export type { GLibPathRow, GLibPathsLike, GLibPathsSubject, GLibPathVector } from './glib-paths.js';

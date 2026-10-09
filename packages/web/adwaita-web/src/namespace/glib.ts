@@ -3,10 +3,20 @@
 // behaviour lives once in `@gjsify/adwaita-core` (`glib-timers.ts`, which states where a host
 // event loop cannot honour GLib); this file is the namespace door over the host's `setTimeout`.
 //
+// The path helpers (`MAXUINT32`, `build_filenamev`, `get_current_dir`, `get_system_data_dirs`) live
+// in `glib-paths.ts` of the core; the host has no filesystem, so `get_current_dir()` is `"/"` and
+// `get_system_data_dirs()` is `[]`. A port that knows better replaces the member in its own file.
+//
 // A TRUE SUBSET: everything else in GLib (`MainLoop`, `Source`, `timeout_add_seconds`, `Bytes`,
-// `build_filenamev`, …) is absent, and the `gi://GLib` arm refuses it by name.
+// `get_home_dir`, …) is absent, and the `gi://GLib` arm refuses it by name.
 
-import { createGLibTimers } from '@gjsify/adwaita-core';
+import {
+    buildFilenamev,
+    createGLibTimers,
+    getCurrentDir,
+    getSystemDataDirs,
+    MAXUINT32 as GLIB_MAXUINT32,
+} from '@gjsify/adwaita-core';
 
 const glib = createGLibTimers();
 
@@ -20,3 +30,8 @@ export const SOURCE_CONTINUE = glib.SOURCE_CONTINUE;
 export const idle_add = glib.idle_add;
 export const timeout_add = glib.timeout_add;
 export const source_remove = glib.source_remove;
+
+export const MAXUINT32 = GLIB_MAXUINT32;
+export const build_filenamev = buildFilenamev;
+export const get_current_dir = getCurrentDir;
+export const get_system_data_dirs = getSystemDataDirs;

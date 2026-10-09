@@ -1059,3 +1059,4 @@ export type {
     SignalMeta,
     TemplateScope,
 } from './gobject.js';
+export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
