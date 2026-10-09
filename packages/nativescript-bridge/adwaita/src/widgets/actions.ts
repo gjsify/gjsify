@@ -36,7 +36,6 @@ import {
     type AdwMenuActions,
     type AdwMenuItem,
     type AdwMenuModel,
-    type SimpleAction,
 } from '@gjsify/adwaita-core';
 
 export { SimpleAction, SimpleActionGroup } from '@gjsify/adwaita-core';

@@ -17,7 +17,7 @@ function fakeSource(): StyleSource & { set(dark: boolean): void } {
         },
         set(value) {
             dark = value;
-            for (const listener of [...listeners]) listener();
+            for (const listener of Array.from(listeners)) listener();
         },
     };
 }
