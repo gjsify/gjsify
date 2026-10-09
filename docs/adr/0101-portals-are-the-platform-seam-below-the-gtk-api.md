@@ -118,8 +118,9 @@ with that platform's own means.**
 
 ```text
 app code            Gtk.FileDialog · Adw.StyleManager · Gio.AppInfo.launch_default_for_uri · Gio.Notification
-                    (GTK / GIO API: true subset, same names, same semantics; ADR 0096, 0098)
-                                         │
+                    · Xdp.Portal  (gi://Xdp?version=1.0, package @gjsify/xdp)
+                    (GTK / GIO / libportal API: true subset, same names, same semantics; ADR 0096, 0098)
+                                         │  one driver per platform serves both
 portal contract     FileChooser · Settings(appearance) · OpenURI · Notification · Account
                     (org.freedesktop.portal.*: method shapes, Request/Response, option keys)
                                          │
@@ -133,8 +134,9 @@ driver, per platform
 
 Three consequences.
 
-1. **App code sees only GTK and GIO.** A portal call never appears in an app. The portal is how the
-   GTK-shaped call is carried, as it is for GTK itself.
+1. **App code sees GTK, GIO and `Xdp`.** It never writes a D-Bus call to `org.freedesktop.portal.*`.
+   The GTK layer and `Xdp.Portal` share ONE driver per platform, so `Gtk.FileDialog` and
+   `Xdp.Portal.open_file` cannot disagree.
 2. **The contract is the portal's, even where the portal project does not run.** Windows, macOS, the
    browser and Android have no portal. A driver there answers what the interface says: the same
    option keys, the same `Response` codes (success, cancelled, other), the same result shapes, the
@@ -144,13 +146,90 @@ Three consequences.
    `IFileDialog`, the browser opens its own picker. This matches what GTK does in
    `gtk_file_chooser_native_show`.
 
+### The public API: `@gjsify/xdp`, a true subset of libportal
+
+Pascal's rulings. The package is `@gjsify/xdp`. It re-creates libportal as a true subset under the
+same namespace, `gi://Xdp?version=1.0`: `Xdp.Portal` with the methods consumers use (`open_file`,
+`save_file`, `open_uri`, `get_user_information`, each with its `_finish`), plus the XdpGtk4 parent
+handling (`XdpGtk4.parent_new_gtk`) as far as an app needs it. Why: the import line shows that the
+standard is used, and the libportal and xdg-desktop-portal docs apply unchanged.
+
+- **On GJS the real libportal answers.** No gjsify module sits between the import and the typelib.
+- **Elsewhere gjsify drivers answer** (browser, NativeScript; Node and Bun through GI, see below).
+- **A method outside the subset throws, naming it.**
+
+Is libportal there? Measured from primary sources:
+
+| Where | Result | Source |
+|---|---|---|
+| GNOME Flatpak runtime | yes. `sdk-platform.bst` lists `sdk/libportal.bst`; it builds libportal 0.11.0 against `sdk/gtk.bst` (GTK 4) and `sdk/gtk+-3.bst`, Qt backends disabled | `gitlab.gnome.org/GNOME/gnome-build-meta`: `elements/sdk-platform.bst`, `elements/sdk/libportal.bst` |
+| Debian | yes: `gir1.2-xdp-1.0` and `gir1.2-xdpgtk4-1.0` (libportal 0.9.1 in trixie, 0.6 in bookworm) | `sources.debian.org`: `libportal/0.9.1-1/debian/control`, `/api/src/libportal/` |
+| Fedora | yes: `libportal` ships `Xdp-1.0.typelib`, `libportal-gtk4` ships `XdpGtk4-1.0.typelib` (0.10.0 on Fedora 43 to 45) | `src.fedoraproject.org/rpms/libportal`: `libportal.spec`; `packages.fedoraproject.org/pkgs/libportal/libportal-gtk4/` |
+| Upstream | namespace `Xdp`, version 1.0; the GTK4 backend is a build option (`backend-gtk4`, auto) | `github.com/flatpak/libportal`: `meson.build`, `libportal/meson.build`, `meson_options.txt`; docs `flatpak.github.io/libportal/` |
+
+I did not install a stock distro, so "stock" rests on the package lists above. Whether a given desktop
+image installs the typelib by default is not measured. The GNOME runtime row is the strong one: a
+Flatpak app has it.
+
+**Rule when the typelib is missing on GJS:** `gi://Xdp` fails to load and GJS raises its own
+"Typelib file for namespace 'Xdp' not found". gjsify does not catch that into a silent fallback; the
+error names the namespace. I found nothing better grounded: GTK's own rule
+is that a portal that should answer and does not is an error (`gdk_display_should_use_portal`).
+
+### A swappable driver below `Gtk.FileDialog` and `Xdp`
+
+An app may register its own driver, for example "save" backed by a server API. Its GTK code stays
+unchanged: it still calls `Gtk.FileDialog.save` or `Xdp.Portal.save_file`.
+
+```ts
+import { registerPortalDriver } from '@gjsify/xdp';
+
+registerPortalDriver({
+    fileChooser: { saveFile: (options) => saveToServer(options) },
+});
+```
+
+`registerPortalDriver` is the shape this ADR proposes; the name is not decided.
+
+The GIO-faithful variant: a `Gio.File` for an `https://` URI (GVfs knows http and WebDAV), with
+`replace_async` issuing a `PUT`. It is NOT built until a consumer needs it, and throws by name until
+then.
+
+### gjsify never blocks app-level divergence
+
+The OPFS behaviour is only the default of the GTK port. An app may choose another web behaviour in
+either of two ways.
+
+1. **In the app: a `.web.ts` file or a platform query.** gjsify resolves `./foo` to `foo.web.ts` on
+   `--app browser`, and to `foo.gtk.ts`, `foo.<linux|macos|windows>.ts`, `foo.desktop.ts` on
+   `--app gjs|node`, then the base file (`packages/infra/rolldown-plugin-gjsify/src/plugins/platform-resolve.ts`:
+   `browserSuffixChain`, `desktopSuffixChain`; ADR 0032 § 9).
+
+   ```ts
+   // save.ts      the shared call, Gtk.FileDialog
+   // save.web.ts  replaces it in a browser build
+   import { save } from './save.js';
+   ```
+
+   The platform query is `Platform.OS` / `Platform.select` from `@gjsify/react-native`
+   (`packages/framework/react-native/src/apis/platform.ts`). It answers `linux`, `macos` or `windows`
+   and has no `web` value, so a browser fork uses the `.web.ts` file.
+
+   ```ts
+   import { Platform } from '@gjsify/react-native';
+   const dialog = Platform.select({ windows: windowsDialog, default: gtkDialog });
+   ```
+
+2. **A registered driver** (previous section) replaces the behaviour for every caller at once, with the
+   GTK code unchanged.
+
 ### Portals by platform
 
 "Planned" means nobody has built it. "Implemented" is stated only where this repo has the code.
 
 | Portal | Linux (D-Bus) | Browser | Android (NativeScript) | Windows | macOS |
 |---|---|---|---|---|---|
-| FileChooser | via `Gtk.FileDialog` on GJS: GTK carries it. A direct D-Bus client for Node: planned | File System Access where present (Chromium); else OPFS + drawn Adwaita dialog: planned (ADR 0100) | Storage Access Framework: planned | `IFileDialog`: GTK has it on GJS; other hosts planned | `NSOpenPanel`: GTK has it on GJS; other hosts planned |
+| FileChooser | real libportal / GTK on GJS and on node-gi hosts; a host without GI refuses by name | File System Access where present (Chromium); else OPFS + drawn Adwaita dialog: planned (ADR 0100) | Storage Access Framework: planned | `IFileDialog`: GTK has it on GJS; other hosts planned | `NSOpenPanel`: GTK has it on GJS; other hosts planned |
 | Settings (`org.freedesktop.appearance`) | **implemented** (`appearance/portal.ts`, ADR 0078) | `prefers-color-scheme`, `prefers-contrast`, `prefers-reduced-motion`: planned | `Configuration.uiMode`: planned | **implemented** via registry (`reader.ts`, ADR 0078) | **implemented** via `defaults` (ADR 0078) |
 | OpenURI | planned | `window.open`, `location`: planned | `ACTION_VIEW` intent: planned | `ShellExecute`: planned | `NSWorkspace.open`: planned |
 | Notification | planned | Notification API: planned | `NotificationManager`: planned | toast: planned | `UNUserNotificationCenter`: planned |
@@ -197,8 +276,15 @@ Pascal's rule: **a download is not saving.**
 - A download exists only as an explicit export, never as the answer to `save`.
 - A file opened through `<input type=file>` is copied into OPFS when it is opened, so it has the same
   handle from then on.
-- OPFS writes need `createWritable()` on the main thread: Chrome 86, Firefox 111, Safari 26. Before
-  Safari 26 a worker with `createSyncAccessHandle` is needed. Which of the two the driver ships is open.
+- OPFS writes, by feature detection: main-thread `createWritable()` where present (Chrome 86,
+  Firefox 111, Safari 26); otherwise a dedicated worker with `createSyncAccessHandle` (Safari before 26).
+
+### Decided with the same rule
+
+- Node and Bun: no hand-written D-Bus client. GJS and node-gi reach the portal through libportal and
+  GTK. A host without GI refuses by name.
+- Account portal: exposed only as `Xdp.Portal.get_user_information`, libportal's own name. No GTK or
+  GIO name is invented.
 
 ## Conformance
 
@@ -227,14 +313,12 @@ Pascal's rule: **a download is not saving.**
 
 ## Not goals
 
-- App code calling `org.freedesktop.portal.*`. Apps call GTK and GIO.
-- A libportal binding. GJS apps reach portals through GTK; Node and other hosts through a D-Bus client.
+- App code calling `org.freedesktop.portal.*` over D-Bus. Apps call `Xdp`, GTK and GIO.
+- A hand-written D-Bus client. GI hosts reach portals through libportal and GTK; a host without GI refuses by name.
+- Methods of libportal that no consumer uses. The subset grows with consumers.
 - Portals with no GTK or GIO API behind them today (Camera, ScreenCast, Location, and so on).
 
-## What this does not decide
+## Open question
 
-- Whether Node and Bun hosts get a direct D-Bus portal client, or only GJS does (through GTK).
-- Which Android and Windows means back each cell beyond the first guess in the table.
-- Whether the Account portal is exposed at all, and through which GTK/GIO name.
-- Whether the browser driver ships a main-thread `createWritable()` path, a worker path, or both,
-  given Safari 26 is the first version with the former.
+- Whether a CI runner can host `xdg-desktop-portal` with a headless backend for the real-portal job
+  (see Conformance). Planned, unmeasured.
