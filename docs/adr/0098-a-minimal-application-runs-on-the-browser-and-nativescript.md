@@ -179,3 +179,23 @@ A widget with no window above it finds no `app` group, which is not an empty gro
 Tracked in `status/open-todos/adwaita-core.md`. One PR, a commit per step: the core with its GJS
 vectors (the oracle first, including the popover case); the web door; the NativeScript door; the
 `GI_RENDERERS` arm. First consumer: Learn6502's `Application`, converted in its own repository.
+
+## Amendment 1: the helpers a source view reads
+
+Four members entered by the gap report (Learn6502's `SourceView`), each a subset held by vectors that
+run on real GJS first:
+
+- `GLib.MAXUINT32`, `GLib.build_filenamev` (a line-for-line port of `g_build_path_va`, not `path.join`),
+  `GLib.get_current_dir` and `GLib.get_system_data_dirs`. A host without a filesystem answers
+  `get_current_dir()` as `"/"` and `get_system_data_dirs()` as `[]`; a caller walking the list falls
+  through to its default. These are defaults, not hooks: a port with a real answer replaces the member in
+  its own file. The shared vectors hold only the shape of those two, each port's spec holds the value.
+- `Adw.StyleManager`: `get_default()`, the read-only `dark` / `get_dark()` and `notify::dark`, which
+  fires only on a change. The web reads the root's `.theme-dark` / `.theme-light` and
+  `prefers-color-scheme`; NativeScript reads `adwaitaColorScheme()`. `color_scheme`, `set_color_scheme`,
+  `get_for_display` and `Adw.ColorScheme` stay out and are reported as missing.
+- `Gio.SimpleActionGroup` on the web (NativeScript had it); its class now lives in the core. Not carried:
+  `change_action_state`, `query_action`, `add_action_entries`, `action-added` / `action-removed`.
+
+`Gio.File.query_exists` is NOT added: `Gio.File` is ADR 0100's, which refuses it by name until a path
+can be named.

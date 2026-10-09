@@ -36,44 +36,10 @@ import {
     type AdwMenuActions,
     type AdwMenuItem,
     type AdwMenuModel,
-    type SimpleAction,
 } from '@gjsify/adwaita-core';
 
-export { SimpleAction } from '@gjsify/adwaita-core';
+export { SimpleAction, SimpleActionGroup } from '@gjsify/adwaita-core';
 export type { ActionActivateHandler, SimpleActionProps } from '@gjsify/adwaita-core';
-
-/** `Gio.SimpleActionGroup`. */
-export class SimpleActionGroup {
-    private readonly _actions = new Map<string, SimpleAction>();
-
-    add_action(action: SimpleAction): void {
-        this._actions.set(action.name, action);
-    }
-
-    remove_action(name: string): void {
-        this._actions.delete(name);
-    }
-
-    lookup_action(name: string): SimpleAction | null {
-        return this._actions.get(name) ?? null;
-    }
-
-    has_action(name: string): boolean {
-        return this._actions.has(name);
-    }
-
-    list_actions(): string[] {
-        return [...this._actions.keys()];
-    }
-
-    /** `g_action_group_activate_action`. False when no such action exists. */
-    activate_action(name: string, parameter: unknown = null): boolean {
-        const action = this._actions.get(name);
-        if (!action) return false;
-        action.activate(parameter);
-        return true;
-    }
-}
 
 /** What the chain walk needs of a view: `View.parent`, nothing else. */
 export interface ActionHost {

@@ -1038,6 +1038,7 @@ export {
     insertActionGroup,
     installActionMap,
     linkWindow,
+    SimpleActionGroup,
 } from './gio-actions.js';
 export type { ActionActivateHandler, ActionGroupLike, ActionLike, SimpleActionProps } from './gio-actions.js';
 export type {
@@ -1059,3 +1060,6 @@ export type {
     SignalMeta,
     TemplateScope,
 } from './gobject.js';
+export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
+export { StyleManagerBase } from './style-manager.js';
+export type { StyleSource } from './style-manager.js';

@@ -87,6 +87,11 @@ export const CONSTRUCTIBLE_VALUES = [
         why: '`Gtk.Application` under the libadwaita name an Adwaita app extends, ADR 0098 stage 1. A GObject, not a widget.',
     },
     {
+        member: 'Adw.StyleManager',
+        gir: 'StyleManager',
+        why: "A widget that follows the system appearance writes `Adw.StyleManager.get_default()` and `connect('notify::dark', …)`. The ports carry the read-only subset (`get_default`, `dark`, `get_dark`, `notify::dark`) over the page's / the app's own scheme; forcing a scheme (`color_scheme`) is outside it. A GObject, not a widget.",
+    },
+    {
         member: 'Gio.ApplicationFlags',
         gir: 'ApplicationFlags',
         flags: true,

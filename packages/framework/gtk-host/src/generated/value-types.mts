@@ -27,6 +27,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Adw.Application': { gtype: 'AdwApplication', widget: false },
     'Adw.SidebarItem': { gtype: 'AdwSidebarItem', widget: false },
     'Adw.SidebarSection': { gtype: 'AdwSidebarSection', widget: false },
+    'Adw.StyleManager': { gtype: 'AdwStyleManager', widget: false },
     'Adw.TabPage': { gtype: 'AdwTabPage', widget: false },
     'Adw.ViewStackPage': { gtype: 'AdwViewStackPage', widget: false },
     'Gio.Application': { gtype: 'GApplication', widget: false },
