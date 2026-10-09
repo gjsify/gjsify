@@ -28,6 +28,7 @@
 // The incident above is kept because it is why the helper exists; what the helper
 // buys now is one DECLARATION of what a gated block means, not a workaround.
 
+import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
@@ -138,6 +139,34 @@ async function settle(done: () => boolean, budget = 200): Promise<number> {
         await Promise.resolve();
     }
     return done() ? budget : -1;
+}
+
+/**
+ * Let the window's frame clock paint `frames` more times, then return.
+ *
+ * `settle()` spins the main context but never waits for a paint, so a vector that
+ * ends right after a layout change (a breakpoint flipping, a bar revealing) destroys
+ * its window with a frame still in flight. GDK then reports
+ * `gdk_frame_timings_presented() called on skipped frame.` against the dead surface —
+ * seen on macOS CI, where the compositor's presentation feedback arrives later than
+ * on Linux — and `assertQuiet` fails the NEXT hook for it. Waiting for the clock to
+ * paint lets the in-flight frame retire before teardown. Bounded by `budgetMs` so a
+ * clock that never ticks fails nothing here and only costs the wait.
+ */
+async function settleFrames(window: Gtk.Window, frames = 3, budgetMs = 1000): Promise<void> {
+    const clock = window.get_surface()?.get_frame_clock();
+    if (!clock) return;
+    let painted = 0;
+    const handler = clock.connect('after-paint', () => {
+        painted++;
+    });
+    const deadline = GLib.get_monotonic_time() + budgetMs * 1000;
+    try {
+        clock.request_phase(Gdk.FrameClockPhase.UPDATE);
+        await settle(() => painted >= frames || GLib.get_monotonic_time() > deadline, 100000);
+    } finally {
+        clock.disconnect(handler);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1309,9 +1338,12 @@ export default async () => {
 
                 await windowed(
                     app(WIDE_TABS),
-                    async (_window, container) => {
+                    async (window, container) => {
                         const bar = find(container, 'AdwViewSwitcherBar') as Adw.ViewSwitcherBar;
                         expect((await settle(() => bar.get_reveal())) >= 0).toBe(true);
+                        // The breakpoint flip and the bar's reveal animation leave frames
+                        // in flight; let them retire before the window is destroyed.
+                        await settleFrames(window);
                         // Asserted on the HEADER BAR's title widget and not on "is there
                         // an Adw.ViewSwitcher anywhere": `Adw.ViewSwitcherBar` builds one
                         // of its own, so the tree holds a switcher in both layouts and
