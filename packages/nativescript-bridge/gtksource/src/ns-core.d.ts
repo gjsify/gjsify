@@ -21,7 +21,7 @@ declare module '@nativescript/core' {
         _context: unknown;
         /** The platform view `createNativeView()` returned; `undefined` before attach and after dispose. */
         nativeViewProtected: unknown;
-        createNativeView(): unknown;
+        createNativeView(): object;
         initNativeView(): void;
         disposeNativeView(): void;
         onLoaded(): void;

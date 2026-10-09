@@ -8,7 +8,7 @@ import type { EditorDriver, EditorHost } from '@gjsify/gtksource-core';
 
 export interface NativeEditorDriver extends EditorDriver {
     /** Called from `createNativeView()` with the Android `Context`. */
-    createNativeView(context: unknown): unknown;
+    createNativeView(context: unknown): object;
     /** The view `createNativeView()` returned is live: apply everything remembered so far. */
     attach(nativeView: unknown): void;
     detach(): void;

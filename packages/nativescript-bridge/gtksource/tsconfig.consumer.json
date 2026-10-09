@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "lib": ["ESNext", "DOM"],
+        "moduleResolution": "bundler",
+        "noEmit": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "types": []
+    },
+    "files": ["check/ns-core.d.ts", "lib/types/index.d.ts", "check/consumer.ts"]
+}
