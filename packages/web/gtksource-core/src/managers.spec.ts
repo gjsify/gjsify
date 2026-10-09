@@ -1,12 +1,12 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { learnStyle, learnStyleDark, sixAssemblerLang } from './fixtures.spec.js';
+import { learnStyle, learnStyleDark, sixAssemblerLang } from './fixtures.js';
 
 import { LanguageManager } from './language-manager.js';
 import { paletteOf, StyleSchemeManager } from './style-scheme.js';
 import { TokenStyler } from './token-styler.js';
 
 export default async () => {
-    await describe('gtksource-nativescript: managers', async () => {
+    await describe('gtksource-core: managers', async () => {
         await it('registers a language and guesses it by glob and mime type', () => {
             const manager = new LanguageManager();
             const language = manager.addLanguageFromXml(sixAssemblerLang);

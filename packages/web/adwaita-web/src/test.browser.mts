@@ -26,6 +26,7 @@ import { AdwBreakpointsTest } from './breakpoints.spec.js';
 import { AdwBreakpointBinTest } from './adw-breakpoint-bin.spec.js';
 import { AdwMultiLayoutViewTest } from './adw-multi-layout-view.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
+import { GtkSourceViewTest } from './gtksource/gtk-source-view.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwWindowTest } from './adw-window.spec.js';
 import { AdwShortcutsTest } from './adw-shortcuts.spec.js';
@@ -261,6 +262,7 @@ run({
     AdwBreakpointBinTest,
     AdwMultiLayoutViewTest,
     AdwDataGridTest,
+    GtkSourceViewTest,
     AdwDialogTest,
     AdwWindowTest,
     AdwShortcutsTest,

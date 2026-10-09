@@ -4,8 +4,8 @@
 // `xmlns:gtksource="~/gtksource"` barrel re-exports, so `<gtksource:View>` resolves exactly as
 // `<adw:Clamp>` does. One barrel per library: the prefix is the only thing that says which
 // library a widget belongs to (ADR 0034 § Amendment 9).
-export { Buffer } from '../buffer.js';
-export { LanguageManager, Language } from '../language-manager.js';
-export { StyleSchemeManager, StyleScheme } from '../style-scheme.js';
+export { Buffer } from '@gjsify/gtksource-core';
+export { LanguageManager, Language } from '@gjsify/gtksource-core';
+export { StyleSchemeManager, StyleScheme } from '@gjsify/gtksource-core';
 export { GtkSourceView as View } from '../view.js';
-export { init } from '../init.js';
+export { init } from '@gjsify/gtksource-core';

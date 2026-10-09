@@ -32,14 +32,14 @@
  * keeps `GObject` in its `/gobject` subpath (ADR 0096), the web renderer exports it from the
  * root, and `@gjsify/gtksource-nativescript` is a package of its own that depends on the renderer
  * (ADR 0094), so its `GtkSource` namespace can only be named by specifier. A namespace with no entry
- * is read from `renderer`. The browser row has no `GtkSource`: nothing there implements it.
+ * is read from `renderer`. The browser row reads `GtkSource` from the renderer's root barrel (`@gjsify/adwaita-web` exports it, over the same core).
  *
  * @type {Readonly<Record<string, { renderer: string, namespaces: Readonly<Record<string, string>>, specifiers?: Readonly<Record<string, string>> }>>}
  */
 export const GI_RENDERERS = {
     browser: {
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
     },
     nativescript: {
         renderer: '@gjsify/adwaita-nativescript',

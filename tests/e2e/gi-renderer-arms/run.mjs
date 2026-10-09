@@ -53,7 +53,7 @@ const ARMS = [
     {
         app: 'browser',
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', GtkSource: '5' },
     },
     {
         app: 'nativescript',
@@ -339,26 +339,35 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
         });
     }
 
-    // ADR 0094: the NativeScript row answers `GtkSource` out of its own package, and the browser
-    // row, which has no GtkSource, still refuses it by name rather than handing back `{}`.
-    it('--app nativescript --gi-renderer answers gi://GtkSource?version=5 with init() and a view class', () => {
-        assert.ok(existsSync(GTKSOURCE_NS_BUILT), `${GTKSOURCE_NS_BUILT} is not built`);
-        const built = build('gtksource-probe.ts', 'nativescript', { name: 'gtksource-probe' });
-        assert.equal(built.status, 0, `build failed\n${built.output}`);
-        assert.ok(!readFileSync(built.outFile, 'utf-8').includes('gi://'), 'the bundle leaks a gi:// specifier');
-        const report = evaluate(built.outFile, 'nativescript');
-        assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
-        assert.equal(report.kind, 'function', 'GtkSource.init is not a function');
-        assert.equal(report.initReturns, true, 'GtkSource.init() did not return undefined');
-        assert.equal(report.protoIdentity, true, 'the subclass does not extend GtkSource.View');
-        assert.equal(report.reachesCore, true, 'GtkSource.View does not descend from an @nativescript/core class');
-    });
+    // ADR 0094: both rows answer `GtkSource` — NativeScript out of its own package, the browser out of
+    // the renderer's root barrel — and a member neither implements is refused by name.
+    for (const app of ['nativescript', 'browser']) {
+        it(`--app ${app} --gi-renderer answers gi://GtkSource?version=5 with init() and a view class`, () => {
+            if (app === 'nativescript') {
+                assert.ok(existsSync(GTKSOURCE_NS_BUILT), `${GTKSOURCE_NS_BUILT} is not built`);
+            }
+            const built = build('gtksource-probe.ts', app, { name: `gtksource-probe-${app}` });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            assert.ok(!readFileSync(built.outFile, 'utf-8').includes('gi://'), 'the bundle leaks a gi:// specifier');
+            const report = evaluate(built.outFile, app);
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'GtkSource.init is not a function');
+            assert.equal(report.initReturns, true, 'GtkSource.init() did not return undefined');
+            assert.equal(report.protoIdentity, true, 'the subclass does not extend GtkSource.View');
+            if (app === 'nativescript') {
+                assert.equal(report.reachesCore, true, 'GtkSource.View does not descend from an @nativescript/core class');
+            }
+        });
 
-    it('--app browser --gi-renderer refuses gi://GtkSource, by name', () => {
-        const built = build('gtksource-probe.ts', 'browser', { name: 'gtksource-browser' });
-        assert.notEqual(built.status, 0, `gi://GtkSource built on a target with no GtkSource\n${built.output}`);
-        assert.match(built.output, /gi:\/\/GtkSource/, 'the refusal does not name the specifier it refused');
-    });
+        it(`--app ${app} --gi-renderer refuses an absent GtkSource member by name, at runtime`, () => {
+            const built = build('gtksource-absent.ts', app, { name: `gtksource-absent-${app}` });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'member');
+            assert.notEqual(report.refusal, null, 'reading an absent GtkSource member returned silently');
+            assert.match(report.refusal, /GutterRendererText/, 'the refusal does not name the member');
+            assert.match(report.refusal, /LanguageManager/, 'the refusal does not print the members that exist');
+        });
+    }
 
     // ADR 0096 § 4: `./x.blp?template` is one specifier with one meaning per target.
     for (const arm of ARMS) {

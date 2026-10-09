@@ -9,7 +9,7 @@ import { build } from '@gjsify/adwaita-nativescript/builder';
 import { describe, expect, it } from '@gjsify/unit';
 
 import './builder.js';
-import { GtkSourceBuffer } from './buffer.js';
+import { GtkSourceBuffer } from '@gjsify/gtksource-core';
 import { GtkSourceView } from './view.js';
 
 import tree from './fixtures/source-view.blp?shared-tree';

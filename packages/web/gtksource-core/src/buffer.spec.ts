@@ -4,7 +4,7 @@ import { Buffer } from './buffer.js';
 import type { TextEdit } from './buffer.js';
 
 export default async () => {
-    await describe('gtksource-nativescript: Buffer', async () => {
+    await describe('gtksource-core: Buffer', async () => {
         await it('splits lines and maps offsets both ways', () => {
             const buffer = new Buffer('ab\ncde\n\nf');
             expect(buffer.lineCount).toBe(4);

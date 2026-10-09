@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { parseLanguage, Tokenizer } from '@gjsify/gtksource-core';
+import { parseLanguage } from './lang.js';
+import { Tokenizer } from './tokenizer.js';
 
 import { IncrementalHighlighter } from './highlighter.js';
 
@@ -23,7 +24,7 @@ const styles = (h: IncrementalHighlighter, line: number): string =>
         .join(',');
 
 export default async () => {
-    await describe('gtksource-nativescript: IncrementalHighlighter', async () => {
+    await describe('gtksource-core: IncrementalHighlighter', async () => {
         await it('tokenizes everything on reset', () => {
             const h = new IncrementalHighlighter(tokenizer);
             h.reset(['foo', 'bar']);

@@ -3,8 +3,8 @@
 // consumer owns where its data files live (Android assets are not a directory GJS-style
 // `append_search_path()` could walk).
 
-import type { ResolvedStyle, StyleSchemeDefinition } from '@gjsify/gtksource-core';
-import { parseStyleScheme, resolveStyle } from '@gjsify/gtksource-core';
+import { parseStyleScheme, resolveStyle } from './style.js';
+import type { ResolvedStyle, StyleSchemeDefinition } from './types.js';
 
 import { parseColor } from './color.js';
 import { FALLBACK_DARK_ID, FALLBACK_LIGHT_ID, fallbackDarkScheme, fallbackLightScheme } from './fallback-schemes.js';
@@ -98,6 +98,11 @@ export class StyleSchemeManager {
         return (StyleSchemeManager.instance ??= new StyleSchemeManager());
     }
 
+    /** GJS spelling of {@link getDefault}. */
+    static get_default(): StyleSchemeManager {
+        return StyleSchemeManager.getDefault();
+    }
+
     private readonly definitions = new Map<string, StyleSchemeDefinition>();
     private readonly fallbacks = new Set<string>();
 
@@ -134,6 +139,11 @@ export class StyleSchemeManager {
     getScheme(id: string): StyleScheme | null {
         const definition = this.definitions.get(id);
         return definition ? this.wrap(definition) : null;
+    }
+
+    /** GJS spelling of {@link getScheme}. */
+    get_scheme(id: string): StyleScheme | null {
+        return this.getScheme(id);
     }
 
     /** The scheme to use when nothing was chosen: the stand-in or real `Adwaita` / `Adwaita-dark`. */
