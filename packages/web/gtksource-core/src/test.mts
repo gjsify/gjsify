@@ -13,6 +13,8 @@ import viewOracleTestSuite from './view-vectors.gjs.spec.js';
 import bufferVectorsTestSuite from './buffer-vectors.spec.js';
 import bufferOracleTestSuite from './buffer-vectors.gjs.spec.js';
 import initTestSuite from './init.spec.js';
+import stopVectorsTestSuite from './signal-stop-vectors.spec.js';
+import stopOracleTestSuite from './signal-stop-vectors.gjs.spec.js';
 import initOracleTestSuite from './init.gjs.spec.js';
 
 run({
@@ -30,5 +32,7 @@ run({
     bufferVectorsTestSuite,
     bufferOracleTestSuite,
     initTestSuite,
+    stopVectorsTestSuite,
+    stopOracleTestSuite,
     initOracleTestSuite,
 });

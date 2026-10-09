@@ -247,10 +247,11 @@ Learn6502's `SourceView` calls it from the handlers of `extend-selection` and `m
 - With no emission of it in progress, or a name the instance does not have, GLib warns and does nothing;
   so does this (`console.warn`). A stop never outlives its emission. A nested emission of the same signal
   is stopped on its own; the outer one goes on.
-- Scope: signals of a registered class (`Signals`, `notify::`). An object of no registered class (the
-  GtkSource ones) throws `UnsupportedGObjectError` naming it, until the port that emits those signals
-  has a stoppable dispatch.
-- Not carried: `connect_after`, `signal_handler_block`/`unblock`, `GObject.Value`. Learn6502 calls
-  `connect_after` only on GtkSource objects, which are not registered classes; the registry has no
-  class-closure or after stage to order them against.
+- Scope: signals of a registered class (`Signals`, `notify::`), and any object that carries the
+  `STOP_EMISSION` symbol (`Symbol.for('@gjsify/adwaita-core/stop-emission')`, the `StoppableEmitter`
+  interface): `stopEmissionByName` hands the name to it first. The GtkSource buffer and view carry it
+  (ADR 0094, Slice 8b); any other object of no registered class throws `UnsupportedGObjectError`.
+- Not carried: `signal_handler_block`/`unblock`, `GObject.Value`. `connect_after` exists on the
+  GtkSource objects (below), where an emission runs plain handlers, then the class handler, then the
+  `connect_after` ones; a stop skips everything still to come.
 - Vectors: two rows of `instance API` in `GOBJECT_VECTORS`, held by real `gi://GObject` first.

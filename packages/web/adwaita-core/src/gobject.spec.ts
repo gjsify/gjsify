@@ -10,6 +10,7 @@ import { GOBJECT_VECTORS, driveGObjectVectors, type GObjectSubject } from './con
 import {
     bindProperties,
     createGObject,
+    STOP_EMISSION,
     type BindingFlag,
     type BuiltTemplate,
     type GObjectDoor,
@@ -62,7 +63,10 @@ const G = createGObject(door);
 const { ParamSpec: P, ParamFlags: F } = G;
 
 const FakeSwitch = G.registerClass(
-    { GTypeName: 'FakeSwitch', Properties: { active: P.boolean('active', '', '', F.READWRITE, false) } },
+    {
+        GTypeName: 'FakeSwitch',
+        Properties: { active: P.boolean('active', '', '', F.READWRITE, false) },
+    },
     class extends G.Object {},
 );
 const FakeButton = G.registerClass(
@@ -90,7 +94,10 @@ export default async () => {
             const Hosted = G.registerClass(
                 {
                     GTypeName: 'DoorHosted',
-                    Template: { tag: 'GtkBox', children: [{ tag: 'GtkSwitch', id: 'sw' }] },
+                    Template: {
+                        tag: 'GtkBox',
+                        children: [{ tag: 'GtkSwitch', id: 'sw' }],
+                    },
                     InternalChildren: ['sw'],
                 },
                 class extends G.Object {},
@@ -101,7 +108,10 @@ export default async () => {
 
         await it('hands the construct bag only what is not a declared property', () => {
             const Plain = G.registerClass(
-                { GTypeName: 'DoorBag', Properties: { code: P.string('code', '', '', F.READWRITE, '') } },
+                {
+                    GTypeName: 'DoorBag',
+                    Properties: { code: P.string('code', '', '', F.READWRITE, '') },
+                },
                 class extends G.Object {},
             );
             expect(() => new Plain({ code: 'x', stray: 1 })).toThrow();
@@ -131,6 +141,15 @@ export default async () => {
             ]) {
                 expect(rows.has(row as never)).toBe(true);
             }
+        });
+
+        await it('hands signal_stop_emission_by_name to an object that carries STOP_EMISSION', () => {
+            const stopped: string[] = [];
+            const instance = {
+                [STOP_EMISSION]: (name: string) => stopped.push(name),
+            };
+            createGObject(door).signal_stop_emission_by_name(instance as unknown as GObjectInstance, 'mark-set');
+            expect(stopped).toStrictEqual(['mark-set']);
         });
     });
 };

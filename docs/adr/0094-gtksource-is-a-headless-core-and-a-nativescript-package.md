@@ -133,8 +133,8 @@ offers `name`, for the two marks `insert` and `selection_bound`. The signals `ma
 `connect` of any other signal name throws by name. `text =` is not undoable and clears the history; a
 native edit counts as a user action. Undo coalescing across separate edits is not implemented: each
 edit outside a user action is its own step. Vectors (`GTKSOURCE_BUFFER_VECTORS`) run against real
-`gi://GtkSource`, the core, and both doors. Not here: arbitrary marks, tags, `signal_stop_emission_by_name`
-(so a handler cannot veto `mark-set`), and the view-side verbs. Status unchanged.
+`gi://GtkSource`, the core, and both doors. Not here: arbitrary marks, tags, and the view-side verbs.
+(`signal_stop_emission_by_name` followed in Slice 8b, below.) Status unchanged.
 
 ## Amendment (2026-10-09): the View surface
 
@@ -149,3 +149,26 @@ answers an internal child. `Gtk.ScrolledWindow` gains `get_policy`, `set_policy`
 `gi://GtkSource` and `gi://Gtk` (instance vectors only where a display exists), the web door and the
 NativeScript door. Not here: `get_gutter` (slice 6) and the later-slice members, which throw by name.
 Status unchanged.
+
+## Amendment (2026-10-09): stopping an emission (Slice 8b)
+
+`GObject.signal_stop_emission_by_name` works on the GtkSource objects Learn6502 stops: `extend-selection`
+on the view and `mark-set` on the buffer (ADR 0096 Amendment 1 carries the `STOP_EMISSION` protocol).
+Learn6502 also connects `copy-clipboard` with `connect_after` on the view, and `end-user-action`, `undo`,
+`redo` and `connect_after("cursor-moved")` on the buffer. Both objects now have `connect_after`.
+
+An emission runs plain handlers, then the class handler, then `connect_after` ones; a stop skips what is
+left, and a handler disconnected meanwhile does not run. Flags as in GTK 4: `mark-set` is RUN_LAST, and its
+class handler emits `cursor-moved` and the `notify::cursor-position` family, so a stopped `mark-set` emits
+neither. `extend-selection` is RUN_LAST with a `true_handled` accumulator: a handler that answers TRUE ends
+the emission and leaves the range it set; a stop or no TRUE collapses the range to the click. `copy-clipboard`
+is RUN_LAST; a stop skips the copy. The platform default is mapped to the class handler: on the web, a
+`mousedown` with `detail` 2 or 3 asks `extend-selection` first (WORD, LINE) and the textarea's own selection
+runs only if nothing stopped it, and a `copy` event is cancelled when a handler stopped `copy-clipboard`.
+After a `mark-set` handler moved the marks away from the platform's selection, the widget follows the
+buffer. `Gtk.TextExtendSelection` (`WORD` 0, `LINE` 1) is added to both doors.
+
+Gap: the Android driver does not emit `extend-selection` or `copy-clipboard`, as it has no device-verified
+hook for either; stopping `mark-set` works there, being buffer-level. Vectors (`GTKSOURCE_STOP_VECTORS`)
+run against real `gi://GtkSource` (view rows where a display exists), the core and the web door; the
+NativeScript door runs the buffer rows. Status unchanged.

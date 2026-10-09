@@ -22,6 +22,7 @@ import { GutterLines, GutterRendererText, WINDOW_LEFT, parseMarkup } from './gut
 import type { GutterRenderer, GutterSet } from './gutter-renderer.js';
 import { HighlightController } from './highlight-controller.js';
 import { StyleSchemeManager } from './style-scheme.js';
+import { TextIter } from './text-iter.js';
 import type { ColorSchemeVariant } from './style-scheme.js';
 import { SignalEmitter } from './signals.js';
 
@@ -48,6 +49,7 @@ export class EditorSession extends SignalEmitter implements EditorHost {
     private fromNative = false;
     private variant: ColorSchemeVariant;
     private gutters: GutterSet | null = null;
+    private defaultRan = false;
 
     private props = {
         autoIndent: false,
@@ -134,9 +136,15 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         });
     }
 
-    private leftRenderers(): { renderers: readonly GutterRenderer[]; positions: readonly number[] } {
+    private leftRenderers(): {
+        renderers: readonly GutterRenderer[];
+        positions: readonly number[];
+    } {
         const gutter = this.gutters?.get(WINDOW_LEFT);
-        return { renderers: gutter?.renderers ?? [], positions: gutter?.positions ?? [] };
+        return {
+            renderers: gutter?.renderers ?? [],
+            positions: gutter?.positions ?? [],
+        };
     }
 
     private metricsOf(renderer: GutterRenderer, position: number): GutterMetrics {
@@ -158,8 +166,11 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         if (renderers.length === 0 || this.gutters === null) return [];
         const lines = new GutterLines(this.gutters.view, this.current, first, last);
         return renderers.map((renderer, at) => {
-            const query = (renderer as unknown as { vfunc_query_data?: (lines: GutterLines, line: number) => void })
-                .vfunc_query_data;
+            const query = (
+                renderer as unknown as {
+                    vfunc_query_data?: (lines: GutterLines, line: number) => void;
+                }
+            ).vfunc_query_data;
             const cells: GutterCell[] = [];
             for (let line = first; line <= last; line++) {
                 query?.call(renderer, lines, line);
@@ -202,6 +213,35 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         } finally {
             this.fromNative = false;
         }
+        // A `mark-set` handler may have moved the marks elsewhere: the buffer is the truth, the widget follows.
+        if (this.current.cursorPosition !== clamp(end) || this.current.selectionBoundPosition !== clamp(start)) {
+            this.onBufferCursor();
+        }
+    }
+
+    onNativeExtendSelection(granularity: number, location: number): readonly [number, number] | null {
+        const buffer = this.current;
+        const at = Math.min(Math.max(0, location), buffer.length);
+        const start = new TextIter(buffer, at);
+        const end = new TextIter(buffer, at);
+        this.defaultRan = false;
+        const handled = this.emitHandled('extend-selection', granularity, new TextIter(buffer, at), start, end);
+        if (this.defaultRan) return null;
+        return handled ? [start.utf16Offset, end.utf16Offset] : [at, at];
+    }
+
+    onNativeCopy(): boolean {
+        this.defaultRan = false;
+        this.emit('copy-clipboard');
+        return this.defaultRan;
+    }
+
+    // `extend-selection` and `copy-clipboard` are RUN_LAST: the class handler is the platform's own
+    // behaviour, which `defaultRan` reports back, so a stopped emission leaves the platform alone.
+    protected override classHandler(name: string): unknown {
+        if (name !== 'extend-selection' && name !== 'copy-clipboard') return undefined;
+        this.defaultRan = true;
+        return true;
     }
 
     // --- properties -----------------------------------------------------------------------------

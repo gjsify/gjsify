@@ -34,6 +34,14 @@ export interface EditorHost {
     /** The user replaced `removedLength` characters at `start` with `inserted`. */
     onNativeEdit(start: number, removedLength: number, inserted: string): void;
     onNativeSelection(start: number, end: number): void;
+    /**
+     * A double or triple click at `location` (UTF-16): `granularity` is `Gtk.TextExtendSelection`. It answers
+     * the range to select, or null when the platform may apply its own word or line selection. A handler of
+     * `extend-selection` that stops the emission makes it the collapsed range at `location`, as in GTK.
+     */
+    onNativeExtendSelection(granularity: number, location: number): readonly [number, number] | null;
+    /** The user asked to copy the selection; false when a handler of `copy-clipboard` stopped it, so the platform must not. */
+    onNativeCopy(): boolean;
     /** The left gutter's renderers, in paint order and without cells. */
     gutterColumns(): readonly GutterMetrics[];
     /**

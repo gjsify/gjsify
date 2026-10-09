@@ -50,7 +50,13 @@ export const TYPE_DOUBLE = makeType('gdouble');
 
 const SIGNAL_PARAM_TYPES: readonly GType[] = [TYPE_STRING, TYPE_BOOLEAN, TYPE_INT, TYPE_UINT, TYPE_DOUBLE];
 
-export const ParamFlags = { READABLE: 1, WRITABLE: 2, READWRITE: 3, CONSTRUCT: 4, CONSTRUCT_ONLY: 8 } as const;
+export const ParamFlags = {
+    READABLE: 1,
+    WRITABLE: 2,
+    READWRITE: 3,
+    CONSTRUCT: 4,
+    CONSTRUCT_ONLY: 8,
+} as const;
 
 export type ParamKind = 'boolean' | 'string' | 'int' | 'uint' | 'double';
 
@@ -297,7 +303,12 @@ let nextHandlerId = 0;
 function stateOf(instance: object): InstanceState {
     let state = STATE.get(instance);
     if (!state) {
-        state = { values: new Map(), handlers: new Map(), connections: new Map(), emissions: [] };
+        state = {
+            values: new Map(),
+            handlers: new Map(),
+            connections: new Map(),
+            emissions: [],
+        };
         STATE.set(instance, state);
     }
     return state;
@@ -340,6 +351,21 @@ function runHandlers(instance: GObjectInstance, key: string, args: readonly unkn
 }
 
 /**
+ * How an object that is no registered class (the GtkSource buffer and view) takes part in
+ * `signal_stop_emission_by_name`: it keeps its own emissions and stops the innermost one of the
+ * named signal. A registered symbol, so a package that cannot depend on this one can still define it.
+ */
+export const STOP_EMISSION: unique symbol = Symbol.for('@gjsify/adwaita-core/stop-emission') as never;
+
+export interface StoppableEmitter {
+    [STOP_EMISSION](detailedSignal: string): void;
+}
+
+function isStoppable(instance: object): instance is StoppableEmitter {
+    return typeof (instance as Partial<StoppableEmitter>)[STOP_EMISSION] === 'function';
+}
+
+/**
  * `GObject.signal_stop_emission_by_name`: stops the innermost emission in progress of the signal on the
  * instance, so the handlers after the current one do not run. With none in progress GLib warns and
  * does nothing (`g_signal_stop_emission`: "no emission of signal ... to stop").
@@ -347,6 +373,10 @@ function runHandlers(instance: GObjectInstance, key: string, args: readonly unkn
 export function stopEmissionByName(instance: GObjectInstance, detailedSignal: string): void {
     if (typeof instance !== 'object' || instance === null) {
         throw new TypeError('GObject.signal_stop_emission_by_name: not a GObject instance');
+    }
+    if (isStoppable(instance)) {
+        instance[STOP_EMISSION](detailedSignal);
+        return;
     }
     const chain = chainOfInstance(instance);
     const typeName = typeNameOf(instance, chain);
@@ -447,7 +477,10 @@ function generateAccessors(spec: ParamSpec, existing: PropertyDescriptor | undef
     const { name, flags } = spec;
     const readable = flags & ParamFlags.READABLE;
     const writable = flags & ParamFlags.WRITABLE;
-    const descriptor: PropertyDescriptor = existing ?? { configurable: true, enumerable: true };
+    const descriptor: PropertyDescriptor = existing ?? {
+        configurable: true,
+        enumerable: true,
+    };
 
     if (readable && writable) {
         if (!descriptor.get && !descriptor.set) {
@@ -807,7 +840,11 @@ function registerWith(door: GObjectDoor, args: readonly unknown[]): ClassLike {
         door,
     };
 
-    Object.defineProperty(klass, '$gtype', { get: () => gtype, enumerable: false, configurable: false });
+    Object.defineProperty(klass, '$gtype', {
+        get: () => gtype,
+        enumerable: false,
+        configurable: false,
+    });
     for (const spec of properties) checkAccessors(klass.prototype, spec);
     installInstanceApi(klass.prototype);
     REGISTRY.set(klass, info);
@@ -830,7 +867,11 @@ export function registerBaseClass(
         throw new Error(`No signal '${event}' on object '${typeName}'`);
     };
     const gtype = makeType(typeName);
-    Object.defineProperty(klass, '$gtype', { get: () => gtype, enumerable: false, configurable: false });
+    Object.defineProperty(klass, '$gtype', {
+        get: () => gtype,
+        enumerable: false,
+        configurable: false,
+    });
     for (const spec of properties) checkAccessors(klass.prototype, spec);
     REGISTRY.set(klass, {
         klass,

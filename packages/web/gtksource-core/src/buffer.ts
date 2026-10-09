@@ -246,8 +246,6 @@ export class GtkSourceBuffer extends SignalEmitter {
     private moveInsert(offset: number): void {
         this.cursor = offset;
         this.emit('mark-set', new TextIter(this, offset), this.insertMark);
-        this.emit('cursor-moved');
-        this.emit('notify::cursor-position');
     }
 
     private moveBound(offset: number): void {
@@ -395,6 +393,16 @@ export class GtkSourceBuffer extends SignalEmitter {
         this.reportedRedo = redo;
         if (undoChanged) this.emit('notify::can-undo');
         if (redoChanged) this.emit('notify::can-redo');
+    }
+
+    // `mark-set` is RUN_LAST: GtkSource's class handler (the buffer's own bookkeeping) announces the moved
+    // cursor, so a handler that stops the emission keeps `cursor-moved` and the notify from everyone.
+    protected override classHandler(name: string, args: readonly unknown[]): unknown {
+        if (name === 'mark-set' && args[1] === this.insertMark) {
+            this.emit('cursor-moved');
+            this.emit('notify::cursor-position');
+        }
+        return undefined;
     }
 
     protected override checkSignal(name: string): void {

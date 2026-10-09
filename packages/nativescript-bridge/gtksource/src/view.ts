@@ -9,7 +9,7 @@ import { adwaitaColorScheme, onAdwaitaColorSchemeChanged, withGtkWidgetLayout } 
 
 import { GtkSourceBuffer, GutterSet, type Buffer, type Gutter } from '@gjsify/gtksource-core';
 import { toBoolean, toNumber } from '@gjsify/gtksource-core';
-import { EditorSession } from '@gjsify/gtksource-core';
+import { EditorSession, STOP_EMISSION } from '@gjsify/gtksource-core';
 import { Adjustment as GtkAdjustment } from '@gjsify/adwaita-nativescript/gtk';
 import { createEditorDriver } from './native-editor.js';
 import type { NativeEditorDriver } from './native-editor.js';
@@ -219,8 +219,19 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         this.session.bottomMargin = toNumber(value, 'GtkSource.View.bottomMargin');
     }
 
-    connect(name: string, callback: (self: GtkSourceView, ...args: never[]) => void): number {
-        return this.session.connect(name, callback as never);
+    connect(name: string, callback: (self: GtkSourceView, ...args: never[]) => unknown): number {
+        return this.session.connect(name, ((_session: unknown, ...args: never[]) => callback(this, ...args)) as never);
+    }
+
+    /** `g_signal_connect_after`: runs once the plain handlers and the default of the emission have run. */
+    connect_after(name: string, callback: (self: GtkSourceView, ...args: never[]) => unknown): number {
+        return this.session.connect_after(name, ((_session: unknown, ...args: never[]) =>
+            callback(this, ...args)) as never);
+    }
+
+    /** `GObject.signal_stop_emission_by_name(view, …)`: the session owns the emissions. */
+    [STOP_EMISSION](detailedSignal: string): void {
+        this.session[STOP_EMISSION](detailedSignal);
     }
 
     disconnect(id: number): void {

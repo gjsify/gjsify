@@ -9,7 +9,7 @@
 //
 // IN THIS SLICE: `buffer`, `auto-indent`, `indent-width` (held and read back, as on Android),
 // `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, `cursor-visible`, the four
-// margins, `connect`/`disconnect`, the GJS snake_case accessors, `vadjustment`/`hadjustment`,
+// margins, `connect`/`connect_after`/`disconnect`, `extend-selection` and `copy-clipboard` (stoppable), the GJS snake_case accessors, `vadjustment`/`hadjustment`,
 // `set_direction`, `get_first_child`/`get_next_sibling`, `get_gutter` (the LEFT gutter paints its renderers' `vfunc_query_data`; the right one is a model).
 //
 // Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
@@ -17,7 +17,7 @@
 
 import { adwaitaColorScheme, GtkAdjustment, onAdwaitaColorSchemeChanged } from '@gjsify/adwaita-core';
 import type { Buffer, Gutter } from '@gjsify/gtksource-core';
-import { EditorSession, GutterSet, toBoolean, toNumber } from '@gjsify/gtksource-core';
+import { EditorSession, GutterSet, STOP_EMISSION, toBoolean, toNumber } from '@gjsify/gtksource-core';
 
 import { WebEditorDriver } from './web-editor-driver.js';
 
@@ -369,8 +369,19 @@ export class GtkSourceView extends HTMLElement {
     }
 
     /** GJS `connect(name, cb) → id`; the handler's first argument is this view. */
-    connect(name: string, callback: (self: GtkSourceView, ...args: never[]) => void): number {
+    connect(name: string, callback: (self: GtkSourceView, ...args: never[]) => unknown): number {
         return this.session.connect(name, ((_session: unknown, ...args: never[]) => callback(this, ...args)) as never);
+    }
+
+    /** `g_signal_connect_after`: runs once the plain handlers and the default of the emission have run. */
+    connect_after(name: string, callback: (self: GtkSourceView, ...args: never[]) => unknown): number {
+        return this.session.connect_after(name, ((_session: unknown, ...args: never[]) =>
+            callback(this, ...args)) as never);
+    }
+
+    /** `GObject.signal_stop_emission_by_name(view, …)`: the session owns the emissions. */
+    [STOP_EMISSION](detailedSignal: string): void {
+        this.session[STOP_EMISSION](detailedSignal);
     }
 
     disconnect(id: number): void {

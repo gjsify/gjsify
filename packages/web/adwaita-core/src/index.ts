@@ -1017,6 +1017,8 @@ export {
     notifyInstance,
     registeredClassOf,
     registerBaseClass,
+    STOP_EMISSION,
+    type StoppableEmitter,
     UNLOCKED_VFUNCS,
     GIR_TYPE,
 } from './gobject.js';

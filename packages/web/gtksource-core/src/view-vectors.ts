@@ -12,7 +12,11 @@ export const GTKSOURCE_VIEW_DEFAULT_VECTORS: readonly GtkSourceViewDefaultsVecto
     { property: 'auto-indent', member: 'autoIndent', shows: false },
     { property: 'indent-width', member: 'indentWidth', shows: -1 },
     { property: 'show-line-numbers', member: 'showLineNumbers', shows: false },
-    { property: 'highlight-current-line', member: 'highlightCurrentLine', shows: false },
+    {
+        property: 'highlight-current-line',
+        member: 'highlightCurrentLine',
+        shows: false,
+    },
     { property: 'monospace', member: 'monospace', shows: false },
     { property: 'editable', member: 'editable', shows: true },
     { property: 'cursor-visible', member: 'cursorVisible', shows: true },
@@ -90,6 +94,7 @@ export interface GtkSourceViewSurfaceLike {
         TextWindowType: Record<string, number>;
         PolicyType: Record<string, number>;
         TextDirection: Record<string, number>;
+        TextExtendSelection: Record<string, number>;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ScrolledWindow: new (properties?: any) => ScrolledWindowLike;
     };
@@ -126,6 +131,12 @@ export const GTKSOURCE_VIEW_SURFACE_VECTORS: readonly GtkSourceViewSurfaceVector
         instance: false,
         observe: ({ Gtk }) => pick(Gtk.PolicyType, ['ALWAYS', 'AUTOMATIC', 'NEVER', 'EXTERNAL']),
         shows: { ALWAYS: 0, AUTOMATIC: 1, NEVER: 2, EXTERNAL: 3 },
+    },
+    {
+        rule: 'Gtk.TextExtendSelection carries the typelib numbers',
+        instance: false,
+        observe: ({ Gtk }) => pick(Gtk.TextExtendSelection, ['WORD', 'LINE']),
+        shows: { WORD: 0, LINE: 1 },
     },
     {
         rule: 'Gtk.TextDirection carries the typelib numbers',

@@ -13,9 +13,12 @@ import { GtkSourceBuffer } from '@gjsify/gtksource-core';
 import {
     GUTTER_PAINT_VECTORS,
     GTKSOURCE_BUFFER_VECTORS,
+    GTKSOURCE_STOP_VECTORS,
     GTKSOURCE_VIEW_SURFACE_VECTORS,
     type GtkSourceBufferLike,
     type GtkSourceViewSurfaceLike,
+    type GtkSourceStopGestures,
+    type GtkSourceStopSurface,
     type GutterPaintSurface,
 } from '@gjsify/gtksource-core/conformance';
 
@@ -27,7 +30,9 @@ import { GtkSourceView } from './view.js';
 
 import tree from './fixtures/source-view.blp?shared-tree';
 
-type Built = Record<string, unknown> & { getViewById(id: string): Built | undefined };
+type Built = Record<string, unknown> & {
+    getViewById(id: string): Built | undefined;
+};
 
 const built = (): Built => build(tree) as unknown as Built;
 
@@ -64,6 +69,18 @@ export const GtkSourceViewTreeNsTest = async () => {
             });
         }
 
+        // The view rows need a gesture no tree can make (a double click, a copy); the buffer rows run here.
+        for (const vector of GTKSOURCE_STOP_VECTORS.filter((candidate) => !candidate.view)) {
+            await it(`stopping an emission: ${vector.rule}`, () => {
+                expect(
+                    vector.observe(
+                        { GtkSource, GObject } as unknown as GtkSourceStopSurface,
+                        {} as GtkSourceStopGestures,
+                    ),
+                ).toStrictEqual(vector.shows);
+            });
+        }
+
         // A pass needs pixels; the device runs the rest, so only what is observable without one is proved here.
         for (const vector of GUTTER_PAINT_VECTORS.filter((candidate) => !candidate.paints)) {
             await it(`gutter: ${vector.rule}`, async () => {
@@ -79,9 +96,12 @@ export const GtkSourceViewTreeNsTest = async () => {
 
         for (const vector of GTKSOURCE_VIEW_SURFACE_VECTORS) {
             await it(`surface: ${vector.rule}`, () => {
-                expect(vector.observe({ Gtk, GtkSource } as unknown as GtkSourceViewSurfaceLike)).toStrictEqual(
-                    vector.shows,
-                );
+                expect(
+                    vector.observe({
+                        Gtk,
+                        GtkSource,
+                    } as unknown as GtkSourceViewSurfaceLike),
+                ).toStrictEqual(vector.shows);
             });
         }
 

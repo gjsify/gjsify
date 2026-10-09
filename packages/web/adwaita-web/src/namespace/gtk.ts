@@ -21,7 +21,7 @@
 // are the same write and nothing in this package had to learn a second input shape.
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
-export { PolicyType, TextDirection, TextWindowType } from './gtk-enums.js';
+export { PolicyType, TextDirection, TextExtendSelection, TextWindowType } from './gtk-enums.js';
 export { GtkAboutDialog as AboutDialog } from '../elements/gtk-about-dialog.js';
 export { GtkActionBar as ActionBar } from '../elements/gtk-action-bar.js';
 export { GtkApplicationWindow as ApplicationWindow } from '../elements/gtk-application-window.js';

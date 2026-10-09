@@ -8,7 +8,9 @@ import { EditorSession } from './editor-session.js';
 import { GutterRendererText, GutterSet, WINDOW_LEFT } from './gutter-renderer.js';
 import type { GutterLines } from './gutter-renderer.js';
 import { LanguageManager } from './language-manager.js';
+import { STOP_EMISSION } from '@gjsify/adwaita-core';
 import { StyleSchemeManager } from './style-scheme.js';
+import type { TextIter } from './text-iter.js';
 import type { EditorPalette } from './style-scheme.js';
 import type { StyledRun } from './token-styler.js';
 
@@ -193,6 +195,57 @@ export default async () => {
             expect(driver.invalidations).toBe(4);
             left.remove(renderer);
             expect(driver.invalidations).toBe(5);
+        });
+
+        await it('lets the platform select a word unless a handler stopped extend-selection', () => {
+            const { session } = make();
+            session.buffer.text = 'hello world';
+            expect(session.onNativeExtendSelection(0, 2)).toBe(null);
+            session.connect('extend-selection', ((self: unknown) =>
+                (self as EditorSession)[STOP_EMISSION]('extend-selection')) as never);
+            expect(session.onNativeExtendSelection(0, 2)).toStrictEqual([2, 2]);
+        });
+
+        await it('takes the range an extend-selection handler answers', () => {
+            const { session } = make();
+            session.buffer.text = 'hello world';
+            session.connect('extend-selection', ((
+                _self: unknown,
+                _g: number,
+                _at: unknown,
+                start: TextIter,
+                end: TextIter,
+            ) => {
+                start.set_offset(0);
+                end.set_offset(5);
+                return true;
+            }) as never);
+            expect(session.onNativeExtendSelection(0, 7)).toStrictEqual([0, 5]);
+        });
+
+        await it('lets the platform copy unless a handler stopped copy-clipboard', () => {
+            const { session } = make();
+            expect(session.onNativeCopy()).toBe(true);
+            session.connect('copy-clipboard', ((self: unknown) =>
+                (self as EditorSession)[STOP_EMISSION]('copy-clipboard')) as never);
+            expect(session.onNativeCopy()).toBe(false);
+        });
+
+        await it('selects back what a mark-set handler moved away from the native selection', () => {
+            const { driver, session } = make();
+            session.buffer.text = 'hello world';
+            session.buffer.connect('mark-set', ((
+                _b: unknown,
+                location: TextIter,
+                mark: Parameters<typeof session.buffer.move_mark>[0],
+            ) => {
+                if (location.get_offset() === 5) {
+                    location.set_offset(0);
+                    session.buffer.move_mark(mark, location);
+                }
+            }) as never);
+            session.onNativeSelection(5, 5);
+            expect(driver.selection).toStrictEqual([0, 0]);
         });
 
         await it('has a paint vector for every GtkSource entry of UNLOCKED_VFUNCS', () => {
