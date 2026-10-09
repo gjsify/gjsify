@@ -1,5 +1,5 @@
 // The plain GTK enums an application reads off `Gtk` on a target that has no GI — `Gtk.PolicyType`,
-// `Gtk.TextDirection` and `Gtk.License`, as value tables.
+// `Gtk.TextDirection`, `Gtk.TextExtendSelection` and `Gtk.License`, as value tables.
 //
 // The numbers are the typelib's: GIR declaration order, no aliases (unlike `Gtk.Align`, which
 // `gtk-align.ts` has to derive). What each one DOES here:
@@ -27,10 +27,24 @@ export const PolicyType = Object.freeze(
 );
 
 /** `Gtk.TextDirection`: `NONE` 0, `LTR` 1, `RTL` 2. */
-export const TextDirection = Object.freeze({ NONE: 0, LTR: 1, RTL: 2 } as const);
+export const TextDirection = Object.freeze({
+    NONE: 0,
+    LTR: 1,
+    RTL: 2,
+} as const);
 
 /** `Gtk.TextWindowType`: `WIDGET` 1, `TEXT` 2, `LEFT` 3, `RIGHT` 4, `TOP` 5, `BOTTOM` 6. */
-export const TextWindowType = Object.freeze({ WIDGET: 1, TEXT: 2, LEFT: 3, RIGHT: 4, TOP: 5, BOTTOM: 6 } as const);
+export const TextWindowType = Object.freeze({
+    WIDGET: 1,
+    TEXT: 2,
+    LEFT: 3,
+    RIGHT: 4,
+    TOP: 5,
+    BOTTOM: 6,
+} as const);
 
 /** `Gtk.License`. */
 export const License = GTK_LICENSE;
+
+/** `Gtk.TextExtendSelection`: `WORD` 0 (a double click), `LINE` 1 (a triple click). */
+export const TextExtendSelection = Object.freeze({ WORD: 0, LINE: 1 } as const);

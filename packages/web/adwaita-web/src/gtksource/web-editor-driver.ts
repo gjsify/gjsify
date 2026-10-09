@@ -76,6 +76,11 @@ export class WebEditorDriver implements EditorDriver {
         on(area, 'keyup', () => this.onSelection());
         on(area, 'mouseup', () => this.onSelection());
         on(area, 'keydown', (event) => this.onKey(event as KeyboardEvent));
+        on(area, 'mousedown', (event) => this.onMouseDown(event as MouseEvent));
+        on(area, 'copy', (event) => {
+            // A handler of `copy-clipboard` stopped the emission: the default, the copy, does not happen.
+            if (!this.host?.onNativeCopy()) event.preventDefault();
+        });
         // Firefox and Chromium fire `selectionchange` on different targets for a textarea.
         on(area.ownerDocument, 'selectionchange', () => {
             if (area.ownerDocument.activeElement === area) this.onSelection();
@@ -120,6 +125,20 @@ export class WebEditorDriver implements EditorDriver {
         this.caret = end;
         this.host?.onNativeSelection(start, end);
         this.scheduleRender();
+    }
+
+    /**
+     * The second and third press of a multi-click: GTK asks `extend-selection` before it selects the word
+     * or line. The first press has already placed the caret, which is the location asked about.
+     */
+    private onMouseDown(event: MouseEvent): void {
+        if (event.button !== 0 || (event.detail !== 2 && event.detail !== 3)) return;
+        const { area } = this.parts;
+        const range = this.host?.onNativeExtendSelection(event.detail === 2 ? 0 : 1, area.selectionStart ?? 0);
+        if (!range) return;
+        event.preventDefault();
+        area.setSelectionRange(range[0], range[1]);
+        this.onSelection();
     }
 
     /** `accepts-tab` is GTK's default; a textarea would move focus, so Tab inserts a tab. */

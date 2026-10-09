@@ -2,10 +2,13 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     GUTTER_PAINT_VECTORS,
     GTKSOURCE_BUFFER_VECTORS,
+    GTKSOURCE_STOP_VECTORS,
     GTKSOURCE_VIEW_DEFAULT_VECTORS,
     GTKSOURCE_VIEW_SURFACE_VECTORS,
     type GtkSourceViewSurfaceLike,
     type GtkSourceBufferLike,
+    type GtkSourceStopGestures,
+    type GtkSourceStopSurface,
     type GutterPaintSurface,
     type ViewLike,
 } from '@gjsify/gtksource-core/conformance';
@@ -34,9 +37,44 @@ export const GtkSourceViewTest = async () => {
 
         for (const vector of GTKSOURCE_VIEW_SURFACE_VECTORS) {
             await it(`surface: ${vector.rule}`, () => {
-                expect(vector.observe({ Gtk, GtkSource } as unknown as GtkSourceViewSurfaceLike)).toStrictEqual(
-                    vector.shows,
-                );
+                expect(
+                    vector.observe({
+                        Gtk,
+                        GtkSource,
+                    } as unknown as GtkSourceViewSurfaceLike),
+                ).toStrictEqual(vector.shows);
+            });
+        }
+
+        // The driver listens to the textarea only while the view is in a document.
+        const mounted = (view: unknown): GtkSourceView => {
+            const element = view as GtkSourceView;
+            if (!element.isConnected) document.body.append(element);
+            return element;
+        };
+        const gestures: GtkSourceStopGestures = {
+            extendSelection: (view, offset) => {
+                const area = mounted(view).textarea;
+                area.setSelectionRange(offset, offset);
+                const down = new MouseEvent('mousedown', {
+                    detail: 2,
+                    button: 0,
+                    cancelable: true,
+                    bubbles: true,
+                });
+                area.dispatchEvent(down);
+                return down.defaultPrevented ? [area.selectionStart, area.selectionEnd] : 'native';
+            },
+            copyClipboard: (view) => {
+                const copy = new Event('copy', { cancelable: true, bubbles: true });
+                mounted(view).textarea.dispatchEvent(copy);
+            },
+        };
+        for (const vector of GTKSOURCE_STOP_VECTORS) {
+            await it(`stopping an emission: ${vector.rule}`, () => {
+                const seen = vector.observe({ GtkSource, GObject } as unknown as GtkSourceStopSurface, gestures);
+                for (const view of document.body.querySelectorAll('gtk-source-view')) view.remove();
+                expect(seen).toStrictEqual(vector.shows);
             });
         }
 
@@ -67,11 +105,18 @@ export const GtkSourceViewTest = async () => {
             view.showLineNumbers = true;
             document.body.append(view);
             view.buffer.text = 'a\nb';
-            const renderer = new GtkSource.GutterRendererText({ width_request: 24, margin_start: 2, margin_end: 3 });
-            (renderer as unknown as { vfunc_query_data(lines: unknown, line: number): void }).vfunc_query_data =
-                function (this: { text: string }, _lines, line) {
-                    this.text = `r${line}`;
-                };
+            const renderer = new GtkSource.GutterRendererText({
+                width_request: 24,
+                margin_start: 2,
+                margin_end: 3,
+            });
+            (
+                renderer as unknown as {
+                    vfunc_query_data(lines: unknown, line: number): void;
+                }
+            ).vfunc_query_data = function (this: { text: string }, _lines, line) {
+                this.text = `r${line}`;
+            };
             view.get_gutter(Gtk.TextWindowType.LEFT)!.insert(renderer, -1);
             await task();
             const columns = view.querySelectorAll<HTMLElement>('.gsv-columns > *');
@@ -95,10 +140,13 @@ export const GtkSourceViewTest = async () => {
             document.body.append(view);
             view.buffer.text = 'a';
             const renderer = new GtkSource.GutterRendererText({ width_request: 10 });
-            (renderer as unknown as { vfunc_query_data(lines: unknown, line: number): void }).vfunc_query_data =
-                function (this: { markup: string }) {
-                    this.markup = '<b>x</b> &amp; y';
-                };
+            (
+                renderer as unknown as {
+                    vfunc_query_data(lines: unknown, line: number): void;
+                }
+            ).vfunc_query_data = function (this: { markup: string }) {
+                this.markup = '<b>x</b> &amp; y';
+            };
             const gutter = view.get_gutter(Gtk.TextWindowType.LEFT)!;
             gutter.insert(renderer, 0);
             await task();
