@@ -21,8 +21,10 @@ behaves the way its own native apps do: Android the Android way, the browser the
 question arises, look at the native original first. This answers three questions this ADR once held
 open: Android extension filters (§ 2), streams (§ 3) and saving on a browser without File System Access
 (§ 4). GTK itself answers the last one: with no portal, `Gtk.FileDialog` shows its own in-process file
-chooser over the filesystem it can reach. The portal seam under `Gtk.FileDialog` is the subject of a
-separate, upcoming ADR on xdg-desktop-portal as platform contract.
+chooser over the filesystem it can reach. The portal seam under `Gtk.FileDialog` is the subject of
+[ADR 0101](0101-portals-are-the-platform-seam-below-the-gtk-api.md) (PR #2115), xdg-desktop-portal as
+platform contract. The OPFS behaviour described here is the default of the GTK port; an app overrides it
+per ADR 0101, with a registered driver or a `.web.ts` file / platform query.
 
 ## Context
 
