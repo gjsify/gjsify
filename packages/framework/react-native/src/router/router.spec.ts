@@ -604,6 +604,15 @@ export default async () => {
         Gtk.init();
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();
+        // GDK's macOS backend reports presentation for a frame the clock already marked skipped:
+        // a `g_warning_once` in gdk/gdkframetimings.c (`gdk_frame_timings_presented`, the
+        // GDK_FRAME_SKIPPED arm), reached from gdk/macos/gdkmacossurface.c's
+        // `gdk_macos_surface_frame_presented`. It fires from the compositor callback while the
+        // tabs-narrowing vector runs and a frame-settling wait did not stop it (gjsify/gjsify#2113,
+        // run 37889478360, darwin-arm64). Linux and win32 stay silent, so only darwin sets it aside.
+        if (process.platform === 'darwin') {
+            diagnostics.allowEnvironment('gdk_frame_timings_presented() called on skipped frame.');
+        }
         const gated = (name: string, run: () => Promise<void>): Promise<void> =>
             describe(name, async () => {
                 beforeEach(() => diagnostics.reset());

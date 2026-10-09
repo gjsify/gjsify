@@ -3,6 +3,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
@@ -99,12 +100,6 @@ export default async () => {
                     "gdk_surface_thaw_updates: assertion 'surface->update_freeze_count > 0' failed",
                 ),
             ).toBe(true);
-            // darwin only, exact text: the same message elsewhere is still a failure.
-            const skipped = 'gdk_frame_timings_presented() called on skipped frame.';
-            expect(isEnvironmentDiagnostic(skipped, 'darwin')).toBe(true);
-            expect(isEnvironmentDiagnostic(skipped, 'linux')).toBe(false);
-            expect(isEnvironmentDiagnostic(skipped, null)).toBe(false);
-            expect(isEnvironmentDiagnostic(skipped + ' extra', 'darwin')).toBe(false);
             // The control side, which is the half that makes the vector worth
             // anything: the messages this module was written to catch are NOT
             // environment, and a message that merely mentions Vulkan is not either —
@@ -122,6 +117,28 @@ export default async () => {
             ]) {
                 expect(isEnvironmentDiagnostic(message)).toBe(false);
             }
+        });
+
+        await it('sets aside an exact message a spec declared, and nothing near it', async () => {
+            const declared = 'gdk_frame_timings_presented() called on skipped frame.';
+            const emit = (message: string) =>
+                GLib.log_variant(
+                    null,
+                    GLib.LogLevelFlags.LEVEL_WARNING,
+                    new GLib.Variant('a{sv}', { MESSAGE: new GLib.Variant('s', message) }),
+                );
+            diagnostics.reset();
+            emit(declared);
+            expect(diagnostics.seen.length).toBe(1);
+            diagnostics.reset();
+            diagnostics.allowEnvironment(declared);
+            emit(declared);
+            expect(diagnostics.seen.length).toBe(0);
+            expect(diagnostics.environment.length).toBe(1);
+            diagnostics.reset();
+            emit(declared + ' extra');
+            expect(diagnostics.seen.length).toBe(1);
+            diagnostics.reset();
         });
 
         await gated(diagnostics, 'descriptor table vs installed typelib', async () => {

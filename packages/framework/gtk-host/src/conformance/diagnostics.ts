@@ -32,6 +32,14 @@ export interface DiagnosticsGate {
      */
     readonly environment: readonly string[];
     reset(): void;
+    /**
+     * Classify one exact message as the HOST's, for a caller that knows which host it is on.
+     *
+     * The package reads the operating system nowhere (ADR 0018 would then owe it a claim), so a
+     * message that is the host's on ONE platform is declared by the spec running there, not
+     * guessed here. Exact text only: a prefix would widen the gate by a namespace.
+     */
+    allowEnvironment(message: string): void;
     /** Throw if anything about the tree was recorded, naming every message. */
     assertQuiet(context?: string): void;
 }
@@ -72,31 +80,9 @@ export interface DiagnosticsGate {
  */
 const ENVIRONMENT_PREFIXES: readonly string[] = ['Vulkan: ', 'gdk_surface_thaw_updates: '];
 
-/**
- * Exact messages that are the host's, on one platform only.
- *
- * `gdk_frame_timings_presented() called on skipped frame.` is a `g_warning_once` in
- * gdk/gdkframetimings.c (`gdk_frame_timings_presented`, the `GDK_FRAME_SKIPPED` arm),
- * reached from `gdk_draw_context_frame_presented` in gdk/gdkframeclock.c when the
- * macOS backend's `gdk_macos_surface_frame_presented` (gdk/macos/gdkmacossurface.c)
- * reports presentation for a frame the clock already marked skipped. No call of ours
- * is in that path: it fires from the compositor callback while the test runs, 185 ms
- * before the vector's own failure, and a frame-settling wait in the vector did not
- * stop it (gjsify/gjsify#2113, run 37889478360, darwin-arm64 / node-gi on Node).
- * Linux and win32 stay silent, so it is scoped to darwin and to this exact text.
- */
-const PLATFORM_MESSAGES: Readonly<Record<string, readonly string[]>> = {
-    darwin: ['gdk_frame_timings_presented() called on skipped frame.'],
-};
-
-function hostPlatform(): string | null {
-    return (globalThis as { process?: { platform?: string } }).process?.platform ?? null;
-}
-
 /** Whether `message` describes the host's graphics stack rather than the tree. */
-export function isEnvironmentDiagnostic(message: string, platform: string | null = hostPlatform()): boolean {
-    if (ENVIRONMENT_PREFIXES.some((prefix) => message.startsWith(prefix))) return true;
-    return platform !== null && (PLATFORM_MESSAGES[platform] ?? []).includes(message);
+export function isEnvironmentDiagnostic(message: string): boolean {
+    return ENVIRONMENT_PREFIXES.some((prefix) => message.startsWith(prefix));
 }
 
 let installed: DiagnosticsGate | null = null;
@@ -146,6 +132,7 @@ export function installDiagnosticsGate(): DiagnosticsGate {
 
     const seen: string[] = [];
     const environment: string[] = [];
+    const allowed = new Set<string>();
     const decoder = new TextDecoder();
     const verbose = GLib.getenv('G_MESSAGES_DEBUG') !== null;
 
@@ -159,7 +146,7 @@ export function installDiagnosticsGate(): DiagnosticsGate {
             // `--g-fatal-warnings`, i.e. the strictest run there is.
             const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
             if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) {
-                (isEnvironmentDiagnostic(message) ? environment : seen).push(message);
+                (isEnvironmentDiagnostic(message) || allowed.has(message) ? environment : seen).push(message);
             }
             if (verbose || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
         } catch {
@@ -171,6 +158,9 @@ export function installDiagnosticsGate(): DiagnosticsGate {
     installed = {
         seen,
         environment,
+        allowEnvironment(message) {
+            allowed.add(message);
+        },
         reset() {
             seen.length = 0;
             environment.length = 0;
