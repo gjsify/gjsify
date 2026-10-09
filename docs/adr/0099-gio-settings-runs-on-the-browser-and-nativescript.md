@@ -1,6 +1,6 @@
 # 99. `Gio.Settings` runs on the browser and NativeScript, as `@gjsify/app-settings`
 
-- Status: **Proposed** (2026-10-09)
+- Status: **Accepted** (2026-10-09)
 - Date: 2026-10-09
 - Deciders: Pascal Garber
 - Depends on: [ADR 0096 (a GObject subset)](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md)
