@@ -52,6 +52,7 @@
         "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/adwaita-fonts": "workspace:^",
         "@gjsify/adwaita-icons": "workspace:^",
+        "@gjsify/gtksource-core": "workspace:^",
         "@lezer/highlight": "^1.2.3"
     },
     "devDependencies": {

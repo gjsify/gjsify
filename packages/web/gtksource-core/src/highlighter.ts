@@ -3,8 +3,8 @@
 // context than before (a `/*` typed on line 3 re-colours down to the matching `*/`, and stops
 // there — not at the end of the document).
 
-import type { LineResult, LineState, Token, Tokenizer } from '@gjsify/gtksource-core';
-import { INITIAL_STATE } from '@gjsify/gtksource-core';
+import type { LineResult, LineState, Token, Tokenizer } from './tokenizer.js';
+import { INITIAL_STATE } from './tokenizer.js';
 
 /** Lines `first..last`, both inclusive. */
 export interface LineRange {

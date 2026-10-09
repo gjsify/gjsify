@@ -7,9 +7,9 @@
 import { View as NsView } from '@nativescript/core';
 import { adwaitaColorScheme, onAdwaitaColorSchemeChanged, withGtkWidgetLayout } from '@gjsify/adwaita-nativescript';
 
-import { GtkSourceBuffer, type Buffer } from './buffer.js';
-import { toBoolean, toNumber } from './coerce.js';
-import { EditorSession } from './editor-session.js';
+import { GtkSourceBuffer, type Buffer } from '@gjsify/gtksource-core';
+import { toBoolean, toNumber } from '@gjsify/gtksource-core';
+import { EditorSession } from '@gjsify/gtksource-core';
 import { createEditorDriver } from './native-editor.js';
 import type { NativeEditorDriver } from './native-editor.js';
 

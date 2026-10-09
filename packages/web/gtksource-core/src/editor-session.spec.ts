@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { sixAssemblerLang } from './fixtures.spec.js';
+import { sixAssemblerLang } from './fixtures.js';
 
 import type { EditorDriver, EditorHost, EditorLayout } from './editor-driver.js';
 import { EditorSession } from './editor-session.js';
@@ -64,7 +64,7 @@ const make = () => {
 };
 
 export default async () => {
-    await describe('gtksource-nativescript: EditorSession', async () => {
+    await describe('gtksource-core: EditorSession', async () => {
         await it('mirrors programmatic buffer edits into the widget', () => {
             const { driver, session } = make();
             session.buffer.text = 'lda #$01\nsta $0200';

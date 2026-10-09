@@ -103,5 +103,19 @@ registers a generated icon module by GNOME name. An icon-only `Gtk.Button` wears
 package depends on the renderer and cannot be a member of its root barrel. `tests/e2e/gi-renderer-arms`
 builds and evaluates a `GtkSource.View` subclass through it. `GtkSource.init()` is a no-op on
 this port, as on GJS where it returns `undefined` and may be called twice; a conformance vector table
-runs against real `gi://GtkSource` and the namespace door. The browser row has no `GtkSource`: nothing
-implements it there yet, so `--gi-renderer` refuses the import by name. Status unchanged.
+runs against real `gi://GtkSource` and the namespace door. The browser row had no `GtkSource` at that point. Status unchanged.
+
+## Amendment (2026-10-09): a web `GtkSource` over the core
+
+`@gjsify/adwaita-web` exports a `GtkSource` namespace (`View`, `Buffer`, `LanguageManager`,
+`StyleSchemeManager`, `init`), and the browser row of `GI_RENDERERS` answers `gi://GtkSource?version=5`
+from it, so `using GtkSource 5; GtkSource.View` no longer reports a missing member on the browser. It is
+built on `@gjsify/gtksource-core`, not on the CodeMirror `<adw-source-view>`: both ports read the same
+`.lang` and style-scheme files. The platform-free model (`Buffer`, the managers, `EditorSession`, the
+highlight controller, gutter arithmetic, `init`) moved from the NativeScript package into the core, so
+Android and the web share one copy. `<gtk-source-view>` is a `<textarea>` that keeps caret, selection,
+input, IME and undo, with the highlight on a backdrop and the line numbers in a gutter; its structure
+mirrors the Android driver. Like Android it has no word wrap and holds `indent-width` without applying
+it. The GJS snake_case manager verbs (`get_default`, `get_language`, `get_scheme`) exist, with vectors run
+against real `gi://GtkSource`. Everything else (`TextIter`, `TextMark`, gutters, the `buffer:` object
+child of a `.blp`) is absent and refused by name. Status unchanged.

@@ -4,7 +4,7 @@ import { parseColor } from './color.js';
 import { digitCount, emphasisedLine, gutterWidth, visibleLines } from './gutter.js';
 
 export default async () => {
-    await describe('gtksource-nativescript: gutter and colour arithmetic', async () => {
+    await describe('gtksource-core: gutter and colour arithmetic', async () => {
         await it('keeps a minimum digit count so the gutter does not jitter', () => {
             expect(digitCount(9)).toBe(2);
             expect(digitCount(100)).toBe(3);

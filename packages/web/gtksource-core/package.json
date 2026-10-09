@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./conformance": {
+            "types": "./lib/types/conformance.d.ts",
+            "default": "./lib/esm/conformance.js"
         }
     },
     "files": [

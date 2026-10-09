@@ -126,6 +126,9 @@ export * as GLib from './namespace/glib.js';
 // subset, `registerClass` first. `./namespace/gobject.ts` says what it is.
 export * as GObject from './namespace/gobject.js';
 
+// GtkSource (ADR 0094 amendment): `GtkSource.View` over `@gjsify/gtksource-core`, `./namespace/gtksource.ts`.
+export * as GtkSource from './namespace/gtksource.js';
+
 // WHAT DID NOT MOVE INTO THE NAMESPACE, and the rule that decides it. A member exists
 // for an element whose GIR tag names a real widget; `WEB_ELEMENT_ALIGNMENT` declares the
 // rest `webOnly`, meaning no widget in the reference vocabulary stands behind it, so

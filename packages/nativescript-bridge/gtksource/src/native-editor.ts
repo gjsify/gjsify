@@ -4,7 +4,7 @@
 // platform file first). Everywhere else — iOS, GJS, Node, the specs — the driver below remembers
 // nothing and refuses to create a native view, with the message `assertNativeScript()` uses.
 
-import type { EditorDriver, EditorHost } from './editor-driver.js';
+import type { EditorDriver, EditorHost } from '@gjsify/gtksource-core';
 
 export interface NativeEditorDriver extends EditorDriver {
     /** Called from `createNativeView()` with the Android `Context`. */

@@ -1,8 +1,9 @@
 // From a token's `style-ref` to the attributes a renderer paints: language style → `map-to`
 // → scheme style (walking `parent-scheme`) → ARGB colours and flags.
 
-import type { LanguageDefinition, Token } from '@gjsify/gtksource-core';
-import { schemeStyleName } from '@gjsify/gtksource-core';
+import { schemeStyleName } from './tokenizer.js';
+import type { Token } from './tokenizer.js';
+import type { LanguageDefinition } from './types.js';
 
 import { parseColor } from './color.js';
 import type { StyleScheme } from './style-scheme.js';

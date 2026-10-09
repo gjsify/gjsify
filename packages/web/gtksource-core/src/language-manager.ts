@@ -3,8 +3,9 @@
 // Nothing is bundled: `def.lang` and the stock languages are LGPL data, so the manager starts
 // empty and the consumer adds the `.lang` files it ships (Learn6502 adds its 6502 grammar).
 
-import type { LanguageDefinition } from '@gjsify/gtksource-core';
-import { parseLanguage, Tokenizer } from '@gjsify/gtksource-core';
+import { parseLanguage } from './lang.js';
+import { Tokenizer } from './tokenizer.js';
+import type { LanguageDefinition } from './types.js';
 
 const splitList = (value: string | undefined): string[] =>
     (value ?? '')
@@ -60,6 +61,11 @@ export class LanguageManager {
         return (LanguageManager.instance ??= new LanguageManager());
     }
 
+    /** GJS spelling of {@link getDefault}. */
+    static get_default(): LanguageManager {
+        return LanguageManager.getDefault();
+    }
+
     private readonly languages = new Map<string, Language>();
 
     get languageIds(): string[] {
@@ -78,6 +84,11 @@ export class LanguageManager {
 
     getLanguage(id: string): Language | null {
         return this.languages.get(id) ?? null;
+    }
+
+    /** GJS spelling of {@link getLanguage}. */
+    get_language(id: string): Language | null {
+        return this.getLanguage(id);
     }
 
     /** `gtk_source_language_manager_guess_language()`: by file name first, then by content type. */

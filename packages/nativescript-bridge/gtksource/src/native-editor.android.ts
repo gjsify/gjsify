@@ -19,12 +19,12 @@ import type {
     AndroidNamespace,
     AndroidPaint,
 } from './android-types.js';
-import type { EditorHost, EditorLayout } from './editor-driver.js';
-import { emphasisedLine, gutterWidth, visibleLines } from './gutter.js';
-import { LineStore } from './line-store.js';
+import type { EditorHost, EditorLayout } from '@gjsify/gtksource-core';
+import { emphasisedLine, gutterWidth, visibleLines } from '@gjsify/gtksource-core';
+import { LineStore } from '@gjsify/gtksource-core';
 import type { NativeEditorDriver } from './native-editor.js';
-import type { EditorPalette } from './style-scheme.js';
-import type { StyledRun } from './token-styler.js';
+import type { EditorPalette } from '@gjsify/gtksource-core';
+import type { StyledRun } from '@gjsify/gtksource-core';
 
 declare const android: AndroidNamespace;
 
