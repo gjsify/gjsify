@@ -4,6 +4,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { build } from './builder/index.js';
+import { applyNativeTooltip } from './widgets/native-tooltip.js';
 import { SimpleAction, SimpleActionGroup, insertActionGroup } from './widgets/actions.js';
 import * as Gtk from './namespace/gtk.js';
 
@@ -101,6 +102,15 @@ export const GtkButtonActionsNsTest = async () => {
             expect(button.accessibilityHint).toBe('Copy to editor');
             button.tooltipText = '';
             expect(calls).toStrictEqual(['Copy to editor', null]);
+        });
+
+        await it('below API 26 the native tooltip is never touched', () => {
+            const calls: Array<string | null> = [];
+            const native = { setTooltipText: (text: string | null) => calls.push(text) };
+            applyNativeTooltip({ nativeViewProtected: native }, 'x', 24);
+            expect(calls).toStrictEqual([]);
+            applyNativeTooltip({ nativeViewProtected: native }, 'x', 26);
+            expect(calls).toStrictEqual(['x']);
         });
 
         await it('a native view without setTooltipText (iOS, double) is left alone', () => {
