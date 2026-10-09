@@ -83,6 +83,46 @@ export class SimpleAction implements ActionLike {
     }
 }
 
+/**
+ * `Gio.SimpleActionGroup`: `add_action` (an existing name is replaced), `lookup_action`, `has_action`,
+ * `list_actions`, `remove_action` and `activate_action`. `list_actions()` is in insertion order where
+ * GIO's hash order is unspecified, so a caller must not depend on either. `activate_action` takes the
+ * caller's parameter as is and answers whether an action of that name exists (GIO answers nothing);
+ * a disabled action swallows it. Not here: `change_action_state`, `query_action`, `add_action_entries`
+ * and the `action-added` / `action-removed` signals.
+ */
+export class SimpleActionGroup implements ActionGroupLike {
+    private readonly _actions = new Map<string, SimpleAction>();
+
+    add_action(action: SimpleAction): void {
+        this._actions.set(action.name, action);
+    }
+
+    remove_action(name: string): void {
+        this._actions.delete(name);
+    }
+
+    lookup_action(name: string): SimpleAction | null {
+        return this._actions.get(name) ?? null;
+    }
+
+    has_action(name: string): boolean {
+        return this._actions.has(name);
+    }
+
+    list_actions(): string[] {
+        return [...this._actions.keys()];
+    }
+
+    /** `g_action_group_activate_action`. False when no such action exists. */
+    activate_action(name: string, parameter: unknown = null): boolean {
+        const action = this._actions.get(name);
+        if (!action) return false;
+        action.activate(parameter);
+        return true;
+    }
+}
+
 /** The registry behind `Gio.ActionMap` and `Gio.ActionGroup`. */
 export class ActionRegistry implements ActionGroupLike {
     private readonly _actions = new Map<string, ActionLike>();

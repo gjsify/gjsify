@@ -1038,6 +1038,7 @@ export {
     insertActionGroup,
     installActionMap,
     linkWindow,
+    SimpleActionGroup,
 } from './gio-actions.js';
 export type { ActionActivateHandler, ActionGroupLike, ActionLike, SimpleActionProps } from './gio-actions.js';
 export type {

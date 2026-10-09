@@ -68,6 +68,8 @@ import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
+import simpleActionGroupTestSuite from './simple-action-group.spec.js';
+import simpleActionGroupOracleTestSuite from './simple-action-group.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -138,4 +140,6 @@ run({
     glibPathsOracleTestSuite,
     styleManagerTestSuite,
     styleManagerOracleTestSuite,
+    simpleActionGroupTestSuite,
+    simpleActionGroupOracleTestSuite,
 });

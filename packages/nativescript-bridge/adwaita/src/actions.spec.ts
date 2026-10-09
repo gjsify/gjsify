@@ -1,6 +1,11 @@
 // The `GAction` registry a Blueprint button's `action-name` resolves through — NS-core-free,
 // so the chain walk is driven by plain objects standing in for views.
 
+import {
+    SIMPLE_ACTION_GROUP_VECTORS,
+    driveSimpleActionGroupVectors,
+    type GioActionsLike,
+} from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -15,6 +20,20 @@ import {
 const host = (parent: ActionHost | null = null): ActionHost => ({ parent });
 
 export default async () => {
+    // The shared vectors (real GJS is their oracle, in adwaita-core's `simple-action-group.gjs.spec.ts`).
+    // `namespace/gio.ts` pulls in `@nativescript/core`, so the door is the file it re-exports from.
+    await driveSimpleActionGroupVectors(
+        {
+            name: 'adwaita-nativescript',
+            isOracle: false,
+            Gio: { SimpleAction, SimpleActionGroup } as unknown as GioActionsLike,
+        },
+        { describe, it, expect },
+    );
+    await it('has a Gio.SimpleActionGroup vector row for every vector', () => {
+        expect(SIMPLE_ACTION_GROUP_VECTORS.length > 0).toBe(true);
+    });
+
     await describe('SimpleAction / SimpleActionGroup', async () => {
         await it('runs every activate handler with the parameter, until disconnected', () => {
             const action = new SimpleAction({ name: 'copy' });

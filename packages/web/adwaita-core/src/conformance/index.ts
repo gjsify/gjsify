@@ -740,3 +740,16 @@ export type {
     StyleManagerSubject,
     StyleManagerVector,
 } from './style-manager.js';
+export {
+    SIMPLE_ACTION_GROUP_ROWS,
+    SIMPLE_ACTION_GROUP_VECTORS,
+    driveSimpleActionGroupVectors,
+} from './simple-action-group.js';
+export type {
+    GioActionsLike,
+    SimpleActionGroupLike,
+    SimpleActionGroupRow,
+    SimpleActionGroupSubject,
+    SimpleActionGroupVector,
+    GioSimpleActionLike,
+} from './simple-action-group.js';
