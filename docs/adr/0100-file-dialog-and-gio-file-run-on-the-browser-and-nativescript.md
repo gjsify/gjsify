@@ -161,9 +161,13 @@ GJS rejects with `GLib.Error` in the `Gtk.DialogError` domain: `FAILED` = 0, `CA
 | `cancellable` already cancelled | `Gio.IOErrorEnum.CANCELLED` |
 | anything else (permission, `SecurityError`, no activation) | `Gtk.DialogError.FAILED`, message names the cause |
 
-The rejection is an `Error` with `domain`, `code`, `message` and `matches(domain, code)`, the part of
-`GLib.Error` a caller uses (`e.matches(Gtk.DialogError, Gtk.DialogError.DISMISSED)`). `Gtk.DialogError`
-and `Gio.IOErrorEnum` are exported with those members only; there is no general `GLib.Error`.
+In GJS every rejection is `instanceof GLib.Error`, so the subset exports a real `GLib.Error` class, not
+a dialog-only error shape. It carries what consumers use: `new GLib.Error(domain, code, message)`, the
+`domain`, `code` and `message` fields, and `matches(domain, code)`
+(`e.matches(Gtk.DialogError, Gtk.DialogError.DISMISSED)`). `instanceof GLib.Error` holds for every
+rejection from `Gtk.FileDialog` and the `Gio.File` subset. Everything else on `GLib.Error`
+(`new_literal`, the quark helpers) throws by name. `Gtk.DialogError` and `Gio.IOErrorEnum` are exported
+with the members used only.
 
 ### 6. Proof
 
@@ -178,19 +182,18 @@ and `Gio.IOErrorEnum` are exported with those members only; there is no general 
   same bytes, one vector per call (`replace_async`, `write_bytes_async`, `close_async`,
   `GLib.Bytes` `get_size`/`get_data`); a write after close throws; `get_basename`; `get_path` is `null` where § 3 says so; a filter
   with `*.asm` and `*.s` reaches the picker as both; the dismissed dialog rejects with
-  `Gtk.DialogError.DISMISSED` and `matches` is true; callback form and `_promisify` form agree.
+  `Gtk.DialogError.DISMISSED`, `instanceof GLib.Error` is true and `matches(Gtk.DialogError,
+  Gtk.DialogError.DISMISSED)` is true while `matches(Gtk.DialogError, Gtk.DialogError.FAILED)` and
+  `matches(Gio.IOErrorEnum, …)` are false; a cancelled `cancellable` rejects `instanceof GLib.Error`
+  with domain `Gio.IOErrorEnum`; `domain`, `code` and `message` are read back; `new GLib.Error(domain,
+  code, message)` round-trips the three fields and is `instanceof GLib.Error`; every rejection from
+  the `Gio.File` subset is `instanceof GLib.Error`; callback form and `_promisify` form agree.
 - Refusal vectors (every refused row of §§ 1–3, `modal: false`, a non-extension glob,
-  `etag`/`make_backup`/`flags`, the refused `GLib.Bytes` and stream members) are subset-only and not
+  `etag`/`make_backup`/`flags`, the refused `GLib.Bytes`, stream and `GLib.Error` members) are subset-only and not
   run on GJS.
 - The Android mapping is verified on a device or emulator before the NativeScript cell says
   `implemented`; the pure half (filter → intent extras) is specced off-device.
 - The gate is the one ADR 0093 § 4 built.
-
-## Open decisions for the maintainer
-
-1. **`GLib.Error` shape.** The proposal exports only `domain`/`code`/`message`/`matches` on a dialog
-   rejection. A general `GLib.Error` belongs to a later ADR. The Guiding rule does not answer it:
-   GTK has the full class and the question is how much of it to carry.
 
 ## Consequences
 
