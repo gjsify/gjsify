@@ -5,5 +5,15 @@ import highlighterTestSuite from './highlighter.spec.js';
 import managersTestSuite from './managers.spec.js';
 import sessionTestSuite from './editor-session.spec.js';
 import gutterTestSuite from './gutter.spec.js';
+import initTestSuite from './init.spec.js';
+import initOracleTestSuite from './init.gjs.spec.js';
 
-run({ bufferTestSuite, highlighterTestSuite, managersTestSuite, sessionTestSuite, gutterTestSuite });
+run({
+    bufferTestSuite,
+    highlighterTestSuite,
+    managersTestSuite,
+    sessionTestSuite,
+    gutterTestSuite,
+    initTestSuite,
+    initOracleTestSuite,
+});

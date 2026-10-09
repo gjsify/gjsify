@@ -95,3 +95,13 @@ registers a generated icon module by GNOME name. An icon-only `Gtk.Button` wears
   a device-verified driver. Until then the package is `partial`.
 - The core can back a web or GJS renderer later without a rewrite; this ADR does not promise one.
 - Closing a gap above means editing the core, not working around it per consumer.
+
+## Amendment (2026-10-09): `gi://GtkSource` is routed on NativeScript
+
+`GI_RENDERERS` (ADR 0034 stage 9) answers `gi://GtkSource?version=5` on `--app nativescript` out of
+`@gjsify/gtksource-nativescript/gtksource`, through the table's `specifiers` field, since the
+package depends on the renderer and cannot be a member of its root barrel. `tests/e2e/gi-renderer-arms`
+builds and evaluates a `GtkSource.View` subclass through it. `GtkSource.init()` is a no-op on
+this port, as on GJS where it returns `undefined` and may be called twice; a conformance vector table
+runs against real `gi://GtkSource` and the namespace door. The browser row has no `GtkSource`: nothing
+implements it there yet, so `--gi-renderer` refuses the import by name. Status unchanged.

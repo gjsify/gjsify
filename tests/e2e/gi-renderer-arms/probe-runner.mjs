@@ -169,6 +169,7 @@ try {
 }
 
 report.kind = bundleModule.kind ?? null;
+report.initReturns = bundleModule.initReturns ?? null;
 
 if (mode === 'member') {
     try {
