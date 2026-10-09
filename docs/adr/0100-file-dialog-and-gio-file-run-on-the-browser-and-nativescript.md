@@ -14,6 +14,14 @@ The API is GTK's and GIO's. A stage may implement a strict SUBSET: the same name
 semantics, and what is not implemented throws, naming it. Later stages only add. A claim needs a
 conformance vector; a refusal must throw.
 
+## Guiding rule
+
+The GTK API stays identical: a true subset, same names, same semantics. BELOW that API each platform
+behaves the way its own native apps do: Android the Android way, the browser the web way. Where a
+question arises, look at the native original first. This answers three questions this ADR once held
+open: Android extension filters (§ 2), streams (§ 3) and a repeated save without File System Access
+(§ 4).
+
 ## Context
 
 Learn6502 (`gjsify/easy6502`, `packages/app-gnome/src/services/file.service.ts`) opens and saves
@@ -80,7 +88,7 @@ reads, and any other member throws by name.
 
 | filter content | browser, File System Access | browser, `<input type=file>` | Android |
 |---|---|---|---|
-| `add_pattern("*.ext")`, `add_suffix("ext")` | `types[].accept` extension | `accept=".ext"` | not enforceable (below) |
+| `add_pattern("*.ext")`, `add_suffix("ext")` | `types[].accept` extension | `accept=".ext"` | a hint: `*/*` (below) |
 | `add_mime_type(m)` | `types[].accept` MIME | `accept="m"` | `EXTRA_MIME_TYPES` |
 | `add_pattern("*")` | the filter is the accept-all option | no `accept` | `*/*` |
 | any other glob (`a*.s`, `[ab].s`) | refused by name | refused | refused |
@@ -90,8 +98,11 @@ Case: GTK's `add_pattern` is case-sensitive and `add_suffix` is not. File System
 extensions case-insensitively. The vector pins GJS's behaviour; the browser cell records the
 difference for patterns instead of hiding it.
 
-**Android cannot filter by extension.** `ACTION_OPEN_DOCUMENT` takes MIME types only, and an `.asm` file
-has no registered one. See Open decision 1 below for what the subset does.
+**Android filters by MIME type.** `ACTION_OPEN_DOCUMENT` takes MIME types only, and an `.asm` file has
+no registered one. `add_mime_type` maps to `EXTRA_MIME_TYPES`. A filter with only suffixes or patterns
+opens with `*/*` and any pick is accepted: the filter is a hint. This is the native Android
+convention, which is what the Guiding rule asks for, not a deviation. GTK's own filter is a user
+choice as well.
 
 ### 3. What a `File` is
 
@@ -101,7 +112,7 @@ A `File` is created only by a dialog (or `File.new_for_path`, § 5). It carries 
 |---|---|---|---|---|
 | browser, File System Access | `FileSystemFileHandle` | `null` | refused by name | `handle.name` |
 | browser, `<input type=file>` | the `File` object, read-only | `null` | refused | `file.name` |
-| browser, download fallback | a write-once sink (§ 4) | `null` | refused | the suggested name |
+| browser, download fallback | a download sink, one download per save (§ 4) | `null` | refused | the suggested name |
 | Android, SAF | `content://` URI | `null` | the URI | `OpenableColumns.DISPLAY_NAME` |
 
 `null` for `get_path()` is GJS's own answer for a file with no local path (a portal `content://` or
@@ -112,7 +123,11 @@ A `File` is created only by a dialog (or `File.new_for_path`, § 5). It carries 
 | `load_contents_async(cancellable)` + `load_contents_finish` | implemented; resolves `[Uint8Array, etag]` as GJS does, `etag` `null`. Reads the handle in full |
 | `replace_contents_async(contents, etag, make_backup, flags, cancellable)` + `_finish` | implemented for `etag` `null`, `make_backup` `false`, `flags` `Gio.FileCreateFlags.NONE`. Anything else throws naming the argument. Writes in place and truncates |
 | `get_basename()`, `get_path()`, `get_uri()` | as the table |
-| `replace_async` → `Gio.FileOutputStream` → `write_bytes_async` / `close_async` (what Learn6502 calls) | refused by name: a stream is a second object model (`Gio.OutputStream`, `GLib.Bytes`). See Open decision 3 |
+| `replace_async(etag, make_backup, flags, io_priority, cancellable)` + `replace_finish` → `Gio.FileOutputStream` | implemented for `etag` `null`, `make_backup` `false`, `flags` `Gio.FileCreateFlags.NONE`; anything else throws naming the argument. Opens the handle for writing and truncates |
+| `Gio.FileOutputStream.write_bytes_async(bytes, io_priority, cancellable)` + `write_bytes_finish` | implemented; `bytes` is a `GLib.Bytes`, the result the count written. Writes after the last write; a write after `close_async` throws |
+| `Gio.FileOutputStream.close_async(io_priority, cancellable)` + `close_finish` | implemented; commits the write (a download on a handle without File System Access, § 4). A second close resolves `true`, as GIO's does |
+| `GLib.Bytes` | minimal: `new GLib.Bytes(Uint8Array)`, `get_size()`, `get_data()`. Everything else (`new_take`, `slice`, `hash`, `compare`, `unref_to_data`) refused by name |
+| other `Gio.OutputStream` / `Gio.FileOutputStream` members (`write`, `write_all`, `splice`, `flush`, `seek`, `query_info`) | refused by name |
 | `read_async`, `query_info`, `query_exists`, `delete`, `move`, `copy`, `get_parent`, `enumerate_children`, `monitor_*` | refused by name |
 | `Gio.File.new_for_path`, `new_for_uri` | refused by name. A page and an Android app have no path to name |
 
@@ -125,11 +140,11 @@ success, not atomicity, and the package's README states the difference.
 
 Firefox and Safari have `<input type=file>` and `<a download>` and nothing that writes to a chosen
 place. `open()` works through `<input type=file>` and resolves a read-only `File`. `save()` resolves a
-download-only `File`: its FIRST `replace_contents_async` offers `Blob` bytes as a download named
-`initial_name`; a SECOND call throws, naming that this handle is write-once, because it cannot
-overwrite and GJS's `replace_contents` would. `load_contents_async` on it throws. This keeps "Save as"
-working and refuses "Save" silently producing `file (1).asm`. The application learns which case it
-is in only through the throw.
+download-only `File`: each `replace_contents_async`, or each `replace_async` stream closed with
+`close_async`, offers `Blob` bytes as a download named `initial_name`. A repeated save on the same
+handle downloads again; it does not throw. That is what native web apps do, and the browser names the
+file `file (1).asm` itself. `load_contents_async` on a download-only handle throws, naming that it
+cannot be read.
 
 `open()` and `save()` need transient user activation in the browser. A call without it rejects with
 a `Gtk.DialogError.FAILED` naming that cause; GJS never has this condition.
@@ -158,36 +173,32 @@ and `Gio.IOErrorEnum` are exported with those members only; there is no general 
   test `Gio.File`; GJS is the oracle for the SHAPE of results and errors, not for the picker UI.
 - Vectors: `open` resolves a `File` whose `load_contents_async` returns the bytes; `save` then
   `replace_contents_async` then `load_contents_async` round-trips; a second `replace_contents_async`
-  on the same `File` overwrites; `get_basename`; `get_path` is `null` where § 3 says so; a filter
+  on the same `File` overwrites (on a download-only handle: offers a second download); the stream
+  path `replace_async` → `write_bytes_async(new GLib.Bytes(bytes))` → `close_async` round-trips the
+  same bytes, one vector per call (`replace_async`, `write_bytes_async`, `close_async`,
+  `GLib.Bytes` `get_size`/`get_data`); a write after close throws; `get_basename`; `get_path` is `null` where § 3 says so; a filter
   with `*.asm` and `*.s` reaches the picker as both; the dismissed dialog rejects with
   `Gtk.DialogError.DISMISSED` and `matches` is true; callback form and `_promisify` form agree.
-- Refusal vectors (every refused row of §§ 1–3, `modal: false`, a non-extension glob, a second write
-  to a download handle, `etag`/`make_backup`/`flags`) are subset-only and not run on GJS.
+- Refusal vectors (every refused row of §§ 1–3, `modal: false`, a non-extension glob,
+  `etag`/`make_backup`/`flags`, the refused `GLib.Bytes` and stream members) are subset-only and not
+  run on GJS.
 - The Android mapping is verified on a device or emulator before the NativeScript cell says
   `implemented`; the pure half (filter → intent extras) is specced off-device.
 - The gate is the one ADR 0093 § 4 built.
 
 ## Open decisions for the maintainer
 
-1. **Android and extension filters.** Options: (a) refuse a filter whose only content is patterns,
-   so `.asm` cannot be offered at all; (b) open with `*/*` and accept any pick, the filter being a
-   hint; (c) open with `*/*` and, if the picked name matches no filter, reject with `FAILED`. The
-   proposal is (b), recorded as the one place the cell is "partial", because GTK's own filter is a
-   user choice and not a guarantee either. It needs the maintainer's sign-off: it is a deviation.
-2. **`GLib.Error` shape.** The proposal exports only `domain`/`code`/`message`/`matches` on a dialog
-   rejection. A general `GLib.Error` belongs to a later ADR.
-3. **Streams.** Learn6502 writes with `replace_async` + `write_bytes_async`. The proposal subsets
-   `replace_contents_async` and changes the app's write path (one line in `saveToFile`). The
-   alternative is a `Gio.FileOutputStream`/`GLib.Bytes` subset, which this ADR rejects as a second
-   object model for one call site.
+1. **`GLib.Error` shape.** The proposal exports only `domain`/`code`/`message`/`matches` on a dialog
+   rejection. A general `GLib.Error` belongs to a later ADR. The Guiding rule does not answer it:
+   GTK has the full class and the question is how much of it to carry.
 
 ## Consequences
 
-- Learn6502's `file.service.ts` runs on three targets after `saveToFile` moves to
-  `replace_contents_async`; `bootstrap.ts` and the dialog code do not change.
+- Learn6502's `file.service.ts` runs on three targets with no change: `bootstrap.ts`, the dialog code
+  and `saveToFile` stay as they are.
 - `pickFile`/`saveFile` in `@gjsify/adwaita-app` stay as GJS helpers; they are not the portable API.
-- A browser without File System Access gets "Open" and "Save as", and a visible throw for "Save"
-  instead of a download that looks like a save.
+- A browser without File System Access gets "Open", and every "Save" is a download, as in a native
+  web app.
 - `Gio.File` handles do not survive a restart. Android persistable permissions and
   `IndexedDB`-stored handles are not claimed.
 
@@ -197,14 +208,15 @@ and `Gio.IOErrorEnum` are exported with those members only; there is no general 
   URIs; a path-shaped API invents one.
 - **`showOpenFilePicker` only.** It excludes Firefox and Safari from "Open", which `<input
   type=file>` serves.
-- **Silently turn a second `replace_contents` into another download.** A dead "Save" is an
-  undiagnosable drop.
+- **Throw on a second save to a download handle.** No native web app does; it would make the app
+  differ from the platform it runs on.
+- **Change Learn6502 to avoid streams.** The API stays GTK's; the subset grows by what the app calls.
 - **Port `Gio.File` completely** (`query_info`, monitors, enumerate). No handle on these targets can
   answer them.
 
 ## What this does not decide
 
-- `Gio.OutputStream`, `GLib.Bytes`, folders and multiple selection, drag-and-drop files, and the
+- `Gio.OutputStream` and `GLib.Bytes` beyond the calls in § 3, folders and multiple selection, drag-and-drop files, and the
   clipboard.
 - Handles across restarts, and iOS (document picker is the obvious cell, not reasoned here).
 

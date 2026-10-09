@@ -15,6 +15,13 @@ The API is GIO's. A stage may implement a strict SUBSET: the same names with GJS
 what is not implemented throws, naming it. Later stages only add; an application written against an
 earlier stage is never rewritten. A claim needs a conformance vector; a refusal must throw.
 
+## Guiding rule
+
+The GTK API stays identical: a true subset, same names, same semantics. BELOW that API each platform
+behaves the way its own native apps do: Android the Android way, the browser the web way. Where a
+question arises, look at the native original first. Three questions this ADR once held open are
+answered by it: the schema source (§ 1), `bind()` (§ 4) and `changed` on an unchanged value (§ 3).
+
 ## Context
 
 A GNOME app keeps its preferences in GSettings. Learn6502 (`gjsify/easy6502`, `packages/app-gnome`)
@@ -55,8 +62,8 @@ schema is the `.gschema.xml` the GNOME app already ships, read at build time. Ke
 
 ### 1. The schema
 
-The `.gschema.xml` stays the single source (ADR 0051's rule: no second copy). A build step turns it
-into a typed module the runtime imports; the runtime never parses XML.
+The `.gschema.xml` is the single schema source (ADR 0051's rule: no second copy), read at build time.
+A build step turns it into a typed module the runtime imports; the runtime never parses XML.
 
 - **Specifier.** `import schema from './eu.jumplink.Learn6502.gschema.xml?schema'`, a second specifier
   in the sense of ADR 0070 § 1. On GJS the same import resolves to the file's URL, ignored; the
@@ -82,7 +89,7 @@ into a typed module the runtime imports; the runtime never parses XML.
 | `list_keys()`, `settings_schema` | refused by name. `dumpGSettings` stays a GJS tool |
 | `get_value`, `set_value`, `get_user_value`, `get_default_value`, `GLib.Variant` | refused by name. `GLib.Variant` has its own decision (ADR 0097 § 3 owns only the four methods it needs) |
 | `reset`, `apply`, `delay`, `revert`, `sync`, `get_has_unapplied`, `is_writable`, `list_children`, `get_child` | refused by name until the gap report lists them for a project being converted (ADR 0096 § 2) |
-| `bind`, `bind_with_mapping`, `bind_writable`, `create_action`, `Gio.SettingsBindFlags` | refused by name; see § 4 |
+| `bind`, `bind_with_mapping`, `bind_writable`, `create_action`, `Gio.SettingsBindFlags` | throw by name until a consumer needs them; see § 4 |
 | `Gio.Settings.new(id)`, `new_with_path`, `new_full`, `Gio.SettingsSchemaSource` | refused by name. The constructor with a property object is the form Learn6502 uses |
 
 ### 3. Storage and `changed`
@@ -99,8 +106,8 @@ into a typed module the runtime imports; the runtime never parses XML.
 An unparsable stored value (someone edited `localStorage`) is treated as unset and logs once; the
 default is returned. GSettings also falls back to the default for a value of the wrong type.
 
-Whether `set_*` of a value EQUAL to the stored one emits `changed` is GJS's answer, not ours: the
-vector below records what GJS does and the subset follows it.
+`set_*` of a value EQUAL to the stored one follows GJS: the GJS-oracle vector records whether
+`changed` fires, and the subset does the same on every target. Decided.
 
 Quota or private-mode failures of `localStorage.setItem` throw out of `set_*`, naming the key. GJS
 reports an unwritable key through `set_*` returning `false`; the subset does not copy that boolean
@@ -109,10 +116,10 @@ until a consumer reads it (Learn6502 does not).
 ### 4. `bind()`
 
 `bind(key, object, property, flags)` is what a GNOME app uses to avoid writing the `changed` handler
-twice. Learn6502 does not call it, so by ADR 0096 § 2 it is refused now. When a consumer does, it
-is one export over the binding engine ADR 0096 already has (`SYNC_CREATE`, `BIDIRECTIONAL`), with
-`Gio.SettingsBindFlags.DEFAULT/GET/SET/GET_NO_CHANGES` mapped to those; `NO_SENSITIVITY` and the
-mapping callbacks stay refused. This ADR does not decide it earlier.
+twice. Learn6502 does not call it, so `bind()` throws, naming itself, until a consumer needs it
+(ADR 0096 § 2). Then it is added GTK-faithfully: one export over the binding engine ADR 0096
+already has (`SYNC_CREATE`, `BIDIRECTIONAL`), with
+`Gio.SettingsBindFlags.DEFAULT/GET/SET/GET_NO_CHANGES` mapped to those and GIO's semantics.
 
 ### 5. Proof
 
@@ -149,7 +156,7 @@ mapping callbacks stay refused. This ADR does not decide it earlier.
 
 ## What this does not decide
 
-- `GLib.Variant` in general, `bind()` before a consumer (§ 4), and `Gio.Settings` relocatable schemas.
+- `GLib.Variant` in general, and `Gio.Settings` relocatable schemas.
 - Cross-device sync, and iOS (`NSUserDefaults` is the obvious cell, not reasoned here).
 - `Gio.PropertyAction` over a setting (refused by ADR 0097).
 
