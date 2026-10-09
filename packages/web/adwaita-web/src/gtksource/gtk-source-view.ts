@@ -10,7 +10,7 @@
 // IN THIS SLICE: `buffer`, `auto-indent`, `indent-width` (held and read back, as on Android),
 // `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, `cursor-visible`, the four
 // margins, `connect`/`disconnect`, the GJS snake_case accessors, `vadjustment`/`hadjustment`,
-// `set_direction`, `get_first_child`/`get_next_sibling`, `get_gutter` (the model; no column is painted yet).
+// `set_direction`, `get_first_child`/`get_next_sibling`, `get_gutter` (the LEFT gutter paints its renderers' `vfunc_query_data`; the right one is a model).
 //
 // Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
@@ -44,15 +44,20 @@ gtk-source-view .gsv-gutter {
   flex: none;
   overflow: hidden;
   box-sizing: content-box;
-  padding: var(--gsv-margin-top, 0px) var(--gsv-gutter-padding, 8px) 0;
-  width: var(--gsv-gutter-width, 2ch);
+  padding: var(--gsv-margin-top, 0px) 0 0;
   text-align: end;
   line-height: var(--gsv-line-height);
   color: var(--gsv-number-fg);
   background: var(--gsv-number-bg);
   user-select: none;
 }
-gtk-source-view.show-line-numbers .gsv-gutter { display: block; }
+gtk-source-view.show-line-numbers .gsv-gutter,
+gtk-source-view.has-columns .gsv-gutter { display: block; }
+gtk-source-view .gsv-columns { display: flex; }
+gtk-source-view .gsv-numbers,
+gtk-source-view .gsv-column { flex: none; box-sizing: content-box; }
+gtk-source-view .gsv-numbers { width: var(--gsv-gutter-width, 2ch); padding: 0 var(--gsv-gutter-padding, 8px); }
+gtk-source-view .gsv-cell { height: calc(1em * var(--gsv-line-height)); white-space: pre; text-align: start; }
 gtk-source-view .gsv-number.current { color: var(--gsv-current-number-fg); background: var(--gsv-current-number-bg); }
 gtk-source-view .gsv-stage { position: relative; flex: 1 1 auto; min-width: 0; }
 gtk-source-view .gsv-backdrop,
@@ -156,6 +161,7 @@ export class GtkSourceView extends HTMLElement {
             gutter: this.gutter,
         });
         this.session = new EditorSession(this.driver, undefined, adwaitaColorScheme());
+        this.session.bindGutters(this.gutters);
     }
 
     private syncAdjustments(): void {

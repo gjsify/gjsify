@@ -8,6 +8,7 @@
 export {
     Buffer,
     Gutter,
+    GutterLines,
     GutterRenderer,
     GutterRendererText,
     Language,

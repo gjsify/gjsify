@@ -7,7 +7,15 @@
 // NO WORD WRAP, as on Android: `wrap="off"` and `white-space: pre` keep every logical line on
 // one layout line, so the backdrop and the gutter stay aligned by a fixed line height.
 
-import type { EditorDriver, EditorHost, EditorLayout, EditorPalette, StyledRun } from '@gjsify/gtksource-core';
+import type {
+    EditorDriver,
+    EditorHost,
+    EditorLayout,
+    EditorPalette,
+    GutterCell,
+    GutterColumn,
+    StyledRun,
+} from '@gjsify/gtksource-core';
 import { digitCount, LineStore } from '@gjsify/gtksource-core';
 
 const GUTTER_PADDING_PX = 8;
@@ -32,7 +40,8 @@ export class WebEditorDriver implements EditorDriver {
     private reported = { start: 0, end: 0 };
     private layout: EditorLayout | null = null;
     private readonly runs = new LineStore<readonly StyledRun[]>();
-    private scheduled = false;
+    private scheduled: 'none' | 'gutter' | 'all' = 'none';
+    private numbers: HTMLElement | null = null;
     private listening: Array<() => void> = [];
     private palette: EditorPalette | null = null;
     private attached = false;
@@ -60,6 +69,8 @@ export class WebEditorDriver implements EditorDriver {
                 'transform',
                 `translateY(${-area.scrollTop}px)`,
             );
+            // Only the lines in view are asked; a scroll brings new ones.
+            if (this.hasColumns) this.scheduleRender('gutter');
         });
         on(area, 'select', () => this.onSelection());
         on(area, 'keyup', () => this.onSelection());
@@ -188,6 +199,10 @@ export class WebEditorDriver implements EditorDriver {
         style.setProperty('--gsv-current-number-bg', cssColor(palette.currentLineNumberBackground));
     }
 
+    invalidateGutter(): void {
+        this.scheduleRender('gutter');
+    }
+
     spliceLines(first: number, removed: number, inserted: number): void {
         this.runs.splice(first, removed, inserted);
     }
@@ -205,17 +220,23 @@ export class WebEditorDriver implements EditorDriver {
     // --- painting ----------------------------------------------------------------------------
 
     /** One repaint per task: a burst of `paintLine` calls from one edit costs one DOM rebuild. */
-    private scheduleRender(): void {
-        if (this.scheduled || !this.attached) return;
-        this.scheduled = true;
+    private scheduleRender(only: 'gutter' | 'all' = 'all'): void {
+        if (!this.attached) return;
+        const pending = this.scheduled;
+        this.scheduled = only === 'all' || pending === 'all' ? 'all' : 'gutter';
+        if (pending !== 'none') return;
         queueMicrotask(() => {
-            this.scheduled = false;
-            this.render();
+            const level = this.scheduled;
+            this.scheduled = 'none';
+            if (level === 'all') this.render();
+            else if (level === 'gutter') this.renderGutter();
         });
     }
 
+    private hasColumns = false;
+
     private render(): void {
-        const { backdrop, gutter, root } = this.parts;
+        const { backdrop } = this.parts;
         const lines = this.text.split('\n');
         const highlight = this.layout?.highlightCurrentLine === true;
         const caretLine = this.text.slice(0, this.caret).split('\n').length - 1;
@@ -252,9 +273,74 @@ export class WebEditorDriver implements EditorDriver {
         const column = document.createElement('div');
         column.className = 'gsv-numbers';
         column.append(...numbers);
-        column.style.transform = `translateY(${-this.parts.area.scrollTop}px)`;
-        gutter.replaceChildren(column);
+        this.numbers = column;
+        const { root } = this.parts;
         root.style.setProperty('--gsv-gutter-width', `${digitCount(lines.length) + 0}ch`);
         root.style.setProperty('--gsv-gutter-padding', `${GUTTER_PADDING_PX}px`);
+        this.renderGutter();
+    }
+
+    /** The lines in view, or all of them where nothing is laid out (a detached element, a test DOM). */
+    private visibleLines(count: number): [number, number] {
+        const { area, backdrop } = this.parts;
+        const row = backdrop.firstElementChild;
+        const height = row === null ? 0 : row.getBoundingClientRect().height;
+        if (height <= 0 || area.clientHeight <= 0) return [0, count - 1];
+        const top = Math.max(0, area.scrollTop - (this.layout?.topMargin ?? 0));
+        const first = Math.min(count - 1, Math.floor(top / height));
+        const last = Math.min(count - 1, Math.max(first, Math.ceil((top + area.clientHeight) / height) - 1));
+        return [first, last];
+    }
+
+    private cellElement(cell: GutterCell): HTMLElement {
+        const element = document.createElement('div');
+        element.className = 'gsv-cell';
+        if (cell.runs === null) {
+            element.textContent = cell.text;
+            return element;
+        }
+        for (const run of cell.runs) {
+            const span = document.createElement('span');
+            span.textContent = run.text;
+            if (run.bold) span.style.fontWeight = 'bold';
+            if (run.italic) span.style.fontStyle = 'italic';
+            const decorations = [run.underline ? 'underline' : '', run.strikethrough ? 'line-through' : ''];
+            span.style.textDecoration = decorations.filter(Boolean).join(' ');
+            element.append(span);
+        }
+        return element;
+    }
+
+    private columnElement(column: GutterColumn, first: number): HTMLElement {
+        const element = document.createElement('div');
+        element.className = 'gsv-column';
+        element.style.minWidth = `${column.widthRequest}px`;
+        element.style.paddingLeft = `${column.marginStart}px`;
+        element.style.paddingRight = `${column.marginEnd}px`;
+        const spacer = document.createElement('div');
+        spacer.style.height = `calc(${first} * 1em * var(--gsv-line-height))`;
+        element.append(spacer, ...column.cells.map((cell) => this.cellElement(cell)));
+        return element;
+    }
+
+    /** The gutter: the renderers left of the line numbers, the numbers, the renderers right of them. */
+    private renderGutter(): void {
+        const { gutter, root, area } = this.parts;
+        const host = this.host;
+        const count = this.text.split('\n').length;
+        const [first, last] = this.visibleLines(count);
+        const columns = host?.queryGutter(first, last) ?? [];
+        this.hasColumns = columns.length > 0;
+        const showNumbers = this.layout?.showLineNumbers === true;
+        root.classList.toggle('has-columns', this.hasColumns);
+        const elements: HTMLElement[] = [];
+        for (const column of columns.filter((c) => c.position < 0)) elements.push(this.columnElement(column, first));
+        if (showNumbers && this.numbers !== null) elements.push(this.numbers);
+        for (const column of columns.filter((c) => c.position >= 0)) elements.push(this.columnElement(column, first));
+        const wrapper = document.createElement('div');
+        wrapper.className = 'gsv-columns';
+        wrapper.append(...elements);
+        wrapper.style.transform = `translateY(${-area.scrollTop}px)`;
+        gutter.replaceChildren(wrapper);
     }
 }
