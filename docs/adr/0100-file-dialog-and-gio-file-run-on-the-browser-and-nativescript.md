@@ -19,8 +19,10 @@ conformance vector; a refusal must throw.
 The GTK API stays identical: a true subset, same names, same semantics. BELOW that API each platform
 behaves the way its own native apps do: Android the Android way, the browser the web way. Where a
 question arises, look at the native original first. This answers three questions this ADR once held
-open: Android extension filters (§ 2), streams (§ 3) and a repeated save without File System Access
-(§ 4).
+open: Android extension filters (§ 2), streams (§ 3) and saving on a browser without File System Access
+(§ 4). GTK itself answers the last one: with no portal, `Gtk.FileDialog` shows its own in-process file
+chooser over the filesystem it can reach. The portal seam under `Gtk.FileDialog` is the subject of a
+separate, upcoming ADR on xdg-desktop-portal as platform contract.
 
 ## Context
 
@@ -57,9 +59,11 @@ So the capability is new, and the path-returning helper is not a base for it.
 
 **`@gjsify/file-chooser` exports `FileDialog`, `FileFilter` and a `File` class that are a strict subset
 of `Gtk.FileDialog`, `Gtk.FileFilter` and `Gio.File`. On GJS it is not used: `gi://Gtk` is native and
-opens the xdg portal. On the browser it uses the File System Access API where present, `<input
-type=file>` plus a download where not. On NativeScript it uses the Android Storage Access Framework.
-A `File` is a handle to bytes, not a path. What a platform cannot honour is refused by name.**
+opens the xdg portal. On the browser it uses the File System Access pickers where present; where not,
+it keeps files in the Origin Private File System and draws its own Adwaita file dialog over it, as
+GTK does without a portal. A download is never a stand-in for save. On NativeScript it uses the
+Android Storage Access Framework. A `File` is a handle to bytes, not a path. What a platform cannot
+honour is refused by name.**
 
 ### 1. `Gtk.FileDialog`
 
@@ -111,8 +115,8 @@ A `File` is created only by a dialog (or `File.new_for_path`, § 5). It carries 
 | | handle | `get_path()` | `get_uri()` | `get_basename()` |
 |---|---|---|---|---|
 | browser, File System Access | `FileSystemFileHandle` | `null` | refused by name | `handle.name` |
-| browser, `<input type=file>` | the `File` object, read-only | `null` | refused | `file.name` |
-| browser, download fallback | a download sink, one download per save (§ 4) | `null` | refused | the suggested name |
+| browser, OPFS (no File System Access) | a `FileSystemFileHandle` in the Origin Private File System (§ 4) | `null` | refused | `handle.name` |
+| browser, `<input type=file>` | the `File` object, read-only; copied into OPFS on open, so the handle becomes the OPFS one (§ 4) | `null` | refused | `file.name` |
 | Android, SAF | `content://` URI | `null` | the URI | `OpenableColumns.DISPLAY_NAME` |
 
 `null` for `get_path()` is GJS's own answer for a file with no local path (a portal `content://` or
@@ -125,7 +129,7 @@ A `File` is created only by a dialog (or `File.new_for_path`, § 5). It carries 
 | `get_basename()`, `get_path()`, `get_uri()` | as the table |
 | `replace_async(etag, make_backup, flags, io_priority, cancellable)` + `replace_finish` → `Gio.FileOutputStream` | implemented for `etag` `null`, `make_backup` `false`, `flags` `Gio.FileCreateFlags.NONE`; anything else throws naming the argument. Opens the handle for writing and truncates |
 | `Gio.FileOutputStream.write_bytes_async(bytes, io_priority, cancellable)` + `write_bytes_finish` | implemented; `bytes` is a `GLib.Bytes`, the result the count written. Writes after the last write; a write after `close_async` throws |
-| `Gio.FileOutputStream.close_async(io_priority, cancellable)` + `close_finish` | implemented; commits the write (a download on a handle without File System Access, § 4). A second close resolves `true`, as GIO's does |
+| `Gio.FileOutputStream.close_async(io_priority, cancellable)` + `close_finish` | implemented; commits the write (§ 4). A second close resolves `true`, as GIO's does |
 | `GLib.Bytes` | minimal: `new GLib.Bytes(Uint8Array)`, `get_size()`, `get_data()`. Everything else (`new_take`, `slice`, `hash`, `compare`, `unref_to_data`) refused by name |
 | other `Gio.OutputStream` / `Gio.FileOutputStream` members (`write`, `write_all`, `splice`, `flush`, `seek`, `query_info`) | refused by name |
 | `read_async`, `query_info`, `query_exists`, `delete`, `move`, `copy`, `get_parent`, `enumerate_children`, `monitor_*` | refused by name |
@@ -136,15 +140,55 @@ Access `createWritable` commits on `close()` and Android `openOutputStream(uri, 
 writes. A crash mid-write can lose content on Android. The vector checks the contents after a
 success, not atomicity, and the package's README states the difference.
 
+**Streams.** Learn6502 keeps the Gio subset above (`replace_async`, `write_bytes_async`,
+`close_async`, `GLib.Bytes`) because on GJS it needs no extra module. An app written cross-platform
+from the start may equally use APIs that are already cross-platform, e.g. `node:fs` via gjsify. The
+limit: a user-picked file often has no path (an Android `content://` URI, a Chromium
+`FileSystemFileHandle`, an OPFS entry), so `node:fs` cannot reach it. For picked files use the handle
+from `@gjsify/file-chooser`. App-owned files are fine with `node:fs`.
+
 ### 4. Browser without File System Access
 
-Firefox and Safari have `<input type=file>` and `<a download>` and nothing that writes to a chosen
-place. `open()` works through `<input type=file>` and resolves a read-only `File`. `save()` resolves a
-download-only `File`: each `replace_contents_async`, or each `replace_async` stream closed with
-`close_async`, offers `Blob` bytes as a download named `initial_name`. A repeated save on the same
-handle downloads again; it does not throw. That is what native web apps do, and the browser names the
-file `file (1).asm` itself. `load_contents_async` on a download-only handle throws, naming that it
-cannot be read.
+The model follows GTK: with no portal, `Gtk.FileDialog` shows its own in-process chooser over the
+filesystem it can reach. A download is not saving. On the browser that gives three cases:
+
+| browser | filesystem the dialog reaches | `replace_async` writes |
+|---|---|---|
+| Chromium: `showOpenFilePicker` / `showSaveFilePicker` | the user's real files, in the system dialog | the real file, through `createWritable` |
+| Firefox, Safari: no File System Access | the Origin Private File System (`navigator.storage.getDirectory()`), in a self-drawn Adwaita file dialog | the OPFS file; a second save overwrites the same file |
+| `<input type=file>` pick (read-only `File`) | copied into OPFS on open | the OPFS copy |
+
+A download exists only as an explicit export action of the app, never as a stand-in for save.
+
+**Support, from primary sources** (MDN browser-compat-data, which also feeds
+[MDN `createWritable`](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemFileHandle/createWritable),
+[`createSyncAccessHandle`](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemFileHandle/createSyncAccessHandle),
+[`StorageManager.getDirectory`](https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/getDirectory)
+and [`showSaveFilePicker`](https://developer.mozilla.org/en-US/docs/Web/API/Window/showSaveFilePicker)):
+
+| API | Chrome | Firefox | Safari |
+|---|---|---|---|
+| `showOpenFilePicker`, `showSaveFilePicker` | 86 | no | no |
+| `StorageManager.getDirectory()` (OPFS) | 86 | 111 | 15.2 |
+| `FileSystemFileHandle.createWritable()` | 86 | 111 | **26** |
+| `createSyncAccessHandle()` (dedicated worker, OPFS only) | 102 | 111 | 15.2 |
+
+Safari 26 added the `FileSystemWritableFileStream`
+([WebKit, "News from WWDC25: Web technology coming this fall in Safari 26 beta"](https://webkit.org/blog/16993/news-from-wwdc25-web-technology-coming-this-fall-in-safari-26-beta/)).
+So Firefox supports `createWritable` on the main thread, on OPFS files, since 111. Safari 15.2 to 25
+has OPFS but no `createWritable`.
+
+**Fallback for Safari before 26**, decided by the same rule (browser-native means): the OPFS door
+detects `createWritable` and, where it is missing, writes through a dedicated worker that opens the
+file with `createSyncAccessHandle`, truncates, writes and flushes. The caller sees the same
+`replace_async` stream; the worker is an implementation detail of the door. It needs no new dialog
+and no download.
+
+The self-drawn dialog lists, names, opens and saves OPFS files only. It is built from Adwaita
+widgets, not from a native picker, and honours `initial_name` and the filters of § 2 like GTK's.
+Files in OPFS are invisible to the user's file manager; the dialog is the only way to reach them, and
+the README says so. The browser may evict OPFS data under storage pressure unless the app calls
+`navigator.storage.persist()`; that call is the app's, not the package's.
 
 `open()` and `save()` need transient user activation in the browser. A call without it rejects with
 a `Gtk.DialogError.FAILED` naming that cause; GJS never has this condition.
@@ -177,7 +221,9 @@ with the members used only.
   test `Gio.File`; GJS is the oracle for the SHAPE of results and errors, not for the picker UI.
 - Vectors: `open` resolves a `File` whose `load_contents_async` returns the bytes; `save` then
   `replace_contents_async` then `load_contents_async` round-trips; a second `replace_contents_async`
-  on the same `File` overwrites (on a download-only handle: offers a second download); the stream
+  on the same `File` overwrites, also on the OPFS handle (one file, not two); a file opened through
+`<input type=file>` is copied into OPFS and the next save writes the copy; the Safari-before-26
+worker door passes the same round-trip; no vector may observe a download; the stream
   path `replace_async` → `write_bytes_async(new GLib.Bytes(bytes))` → `close_async` round-trips the
   same bytes, one vector per call (`replace_async`, `write_bytes_async`, `close_async`,
   `GLib.Bytes` `get_size`/`get_data`); a write after close throws; `get_basename`; `get_path` is `null` where § 3 says so; a filter
@@ -200,8 +246,9 @@ with the members used only.
 - Learn6502's `file.service.ts` runs on three targets with no change: `bootstrap.ts`, the dialog code
   and `saveToFile` stay as they are.
 - `pickFile`/`saveFile` in `@gjsify/adwaita-app` stay as GJS helpers; they are not the portable API.
-- A browser without File System Access gets "Open", and every "Save" is a download, as in a native
-  web app.
+- A browser without File System Access saves into the Origin Private File System through a self-drawn
+  Adwaita file dialog. Those files are not in the user's file manager; getting them out is an
+  explicit export action of the app.
 - `Gio.File` handles do not survive a restart. Android persistable permissions and
   `IndexedDB`-stored handles are not claimed.
 
@@ -211,8 +258,8 @@ with the members used only.
   URIs; a path-shaped API invents one.
 - **`showOpenFilePicker` only.** It excludes Firefox and Safari from "Open", which `<input
   type=file>` serves.
-- **Throw on a second save to a download handle.** No native web app does; it would make the app
-  differ from the platform it runs on.
+- **A download as save.** Each save would create another file (`file (1).asm`), which is not what
+  `replace_async` means. GTK without a portal draws its own chooser; this does the same over OPFS.
 - **Change Learn6502 to avoid streams.** The API stays GTK's; the subset grows by what the app calls.
 - **Port `Gio.File` completely** (`query_info`, monitors, enumerate). No handle on these targets can
   answer them.
