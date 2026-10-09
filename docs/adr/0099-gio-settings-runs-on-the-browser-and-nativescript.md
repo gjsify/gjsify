@@ -55,8 +55,9 @@ So the capability is new. The three storage backends exist (GSettings, `localSto
 ## Decision
 
 **`@gjsify/app-settings` exports a `Settings` class that is a strict subset of `Gio.Settings`. On GJS
-it is not used: `gi://Gio` is native GSettings. On the browser it stores in `localStorage`, on
-NativeScript in `ApplicationSettings`. Each port's `Gio` barrel re-exports it as `Gio.Settings`. The
+it is the native `Gio.Settings`, re-exported. On the browser it stores in `localStorage`, on
+NativeScript in `ApplicationSettings`. Each port's `Gio` barrel re-exports it as `Gio.Settings`, so
+`import Gio from 'gi://Gio'` works on every target too. The
 schema is the `.gschema.xml` the GNOME app already ships, read at build time. Key types are `b`, `i`,
 `u`, `d` and `s`. Everything else is refused by name.**
 
@@ -134,6 +135,48 @@ already has (`SYNC_CREATE`, `BIDIRECTIONAL`), with
   are subset-only and are not run on GJS.
 - The gate is the one ADR 0093 § 4 built. Learn6502's nine keys are a fixture schema in the package.
 
+### 6. Two import paths, one class
+
+| path | GJS | browser, NativeScript |
+|---|---|---|
+| `import Gio from 'gi://Gio'` | native `Gio.Settings` | the port's `Gio` barrel, which re-exports the subset |
+| `import { Settings } from '@gjsify/app-settings'` | native `Gio.Settings`, re-exported | the subset |
+
+Both name the same class with the same semantics on each target. `@gjsify/app-settings` is importable
+directly on GJS: the package will ship a `.gtk` platform file (`index.gtk.ts`) that re-exports
+`Gio.Settings`. The GTK chain is `.gtk` → `.<os>` → `.desktop` → base
+(`packages/infra/rolldown-plugin-gjsify/src/plugins/platform-resolve.ts`, ADR 0032 § 9), and the
+browser chain refuses `.gtk`, so the base file there is the subset.
+
+### 7. Sync between devices
+
+gjsify does not build sync: it needs a server. The subset must not prevent it, on two levels.
+
+- **App level.** An app syncs itself with `changed` plus its own code: it listens to `changed::key`,
+  sends the value, and calls `set_*` for a value that arrives. Nothing in § 2 or § 3 blocks this.
+  `set_*` of a remote value fires `changed` like any set, so the app tells its own writes apart.
+- **Framework level.** GIO's own seam is `Gio.SettingsBackend`: the storage below `Gio.Settings`,
+  chosen by the `backend` construct property (`g_param_spec_object ("backend", …,
+  G_PARAM_CONSTRUCT_ONLY)`, glib `gio/gsettings.c`). GIO ships `Gio.keyfile_settings_backend_new` and
+  `Gio.memory_settings_backend_new`; `gio/gsettingsbackend.h` documents the class for third-party
+  backends and guards it behind `G_SETTINGS_ENABLE_BACKEND`.
+
+**Measured, on GJS 1.88.1 with GLib 2.88.3.** `Gio-2.0.gir` lists `read`, `write`, `write_tree`,
+`reset`, `get_writable`, `subscribe`, `unsubscribe`, `sync` and `read_user_value` as virtual methods of
+`SettingsBackend`; only `get_permission` is `introspectable="0"`. A `GObject.registerClass` subclass of
+`Gio.SettingsBackend` with `vfunc_*` for those instantiated, `new Gio.Settings({ schema_id, backend })`
+accepted it, and `get_boolean` reached `vfunc_read` and `set_boolean` reached `vfunc_write`. So a custom
+backend CAN be written in JS on GJS. One defect: at teardown GJS blocked the `unsubscribe` vfunc
+("Attempting to run a JS callback during garbage collection"). A backend written in JS must keep
+`vfunc_unsubscribe` free of work that needs the JS engine.
+
+**Decision.** The GIO-faithful hook is `new Gio.Settings({ schema_id, backend })`. On GJS it is native
+and needs nothing. On the browser and NativeScript the subset refuses `backend` by name until a
+consumer needs it. Then it is added as GIO has it: a `Gio.SettingsBackend` with the vfunc set above,
+and `localStorage` / `ApplicationSettings` become the two default backends. The vfuncs exchange
+`GLib.Variant`, which § 2 refuses, so the hook waits for the `GLib.Variant` decision.
+**Not measured:** a backend on the browser or NativeScript; no such code exists.
+
 ## Consequences
 
 - `theme.service.ts` and `main.window.ts` in Learn6502 run on three targets with `import Gio from
@@ -141,7 +184,8 @@ already has (`SYNC_CREATE`, `BIDIRECTIONAL`), with
 - The `.gschema.xml` is read by the build as well as by GNOME; a key added there reaches all three.
 - Each port's `Gio` barrel stops being only "what an Adwaita author constructs" (its comment says so);
   the comment and `check-vocabulary-alignment.mjs`'s expectations change in the implementation PR.
-- Settings do not sync between targets. `localStorage` and `SharedPreferences` are per device.
+- Settings do not sync between targets. `localStorage` and `SharedPreferences` are per device; § 7
+  keeps sync possible for an app and, through `backend`, for the framework.
 
 ## Alternatives rejected
 
@@ -157,8 +201,9 @@ already has (`SYNC_CREATE`, `BIDIRECTIONAL`), with
 ## What this does not decide
 
 - `GLib.Variant` in general, and `Gio.Settings` relocatable schemas.
-- Cross-device sync, and iOS (`NSUserDefaults` is the obvious cell, not reasoned here).
+- A sync server or protocol, and iOS (`NSUserDefaults` is the obvious cell, not reasoned here).
 - `Gio.PropertyAction` over a setting (refused by ADR 0097).
+- Recommended import path: open, Pascal decides.
 
 ## Implementation
 

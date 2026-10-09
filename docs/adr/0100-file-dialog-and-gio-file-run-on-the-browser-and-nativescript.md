@@ -60,8 +60,9 @@ So the capability is new, and the path-returning helper is not a base for it.
 ## Decision
 
 **`@gjsify/file-chooser` exports `FileDialog`, `FileFilter` and a `File` class that are a strict subset
-of `Gtk.FileDialog`, `Gtk.FileFilter` and `Gio.File`. On GJS it is not used: `gi://Gtk` is native and
-opens the xdg portal. On the browser it uses the File System Access pickers where present; where not,
+of `Gtk.FileDialog`, `Gtk.FileFilter` and `Gio.File`. On GJS it is the native classes, re-exported;
+`gi://Gtk` is native and opens the xdg portal. On the browser it uses the File System Access pickers
+where the browser has them, detected by feature; where not,
 it keeps files in the Origin Private File System and draws its own Adwaita file dialog over it, as
 GTK does without a portal. A download is never a stand-in for save. On NativeScript it uses the
 Android Storage Access Framework. A `File` is a handle to bytes, not a path. What a platform cannot
@@ -156,11 +157,33 @@ filesystem it can reach. A download is not saving. On the browser that gives thr
 
 | browser | filesystem the dialog reaches | `replace_async` writes |
 |---|---|---|
-| Chromium: `showOpenFilePicker` / `showSaveFilePicker` | the user's real files, in the system dialog | the real file, through `createWritable` |
-| Firefox, Safari: no File System Access | the Origin Private File System (`navigator.storage.getDirectory()`), in a self-drawn Adwaita file dialog | the OPFS file; a second save overwrites the same file |
+| `'showSaveFilePicker' in window` (Chromium today) | the user's real files, in the system dialog | the real file, through `createWritable` |
+| no picker (Firefox, Safari today) | the Origin Private File System (`navigator.storage.getDirectory()`), in a self-drawn Adwaita file dialog | the OPFS file; a second save overwrites the same file |
 | `<input type=file>` pick (read-only `File`) | copied into OPFS on open | the OPFS copy |
 
 A download exists only as an explicit export action of the app, never as a stand-in for save.
+
+**The door chooses by feature, never by browser.** No code reads the user agent. The browser names in
+this section's tables are information only.
+
+| question | test | yes | no |
+|---|---|---|---|
+| native pickers? | `'showSaveFilePicker' in window` | File System Access | OPFS and the drawn dialog |
+| streaming write? | `createWritable` on `FileSystemFileHandle.prototype` | main thread | a worker with `createSyncAccessHandle` |
+
+If Firefox or Safari ship the pickers, the door uses them with no change here.
+
+**Standards status, fetched 2026-10-09 from the sources below.**
+
+| API | where specified | status |
+|---|---|---|
+| `showOpenFilePicker`, `showSaveFilePicker` | [WICG File System Access](https://wicg.github.io/file-system-access/) | Community Group draft, not a standard |
+| Mozilla position | [standards-positions #154](https://github.com/mozilla/standards-positions/issues/154) | `position: negative`, closed 2021-06-25 |
+| WebKit position | [standards-positions #28](https://github.com/WebKit/standards-positions/issues/28) | `position: oppose`, closed 2023-03-23 |
+| OPFS (`getDirectory`), `FileSystemFileHandle`, `createWritable` | [WHATWG File System Standard](https://fs.spec.whatwg.org/) | Living Standard; the pickers are not in it |
+
+Both engines that lack the pickers have a recorded negative position, so it is not foreseeable that
+Firefox or Safari get them. The OPFS path is not a stopgap; it is the path for those browsers.
 
 **Support, from primary sources** (MDN browser-compat-data, which also feeds
 [MDN `createWritable`](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemFileHandle/createWritable),
@@ -180,17 +203,60 @@ Safari 26 added the `FileSystemWritableFileStream`
 So Firefox supports `createWritable` on the main thread, on OPFS files, since 111. Safari 15.2 to 25
 has OPFS but no `createWritable`.
 
-**Fallback for Safari before 26**, decided by the same rule (browser-native means): the OPFS door
-detects `createWritable` and, where it is missing, writes through a dedicated worker that opens the
+**Fallback where `createWritable` is missing** (Safari before 26 today), decided by the same rule
+(browser-native means): the OPFS door detects `createWritable` and, where it is missing, writes through a dedicated worker that opens the
 file with `createSyncAccessHandle`, truncates, writes and flushes. The caller sees the same
 `replace_async` stream; the worker is an implementation detail of the door. It needs no new dialog
 and no download.
 
 The self-drawn dialog lists, names, opens and saves OPFS files only. It is built from Adwaita
 widgets, not from a native picker, and honours `initial_name` and the filters of § 2 like GTK's.
+Its design is the current GNOME file dialog (§ 4a).
 Files in OPFS are invisible to the user's file manager; the dialog is the only way to reach them, and
 the README says so. The browser may evict OPFS data under storage pressure unless the app calls
 `navigator.storage.persist()`; that call is the app's, not the package's.
+
+### 4a. The picker on every other platform, and the dialog we draw
+
+Every non-browser platform shows its own native picker; nothing is drawn there:
+
+| platform | native picker |
+|---|---|
+| Linux | xdg-desktop-portal FileChooser, through `Gtk.FileDialog` ([ADR 0101](0101-portals-are-the-platform-seam-below-the-gtk-api.md)) |
+| Android | Storage Access Framework (`ACTION_OPEN_DOCUMENT`, `ACTION_CREATE_DOCUMENT`) |
+| Windows | [`IFileDialog`](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifiledialog) |
+| macOS | [`NSOpenPanel`](https://developer.apple.com/documentation/appkit/nsopenpanel) / [`NSSavePanel`](https://developer.apple.com/documentation/appkit/nssavepanel) |
+
+A developer overrides any of them per platform with their own code (ADR 0101).
+
+**The original of the drawn dialog**, read from source (GNOME main, 2026-10-09):
+
+- GTK's in-process chooser is `GtkFileChooserWidget`, template `gtk/ui/gtkfilechooserwidget.ui`
+  (GtkBuilder XML), in `gitlab.gnome.org/GNOME/gtk`. `gdk_display_should_use_portal()` in
+  `gdk/gdk.c` picks the portal when the app is sandboxed or the session bus offers portals, and
+  `GDK_DEBUG=portals` forces it.
+- On a GNOME desktop with portals, `Gtk.FileDialog` shows the portal's chooser, and that is
+  **Nautilus in file-chooser mode**. `xdg-desktop-portal-gnome` 47.beta NEWS: "Use Nautilus for the File
+  Chooser portal"; Nautilus 47.beta NEWS: "Implement file chooser portal and introduce file chooser ui".
+  Its `src/filechooser.c` talks to `org.gnome.Nautilus`. This is GNOME 47 (2024) and later, so what a
+  GNOME 48 or 49 user sees is Nautilus' chooser, not `GtkFileChooserWidget`.
+- Nautilus' chooser: class `src/nautilus-file-chooser.c`, template
+  `src/resources/ui/nautilus-file-chooser.blp` (Blueprint; compiled to the GtkBuilder resource
+  `/org/gnome/nautilus/ui/nautilus-file-chooser.ui`).
+
+**Decision.** The drawn dialog follows that design and takes its structure from the Nautilus template:
+an `Adw.Window` with an `Adw.OverlaySplitView`; a sidebar with a header bar and places; a content area
+with a toolbar, the file list, and a bottom bar holding the filter drop-down, the file-name entry (save)
+and the accept button, with a wide and a narrow `Adw.Layout`. It shows only what OPFS has: the places
+sidebar lists the OPFS root, not drives, network or recent files, because the origin sees no real
+device; "Search Everywhere", history controls and the choices menu are left out until a consumer needs
+them.
+
+**Licence, flagged, not resolved.** gjsify is MIT (`LICENSE`, `package.json`). Nautilus'
+`nautilus-file-chooser.c` carries `SPDX-License-Identifier: GPL-3.0-or-later`; the `.blp` has no header
+of its own. Copying the template into an MIT package conflicts with that. GTK's tree is LGPL
+(`COPYING` of `GNOME/gtk`), which is a different question. Pascal decides: copy, re-derive from
+the design only, or use the GTK widget's layout.
 
 `open()` and `save()` need transient user activation in the browser. A call without it rejects with
 a `Gtk.DialogError.FAILED` naming that cause; GJS never has this condition.
@@ -243,6 +309,15 @@ worker door passes the same round-trip; no vector may observe a download; the st
   `implemented`; the pure half (filter → intent extras) is specced off-device.
 - The gate is the one ADR 0093 § 4 built.
 
+### 7. Two import paths, one class
+
+`import Gtk from 'gi://Gtk'` and `import Gio from 'gi://Gio'` work on every target: on GJS they are
+native, elsewhere the port's barrels re-export the subset. `@gjsify/file-chooser` is also importable
+directly on every target, GJS included: there a `.gtk` platform file re-exports the native
+`Gtk.FileDialog`, `Gtk.FileFilter` and `Gio.File` (chain `.gtk` → `.<os>` → `.desktop` → base in
+`packages/infra/rolldown-plugin-gjsify/src/plugins/platform-resolve.ts`). Same names and semantics
+either way.
+
 ## Consequences
 
 - Learn6502's `file.service.ts` runs on three targets with no change: `bootstrap.ts`, the dialog code
@@ -271,6 +346,7 @@ worker door passes the same round-trip; no vector may observe a download; the st
 - `Gio.OutputStream` and `GLib.Bytes` beyond the calls in § 3, folders and multiple selection, drag-and-drop files, and the
   clipboard.
 - Handles across restarts, and iOS (document picker is the obvious cell, not reasoned here).
+- Recommended import path: open, Pascal decides.
 
 ## Implementation
 
