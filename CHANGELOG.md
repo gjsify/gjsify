@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.58.0](https://github.com/gjsify/gjsify/compare/v0.57.0...v0.58.0) (2026-10-09)
+
+### Features
+
+* **adwaita-core:** stop an emission by name in the GObject subset ([#2129](https://github.com/gjsify/gjsify/issues/2129)) ([ae19b8c](https://github.com/gjsify/gjsify/commit/ae19b8cb929c8c092e2181647c49c0fe721ea9a0))
+* **adwaita:** `GLib` paths, Adw.StyleManager, SimpleActionGroup on web ([#2127](https://github.com/gjsify/gjsify/issues/2127)) ([d540abd](https://github.com/gjsify/gjsify/commit/d540abd6bd46d39227e73aeaec064b2d4c335ad3))
+* **gtksource:** add Gutter and text renderers ([#2128](https://github.com/gjsify/gjsify/issues/2128)) ([867d2a7](https://github.com/gjsify/gjsify/commit/867d2a70e9cb2f64dfbb8f636b789fd78ca90acf))
+* **gtksource:** query_data and left gutter painting ([#2131](https://github.com/gjsify/gjsify/issues/2131)) ([148de2a](https://github.com/gjsify/gjsify/commit/148de2af3258287ae2486a62162c7aceba3b217b))
+
+### Bug Fixes
+
+* **gtksource:** type createNativeView as object ([#2130](https://github.com/gjsify/gjsify/issues/2130)) ([29f2c4f](https://github.com/gjsify/gjsify/commit/29f2c4f09757d8f0ec8b59db8066a535a6e2a69b))
+
+### Tests
+
+* **e2e:** probe an absent GtkSource member that is still absent ([#2132](https://github.com/gjsify/gjsify/issues/2132)) ([c27806e](https://github.com/gjsify/gjsify/commit/c27806e10a4e33789826b513a236d8feb117b524)), closes [#2128](https://github.com/gjsify/gjsify/issues/2128)
+
 ## [0.57.0](https://github.com/gjsify/gjsify/compare/v0.56.0...v0.57.0) (2026-10-09)
 
 ### Features

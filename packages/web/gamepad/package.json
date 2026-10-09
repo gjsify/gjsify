@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gamepad",
-    "version": "0.57.0",
+    "version": "0.58.0",
     "description": "Gamepad Web API for GJS: SDL3 (via @gjsify/gamepad-native) on macOS and Windows, libmanette on Linux until SDL is proven there",
     "type": "module",
     "module": "lib/esm/index.js",
