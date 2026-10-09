@@ -386,7 +386,7 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.equal(built.status, 0, `build failed\n${built.output}`);
             const report = evaluate(built.outFile, app, 'member');
             assert.notEqual(report.refusal, null, 'reading an absent GtkSource member returned silently');
-            assert.match(report.refusal, /GutterRendererText/, 'the refusal does not name the member');
+            assert.match(report.refusal, /SearchContext/, 'the refusal does not name the member');
             assert.match(report.refusal, /LanguageManager/, 'the refusal does not print the members that exist');
         });
     }
