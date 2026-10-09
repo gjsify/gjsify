@@ -332,12 +332,26 @@ refuseMembers(GioApplicationBase.prototype, REFUSED_METHODS, REFUSED_PROPERTIES)
 // oxlint-disable-next-line typescript/no-explicit-any
 type GioApplicationConstructor = new (...args: any[]) => GioApplicationBase;
 
+/** What `withGtkApplication` adds, named so the emitted `.d.ts` of a subclass refers to it. */
+export interface GtkApplicationMembers {
+    readonly active_window: object | null;
+    get_active_window(): object | null;
+    get_windows(): object[];
+    add_window(window: object): void;
+    remove_window(window: object): void;
+}
+
+// oxlint-disable-next-line typescript/no-explicit-any
+export type GtkApplicationConstructor = new (...args: any[]) => GtkApplicationMembers;
+
 /**
  * `Gtk.Application` over a `Gio.Application` of a port, so the chain `Gio` → `Gtk` → `Adw` is one
  * prototype chain and `instanceof` answers as it does on GJS: the windows, and the application
  * they belong to.
  */
-export function withGtkApplication<T extends GioApplicationConstructor>(Base: T) {
+// The return type is written out: inferred, a subclass's `.d.ts` inlines the whole class and emits
+// every accessor as `set x(v): any`, which TypeScript rejects (TS1095) in a consumer without `skipLibCheck`.
+export function withGtkApplication<T extends GioApplicationConstructor>(Base: T): T & GtkApplicationConstructor {
     class GtkApplication extends Base {
         get active_window(): object | null {
             return stateOf(this).windows[0] ?? null;
