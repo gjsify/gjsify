@@ -51,8 +51,7 @@ Nothing here is built by us: the APKs are GeopJr's GTK4Android demo builds, prod
 - **Native GTK rendering as an alternative to the port:** viable as an opt-in renderer for
   apps that want pixel-exact Adwaita; findings 2–4 keep it from replacing the port.
 - **GJS on Android via pixiewood** (gjs as the app binary): needs SpiderMonkey cross-built for
-  Android, which nothing here measured. Out of scope for this repository; it would be its own
-  project.
+  Android, which nothing here measured. A larger undertaking for gjsify, not planned yet.
 
 The decision built on this report: [ADR 0104](../adr/0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md).
 

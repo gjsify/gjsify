@@ -86,10 +86,11 @@ GPU rendering. Until all three pass, the track stays tier 3 and its docs say it 
 gjsify does not ship an accessibility bridge of its own for GTK; that belongs in GTK. Gaps found
 there are reported as `Upstream (GTK, file by hand): …` issues in our repo.
 
-### 4. Track A is not in this repository
+### 4. Track A is a gjsify project, but not planned yet
 
-GJS as the app binary needs SpiderMonkey and GJS cross-built for Android. That is a separate
-project with its own repository. gjsify follows it as a consumer once it ships an APK.
+GJS as the app binary needs SpiderMonkey and GJS cross-built for Android. That belongs to gjsify,
+but it is a larger undertaking than B or C, so this ADR does not plan it. It gets its own ADR when
+it is scheduled.
 
 ### 5. Declarations: no new runtime slot
 
