@@ -3,6 +3,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
@@ -116,6 +117,28 @@ export default async () => {
             ]) {
                 expect(isEnvironmentDiagnostic(message)).toBe(false);
             }
+        });
+
+        await it('sets aside an exact message a spec declared, and nothing near it', async () => {
+            const declared = 'gdk_frame_timings_presented() called on skipped frame.';
+            const emit = (message: string) =>
+                GLib.log_variant(
+                    null,
+                    GLib.LogLevelFlags.LEVEL_WARNING,
+                    new GLib.Variant('a{sv}', { MESSAGE: new GLib.Variant('s', message) }),
+                );
+            diagnostics.reset();
+            emit(declared);
+            expect(diagnostics.seen.length).toBe(1);
+            diagnostics.reset();
+            diagnostics.allowEnvironment(declared);
+            emit(declared);
+            expect(diagnostics.seen.length).toBe(0);
+            expect(diagnostics.environment.length).toBe(1);
+            diagnostics.reset();
+            emit(declared + ' extra');
+            expect(diagnostics.seen.length).toBe(1);
+            diagnostics.reset();
         });
 
         await gated(diagnostics, 'descriptor table vs installed typelib', async () => {

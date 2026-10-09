@@ -32,6 +32,14 @@ export interface DiagnosticsGate {
      */
     readonly environment: readonly string[];
     reset(): void;
+    /**
+     * Classify one exact message as the HOST's, for a caller that knows which host it is on.
+     *
+     * The package reads the operating system nowhere (ADR 0018 would then owe it a claim), so a
+     * message that is the host's on ONE platform is declared by the spec running there, not
+     * guessed here. Exact text only: a prefix would widen the gate by a namespace.
+     */
+    allowEnvironment(message: string): void;
     /** Throw if anything about the tree was recorded, naming every message. */
     assertQuiet(context?: string): void;
 }
@@ -124,6 +132,7 @@ export function installDiagnosticsGate(): DiagnosticsGate {
 
     const seen: string[] = [];
     const environment: string[] = [];
+    const allowed = new Set<string>();
     const decoder = new TextDecoder();
     const verbose = GLib.getenv('G_MESSAGES_DEBUG') !== null;
 
@@ -137,7 +146,7 @@ export function installDiagnosticsGate(): DiagnosticsGate {
             // `--g-fatal-warnings`, i.e. the strictest run there is.
             const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
             if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) {
-                (isEnvironmentDiagnostic(message) ? environment : seen).push(message);
+                (isEnvironmentDiagnostic(message) || allowed.has(message) ? environment : seen).push(message);
             }
             if (verbose || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
         } catch {
@@ -149,6 +158,9 @@ export function installDiagnosticsGate(): DiagnosticsGate {
     installed = {
         seen,
         environment,
+        allowEnvironment(message) {
+            allowed.add(message);
+        },
         reset() {
             seen.length = 0;
             environment.length = 0;
