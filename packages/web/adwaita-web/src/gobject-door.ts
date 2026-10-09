@@ -18,9 +18,11 @@ import {
     type GObjectDoor,
     type RegisteredClass,
     type TemplateScope,
+    widgetDisplayMembers,
 } from '@gjsify/adwaita-core';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 
+import { gdk } from './namespace/gdk.js';
 import { dispatchElement, listenElement } from './gobject-elements.js';
 import { buildTemplateTree, type BuiltTemplateTree } from './shared-tree-builder.js';
 import { registerTemplateClass } from './template-classes.js';
@@ -119,6 +121,11 @@ export const webDoor: GObjectDoor = {
         Object.setPrototypeOf((klass as { prototype: object }).prototype, Constructing.prototype);
 
         const proto = (klass as { prototype: Record<string, unknown> }).prototype;
+        // `this.get_display()` / `this.get_clipboard()`, as on a realized Gtk.Widget; a class's own wins.
+        for (const [name, member] of Object.entries(widgetDisplayMembers(gdk))) {
+            if (!(name in proto))
+                Object.defineProperty(proto, name, { value: member, writable: true, configurable: true });
+        }
         const inherited = proto.connectedCallback as (() => void) | undefined;
         Object.defineProperty(proto, 'connectedCallback', {
             configurable: true,
