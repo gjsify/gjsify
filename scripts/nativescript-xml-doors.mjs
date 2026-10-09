@@ -660,6 +660,8 @@ function coreApplicationTexts(root) {
         texts.set(klass, [application, ...installed.filter((text) => text !== undefined)]);
     }
     if (texts.size === 0) throw new Error(`${CORE_SRC_DIR}/application.ts installs no action map on a class`);
+    // `Adw.StyleManager` is no view either: its chain ends in a GObject of the core, like the application's.
+    texts.set('StyleManagerBase', [readFileSync(join(root, CORE_SRC_DIR, 'style-manager.ts'), 'utf8')]);
     return texts;
 }
 
