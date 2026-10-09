@@ -23,10 +23,11 @@ import type { EditorHost, EditorLayout } from '@gjsify/gtksource-core';
 import { emphasisedLine, gutterWidth, visibleLines } from '@gjsify/gtksource-core';
 import { LineStore } from '@gjsify/gtksource-core';
 import type { NativeEditorDriver } from './native-editor.js';
-import type { EditorPalette } from '@gjsify/gtksource-core';
+import type { EditorPalette, GutterMetrics } from '@gjsify/gtksource-core';
 import type { StyledRun } from '@gjsify/gtksource-core';
 
 declare const android: AndroidNamespace;
+declare const java: { lang: { Runnable: new (implementation: { run(): void }) => unknown } };
 
 const GUTTER_PADDING_DP = 8;
 const ANTI_ALIAS_FLAG = 1;
@@ -87,6 +88,9 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
     private readonly spans = new LineStore<unknown[]>();
     private fillPaint: AndroidPaint | null = null;
     private textPaint: AndroidPaint | null = null;
+    /** The widest text each left-gutter column drew, by column; a column is as wide as it needs. */
+    private measured: number[] = [];
+    private appliedGutter = -1;
 
     bind(host: EditorHost): void {
         this.host = host;
@@ -270,10 +274,26 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         return view.getResources().getDisplayMetrics().density;
     }
 
-    private gutterPixels(view: AndroidEditText): number {
+    private columnPixels(column: GutterMetrics, measured: number, density: number): number {
+        return Math.ceil(
+            Math.max(column.widthRequest * density, measured) + (column.marginStart + column.marginEnd) * density,
+        );
+    }
+
+    private numbersPixels(view: AndroidEditText, lineCount: number): number {
         if (!this.layout?.showLineNumbers) return 0;
         const padding = GUTTER_PADDING_DP * this.density(view);
-        return gutterWidth(this.lineCount, this.paintFor(view).measureText('0'), padding);
+        return gutterWidth(lineCount, this.paintFor(view).measureText('0'), padding);
+    }
+
+    /** The whole left gutter: the line numbers and every renderer's column, as last measured. */
+    private gutterPixels(view: AndroidEditText, lineCount = this.lineCount): number {
+        const density = this.density(view);
+        let total = this.numbersPixels(view, lineCount);
+        (this.host?.gutterColumns() ?? []).forEach((column, at) => {
+            total += this.columnPixels(column, this.measured[at] ?? 0, density);
+        });
+        return total;
     }
 
     private paintFor(view: AndroidEditText): AndroidPaint {
@@ -298,6 +318,7 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         );
         view.setKeyListener(layout.editable ? this.keyListener : null);
         view.setCursorVisible(layout.cursorVisible);
+        this.appliedGutter = this.gutterPixels(view);
         view.invalidate();
     }
 
@@ -341,6 +362,14 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         this.view?.invalidate();
     }
 
+    invalidateGutter(): void {
+        const view = this.view;
+        if (!view) return;
+        // A column's width follows its widget properties; its text is measured when it is drawn.
+        if (this.gutterPixels(view) !== this.appliedGutter) this.applyLayout();
+        else view.invalidate();
+    }
+
     // --- drawing ---------------------------------------------------------------------------------
 
     private fill(canvas: AndroidCanvas, color: number, left: number, top: number, right: number, bottom: number): void {
@@ -368,15 +397,12 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
     drawGutter(view: AndroidEditText, canvas: AndroidCanvas): void {
         const palette = this.palette;
         const layout = view.getLayout();
-        if (!palette || !layout || !this.layout?.showLineNumbers) return;
-        const paint = this.paintFor(view);
-        const padding = GUTTER_PADDING_DP * this.density(view);
-        const width = gutterWidth(layout.getLineCount(), paint.measureText('0'), padding);
-        const left = view.getScrollX();
+        const host = this.host;
+        if (!palette || !layout || !host) return;
+        const showNumbers = this.layout?.showLineNumbers === true;
+        const density = this.density(view);
         const scrollY = view.getScrollY();
         const offset = view.getExtendedPaddingTop();
-        this.fill(canvas, palette.lineNumberBackground, left, scrollY, left + width, scrollY + view.getHeight());
-
         const visible = visibleLines(
             layout.getLineCount(),
             (line) => offset + layout.getLineTop(line),
@@ -384,26 +410,68 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
             scrollY,
             scrollY + view.getHeight(),
         );
+        const columns = visible
+            ? host.queryGutter(visible.first, visible.last)
+            : host.gutterColumns().map((column) => ({ ...column, cells: [] }));
+        if (!showNumbers && columns.length === 0) return;
+        const paint = this.paintFor(view);
+        columns.forEach((column, at) => {
+            // Plain text only: Pango markup is read for its text, not painted with its styles.
+            const widest = column.cells.reduce((width, cell) => Math.max(width, paint.measureText(cell.text)), 0);
+            this.measured[at] = Math.max(widest, this.measured[at] ?? 0);
+        });
+        this.measured.length = columns.length;
+        const total = this.gutterPixels(view, layout.getLineCount());
+        if (total !== this.appliedGutter) {
+            this.appliedGutter = total;
+            view.post(new java.lang.Runnable({ run: () => this.applyLayout() }));
+        }
+        const left = view.getScrollX();
+        this.fill(canvas, palette.lineNumberBackground, left, scrollY, left + total, scrollY + view.getHeight());
         if (!visible) return;
+
+        const padding = GUTTER_PADDING_DP * density;
         const current = emphasisedLine(
-            this.layout.highlightCurrentLine,
+            this.layout?.highlightCurrentLine === true,
             layout.getLineForOffset(view.getSelectionEnd()),
         );
-        for (let line = visible.first; line <= visible.last; line++) {
-            const isCurrent = line === current;
-            if (isCurrent && palette.currentLineNumberBackground !== 0) {
-                this.fill(
-                    canvas,
-                    palette.currentLineNumberBackground,
-                    left,
-                    offset + layout.getLineTop(line),
-                    left + width,
-                    offset + layout.getLineBottom(line),
-                );
+        let x = left;
+        const drawNumbers = (): void => {
+            const width = this.numbersPixels(view, layout.getLineCount());
+            paint.setTextAlign(android.graphics.Paint.Align.RIGHT);
+            for (let line = visible.first; line <= visible.last; line++) {
+                const isCurrent = line === current;
+                if (isCurrent && palette.currentLineNumberBackground !== 0) {
+                    this.fill(
+                        canvas,
+                        palette.currentLineNumberBackground,
+                        x,
+                        offset + layout.getLineTop(line),
+                        x + width,
+                        offset + layout.getLineBottom(line),
+                    );
+                }
+                paint.setColor(isCurrent ? palette.currentLineNumberForeground : palette.lineNumberForeground);
+                canvas.drawText(String(line + 1), x + width - padding, offset + layout.getLineBaseline(line), paint);
             }
-            paint.setColor(isCurrent ? palette.currentLineNumberForeground : palette.lineNumberForeground);
-            canvas.drawText(String(line + 1), left + width - padding, offset + layout.getLineBaseline(line), paint);
-        }
+            x += width;
+        };
+        let numbersDrawn = !showNumbers;
+        columns.forEach((column, at) => {
+            if (!numbersDrawn && column.position >= 0) {
+                drawNumbers();
+                numbersDrawn = true;
+            }
+            paint.setTextAlign(android.graphics.Paint.Align.LEFT);
+            paint.setColor(palette.lineNumberForeground);
+            column.cells.forEach((cell, index) => {
+                if (cell.text === '') return;
+                const baseline = offset + layout.getLineBaseline(visible.first + index);
+                canvas.drawText(cell.text, x + column.marginStart * density, baseline, paint);
+            });
+            x += this.columnPixels(column, this.measured[at], density);
+        });
+        if (!numbersDrawn) drawNumbers();
     }
 }
 
