@@ -52,6 +52,9 @@
  * seen without this check. Untracked build output the recipes touch on the way
  * (`packages/infra/cli/lib/`) is left rebuilt — byte-equivalent either way.
  *
+ * It refuses a tree holding workspace-nested duplicates of hoisted packages
+ * (`findShadowedInstalls()`): they change the bundle per host.
+ *
  * It must run on a COLD tree (fresh clone + `gjsify install`, nothing built) as
  * well as a warm one — see `ensureBuildableWorkspace()`: `--rebuild` is the
  * release path, and a CI release runs on a tree with no build output.
@@ -74,7 +77,7 @@
  */
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
@@ -318,6 +321,14 @@ function fail(msg, file) {
  * @returns {string|null} an abort reason, or null on success.
  */
 function ensureBuildableWorkspace() {
+    const shadowed = findShadowedInstalls();
+    if (shadowed.length > 0) {
+        return (
+            `preflight: ${shadowed.length} workspace-nested install(s) duplicate a hoisted package at the same ` +
+            `version, which makes the bundle differ from CI's: ${shadowed.slice(0, 5).join(', ')}` +
+            `${shadowed.length > 5 ? ', …' : ''}. Delete them (\`rm -rf\` each) or re-run \`gjsify install\`.`
+        );
+    }
     const bootstrap = join(repoRoot, 'scripts', 'bootstrap-native-facades.mjs');
     const label = 'node scripts/bootstrap-native-facades.mjs';
 
@@ -329,6 +340,54 @@ function ensureBuildableWorkspace() {
         '(`@gjsify/rolldown-native`) has no built JS facade and every rebuild below fails with ' +
         '"no usable bundler engine under GJS". Fix that build first, then re-run this check.'
     );
+}
+
+/** `version` of an installed package dir, or null when unreadable. */
+function installedVersion(dir) {
+    try {
+        return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Workspace-nested copies of a package the root `node_modules` already holds at
+ * the SAME version (`packages/<group>/<pkg>/node_modules/<dep>`).
+ *
+ * The bundler keys modules by resolved path, so a nested copy is a second module
+ * the bundle inlines next to the hoisted one: the output grows and gains extra
+ * `__esmMin` wrappers. A tree whose installs predate a hoisting change keeps such
+ * copies forever (five workspaces held `@girs/gio-2.0`@5.4.0 next to the hoisted
+ * 5.4.0 → 296040 B instead of CI's 295981 B), and without this guard the local
+ * check judged the file against its own host and passed a bundle CI rejects.
+ * Different-version copies are legitimate and ignored.
+ *
+ * @returns {string[]} repo-relative paths of the redundant copies.
+ */
+function findShadowedInstalls() {
+    const rootModules = join(repoRoot, 'node_modules');
+    const found = [];
+    const real = (dir) => existsSync(dir) && !lstatSync(dir).isSymbolicLink();
+    const check = (nestedModules, name) => {
+        const nested = join(nestedModules, name);
+        if (!real(nested)) return;
+        const v = installedVersion(nested);
+        if (v !== null && v === installedVersion(join(rootModules, name))) {
+            found.push(nested.slice(repoRoot.length + 1));
+        }
+    };
+    const dirs = (d) => (existsSync(d) ? readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()) : []);
+    for (const group of dirs(join(repoRoot, 'packages'))) {
+        for (const pkg of dirs(join(repoRoot, 'packages', group.name))) {
+            const nm = join(repoRoot, 'packages', group.name, pkg.name, 'node_modules');
+            for (const e of dirs(nm)) {
+                if (e.name.startsWith('@')) for (const s of dirs(join(nm, e.name))) check(nm, `${e.name}/${s.name}`);
+                else check(nm, e.name);
+            }
+        }
+    }
+    return found.sort();
 }
 
 const args = new Set(process.argv.slice(2));
