@@ -33,8 +33,10 @@ in-tree with `node-gyp` (`NODE_GI_NATIVE=build`), X11 display present so the tem
 - The leg lives in `packages/web/adwaita-core` next to the GJS leg it mirrors, not in a new
   package — see [Where the subject lives](#where-the-subject-lives), which is a finding for
   stage 1, not a free choice.
-- **The emulator legs were not run.** Nothing measured node-gi or the pure-JS subset on
-  `x86_64` Android — see [Not done](#not-done) for exactly what is missing.
+- **The Android legs were not run here.** Nothing in *this* leg measured node-gi or the pure-JS
+  subset on Android. Both ran the same day on a real `arm64-v8a` device —
+  [the arm64 report](2026-10-10-gobject-oracle-arm64.md) — and see
+  [Not done](#not-done) for what is still missing after it.
 
 ## Per-vector, per-subject
 
@@ -203,6 +205,14 @@ template rows are the ones that found divergences 1 and 4.
 
 ## Not done
 
+**Both Android legs were done the same day, on real arm64 hardware rather than the emulator —
+[the arm64 report](2026-10-10-gobject-oracle-arm64.md).** What that leg found, and what the three
+items below got wrong, in short: the harness gap was smaller than estimated (`@gjsify/unit` needs
+no logcat reporter — on NativeScript its `print` is `console.log`, which lands under logcat tag
+`JS`), and the real cost was three core defects only an Android host surfaces (liblog not linked,
+a RegExp in rolldown's `external` under the native engine, and a missing VOID arm in node-gi's IN
+marshaller). The items as they stood when this report was written:
+
 - **The `x86_64` emulator legs, both of them.** ADR 0105 stage 0 asks for the vectors on the
   emulator against node-gi *and* against the pure-JS subset. Neither ran. What is missing is a
   test harness, not a fix: there is no `ns` app target in `@gjsify/cli`, `@gjsify/unit` has no
@@ -212,10 +222,14 @@ template rows are the ones that found divergences 1 and 4.
   would be skipped there as they are without a display) and a second entry for the pure-JS subset
   — but each cycle is bundle → APK → install → logcat, and the stage-4 and stage-5 spikes each
   spent a cycle per defect. It is stage-1 infrastructure with its own measurement, not a step
-  inside this one.
+  inside this one. — **Superseded:** done on `arm64-v8a` hardware, not the emulator; the
+  `x86_64` emulator is still unmeasured, and the `@gjsify/unit` claim was wrong.
 - The three template rows on a device, for the same reason: they need GTK with a display, which
-  on Android is the ADR 0104 track-C′ worker setup.
-- node-gi on `arm64-v8a` against these vectors.
+  on Android is the ADR 0104 track-C′ worker setup. — **Still open**, and the arm64 leg records it
+  as a real gap: the subject now skips the rows instead of failing on a host with no Gtk typelib,
+  so node-gi's composite-template path is unmeasured on arm64.
+- node-gi on `arm64-v8a` against these vectors. — **Done:** 14 rows run, 13 pass, row 9
+  `it.failing` for #2151, no arm64-only divergence.
 
 ## Limits
 

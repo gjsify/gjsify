@@ -167,12 +167,19 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    after the template children, a custom property notified on an equal value, `emit` checked no
    arity, and `registerClass` did not accept GJS's static-symbol meta form. The fifth,
    `$gtype.name` being `undefined`, needs a GType representation change and is
-   [#2151](https://github.com/gjsify/gjsify/issues/2151); its row carries `it.failing`. Not done:
-   both emulator legs — neither node-gi nor the pure-JS subset ran on Android, because there is no
-   NativeScript test harness yet (no `ns` app target, no NativeScript-aware `run()`), which is
-   stage-1 infrastructure with its own measurement. Deviation: the subject lives in
-   `packages/web/adwaita-core` beside the GJS leg, not in the new tier-3 package § 7 names; the
-   report argues it and leaves the call to stage 1.
+   [#2151](https://github.com/gjsify/gjsify/issues/2151); its row carries `it.failing`.
+   **Then done on a device, both subjects:**
+   [report](../reports/2026-10-10-gobject-oracle-arm64.md). On a real `arm64-v8a` phone (Android
+   15) rather than the `x86_64` emulator this stage names: the pure-JS subset passes all 24 rows
+   plus its 6 door rows, node-gi passes 13 of the 14 it can run with row 9 the same `it.failing`
+   #2151, and no divergence is arm64-only. Three further core defects had to be fixed to get
+   there (liblog unlinked in the Android build, a RegExp in rolldown's `external` under the native
+   engine, a missing VOID arm in node-gi's IN marshaller), and the #2149 stdout/stderr→logcat
+   redirect is verified on-device. Still not measured: the three template rows there — they need
+   GTK with a display, which on Android is ADR 0104's track-C′ worker setup — and the `x86_64`
+   emulator. Deviation: the subject lives in `packages/web/adwaita-core` beside the GJS leg, not
+   in the new tier-3 package § 7 names; the report argues it and leaves the call to stage 1. The
+   device-side APK and adb driver stay outside the repo for the reason the arm64 report records.
 1. Extract the engine interface in adwaita-core; the default engine passes the unchanged vectors.
    Measurement: no bundle-size change in the browser build.
 2. The node-gi engine with GObject twins for registered classes. Measurement: the vectors pass on
