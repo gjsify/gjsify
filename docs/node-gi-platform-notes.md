@@ -38,3 +38,20 @@ WHAT A FILLED CELL DOES NOT SAY: `locale` observes its per-case environments thr
 
 TWO KINDS OF EMPTY, and the ledger has to say which is which. **Structurally empty**, so the cell can only be deleted, never filled: `gjs` × win32 (no GJS host on Windows) and `gjs` × the bundle row on darwin (the bundles carry no `gjs` binary — GJS ships no relocation — until `@gjsify/gjs-runtime-darwin-<arch>` exists, ADR 0024 stage 7). **Merely unmeasured**: the gvsbuild row's bun/deno cells, and a WINDOWING proof per bundle cell — `macos-gtk-windowing`/`windows-gtk-windowing` remain node-only, because `scripts/cross-runtime.mjs` is display-free by design and "it also opens a window" is its own cell, not a consequence of this one.
 |**darwin bundle carries libgda + its SQLite provider** (`node:sqlite`, `@gjsify/sqlite`): `libgda-6.0` is a BASE seed of `build-gtk-runtime-darwin.mjs`, `Gda` is a darwin-only floor namespace (`DARWIN_REQUIRED_NAMESPACES` — not the shared list, which the win32 builder and the published-tarball verifier also read), and § 2e copies + relocates `libgda-sqlite-6.0.dylib` into `lib/libgda-6.0/providers/`. The provider is the part an `otool` walk cannot see: libgda `g_module_open`s it out of a directory COMPILED IN as `<keg>/lib/libgda-6.0/providers`. Measured with the keg hidden and a bundle that had only libgda + the typelib: `Gda.Connection.new_from_string('SQLite', …)` throws `No provider 'SQLite' installed` (libgda's built-in SQLite provider object serves its own use, never the name lookup); with the keg present it loads brew's provider against brew's libgda and glib beside the bundle's own — a second GObject registry (`GNotificationCenterDelegate is implemented in both …`) and a provider that never instantiates. The one override is `GDA_TOP_BUILD_DIR` (read as `<dir>/providers` by `load_all_providers`, gda-config.c), which `activateBundledGtkRuntime` sets from JS to `<bundle>/lib/libgda-6.0` (`wireGdaProviders`; process.env, not DYLD_*, so a signed app keeps it). Only the SQLite provider ships — the MySQL one needs mariadb-connector-c + openssl. Specs and DTDs of the provider are GResources inside the dylibs; the one thing still read from the compiled-in data dir is `libgda-paramlist.dtd`, whose absence is a stderr `GDA-set-Message … XML data import validation will not be performed` and nothing else. Size, arm64, display-free bundle: +2.8 MiB (libgda 1.4 MiB, the provider 50 KiB, brew's libsqlite3 1.2 MiB which libsoup already brings into the `--windowing` bundle, whose delta is +1.7 MiB). Gate: `check-batteries.mjs` runs a create/insert/select through the bundled provider, and the clean-host jobs assert brew libgda is NOT installed. win32 (gvsbuild has no libgda) and the x64 measurement are open.
+
+## NativeScript (Android) host
+
+The JS layer loads under NativeScript's V8 (a Node-API host with no Node module system) when bundled
+by `@nativescript/webpack`. Every Node-only dependency sits behind `#host` (package.json `imports`):
+`host.node.js` is the default and holds what `index.js`/`gi.js` did inline before; `host.nativescript.js`
+is chosen by the `nativescript` condition, which the shipped `nativescript.webpack.js` plugin hook adds
+to the webpack resolver (the file is ESM, so `require()` of it needs Node >= 22.12).
+
+The NativeScript host loads the addon with `__non_webpack_require__('system_lib://libnode_gi.so')`,
+takes timers from the globals, stands in a minimal `process` (`platform: 'android'`, no-op `on`,
+`exit` = `killProcess`), and skips prebuild/GTK-bundle discovery. `RUNTIME` is `'nativescript'`:
+`requireGi` calls `startMainLoop()` (the native ALooper pump) and never arms the portable timer pump.
+Configure with globals set before the first import: `__NODE_GI_APP_DIR` (HOME/XDG_* below it, via
+`android.system.Os.setenv`, before GLib caches them) and `__NODE_GI_TYPELIB_PATH` (default
+`<app dir>/girepository-1.0`). `Buffer` is only used for non-UTF-8 `ByteArray.fromString`; a plain
+`Uint8Array` fallback covers hosts without it. Held by `test/host-nativescript.test.mjs`.

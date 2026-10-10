@@ -42,6 +42,23 @@ const ENCODE_LABELS = new Map([
     ['utf16le', 'utf16le'],
 ]);
 
+// Buffer.from(string, 'latin1' | 'ascii' | 'utf16le') for hosts without Buffer: latin1 and
+// ascii keep the low byte of each UTF-16 code unit, utf16le writes each unit little-endian.
+function encodeWithoutBuffer(string, bufferEncoding) {
+    if (bufferEncoding === 'utf16le') {
+        const out = new Uint8Array(string.length * 2);
+        for (let i = 0; i < string.length; i++) {
+            const c = string.charCodeAt(i);
+            out[2 * i] = c & 0xff;
+            out[2 * i + 1] = c >> 8;
+        }
+        return out;
+    }
+    const out = new Uint8Array(string.length);
+    for (let i = 0; i < string.length; i++) out[i] = string.charCodeAt(i) & 0xff;
+    return out;
+}
+
 function isUtf8Label(encoding) {
     const label = String(encoding).toLowerCase();
     return label === 'utf-8' || label === 'utf8';
@@ -95,8 +112,13 @@ export function createByteArray(requireGi) {
         } else {
             const bufferEncoding = ENCODE_LABELS.get(String(encoding).toLowerCase());
             if (!bufferEncoding) throw new Error(`Unsupported encoding for fromString(): ${encoding}`);
-            const buf = Buffer.from(string, bufferEncoding);
-            encoded = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+            // NativeScript has no Buffer; its Uint8Array path below encodes the same bytes.
+            if (typeof Buffer === 'function') {
+                const buf = Buffer.from(string, bufferEncoding);
+                encoded = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+            } else {
+                encoded = encodeWithoutBuffer(string, bufferEncoding);
+            }
         }
         const data = zeroTerminated(encoded);
         // Copy into a fresh plain Uint8Array (gjs returns a standalone buffer, and

@@ -7,6 +7,12 @@
   "gypfile": true,
   "main": "./index.js",
   "types": "./index.d.ts",
+  "imports": {
+    "#host": {
+      "nativescript": "./host.nativescript.js",
+      "default": "./host.node.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
@@ -39,6 +45,9 @@
   },
   "files": [
     "index.js",
+    "host.node.js",
+    "host.nativescript.js",
+    "nativescript.webpack.js",
     "index.d.ts",
     "gi.js",
     "gi.d.ts",

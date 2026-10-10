@@ -54,7 +54,7 @@ let announcedStaleAddon = false;
 function noLocaleBinders(fn) {
     if (!announcedStaleAddon) {
         announcedStaleAddon = true;
-        process.emitWarning(
+        globalThis.process?.emitWarning?.(
             `@gjsify/node-gi: the loaded native addon predates the gettext binders, so ` +
                 `${fn}() cannot take effect and messages stay untranslated. Rebuild the addon ` +
                 `(npm run rebuild) or update @gjsify/node-gi.`,
@@ -190,7 +190,7 @@ export function bindtextdomainCodeset(_domainName, _codeset) {
  */
 export const LocaleCategory = haveLocaleBinders
     ? native.localeCategories()
-    : (FALLBACK_CATEGORIES[process.platform] ?? FALLBACK_CATEGORIES.linux);
+    : (FALLBACK_CATEGORIES[globalThis.process?.platform] ?? FALLBACK_CATEGORIES.linux);
 
 /**
  * The GJS `Gettext` module as a default export — the object shape
