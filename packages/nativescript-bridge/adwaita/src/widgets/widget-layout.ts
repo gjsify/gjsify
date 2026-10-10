@@ -84,6 +84,8 @@ import { gtypeNameOfInstance } from './gtype-name.js';
 import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
 import { xmlBoolean } from './xml-values.js';
+import { insertActionGroup } from './actions.js';
+import type { ActionGroupLike } from '@gjsify/adwaita-core';
 
 /**
  * The slice of a NativeScript `View` these accessors read and write — what makes a class
@@ -138,6 +140,45 @@ function laidOut(target: object, property: string): LaidOut {
  */
 function viewOf(target: object): LaidOut | null {
     return 'horizontalAlignment' in target ? (target as unknown as LaidOut) : null;
+}
+
+/** What the tree members read of a `View`: its parent, its children in order and its CSS direction. */
+interface TreeNode {
+    parent?: TreeNode | null;
+    eachChildView?(callback: (child: TreeNode) => boolean): void;
+    style?: { direction?: string };
+}
+
+/** `Gtk.TextDirection`: NONE, LTR, RTL. */
+const DIRECTIONS = [0, 1, 2];
+
+/** A GTK widget is a view that carries these members; plain NativeScript views (a scroller's inner `ScrollView`) are layout plumbing. */
+function isWidget(node: object): boolean {
+    return typeof (node as { get_first_child?: unknown }).get_first_child === 'function';
+}
+
+/** The widget children of `widget`, looking through plain views the way GTK has no such layer. */
+function childrenOf(widget: object): TreeNode[] {
+    const children: TreeNode[] = [];
+    (widget as TreeNode).eachChildView?.((child) => {
+        if (isWidget(child)) children.push(child);
+        else children.push(...childrenOf(child));
+        return true;
+    });
+    return children;
+}
+
+function parentOf(widget: object): TreeNode | null {
+    let parent = (widget as TreeNode).parent ?? null;
+    while (parent !== null && !isWidget(parent)) parent = parent.parent ?? null;
+    return parent;
+}
+
+function siblingOf(widget: object, offset: 1 | -1): TreeNode | null {
+    const parent = parentOf(widget);
+    if (parent === null) return null;
+    const siblings = childrenOf(parent);
+    return siblings[siblings.indexOf(widget as TreeNode) + offset] ?? null;
 }
 
 /** A `Gtk.Align` nick from a nick or a constant, or throw — never NativeScript's own words. */
@@ -361,6 +402,47 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
             // `id` follows the name only while it IS the name (or nothing): an id someone else
             // wrote is a different fact and stays.
             if (view.id === undefined || view.id === previous) view.id = next === '' ? undefined : next;
+        }
+
+        /** `gtk_widget_set_direction`: written to the CSS `direction` a view resolves its margins by; NONE clears it. */
+        set_direction(direction: number): void {
+            if (!DIRECTIONS.includes(direction)) {
+                throw new TypeError(`${direction} is not a valid value for enum argument dir`);
+            }
+            const style = (this as unknown as TreeNode).style;
+            if (style === undefined) return;
+            style.direction = direction === 0 ? '' : direction === 2 ? 'rtl' : 'ltr';
+        }
+
+        /** `gtk_widget_get_direction`: LTR until set. */
+        get_direction(): number {
+            const direction = (this as unknown as TreeNode).style?.direction;
+            return direction === 'rtl' ? 2 : 1;
+        }
+
+        get_first_child(): object | null {
+            return childrenOf(this)[0] ?? null;
+        }
+
+        get_last_child(): object | null {
+            return childrenOf(this).at(-1) ?? null;
+        }
+
+        get_next_sibling(): object | null {
+            return siblingOf(this, 1);
+        }
+
+        get_prev_sibling(): object | null {
+            return siblingOf(this, -1);
+        }
+
+        get_parent(): object | null {
+            return parentOf(this);
+        }
+
+        /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
+        insert_action_group(prefix: string, group: ActionGroupLike | null): void {
+            insertActionGroup(this as unknown as Parameters<typeof insertActionGroup>[0], prefix, group);
         }
 
         get widthRequest(): number {
