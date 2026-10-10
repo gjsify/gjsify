@@ -45,9 +45,11 @@ Since GTK 4.18, GDK has an Android backend (`refs/gtk/gdk/android/`), and pixiew
   was not checked.
 - **GTK's file chooser already has an Android mode** (`gtkfilechoosernative.c`, `MODE_ANDROID`, under
   `GDK_WINDOWING_ANDROID`). ADR 0101's Android driver row comes for free on this path.
-- **No Node-API host in NativeScript Android.** `refs/nativescript-napi/README.md`: "At present, it
-  supports accessing Objective-C APIs"; Android is a future goal. `refs/nativescript-android` contains
-  no `node_api.h`. node-gi (axis 5) is an N-API addon.
+- **NativeScript Android has Node-API since 9.1.0.** `refs/nativescript-android` is pinned at
+  9.0.5 and contains no `node_api.h`, which is how this ADR first read it. The released runtime
+  vendors Node's own `js_native_api` sources, with the libuv parts rebuilt on its Android looper;
+  `napi_get_uv_event_loop` always fails there. node-gi (axis 5) is a Node-API addon. Stage 3
+  measured it inside a stock 9.1.1 app.
 
 Three ways to use this were raised: (A) GJS itself as the app binary in a pixiewood APK, (B) real GI
 on Android, headless, for GLib/Gio/Soup, and (C) real GTK rendering as an alternative to the port.
@@ -67,16 +69,18 @@ GLib, Gio, Soup and json-glib are cross-built with their typelibs by pixiewood, 
 itself. JavaScript reaches them through node-gi, the same addon as on desktop Node.
 No second GI binding is written.
 
-node-gi needs a Node-API host on Android, and none exists in NativeScript today. Which host it
-becomes is decided by measurement in stage 3, not here. A Java bridge from NativeScript to
-`libgirepository` is rejected in § Alternatives.
+The Node-API host is NativeScript's own runtime (9.1.0 and later). Track B therefore runs inside
+the NativeScript port's apps, beside the native widgets; it needs no pixiewood process and no
+fork of the runtime. On the event loop, node-gi takes its libuv-free path there, as on Bun and
+Deno. A Java bridge from NativeScript to `libgirepository` is rejected in § Alternatives.
 
 ### 3. Track C: GTK renders, in a pixiewood process
 
 Because GDK owns the Activity and the main loop, a GTK window cannot live inside a NativeScript
 Activity. A track-C app is a pixiewood APK: `ToplevelActivity` launches, and the JS engine runs
-inside that process as the program that calls `Gtk.Application.run`. C therefore reuses B's
-host and binding; it adds the GTK, Adwaita and GDK typelibs.
+inside that process as the program that calls `Gtk.Application.run`. C reuses B's binding and
+GI stack and adds the GTK, Adwaita and GDK typelibs, but not B's host: NativeScript owns its own
+Activity, so the engine inside a pixiewood process is still open (stage 5).
 
 The same app source runs on desktop GJS, on desktop Node through node-gi, and in a track-C APK.
 That is the reason for this track: the app is GNOME code, unchanged, rather than a port.
@@ -126,7 +130,8 @@ not before (`gjsify.platforms` promises no target without an artifact behind it)
 
 ## What this does not decide
 
-- The Node-API host on Android (stage 3 measures the options).
+- The JS host inside a track-C pixiewood process, where NativeScript does not own the Activity
+  (stage 5).
 - iOS. GDK has no iOS backend.
 - Whether gjsify's CLI grows a `gjsify build --app android` or calls pixiewood directly. That is
   decided when stage 5 has a working APK to wrap.
@@ -146,8 +151,11 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    exe wrapper that runs the dumper on a device. Each is a small fix in pixiewood; until it lands,
    the report's helpers fill the gap. One typelib set serves every ABI.
 2. Run the Adwaita Demo or Tuba on an arm64 device: EGL, frame times, the keyboard finding.
-3. Find a Node-API host that loads on Android and embeds in a pixiewood process; record the
-   candidates and what each costs.
+3. Find a Node-API host that loads node-gi on Android. **Done:**
+   [report](../reports/2026-10-10-node-gi-on-nativescript-android.md) — NativeScript 9.1.1's own;
+   node-gi's unchanged sources load in a stock app on both ABIs, and GLib, Gio and cairo calls,
+   including an async Gio call, pass. Its libuv imports have to become run-time lookups first:
+   Bionic binds every symbol at `dlopen`.
 4. Build node-gi for `android-arm64` and `android-x64`, run its test suite on the emulator (track B).
 5. A hello-Adwaita written in TypeScript, unchanged from its desktop form, as a pixiewood APK
    (track C).
