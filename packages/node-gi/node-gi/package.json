@@ -96,6 +96,7 @@
     "install": "node scripts/install.mjs",
     "build": "node-gyp rebuild",
     "build:native": "node-gyp rebuild",
+    "build:android": "node scripts/build-android.mjs",
     "build:prebuild": "node-gyp rebuild && node scripts/stage-prebuild.mjs",
     "rebuild": "node-gyp rebuild",
     "clean": "node-gyp clean",

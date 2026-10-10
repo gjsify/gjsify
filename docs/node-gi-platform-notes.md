@@ -56,3 +56,18 @@ Configure with globals set before the first import: `__NODE_GI_APP_DIR` (default
 `android.system.Os.setenv`, before GLib caches them) and `__NODE_GI_TYPELIB_PATH` (default
 `<app dir>/app/girepository-1.0`). `Buffer` is only used for non-UTF-8 `ByteArray.fromString`; a plain
 `Uint8Array` fallback covers hosts without it. Held by `test/host-nativescript.test.mjs`.
+
+### Building for Android
+
+node-gyp has no Android target; `npm run build:android -- <flags>` (`scripts/build-android.mjs`, sources read
+from `binding.gyp`) cross-compiles `libnode_gi.so` with the NDK's clang. Inputs, none defaulted to a machine:
+`--abi arm64-v8a|x86_64`, `--ndk <root>`, `--gi-sysroot <prefix>` (`lib/<abi>/` with glib, gobject, gio, gmodule,
+girepository-2.0, cairo, cairo-gobject, ffi, intl), `--pkg-config-libdir <dir>` when the prefix has no
+`pkgconfig/` (pixiewood: `bin-<arch>/meson-uninstalled`), `--napi-lib <libNativeScript.so | AAR jni dir>`,
+`--out <dir>`; `--dry-run` prints the commands.
+
+Link against the **`optimized`** NativeScript AAR: the `regular` one fails with
+`cannot locate symbol "__gxx_personality_v0"`. The build is libuv-free (`NODE_GI_HAS_LIBUV` is 0 on
+`__ANDROID__`, ALooper pump instead), so check the result: `llvm-nm -D --undefined-only libnode_gi.so | grep ' uv_'`
+must print nothing, and `readelf -d` NEEDED should be the GI libs, `libNativeScript.so`, `libandroid` and
+libc/libm/libdl. Android is not in `gjsify.platforms` until a loadable prebuild exists (ADR 0104).
