@@ -279,8 +279,9 @@ export interface ResolvedNodeGiPackage {
  * `Layout.dirs().native`, the directory a `.app` keeps loadable code in.
  *
  * So the rule is what `require('@gjsify/node-gi/<subpath>')` can REACH:
- * `package.json` (the `exports` map is what resolves every subpath), every `.js`
- * at the package root (every `exports` target is one), and `overrides/`, which
+ * `package.json` (the `exports` map is what resolves every subpath, and itself an
+ * `exports` target for bundler hook discovery), every `.js` at the package root
+ * (every other `exports` target is one), and `overrides/`, which
  * `gi.js` loads at runtime. `tests/e2e/ship-macos` holds that rule against the
  * REAL package's `exports` map, so a node-gi release that adds an entry outside
  * this set fails there rather than in a `.app` a stranger downloaded.
