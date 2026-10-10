@@ -33,6 +33,7 @@
 #include <dlfcn.h>
 #include <jni.h>
 
+#include <mutex>
 #include <string>
 
 // Both set by JNI_OnLoad at the bottom of this file; file-static so both ends see them.
@@ -119,6 +120,11 @@ Napi::Value AndroidRegisterJniBootstrap(const Napi::CallbackInfo& info) {
 }
 
 bool g_initialized = false;
+// Both JS threads of a NativeScript app share this library — the UI thread and a Worker,
+// and in the stage-5 spike both import node-gi — so the one-time guard needs a lock of its
+// own: gdk_android_initialize has none, and a second run leaks another set of global refs
+// and re-registers every native.
+std::mutex g_init_mutex;
 
 // androidInitGdk(contextClass, contextMethod, contextSignature) -> boolean
 //
@@ -126,10 +132,10 @@ bool g_initialized = false;
 // to hand GDK, in JNI form — e.g. ('com/tns/NativeScriptApplication', 'getInstance',
 // '()Landroid/app/Application;'). The host names it because only the host knows how to
 // reach its Application without @hide APIs (android.app.ActivityThread is one).
-// Idempotent: gdk_android_initialize has no guard of its own and would leak a second
-// set of global refs and re-register every native.
+// Idempotent, per process rather than per thread — see g_init_mutex.
 Napi::Value AndroidInitGdk(const Napi::CallbackInfo& info) {
   Napi::Env napi_env = info.Env();
+  std::lock_guard<std::mutex> guard(g_init_mutex);
   if (g_initialized) return Napi::Boolean::New(napi_env, true);
 
   if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
@@ -152,9 +158,18 @@ Napi::Value AndroidInitGdk(const Napi::CallbackInfo& info) {
     return napi_env.Undefined();
   }
 
+  // A thread this call attaches has to be detached again: ART aborts a thread that exits
+  // while still attached ("Native thread exiting without having called
+  // DetachCurrentThread"). Safe because gdk_android_initialize keeps the JavaVM and global
+  // refs, never a JNIEnv, and GDK reattaches per call through its own thread-env guard.
   JNIEnv* env = nullptr;
-  if (g_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_EDETACHED)
-    g_vm->AttachCurrentThread(&env, nullptr);
+  bool attached = false;
+  if (g_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
+    if (g_vm->AttachCurrentThread(&env, nullptr) == JNI_OK)
+      attached = true;
+    else
+      env = nullptr;
+  }
   if (env == nullptr) {
     Napi::Error::New(napi_env, "androidInitGdk: could not attach this thread to the JavaVM")
         .ThrowAsJavaScriptException();
@@ -214,6 +229,7 @@ Napi::Value AndroidInitGdk(const Napi::CallbackInfo& info) {
     g_initialized = true;
   } while (false);
   env->PopLocalFrame(nullptr);
+  if (attached) g_vm->DetachCurrentThread();
 
   if (!g_initialized) {
     Napi::Error::New(napi_env, error).ThrowAsJavaScriptException();
