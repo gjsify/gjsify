@@ -732,6 +732,14 @@ jobs:
   # node-gyp addon, GTK under xvfb for the template rows) and one `run:`. The job NAME
   # is left alone on purpose: it is a required check and a merge-queue gate, and
   # renaming it to fit a third member would cost more than the stale word "framework".
+  #
+  # `@gjsify/adwaita-gobject-native` is the FOURTH member, here for the same reason and
+  # on the same corpus: ADR 0105 stage 2 turns the oracle into an engine, so the vectors
+  # now run twice on this leg — once against node-gi's GObject directly (is the vector
+  # right on this binding?) and once against the SUBSET backed by that GObject (does the
+  # subset still answer the same with a real store underneath?). Splitting them across
+  # jobs would mean a second copy of this bootstrap for one `run:`, and the two reds mean
+  # different things only when they are read side by side.
   gtk-host-node:
     name: framework suites over the reverse bridge (Node + Xvfb / Fedora 44)
     # Draft PRs run only the cheap checks; `ready_for_review` starts this.
@@ -808,13 +816,15 @@ jobs:
           gjsify workspace @gjsify/gtk-host build:gjsify --with-dependencies
           gjsify workspace @gjsify/iframe build:gjsify --with-dependencies
           gjsify workspace @gjsify/adwaita-core build:gjsify --with-dependencies
+          gjsify workspace @gjsify/adwaita-gobject-native build:gjsify --with-dependencies
 
       # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
       # addon regardless of how the install materialised it (belt-and-suspenders,
       # same as consumer-sqlite).
       - name: Link the node-gi devDependency
         run: |
-          for pkg in packages/framework/gtk-host packages/framework/iframe packages/web/adwaita-core; do
+          for pkg in packages/framework/gtk-host packages/framework/iframe packages/web/adwaita-core \
+                     packages/nativescript-bridge/gobject; do
             mkdir -p "$pkg/node_modules/@gjsify"
             ln -sfn ../../../../node-gi/node-gi "$pkg/node_modules/@gjsify/node-gi"
             ls -l "$pkg/node_modules/@gjsify/node-gi"
@@ -871,6 +881,23 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+
+      # The step above is the ORACLE: the vectors against real GObject DIRECTLY, which says what
+      # the right answer is. This one is the ENGINE (ADR 0105 stage 2): the same vectors against
+      # `@gjsify/adwaita-core`'s SUBSET, with `@gjsify/adwaita-gobject-native` as its store — so
+      # a real GObject answers a subset call. The pair is the whole claim of the ADR: oracle green
+      # + engine green on one corpus is what makes the Android subset's behaviour node-gi's
+      # behaviour rather than a second implementation of it.
+      #
+      # No xvfb here, and that is a statement rather than thrift: this subject touches GObject
+      # only. The widget rows of GOBJECT_VECTORS run against the same fake registered widgets the
+      # pure-JS `gobject.spec.ts` door uses, so all of them RUN headless — none is display-gated,
+      # none is skipped. GTK enters only through the oracle above.
+      - name: Run the GObject vectors on the real-Gio engine (node-gi)
+        working-directory: packages/nativescript-bridge/gobject
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          NODE_GI_NATIVE=build gjsify run test:gjs-on-node
 
   # aarch64 proof: build the Node-API addon + run the core suite, the golden-diff
   # conformance (gjs/node/bun/deno byte-identical) and the tier-B typelib oracle on

@@ -175,8 +175,29 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    report argues it and leaves the call to stage 1.
 1. Extract the engine interface in adwaita-core; the default engine passes the unchanged vectors.
    Measurement: no bundle-size change in the browser build.
+   **Done:** [report](../reports/2026-10-10-real-gio-stage3.md). `GObjectEngine` in
+   `adwaita-core/src/engine.ts`, `PURE_JS_ENGINE` as the default, the pure-JS subject still 24 of
+   24. The measurement came out non-zero: +762 bytes raw, +237 gzipped in the browser bundle of
+   `src/index.ts`, so "no change" above should read "~0.2 KiB gzipped".
 2. The node-gi engine with GObject twins for registered classes. Measurement: the vectors pass on
    device; per-instance construction cost against the pure-JS engine.
+   **Partly done:** [report](../reports/2026-10-10-real-gio-stage3.md).
+   `@gjsify/adwaita-gobject-native` holds `createRealGioEngine`; the subset on real GObject passes
+   **24 of 24** rows on Linux under Node in CI, refusals and widget rows included, with no vector
+   weakened and no node-gi fix needed. Finding: the "no notify on an equal write" rule lives in
+   the GENERATED ACCESSOR, not in GObject — `g_object_set_property` notifies unconditionally — so
+   the engine owns the comparison. Not done: nothing ran on Android (no device, no emulator leg,
+   the stage-0 harness gap stands) and no construction cost was timed. Deviation: the real-ENGINE
+   subject lives in the new tier-3 package, the stage-0 ORACLE subject stays in adwaita-core,
+   because tier 2 may not depend on tier 3.
 3. Settings and `Gio.File` on real Gio. Measurement: the ADR 0099 and 0100 vectors on device.
+   **The `GListModel` half is done:** [report](../reports/2026-10-10-real-gio-stage3.md).
+   `createRealGioListStore` puts a real `Gio.ListStore` behind the portable list model and holds
+   **9 of 9** `LIST_ITEMS_CHANGED_VECTORS` plus 3 real-store rows. Finding:
+   `g_list_store_splice` emits `items-changed` unconditionally, so the portable model's "an equal
+   model emits nothing" is kept only by not splicing — a rule pure JS hid. **Settings and
+   `Gio.File` are NOT done and cannot be as written:** `@gjsify/app-settings` (ADR 0099) and
+   `@gjsify/file-chooser` (ADR 0100) are Accepted but never implemented, so there is no subset to
+   back and no vectors to measure. That is ADR 0099/0100 work first.
 4. Packaging: GI `.so` files and typelibs as a NativeScript plugin. Measurement: APK delta per ABI,
    compressed, and cold-start delta against an app without it, on an arm64 device.
