@@ -62,8 +62,9 @@ accessible. B and C are additional, opt-in tracks.
 
 ### 2. Track B: GI on Android, through node-gi
 
-GLib, Gio, Soup and json-glib are cross-built with their typelibs by pixiewood's `prepare` step, for
-`aarch64` and `x86_64`. JavaScript reaches them through node-gi, the same addon as on desktop Node.
+GLib, Gio, Soup and json-glib are cross-built with their typelibs by pixiewood, for `aarch64` and
+`x86_64` — with introspection forced on and the helpers stage 1 documents, until pixiewood does it
+itself. JavaScript reaches them through node-gi, the same addon as on desktop Node.
 No second GI binding is written.
 
 node-gi needs a Node-API host on Android, and none exists in NativeScript today. Which host it
@@ -138,7 +139,12 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
 0. Probe GTK's Android backend on an emulator. **Done:** the report linked above.
 1. Build a minimal GI stack with pixiewood (`aarch64`, `x86_64`, introspection on), and from a C
    `main()` load the Gio and Gtk typelibs with `gi_repository_require`. Proves the typelibs work on
-   the device.
+   the device. **Done:** [report](../reports/2026-10-10-gi-in-a-pixiewood-apk.md) — all checks
+   pass on both ABIs, including calls through libffi. pixiewood does not support this out of the
+   box: introspection is forced off or resolves to off on a cross build, typelibs never reach the
+   APK, three namespaces (cairo, fontconfig, freetype2) are never built, and the scanner needs an
+   exe wrapper that runs the dumper on a device. Each is a small fix in pixiewood; until it lands,
+   the report's helpers fill the gap. One typelib set serves every ABI.
 2. Run the Adwaita Demo or Tuba on an arm64 device: EGL, frame times, the keyboard finding.
 3. Find a Node-API host that loads on Android and embeds in a pixiewood process; record the
    candidates and what each costs.
