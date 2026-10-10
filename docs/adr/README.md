@@ -125,6 +125,7 @@ the TODO records the *what's left*.
 | [0103](0103-a-gtksource-gutter-is-a-column-model-with-one-painter-per-platform.md) | A GtkSource gutter is a column model with one painter per platform | Accepted |
 | [0104](0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md) | Real GTK and GI on Android are opt-in tracks beside the NativeScript port | Proposed |
 | [0105](0105-real-gobject-backs-the-nativescript-subset-on-android.md) | Real GObject can back the NativeScript subset on Android, and is its oracle there | Proposed |
+| [0106](0106-mcp-tools-register-per-granted-capability.md) | MCP write tools register per granted capability, and the gate that registers them checks the call | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
