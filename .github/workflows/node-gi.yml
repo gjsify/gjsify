@@ -722,6 +722,16 @@ jobs:
   # leg can reach. It needs no display (measured with DISPLAY and WAYLAND_DISPLAY
   # both unset) and runs under xvfb anyway, because it shares the step recipe with
   # gtk-host and a second recipe is a second thing to keep true.
+  #
+  # `@gjsify/adwaita-core`'s GObject ORACLE leg joined for the same reason iframe did,
+  # and it is the one member here that is not a framework package. ADR 0105 stage 0:
+  # the GOBJECT_VECTORS run against real `gi://GObject` on the GJS leg in main.yml, and
+  # the ADR proposes backing the Android subset with real GObject through node-gi — so
+  # the vectors have to hold on node-gi's GObject too, and nothing measured that. It
+  # needs exactly what this job already has (the workspace, this checkout's cli, the
+  # node-gyp addon, GTK under xvfb for the template rows) and one `run:`. The job NAME
+  # is left alone on purpose: it is a required check and a merge-queue gate, and
+  # renaming it to fit a third member would cost more than the stale word "framework".
   gtk-host-node:
     name: framework suites over the reverse bridge (Node + Xvfb / Fedora 44)
     # Draft PRs run only the cheap checks; `ready_for_review` starts this.
@@ -797,13 +807,14 @@ jobs:
           gjsify workspace @gjsify/unit build:gjsify --with-dependencies
           gjsify workspace @gjsify/gtk-host build:gjsify --with-dependencies
           gjsify workspace @gjsify/iframe build:gjsify --with-dependencies
+          gjsify workspace @gjsify/adwaita-core build:gjsify --with-dependencies
 
       # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
       # addon regardless of how the install materialised it (belt-and-suspenders,
       # same as consumer-sqlite).
       - name: Link the node-gi devDependency
         run: |
-          for pkg in packages/framework/gtk-host packages/framework/iframe; do
+          for pkg in packages/framework/gtk-host packages/framework/iframe packages/web/adwaita-core; do
             mkdir -p "$pkg/node_modules/@gjsify"
             ln -sfn ../../../../node-gi/node-gi "$pkg/node_modules/@gjsify/node-gi"
             ls -l "$pkg/node_modules/@gjsify/node-gi"
@@ -837,6 +848,24 @@ jobs:
       # is fixed; if a future one seems necessary here, that is the finding.
       - name: Run the iframe suite on node-gi (xvfb + dbus)
         working-directory: packages/framework/iframe
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+
+      # The GObject ORACLE on the second real binding (ADR 0105 stage 0): the same
+      # GOBJECT_VECTORS `gobject.gjs.spec.ts` runs on gjs, driven against node-gi's
+      # GObject. A red here is node-gi's by construction — the identical vectors are
+      # green on gjs in main.yml, and the vectors themselves are declared right (a
+      # vector that fails on gjs is a wrong vector, which is what the gjs leg guards).
+      #
+      # Under xvfb for the TEMPLATE rows, and that is not shared-recipe convenience:
+      # the subject gates them on `Gtk.init_check()`, so headless they would be
+      # skipped silently and the composite-template vectors — the ones that found the
+      # construct-property/template-child ordering bug — would go unmeasured.
+      - name: Run the GObject vectors on node-gi (xvfb + dbus)
+        working-directory: packages/web/adwaita-core
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
           xvfb-run -a dbus-run-session -- \
@@ -2069,7 +2098,7 @@ jobs:
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
-        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs test/gtk-template-construct-order.test.mjs
 
       # AUDIO, the counterpart to the windowing proof above. Everything else about
       # the GStreamer payload is checkable by counting files — and counting files is
@@ -3324,7 +3353,7 @@ jobs:
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
-        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs test/gtk-template-construct-order.test.mjs
 
       # AUDIO, the counterpart to the windowing proof above. Everything else about
       # the GStreamer payload is checkable by counting files — and counting files is

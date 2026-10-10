@@ -32,6 +32,7 @@
     ],
     "exclude": [
         "src/test.mts",
-        "src/test.browser.mts"
+        "src/test.browser.mts",
+        "src/test.node-gi.mts"
     ]
 }

@@ -270,6 +270,19 @@ Napi::Value EmitSignal(const Napi::CallbackInfo& info) {
   g_signal_query(sigid, &query);
 
   guint n = query.n_params;
+  // ARITY, gjs's message verbatim ("Signal 'changed' on ArSig requires 2 args got 1",
+  // measured on gjs 1.88.1 — which rejects too MANY as well as too few). Without it a
+  // missing argument was marshalled from `undefined`: a signal declared (string, int)
+  // and emitted with one argument reached its handlers with a silent "" / 0 in the
+  // gap, so the caller's mistake surfaced as wrong data somewhere downstream instead
+  // of as a throw at the emit.
+  if (args.Length() != n) {
+    Napi::Error::New(env, std::string("Signal '") + name + "' on " + G_OBJECT_TYPE_NAME(obj) +
+                              " requires " + std::to_string(n) + " args got " +
+                              std::to_string(args.Length()))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
   std::vector<GValue> params(n + 1);  // [0] = instance
   g_value_init(&params[0], gtype);
   g_value_set_object(&params[0], obj);
@@ -279,7 +292,7 @@ Napi::Value EmitSignal(const Napi::CallbackInfo& info) {
     GType pt = query.param_types[i] & ~G_SIGNAL_TYPE_STATIC_SCOPE;
     g_value_init(&params[i + 1], pt);
     initialised = i + 2;
-    Napi::Value v = i < args.Length() ? args.Get(i) : env.Undefined();
+    Napi::Value v = args.Get(i);
     // An EMPTY v is the residue of a swallowed args.Get() failure (terminating
     // env / throwing getter): JsToGValue's coercions on it would abort via
     // Error::New(nullptr)'s fatal sites — bail before marshalling.

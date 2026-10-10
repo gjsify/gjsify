@@ -809,6 +809,12 @@ function handlerIdsForFunc(handle, fn) {
 // routing keys on the leaf so construction is correct at any depth.
 const registeredClasses = new Map();
 
+// A registered class's prototype → the kebab names of the CUSTOM GObject properties
+// it declared, plus every registered ancestor's. Keyed by the prototype because that
+// is what an instance carries (USER_PROTO), and the set trap is the only consumer:
+// see the equal-value guard in wrapInstance.
+const customPropertiesByProto = new WeakMap();
+
 // GTypeName → registered JS class, the reverse of registeredClasses. The engine's
 // NodeGiConstructor hands runCtorForCObject (below) the C-created instance's GType
 // NAME (g_type_name), which this resolves back to the class to Reflect.construct.
@@ -1309,6 +1315,33 @@ function wrapInstance(handle, userProto) {
     const target = { [HANDLE]: handle };
     const proto = userProto ?? protoForInstance(handle);
     if (proto !== undefined) linkInstanceProto(target, proto);
+    // Which CUSTOM properties of this instance have a value yet — the thing GJS's
+    // generated accessors track with the PRESENCE of their private field, and what its
+    // setter's equal-value guard actually compares against (`value !== this[privateName]`,
+    // refs/gjs/modules/core/_common.js). Not the ParamSpec default: on gjs 1.88.1 a fresh
+    // object's `o.p = <default>` DOES notify (the field holds `undefined`), while the same
+    // assignment after a READ does not — the getter installs the default into the field
+    // first (`if (!(privateName in this)) this[privateName] = defaultValue`) — and nor
+    // does it after `new K({p: <default>})`, since the construct value went through the
+    // setter. Three behaviours, one state: has the value been materialised.
+    //
+    // Seeded lazily from what the ENGINE has stored (`storedPropertyNames` — construct
+    // values included), then extended by every read and write through this wrapper. A set
+    // from C on a property no JS code has touched is the one gap, and it falls back to
+    // notifying — what node-gi did before the guard existed. Same for an addon too old to
+    // export storedPropertyNames (the cross-version pairing of the shipped-closure legs,
+    // see runJsPropertySetter): the guard then only narrows, never widens.
+    let materialised;
+    const materialise = (name) => {
+        if (materialised === undefined) {
+            materialised = new Set(
+                typeof native.storedPropertyNames === 'function' ? native.storedPropertyNames(handle) : [],
+            );
+        }
+        const had = materialised.has(name);
+        materialised.add(name);
+        return had;
+    };
     const proxy = new Proxy(target, {
         get(t, prop) {
             if (prop === HANDLE) return handle;
@@ -1400,6 +1433,14 @@ function wrapInstance(handle, userProto) {
             if (shim !== undefined) return (...args) => shim(handle, args);
             const propName = toKebab(prop);
             if (native.hasProperty(handle, propName)) {
+                // A READ materialises a custom property's value, exactly as GJS's generated
+                // getter writes the default into its private field on first look-up — which
+                // is what makes a LATER assignment of that same default silent. See the
+                // equal-value guard in the set trap.
+                const up = t[USER_PROTO];
+                if (up !== undefined && customPropertiesByProto.get(up)?.has(propName) === true) {
+                    materialise(propName);
+                }
                 return wrapReturn(native.getProperty(handle, propName));
             }
             // LAST resort before treating an unknown name as a GI method: an INHERITED
@@ -1444,6 +1485,29 @@ function wrapInstance(handle, userProto) {
                 }
                 const propName = toKebab(prop);
                 if (native.hasProperty(handle, propName)) {
+                    // Equal-value guard, GJS's `_generateAccessors` setter verbatim:
+                    // `if (value !== this[privateName]) { …; this.notify(name) }`
+                    // (refs/gjs/modules/core/_common.js). GJS puts it in the accessor it
+                    // GENERATES for a declared property, so it covers exactly the custom
+                    // properties with no accessor of the class's own — the branch above
+                    // already took every class-declared accessor, and `set_property`
+                    // bypasses the accessor and so keeps notifying unconditionally on both
+                    // runtimes (measured on gjs 1.88.1: assignment [1,1,2], set_property
+                    // [1,2,3]). node-gi installs no generated accessors (the engine store
+                    // IS the backing store, see findPropertySetter), so without this the
+                    // store's unconditional g_object_notify_by_pspec made every assignment
+                    // notify — [1,2,3] where gjs gives [1,1,2], and the three spellings of
+                    // a dashed name notified once EACH instead of sharing one.
+                    //
+                    // Only once the value is MATERIALISED (see `materialise`): an unset
+                    // property's private field is `undefined` on gjs, never the ParamSpec
+                    // default, so the first assignment notifies even when it equals the
+                    // default. The dash spelling is the key, since toKebab canonicalises
+                    // all three spellings onto it.
+                    const custom = up !== undefined && customPropertiesByProto.get(up)?.has(propName) === true;
+                    if (custom && materialise(propName)) {
+                        if (wrapReturn(native.getProperty(handle, propName)) === value) return true;
+                    }
                     native.setProperty(handle, propName, unwrapArg(value));
                     return true;
                 }
@@ -1695,10 +1759,17 @@ function makeClass(namespace, typeName) {
                     handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
                 }
                 const instance = wrapInstance(handle, nt.prototype);
-                assignTemplateChildren(instance, handle, reg);
                 // Route construct-time property values through the class's JS setters now
                 // that USER_PROTO is attached — before the user ctor body runs (GJS order).
+                //
+                // BEFORE the template children, because that is the order GJS produces: a
+                // construct property's setter runs inside g_object_new, where the template
+                // is not yet built, so it sees `this._child === undefined`; the children
+                // appear only once construction returns. Binding them first made a setter
+                // observe a child GJS cannot have handed it yet, so a class that guards on
+                // `if (this._child)` took the wrong branch on node-gi and only on node-gi.
                 flushPropertiesToJsSetters(instance, handle, reg);
+                assignTemplateChildren(instance, handle, reg);
                 return instance;
             }
             // `nt` is a subclass of this introspected GObject class but was NEVER passed to
@@ -2349,6 +2420,19 @@ function collectVfuncs(klass) {
  * @param {Function} [maybeClass]
  * @returns {Function} the same `klass` (now registered)
  */
+// GJS's meta FIELD form: a class may declare its meta as static symbol fields
+// (`Klass[GObject.GTypeName] = 'X'`) instead of passing a meta object, and GJS treats
+// the symbols as the real source — `registerClass(meta, klass)` only copies meta onto
+// them and reads them back (refs/gjs/modules/core/_common.js). The descriptions match
+// GJS's so a stringified symbol reads the same in both runtimes.
+//
+// GObject.interfaces / GObject.interface requires are deliberately absent: registerClass
+// implements no interfaces in EITHER form yet, and a symbol that is accepted and then
+// ignored promises more than the object form delivers.
+const GTypeNameSymbol = Symbol('GType name');
+const propertiesSymbol = Symbol('GObject properties');
+const signalsSymbol = Symbol('GObject signals');
+
 function registerClass(metaOrClass, maybeClass) {
     let meta;
     let klass;
@@ -2362,6 +2446,17 @@ function registerClass(metaOrClass, maybeClass) {
     if (typeof klass !== 'function') {
         throw new TypeError('GObject.registerClass: expected a class to register');
     }
+
+    // Fold in whatever the class declared as symbol fields, with the meta OBJECT winning
+    // — the same precedence GJS gets from copying meta onto the symbols before reading
+    // them. Until the symbols existed on the namespace, `{[G.GTypeName]: 'X'}` wrote a
+    // literal "undefined" key and the whole declaration vanished without a word: the
+    // GTypeName fell back to the class name and the signals were never registered.
+    const fieldMeta = {};
+    if (klass[GTypeNameSymbol] !== undefined) fieldMeta.GTypeName = klass[GTypeNameSymbol];
+    if (klass[propertiesSymbol] !== undefined) fieldMeta.Properties = klass[propertiesSymbol];
+    if (klass[signalsSymbol] !== undefined) fieldMeta.Signals = klass[signalsSymbol];
+    meta = { ...fieldMeta, ...meta };
 
     const parent = findParentGType(klass);
     if (parent === undefined) {
@@ -2456,6 +2551,18 @@ function registerClass(metaOrClass, maybeClass) {
         internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
         constructPropertyNames: constructPropertyNames.length > 0 ? constructPropertyNames : undefined,
     });
+    // Which properties the equal-value guard owns: the ones DECLARED here, union the
+    // registered parent's (a G2 subclass inherits its parent's custom properties and
+    // the guard must follow them down). Introspected properties are deliberately
+    // absent — their C setter decides whether an equal value notifies, and guarding
+    // them here would answer for it.
+    const inheritedCustom = registeredClasses.get(Object.getPrototypeOf(klass))?.customProperties;
+    const customProperties = new Set(inheritedCustom);
+    for (const p of properties) {
+        if (typeof p.name === 'string') customProperties.add(p.name);
+    }
+    registeredClasses.get(klass).customProperties = customProperties;
+    customPropertiesByProto.set(klass.prototype, customProperties);
     // Reverse index for runCtorForCObject: the engine identifies a C-created instance
     // by its GType name (= gtypeName, what native.registerClass registered).
     classesByGType.set(gtypeName, klass);
@@ -2551,6 +2658,9 @@ function signalEmitByName(object, ...nameAndArgs) {
 // makeClass). Merged enums are cached so identity is stable.
 const OVERLAY_NAMES = new Set([
     'registerClass',
+    'GTypeName',
+    'properties',
+    'signals',
     'ParamSpec',
     'ParamFlags',
     'SignalFlags',
@@ -2617,6 +2727,9 @@ function decorateGObjectNamespace(baseNs) {
         if (cache.has(prop)) return cache.get(prop);
         let value;
         if (prop === 'registerClass') value = registerClass;
+        else if (prop === 'GTypeName') value = GTypeNameSymbol;
+        else if (prop === 'properties') value = propertiesSymbol;
+        else if (prop === 'signals') value = signalsSymbol;
         else if (prop === 'ParamSpec') value = ParamSpec;
         else if (prop === 'ParamFlags') value = mergeFlags(baseNs.ParamFlags, ParamFlags);
         else if (prop === 'SignalFlags') value = mergeFlags(baseNs.SignalFlags, SignalFlags);
