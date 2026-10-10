@@ -85,10 +85,8 @@ jclass LoadAppClass(JNIEnv* env, const std::string& jni_name) {
                                           "(Ljava/lang/String;)Ljava/lang/Class;");
   jstring name = env->NewStringUTF(dotted.c_str());
   auto found = static_cast<jclass>(env->CallObjectMethod(loader, load_class, name));
-  if (Failed(env) || found == nullptr) {
-    Failed(env);
+  if (Failed(env) || found == nullptr)
     return static_cast<jclass>(env->FindClass(jni_name.c_str()));
-  }
   return found;
 }
 
