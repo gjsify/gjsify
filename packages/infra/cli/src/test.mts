@@ -44,6 +44,7 @@ import shipArchivesSuite from './utils/ship/archives.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
 import shipSigningSuite from './utils/ship/signing.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
+import installSkewSuite from './commands/install-skew.spec.js';
 import giRuntimePathsBannerSuite from './gi-runtime-paths-banner.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
@@ -307,6 +308,7 @@ run(
         shipPackersSuite,
         shipSigningSuite,
         installProjectEngineSuite,
+        installSkewSuite,
         giRuntimePathsBannerSuite,
         processStubBannerSuite,
         barrelsGenerateSuite,
