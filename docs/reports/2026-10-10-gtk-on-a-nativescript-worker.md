@@ -123,7 +123,8 @@ rather than a silent no-op. Out of scope for a spike; noted for the stage that p
 ## Limits and what is not answered
 
 - **EGL fails in the emulator** (`GdkAndroidDisplay.init_egl failed`), so this is GTK's software
-  renderer. Unchanged from the stage-2 finding; still unmeasured on real hardware.
+  renderer. Unchanged from the stage-2 finding; real hardware renders on the GPU (see the
+  [arm64 report](2026-10-10-gtk-on-a-nativescript-worker-arm64.md)).
 - `gdk_draw_context_frame_presented: assertion 'presentation_time != 0' failed` on every frame
   callback — harmless here, not investigated.
 - **Startup cost** is not measured, and the GTK data directory (`share/` + `etc/`) is 8.9 MB on top
@@ -132,7 +133,8 @@ rather than a silent no-op. Out of scope for a spike; noted for the stage that p
   apps. This spike changes nothing about them.
 - **No lifecycle work.** Nothing handles the Activity being destroyed and recreated, the app being
   backgrounded, or the worker terminating.
-- **x86_64 emulator only**, one Adwaita window. No arm64 device run.
+- **x86_64 emulator only**, one Adwaita window. The arm64 device run is in the
+  [arm64 report](2026-10-10-gtk-on-a-nativescript-worker-arm64.md): GPU passes, accessibility fails.
 
 ## Reproducing
 
