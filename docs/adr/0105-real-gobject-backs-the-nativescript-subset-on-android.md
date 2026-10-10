@@ -74,12 +74,18 @@ none of the native bytes above.
 with `engine` defaulting to today's pure-JS functions. The engine owns instance state, signal
 connect/emit, notify, binding and class registration. The door keeps owning widgets.
 
-**Real GObject subclasses of widgets are not possible as stated.** A NativeScript widget is a
-`View`, and a class has one prototype chain: it cannot also extend `GObject.Object`. The real
-backend therefore gives each registered instance a GObject twin (a `GObject.registerClass`
-object holding its properties and signals), and the widget delegates to it. The twin is what
-`bind_property` and `GListModel` consumers see. Whether the twin approach holds for GtkBuilder-like
+**The twin is a bridge; a real subclass is the goal.** A NativeScript widget is a `View`, and a
+class has one prototype chain: today it cannot also extend `GObject.Object`. Until it can, the
+real backend gives each registered instance a GObject twin (a `GObject.registerClass` object
+holding its properties and signals), and the widget delegates to it. The twin is what
+`bind_property` and `GListModel` consumers see. Whether the twin holds for GtkBuilder-like
 construction order (ADR 0096 § 3 step 4) is stage 1's question.
+
+The twin's surface is chosen so that replacing it by a real subclass changes no consumer: they
+reach properties and signals only through the engine interface, never through the twin object.
+Two routes lead there, neither decided here: invert the ownership (the widget is a GObject
+subclass that owns its `View`, if NativeScript's layout accepts a non-`View` wrapper), or C′,
+where the widgets are real GTK subclasses by construction.
 
 ### 3. Real GObject is the oracle on the device
 
@@ -136,7 +142,8 @@ stage 4 ships a loadable prebuild.
 - **Drop the pure-JS subset.** The browser has no GObject. It is also the iOS path.
 - **Use GObject only as a test oracle, never as a backend.** Cheap, and stage 0 below delivers it,
   but a backend is what lets a consumer use `GListModel` or a real `Gio.Settings` today.
-- **Make widgets GObject subclasses directly.** One prototype chain; see § 2.
+- **Make widgets GObject subclasses directly, now.** One prototype chain; see § 2. Deferred, not
+  dropped: the twin keeps that door open.
 
 ## What this does not decide
 
@@ -145,6 +152,7 @@ stage 4 ships a loadable prebuild.
 - Whether the node-gi GObject namespace matches GJS's `registerClass` meta keys closely enough
   for the vectors; the first oracle run answers it.
 - GTK on the device (C′) and a GJS port (A).
+- Which route replaces the twin by a real subclass (§ 2).
 
 ## Implementation
 
