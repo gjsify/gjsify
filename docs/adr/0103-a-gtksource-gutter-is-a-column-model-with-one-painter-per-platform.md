@@ -107,7 +107,27 @@ conformance vectors against real `gi://GtkSource`. Slice 7: `vfunc_query_data` a
 - **The text setters do not `queue_draw`.** `query_data` sets them, so a repaint there would loop. Changing
   `width_request` or a margin, and `insert`/`remove`/`reorder`/`queue_draw`, do repaint; the drivers
   coalesce them (web: one microtask; Android: `invalidate`).
-- **Only the LEFT gutter is painted.** The right gutter stays a model.
+- **Only the LEFT gutter is painted.** The right gutter stays a model. *Superseded by the next amendment.*
 - **Markup** is read for `<b>`, `<i>`, `<u>`, `<s>` and the five XML entities; other tags are dropped and
   their text kept. The web paints the styles; Android paints the plain text.
 - **Position:** a negative position puts the column left of the line numbers, otherwise right of them.
+
+## Amendment: the RIGHT gutter
+
+- **GTK:** `gtk_source_view_get_gutter` accepts only `Gtk.TextWindowType.LEFT` (3) and `RIGHT` (4). Any other
+  type fails `g_return_val_if_fail` (a CRITICAL log) and returns `NULL`; the subset answers `null` for TEXT,
+  WIDGET, TOP and BOTTOM, the same value. Each view caches one distinct gutter per side, and
+  `Gutter.window_type` reports 3 or 4.
+- **The model is side-generic.** `EditorSession.gutterColumns(side)` and `queryGutter(first, last, side)` take
+  the `Gtk.TextWindowType` (LEFT by default). The built-in line numbers stay a LEFT feature; the RIGHT gutter
+  holds renderers only, and a negative position means nothing there beyond ordering.
+- **A driver declares the sides it paints** with `EditorDriver.gutterSides` (LEFT when absent). `Gutter.insert`
+  into a side the driver does not paint throws `GtkSource.Gutter: this platform does not paint the RIGHT
+  gutter`, so a renderer is never accepted and silently left invisible. This is the named refusal.
+- **Web paints both:** the RIGHT gutter is a `.gsv-gutter-right` element after the text stage, shown while
+  `has-right-columns` is set, scrolled in step with the text.
+- **Android paints LEFT only** and refuses a RIGHT insert by the rule above; a RIGHT `drawGutter` is a later
+  slice. The Node/GJS stand-in driver of the NativeScript package paints nothing and accepts both sides, as
+  it already does for LEFT.
+- **Vectors:** `get_gutter` for BOTTOM joins the null-side vector, and `GUTTER_PAINT_VECTORS` proves that a
+  RIGHT renderer is asked per visible line with the range and cursor line, against real `gi://GtkSource`.

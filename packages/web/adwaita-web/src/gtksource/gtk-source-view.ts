@@ -10,7 +10,7 @@
 // IN THIS SLICE: `buffer`, `auto-indent`, `indent-width` (held and read back, as on Android),
 // `show-line-numbers`, `highlight-current-line`, `monospace`, `editable`, `cursor-visible`, the four
 // margins, `connect`/`connect_after`/`disconnect`, `extend-selection` and `copy-clipboard` (stoppable), the GJS snake_case accessors, `vadjustment`/`hadjustment`,
-// `set_direction`, `get_first_child`/`get_next_sibling`, `get_gutter` (the LEFT gutter paints its renderers' `vfunc_query_data`; the right one is a model).
+// `set_direction`, `get_first_child`/`get_next_sibling`, `get_gutter` (both gutters paint their renderers' `vfunc_query_data`).
 //
 // Reference: GtkSourceView 5 gtksourceview.c, upstream GNOME/gtksourceview (properties and defaults)
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
@@ -53,6 +53,8 @@ gtk-source-view .gsv-gutter {
 }
 gtk-source-view.show-line-numbers .gsv-gutter,
 gtk-source-view.has-columns .gsv-gutter { display: block; }
+gtk-source-view .gsv-gutter-right { display: none; }
+gtk-source-view.has-right-columns .gsv-gutter-right { display: block; }
 gtk-source-view .gsv-columns { display: flex; }
 gtk-source-view .gsv-numbers,
 gtk-source-view .gsv-column { flex: none; box-sizing: content-box; }
@@ -138,6 +140,7 @@ export class GtkSourceView extends HTMLElement {
     private unsubscribe: (() => void) | null = null;
     private built = false;
     private readonly gutter = document.createElement('div');
+    private readonly rightGutter = document.createElement('div');
     private readonly backdrop = document.createElement('div');
     private readonly area = document.createElement('textarea');
     private readonly vadj = new GtkAdjustment();
@@ -148,6 +151,7 @@ export class GtkSourceView extends HTMLElement {
     constructor() {
         super();
         this.gutter.className = 'gsv-gutter';
+        this.rightGutter.className = 'gsv-gutter gsv-gutter-right';
         this.backdrop.className = 'gsv-backdrop';
         this.area.className = 'gsv-area';
         this.area.wrap = 'off';
@@ -159,6 +163,7 @@ export class GtkSourceView extends HTMLElement {
             area: this.area,
             backdrop: this.backdrop,
             gutter: this.gutter,
+            rightGutter: this.rightGutter,
         });
         this.session = new EditorSession(this.driver, undefined, adwaitaColorScheme());
         this.session.bindGutters(this.gutters);
@@ -180,7 +185,7 @@ export class GtkSourceView extends HTMLElement {
             const stage = document.createElement('div');
             stage.className = 'gsv-stage';
             stage.append(this.backdrop, this.area);
-            this.append(this.gutter, stage);
+            this.append(this.gutter, stage, this.rightGutter);
         }
         this.driver.attach();
         this.unsubscribe = onAdwaitaColorSchemeChanged(() => this.session.setColorScheme(adwaitaColorScheme()));

@@ -44,6 +44,7 @@ export interface GutterPaintVector {
 }
 
 const LEFT = 3;
+const RIGHT = 4;
 let serial = 0;
 
 interface Query {
@@ -81,10 +82,10 @@ function firstPass(queries: readonly Query[]): number[] {
     return seen;
 }
 
-async function shown(ns: GutterPaintSurface, harness: GutterPaintHarness, text: string, position = 0) {
+async function shown(ns: GutterPaintSurface, harness: GutterPaintHarness, text: string, position = 0, side = LEFT) {
     const view = new ns.GtkSource.View();
     view.buffer.text = text;
-    const gutter = view.get_gutter(LEFT) as GutterLike;
+    const gutter = view.get_gutter(side) as GutterLike;
     const { renderer, queries } = recording(ns);
     gutter.insert(renderer, position);
     await harness.present(view);
@@ -119,6 +120,16 @@ function numbered(ns: GutterPaintSurface) {
 }
 
 export const GUTTER_PAINT_VECTORS: readonly GutterPaintVector[] = [
+    {
+        rule: 'the RIGHT gutter asks its renderers per visible line, with the visible range and the cursor line',
+        paints: true,
+        async observe(ns, harness) {
+            const { queries } = await shown(ns, harness, 'a\nb\nc', 0, RIGHT);
+            const right = queries.slice(0, firstPass(queries).length);
+            return { right: right.map((query) => query.line), cursor: right.map((query) => query.cursor) };
+        },
+        shows: { right: [0, 1, 2], cursor: [false, false, true] },
+    },
     {
         rule: 'vfunc_query_data runs once per visible line, in order, with the visible range and the cursor line',
         paints: true,

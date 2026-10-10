@@ -135,6 +135,35 @@ export const GtkSourceViewTest = async () => {
             view.remove();
         });
 
+        await it('paints the RIGHT gutter as a column right of the text, apart from the left one', async () => {
+            const view = document.createElement('gtk-source-view') as GtkSourceView;
+            document.body.append(view);
+            view.buffer.text = 'a\nb';
+            const renderer = new GtkSource.GutterRendererText({ width_request: 12 });
+            (
+                renderer as unknown as {
+                    vfunc_query_data(lines: unknown, line: number): void;
+                }
+            ).vfunc_query_data = function (this: { text: string }, _lines, line) {
+                this.text = `R${line}`;
+            };
+            const right = view.get_gutter(Gtk.TextWindowType.RIGHT)!;
+            right.insert(renderer, 0);
+            await task();
+            const element = view.querySelector<HTMLElement>('.gsv-gutter-right')!;
+            expect([...element.querySelectorAll('.gsv-cell')].map((cell) => cell.textContent)).toStrictEqual([
+                'R0',
+                'R1',
+            ]);
+            expect(view.classList.contains('has-right-columns')).toBe(true);
+            expect(view.classList.contains('has-columns')).toBe(false);
+            expect(view.lastElementChild).toBe(element);
+            right.remove(renderer);
+            await task();
+            expect(view.classList.contains('has-right-columns')).toBe(false);
+            view.remove();
+        });
+
         await it('paints markup as styled spans and drops the column with its renderer', async () => {
             const view = document.createElement('gtk-source-view') as GtkSourceView;
             document.body.append(view);
