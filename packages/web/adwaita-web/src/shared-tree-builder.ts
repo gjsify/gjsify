@@ -58,7 +58,7 @@ import { capabilities } from './capabilities.mjs';
 import { endpointOf, hasElementApi, installElementApi } from './gobject-elements.js';
 import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
-import { templateTagFor } from './template-classes.js';
+import { isTemplateTag, templateTagFor } from './template-classes.js';
 import { writeBooleanAttribute } from './attributes.js';
 
 /** One authored placement, kept so {@link mountSharedTree} can hold the renderer to it. */
@@ -344,7 +344,11 @@ export function writeProp(el: HTMLElement, prop: string, value: string | number 
     const member = propertyOf(prop);
     const expand = GTK_WIDGET_EXPAND.find((name) => name === attr);
     if (expand !== undefined && typeof value === 'boolean') el.setAttribute(expand, value ? '' : 'false');
-    else if (typeof value === 'boolean' && isValueBasedBooleanAttr(el.localName, attr)) {
+    else if (isTemplateTag(el.localName) && member in el) {
+        // An application class has no attributeChangedCallback: its properties are GObject properties,
+        // set the way `Gtk.Builder` sets them, after the constructor.
+        (el as unknown as Record<string, unknown>)[member] = value;
+    } else if (typeof value === 'boolean' && isValueBasedBooleanAttr(el.localName, attr)) {
         writeBooleanAttribute(el, attr, value);
     } else if (value === false && isWritable(el, member)) {
         // Non-value-based, writable property: set the property directly (bypasses attribute).
