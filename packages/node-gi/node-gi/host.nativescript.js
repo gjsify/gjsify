@@ -86,6 +86,9 @@ function deriveAppDir() {
     try {
         return globalThis.com?.tns?.NativeScriptApplication?.getInstance()?.getFilesDir()?.getPath() ?? null;
     } catch {
+        // NativeScript surfaces a Java exception as a JS one, and getFilesDir() raises
+        // before the Application is fully constructed. No dir is not a failure here: it
+        // means the host sets __NODE_GI_APP_DIR itself, or keeps GLib's defaults.
         return null;
     }
 }
