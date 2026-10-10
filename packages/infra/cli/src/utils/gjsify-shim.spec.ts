@@ -199,7 +199,10 @@ export default async () => {
                 expect(readdirSync(root).length).toBe(1);
                 expect(readFileSync(join(a, 'gjsify'), 'utf8')).toBe(files.gjsify);
                 expect(readFileSync(join(a, 'node-shim', 'node'), 'utf8')).toBe(files['node-shim/node']);
-                expect((statSync(join(a, 'gjsify')).mode & 0o111) !== 0).toBe(true);
+                // NTFS carries no POSIX permission bits; the exec bit only exists elsewhere.
+                if (process.platform !== 'win32') {
+                    expect((statSync(join(a, 'gjsify')).mode & 0o111) !== 0).toBe(true);
+                }
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }
