@@ -102,6 +102,10 @@ That is the reason for this track: the app is GNOME code, unchanged, rather than
 Before a track-C build is offered to app authors, three gates hold, each with a measurement on an
 arm64 device: an accessibility tree TalkBack can walk, no soft keyboard on non-text focus, and
 GPU rendering. Until all three pass, the track stays tier 3 and its docs say it is not accessible.
+The first arm64 run ([report](../reports/2026-10-10-gtk-on-a-nativescript-worker-arm64.md))
+passed GPU rendering (GL renderer, median 60 fps), failed accessibility (the window is one opaque
+view; the GTK build has no accessibility backend and no Android bridge) and half-passed the
+keyboard (programmatic focus shows it, a tap on an entry does not focus it).
 gjsify does not ship an accessibility bridge of its own for GTK; that belongs in GTK. Gaps found
 there are reported as `Upstream (GTK, file by hand): …` issues in our repo.
 
@@ -128,6 +132,8 @@ not before (`gjsify.platforms` promises no target without an artifact behind it)
   lands.
 - `refs/gtk-android-builder` and `refs/tuba` are the references for the build; GTK's own Android
   sources are already in `refs/gtk`.
+- Real hardware confirms the accessibility gap is GTK's: no backend in the build, no Android bridge.
+  Track C cannot leave tier 3 until GTK gains one.
 - Both tracks depend on an experimental GTK backend. A GTK release can break them, and the tier-3
   label says so.
 
@@ -196,8 +202,9 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    one-second ticks at 1-2 ms drift throughout. Three node-gi additions carry it, all Android-only
    and opt-in: `androidInitGdk` (GDK's bring-up without GTK's `RuntimeApplication`, which a JS host
    cannot call), GLib's log handlers onto logcat, and a `JNI_OnLoad` the host triggers through one
-   Java class in the app — NativeScript's `dlopen` of the addon runs none. Not done: an arm64
-   device run, GPU rendering (the emulator's EGL init fails), lifecycle handling, and explicit
-   per-thread pump ownership.
+   Java class in the app — NativeScript's `dlopen` of the addon runs none. An arm64 device run
+   followed ([report](../reports/2026-10-10-gtk-on-a-nativescript-worker-arm64.md)): GPU rendering
+   passes, the accessibility tree is empty, and the keyboard works only after programmatic focus.
+   Not done: lifecycle handling, touch focus on an entry, and explicit per-thread pump ownership.
 
 Follow-up work goes into `status/open-todos/nativescript.md` once this ADR is accepted.
