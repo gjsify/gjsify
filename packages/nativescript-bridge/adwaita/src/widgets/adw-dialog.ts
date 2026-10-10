@@ -50,6 +50,8 @@ export const ADW_DIALOG_CLOSE_ATTEMPT = 'close-attempt';
 export const ADW_DIALOG_CLASS = 'adw-dialog';
 
 export class AdwDialog extends AdwSingleChildBase {
+    static readonly GTypeName: string = 'AdwDialog';
+
     /** `child` is the one destination, so it is also the fallback. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 

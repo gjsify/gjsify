@@ -23,6 +23,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 export class AdwToggle extends withSignals(Observable) {
+    static readonly GTypeName: string = 'AdwToggle';
+
     private _name: string | null = null;
     private _label = '';
     private _iconName: string | null = null;

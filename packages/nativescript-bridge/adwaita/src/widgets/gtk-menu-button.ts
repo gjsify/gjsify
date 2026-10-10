@@ -50,6 +50,8 @@ export interface MenuItemActivatedEventData extends EventData {
 }
 
 export class GtkMenuButton extends AdwImageButton {
+    static readonly GTypeName: string = 'GtkMenuButton';
+
     private _model: AdwMenuModel = [];
     private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';

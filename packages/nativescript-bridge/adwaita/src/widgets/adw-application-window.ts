@@ -12,6 +12,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwWindowBase } from './window-base.js';
 
 export class AdwApplicationWindow extends AdwWindowBase {
+    static readonly GTypeName: string = 'AdwApplicationWindow';
+
     /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
     declare application: object | null;
 

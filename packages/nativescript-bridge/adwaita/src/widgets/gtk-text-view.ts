@@ -28,6 +28,8 @@ export const GTK_WRAP_MODES = ['none', 'char', 'word', 'word-char'] as const;
 export type GtkWrapModeNick = (typeof GTK_WRAP_MODES)[number];
 
 export class GtkTextView extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'GtkTextView';
+
     protected readonly _field: TextView;
     private _text = '';
     private _monospace = false;

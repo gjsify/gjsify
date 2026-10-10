@@ -33,6 +33,8 @@ import { xmlBoolean, xmlNumber } from './xml-values.js';
 export const NOTIFY_REVEAL_CHILD = 'notify::reveal-child';
 
 export class GtkRevealer extends AdwSingleChildBase {
+    static readonly GTypeName: string = 'GtkRevealer';
+
     /** `Gtk.Revealer:child` is the one destination, so it is also the fallback. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 

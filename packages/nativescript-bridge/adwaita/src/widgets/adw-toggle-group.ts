@@ -60,6 +60,8 @@ export interface AdwToggleSpec {
 }
 
 export class AdwToggleGroup extends withSignals(StackLayout) {
+    static readonly GTypeName: string = 'AdwToggleGroup';
+
     private _toggles: AdwToggleSpec[] = [];
     /**
      * `active` / `active-name` written before the toggle they name exists. GtkBuilder sets

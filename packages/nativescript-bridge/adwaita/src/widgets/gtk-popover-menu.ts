@@ -31,6 +31,8 @@ const unsupported = (member: string, why: string): Error =>
     new Error(`Gtk.PopoverMenu.${member} is not supported: ${why} (ADR 0097 § 2).`);
 
 export class GtkPopoverMenu extends withSignals(Observable) {
+    static readonly GTypeName: string = 'GtkPopoverMenu';
+
     private _model: AdwMenuModel = [];
     private _actions: AdwMenuActions | null = null;
     private _parent: ActionHost | null = null;

@@ -60,6 +60,8 @@ export interface SidebarActivatedEventData extends EventData {
 }
 
 export class AdwSidebar extends withSignals(ScrollView) {
+    static readonly GTypeName: string = 'AdwSidebar';
+
     /** The vertical list container. */
     protected readonly _list: StackLayout;
     private readonly _state = new SidebarState();

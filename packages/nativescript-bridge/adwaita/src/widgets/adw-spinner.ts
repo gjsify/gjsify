@@ -33,6 +33,8 @@ import { withSignals } from './signals.js';
 export { DEFAULT_SPINNER_SIZE };
 
 export class AdwSpinner extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwSpinner';
+
     /** The platform indicator — the RING, capped at 64 DIPs. */
     private readonly _indicator: ActivityIndicator;
     /** The requested BOX size, floored at the measured minimum 16. */

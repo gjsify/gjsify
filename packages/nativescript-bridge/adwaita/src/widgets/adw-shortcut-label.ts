@@ -24,6 +24,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 export class AdwShortcutLabel extends withSignals(StackLayout) {
+    static readonly GTypeName: string = 'AdwShortcutLabel';
+
     private _accelerator = '';
     private _disabledText = '';
 

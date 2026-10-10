@@ -17,6 +17,8 @@ import type { NativeEditorDriver } from './native-editor.js';
 // Named by its GIR name, as the Adw and Gtk widgets are: the shared-tree builder reads a class off
 // the barrel and refuses one whose name is not the tag the `.blp` wrote (`GtkSourceView`).
 export class GtkSourceView extends withGtkWidgetLayout(NsView) {
+    static readonly GTypeName: string = 'GtkSourceView';
+
     /** The one slot a `.blp` fills with an object: `buffer: GtkSource.Buffer { … }`. */
     static readonly builderSlots: readonly string[] = ['buffer'];
 

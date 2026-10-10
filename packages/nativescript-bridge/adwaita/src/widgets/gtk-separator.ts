@@ -16,6 +16,8 @@ import type { BoxOrientation } from './box-layout.js';
 import { AdwStyledLayoutBase } from './styled-layout-base.js';
 
 export class GtkSeparator extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkSeparator';
+
     private _orientation: BoxOrientation = 'horizontal';
 
     constructor(props?: ConstructProps<GtkSeparator>) {

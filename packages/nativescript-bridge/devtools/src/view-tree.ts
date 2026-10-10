@@ -94,7 +94,9 @@ export function buildViewPath(toplevel: number, children: readonly number[]): st
 /** Best-effort registered type name of a NativeScript view. */
 export function viewType(view: NsView): string {
     if (typeof view.typeName === 'string' && view.typeName) return view.typeName;
-    const ctor = (view as { constructor?: { name?: string } }).constructor;
+    const ctor = (view as { constructor?: { name?: string; GTypeName?: string } }).constructor;
+    // Own `GTypeName` first (`@gjsify/adwaita-nativescript` widgets): `name` is mangled in a release build.
+    if (ctor && Object.hasOwn(ctor, 'GTypeName') && typeof ctor.GTypeName === 'string') return ctor.GTypeName;
     return ctor?.name ?? 'View';
 }
 

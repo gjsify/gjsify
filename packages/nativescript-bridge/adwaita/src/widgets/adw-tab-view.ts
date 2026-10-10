@@ -99,6 +99,8 @@ interface TabChip {
 }
 
 export class AdwTabView extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwTabView';
+
     private readonly _state = createTabViewState({ onClosePage: (page) => this._requestClose(page) });
     private readonly _bar: StackLayout;
     private readonly _contentArea: GridLayout;

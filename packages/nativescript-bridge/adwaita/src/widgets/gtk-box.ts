@@ -58,6 +58,8 @@ export { DEFAULT_BOX_SPACING };
 type ExpandFlags = Partial<Pick<GtkWidgetLayout, 'hexpand' | 'vexpand'>>;
 
 export class GtkBox extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkBox';
+
     private _spacing = DEFAULT_BOX_SPACING;
     private _orientation: BoxOrientation = 'horizontal';
     private _homogeneous = false;

@@ -44,6 +44,7 @@ import { View } from '@nativescript/core';
 
 import { capabilities } from '../capabilities.js';
 import { observeWindowSize } from '../widgets/breakpoint.js';
+import { type GTypeNamed, gtypeNameOf, gtypeNameOfInstance } from '../widgets/gtype-name.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 import { templateClassFor } from './template-classes.js';
 
@@ -128,9 +129,9 @@ const REFUSED_ELEMENTS: Readonly<Record<string, string>> = {
  *
  * The class the barrel hands back must be the class the corpus NAMED, which is ADR 0034
  * clause 1 — a widget is named after the library owning its GType — held at runtime instead
- * of taken on trust. (The tree-driver bundles that reach this function are built
- * `--no-minify` so a class name is the one the source declares; a mangled one fails here
- * rather than resolving to a stranger.)
+ * of taken on trust. (The name is the class's static `GTypeName`, not `Function.name`, so a minified
+ * bundle holds the check too; a class that declares none falls back to `name`, and a mangled
+ * one then fails here rather than resolving to a stranger.)
  */
 export function elementFor(tag: string): Element {
     const refusal = REFUSED_ELEMENTS[tag];
@@ -147,9 +148,9 @@ export function elementFor(tag: string): Element {
                     'widget a namespace member (ADR 0034 clause 2), or ledger the block as divergent.',
             );
         }
-        if (exported.name !== tag) {
+        if (gtypeNameOf(exported as GTypeNamed) !== tag) {
             throw new Error(
-                `'${prefix}:${member}' resolves to class \`${exported.name}\`, not \`${tag}\`. The corpus is ` +
+                `'${prefix}:${member}' resolves to class \`${gtypeNameOf(exported as GTypeNamed)}\`, not \`${tag}\`. The corpus is ` +
                     'authored in GIR class names and ADR 0034 clause 1 says a widget carries that name, so a ' +
                     'barrel member bound to another class would build the wrong widget at exit 0.',
             );
@@ -556,7 +557,7 @@ export function applyBreakpoints(
     options: Pick<BuildOptions, 'observeSize' | 'translate'> = {},
 ): void {
     wireBreakpoints(
-        host.constructor.name,
+        gtypeNameOfInstance(host),
         host,
         breakpoints,
         new Map(Object.entries(ids)),

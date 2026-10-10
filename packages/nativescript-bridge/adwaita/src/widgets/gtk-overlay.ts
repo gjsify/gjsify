@@ -26,6 +26,8 @@ import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { AdwSingleChildBase } from './single-child-base.js';
 
 export class GtkOverlay extends AdwSingleChildBase {
+    static readonly GTypeName: string = 'GtkOverlay';
+
     /** `child` and the `[overlay]` internal-child type; a bare child is the main child. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child', 'overlay'], 'child');
 

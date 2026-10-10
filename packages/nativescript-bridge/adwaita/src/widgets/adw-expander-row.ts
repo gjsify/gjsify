@@ -71,6 +71,8 @@ const EXPANDER_ROW_SLOTS = ['prefix', 'suffix'] as const;
 const EXPANDER_ROW_AUTHORED_SLOTS = ['prefix'] as const;
 
 export class AdwExpanderRow extends AdwActionRow {
+    static readonly GTypeName: string = 'AdwExpanderRow';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(EXPANDER_ROW_AUTHORED_SLOTS, 'row');
 

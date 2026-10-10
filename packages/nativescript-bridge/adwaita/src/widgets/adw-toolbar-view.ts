@@ -58,6 +58,8 @@ const BASE_CLASSES = {
 const TOOLBAR_VIEW_SLOTS = ['topBar', 'bottomBar', 'content', 'top', 'bottom'] as const;
 
 export class AdwToolbarView extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwToolbarView';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(TOOLBAR_VIEW_SLOTS, 'content');
 

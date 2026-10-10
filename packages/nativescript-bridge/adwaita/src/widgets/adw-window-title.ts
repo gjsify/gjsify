@@ -31,6 +31,8 @@ export const NOTIFY_TITLE = 'notify::title';
 export const NOTIFY_SUBTITLE = 'notify::subtitle';
 
 export class AdwWindowTitle extends withSignals(StackLayout) {
+    static readonly GTypeName: string = 'AdwWindowTitle';
+
     /** The bold title label. */
     protected readonly _titleLabel: Label;
     /** The dim subtitle label. */

@@ -34,6 +34,8 @@ export interface NotifySliderValueEventData extends EventData {
 }
 
 export class AdwSliderRow extends withSignals(StackLayout) {
+    static readonly GTypeName: string = 'AdwSliderRow';
+
     /** The title label (header, left). */
     protected readonly _titleLabel: Label;
     /** The live value label (header, right, dim). */

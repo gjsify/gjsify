@@ -25,6 +25,7 @@ import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
 import { PopupMenuWidgetsNsTest } from './popup-menu-widgets.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
+import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
@@ -47,6 +48,7 @@ run({
     AdwClampClasslessChildNsTest,
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
+    AdwGTypeNameNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
     GtkGridNsTest,

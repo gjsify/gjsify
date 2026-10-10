@@ -15,5 +15,7 @@ export const nativeScriptStyleSource: StyleSource = {
 };
 
 export class AdwStyleManager extends StyleManagerBase {
+    static readonly GTypeName: string = 'AdwStyleManager';
+
     static override source = nativeScriptStyleSource;
 }

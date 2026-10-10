@@ -32,6 +32,8 @@ export const ACTIVATED = 'activated';
 const ACTION_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
 export class AdwActionRow extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwActionRow';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(ACTION_ROW_SLOTS, 'suffix');
 

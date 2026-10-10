@@ -55,6 +55,8 @@ export interface AdwNavigationEventData extends EventData {
 export type NotifyVisiblePageEventData = AdwNavigationEventData;
 
 export class AdwNavigationView extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwNavigationView';
+
     private readonly _nav: NsNavigationStack;
 
     constructor(props?: ConstructProps<AdwNavigationView>) {

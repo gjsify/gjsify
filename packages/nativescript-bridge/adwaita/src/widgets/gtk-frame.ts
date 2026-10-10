@@ -18,6 +18,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwStyledLayoutBase } from './styled-layout-base.js';
 
 export class GtkFrame extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkFrame';
+
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child', 'labelWidget', 'label-widget'], 'child');
 
     private readonly _labelCell: Label;

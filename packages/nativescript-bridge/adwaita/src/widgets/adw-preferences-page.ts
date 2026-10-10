@@ -25,6 +25,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 export class AdwPreferencesPage extends withSignals(ScrollView) implements NsSearchablePage {
+    static readonly GTypeName: string = 'AdwPreferencesPage';
+
     /**
      * The vertical stack that actually holds the groups.
      *

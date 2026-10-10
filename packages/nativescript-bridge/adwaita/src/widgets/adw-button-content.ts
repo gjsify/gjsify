@@ -44,6 +44,8 @@ import { withSignals } from './signals.js';
 const BASE_CLASS = 'adw-button-content';
 
 export class AdwButtonContent extends withSignals(StackLayout) {
+    static readonly GTypeName: string = 'AdwButtonContent';
+
     /** The leading symbolic icon. Always parented — the C never hides the image. */
     protected readonly _icon: GtkImage;
     /** The text label. */

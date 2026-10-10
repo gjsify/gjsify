@@ -48,6 +48,8 @@ import { withSignals } from './signals.js';
 export const DEFAULT_ICON_BUTTON_ICON_SIZE = DEFAULT_ICON_PIXEL_SIZE;
 
 export class AdwImageButton extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwImageButton';
+
     /** The centered icon image. */
     protected readonly _image: Image;
     // The value the CALLER set, name or source — see `GtkImage._icon` for why the

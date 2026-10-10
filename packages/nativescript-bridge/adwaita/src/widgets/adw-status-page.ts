@@ -38,6 +38,8 @@ const DEFAULT_STATUS_ICON_COLOR = '#9b9b9b';
 const STATUS_PAGE_BASE_CLASS_NAME = 'adw-status-page';
 
 export class AdwStatusPage extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwStatusPage';
+
     /**
      * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
      * `Adw.StatusPage:child` is this widget's own property name, and its fallback: an

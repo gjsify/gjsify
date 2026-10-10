@@ -35,6 +35,8 @@ export const BUTTON_CLICKED = 'buttonClicked';
 const BUTTON_BASE_CLASS = 'adw-banner-button';
 
 export class AdwBanner extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwBanner';
+
     /** The message label (column 0). */
     protected readonly _titleLabel: Label;
     /** The action button (column 1, only in the tree when a label is set). */

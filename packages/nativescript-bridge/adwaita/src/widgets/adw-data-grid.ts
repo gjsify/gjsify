@@ -94,6 +94,8 @@ interface DataGridRowNodes {
 }
 
 export class AdwDataGrid extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwDataGrid';
+
     private _columns: AdwDataGridColumn[] = [];
     private _dataRows: AdwDataGridRow[] = [];
     private _interactive = false;

@@ -88,6 +88,8 @@ const XALIGN_EDGES: ReadonlyMap<number, 'start' | 'center' | 'end'> = new Map([
 ]);
 
 export class GtkLabel extends withSignals(Label) {
+    static readonly GTypeName: string = 'GtkLabel';
+
     private _label = '';
     private _useMarkup = false;
     private _useUnderline = false;

@@ -51,6 +51,8 @@ export interface NotifyResponseEventData extends EventData {
 }
 
 export class AdwAlertDialog extends withSignals(Observable) {
+    static readonly GTypeName: string = 'AdwAlertDialog';
+
     /** The headless response registry + ordering + resolution (ADR 0004). */
     private readonly _responses: AdwAlertResponses;
 

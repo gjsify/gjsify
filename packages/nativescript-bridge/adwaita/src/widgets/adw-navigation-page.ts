@@ -32,6 +32,8 @@ export interface NavigationPageOwner {
 }
 
 export class AdwNavigationPage extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwNavigationPage';
+
     /**
      * `Adw.NavigationPage:child` is the one destination, so it is also the fallback: an
      * authored `child: …` and a bare child mean the same thing (adw-navigation-view.c:808).

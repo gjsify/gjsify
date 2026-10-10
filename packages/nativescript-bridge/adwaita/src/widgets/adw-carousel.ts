@@ -74,6 +74,8 @@ interface ScrollEventData extends EventData {
 }
 
 export class AdwCarousel extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwCarousel';
+
     /** The horizontal scroller holding the pages. */
     protected readonly _scroller: ScrollView;
     /** The horizontal track inside the scroller (holds fixed-width pages). */

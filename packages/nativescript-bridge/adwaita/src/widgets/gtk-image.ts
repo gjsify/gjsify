@@ -60,6 +60,8 @@ import { withSignals } from './signals.js';
 export const DEFAULT_GTK_IMAGE_SIZE = DEFAULT_ICON_PIXEL_SIZE;
 
 export class GtkImage extends withSignals(Image) {
+    static readonly GTypeName: string = 'GtkImage';
+
     // The value the CALLER set, name or source, so the getter round-trips it the way
     // `gtk_image_get_icon_name` returns the name that was set. Resolution happens at
     // render time instead, which is also what makes a late `registerIcon` visible on the

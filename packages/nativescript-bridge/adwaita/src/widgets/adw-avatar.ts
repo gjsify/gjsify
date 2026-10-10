@@ -45,6 +45,8 @@ export { avatarColor, avatarInitials };
 export { AVATAR_DEFAULT_ICON };
 
 export class AdwAvatar extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwAvatar';
+
     /** The centered initials label. */
     protected readonly _label: Label;
     /** The fallback symbolic icon, shown when the initials are not. */
