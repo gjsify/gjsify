@@ -10,11 +10,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readWorkspaceCliVersion } from './install.js';
 
-function makeWorkspace(declared: string, installed?: string): string {
+function makeWorkspace(declared: string | null, installed?: string): string {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-skew-'));
     writeFileSync(
         join(dir, 'package.json'),
-        JSON.stringify({ name: 'consumer', devDependencies: { '@gjsify/cli': declared } }),
+        JSON.stringify(
+            declared ? { name: 'consumer', devDependencies: { '@gjsify/cli': declared } } : { name: 'consumer' },
+        ),
     );
     if (installed) {
         const cliDir = join(dir, 'node_modules', '@gjsify', 'cli');
@@ -39,6 +41,15 @@ export default async () => {
             const dir = makeWorkspace('^0.58.0', '0.56.0');
             try {
                 expect(readWorkspaceCliVersion(dir)).toBe('0.58.0');
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('falls back to the installed copy when nothing is declared', async () => {
+            const dir = makeWorkspace(null, '0.56.0');
+            try {
+                expect(readWorkspaceCliVersion(dir)).toBe('0.56.0');
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }

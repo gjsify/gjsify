@@ -423,17 +423,24 @@ function readRunningCliVersion(): string | null {
 /**
  * Version of the `@gjsify/cli` the workspace at `cwd` pins: the one DECLARED in
  * its package.json (`^`/`~`/`=` prefix stripped; only a plain version counts).
- * Never the installed copy — this runs inside `install`, whose job is to replace
- * a stale `node_modules`, so reading it flagged the very state being repaired.
- * A non-version spec (`workspace:^`, a range, a tag) falls back to the in-repo
+ * The installed copy is consulted only when package.json declares no
+ * `@gjsify/cli` at all — `install` replaces a stale `node_modules`, so it must
+ * not override a declared pin (that flagged the very state being repaired).
+ * A declared non-version spec (`workspace:^`, a range, a tag) falls back to the in-repo
  * source so the check still fires on a fresh checkout of the gjsify monorepo.
  */
 export function readWorkspaceCliVersion(cwd: string): string | null {
     const pkg = readPackageJson(join(cwd, 'package.json'));
+    let declared = false;
     for (const kind of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
         const spec = pkg?.[kind]?.[CLI_PACKAGE_NAME];
+        if (typeof spec === 'string') declared = true;
         const m = typeof spec === 'string' ? /^[\^~=v]*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(spec.trim()) : null;
         if (m) return m[1]!;
+    }
+    if (!declared) {
+        const installed = readCliVersionFrom(join(cwd, 'node_modules', CLI_PACKAGE_NAME, 'package.json'));
+        if (installed) return installed;
     }
     return readCliVersionFrom(join(cwd, 'packages', 'infra', 'cli', 'package.json'));
 }
