@@ -10,7 +10,7 @@ handler, the worker reads Android APIs through NativeScript's metadata, and the 
 running JS. The app is `com.tns.NativeScriptApplication`; nothing of GTK's `RuntimeApplication`
 runs, and the class is not even in the APK.
 
-![An Adwaita window on Android, after two taps on its button](2026-10-10-gtk-on-a-nativescript-worker.png)
+![An Adwaita window on Android after two taps](2026-10-10-gtk-on-a-nativescript-worker.png)
 
 `adb exec-out screencap` of `emulator-5554` after two `adb shell input tap`s on the button: an
 `Adw.ApplicationWindow` with a `Gtk.Label` and a `Gtk.Button` whose click handler has run twice and
@@ -19,12 +19,15 @@ NativeScript created, in an APK whose `Application` is NativeScript's.
 
 ## The result
 
-| Question | Answer |
-|---|---|
-| Does a NativeScript worker thread have an `ALooper`? | **Yes.** `WorkerWrapper.cpp:445-494` calls `Looper.prepare()` + `Looper.loop()`; the pump armed, no "no ALooper on this thread". |
-| Can GDK be initialized without being the `Application`? | **Yes**, but only from native code the host controls — [The four defects](#the-four-defects). |
-| Pump ownership per environment | Unchanged by this spike; what it should be is in [Pump ownership](#pump-ownership). |
-| End-to-end window + button from worker JS, non-blocking? | **Yes.** Screenshot above; a tap reached the handler as `Build.MODEL=sdk_gphone64_x86_64`; the UI thread logged 130 ticks at 1-2 ms drift. |
+- **Does a NativeScript worker thread have an `ALooper`?** Yes. `WorkerWrapper.cpp:445-494` calls
+  `Looper.prepare()` + `Looper.loop()`; the pump armed, no "no ALooper on this thread".
+- **Can GDK be initialized without being the `Application`?** Yes, but only from native code the
+  host controls — [The four defects](#the-four-defects).
+- **Pump ownership per environment:** unchanged by this spike; what it should be is in
+  [Pump ownership](#pump-ownership).
+- **End-to-end window + button from worker JS, non-blocking?** Yes. Screenshot above; a tap reached
+  the handler as `Build.MODEL=sdk_gphone64_x86_64`, and the UI thread logged 130 ticks at
+  1-2 ms drift.
 
 Measured on `emulator-5554`, Tablet_API_36, `x86_64`, NativeScript 9.1.1, GTK 4.21 from the
 pixiewood runtime. No `FATAL`, no `SIGSEGV`, no ANR in any run.
