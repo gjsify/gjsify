@@ -138,6 +138,16 @@ export interface GObjectNamespace extends GiNamespace {
      */
     registerClass(klass: Function): Function;
     registerClass(meta: RegisterClassMeta, klass: Function): Function;
+    /**
+     * Static-field key for {@link RegisterClassMeta.GTypeName} — gjs's meta FIELD form,
+     * `Klass[GObject.GTypeName] = 'X'` instead of a meta object. A meta object passed to
+     * `registerClass` still wins over the field.
+     */
+    GTypeName: symbol;
+    /** Static-field key for {@link RegisterClassMeta.Properties} (the field form of the meta). */
+    properties: symbol;
+    /** Static-field key for {@link RegisterClassMeta.Signals} (the field form of the meta). */
+    signals: symbol;
     ParamSpec: ParamSpecFactories;
     /**
      * The FULL introspected `GParamFlags` bitfield (READABLE/WRITABLE/READWRITE/

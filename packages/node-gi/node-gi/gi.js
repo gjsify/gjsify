@@ -2420,6 +2420,19 @@ function collectVfuncs(klass) {
  * @param {Function} [maybeClass]
  * @returns {Function} the same `klass` (now registered)
  */
+// GJS's meta FIELD form: a class may declare its meta as static symbol fields
+// (`Klass[GObject.GTypeName] = 'X'`) instead of passing a meta object, and GJS treats
+// the symbols as the real source — `registerClass(meta, klass)` only copies meta onto
+// them and reads them back (refs/gjs/modules/core/_common.js). The descriptions match
+// GJS's so a stringified symbol reads the same in both runtimes.
+//
+// GObject.interfaces / GObject.interface requires are deliberately absent: registerClass
+// implements no interfaces in EITHER form yet, and a symbol that is accepted and then
+// ignored promises more than the object form delivers.
+const GTypeNameSymbol = Symbol('GType name');
+const propertiesSymbol = Symbol('GObject properties');
+const signalsSymbol = Symbol('GObject signals');
+
 function registerClass(metaOrClass, maybeClass) {
     let meta;
     let klass;
@@ -2433,6 +2446,17 @@ function registerClass(metaOrClass, maybeClass) {
     if (typeof klass !== 'function') {
         throw new TypeError('GObject.registerClass: expected a class to register');
     }
+
+    // Fold in whatever the class declared as symbol fields, with the meta OBJECT winning
+    // — the same precedence GJS gets from copying meta onto the symbols before reading
+    // them. Until the symbols existed on the namespace, `{[G.GTypeName]: 'X'}` wrote a
+    // literal "undefined" key and the whole declaration vanished without a word: the
+    // GTypeName fell back to the class name and the signals were never registered.
+    const fieldMeta = {};
+    if (klass[GTypeNameSymbol] !== undefined) fieldMeta.GTypeName = klass[GTypeNameSymbol];
+    if (klass[propertiesSymbol] !== undefined) fieldMeta.Properties = klass[propertiesSymbol];
+    if (klass[signalsSymbol] !== undefined) fieldMeta.Signals = klass[signalsSymbol];
+    meta = { ...fieldMeta, ...meta };
 
     const parent = findParentGType(klass);
     if (parent === undefined) {
@@ -2634,6 +2658,9 @@ function signalEmitByName(object, ...nameAndArgs) {
 // makeClass). Merged enums are cached so identity is stable.
 const OVERLAY_NAMES = new Set([
     'registerClass',
+    'GTypeName',
+    'properties',
+    'signals',
     'ParamSpec',
     'ParamFlags',
     'SignalFlags',
@@ -2700,6 +2727,9 @@ function decorateGObjectNamespace(baseNs) {
         if (cache.has(prop)) return cache.get(prop);
         let value;
         if (prop === 'registerClass') value = registerClass;
+        else if (prop === 'GTypeName') value = GTypeNameSymbol;
+        else if (prop === 'properties') value = propertiesSymbol;
+        else if (prop === 'signals') value = signalsSymbol;
         else if (prop === 'ParamSpec') value = ParamSpec;
         else if (prop === 'ParamFlags') value = mergeFlags(baseNs.ParamFlags, ParamFlags);
         else if (prop === 'SignalFlags') value = mergeFlags(baseNs.SignalFlags, SignalFlags);
