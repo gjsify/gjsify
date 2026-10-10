@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.59.0](https://github.com/gjsify/gjsify/compare/v0.58.0...v0.59.0) (2026-10-10)
+
+### Features
+
+* **adwaita:** `GObject.Value` and Gdk clipboard subset ([#2135](https://github.com/gjsify/gjsify/issues/2135)) ([fc20e6c](https://github.com/gjsify/gjsify/commit/fc20e6c4ad3afb2303f2805fc4d65136a45f87b8))
+* **gtksource:** ask extend-selection on android ([#2139](https://github.com/gjsify/gjsify/issues/2139)) ([344de03](https://github.com/gjsify/gjsify/commit/344de03de242ca12a80659e2833b9cf7c46335de))
+* **gtksource:** paint the right gutter on web ([#2138](https://github.com/gjsify/gjsify/issues/2138)) ([03868ba](https://github.com/gjsify/gjsify/commit/03868ba6d7277870cb3d21da9fd9c1d756d60b6b))
+* **gtksource:** stop signals on web and nativescript ([#2134](https://github.com/gjsify/gjsify/issues/2134)) ([9fb84bb](https://github.com/gjsify/gjsify/commit/9fb84bb3b43784400f2fe705f330014128edcb78))
+
+### Bug Fixes
+
+* **cli:** accept bundled node_modules on re-install ([#2137](https://github.com/gjsify/gjsify/issues/2137)) ([af054c3](https://github.com/gjsify/gjsify/commit/af054c3337f183551bd49c16685d830355926150))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([5f4394b](https://github.com/gjsify/gjsify/commit/5f4394b91008b34722efc76025b0bbf1bc0c9744))
+
 ## [0.58.0](https://github.com/gjsify/gjsify/compare/v0.57.0...v0.58.0) (2026-10-09)
 
 ### Features

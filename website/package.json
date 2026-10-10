@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/website",
-    "version": "0.58.0",
+    "version": "0.59.0",
     "private": true,
     "scripts": {
         "copy:assets": "node scripts/copy-showcase-assets.mjs",
