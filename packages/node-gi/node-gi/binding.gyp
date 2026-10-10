@@ -4,6 +4,7 @@
       "target_name": "node_gi",
       "sources": [
         "src/addon.cc",
+        "src/android-gdk.cc",
         "src/android-log.cc",
         "src/cairo.cc",
         "src/calls.cc",

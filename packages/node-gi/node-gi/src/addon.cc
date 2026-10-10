@@ -68,6 +68,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   // it every g_warning explaining a failed GI/GTK call is written to a stderr that
   // goes to /dev/null (android-log.cc).
   InitAndroidLog(env, exports);
+  // Only the export; the bring-up itself runs when the host asks for it, since it
+  // dlopens the whole GTK stack (android-gdk.cc).
+  InitAndroidGdk(env, exports);
   // The owner env + its JS/main thread are captured lazily at the first wrap
   // (EnsureDrainAsync) — NOT here, since Init runs once PER env and a per-env
   // overwrite would mis-identify the main thread under worker_threads. The cleanup
