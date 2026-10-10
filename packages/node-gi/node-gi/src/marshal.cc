@@ -605,6 +605,40 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
         out->v_string = const_cast<char*>(heldString->c_str());
       }
       return true;
+    case GI_TYPE_TAG_VOID:
+      // A bare `gpointer` IN argument: the `user_data` of the log handlers
+      // (`GLib.log_default_handler(domain, level, message, null)`), of
+      // `g_log_writer_default`, and of every introspected function that takes a
+      // closure's data separately. There is nothing to marshal INTO a void* from
+      // JS, so gjs installs Arg::NullIn for this tag (refs/gjs/gi/arg-cache.cpp
+      // ArgsCache::build_normal_in_arg) — it writes NULL and ignores the value
+      // entirely. Without this arm the whole CALL failed with "Unsupported IN
+      // argument type tag 0", which is how `GLib.log_default_handler` — the only
+      // introspectable way to make GLib write to fd 1/2, and so the only way to
+      // SEE the Android stdout/stderr redirect from JS — was unreachable.
+      //
+      // Deliberate divergence: a value that is not null/undefined is REFUSED here
+      // where gjs drops it silently. node-gi cannot turn a JS value into a
+      // gpointer, and a caller that passes one meant it to arrive; swallowing it
+      // hides the mistake at the only place that can still name the argument.
+      // (The nullability of the arg is not known at this level — JsToGIArgument
+      // sees the GITypeInfo, not the GIArgInfo — so a non-nullable void* gets
+      // NULL instead of gjs's "argument may not be null". In the introspected API
+      // such an argument is `allow-none` throughout.)
+      if (!gi_type_info_is_pointer(type)) return true;  // plain `void`: no slot to fill
+      if (v.IsNull() || v.IsUndefined()) {
+        out->v_pointer = nullptr;
+        return true;
+      }
+      {
+        std::string msg = std::string("Expected null for pointer ") +
+                          (argName != nullptr ? std::string("argument '") + argName + "'"
+                                              : std::string("argument")) +
+                          " but got type " + InformalValueTypeName(v) +
+                          " (node-gi cannot marshal a JS value into a gpointer)";
+        Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+      }
+      return false;
     case GI_TYPE_TAG_INTERFACE: {
       // Object/interface instances arrive as opaque External<GObject> handles;
       // enums/flags as plain numbers. Other interface kinds (structs/unions/
