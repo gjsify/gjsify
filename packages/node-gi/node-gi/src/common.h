@@ -19,11 +19,28 @@
 #ifndef NODE_GI_SRC_COMMON_H_
 #define NODE_GI_SRC_COMMON_H_
 
+// NODE_GI_HAS_LIBUV — may this build REFERENCE libuv at all? Not "is there an
+// event loop": bionic resolves every symbol at dlopen, so a single
+// uv_timer_start left in the object file makes the whole addon fail to load on
+// Android, whatever the call site does at runtime. The Android host is
+// NativeScript's V8 runtime, a Node-API host with no libuv of its own
+// (napi_get_uv_event_loop always fails there), so the uv bridge in loop.cc is
+// compiled out and the ALooper pump beside it takes over.
+#ifndef NODE_GI_HAS_LIBUV
+#ifdef __ANDROID__
+#define NODE_GI_HAS_LIBUV 0
+#else
+#define NODE_GI_HAS_LIBUV 1
+#endif
+#endif
+
 #ifndef _WIN32
 #include <dlfcn.h>  // dlopen/dlsym the GtkWidgetClass template API (no GTK link)
 #endif
 #include <napi.h>
+#if NODE_GI_HAS_LIBUV
 #include <uv.h>
+#endif
 
 #include <girepository/girepository.h>
 #include <girepository/girffi.h>  // gi_callable_info_create_closure + ffi_cif

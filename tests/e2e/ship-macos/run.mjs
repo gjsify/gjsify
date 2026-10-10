@@ -820,7 +820,7 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         for (const target of targets) {
             const rel = target.replace(/^\.\//, '');
             assert.ok(
-                rel.endsWith('.d.ts') || (!rel.includes('/') && rel.endsWith('.js')),
+                rel === 'package.json' || rel.endsWith('.d.ts') || (!rel.includes('/') && rel.endsWith('.js')),
                 `${target} is an exports target the staging rule does not copy — see resolveNodeGiPackage`,
             );
         }

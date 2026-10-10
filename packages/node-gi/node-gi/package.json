@@ -7,11 +7,18 @@
   "gypfile": true,
   "main": "./index.js",
   "types": "./index.d.ts",
+  "imports": {
+    "#host": {
+      "nativescript": "./host.nativescript.js",
+      "default": "./host.node.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "default": "./index.js"
     },
+    "./package.json": "./package.json",
     "./gi": {
       "types": "./gi.d.ts",
       "default": "./gi.js"
@@ -39,6 +46,9 @@
   },
   "files": [
     "index.js",
+    "host.node.js",
+    "host.nativescript.js",
+    "nativescript.webpack.js",
     "index.d.ts",
     "gi.js",
     "gi.d.ts",
@@ -86,6 +96,7 @@
     "install": "node scripts/install.mjs",
     "build": "node-gyp rebuild",
     "build:native": "node-gyp rebuild",
+    "build:android": "node scripts/build-android.mjs",
     "build:prebuild": "node-gyp rebuild && node scripts/stage-prebuild.mjs",
     "rebuild": "node-gyp rebuild",
     "clean": "node-gyp clean",

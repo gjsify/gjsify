@@ -7,20 +7,11 @@
 // Reference: gjs/modules/esm/gi.js for the require shape; node-gtk (romgrk, MIT) for the
 // binding lineage. Hand-authored JS — the package ships no build step.
 import * as native from './index.js';
-// From node:timers, not the globals, for two reasons: setImmediate is a Node/Bun global
-// but Deno only exposes it here; and a GJS source running through the bridge routinely
-// replaces the global timers with GLib-backed ones (`@gjsify/node-globals/register`
-// swaps them for `GLib.timeout_add`), which deadlocks the pump — the timer meant to
-// dispatch GLib sources would itself be a GLib source nobody dispatches.
-import { setImmediate, setInterval, clearInterval } from 'node:timers';
-// Same reasoning for `process`: `globalThis.process` may be the `@gjsify/process`
-// polyfill, whose EventEmitter never emits the runtime's 'beforeExit', so the
-// loop-liveness hooks below would silently never fire.
-import runtimeProcess from 'node:process';
+// Timers, `process` and the windowing env record come from the host seam (host.node.js
+// explains why they are the runtime's own, not the globals; host.nativescript.js is the
+// NativeScript Android variant).
+import { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites } from '#host';
 import { createGioDBus } from './overrides/gio-dbus.js';
-// The windowing loader's record of what it wrote into process.env. Read here and not there
-// because replaying it needs a GLib (mirrorWindowingEnvIntoCrt below).
-import { windowingEnvWrites } from './gtk-runtime.js';
 
 // The raw native GObject handle on a wrapped instance, so it can be unwrapped again
 // when passed back into the engine as a GI argument.
@@ -1082,6 +1073,11 @@ function syncPumpKeepAlive() {
     pumpHoldsRuntime = hold;
 }
 
+/** Hosts whose own loop already dispatches GLib, so the portable timer pump must not arm. */
+function hostPumpsItself() {
+    return native.isNodeRuntime || native.RUNTIME === 'gjs' || native.RUNTIME === 'nativescript';
+}
+
 /**
  * Start co-pumping the default GLib main context from a runtime timer (Bun/Deno).
  * No-op on Node, where the libuv↔GLib bridge already co-pumps. Reference-counted;
@@ -1097,7 +1093,7 @@ export function startMainContextPump() {
     // Node: the libuv↔GLib bridge already co-pumps. GJS: the host loop IS
     // GLib's default main context — a JS-timer pump would only iterate the
     // context recursively from within its own dispatch.
-    if (native.isNodeRuntime || native.RUNTIME === 'gjs') return () => {};
+    if (hostPumpsItself()) return () => {};
     pumpRefCount++;
     if (pumpTimer === null) {
         if (pendingView === null) pendingView = native.makePumpPendingCount();
@@ -1122,7 +1118,7 @@ export function startMainContextPump() {
 
 /** Decrement the main-context pump reference count; clears the timer at zero. */
 export function stopMainContextPump() {
-    if (native.isNodeRuntime || native.RUNTIME === 'gjs' || pumpRefCount === 0) return;
+    if (hostPumpsItself() || pumpRefCount === 0) return;
     pumpRefCount--;
     if (pumpRefCount === 0 && pumpTimer !== null) {
         clearInterval(pumpTimer);
@@ -2794,6 +2790,10 @@ export function requireGi(namespace, version) {
             // ready and re-arm — if GLib still has scheduled work, the armed (ref'd)
             // uv timer revives the loop; otherwise the process exits normally.
             runtimeProcess.on('beforeExit', () => native.pumpKick());
+        } else if (native.RUNTIME === 'nativescript') {
+            // The native ALooper pump owns GLib dispatch on Android: no beforeExit kick
+            // (the Looper never runs empty) and no portable timer pump.
+            native.startMainLoop();
         } else if (native.RUNTIME !== 'gjs') {
             // Bun/Deno: no libuv to hook, so the portable timer pump IS the auto-pump.
             // Armed HERE, not left to the caller, so that `bun bundle.mjs` /
