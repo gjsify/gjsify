@@ -34,11 +34,16 @@ Since GTK 4.18, GDK has an Android backend (`refs/gtk/gdk/android/`), and pixiew
 
 **Read from the sources:**
 
-- **GDK owns the Activity.** `gdk_android_initialize (env, classloader, activity)`
-  (`gdkandroidinit.c:181`) binds to `org.gtk.android.ToplevelActivity`, the APK's launchable activity.
-  pixiewood requires a `main()` that calls `g_application_run` and a Meson target with
-  `android_exe_type: 'application'` (`refs/gtk-android-builder/README.md`). The GTK main loop is the
-  process's main loop.
+- **GDK owns an Activity — but not the main thread.** `gdk_android_initialize (env, classloader,
+  context)` (`gdkandroidinit.c:181`) is the only entry point `libgtk-4.so` exports for this, and
+  GDK's toplevel then claims an `org.gtk.android.ToplevelActivity`. pixiewood builds that shape: a
+  `main()` calling `g_application_run` and a Meson target with `android_exe_type: 'application'`
+  (`refs/gtk-android-builder/README.md`). The GTK main loop is *not* the process's main loop,
+  though: `RuntimeApplication.startRuntime()` runs it on a dedicated `g_thread_new ("GTK Thread",
+  …)` while the Android UI thread blocks in `GlibContext.blockForMain()` — a `g_idle_add_full()` on
+  the default GMainContext plus a `CountDownLatch` (`gdkandroidruntime.c:226-342`,
+  `gdk/android/glue/java/org/gtk/android/`). Every call the Java glue makes crosses that boundary
+  explicitly, which is why some other thread can own the default context instead (stage 5).
 - **GTK's accessibility backend has no Android branch.** `gtk/a11y/gtkaccesskitroot.c` picks
   `accesskit_windows_*`, `accesskit_macos_*` or `accesskit_unix_adapter`; AccessKit itself is off by
   default (`meson.options`: `accesskit` `disabled`). Whether `accesskit-c` offers an Android adapter
@@ -76,13 +81,20 @@ GLib from the runtime's looper instead (looper fds and a timerfd feed a thread-s
 drains the context). It does not use the JS-timer pump of Bun and Deno. A Java bridge from
 NativeScript to `libgirepository` is rejected in § Alternatives.
 
-### 3. Track C: GTK renders, in a pixiewood process
+### 3. Track C: GTK renders, in GDK's own Activity
 
-Because GDK owns the Activity and the main loop, a GTK window cannot live inside a NativeScript
-Activity. A track-C app is a pixiewood APK: `ToplevelActivity` launches, and the JS engine runs
-inside that process as the program that calls `Gtk.Application.run`. C reuses B's binding and
-GI stack and adds the GTK, Adwaita and GDK typelibs, but not B's host: NativeScript owns its own
-Activity, so the engine inside a pixiewood process is still open (stage 5).
+A GTK window lives in `org.gtk.android.ToplevelActivity`; a `NativeScriptActivity` cannot become
+one. What that does not require is a pixiewood process. NativeScript owns the `Application`, not
+every Activity in the APK, and GTK's loop does not need the process's main thread — so a stock
+NativeScript APK can declare `ToplevelActivity` beside `NativeScriptActivity`, start it from JS,
+and run GTK on a Worker thread whose default GMainContext node-gi's ALooper pump iterates.
+**Stage 5 measured that** (track C′,
+[report](../reports/2026-10-10-gtk-on-a-nativescript-worker.md)): the window renders, input reaches
+the worker's JS, and the UI thread keeps running NativeScript.
+
+A track-C app is therefore a NativeScript APK plus GDK's Activity, and it reuses B's host as well
+as B's binding and GI stack, adding the GTK, Adwaita and GDK typelibs. A pixiewood process with an
+engine of its own stays a possible second shape, unplanned.
 
 The same app source runs on desktop GJS, on desktop Node through node-gi, and in a track-C APK.
 That is the reason for this track: the app is GNOME code, unchanged, rather than a port.
@@ -123,8 +135,11 @@ not before (`gjsify.platforms` promises no target without an artifact behind it)
 
 - **Real GTK replaces the NativeScript port.** No accessibility tree, a keyboard that opens without
   a text field. Measured, not assumed.
-- **A GTK surface inside a NativeScript Activity.** GDK binds to its own `ToplevelActivity` and runs
-  its own main loop; two owners of one Activity is a lifecycle bug by construction.
+- **A GTK surface inside a NativeScript Activity.** GDK's toplevel claims a whole
+  `ToplevelActivity` and drives its view, its lifecycle callbacks and its input; hanging a
+  `GdkSurface` in a `NativeScriptActivity`'s view tree would leave that Activity with two owners, a
+  lifecycle bug by construction. Stage 5 gives GTK an Activity of its own in the same APK instead,
+  which is a different thing.
 - **A Java (JNI) GI binding for the NativeScript runtime.** A second GI binding to maintain beside
   node-gi, with its own marshalling bugs. node-gi exists and is tested.
 - **A webview with the browser port.** That already exists (`@gjsify/adwaita-web`) and is not real
@@ -132,8 +147,11 @@ not before (`gjsify.platforms` promises no target without an artifact behind it)
 
 ## What this does not decide
 
-- The JS host inside a track-C pixiewood process, where NativeScript does not own the Activity
-  (stage 5).
+- The JS host for a track-C app that is not a NativeScript APK. Stage 5 answers the NativeScript
+  case; a pixiewood process needs an engine of its own, and which one is open.
+- Which thread owns the GLib pump, as a contract. `startMainLoop()` is per thread and silently
+  pumps nothing when another thread already holds the context; stage 5 relied on that. The stage
+  that productizes track C makes ownership explicit.
 - iOS. GDK has no iOS backend.
 - Whether gjsify's CLI grows a `gjsify build --app android` or calls pixiewood directly. That is
   decided when stage 5 has a working APK to wrap.
@@ -168,7 +186,18 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    `gjsify.platforms` (they need a loadable prebuild). Limits: a blocking `GLib.MainLoop.run()` on
    the UI thread is unsupported, and the keep-alive ref/unref of the thread-safe function are
    no-ops.
-5. A hello-Adwaita written in TypeScript, unchanged from its desktop form, as a pixiewood APK
-   (track C).
+5. A hello-Adwaita written in TypeScript, unchanged from its desktop form, rendering real GTK on
+   Android (track C). **Done for the NativeScript shape** (track C′):
+   [report](../reports/2026-10-10-gtk-on-a-nativescript-worker.md) — a stock NativeScript 9.1.1 APK
+   keeping `com.tns.NativeScriptApplication`, with `org.gtk.android.ToplevelActivity` declared
+   beside `NativeScriptActivity` and started from JS, and GTK's loop on a NativeScript Worker: a
+   GTK4 + Adwaita window renders, `adb shell input tap` reaches the worker's JS handler, the worker
+   reads `android.os.Build.MODEL` through NativeScript's metadata, and the UI thread logged 130
+   one-second ticks at 1-2 ms drift throughout. Three node-gi additions carry it, all Android-only
+   and opt-in: `androidInitGdk` (GDK's bring-up without GTK's `RuntimeApplication`, which a JS host
+   cannot call), GLib's log handlers onto logcat, and a `JNI_OnLoad` the host triggers through one
+   Java class in the app — NativeScript's `dlopen` of the addon runs none. Not done: an arm64
+   device run, GPU rendering (the emulator's EGL init fails), lifecycle handling, and explicit
+   per-thread pump ownership.
 
 Follow-up work goes into `status/open-todos/nativescript.md` once this ADR is accepted.
