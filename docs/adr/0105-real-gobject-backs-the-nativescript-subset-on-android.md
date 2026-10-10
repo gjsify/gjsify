@@ -161,6 +161,18 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
 0. Oracle only: build a `GObjectSubject` from node-gi and run `GOBJECT_VECTORS` on the `x86_64`
    emulator against it and against the pure-JS subset. Measurement: pass/fail per vector row on
    each subject, and vectors that differ from GJS.
+   **Partly done:** [report](../reports/2026-10-10-gobject-oracle-node-gi.md). The subject exists
+   and runs on Linux under Node in CI; of the 17 oracle rows node-gi failed 5, all five node-gi's
+   own defect (GJS holds all 17). Four are fixed with a test each: construct properties were set
+   after the template children, a custom property notified on an equal value, `emit` checked no
+   arity, and `registerClass` did not accept GJS's static-symbol meta form. The fifth,
+   `$gtype.name` being `undefined`, needs a GType representation change and is
+   [#2151](https://github.com/gjsify/gjsify/issues/2151); its row carries `it.failing`. Not done:
+   both emulator legs — neither node-gi nor the pure-JS subset ran on Android, because there is no
+   NativeScript test harness yet (no `ns` app target, no NativeScript-aware `run()`), which is
+   stage-1 infrastructure with its own measurement. Deviation: the subject lives in
+   `packages/web/adwaita-core` beside the GJS leg, not in the new tier-3 package § 7 names; the
+   report argues it and leaves the call to stage 1.
 1. Extract the engine interface in adwaita-core; the default engine passes the unchanged vectors.
    Measurement: no bundle-size change in the browser build.
 2. The node-gi engine with GObject twins for registered classes. Measurement: the vectors pass on
