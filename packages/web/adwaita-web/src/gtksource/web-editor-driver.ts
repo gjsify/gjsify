@@ -16,7 +16,7 @@ import type {
     GutterColumn,
     StyledRun,
 } from '@gjsify/gtksource-core';
-import { digitCount, LineStore } from '@gjsify/gtksource-core';
+import { digitCount, LineStore, WINDOW_LEFT, WINDOW_RIGHT } from '@gjsify/gtksource-core';
 
 const GUTTER_PADDING_PX = 8;
 
@@ -31,9 +31,12 @@ export interface EditorParts {
     readonly area: HTMLTextAreaElement;
     readonly backdrop: HTMLElement;
     readonly gutter: HTMLElement;
+    /** The RIGHT gutter's element, right of the text. */
+    readonly rightGutter: HTMLElement;
 }
 
 export class WebEditorDriver implements EditorDriver {
+    readonly gutterSides = [WINDOW_LEFT, WINDOW_RIGHT];
     private host: EditorHost | null = null;
     private text = '';
     private caret = 0;
@@ -65,12 +68,14 @@ export class WebEditorDriver implements EditorDriver {
         on(area, 'scroll', () => {
             backdrop.scrollTop = area.scrollTop;
             backdrop.scrollLeft = area.scrollLeft;
-            (gutter.firstElementChild as HTMLElement | null)?.style.setProperty(
-                'transform',
-                `translateY(${-area.scrollTop}px)`,
-            );
+            for (const side of [gutter, this.parts.rightGutter]) {
+                (side.firstElementChild as HTMLElement | null)?.style.setProperty(
+                    'transform',
+                    `translateY(${-area.scrollTop}px)`,
+                );
+            }
             // Only the lines in view are asked; a scroll brings new ones.
-            if (this.hasColumns) this.scheduleRender('gutter');
+            if (this.hasColumns || this.hasRightColumns) this.scheduleRender('gutter');
         });
         on(area, 'select', () => this.onSelection());
         on(area, 'keyup', () => this.onSelection());
@@ -253,6 +258,7 @@ export class WebEditorDriver implements EditorDriver {
     }
 
     private hasColumns = false;
+    private hasRightColumns = false;
 
     private render(): void {
         const { backdrop } = this.parts;
@@ -344,7 +350,7 @@ export class WebEditorDriver implements EditorDriver {
 
     /** The gutter: the renderers left of the line numbers, the numbers, the renderers right of them. */
     private renderGutter(): void {
-        const { gutter, root, area } = this.parts;
+        const { gutter, rightGutter, root, area } = this.parts;
         const host = this.host;
         const count = this.text.split('\n').length;
         const [first, last] = this.visibleLines(count);
@@ -361,5 +367,15 @@ export class WebEditorDriver implements EditorDriver {
         wrapper.append(...elements);
         wrapper.style.transform = `translateY(${-area.scrollTop}px)`;
         gutter.replaceChildren(wrapper);
+
+        // The RIGHT gutter holds renderers only: the line numbers are a LEFT-side feature.
+        const right = host?.queryGutter(first, last, WINDOW_RIGHT) ?? [];
+        this.hasRightColumns = right.length > 0;
+        root.classList.toggle('has-right-columns', this.hasRightColumns);
+        const rightWrapper = document.createElement('div');
+        rightWrapper.className = 'gsv-columns';
+        rightWrapper.append(...right.map((column) => this.columnElement(column, first)));
+        rightWrapper.style.transform = `translateY(${-area.scrollTop}px)`;
+        rightGutter.replaceChildren(rightWrapper);
     }
 }

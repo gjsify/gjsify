@@ -5,7 +5,7 @@ import { GUTTER_PAINT_VECTORS } from './gutter-paint-vectors.js';
 
 import type { EditorDriver, EditorHost, EditorLayout } from './editor-driver.js';
 import { EditorSession } from './editor-session.js';
-import { GutterRendererText, GutterSet, WINDOW_LEFT } from './gutter-renderer.js';
+import { GutterRendererText, GutterSet, WINDOW_LEFT, WINDOW_RIGHT } from './gutter-renderer.js';
 import type { GutterLines } from './gutter-renderer.js';
 import { LanguageManager } from './language-manager.js';
 import { STOP_EMISSION } from '@gjsify/adwaita-core';
@@ -135,7 +135,7 @@ export default async () => {
             const gutters = new GutterSet(owner);
             session.bindGutters(gutters);
             session.buffer.text = 'a\nb\nc\nd';
-            return { driver, session, left: gutters.get(WINDOW_LEFT)!, owner };
+            return { driver, session, left: gutters.get(WINDOW_LEFT)!, right: gutters.get(WINDOW_RIGHT)!, owner };
         };
 
         await it('asks vfunc_query_data once per line, in order, with the range and the cursor line', () => {
@@ -181,6 +181,21 @@ export default async () => {
                 [-1, -1, 0, 4],
                 [5, 30, 2, 0],
             ]);
+        });
+
+        await it('keeps the two sides apart and refuses a side the driver does not paint', () => {
+            const { driver, session, left, right } = withGutter();
+            expect(() => right.insert(new GutterRendererText(), 0)).toThrow(/RIGHT gutter/);
+            (driver as { gutterSides?: readonly number[] }).gutterSides = [WINDOW_LEFT, WINDOW_RIGHT];
+            session.bindGutters(new GutterSet({}));
+            const gutters = new GutterSet({});
+            session.bindGutters(gutters);
+            gutters.get(WINDOW_LEFT)!.insert(new GutterRendererText({ text: 'l' }), 0);
+            gutters.get(WINDOW_RIGHT)!.insert(new GutterRendererText({ text: 'r', width_request: 9 }), 0);
+            expect(session.queryGutter(0, 0)[0].cells[0].text).toBe('l');
+            expect(session.queryGutter(0, 0, WINDOW_RIGHT)[0].cells[0].text).toBe('r');
+            expect(session.gutterColumns(WINDOW_RIGHT)[0].widthRequest).toBe(9);
+            expect(left.window_type).toBe(WINDOW_LEFT);
         });
 
         await it('tells the driver when a column is added, resized, redrawn or removed', () => {

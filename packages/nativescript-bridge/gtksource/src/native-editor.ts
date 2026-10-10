@@ -15,6 +15,8 @@ export interface NativeEditorDriver extends EditorDriver {
 }
 
 class UnsupportedEditorDriver implements NativeEditorDriver {
+    // Paints nothing, so both gutters stay a model here; the Android driver paints LEFT only (ADR 0103).
+    readonly gutterSides = [3, 4];
     bind(_host: EditorHost): void {}
     createNativeView(): never {
         throw new Error('Platform not supported: GtkSource.View is implemented for Android only');

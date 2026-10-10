@@ -9,7 +9,7 @@ import type { MarkupRun } from './gutter-renderer.js';
 import type { EditorPalette } from './style-scheme.js';
 import type { StyledRun } from './token-styler.js';
 
-/** The size a left-gutter renderer asks for, in device-independent pixels. */
+/** The size a gutter renderer asks for, in device-independent pixels. */
 export interface GutterMetrics {
     /** The insert position: below 0 the column sits left of the line numbers, otherwise right of them. */
     readonly position: number;
@@ -42,13 +42,14 @@ export interface EditorHost {
     onNativeExtendSelection(granularity: number, location: number): readonly [number, number] | null;
     /** The user asked to copy the selection; false when a handler of `copy-clipboard` stopped it, so the platform must not. */
     onNativeCopy(): boolean;
-    /** The left gutter's renderers, in paint order and without cells. */
-    gutterColumns(): readonly GutterMetrics[];
+    /** The renderers of the gutter on `side` (`Gtk.TextWindowType` LEFT or RIGHT), left to right, without cells. */
+    gutterColumns(side?: number): readonly GutterMetrics[];
     /**
-     * Asks every left-gutter renderer to fill its cell for each line of `first..last` (inclusive) with
-     * `vfunc_query_data`, the lines the driver is about to paint. Call it once per paint pass.
+     * Asks every renderer of the gutter on `side` (LEFT unless given) to fill its cell for each line of
+     * `first..last` (inclusive) with `vfunc_query_data`, the lines the driver is about to paint. Call it
+     * once per paint pass and side.
      */
-    queryGutter(first: number, last: number): readonly GutterColumn[];
+    queryGutter(first: number, last: number, side?: number): readonly GutterColumn[];
 }
 
 export interface EditorLayout {
@@ -76,6 +77,11 @@ export interface HighlightSink {
 }
 
 export interface EditorDriver extends HighlightSink {
+    /**
+     * The `Gtk.TextWindowType` sides this driver paints; LEFT when absent. A renderer inserted into a gutter
+     * on any other side is refused by name (ADR 0103), never drawn wrongly.
+     */
+    readonly gutterSides?: readonly number[];
     bind(host: EditorHost): void;
     /** Replaces the whole text and forgets every span: the buffer was swapped. */
     setText(text: string): void;
@@ -85,7 +91,7 @@ export interface EditorDriver extends HighlightSink {
     setLineCount(count: number): void;
     setLayout(layout: EditorLayout): void;
     /**
-     * A left-gutter renderer was added, moved, resized or asked to repaint. Idempotent and cheap: a
+     * A gutter renderer was added, moved, resized or asked to repaint. Idempotent and cheap: a
      * burst of calls costs one repaint per task, as `queue_draw` does in GTK.
      */
     invalidateGutter(): void;

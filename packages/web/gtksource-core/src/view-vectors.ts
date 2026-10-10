@@ -294,10 +294,10 @@ export const GTKSOURCE_VIEW_SURFACE_VECTORS: readonly GtkSourceViewSurfaceVector
         instance: true,
         observe: ({ Gtk, GtkSource }) => {
             const view = new GtkSource.View();
-            const { TEXT, WIDGET, TOP } = Gtk.TextWindowType;
-            return [view.get_gutter(TEXT), view.get_gutter(WIDGET), view.get_gutter(TOP)];
+            const { TEXT, WIDGET, TOP, BOTTOM } = Gtk.TextWindowType;
+            return [view.get_gutter(TEXT), view.get_gutter(WIDGET), view.get_gutter(TOP), view.get_gutter(BOTTOM)];
         },
-        shows: [null, null, null],
+        shows: [null, null, null, null],
     },
     {
         rule: 'a text renderer starts empty with the widget defaults',

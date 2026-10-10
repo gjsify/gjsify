@@ -13,7 +13,7 @@ import type { Buffer } from './buffer.js';
 
 /** `Gtk.TextWindowType`: the two sides that carry a gutter. */
 export const WINDOW_LEFT = 3;
-const WINDOW_RIGHT = 4;
+export const WINDOW_RIGHT = 4;
 
 // [snake_case, camelCase, default]: the GtkWidget properties GutterRenderer inherits and apps set.
 const WIDGET_PROPERTIES = [
@@ -218,6 +218,9 @@ export class GutterLines {
 /** Heard by the editor session: a column was added, moved, resized or asked to repaint. */
 export type GutterListener = (gutter: Gutter) => void;
 
+/** Asked before a renderer joins a gutter; throws when no driver paints that side. */
+export type GutterGuard = (gutter: Gutter) => void;
+
 export class Gutter {
     private readonly placed: { renderer: GutterRenderer; position: number }[] = [];
 
@@ -225,6 +228,7 @@ export class Gutter {
         private readonly owner: object,
         readonly window_type: number,
         private readonly listener: GutterListener = () => {},
+        private readonly guard: GutterGuard = () => {},
     ) {}
 
     get_view(): object {
@@ -237,6 +241,7 @@ export class Gutter {
     /** Claims `renderer` at `position` (lower is nearer the left); `false` when another gutter holds it. */
     insert(renderer: GutterRenderer, position: number): boolean {
         if (renderer.get_view() !== null) return false;
+        this.guard(this);
         renderer.attach(this);
         this.placed.push({ renderer, position });
         this.sort();
@@ -285,11 +290,14 @@ export class GutterSet {
 
     private listener: GutterListener = () => {};
 
+    private guard: GutterGuard = () => {};
+
     constructor(readonly view: object) {}
 
     /** @internal The editor session hears of every change to a gutter of this view. */
-    watch(listener: GutterListener): void {
+    watch(listener: GutterListener, guard: GutterGuard = () => {}): void {
         this.listener = listener;
+        this.guard = guard;
     }
 
     /** `gtk_source_view_get_gutter`: `null` for a side that has no gutter. */
@@ -297,7 +305,12 @@ export class GutterSet {
         if (windowType !== WINDOW_LEFT && windowType !== WINDOW_RIGHT) return null;
         let gutter = this.gutters.get(windowType);
         if (gutter === undefined) {
-            gutter = new Gutter(this.view, windowType, (changed) => this.listener(changed));
+            gutter = new Gutter(
+                this.view,
+                windowType,
+                (changed) => this.listener(changed),
+                (guarded) => this.guard(guarded),
+            );
             this.gutters.set(windowType, gutter);
         }
         return gutter;

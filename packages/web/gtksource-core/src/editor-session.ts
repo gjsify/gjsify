@@ -18,7 +18,7 @@ import type {
     GutterColumn,
     GutterMetrics,
 } from './editor-driver.js';
-import { GutterLines, GutterRendererText, WINDOW_LEFT, parseMarkup } from './gutter-renderer.js';
+import { GutterLines, GutterRendererText, WINDOW_LEFT, WINDOW_RIGHT, parseMarkup } from './gutter-renderer.js';
 import type { GutterRenderer, GutterSet } from './gutter-renderer.js';
 import { HighlightController } from './highlight-controller.js';
 import { StyleSchemeManager } from './style-scheme.js';
@@ -128,19 +128,26 @@ export class EditorSession extends SignalEmitter implements EditorHost {
 
     // --- the gutter: renderers beside the text --------------------------------------------------
 
-    /** Paints the left gutter of `gutters`: its changes reach the driver, and `queryGutter` answers from it. */
+    /** Paints the gutters of `gutters`: their changes reach the driver, and `queryGutter` answers from them. */
     bindGutters(gutters: GutterSet): void {
         this.gutters = gutters;
-        gutters.watch((gutter) => {
-            if (gutter.window_type === WINDOW_LEFT) this.driver.invalidateGutter();
-        });
+        const sides = this.driver.gutterSides ?? [WINDOW_LEFT];
+        gutters.watch(
+            () => this.driver.invalidateGutter(),
+            (gutter) => {
+                if (sides.includes(gutter.window_type)) return;
+                throw new Error(
+                    `GtkSource.Gutter: this platform does not paint the ${gutter.window_type === WINDOW_RIGHT ? 'RIGHT' : 'LEFT'} gutter (ADR 0103)`,
+                );
+            },
+        );
     }
 
-    private leftRenderers(): {
+    private renderersOf(side: number): {
         renderers: readonly GutterRenderer[];
         positions: readonly number[];
     } {
-        const gutter = this.gutters?.get(WINDOW_LEFT);
+        const gutter = this.gutters?.get(side);
         return {
             renderers: gutter?.renderers ?? [],
             positions: gutter?.positions ?? [],
@@ -156,13 +163,13 @@ export class EditorSession extends SignalEmitter implements EditorHost {
         };
     }
 
-    gutterColumns(): readonly GutterMetrics[] {
-        const { renderers, positions } = this.leftRenderers();
+    gutterColumns(side: number = WINDOW_LEFT): readonly GutterMetrics[] {
+        const { renderers, positions } = this.renderersOf(side);
         return renderers.map((renderer, at) => this.metricsOf(renderer, positions[at]));
     }
 
-    queryGutter(first: number, last: number): readonly GutterColumn[] {
-        const { renderers, positions } = this.leftRenderers();
+    queryGutter(first: number, last: number, side: number = WINDOW_LEFT): readonly GutterColumn[] {
+        const { renderers, positions } = this.renderersOf(side);
         if (renderers.length === 0 || this.gutters === null) return [];
         const lines = new GutterLines(this.gutters.view, this.current, first, last);
         return renderers.map((renderer, at) => {
