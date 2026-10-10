@@ -18,6 +18,7 @@
       "types": "./index.d.ts",
       "default": "./index.js"
     },
+    "./package.json": "./package.json",
     "./gi": {
       "types": "./gi.d.ts",
       "default": "./gi.js"

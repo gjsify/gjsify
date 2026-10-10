@@ -8,13 +8,14 @@
 //
 // Configuration (globals, set before the first import — this package must not hard-import
 // @nativescript/core):
-//   __NODE_GI_APP_DIR       app-private writable dir. When set, HOME / XDG_{DATA,CONFIG,CACHE}_HOME
-//                           and XDG_RUNTIME_DIR are pointed below it, via android.system.Os.setenv
+//   __NODE_GI_APP_DIR       app-private writable dir (default: the files dir, derived from
+//                           com.tns.NativeScriptApplication). HOME / XDG_{DATA,CONFIG,CACHE}_HOME and
+//                           XDG_RUNTIME_DIR are pointed below it, via android.system.Os.setenv
 //                           (a libc setenv) before the addon — and so GLib — is loaded: GLib caches
 //                           these dirs on first use, a later GLib.setenv would be too late.
 //   __NODE_GI_TYPELIB_PATH  directory holding the *.typelib files (the app bundles them, e.g.
 //                           `knownFolders.currentApp().path + '/girepository-1.0'`); prepended to
-//                           the GIRepository search path. Default: `<__NODE_GI_APP_DIR>/girepository-1.0`.
+//                           the GIRepository search path. Default: `<app dir>/app/girepository-1.0`.
 
 /** @type {'nativescript'} */
 export const RUNTIME = 'nativescript';
@@ -55,14 +56,30 @@ export function windowingEnvWrites() {
     return [];
 }
 
+// NativeScript's runtime class hands out the Application without @nativescript/core
+// (android.app.ActivityThread is a hidden API and absent from the metadata).
+function deriveAppDir() {
+    try {
+        return globalThis.com?.tns?.NativeScriptApplication?.getInstance()?.getFilesDir()?.getPath() ?? null;
+    } catch {
+        return null;
+    }
+}
+
 function setNativeEnv(name, value) {
     env[name] = value;
     globalThis.android?.system?.Os?.setenv(name, value, true);
 }
 
+function appDirectory() {
+    const set = globalThis.__NODE_GI_APP_DIR;
+    if (typeof set === 'string' && set !== '') return set;
+    return deriveAppDir();
+}
+
 function configureEnvironment() {
-    const appDir = globalThis.__NODE_GI_APP_DIR;
-    if (typeof appDir !== 'string' || appDir === '') return;
+    const appDir = appDirectory();
+    if (appDir === null) return;
     setNativeEnv('HOME', appDir);
     setNativeEnv('XDG_DATA_HOME', `${appDir}/.local/share`);
     setNativeEnv('XDG_CONFIG_HOME', `${appDir}/.config`);
@@ -85,9 +102,9 @@ export function loadNativeHost() {
         );
     }
     const native = load('system_lib://libnode_gi.so');
-    const appDir = globalThis.__NODE_GI_APP_DIR;
-    const typelibs =
-        globalThis.__NODE_GI_TYPELIB_PATH ?? (typeof appDir === 'string' ? `${appDir}/girepository-1.0` : null);
+    const appDir = appDirectory();
+    // `app/` is where NativeScript extracts the bundled assets under the files dir.
+    const typelibs = globalThis.__NODE_GI_TYPELIB_PATH ?? (appDir === null ? null : `${appDir}/app/girepository-1.0`);
     if (typeof typelibs === 'string' && typelibs !== '') native.prependSearchPath(typelibs);
     return native;
 }

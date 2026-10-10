@@ -51,7 +51,8 @@ The NativeScript host loads the addon with `__non_webpack_require__('system_lib:
 takes timers from the globals, stands in a minimal `process` (`platform: 'android'`, no-op `on`,
 `exit` = `killProcess`), and skips prebuild/GTK-bundle discovery. `RUNTIME` is `'nativescript'`:
 `requireGi` calls `startMainLoop()` (the native ALooper pump) and never arms the portable timer pump.
-Configure with globals set before the first import: `__NODE_GI_APP_DIR` (HOME/XDG_* below it, via
+Configure with globals set before the first import: `__NODE_GI_APP_DIR` (default: the files dir from
+`com.tns.NativeScriptApplication.getInstance()`, no `@nativescript/core` needed; HOME/XDG_* below it, via
 `android.system.Os.setenv`, before GLib caches them) and `__NODE_GI_TYPELIB_PATH` (default
-`<app dir>/girepository-1.0`). `Buffer` is only used for non-UTF-8 `ByteArray.fromString`; a plain
+`<app dir>/app/girepository-1.0`). `Buffer` is only used for non-UTF-8 `ByteArray.fromString`; a plain
 `Uint8Array` fallback covers hosts without it. Held by `test/host-nativescript.test.mjs`.

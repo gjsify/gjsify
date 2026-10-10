@@ -42,6 +42,7 @@ function declaredEntryPoints(pkg) {
     };
     visit(pkg.exports);
     visit(pkg.main);
+    out.delete('package.json'); // npm always ships it, `files` never lists it
     return [...out];
 }
 
