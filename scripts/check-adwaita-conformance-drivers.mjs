@@ -122,12 +122,12 @@
 // Usage: node scripts/check-adwaita-conformance-drivers.mjs [--root <dir>]
 
 import { readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
-import { readSuiteRegistration, walk as walkFiles } from './suite-registration.mjs';
+import { isTestEntry, readSuiteRegistration, walk as walkFiles } from './suite-registration.mjs';
 import {
     TS_SOURCE_EXTENSIONS,
     sourceExtensionRe,
@@ -922,6 +922,12 @@ for (const file of walk(CORE_SUITE_DIR)) {
     // Recursive, unlike the readdir this arm started with: the arm exists because the table arm
     // had an invisible set, and a non-recursive scan reproduces that one directory down.
     if (file.startsWith(CONFORMANCE_DIR) || file.endsWith('.spec.ts')) continue;
+    // A test ENTRY is not a core module. `test.android.mts` exports `runAndroidGObjectSuites`
+    // so the APK's own code can inject `requireGi` — an export, so HAS_BEHAVIOUR matched and
+    // this arm demanded vectors for the harness that RUNS the vectors. The shared
+    // `isTestEntry` and not an extension check: its three `test.*.mts` siblings export
+    // nothing and were invisible here by accident, not by rule.
+    if (isTestEntry(basename(file))) continue;
     const module = rel(CORE_SUITE_DIR, file).slice(0, -3);
     if (module === 'index') continue;
     const source = readFileSync(file, 'utf8');
