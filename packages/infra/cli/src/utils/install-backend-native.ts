@@ -70,6 +70,7 @@ import {
     fetchPackument,
     fetchPackumentConditional,
     fetchTarball,
+    PackageNotFoundError,
     parseNpmrc,
     registryFor,
     type NpmrcConfig,
@@ -481,6 +482,7 @@ async function installPackagesNativeLocked(
             opts.workspaceNames,
             opts.specOrigins,
             opts.optionalSpecs,
+            opts.linkedNames,
         );
         nodes = resolveResult.nodes;
         skippedEdges = resolveResult.skippedEdges;
@@ -817,6 +819,16 @@ async function resolveDeps(
      * from {@link computeOptionalFlags}, not from this walk.
      */
     optionalSpecs?: Set<string>,
+    /**
+     * Names provided by a `gjsify link` override — see
+     * {@link NativeInstallOptions.linkedNames}. Read ONLY in the failure path: a
+     * linked name the registry does not have at all is provided by the local
+     * checkout, so the edge is tolerated instead of fatal. Deliberately NOT used to
+     * skip the edge up front the way `workspaceNames` is, which is what keeps the
+     * designed case — a link over a PUBLISHED package — resolving into the same tree
+     * and hence the same lockfile.
+     */
+    linkedNames?: Set<string>,
 ): Promise<ResolveResult> {
     progress?.beginPhase('resolve', specs.length);
     const applyOverride = (name: string, range: string): string => {
@@ -1084,6 +1096,35 @@ async function resolveDeps(
                     }
                 }
             } catch (e) {
+                // A dev-linked name the registry does not have AT ALL is provided by
+                // the local checkout, and an UNPUBLISHED package is a normal thing to
+                // link — a consumer developing against a private sibling repo has
+                // nothing on the registry to resolve. Before this branch the resolve
+                // died with "Package not found in registry: <name>" and no install
+                // could run at all, however correct the symlinks were.
+                //
+                // Tolerated HERE and not skipped before the fetch, which is the whole
+                // difference from `workspaceNames`: in the designed case — a link over
+                // a published package — the resolve still succeeds, the node still
+                // enters the tree, and the consumer's committed lockfile stays
+                // byte-identical (utils/dev-link.ts).
+                //
+                // A 404 ONLY. A timeout or a dropped connection is not an answer about
+                // what the registry holds, and treating it as one would write a
+                // lockfile missing the whole linked subtree over a network blip.
+                //
+                // NOT recorded in `skippedEdges`: that set is re-judged by
+                // `assertRequiredEdgesResolved`, which asks whether a MISSING package
+                // is required — and this one is not missing. What is genuinely absent
+                // is the linked package's own dependency subtree, since the walk never
+                // saw a manifest for it; the consumer declares what it needs itself
+                // (for `@girs/*` that is the peer-plus-dev-pin shape in lotse's widget
+                // package), and a real gap surfaces as an unresolved import, not as a
+                // silently incomplete tree.
+                if (linkedNames?.has(edge.name) && e instanceof PackageNotFoundError) {
+                    log('resolve: dev-linked %s not published — provided by the local checkout', edge.name);
+                    continue;
+                }
                 // Optional deps that fail to resolve are skipped (yarn/npm behaviour);
                 // required deps re-throw.
                 if (!edge.required) {
