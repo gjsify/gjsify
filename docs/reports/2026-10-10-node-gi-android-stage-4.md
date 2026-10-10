@@ -40,3 +40,6 @@ Follows the [stage 3 report](2026-10-10-node-gi-on-nativescript-android.md).
   that feeds the pump.
 - The thread-safe function's `ref`/`unref` are no-ops, so JS-armed GLib work does not hold the
   process open (an Android app's lifetime is the Activity's).
+- A same-thread source armed inside a C library signals no fd and triggers no drain request, so it
+  first dispatches on the next drain the looper is woken for. JS-armed sources request a drain
+  themselves. GDK's repeating timeout is the known case; it belongs to track C.

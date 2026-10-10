@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // libuv <-> GLib main loop bridge: startMainLoop (uv-in-GLib GSource) +
 // iterateMainContext + the uv-driven GLib auto-pump (GLib-in-libuv, the
-// non-blocking case).
+// non-blocking case). Where there is no libuv (Android/NativeScript,
+// NODE_GI_HAS_LIBUV off) the auto-pump rides the thread's ALooper instead; both
+// halves implement the same Pump* interface and only one is compiled in.
 
 #include "common.h"
 
@@ -1069,6 +1071,11 @@ bool NodeGiPumpAsyncBegin(napi_env env) {
   // changed and the looper would sleep straight past it. Ask for a drain, which
   // re-arms the timerfd to the new deadline. (The uv half needs no equivalent:
   // its prepare handle re-queries on the very next loop turn.)
+  //
+  // This covers same-thread sources armed FROM JS only. One armed inside a C
+  // library on this thread — GDK's repeating timeout is the known case, and only
+  // track C of ADR 0104 reaches it — still waits for the next drain, because
+  // nothing re-queries the context per looper turn the way uv's prepare does.
   if (g_pump_inited) PumpPostTsfn();
 #endif
   return true;

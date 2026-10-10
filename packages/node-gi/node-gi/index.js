@@ -8,14 +8,8 @@
 import { RUNTIME, loadNativeHost } from '#host';
 
 /**
- * Which JS runtime we are on. The addon loads on all four: Node/Bun/Deno implement
- * Node-API natively, GJS hosts it through the `@gjsify/napi` shim. The libuv main-loop
- * bridge (startMainLoop) is Node-only — Deno exports no libuv symbols and Bun panics on
- * uv_backend_fd — so Bun/Deno use gi.js's portable GLib-iteration pump, and GJS needs
- * neither (its host loop already IS GLib's default main context). Detection order is
- * load-bearing: GJS first via `imports` + `print` (no other runtime defines both), then
- * Bun/Deno, which both expose a `process` shim.
- * NativeScript's Android runtime reports `'nativescript'` (host.nativescript.js).
+ * Which JS runtime we are on. Detection — and why each runtime gets the main-loop
+ * treatment it gets — lives at the detection site, behind `#host`.
  * @type {'bun' | 'deno' | 'gjs' | 'node' | 'nativescript'}
  */
 export { RUNTIME };

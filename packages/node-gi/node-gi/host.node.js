@@ -55,8 +55,6 @@ export const RUNTIME =
             ? 'deno'
             : 'node';
 
-/** Whether we are on Node.js (the only runtime with the libuv main-loop bridge). */
-
 // GJS host mode: `GjsifyNapi.init()` installs the loader as
 // `globalThis.__gjsifyNapiLoadAddon` and re-installs it if another consumer (the
 // @gjsify/napi L1) already captured + deleted it. Needs the GjsifyNapi typelib
@@ -109,6 +107,7 @@ function loadNative() {
     );
 }
 
+/** Whether we are on Node.js (the only runtime with the libuv main-loop bridge). */
 const isNodeRuntime = RUNTIME === 'node';
 
 /**

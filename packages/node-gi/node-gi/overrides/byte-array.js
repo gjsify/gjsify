@@ -112,7 +112,7 @@ export function createByteArray(requireGi) {
         } else {
             const bufferEncoding = ENCODE_LABELS.get(String(encoding).toLowerCase());
             if (!bufferEncoding) throw new Error(`Unsupported encoding for fromString(): ${encoding}`);
-            // NativeScript has no Buffer; its Uint8Array path below encodes the same bytes.
+            // NativeScript has no Buffer; encodeWithoutBuffer yields the same bytes.
             if (typeof Buffer === 'function') {
                 const buf = Buffer.from(string, bufferEncoding);
                 encoded = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
