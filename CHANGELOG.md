@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.59.1](https://github.com/gjsify/gjsify/compare/v0.59.0...v0.59.1) (2026-10-10)
+
+### Features
+
+* **mcp:** gate write tools per granted capability ([#2145](https://github.com/gjsify/gjsify/issues/2145)) ([1a356c9](https://github.com/gjsify/gjsify/commit/1a356c9655ff82dec89a7b2d0a27df6a540e7124))
+* **node-gi:** `GI` on Android via NativeScript (ADR 0104) ([#2133](https://github.com/gjsify/gjsify/issues/2133)) ([d14c54c](https://github.com/gjsify/gjsify/commit/d14c54c90e667a22c286e823a939d9f8ab35cb9a))
+* **node-gi:** `GTK` on a NativeScript worker ([#2144](https://github.com/gjsify/gjsify/issues/2144)) ([de2d956](https://github.com/gjsify/gjsify/commit/de2d956aa8e032a3ffde89e5d6deecb75744076f))
+
+### Bug Fixes
+
+* **buffer:** add Node's lowercase Uint accessors ([#2142](https://github.com/gjsify/gjsify/issues/2142)) ([e6f4db0](https://github.com/gjsify/gjsify/commit/e6f4db04b518480c8dbea453180392a88b29ff9d))
+* **cli:** read declared pin for skew warning ([#2143](https://github.com/gjsify/gjsify/issues/2143)) ([699d051](https://github.com/gjsify/gjsify/commit/699d051cfe687c3020df16985df25a83e1a45a0b))
+* **cli:** stop leaking a shim dir per run ([#2141](https://github.com/gjsify/gjsify/issues/2141)) ([d2898b2](https://github.com/gjsify/gjsify/commit/d2898b21a29f07a9ed13e81008edd1f78f9452da))
+* **node-gi:** send stdout and stderr to logcat ([#2149](https://github.com/gjsify/gjsify/issues/2149)) ([8d60662](https://github.com/gjsify/gjsify/commit/8d606628cc4907c06e0a66311d4c7b7777d6d4f1))
+
+### Documentation
+
+* **adr:** real GObject behind the NativeScript subset ([#2140](https://github.com/gjsify/gjsify/issues/2140)) ([9f948a9](https://github.com/gjsify/gjsify/commit/9f948a9e95cd79de46bbc83b9597a072ab264e72)), closes [#2133](https://github.com/gjsify/gjsify/issues/2133)
+* **reports:** track C′ on a real arm64 device ([#2148](https://github.com/gjsify/gjsify/issues/2148)) ([91c2579](https://github.com/gjsify/gjsify/commit/91c25791a18183ec7c841db971f134990bf2cd1c)), closes [#2147](https://github.com/gjsify/gjsify/issues/2147)
+
+### Continuous Integration
+
+* **release:** serialize publishing runs ([#2146](https://github.com/gjsify/gjsify/issues/2146)) ([51045aa](https://github.com/gjsify/gjsify/commit/51045aa0c05ec1a3d5829c7d8ef1948449f5e4aa))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([daf972b](https://github.com/gjsify/gjsify/commit/daf972bf9307fddfcbf46818f9860f64c9fcfda0))
+
 ## [0.59.0](https://github.com/gjsify/gjsify/compare/v0.58.0...v0.59.0) (2026-10-10)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-app",
-    "version": "0.59.0",
+    "version": "0.59.1",
     "description": "Native Adwaita application shell for GJS/GTK apps — Adw.Application lifecycle (runAsync + devtools + CSS), a data-driven NavigationSplitView nav shell, an async-view mounter, promise dialog/toast/file helpers, and a display-less reader of the desktop accent and colour scheme (`./appearance`)",
     "type": "module",
     "module": "lib/esm/index.js",
