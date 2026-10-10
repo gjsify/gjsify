@@ -74,6 +74,11 @@ typelibs (GLib, GLibUnix, GObject, GModule, Gio, GioUnix, cairo) are 696 KB.
 Nothing in the spike patched node-gi's C++. Each item below is a change for node-gi itself, made
 there with a test (stage 4), not a consumer workaround.
 
+**Update:** items 1–4 are done (commits "pump GLib via ALooper on Android", "load under NativeScript
+Android", "make NativeScript hook discoverable", "add Android build script"); item 1 became a
+compile-time guard, not `dlsym`. Items 5 and 6 are open. See the
+[stage 4 report](2026-10-10-node-gi-android-stage-4.md).
+
 1. **The libuv symbols must not be link-time imports.** node-gi's bridge in `src/loop.cc`
    references 20 `uv_*` functions. On Linux they bind lazily, so Deno — which exports no libuv —
    only fails if `startMainLoop` is called. Bionic binds every symbol at `dlopen`, so on Android

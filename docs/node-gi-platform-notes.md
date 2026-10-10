@@ -56,6 +56,8 @@ Configure with globals set before the first import: `__NODE_GI_APP_DIR` (default
 `android.system.Os.setenv`, before GLib caches them) and `__NODE_GI_TYPELIB_PATH` (default
 `<app dir>/app/girepository-1.0`). `Buffer` is only used for non-UTF-8 `ByteArray.fromString`; a plain
 `Uint8Array` fallback covers hosts without it. Held by `test/host-nativescript.test.mjs`.
+Limits: a blocking `GLib.MainLoop.run()` on the UI thread is unsupported, and the pump's TSFN
+ref/unref are no-ops. Measurements: [stage 4 report](reports/2026-10-10-node-gi-android-stage-4.md).
 
 ### Building for Android
 

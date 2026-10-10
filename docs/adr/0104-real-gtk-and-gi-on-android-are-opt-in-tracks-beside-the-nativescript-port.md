@@ -71,8 +71,9 @@ No second GI binding is written.
 
 The Node-API host is NativeScript's own runtime (9.1.0 and later). Track B therefore runs inside
 the NativeScript port's apps, beside the native widgets; it needs no pixiewood process and no
-fork of the runtime. On the event loop, node-gi takes its libuv-free path there, as on Bun and
-Deno. A Java bridge from NativeScript to `libgirepository` is rejected in § Alternatives.
+fork of the runtime. On the event loop, node-gi compiles its libuv bridge out on Android and pumps
+GLib from the runtime's looper instead (looper fds and a timerfd feed a thread-safe function that
+drains the context). It does not use the JS-timer pump of Bun and Deno. A Java bridge from NativeScript to `libgirepository` is rejected in § Alternatives.
 
 ### 3. Track C: GTK renders, in a pixiewood process
 
@@ -154,9 +155,18 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
 3. Find a Node-API host that loads node-gi on Android. **Done:**
    [report](../reports/2026-10-10-node-gi-on-nativescript-android.md) — NativeScript 9.1.1's own;
    node-gi's unchanged sources load in a stock app on both ABIs, and GLib, Gio and cairo calls,
-   including an async Gio call, pass. Its libuv imports have to become run-time lookups first:
-   Bionic binds every symbol at `dlopen`.
+   including an async Gio call, pass. Its libuv imports could not stay link-time imports: Bionic
+   binds every symbol at `dlopen`.
 4. Build node-gi for `android-arm64` and `android-x64`, run its test suite on the emulator (track B).
+   **Partly done:** [report](../reports/2026-10-10-node-gi-android-stage-4.md). The libuv bridge is
+   a compile-time guard (`NODE_GI_HAS_LIBUV`), not run-time lookups; on Android a native ALooper
+   pump replaces it. Both ABIs build and link uv-free (`scripts/build-android.mjs`). On the
+   `x86_64` emulator the probe cases pass with `@gjsify/node-gi` as a package dependency bundled by
+   `@nativescript/webpack`. Not done: the full node-gi test suite on a device, an arm64 device
+   run, the GI `.so` files and typelibs as a NativeScript plugin, and `android-*` entries in
+   `gjsify.platforms` (they need a loadable prebuild). Limits: a blocking `GLib.MainLoop.run()` on
+   the UI thread is unsupported, and the keep-alive ref/unref of the thread-safe function are
+   no-ops.
 5. A hello-Adwaita written in TypeScript, unchanged from its desktop form, as a pixiewood APK
    (track C).
 
