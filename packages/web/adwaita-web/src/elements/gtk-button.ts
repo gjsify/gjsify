@@ -50,6 +50,40 @@ export class GtkButton extends HTMLElement {
         ];
     }
 
+    /**
+     * `Gtk.Button:icon-name` and `Gtk.Widget:tooltip-text`, the GObject spellings: a class that
+     * holds a button as a template child writes `button.icon_name = …`, which must reach the DOM.
+     */
+    get icon_name(): string | null {
+        return this.getAttribute('icon-name');
+    }
+    set icon_name(value: string | null) {
+        this.reflect('icon-name', value);
+    }
+    get iconName(): string | null {
+        return this.icon_name;
+    }
+    set iconName(value: string | null) {
+        this.icon_name = value;
+    }
+    get tooltip_text(): string | null {
+        return this.getAttribute('tooltip-text');
+    }
+    set tooltip_text(value: string | null) {
+        this.reflect('tooltip-text', value);
+    }
+    get tooltipText(): string | null {
+        return this.tooltip_text;
+    }
+    set tooltipText(value: string | null) {
+        this.tooltip_text = value;
+    }
+
+    private reflect(attribute: string, value: string | null): void {
+        if (value === null || value === undefined) this.removeAttribute(attribute);
+        else this.setAttribute(attribute, value);
+    }
+
     /** The inner native button (for focus/imperative access). */
     get button(): HTMLButtonElement {
         return this._button;
