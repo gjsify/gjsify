@@ -12,6 +12,8 @@
 - Amended by [ADR 0098](0098-a-minimal-application-runs-on-the-browser-and-nativescript.md) § 1: `vfunc_*`
   is no longer refused as a block; each one is unlocked on its own (§ 2 row `vfunc_*`, § 3 item 1).
 - Amended by Amendment 1 below: `signal_stop_emission_by_name` enters the subset.
+- Related: [ADR 0105](0105-real-gobject-backs-the-nativescript-subset-on-android.md) (an opt-in real
+  GObject backend on NativeScript Android).
 - Completes: the "NOT done" items of ADR 0093 Progress rows 3 and 4 (the scope defaulting to the
   template instance, a `template` bind source, the bind flags). Extends ADR 0070 § 1 by one exit.
 
