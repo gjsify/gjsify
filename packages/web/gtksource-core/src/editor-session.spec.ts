@@ -25,6 +25,7 @@ class FakeDriver implements EditorDriver {
     painted = new Map<number, readonly StyledRun[]>();
     paintCalls: number[] = [];
     invalidations = 0;
+    copySelection?: () => void;
     invalidateGutter(): void {
         this.invalidations++;
     }
@@ -229,6 +230,19 @@ export default async () => {
             session.connect('copy-clipboard', ((self: unknown) =>
                 (self as EditorSession)[STOP_EMISSION]('copy-clipboard')) as never);
             expect(session.onNativeCopy()).toBe(false);
+        });
+
+        await it('copies through the driver in the class handler, before a connect_after handler and not after a stop', () => {
+            const { driver, session } = make();
+            const seen: string[] = [];
+            driver.copySelection = () => void seen.push('platform');
+            session.connect_after('copy-clipboard', (() => void seen.push('after')) as never);
+            session.onNativeCopy();
+            expect(seen.join()).toBe('platform,after');
+            session.connect('copy-clipboard', ((self: unknown) =>
+                (self as EditorSession)[STOP_EMISSION]('copy-clipboard')) as never);
+            session.onNativeCopy();
+            expect(seen.join()).toBe('platform,after');
         });
 
         await it('selects back what a mark-set handler moved away from the native selection', () => {

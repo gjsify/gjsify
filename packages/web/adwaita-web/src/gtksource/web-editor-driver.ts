@@ -18,6 +18,8 @@ import type {
 } from '@gjsify/gtksource-core';
 import { digitCount, LineStore } from '@gjsify/gtksource-core';
 
+import { interceptCopy } from '../clipboard-host.js';
+
 const GUTTER_PADDING_PX = 8;
 
 /** A signed ARGB int (the core's colour unit) as a CSS colour. */
@@ -79,7 +81,13 @@ export class WebEditorDriver implements EditorDriver {
         on(area, 'mousedown', (event) => this.onMouseDown(event as MouseEvent));
         on(area, 'copy', (event) => {
             // A handler of `copy-clipboard` stopped the emission: the default, the copy, does not happen.
-            if (!this.host?.onNativeCopy()) event.preventDefault();
+            // One that put content on the Gdk clipboard meanwhile wrote it into this event
+            // (`clipboard-host.ts`); the browser must not replace it with the selection.
+            let ran = false;
+            const wrote = interceptCopy((event as ClipboardEvent).clipboardData, () => {
+                ran = this.host?.onNativeCopy() ?? false;
+            });
+            if (!ran || wrote) event.preventDefault();
         });
         // Firefox and Chromium fire `selectionchange` on different targets for a textarea.
         on(area.ownerDocument, 'selectionchange', () => {

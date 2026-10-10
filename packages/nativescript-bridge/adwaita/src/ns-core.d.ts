@@ -620,6 +620,7 @@ declare module '@nativescript/core' {
     export interface AndroidActivityLike {
         getWindow?(): AndroidWindowLike | null;
         finish?(): void;
+        getSystemService?(name: unknown): unknown;
     }
 
     /** As much of `android.view.Window` as the inset source needs. */

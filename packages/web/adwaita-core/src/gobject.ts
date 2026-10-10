@@ -48,6 +48,45 @@ export const TYPE_INT = makeType('gint');
 export const TYPE_UINT = makeType('guint');
 export const TYPE_DOUBLE = makeType('gdouble');
 
+/** What a `Value` holds, readable by the other modules of this subset (`gdk.ts`) and by no port. */
+const VALUE_STATE = new WeakMap<object, { type: GType; string: string | null }>();
+
+/**
+ * `GObject.Value`, string-only (ADR 0096 Amendment 2). `init` takes `TYPE_STRING`; any other type
+ * is refused by name. Real GObject logs a CRITICAL for `get_*`/`set_*` on an uninitialised value and
+ * returns the type's zero; this subset returns `null` / does nothing, without logging.
+ */
+export class Value {
+    init(type: GType): this {
+        if (type !== TYPE_STRING) {
+            throw new UnsupportedGObjectError(
+                `GObject.Value of ${describeType(type)}`,
+                `GObject.Value holds only TYPE_STRING in this subset (ADR 0096 Amendment 2); '${describeType(type)}' is not supported`,
+            );
+        }
+        VALUE_STATE.set(this, { type, string: null });
+        return this;
+    }
+
+    set_string(value: string | null): void {
+        const state = VALUE_STATE.get(this);
+        if (value !== null && typeof value !== 'string') {
+            throw new TypeError(`Expected type string for argument 'v_string' but got type ${typeof value}`);
+        }
+        if (state) state.string = value;
+    }
+
+    get_string(): string | null {
+        return VALUE_STATE.get(this)?.string ?? null;
+    }
+}
+
+/** The type and string of an initialised `Value`, or `null`: how `gdk.ts` copies one. */
+export function readValue(value: unknown): { type: GType; string: string | null } | null {
+    const state = typeof value === 'object' && value !== null ? VALUE_STATE.get(value) : undefined;
+    return state ? { ...state } : null;
+}
+
 const SIGNAL_PARAM_TYPES: readonly GType[] = [TYPE_STRING, TYPE_BOOLEAN, TYPE_INT, TYPE_UINT, TYPE_DOUBLE];
 
 export const ParamFlags = {
@@ -942,6 +981,7 @@ export interface GObjectNamespace {
     readonly registerClass: RegisterClass;
     readonly ParamSpec: typeof ParamSpec;
     readonly ParamFlags: typeof ParamFlags;
+    readonly Value: typeof Value;
     readonly TYPE_STRING: GType;
     readonly TYPE_BOOLEAN: GType;
     readonly TYPE_INT: GType;
@@ -971,6 +1011,7 @@ export function createGObject(door: GObjectDoor): GObjectNamespace {
         registerClass: ((...args: unknown[]) => registerWith(door, args)) as RegisterClass,
         ParamSpec,
         ParamFlags,
+        Value,
         TYPE_STRING,
         TYPE_BOOLEAN,
         TYPE_INT,

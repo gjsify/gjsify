@@ -753,3 +753,10 @@ export type {
     SimpleActionGroupVector,
     GioSimpleActionLike,
 } from './simple-action-group.js';
+export { GDK_CLIPBOARD_ROWS, GDK_CLIPBOARD_VECTORS, driveGdkClipboardVectors } from './gdk-clipboard.js';
+export type {
+    GdkClipboardNamespaces,
+    GdkClipboardRow,
+    GdkClipboardSubject,
+    GdkClipboardVector,
+} from './gdk-clipboard.js';

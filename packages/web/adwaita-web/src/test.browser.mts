@@ -141,6 +141,7 @@ import { AdwFontsTest } from './adw-fonts.spec.js';
 import { AdwConstructVectorsTest } from './construct-vectors.spec.js';
 import { GObjectDoorTest } from './gobject-door.spec.js';
 import { ApplicationTest } from './application.spec.js';
+import { GdkTest } from './gdk.spec.js';
 import { GLibTest } from './glib.spec.js';
 import { StyleManagerTest } from './style-manager.spec.js';
 import { GioActionsTest } from './gio.spec.js';
@@ -160,6 +161,7 @@ run({
     AdwConstructVectorsTest,
     GObjectDoorTest,
     ApplicationTest,
+    GdkTest,
     GLibTest,
     StyleManagerTest,
     GioActionsTest,

@@ -21,6 +21,7 @@ export const type_ensure = gobject.type_ensure;
 export const signal_stop_emission_by_name = gobject.signal_stop_emission_by_name;
 export const ParamSpec = gobject.ParamSpec;
 export const ParamFlags = gobject.ParamFlags;
+export const Value = gobject.Value;
 export const TYPE_STRING = gobject.TYPE_STRING;
 export const TYPE_BOOLEAN = gobject.TYPE_BOOLEAN;
 export const TYPE_INT = gobject.TYPE_INT;
