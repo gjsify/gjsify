@@ -128,14 +128,18 @@ test('the JNI bootstrap registers its class, then initializes it — once', () =
 test('the GDK bring-up without a bootstrap class is refused, not left to fail in JNI', () => {
     const r = spawnSync(
         process.execPath,
-        ['--conditions=nativescript', '--input-type=module', '-e',
-         `import * as h from '#host';
+        [
+            '--conditions=nativescript',
+            '--input-type=module',
+            '-e',
+            `import * as h from '#host';
           globalThis.__non_webpack_require__ = () => ({
               prependSearchPath() {}, androidHasJavaVm: () => false, androidInitGdk: () => true,
           });
           globalThis.__NODE_GI_APP_DIR = '/data/app';
           globalThis.__NODE_GI_ANDROID_GDK = true;
-          h.loadNativeHost();`],
+          h.loadNativeHost();`,
+        ],
         { cwd: root, encoding: 'utf8' },
     );
     assert.equal(r.status, 1);

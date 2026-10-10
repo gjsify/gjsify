@@ -180,11 +180,7 @@ export function loadNativeHost() {
     // the runtime's own Application holder, the same one deriveAppDir() reads.
     if (globalThis.__NODE_GI_ANDROID_GDK && typeof native.androidInitGdk === 'function') {
         ensureJavaVm(native);
-        native.androidInitGdk(
-            'com/tns/NativeScriptApplication',
-            'getInstance',
-            '()Landroid/app/Application;',
-        );
+        native.androidInitGdk('com/tns/NativeScriptApplication', 'getInstance', '()Landroid/app/Application;');
     }
     return native;
 }
