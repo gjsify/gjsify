@@ -14,14 +14,100 @@
 // wants to be told why GI failed, and there is no other sink on this platform.
 // g_log_set_default_handler / g_log_set_writer_func are process-global and
 // last-call-wins, so a later logSetWriterFunc (private.cc) still overrides this.
+//
+// GLib is not the only writer: a foreign C library that does fprintf(stderr, ...) and
+// abort() (libepoxy's "eglQueryDisplayAttribEXT() not found" was the case) never reaches
+// a GLib handler. So fd 1 and fd 2 themselves are pointed at pipes that a reader thread
+// forwards to logcat line by line.
 
 #include "common.h"
 
 #ifdef __ANDROID__
 
 #include <android/log.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <cstdio>
+#include <mutex>
+#include <string>
+#include <thread>
 
 namespace nodegi {
+
+// Whether `fd` is the /dev/null an app process starts with. Anything else (a terminal
+// under `adb shell`, a file or pipe a host or the launcher set up) is a sink somebody
+// chose, and taking it over would hide output from them.
+static bool IsDevNull(int fd) {
+  struct stat fd_st, null_st;
+  return fstat(fd, &fd_st) == 0 && stat("/dev/null", &null_st) == 0 && S_ISCHR(fd_st.st_mode) &&
+         fd_st.st_rdev == null_st.st_rdev;
+}
+
+// Longest line forwarded whole; logcat truncates an entry near 4 KiB anyway, and a
+// writer that never sends '\n' must not grow the buffer without bound.
+static const size_t kMaxLine = 4000;
+
+struct StdioPipe {
+  int read_fd;
+  int priority;
+  const char* tag;
+};
+
+static void ForwardLoop(StdioPipe pipe_info) {
+  std::string line;
+  char buf[1024];
+  for (;;) {
+    ssize_t n = read(pipe_info.read_fd, buf, sizeof buf);
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) break;
+    for (ssize_t i = 0; i < n; i++) {
+      if (buf[i] == '\n') {
+        __android_log_write(pipe_info.priority, pipe_info.tag, line.c_str());
+        line.clear();
+      } else {
+        line.push_back(buf[i]);
+        if (line.size() >= kMaxLine) {
+          __android_log_write(pipe_info.priority, pipe_info.tag, line.c_str());
+          line.clear();
+        }
+      }
+    }
+  }
+  if (!line.empty()) __android_log_write(pipe_info.priority, pipe_info.tag, line.c_str());
+}
+
+static void RedirectFd(int fd, int priority, const char* tag) {
+  if (!IsDevNull(fd)) return;
+  int fds[2];
+  if (pipe2(fds, O_CLOEXEC) != 0) return;
+  if (dup2(fds[1], fd) < 0) {
+    close(fds[0]);
+    close(fds[1]);
+    return;
+  }
+  close(fds[1]);
+  // Two pipes rather than one: priority is per entry, and stderr must stay WARN so a
+  // logcat filter on `*:W` still shows it.
+  std::thread(ForwardLoop, StdioPipe{fds[0], priority, tag}).detach();
+}
+
+// Once per process: Init runs once per env, but fd 1/2 are process-wide.
+//
+// Limit: abort() ends the process, and the reader thread with it. stderr is made
+// unbuffered so the message at least reaches the pipe before the abort, but whether the
+// reader has forwarded it by then is a race the tombstone still backs up.
+static void InstallStdioRedirect() {
+  static std::once_flag once;
+  std::call_once(once, [] {
+    RedirectFd(STDOUT_FILENO, ANDROID_LOG_INFO, "stdout");
+    RedirectFd(STDERR_FILENO, ANDROID_LOG_WARN, "stderr");
+    setvbuf(stdout, nullptr, _IOLBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+  });
+}
 
 static void AndroidPrintHandler(const char* message) {
   __android_log_print(ANDROID_LOG_INFO, "print", "%s", message);
@@ -76,6 +162,7 @@ void InitAndroidLog(Napi::Env env, Napi::Object exports) {
   g_set_printerr_handler(AndroidPrinterrHandler);
   g_log_set_default_handler(AndroidLogHandler, nullptr);
   g_log_set_writer_func(AndroidLogWriter, nullptr, nullptr);
+  InstallStdioRedirect();
   exports.Set("androidLogBridge", Napi::Function::New(env, AndroidLogBridge));
 }
 
