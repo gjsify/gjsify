@@ -105,7 +105,7 @@ subset is what the gap report lists, and nothing it does not list.**
 | `this.notify(name)`, `connect`/`disconnect`/`emit` on a registered instance, `connect('notify::x')` | implemented, for the class's own properties and signals and for those of the port widget it extends |
 | `GObject.type_ensure(klass.$gtype)` | implemented: `$gtype` is an opaque token, and `type_ensure` only proves the class module was evaluated, which is all Learn6502 uses it for |
 | `vfunc_*` | refused at registration, naming the method, unless ADR 0098 § 1 has unlocked it (amended). Unlocking is per vfunc, in the port's own PR, with a vector |
-| `GObject.Value` | out of this subset. It appears only beside clipboard and GtkSource code, which have their own decisions (ADR 0094; the clipboard as `navigator.clipboard`) |
+| `GObject.Value` | implemented as a string-only subset (Amendment 2); any other type throws `UnsupportedGObjectError` |
 | `signal_stop_emission_by_name` | implemented (Amendment 1) |
 
 The binding engine implements `SYNC_CREATE`, `BIDIRECTIONAL` and `INVERT_BOOLEAN`, because the
@@ -255,3 +255,23 @@ Learn6502's `SourceView` calls it from the handlers of `extend-selection` and `m
   GtkSource objects (below), where an emission runs plain handlers, then the class handler, then the
   `connect_after` ones; a stop skips everything still to come.
 - Vectors: two rows of `instance API` in `GOBJECT_VECTORS`, held by real `gi://GObject` first.
+
+## Amendment 2: `GObject.Value` and the `Gdk` clipboard
+
+Learn6502's `SourceView` rewrites the text of a `copy-clipboard` in hex mode with
+`new GObject.Value()`, `init(TYPE_STRING)`, `set_string`, `Gdk.ContentProvider.new_for_value` and
+`display.get_clipboard().set_content(provider)`. That is the consumer § 2 asks for. Status unchanged.
+
+- `GObject.Value` carries strings only: `init(TYPE_STRING)` returns the value, `set_string`/`get_string`
+  read and write it. Any other type throws `UnsupportedGObjectError`; an uninitialised value reads `null`.
+- `gi://Gdk` (4.0) carries `Display.get_default()`/`get_clipboard()`, `ContentProvider.new_for_value`,
+  `ContentFormats` (`to_string`, `contain_gtype`, `contain_mime_type`) and `Clipboard.set_content`/`set`/
+  `get_formats`. Registered widgets gain `get_display()` and `get_clipboard()`. Everything else, including
+  `get_value`, `read_text_async` and the primary clipboard, is refused by name.
+- The content is kept locally and also published to the host. A failed publish logs a warning and keeps the
+  local content.
+- Web: inside a DOM `copy` event the text is written synchronously through `clipboardData.setData` and the
+  default is prevented; elsewhere it goes through the async `navigator.clipboard.writeText`.
+- NativeScript: Android uses `ClipboardManager.setPrimaryClip`, iOS `UIPasteboard`. Both are unverified on a
+  device. Android now emits `copy-clipboard` from `onTextContextMenuItem`, also unverified (ADR 0094).
+- Vectors: `GDK_CLIPBOARD_VECTORS`, held by real `gi://Gdk` first, run in the core and both doors.

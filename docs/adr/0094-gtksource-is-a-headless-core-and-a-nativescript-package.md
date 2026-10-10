@@ -168,7 +168,7 @@ runs only if nothing stopped it, and a `copy` event is cancelled when a handler 
 After a `mark-set` handler moved the marks away from the platform's selection, the widget follows the
 buffer. `Gtk.TextExtendSelection` (`WORD` 0, `LINE` 1) is added to both doors.
 
-Gap: the Android driver does not emit `extend-selection` or `copy-clipboard`, as it has no device-verified
-hook for either; stopping `mark-set` works there, being buffer-level. Vectors (`GTKSOURCE_STOP_VECTORS`)
+Gap: the Android driver does not emit `extend-selection`, as it has no device-verified hook for it
+(`copy-clipboard` is emitted via `onTextContextMenuItem`, unverified on a device, ADR 0096 Amendment 2); stopping `mark-set` works there, being buffer-level. Vectors (`GTKSOURCE_STOP_VECTORS`)
 run against real `gi://GtkSource` (view rows where a display exists), the core and the web door; the
 NativeScript door runs the buffer rows. Status unchanged.
