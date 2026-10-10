@@ -36,13 +36,13 @@
     ],
     "dependencies": {},
     "peerDependencies": {
-        "@modelcontextprotocol/sdk": "^1.29.0"
+        "@modelcontextprotocol/sdk": "^1.32.1"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/stream": "workspace:^",
         "@gjsify/unit": "workspace:^",
-        "@modelcontextprotocol/sdk": "^1.29.0",
+        "@modelcontextprotocol/sdk": "^1.32.1",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3",
         "zod": "^4.4.3"
