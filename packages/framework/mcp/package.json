@@ -44,7 +44,8 @@
         "@gjsify/unit": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@types/node": "^25.9.2",
-        "typescript": "^6.0.3"
+        "typescript": "^6.0.3",
+        "zod": "^4.4.3"
     },
     "gjsify": {
         "runtimes": {
