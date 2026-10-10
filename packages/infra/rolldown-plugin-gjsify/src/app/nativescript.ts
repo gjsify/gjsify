@@ -79,11 +79,28 @@ export interface NativescriptFactoryInput {
 // the workspace install, it was not resolvable either — every UI-widget bridge failed to build.
 const NATIVESCRIPT_CORE = /^@nativescript\/core(?:\/|$)/;
 
+export const NATIVESCRIPT_CORE_EXTERNAL_PLUGIN = 'gjsify-nativescript-core-external';
+
+/**
+ * Externalize `@nativescript/core` and its subpaths as a resolveId hook rather than as a RegExp
+ * in `external`. The native rolldown engine — which is what the GJS-hosted `gjsify` CLI uses, so
+ * every `gjsify build --app nativescript` outside a Node host — accepts only exact strings there
+ * and FAILS THE BUILD on a RegExp: "`external` entries must be exact string names under the
+ * native rolldown engine". A subpath set cannot be enumerated, and dropping the subpath arm would
+ * bundle a second core instance, so the hook is the only shape that holds on both engines.
+ */
+const nativescriptCoreExternalPlugin = (): RolldownPluginOption => ({
+    name: NATIVESCRIPT_CORE_EXTERNAL_PLUGIN,
+    resolveId: (id: string) => (NATIVESCRIPT_CORE.test(id) ? { id, external: true } : null),
+});
+
 export const setupForNativescript = async (input: NativescriptFactoryInput): Promise<NativescriptBuildConfig> => {
     const userExternal = input.userExternal ?? [];
-    const external: (string | RegExp)[] = [...userExternal, NATIVESCRIPT_CORE];
+    // Only the caller's EXACT names go to the engine; the core subpath set is a hook (see
+    // `nativescriptCoreExternalPlugin`). `isExternal` still has to know about both, or the
+    // unresolved-workspace guard would report a `@nativescript/core/x` the build externalizes.
     const isExternal = (id: string): boolean =>
-        external.some((entry) => (typeof entry === 'string' ? entry === id : entry.test(id)));
+        userExternal.some((entry) => entry === id) || NATIVESCRIPT_CORE.test(id);
 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
@@ -134,7 +151,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // host environment is provided by the NS runtime at load time, not
         // by V8 itself.
         platform: 'browser',
-        external,
+        external: userExternal,
         resolve: {
             mainFields: ['nativescript', 'module', 'main'],
             conditionNames: ['import', 'nativescript'],
@@ -177,6 +194,10 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
     const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
 
     const plugins: RolldownPluginOption[] = [
+        // FIRST: `@nativescript/core` must leave as an import before any other resolver can
+        // claim it — `aliasPlugin` and the platform-suffix chain both match on specifier
+        // shape and would otherwise pull a second core instance into the bundle.
+        nativescriptCoreExternalPlugin(),
         // ADR 0034 stage 9 — the `gi://` arm, ahead of the empty redirect so it
         // claims the specifier first, exactly as `gjsGiNodePlugin` does on the node
         // target. `emptyGirs` follows it: with the arm on, `@girs/<ns>-<ver>` must

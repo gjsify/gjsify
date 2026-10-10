@@ -1,6 +1,7 @@
 import { run } from '@gjsify/unit';
 
 import addonResolveSuite from './shims/addon-resolve.spec.js';
+import nativescriptExternalSuite from './app/nativescript-external.spec.js';
 import rnRouteManifestSuite from './plugins/rn-route-manifest.spec.js';
 import cssAsStringSuite from './plugins/css-as-string.spec.js';
 import giOptionalSuite from './plugins/gi-optional.spec.js';
@@ -16,6 +17,7 @@ run({
     entryWrapperSuite,
     giOptionalSuite,
     implicitGlobalAssignSuite,
+    nativescriptExternalSuite,
     rnRouteManifestSuite,
     zipPathSuite,
 });
