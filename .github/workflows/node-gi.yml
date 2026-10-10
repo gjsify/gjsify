@@ -2069,7 +2069,7 @@ jobs:
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
-        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs test/gtk-template-construct-order.test.mjs
 
       # AUDIO, the counterpart to the windowing proof above. Everything else about
       # the GStreamer payload is checkable by counting files — and counting files is
@@ -3324,7 +3324,7 @@ jobs:
         env:
           NODE_GI_NATIVE: prebuild
           GSK_RENDERER: cairo
-        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs
+        run: node --test test/gtk-template.test.mjs test/gtk-template-callbacks.test.mjs test/gtk-template-custom-child-ctor.test.mjs test/gtk-template-signals.test.mjs test/gtk-template-construct-order.test.mjs
 
       # AUDIO, the counterpart to the windowing proof above. Everything else about
       # the GStreamer payload is checkable by counting files — and counting files is

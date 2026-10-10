@@ -1695,10 +1695,17 @@ function makeClass(namespace, typeName) {
                     handle = native.constructType(reg.typeHandle, props ? unwrapProps(props) : {});
                 }
                 const instance = wrapInstance(handle, nt.prototype);
-                assignTemplateChildren(instance, handle, reg);
                 // Route construct-time property values through the class's JS setters now
                 // that USER_PROTO is attached — before the user ctor body runs (GJS order).
+                //
+                // BEFORE the template children, because that is the order GJS produces: a
+                // construct property's setter runs inside g_object_new, where the template
+                // is not yet built, so it sees `this._child === undefined`; the children
+                // appear only once construction returns. Binding them first made a setter
+                // observe a child GJS cannot have handed it yet, so a class that guards on
+                // `if (this._child)` took the wrong branch on node-gi and only on node-gi.
                 flushPropertiesToJsSetters(instance, handle, reg);
+                assignTemplateChildren(instance, handle, reg);
                 return instance;
             }
             // `nt` is a subclass of this introspected GObject class but was NEVER passed to
