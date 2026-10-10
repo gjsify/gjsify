@@ -64,6 +64,10 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   // Without it the process stays in the C locale, where GNU gettext refuses to
   // translate; the block in private.cc records what that cost.
   NodeGiInitProcessLocale();
+  // Also before any GLib call: on Android, point GLib's messages at logcat. Without
+  // it every g_warning explaining a failed GI/GTK call is written to a stderr that
+  // goes to /dev/null (android-log.cc).
+  InitAndroidLog(env, exports);
   // The owner env + its JS/main thread are captured lazily at the first wrap
   // (EnsureDrainAsync) — NOT here, since Init runs once PER env and a per-env
   // overwrite would mis-identify the main thread under worker_threads. The cleanup
