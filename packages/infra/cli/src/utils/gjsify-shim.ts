@@ -40,13 +40,24 @@
 // the tree wants. Widening this to every Node invocation would silently move in-repo
 // nested builds off the GJS bundle.
 
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+    mkdtempSync,
+    mkdirSync,
+    writeFileSync,
+    chmodSync,
+    existsSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter, relative, isAbsolute, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { buildLauncherShims, buildNativeEnvPreamble, buildShLauncher, shQuoteArg } from './bin-shim.js';
 import { detectNativePackages } from './detect-native-packages.js';
+import { gjsifyCacheRoot } from './install-cache-fs.js';
 import { resolveBinOnPath } from './install-global.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 
@@ -137,9 +148,6 @@ export function ensureGjsifyShimOnPath(): void {
     const workspaceRoot = findWorkspaceRoot(process.cwd()) ?? process.cwd();
     if (!needsSelfShim({ gjs, selfEntry, workspaceRoot })) return;
 
-    const dir = mkdtempSync(join(tmpdir(), 'gjsify-shim-'));
-    const shim = join(dir, 'gjsify');
-
     // The interpreter is NAMED, not pathed, matching `buildShLauncher` and
     // `buildLauncherShims`, so a missing one fails the same way on every OS. Not
     // `process.execPath`: the batch member cannot quote an interpreter argument
@@ -154,14 +162,11 @@ export function ensureGjsifyShimOnPath(): void {
     // beifahrer consumer on macOS: `gjsify workspace <pkg> build` died in
     // `get columns` with "Unsupported type void".
     const envPreamble = gjs ? selfShimPreamble(selfEntry) : '';
-    writeFileSync(
-        shim,
-        gjs
+    const files: Record<string, string> = {
+        gjsify: gjs
             ? buildShLauncher(selfEntry, { isGjsBundle: true, envPreamble, gjs: interpreter })
             : `#!/bin/sh\nexec "${interpreter}" "${selfEntry}" "$@"\n`,
-        { mode: 0o755 },
-    );
-    chmodSync(shim, 0o755);
+    };
 
     // cmd.exe and pwsh cannot run the extension-less member: not on PATHEXT, and
     // Windows has no shebang handling. `buildLauncherShims` ports npm's
@@ -169,15 +174,70 @@ export function ensureGjsifyShimOnPath(): void {
     // `&&`/`||` chaining gets wrong.
     if (!gjs && process.platform === 'win32') {
         const { cmd, ps1 } = buildLauncherShims({ interpreter, interpreterArgs: [], target: selfEntry });
-        writeFileSync(`${shim}.cmd`, cmd);
-        writeFileSync(`${shim}.ps1`, ps1);
+        files['gjsify.cmd'] = cmd;
+        files['gjsify.ps1'] = ps1;
     }
+
+    const nodeShim = buildNodeShim(gjs, selfEntry, envPreamble);
+    if (nodeShim) files[`${NODE_SHIM_SUBDIR}/node`] = nodeShim;
+
+    const dir = materializeShimDir(files);
 
     _selfShimActive = true;
     process.env.GJSIFY_SHIM_DIR = dir;
     process.env.PATH = dir + delimiter + (process.env.PATH ?? '');
+}
 
-    writeNodeShim(dir, gjs, selfEntry, envPreamble);
+/**
+ * Write `files` (relative path → content) into a directory NAMED BY THEIR HASH and
+ * return it. Same content, same directory: a run finds what the last one wrote and
+ * writes nothing, so shim dirs no longer pile up one per invocation (5930 in a
+ * `/tmp`, none ever removed).
+ *
+ * A reused dir, rather than one removed on exit, is what lets a child outlive its
+ * parent: a detached grandchild keeps resolving `gjsify` through the inherited PATH
+ * after the CLI that made the shim is gone, and a dir that is deleted at exit
+ * breaks it. Content-addressed means a file in it never changes, so a running
+ * process can never see a different shim than the one it was started with; each
+ * member lands by tmp+`rename`, so a concurrent run sees it whole or not at all.
+ *
+ * Lives under `$XDG_CACHE_HOME/gjsify/shim` — a `/tmp` path is world-writable, and
+ * a PATH entry there lets another local user plant a `gjsify`. A cache dir that
+ * cannot be written (read-only HOME) falls back to a private `mkdtemp` dir.
+ */
+export function materializeShimDir(
+    files: Record<string, string>,
+    root: string = gjsifyCacheRoot('shim', 'v1'),
+): string {
+    const names = Object.keys(files).sort();
+    const hash = createHash('sha256');
+    for (const name of names) hash.update(`${name}\0${files[name]}\0`);
+    const key = hash.digest('hex').slice(0, 16);
+    try {
+        return writeShimDir(join(root, key), files, names);
+    } catch {
+        // Unwritable cache (read-only HOME, full disk): the shim is still needed
+        // for this run, so take the per-run dir this function exists to avoid.
+        return writeShimDir(mkdtempSync(join(tmpdir(), 'gjsify-shim-')), files, names);
+    }
+}
+
+function writeShimDir(dir: string, files: Record<string, string>, names: string[]): string {
+    for (const name of names) {
+        const path = join(dir, name);
+        if (existsSync(path) && readFileSync(path, 'utf8') === files[name]) continue;
+        mkdirSync(dirname(path), { recursive: true });
+        const tmp = `${path}.tmp.${process.pid}`;
+        try {
+            writeFileSync(tmp, files[name], { mode: 0o755 });
+            chmodSync(tmp, 0o755);
+            renameSync(tmp, path);
+        } catch (err) {
+            rmSync(tmp, { force: true });
+            throw err;
+        }
+    }
+    return dir;
 }
 
 /**
@@ -295,33 +355,26 @@ export function nodeShimDir(): string | null {
  * resolves NOWHERE, and it is reachable only from a package script's PATH (see
  * {@link nodeShimDir}).
  */
-function writeNodeShim(dir: string, gjs: boolean, selfEntry: string, envPreamble: string): void {
-    if (!gjs) return;
-    const sub = join(dir, NODE_SHIM_SUBDIR);
-    if (existsSync(join(sub, 'node'))) return; // inherited from a parent gjsify
-    if (resolveBinOnPath('node')) return; // a real Node is present — leave it alone
+function buildNodeShim(gjs: boolean, selfEntry: string, envPreamble: string): string | null {
+    if (!gjs) return null;
+    if (resolveBinOnPath('node')) return null; // a real Node is present — leave it alone
 
     const interpreter = process.env.GJS_CONSOLE || 'gjs';
-    mkdirSync(sub, { recursive: true });
-    const shim = join(sub, 'node');
     // A leading FLAG is refused rather than forwarded: `node --test x.mjs` wants
     // Node's own test runner and `node -e '…'` an eval, neither of which
     // `--node-script` can honour, and yargs would take `--test` FOR the script
     // path (`unknown-options-as-args` turns an unknown flag into a positional).
-    writeFileSync(
-        shim,
+    return (
         '#!/bin/sh\n' +
-            // Same SIP hop as the self-shim — see `buildSelfShimScript`.
-            dyldCarryPreamble(process.platform, process.env) +
-            'case "$1" in\n' +
-            '  -*) echo "gjsify: this host has no node; the gjsify shim runs a SCRIPT FILE only" >&2\n' +
-            '      echo "gjsify: got: node $*" >&2\n' +
-            '      exit 127 ;;\n' +
-            'esac\n' +
-            // The same hop as the `gjsify` shim, so the same preamble.
-            envPreamble +
-            `exec "${interpreter}" -m "${selfEntry}" run --node-script "$@"\n`,
-        { mode: 0o755 },
+        // Same SIP hop as the self-shim — see `buildSelfShimScript`.
+        dyldCarryPreamble(process.platform, process.env) +
+        'case "$1" in\n' +
+        '  -*) echo "gjsify: this host has no node; the gjsify shim runs a SCRIPT FILE only" >&2\n' +
+        '      echo "gjsify: got: node $*" >&2\n' +
+        '      exit 127 ;;\n' +
+        'esac\n' +
+        // The same hop as the `gjsify` shim, so the same preamble.
+        envPreamble +
+        `exec "${interpreter}" -m "${selfEntry}" run --node-script "$@"\n`
     );
-    chmodSync(shim, 0o755);
 }
