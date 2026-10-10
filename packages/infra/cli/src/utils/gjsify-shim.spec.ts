@@ -12,7 +12,16 @@
 // therefore fails the moment this decision returns the wrong answer.
 
 import { describe, it, expect } from '@gjsify/unit';
-import { buildSelfShimScript, needsSelfShim, pathWithoutSelfShim, selfShimScanRoot } from './gjsify-shim.js';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+    buildSelfShimScript,
+    materializeShimDir,
+    needsSelfShim,
+    pathWithoutSelfShim,
+    selfShimScanRoot,
+} from './gjsify-shim.js';
 
 export default async () => {
     await describe('needsSelfShim', async () => {
@@ -174,6 +183,55 @@ export default async () => {
                 env: dyldEnv,
             });
             expect(script).toBe('#!/bin/sh\nexec "gjs" -m "/cli.gjs.mjs" "$@"\n');
+        });
+    });
+
+    await describe('materializeShimDir', async () => {
+        const files = { gjsify: '#!/bin/sh\nexec gjs -m /cli.gjs.mjs "$@"\n', 'node-shim/node': '#!/bin/sh\n' };
+
+        // The leak: one mkdtemp dir per `gjsify run`, none ever removed.
+        await it('reuses one directory across calls instead of adding one per run', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-shim-spec-'));
+            try {
+                const a = materializeShimDir(files, root);
+                const b = materializeShimDir(files, root);
+                expect(b).toBe(a);
+                expect(readdirSync(root).length).toBe(1);
+                expect(readFileSync(join(a, 'gjsify'), 'utf8')).toBe(files.gjsify);
+                expect(readFileSync(join(a, 'node-shim', 'node'), 'utf8')).toBe(files['node-shim/node']);
+                // NTFS carries no POSIX permission bits; the exec bit only exists elsewhere.
+                if (process.platform !== 'win32') {
+                    expect((statSync(join(a, 'gjsify')).mode & 0o111) !== 0).toBe(true);
+                }
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        // A running child keeps the dir it was started with, so a changed shim
+        // must land in a NEW dir rather than rewrite the old one in place.
+        await it('gives different content its own directory', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-shim-spec-'));
+            try {
+                const a = materializeShimDir(files, root);
+                const b = materializeShimDir({ ...files, gjsify: '#!/bin/sh\nexit 1\n' }, root);
+                expect(b === a).toBe(false);
+                expect(readFileSync(join(a, 'gjsify'), 'utf8')).toBe(files.gjsify);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('repairs a half-written member', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-shim-spec-'));
+            try {
+                const a = materializeShimDir(files, root);
+                rmSync(join(a, 'gjsify'));
+                expect(materializeShimDir(files, root)).toBe(a);
+                expect(readFileSync(join(a, 'gjsify'), 'utf8')).toBe(files.gjsify);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
         });
     });
 };
