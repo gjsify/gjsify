@@ -10,27 +10,37 @@
 // reports. The Editable is never edited from inside `onTextChanged`: edits are queued there and
 // handed to the host from `afterTextChanged`, where the host may edit again (auto-indent).
 //
-// The platform half is unverified on a device — see the package README.
+// `extend-selection` and `copy-clipboard` are device-verified (API 24, 36), the rest is not — see the package README.
 
 import type {
     AndroidCanvas,
     AndroidEditable,
     AndroidEditText,
+    AndroidMotionEvent,
     AndroidNamespace,
     AndroidPaint,
 } from './android-types.js';
 import type { EditorHost, EditorLayout } from '@gjsify/gtksource-core';
 import { emphasisedLine, gutterWidth, visibleLines } from '@gjsify/gtksource-core';
 import { LineStore } from '@gjsify/gtksource-core';
+import { MultiTap } from './multi-tap.js';
+
+// `android.R.id.copy`: the NativeScript runtime exposes no `android.R`, reading it throws.
+const ID_COPY = 0x01020021;
 import type { NativeEditorDriver } from './native-editor.js';
 import type { EditorPalette, GutterMetrics } from '@gjsify/gtksource-core';
 import type { StyledRun } from '@gjsify/gtksource-core';
 
 declare const android: AndroidNamespace;
-declare const java: { lang: { Runnable: new (implementation: { run(): void }) => unknown } };
+declare const java: {
+    lang: { Runnable: new (implementation: { run(): void }) => unknown };
+};
 
 const GUTTER_PADDING_DP = 8;
 const ANTI_ALIAS_FLAG = 1;
+// `Gtk.TextExtendSelection`
+const WORD = 0;
+const LINE = 1;
 
 interface QueuedEdit {
     readonly start: number;
@@ -44,6 +54,10 @@ interface DrawingDriver {
     selectionChanged(start: number, end: number): void;
     /** The Copy action ran with `defaultCopy` as the platform's own: false when it must not (a handler stopped it). */
     copyRequested(defaultCopy: () => boolean): boolean;
+    /** A touch is about to reach the view: true when `extend-selection` answered it, so the platform must not see it. */
+    touching(view: AndroidEditText, event: AndroidMotionEvent): boolean;
+    /** The platform is about to select the word under a long press: true when `extend-selection` answered it instead. */
+    longPressing(view: AndroidEditText): boolean;
 }
 
 /** `this` inside an `.extend()` implementation: the Java instance plus the runtime's `super` proxy. */
@@ -52,6 +66,8 @@ type ExtendedEditText = AndroidEditText & {
         onDraw(canvas: AndroidCanvas): void;
         onSelectionChanged(start: number, end: number): void;
         onTextContextMenuItem(id: number): boolean;
+        onTouchEvent(event: AndroidMotionEvent): boolean;
+        performLongClick(): boolean;
     };
 };
 
@@ -60,7 +76,9 @@ let editTextClass: (new (context: unknown) => AndroidEditText) | undefined;
 /** Built on first use: `.extend()` needs the runtime, which does not exist when this module is merely imported. */
 function gutterEditText(): new (context: unknown) => AndroidEditText {
     if (editTextClass) return editTextClass;
-    const base = android.widget.EditText as unknown as { extend(implementation: object): typeof editTextClass };
+    const base = android.widget.EditText as unknown as {
+        extend(implementation: object): typeof editTextClass;
+    };
     editTextClass = base.extend({
         onDraw(this: ExtendedEditText, canvas: AndroidCanvas) {
             const driver = this.driver as DrawingDriver | undefined;
@@ -72,10 +90,18 @@ function gutterEditText(): new (context: unknown) => AndroidEditText {
             this.super.onSelectionChanged(start, end);
             (this.driver as DrawingDriver | undefined)?.selectionChanged(start, end);
         },
-        // The toolbar's and the keyboard's Copy both arrive here. Unverified on a device (ADR 0094).
+        onTouchEvent(this: ExtendedEditText, event: AndroidMotionEvent): boolean {
+            const driver = this.driver as DrawingDriver | undefined;
+            return driver?.touching(this, event) ? true : this.super.onTouchEvent(event);
+        },
+        performLongClick(this: ExtendedEditText): boolean {
+            const driver = this.driver as DrawingDriver | undefined;
+            return driver?.longPressing(this) ? true : this.super.performLongClick();
+        },
+        // The toolbar's and the keyboard's Copy both arrive here. Device-verified on API 24 and 36 (ADR 0094).
         onTextContextMenuItem(this: ExtendedEditText, id: number): boolean {
             const driver = this.driver as DrawingDriver | undefined;
-            if (id !== android.R.id.copy || !driver) return this.super.onTextContextMenuItem(id);
+            if (id !== ID_COPY || !driver) return this.super.onTextContextMenuItem(id);
             return driver.copyRequested(() => this.super.onTextContextMenuItem(id));
         },
     })!;
@@ -122,9 +148,60 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         return true;
     }
 
+    // Android collapses the selection on Copy, GTK keeps it: restore it, so a `connect_after` handler still reads it.
     copySelection(): void {
-        this.platformCopy?.();
+        const copy = this.platformCopy;
         this.platformCopy = null;
+        const view = this.view;
+        if (!copy || !view) return;
+        const { start, end } = this.selection;
+        copy();
+        if (view.getSelectionStart() !== start || view.getSelectionEnd() !== end) view.setSelection(start, end);
+    }
+
+    private taps: MultiTap | null = null;
+    /** Where the last press landed, for a long press that follows it. */
+    private pressAt = { x: 0, y: 0 };
+    /** A press whose gesture `extend-selection` answered: the rest of it never reaches the platform. */
+    private swallowing = false;
+
+    // GTK asks `extend-selection` on the second and third press, before it selects the word or line, so the
+    // second and third press are asked here, before the platform selects: a range answered replaces the
+    // platform's selection, and a null leaves the press to it. A triple has no platform selection below API 28.
+    touching(view: AndroidEditText, event: AndroidMotionEvent): boolean {
+        const { ACTION_DOWN, ACTION_UP, ACTION_CANCEL } = android.view.MotionEvent;
+        const action = event.getActionMasked();
+        if (action !== ACTION_DOWN) {
+            const swallowed = this.swallowing;
+            if (action === ACTION_UP || action === ACTION_CANCEL) this.swallowing = false;
+            return swallowed;
+        }
+        this.swallowing = false;
+        this.pressAt = { x: event.getX(), y: event.getY() };
+        this.taps ??= new MultiTap(
+            android.view.ViewConfiguration.getDoubleTapTimeout(),
+            android.view.ViewConfiguration.get(view.getContext()).getScaledDoubleTapSlop(),
+        );
+        const count = this.taps.press(event.getEventTime(), event.getX(), event.getY());
+        if (count < 2) return false;
+        this.swallowing = this.extendSelection(view, count === 2 ? WORD : LINE);
+        return this.swallowing;
+    }
+
+    longPressing(view: AndroidEditText): boolean {
+        return this.extendSelection(view, WORD);
+    }
+
+    private extendSelection(view: AndroidEditText, granularity: number): boolean {
+        const host = this.host;
+        if (!host || this.applying) return false;
+        const range = host.onNativeExtendSelection(
+            granularity,
+            view.getOffsetForPosition(this.pressAt.x, this.pressAt.y),
+        );
+        if (!range) return false;
+        view.setSelection(range[0], range[1]);
+        return true;
     }
 
     createNativeView(context: unknown): object {

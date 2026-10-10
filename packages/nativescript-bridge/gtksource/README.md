@@ -16,7 +16,8 @@ from the text `Layout` in `onDraw`, and `GtkSource.Buffer` / `LanguageManager` /
   spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist. Shared
   widget classes that come with `@gjsify/adwaita-nativescript` add `android.view.View`
   (`setTooltipText`, API 26; duck-typed, no `TooltipCompat`) to that list.
-- The platform half (`native-editor.android.ts`) is not verified on a device yet.
+- The platform half (`native-editor.android.ts`) ran on a device (API 24 and 36) for `extend-selection` and
+  `copy-clipboard`. A triple tap selects nothing natively below API 28; see ADR 0094, last amendment.
 
 ## Using it from XML
 

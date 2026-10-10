@@ -47,6 +47,8 @@ export interface AndroidEditText {
     getScrollY(): number;
     getWidth(): number;
     getHeight(): number;
+    getOffsetForPosition(x: number, y: number): number;
+    getContext(): unknown;
     getSelectionStart(): number;
     getSelectionEnd(): number;
     getExtendedPaddingTop(): number;
@@ -71,11 +73,28 @@ export interface AndroidEditText {
     post(action: unknown): boolean;
 }
 
+export interface AndroidMotionEvent {
+    getActionMasked(): number;
+    getX(): number;
+    getY(): number;
+    getEventTime(): number;
+}
+
 export interface AndroidNamespace {
-    widget: { EditText: new (context: unknown) => AndroidEditText & { onDraw(canvas: AndroidCanvas): void } };
+    widget: {
+        EditText: new (context: unknown) => AndroidEditText & { onDraw(canvas: AndroidCanvas): void };
+    };
     graphics: {
-        Paint: (new (flags: number) => AndroidPaint) & { Align: { RIGHT: unknown; LEFT: unknown } };
-        Typeface: { MONOSPACE: unknown; DEFAULT: unknown; BOLD: number; ITALIC: number; BOLD_ITALIC: number };
+        Paint: (new (flags: number) => AndroidPaint) & {
+            Align: { RIGHT: unknown; LEFT: unknown };
+        };
+        Typeface: {
+            MONOSPACE: unknown;
+            DEFAULT: unknown;
+            BOLD: number;
+            ITALIC: number;
+            BOLD_ITALIC: number;
+        };
     };
     text: {
         InputType: {
@@ -93,7 +112,17 @@ export interface AndroidNamespace {
             StrikethroughSpan: new () => unknown;
         };
     };
-    view: { Gravity: { TOP: number; START: number } };
-    R: { id: { copy: number } };
-    // `onDraw`, `onSelectionChanged` and `onTextContextMenuItem` are overridden through `.extend()`, see native-editor.android.ts.
+    view: {
+        Gravity: { TOP: number; START: number };
+        MotionEvent: {
+            ACTION_DOWN: number;
+            ACTION_UP: number;
+            ACTION_CANCEL: number;
+        };
+        ViewConfiguration: {
+            get(context: unknown): { getScaledDoubleTapSlop(): number };
+            getDoubleTapTimeout(): number;
+        };
+    };
+    // `onDraw`, `onSelectionChanged`, `onTouchEvent`, `performLongClick` and `onTextContextMenuItem` are overridden through `.extend()`, see native-editor.android.ts.
 }

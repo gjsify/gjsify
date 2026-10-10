@@ -71,7 +71,7 @@ Each is declared in `status/status.json` rather than left to be found.
   through `addSchemeFromXml()`.
 - **Fallback schemes are our own.** `fallback-schemes.ts` holds colours this package chose; they
   exist because schemes name `Adwaita` as `parent-scheme`, not because they match it.
-- **Android only, and unverified on a device.** `native-editor.android.ts` is held by type-checking
+- **Android only, and device-verified in part (see the last amendment).** `native-editor.android.ts` is held by type-checking
   alone; the specs drive `EditorSession` through a fake driver, which is not a device.
   There is no iOS driver.
 
@@ -168,7 +168,29 @@ runs only if nothing stopped it, and a `copy` event is cancelled when a handler 
 After a `mark-set` handler moved the marks away from the platform's selection, the widget follows the
 buffer. `Gtk.TextExtendSelection` (`WORD` 0, `LINE` 1) is added to both doors.
 
-Gap: the Android driver does not emit `extend-selection`, as it has no device-verified hook for it
-(`copy-clipboard` is emitted via `onTextContextMenuItem`, unverified on a device, ADR 0096 Amendment 2); stopping `mark-set` works there, being buffer-level. Vectors (`GTKSOURCE_STOP_VECTORS`)
+Gap (closed by the 2026-10-10 amendment): the Android driver did not emit `extend-selection`; stopping `mark-set` works there, being buffer-level. Vectors (`GTKSOURCE_STOP_VECTORS`)
 run against real `gi://GtkSource` (view rows where a display exists), the core and the web door; the
 NativeScript door runs the buffer rows. Status unchanged.
+
+## Amendment (2026-10-10): the Android driver asks `extend-selection`
+
+The Android driver now emits `extend-selection` and `copy-clipboard`, both run on a device (Learn6502 as
+harness; a handler stopped the emission on the first line only, the second line passed through).
+`EditText` has no selection-gesture hook, so the driver overrides `onTouchEvent` (before `super`, so no
+native selection flickers) and `performLongClick`. A `MultiTap` counter (timeout and slop from
+`ViewConfiguration`) asks WORD on the second tap and LINE on the third, and a long press asks WORD. The
+location is `getOffsetForPosition`. A non-null range from the session becomes the selection and the rest
+of the gesture is swallowed; a null answer (no handler stopped) hands the event to the platform.
+`copy-clipboard` comes from `onTextContextMenuItem(copy)`, keyed on the constant `0x01020021`: the
+NativeScript runtime exposes no readable `android.R.id`. Android collapses the selection on Copy and GTK
+does not, so the driver restores it after the platform copy, which lets a `connect_after` handler read it.
+
+Verified on `Medium_Phone` (API 24) and `Tablet_API_36`: (a) `extend-selection` fires for double tap
+(WORD), triple tap (LINE) and long press (WORD), and a stopping handler prevents the native word
+selection while an unstopped one leaves it; (b) `copy-clipboard` fires from the context-menu Copy;
+(c) text a `connect_after` handler writes reaches the `ClipboardManager`.
+
+Named gaps: a triple tap has no platform selection below API 28, so on API 24 it is asked and, if
+unstopped, not applied natively. Drag-extend of a selection handle is not a `Gtk.TextExtendSelection`
+gesture on Android and is not emitted. The package stays `partial`; the specs for the tap counter run
+on the NativeScript door without a device (`multi-tap.spec.ts`).
