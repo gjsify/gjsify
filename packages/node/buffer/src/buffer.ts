@@ -675,6 +675,74 @@ export class Buffer extends Uint8Array {
         return offset + 8;
     }
 
+    // Node spells every unsigned accessor BOTH ways — `writeUInt8` and `writeUint8` — and real
+    // libraries mix the two in one file: Baileys' noise handler writes its routing header with
+    // `writeUint8`/`writeUint16BE` and reads with `readUInt8`. Missing the lowercase spelling
+    // surfaces as `z.writeUint8 is not a function` at runtime, far from its cause.
+    readUint8(offset = 0): number {
+        return this.readUInt8(offset);
+    }
+
+    readUint16BE(offset = 0): number {
+        return this.readUInt16BE(offset);
+    }
+
+    readUint16LE(offset = 0): number {
+        return this.readUInt16LE(offset);
+    }
+
+    readUint32BE(offset = 0): number {
+        return this.readUInt32BE(offset);
+    }
+
+    readUint32LE(offset = 0): number {
+        return this.readUInt32LE(offset);
+    }
+
+    readUintBE(offset: number, byteLength: number): number {
+        return this.readUIntBE(offset, byteLength);
+    }
+
+    readUintLE(offset: number, byteLength: number): number {
+        return this.readUIntLE(offset, byteLength);
+    }
+
+    readBigUint64BE(offset = 0): bigint {
+        return this.readBigUInt64BE(offset);
+    }
+
+    readBigUint64LE(offset = 0): bigint {
+        return this.readBigUInt64LE(offset);
+    }
+
+    writeUint8(value: number, offset = 0): number {
+        return this.writeUInt8(value, offset);
+    }
+
+    writeUint16BE(value: number, offset = 0): number {
+        return this.writeUInt16BE(value, offset);
+    }
+
+    writeUint16LE(value: number, offset = 0): number {
+        return this.writeUInt16LE(value, offset);
+    }
+
+    writeUint32BE(value: number, offset = 0): number {
+        return this.writeUInt32BE(value, offset);
+    }
+
+    writeUint32LE(value: number, offset = 0): number {
+        return this.writeUInt32LE(value, offset);
+    }
+
+    writeBigUint64BE(value: bigint, offset = 0): number {
+        return this.writeBigUInt64BE(value, offset);
+    }
+
+    writeBigUint64LE(value: bigint, offset = 0): number {
+        return this.writeBigUInt64LE(value, offset);
+    }
+
     swap16(): this {
         const len = this.length;
         if (len % 2 !== 0) throw new RangeError('Buffer size must be a multiple of 16-bits');

@@ -1214,6 +1214,63 @@ export default async () => {
         });
     });
 
+    // Node documents every unsigned accessor under BOTH spellings, and real libraries mix them
+    // in one file: Baileys' noise handler writes its routing header with `writeUint8` and reads
+    // with `readUInt8`. Without the aliases that fails as `writeUint8 is not a function`.
+    await describe('Buffer lowercase Uint aliases', async () => {
+        await it('should expose every alias Node has', async () => {
+            const buf = Buffer.alloc(8);
+            const names = [
+                'readUint8',
+                'readUint16BE',
+                'readUint16LE',
+                'readUint32BE',
+                'readUint32LE',
+                'readUintBE',
+                'readUintLE',
+                'readBigUint64BE',
+                'readBigUint64LE',
+                'writeUint8',
+                'writeUint16BE',
+                'writeUint16LE',
+                'writeUint32BE',
+                'writeUint32LE',
+                'writeBigUint64BE',
+                'writeBigUint64LE',
+            ];
+            const missing = names.filter((name) => typeof (buf as any)[name] !== 'function');
+            expect(missing.join(', ')).toBe('');
+        });
+
+        await it('should read and write like their UInt spelling', async () => {
+            const buf = Buffer.alloc(8);
+            expect(buf.writeUint8(0xab, 0)).toBe(1);
+            expect(buf.readUint8(0)).toBe(0xab);
+            expect(buf.readUInt8(0)).toBe(0xab);
+            buf.writeUint16BE(0x1234, 0);
+            expect(buf.readUint16BE(0)).toBe(0x1234);
+            buf.writeUint16LE(0x1234, 0);
+            expect(buf.readUint16LE(0)).toBe(0x1234);
+            buf.writeUint32BE(0x12345678, 0);
+            expect(buf.readUint32BE(0)).toBe(0x12345678);
+            buf.writeUint32LE(0x12345678, 0);
+            expect(buf.readUint32LE(0)).toBe(0x12345678);
+            buf.writeBigUint64BE(0x1122334455667788n, 0);
+            expect(buf.readBigUint64BE(0)).toBe(0x1122334455667788n);
+            buf.writeBigUint64LE(0x1122334455667788n, 0);
+            expect(buf.readBigUint64LE(0)).toBe(0x1122334455667788n);
+            const three = Buffer.from([0x01, 0x02, 0x03]);
+            expect(three.readUintBE(0, 3)).toBe(0x010203);
+            expect(three.readUintLE(0, 3)).toBe(0x030201);
+        });
+
+        await it('should range-check like their UInt spelling', async () => {
+            const buf = Buffer.alloc(1);
+            expect(() => buf.readUint16BE(0)).toThrow(RangeError);
+            expect(() => buf.writeUint16BE(0, 0)).toThrow(RangeError);
+        });
+    });
+
     await describe('Buffer.poolSize', async () => {
         await it('should have default poolSize of 65536', async () => {
             expect(Buffer.poolSize).toBe(65536);
