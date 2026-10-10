@@ -51,6 +51,7 @@ export type { ShebangPluginOptions } from './plugins/shebang.js';
 export { aliasPlugin } from './plugins/alias.js';
 export type { AliasPluginOptions } from './plugins/alias.js';
 export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
+export { giRendererPlugin } from './plugins/gi-renderer.js';
 export { externalsPlugin } from './plugins/externals.js';
 export type { ExternalsPredicate, ExternalsPluginOptions } from './plugins/externals.js';
 export {
