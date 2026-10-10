@@ -55,6 +55,11 @@ export interface InstalledPackage {
     linked: boolean;
     /** The `os`/`cpu`/`libc` slice, absent when the manifest declares none. */
     platform?: PlatformDeclaration;
+    /**
+     * The manifest names `bundleDependencies`: its tarball ships a `node_modules` of
+     * its own, so whatever sits there came from extracting THIS package.
+     */
+    bundles?: boolean;
 }
 
 export interface PruneEntry {
@@ -89,7 +94,9 @@ function isReservedEntry(name: string): boolean {
     return name.startsWith('.');
 }
 
-function readManifest(dir: string): { name?: string; version?: string; platform?: PlatformDeclaration } | null {
+function readManifest(
+    dir: string,
+): { name?: string; version?: string; platform?: PlatformDeclaration; bundles?: boolean } | null {
     try {
         const raw = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as Record<string, unknown>;
         const platform: PlatformDeclaration = {
@@ -101,6 +108,9 @@ function readManifest(dir: string): { name?: string; version?: string; platform?
             name: typeof raw.name === 'string' ? raw.name : undefined,
             version: typeof raw.version === 'string' ? raw.version : undefined,
             platform: declaresPlatform(platform) ? platform : undefined,
+            bundles: [raw.bundleDependencies, raw.bundledDependencies].some(
+                (b) => b === true || (Array.isArray(b) && b.length > 0),
+            ),
         };
     } catch {
         // An unreadable or half-written manifest declares nothing, which makes the
@@ -152,6 +162,7 @@ function addPackage(dir: string, out: InstalledPackage[]): void {
         dir,
         linked,
         platform: manifest?.platform,
+        bundles: manifest?.bundles,
     });
     // A linked package is the user's own source tree — its `node_modules` is not
     // this prefix's to prune.
