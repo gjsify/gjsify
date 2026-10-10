@@ -53,6 +53,8 @@ import { AdwSingleChildBase } from './single-child-base.js';
 import { xmlBoolean } from './xml-values.js';
 
 export class GtkScrolledWindow extends AdwSingleChildBase {
+    static readonly GTypeName: string = 'GtkScrolledWindow';
+
     /** `Gtk.ScrolledWindow:child` is the one destination, so it is also the fallback. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 

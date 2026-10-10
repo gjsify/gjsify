@@ -44,9 +44,13 @@ export class GioApplication extends GioApplicationBase {
     static override host = nativeScriptHost;
 }
 
-export class GtkApplication extends withGtkApplication(GioApplication) {}
+export class GtkApplication extends withGtkApplication(GioApplication) {
+    static readonly GTypeName: string = 'GtkApplication';
+}
 
-export class AdwApplication extends GtkApplication {}
+export class AdwApplication extends GtkApplication {
+    static readonly GTypeName: string = 'AdwApplication';
+}
 
 type WindowApplication = { add_window(window: object): void; remove_window(window: object): void };
 

@@ -25,6 +25,8 @@ export interface AdwTabPageProps {
 }
 
 export class AdwTabPage {
+    static readonly GTypeName: string = 'AdwTabPage';
+
     /** `Adw.TabPage:child` is the one destination, so it is the fallback too. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 

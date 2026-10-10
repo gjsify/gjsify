@@ -74,6 +74,8 @@ function markRow(row: View, marker: string, on: boolean): void {
 }
 
 export class GtkListBox extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkListBox';
+
     private _selectionMode: GtkSelectionModeNick = DEFAULT_LIST_SELECTION_MODE;
     private _activateOnSingleClick = true;
     private _showSeparators = false;

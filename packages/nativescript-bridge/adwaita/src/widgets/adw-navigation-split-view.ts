@@ -38,6 +38,8 @@ const NAV_ANIM_MS = 200;
 const FALLBACK_WIDTH = 1024;
 
 export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitViewState> {
+    static readonly GTypeName: string = 'AdwNavigationSplitView';
+
     constructor(props?: ConstructProps<AdwNavigationSplitView>) {
         super(
             'adw-navigation-split-view',

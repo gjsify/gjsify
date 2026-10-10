@@ -52,6 +52,8 @@ const nativeScriptScheduler: ToastScheduler = {
 };
 
 export class AdwToastOverlay extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwToastOverlay';
+
     /** The always-visible content layer. */
     private _content: View | null = null;
     /** The bottom-anchored toast strip. */

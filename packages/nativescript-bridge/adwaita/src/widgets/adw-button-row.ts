@@ -40,6 +40,8 @@ const BUTTON_ROW_BASE_CLASS_NAME = 'adw-row adw-action-row adw-button-row';
 export { ACTIVATED } from './adw-action-row.js';
 
 export class AdwButtonRow extends AdwActionRow {
+    static readonly GTypeName: string = 'AdwButtonRow';
+
     /** `AdwButtonRow` derives from `AdwPreferencesRow` in C
      *  (adw-button-row.c:74), so the search does not consult a subtitle here. */
     override readonly isActionRow: boolean = false;

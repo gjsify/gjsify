@@ -36,6 +36,8 @@ export interface AdwSidebarItemProps {
 }
 
 export class AdwSidebarItem implements AdwSidebarItemSpec {
+    static readonly GTypeName: string = 'AdwSidebarItem';
+
     /** `Adw.SidebarItem:title`. */
     title: string;
     /** `Adw.SidebarItem:subtitle`. */
@@ -62,6 +64,8 @@ export interface AdwSidebarSectionProps {
 }
 
 export class AdwSidebarSection implements AdwSidebarSectionSpec {
+    static readonly GTypeName: string = 'AdwSidebarSection';
+
     /** `Adw.SidebarSection:title` — `''` draws a separator instead of a heading. */
     title: string;
     /** The section's items, in the order they were appended. */

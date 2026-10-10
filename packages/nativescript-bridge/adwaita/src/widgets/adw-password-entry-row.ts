@@ -47,6 +47,8 @@ export interface NotifyRevealedEventData extends EventData {
 }
 
 export class AdwPasswordEntryRow extends AdwEntryRow {
+    static readonly GTypeName: string = 'AdwPasswordEntryRow';
+
     /** The headless peek + caps-lock derivation, composing the parent row's state. */
     private readonly _password = new PasswordEntryRowState(this._state);
     /** The trailing peek (reveal/conceal) toggle button. */

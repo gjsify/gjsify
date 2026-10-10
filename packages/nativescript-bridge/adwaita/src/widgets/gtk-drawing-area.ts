@@ -22,6 +22,8 @@ export const DRAWING_AREA_REFUSAL =
     'draw into. Render through a NativeScript view (an Image, or @nativescript/canvas) instead.';
 
 export class GtkDrawingArea extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkDrawingArea';
+
     private _contentWidth = 0;
     private _contentHeight = 0;
 

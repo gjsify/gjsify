@@ -108,9 +108,12 @@ export function defineNativescriptConfig(
         // not accumulate stale, hashed chunk files the Android SBG then sees as a
         // duplicate native `extends` (see {@link nativescriptSbgBundleSyncFix}).
         const withSbgFix = mergeConfig(withTransforms, nativescriptSbgBundleSyncFix());
-        if (userConfig === undefined) return withSbgFix;
+        // Keep the strings and decorators NativeScript's static binding generator reads
+        // (see {@link nativescriptReleaseMinify}); a consumer's own `build.minify` wins below.
+        const withMinify = mergeConfig(withSbgFix, nativescriptReleaseMinify(withSbgFix));
+        if (userConfig === undefined) return withMinify;
         const resolved = typeof userConfig === 'function' ? await userConfig(env) : userConfig;
-        return mergeConfig(withSbgFix, resolved);
+        return mergeConfig(withMinify, resolved);
     };
 }
 
@@ -157,6 +160,34 @@ export function nativescriptSbgBundleSyncFix(): UserConfig {
                 },
             },
         },
+    };
+}
+
+/**
+ * Minifier defaults under which a RELEASE build of a NativeScript app still launches.
+ *
+ * Vite 8's default minifier (oxc) and esbuild's syntax pass rewrite two things the Android
+ * Static Binding Generator (SBG) reads LITERALLY from the bundle: oxc emits
+ * `extend("com.tns.X", …)` with a template literal, and the syntax pass folds
+ * `__decorate([JavaProxy("…")], t)` into a comma expression. The SBG recognises neither, skips
+ * the class without a word, and the app dies on launch with `Class not found` for
+ * `com.tns.FragmentClass` / `com.tns.NativeScriptActivity` /
+ * `org.nativescript.NativeScriptLifecycleCallbacks`. Mangled class names additionally break
+ * every check that compares a class name (`Adw.Bin` against `AdwBin`).
+ *
+ * So the release minifier is esbuild with `minifySyntax: false` (whitespace and identifiers
+ * still shrink) and `keepNames: true`. `esbuild` must be installed next to `vite` — it is an
+ * optional peer of Vite 8. A build that upstream already leaves unminified (`build.minify:
+ * false`, i.e. a debug build) gets nothing. The consumer's own `build.minify` / `esbuild`
+ * still wins, merged after this: a per-platform choice is never blocked.
+ *
+ * @param config  the config the defaults are layered over.
+ */
+export function nativescriptReleaseMinify(config: UserConfig = {}): UserConfig {
+    if (config.build?.minify === false) return {};
+    return {
+        build: { minify: 'esbuild' },
+        esbuild: { minifySyntax: false, keepNames: true },
     };
 }
 

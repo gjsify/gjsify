@@ -51,6 +51,8 @@ export interface NotifyValueEventData extends EventData {
 }
 
 export class AdwSpinRow extends AdwActionRow {
+    static readonly GTypeName: string = 'AdwSpinRow';
+
     /**
      * The action row's edges, plus `adjustment`: `adjustment: Adjustment { … }` in a `.blp`
      * places a `Gtk.Adjustment` at the property it sets.

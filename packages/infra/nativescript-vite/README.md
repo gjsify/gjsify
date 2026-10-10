@@ -17,6 +17,12 @@ It is a **thin composer** around the upstream `@nativescript/vite` integration. 
 
 On top of the fixes, it spreads `@gjsify/vite-plugin-gjsify`'s `gjsifyNativescript()` preset: `gi://` → empty module, platform file resolution (`*.android` / `*.ios` / `*.native`), platform defines (`__ANDROID__` / `__IOS__` / `__APPLE__` / `__VISIONOS__` / `__DEV__`), and the node-builtin alias routing (incl. `module` → `@gjsify/module`).
 
+## Release-build minifier defaults
+
+*2026-10-10.* A release build of Learn6502's Android app crashed on launch with `Class not found` for `com.tns.FragmentClass`, `com.tns.NativeScriptActivity` and `org.nativescript.NativeScriptLifecycleCallbacks`. The Android Static Binding Generator reads the bundle as text: the default oxc minifier writes `extend(\`com.tns.X\`, …)` with a template literal, and the syntax pass folds `__decorate([JavaProxy("…")], t)` into a comma expression. The generator recognises neither, skips the class without an error, and the native class never exists. Mangled class names also broke the `adw:Bin` → `AdwBin` check in `@gjsify/adwaita-nativescript` (that package now names its classes with a static `GTypeName`).
+
+`defineNativescriptConfig()` therefore ships `build.minify: 'esbuild'` plus `esbuild: { minifySyntax: false, keepNames: true }` (`nativescriptReleaseMinify()`), unless upstream already disabled minification (debug builds). Whitespace and identifiers still shrink. `esbuild` has to be installed next to `vite` (an optional peer of Vite 8). Your own `build.minify` / `esbuild` in the `userConfig` argument wins, so a platform that wants another minifier keeps it.
+
 ## Install
 
 The package's only hard dependency is `@gjsify/vite-plugin-gjsify`. Everything from the NativeScript side is an **optional peer** — install it in your NativeScript app alongside the rest of your NS toolchain:

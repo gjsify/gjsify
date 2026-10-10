@@ -32,6 +32,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 const OVERLAY_ANIM_MS = 200;
 
 export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState> {
+    static readonly GTypeName: string = 'AdwOverlaySplitView';
+
     /** Dimmed backdrop drawn between content and the overlaid sidebar; tapping it
      *  closes the sidebar (Adwaita's click-outside-to-dismiss). Created lazily. */
     private _scrim: GridLayout | null = null;

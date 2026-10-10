@@ -51,6 +51,8 @@ interface BarButtonNodes {
 }
 
 export class AdwViewSwitcherBar extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwViewSwitcherBar';
+
     /** `stack` names an `AdwViewStack` of the same tree — see `./builder-slots.ts`. */
     static readonly builderReferences: readonly string[] = ['stack'];
 

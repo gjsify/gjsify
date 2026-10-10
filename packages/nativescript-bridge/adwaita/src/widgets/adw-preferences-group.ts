@@ -34,6 +34,8 @@ import { withSignals } from './signals.js';
 const PREFERENCES_GROUP_SLOTS = ['headerSuffix', 'header-suffix'] as const;
 
 export class AdwPreferencesGroup extends withSignals(StackLayout) implements NsSearchableGroup {
+    static readonly GTypeName: string = 'AdwPreferencesGroup';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(PREFERENCES_GROUP_SLOTS, 'row');
 

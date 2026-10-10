@@ -49,6 +49,8 @@ export const NOTIFY_STACK_VISIBLE_CHILD_NAME = 'notify::visible-child-name';
 export interface NotifyStackVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
 
 export class GtkStack extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'GtkStack';
+
     /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
     static readonly emittedSignals: readonly string[] = [NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME];
 

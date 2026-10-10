@@ -80,6 +80,7 @@
 import type { Observable } from '@nativescript/core';
 
 import { GTK_ALIGN, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
+import { gtypeNameOfInstance } from './gtype-name.js';
 import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
 import { xmlBoolean } from './xml-values.js';
@@ -348,7 +349,7 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
         }
 
         get name(): string {
-            return NAMES.get(this) ?? this.constructor.name;
+            return NAMES.get(this) ?? gtypeNameOfInstance(this);
         }
 
         set name(value: string | null) {

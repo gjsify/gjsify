@@ -76,6 +76,8 @@ export type AdwWrapBoxProperty =
     | 'orientation';
 
 export class AdwWrapBox extends withSignals(FlexboxLayout) {
+    static readonly GTypeName: string = 'AdwWrapBox';
+
     private _childSpacing = DEFAULT_WRAP_BOX_SPACING;
     private _lineSpacing = DEFAULT_WRAP_BOX_SPACING;
     private _childSpacingUnit: AdwLengthUnit = ADW_WRAP_BOX_DEFAULT_LENGTH_UNIT;

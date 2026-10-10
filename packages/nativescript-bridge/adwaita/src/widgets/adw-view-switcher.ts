@@ -15,6 +15,8 @@ import { AdwViewSwitcherBase } from './view-switcher-base.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwViewSwitcher extends AdwViewSwitcherBase {
+    static readonly GTypeName: string = 'AdwViewSwitcher';
+
     constructor(props?: ConstructProps<AdwViewSwitcher>) {
         super('adw-view-switcher');
         this._initClasses();

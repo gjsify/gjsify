@@ -32,6 +32,8 @@ interface AwaitingStack {
 }
 
 export class GtkStackPage extends withSignals(Observable) {
+    static readonly GTypeName: string = 'GtkStackPage';
+
     /** `child:` in a `.blp` — the page itself. The fallback too: a bare child IS the page. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 

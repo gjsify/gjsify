@@ -133,6 +133,8 @@ const SHEET_CLASS = 'adw-bottom-sheet-sheet';
 const BOTTOM_SHEET_SLOTS = ['sheet', 'bottomBar', 'bottom-bar', 'content'] as const;
 
 export class AdwBottomSheet extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwBottomSheet';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(BOTTOM_SHEET_SLOTS, 'content');
 

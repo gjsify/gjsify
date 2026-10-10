@@ -49,6 +49,8 @@ export interface NotifySelectedEventData extends EventData {
 }
 
 export class AdwComboRow extends AdwActionRow {
+    static readonly GTypeName: string = 'AdwComboRow';
+
     /**
      * The action row's edges, plus `model`: `model: Gtk.StringList { strings [ … ] }` in a
      * `.blp` places the list at the property it sets (ADR 0072).

@@ -59,6 +59,8 @@ export interface NotifyEntryTextEventData extends EventData {
 }
 
 export class GtkEntry extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'GtkEntry';
+
     /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
     static readonly emittedSignals: readonly string[] = [CHANGED, NOTIFY_TEXT, ACTIVATE];
 

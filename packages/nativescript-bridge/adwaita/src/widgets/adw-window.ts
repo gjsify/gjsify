@@ -12,6 +12,8 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwWindowBase } from './window-base.js';
 
 export class AdwWindow extends AdwWindowBase {
+    static readonly GTypeName: string = 'AdwWindow';
+
     constructor(props?: ConstructProps<AdwWindow>) {
         super();
         applyConstructProps(this, props);

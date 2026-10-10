@@ -73,6 +73,8 @@ export interface EntryActivatedEventData extends EventData {
 }
 
 export class AdwEntryRow extends AdwActionRow {
+    static readonly GTypeName: string = 'AdwEntryRow';
+
     /** `AdwEntryRow` derives from `AdwPreferencesRow` in C, so the preferences search
      *  must NOT read the text typed into it. */
     override readonly isActionRow: boolean = false;

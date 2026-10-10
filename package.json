@@ -111,7 +111,7 @@
         "test:e2e:staged-prebuild-libc-gate": "node --test tests/e2e/staged-prebuild-libc-gate/run.mjs",
         "test:e2e:prebuild-loader-path": "node --test tests/e2e/prebuild-loader-path/run.mjs",
         "test:e2e:ns-platform-resolve": "node --test tests/e2e/ns-platform-resolve/run.mjs",
-        "test:e2e:ns-vite-fixes": "node --test tests/e2e/ns-vite-fixes/run.mjs",
+        "test:e2e:ns-vite-fixes": "node --test tests/e2e/ns-vite-fixes/run.mjs tests/e2e/ns-vite-fixes/release-minify.mjs",
         "test:e2e:gi-renderer-arms": "node --test tests/e2e/gi-renderer-arms/run.mjs",
         "test:e2e:gi-optional": "node --test tests/e2e/gi-optional/run.mjs",
         "test:e2e:gresource": "node --test tests/e2e/gresource/run.mjs",

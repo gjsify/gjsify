@@ -9,6 +9,8 @@ import { AdwCarouselIndicatorBase } from './carousel-indicator-base.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwCarouselIndicatorDots extends AdwCarouselIndicatorBase {
+    static readonly GTypeName: string = 'AdwCarouselIndicatorDots';
+
     protected readonly _markerClass = 'adw-carousel-dot';
     protected readonly _markerText = '●';
 

@@ -31,6 +31,8 @@ import type { ViewSwitcherKind } from './view-switcher-model.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwInlineViewSwitcher extends AdwViewSwitcherBase {
+    static readonly GTypeName: string = 'AdwInlineViewSwitcher';
+
     // libadwaita's default, and the class the toggle group starts with
     // (adw-inline-view-switcher.c:657, :715).
     private _displayMode: AdwInlineViewSwitcherDisplayMode = 'labels';

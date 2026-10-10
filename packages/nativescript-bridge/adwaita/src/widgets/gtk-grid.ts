@@ -36,6 +36,8 @@ interface AppliedGap {
 }
 
 export class GtkGrid extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkGrid';
+
     private _rowSpacing = 0;
     private _columnSpacing = 0;
     private _rowHomogeneous = false;

@@ -77,6 +77,8 @@ export const GTK_BUTTON_IMAGE_CLASS = 'image-button';
 export const GTK_BUTTON_LABEL_CLASS = 'adw-button-label';
 
 export class GtkButton extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'GtkButton';
+
     /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
     static readonly emittedSignals: readonly string[] = [GTK_BUTTON_CLICKED];
 

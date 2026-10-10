@@ -30,6 +30,8 @@ import { xmlBoolean } from './xml-values.js';
 const ACTION_BAR_SLOTS = ['start', 'center', 'end'] as const;
 
 export class GtkActionBar extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'GtkActionBar';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(ACTION_BAR_SLOTS, 'start');
 

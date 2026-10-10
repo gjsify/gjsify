@@ -34,6 +34,8 @@ import { withSignals } from './signals.js';
 export { DEFAULT_CLAMP_MAX_SIZE, DEFAULT_CLAMP_TIGHTENING_THRESHOLD };
 
 export class AdwClamp extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwClamp';
+
     /**
      * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
      * `Adw.Clamp:child` is this widget's own property name, and its fallback: an authored

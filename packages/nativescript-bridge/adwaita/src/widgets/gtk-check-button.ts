@@ -42,6 +42,8 @@ export const GTK_CHECK_BUTTON_CHECKED_CLASS = 'checked';
 export const GTK_CHECK_BUTTON_INCONSISTENT_CLASS = 'inconsistent';
 
 export class GtkCheckButton extends AdwStyledLayoutBase {
+    static readonly GTypeName: string = 'GtkCheckButton';
+
     /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
     static readonly emittedSignals: readonly string[] = [
         GTK_CHECK_BUTTON_TOGGLED,

@@ -29,6 +29,8 @@ import { withSignals } from './signals.js';
 export const CLOSED = 'closed';
 
 export class AdwAboutDialog extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwAboutDialog';
+
     protected readonly _card: StackLayout;
     protected readonly _iconLabel: Label;
     protected readonly _nameLabel: Label;

@@ -56,6 +56,8 @@ function childrenOf(box: StackLayout): SideChild[] {
 }
 
 export class AdwHeaderBar extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwHeaderBar';
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(HEADER_BAR_SLOTS, 'startBox');
 

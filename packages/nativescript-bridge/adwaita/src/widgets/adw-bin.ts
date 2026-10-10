@@ -18,6 +18,8 @@ import { builderSlotsOf } from './builder-slots.js';
 import { AdwSingleChildBase } from './single-child-base.js';
 
 export class AdwBin extends AdwSingleChildBase {
+    static readonly GTypeName: string = 'AdwBin';
+
     /** `Adw.Bin:child` is the one destination, so it is also the fallback. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 

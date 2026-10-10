@@ -56,6 +56,8 @@ export interface MenuTappedEventData extends EventData {
 }
 
 export class AdwSplitButton extends withSignals(GridLayout) {
+    static readonly GTypeName: string = 'AdwSplitButton';
+
     /** The main action part (column 0). */
     protected readonly _actionPart: StackLayout;
     /** The action label (shown in label mode). */
