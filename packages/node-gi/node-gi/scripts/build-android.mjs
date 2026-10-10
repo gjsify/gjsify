@@ -181,6 +181,33 @@ const GI_LIBS = [
     'intl',
 ];
 
+/**
+ * The link command for one ABI. Exported so the library list is testable without an NDK —
+ * `-llog` was missing here and `--no-undefined` failed the link on every ABI, which no
+ * NDK-less test could have caught either, so the list itself is now the assertion.
+ * @param {{ clang: string, out: string, objects: string[], libDir: string, napiLib: string }} spec
+ * @returns {string[]} argv
+ */
+export function androidLinkArgs({ clang, out, objects, libDir, napiLib }) {
+    return [
+        clang,
+        '-shared',
+        '-o',
+        join(out, 'libnode_gi.so'),
+        ...objects,
+        `-L${libDir}`,
+        ...GI_LIBS.map((lib) => `-l${lib}`),
+        '-landroid',
+        // liblog, for android-log.cc's __android_log_print/_write. libNativeScript.so names those
+        // symbols too, but as UND — it imports them itself — so the AAR satisfies nothing here and
+        // `--no-undefined` fails the link on every ABI without this.
+        '-llog',
+        napiLib,
+        '-static-libstdc++',
+        '-Wl,--no-undefined',
+    ];
+}
+
 function run(argv) {
     return new Promise((done, reject) => {
         const child = spawn(argv[0], argv.slice(1), { stdio: 'inherit' });
@@ -237,19 +264,7 @@ async function main() {
     ];
     const objects = sources.map((src) => join(out, `${src.replace(/^src\//, '').replace(/\.cc$/, '')}.o`));
     const compiles = sources.map((src, i) => [clang, ...cflags, '-c', join(pkgDir, src), '-o', objects[i]]);
-    const link = [
-        clang,
-        '-shared',
-        '-o',
-        join(out, 'libnode_gi.so'),
-        ...objects,
-        `-L${libDir}`,
-        ...GI_LIBS.map((lib) => `-l${lib}`),
-        '-landroid',
-        napiLib,
-        '-static-libstdc++',
-        '-Wl,--no-undefined',
-    ];
+    const link = androidLinkArgs({ clang, out, objects, libDir, napiLib });
 
     if (opts.dryRun) {
         for (const cmd of [...compiles, link]) console.log(quote(cmd));
@@ -261,4 +276,6 @@ async function main() {
     console.log(`built ${join(out, 'libnode_gi.so')}`);
 }
 
-main().catch((err) => fail(err.message));
+if (process.argv[1] && resolve(process.argv[1]).endsWith('build-android.mjs')) {
+    main().catch((err) => fail(err.message));
+}
