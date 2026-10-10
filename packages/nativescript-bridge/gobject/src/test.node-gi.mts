@@ -19,5 +19,9 @@ import { run } from '@gjsify/unit';
 import requireGi from '@gjsify/node-gi/gi';
 
 import { realGioEngineSuite } from './engine.node-gi.spec.js';
+import { realGioListStoreSuite } from './list-store.node-gi.spec.js';
 
-run({ realGioEngineTestSuite: realGioEngineSuite(requireGi) });
+run({
+    realGioEngineTestSuite: realGioEngineSuite(requireGi),
+    realGioListStoreTestSuite: realGioListStoreSuite(requireGi),
+});

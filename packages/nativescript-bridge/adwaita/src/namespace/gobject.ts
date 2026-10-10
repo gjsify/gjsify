@@ -151,6 +151,16 @@ const door: GObjectDoor = {
     },
 };
 
+// THE REAL-GObject OPT-IN IS ONE ARGUMENT, AND IT IS DELIBERATELY NOT MADE HERE YET.
+// `createGObject(door, createRealGioEngine(requireGi))` from `@gjsify/adwaita-gobject-native`
+// puts a real GObject behind this subset (ADR 0105 § 2), and the engine is implemented, wired
+// into CI and green on all 24 `GOBJECT_VECTORS` over node-gi. What is missing is the premise
+// UNDER it: that node-gi loads on NativeScript's V8 at all. That is ADR 0105's own open
+// question, and this line is evaluated at MODULE LOAD — a `requireGi` that throws on a device
+// would take the app down at startup, which is the failure mode this tree has already paid for
+// once (`AGENTS.md` § "What the slice PROMISES"). A try/catch fallback is not the answer either:
+// it would make "the subset is backed by real GObject" unknowable from inside the app.
+// So the argument goes in when the probe says it can, and not before.
 const created = createGObject(door);
 
 const {
