@@ -49,9 +49,15 @@ export interface GObjectEngine {
 
     /**
      * Stores `value` — ALWAYS, which is what makes this the construct-only writer too — and
-     * returns whether that CHANGED anything. The return value is what decides a `notify`: the core
-     * notifies iff this is true, and never for the construct write. An unset slot counts as
+     * returns whether the CORE must notify. For a store that only holds values that is "did this
+     * change anything", and the pure-JS engine answers exactly that: an unset slot counts as
      * changed even for a value equal to the default, as `_generateAccessors` does.
+     *
+     * It is deliberately the core's DUTY and not the engine's CHANGE, because an engine whose
+     * write already emits `notify` — a real-GObject one, where `g_object_set_property` notifies
+     * itself — would otherwise have to suppress the second one. Such an engine returns false
+     * always and the notification still happens, once, from inside the store. The core never
+     * notifies for the construct write either way.
      */
     setValue(instance: object, spec: ParamSpec, value: unknown): boolean;
 
