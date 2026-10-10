@@ -243,6 +243,8 @@ const MODULE_REASONS = {
     'breakpoint-driver': { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
+    // `gdk.ts` is tabled in `conformance/gdk-clipboard.ts`, driven by the core, both doors and real gi://Gdk.
+    gdk: { table: 'GDK_CLIPBOARD_VECTORS' },
     glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },
     'length-unit': { table: 'ADW_LENGTH_UNIT_VECTORS', gap: NO_DRIVER_LEDGER },
     // THE THREE GIR AUTHORING DOORS (ADR 0034 § Amendment 19). `gio-menu.ts`,

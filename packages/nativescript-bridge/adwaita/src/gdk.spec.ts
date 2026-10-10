@@ -3,7 +3,11 @@
 // the real one needs an Android or iOS runtime.
 
 import { TYPE_INT, TYPE_STRING, Value } from '@gjsify/adwaita-core';
-import { driveGdkClipboardVectors, type GdkClipboardNamespaces } from '@gjsify/adwaita-core/conformance';
+import {
+    driveGdkClipboardVectors,
+    GDK_CLIPBOARD_VECTORS,
+    type GdkClipboardNamespaces,
+} from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { useClipboardHost } from './clipboard-host.js';
@@ -23,6 +27,7 @@ export default async () => {
                 readBack: async () => written[written.length - 1] ?? null,
             } as unknown as GdkClipboardNamespaces & Parameters<typeof driveGdkClipboardVectors>[0],
             { describe, it, expect },
+            GDK_CLIPBOARD_VECTORS,
         );
     } finally {
         useClipboardHost(null);

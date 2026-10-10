@@ -4,7 +4,11 @@
 // permission: `navigator.clipboard` is replaced by a recording fake, and the event carries a
 // `DataTransfer` the test reads.
 
-import { driveGdkClipboardVectors, type GdkClipboardNamespaces } from '@gjsify/adwaita-core/conformance';
+import {
+    driveGdkClipboardVectors,
+    GDK_CLIPBOARD_VECTORS,
+    type GdkClipboardNamespaces,
+} from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { GtkSourceView } from './gtksource/gtk-source-view.js';
@@ -43,6 +47,7 @@ export const GdkTest = async () => {
                 },
             } as unknown as GdkClipboardNamespaces & Parameters<typeof driveGdkClipboardVectors>[0],
             { describe, it, expect },
+            GDK_CLIPBOARD_VECTORS,
         ),
     );
 

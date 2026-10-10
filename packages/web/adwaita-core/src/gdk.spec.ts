@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { driveGdkClipboardVectors } from './conformance/gdk-clipboard.js';
+import { driveGdkClipboardVectors, GDK_CLIPBOARD_VECTORS } from './conformance/gdk-clipboard.js';
 import { createGdk, type ClipboardHost } from './gdk.js';
 import { TYPE_INT, TYPE_STRING, UnsupportedGObjectError, Value } from './gobject.js';
 
@@ -36,6 +36,7 @@ export default async () => {
             readBack: async () => written[written.length - 1] ?? null,
         },
         { describe, it, expect },
+        GDK_CLIPBOARD_VECTORS,
     );
 
     await describe('adwaita-core: Gdk clipboard host', async () => {

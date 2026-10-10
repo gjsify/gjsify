@@ -3,7 +3,11 @@
 
 import { describe, expect, it, on } from '@gjsify/unit';
 
-import { driveGdkClipboardVectors, type GdkClipboardNamespaces } from './conformance/gdk-clipboard.js';
+import {
+    driveGdkClipboardVectors,
+    GDK_CLIPBOARD_VECTORS,
+    type GdkClipboardNamespaces,
+} from './conformance/gdk-clipboard.js';
 
 interface ReadableClipboard {
     read_text_async(cancellable: null, callback: (source: ReadableClipboard, result: unknown) => void): void;
@@ -36,6 +40,7 @@ export default async () => {
                     }),
             } as GdkClipboardNamespaces & Parameters<typeof driveGdkClipboardVectors>[0],
             { describe, it, expect },
+            GDK_CLIPBOARD_VECTORS,
         );
     });
 };
