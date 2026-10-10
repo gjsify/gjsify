@@ -73,7 +73,8 @@ The Node-API host is NativeScript's own runtime (9.1.0 and later). Track B there
 the NativeScript port's apps, beside the native widgets; it needs no pixiewood process and no
 fork of the runtime. On the event loop, node-gi compiles its libuv bridge out on Android and pumps
 GLib from the runtime's looper instead (looper fds and a timerfd feed a thread-safe function that
-drains the context). It does not use the JS-timer pump of Bun and Deno. A Java bridge from NativeScript to `libgirepository` is rejected in § Alternatives.
+drains the context). It does not use the JS-timer pump of Bun and Deno. A Java bridge from
+NativeScript to `libgirepository` is rejected in § Alternatives.
 
 ### 3. Track C: GTK renders, in a pixiewood process
 
