@@ -69,7 +69,10 @@ function normalizePath(p: string): string {
  *   - a dot-entry like `.bin` or `.cache`, already dropped by the scan;
  *   - a package the lockfile describes but the PLATFORM filter skipped on this host.
  *     It is described, so it is not a stranger; removing the foreign-platform residue
- *     is `prune-prefix.ts`'s separate job under a separate rule.
+ *     is `prune-prefix.ts`'s separate job under a separate rule;
+ *   - anything inside the `node_modules` of a package that declares
+ *     `bundleDependencies`: its tarball put it there, so a second `--immutable` run
+ *     over the first run's own output must not refuse it.
  *
  * Descendants of an extraneous directory are collapsed away: reporting the parent
  * says everything, and the nested `@girs` tree of the incident would otherwise list
@@ -81,6 +84,12 @@ export function findExtraneous(opts: {
     expected: readonly { installPath: string }[];
 }): ExtraneousPackage[] {
     const described = new Set(opts.expected.map((n) => normalizePath(n.installPath)));
+    // A package with `bundleDependencies` ships its own `node_modules` in the tarball
+    // (nativescript → universal-analytics + its debug/ms/uuid). Extracting it creates
+    // those directories, so the install's own output must not be refused on the next run.
+    const bundlerRoots = opts.installed
+        .filter((p) => p.bundles && !p.linked)
+        .map((p) => `${normalizePath(relative(opts.prefix, p.dir))}/node_modules/`);
     const found: ExtraneousPackage[] = [];
     for (const pkg of opts.installed) {
         if (pkg.linked) continue;
@@ -88,6 +97,7 @@ export function findExtraneous(opts: {
         // Outside the prefix, or the prefix itself: not this install's to judge.
         if (installPath === '' || installPath.startsWith('..')) continue;
         if (described.has(installPath)) continue;
+        if (bundlerRoots.some((root) => installPath.startsWith(root))) continue;
         found.push({ installPath, name: pkg.name, version: pkg.version });
     }
     found.sort((a, b) => (a.installPath < b.installPath ? -1 : a.installPath > b.installPath ? 1 : 0));

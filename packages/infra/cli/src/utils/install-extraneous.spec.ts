@@ -105,6 +105,21 @@ export default async () => {
             expect(out[0]!.installPath).toBe('node_modules/stray');
         });
 
+        await it('ignores what a bundleDependencies package carries, but not a stranger beside it', async () => {
+            const out = findExtraneous({
+                prefix: '/p',
+                installed: [
+                    installed('/p/node_modules/a', { name: 'a', bundles: true }),
+                    installed('/p/node_modules/a/node_modules/b', { name: 'b' }),
+                    installed('/p/node_modules/c', { name: 'c' }),
+                    installed('/p/node_modules/c/node_modules/d', { name: 'd' }),
+                ],
+                expected: [{ installPath: 'node_modules/a' }],
+            });
+            expect(out.length).toBe(1);
+            expect(out[0]!.installPath).toBe('node_modules/c');
+        });
+
         await it('walks a real tree through scanPrefix', async () => {
             // The pure rows above assume the scan shape; this one proves the seam,
             // including that `.bin` and a symlinked package are skipped by the walk
@@ -238,6 +253,44 @@ export default async () => {
                 expect(out.length).toBe(1);
                 expect(out[0]!.name).toBe('pkg-a');
                 expect(out[0]!.version).toBe('1.0.0');
+            } finally {
+                rmSync(prefix, { recursive: true, force: true });
+            }
+        });
+
+        await it('accepts a second run over a package that bundles its own node_modules', async () => {
+            // REGRESSION: Learn6502 + nativescript. nativescript lists
+            // `bundleDependencies: ['universal-analytics']`, so its tarball carries
+            // universal-analytics and that package's debug/ms/uuid under its own
+            // node_modules, while the lockfile hoists the same four to the top level.
+            // The first install exited 0 and the second refused its output as
+            // "undescribed". Offline: the tree is already extracted.
+            const prefix = mkdtempSync(join(tmpdir(), 'gjsify-immutable-bundled-'));
+            try {
+                writeLock(prefix, {
+                    'node_modules/pkg-a': { version: '1.0.0', resolved: 'https://example.invalid/a.tgz' },
+                });
+                writePackage(prefix, 'node_modules/pkg-a', 'pkg-a');
+                const manifest = join(prefix, 'node_modules', 'pkg-a', 'package.json');
+                writeFileSync(
+                    manifest,
+                    JSON.stringify({ name: 'pkg-a', version: '1.0.0', bundleDependencies: ['pkg-b'] }),
+                );
+                writePackage(prefix, 'node_modules/pkg-a/node_modules/pkg-b', 'pkg-b', '2.0.0');
+                writePackage(prefix, 'node_modules/pkg-a/node_modules/pkg-c', 'pkg-c', '3.0.0');
+
+                const run = () =>
+                    installPackagesNative({
+                        prefix,
+                        specs: ['pkg-a@1.0.0'],
+                        frozen: true,
+                        lockfile: false,
+                        progress: QUIET,
+                    });
+                const first = await run();
+                const second = await run();
+                expect(first.length).toBe(1);
+                expect(second.length).toBe(1);
             } finally {
                 rmSync(prefix, { recursive: true, force: true });
             }
