@@ -29,7 +29,8 @@
 //
 // WHAT IS NOT RUN HERE. The seven `holds: 'subset'` refusal vectors: real GObject ACCEPTS what the
 // subset refuses, so `isOracle: true` skips them, exactly as on the GJS leg. 17 of the 24 vectors
-// run.
+// run — 14 where no Gtk widget can be built (no display, or no GTK stack at all, as in the arm64
+// APK), because the three template rows need a real widget.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -80,17 +81,29 @@ function reasonFor(name: string): string | undefined {
 
 export const gobjectNodeGiSuite = (requireGi: RequireGi) => async () => {
     const GObject = requireGi('GObject', '2.0') as unknown as GObjectModule;
-    const Gtk = requireGi('Gtk', '4.0') as unknown as GtkModule;
     // Without a display Gtk cannot build a widget, so the template rows are not run; the
     // plain-GObject rows are. Same gate as the GJS leg, and the reason the CI step runs under
     // xvfb — headless, those rows would silently not be measured.
-    const hasDisplay = Gtk.init_check();
+    //
+    // A host that has no Gtk AT ALL is the same case, one step earlier: the arm64 APK carries
+    // GLib/GObject/Gio and not the GTK stack, where `requireGi('Gtk', '4.0')` throws on the
+    // missing typelib. Letting that throw out of the suite body cost every row in this file —
+    // the suite reported "a suite body threw, the run is INCOMPLETE" and measured nothing,
+    // including the 14 rows that never touch a widget. The widget rows skip either way.
+    const Gtk = (() => {
+        try {
+            return requireGi('Gtk', '4.0') as unknown as GtkModule;
+        } catch {
+            return undefined;
+        }
+    })();
+    const hasDisplay = Gtk !== undefined && Gtk.init_check();
 
     const subject: GObjectSubject = {
         name: 'node-gi (real GObject on Node)',
         isOracle: true,
         GObject,
-        Widget: hasDisplay ? Gtk.Box : undefined,
+        Widget: hasDisplay ? Gtk?.Box : undefined,
         template: (source) => source.xml,
         bind: (source, sourceProperty, target, targetProperty, flags) => {
             const bits = flags.reduce(
