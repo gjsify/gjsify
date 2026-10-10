@@ -195,6 +195,12 @@ const ForeignStructOps* ForeignOpsForInfo(GIBaseInfo* iface);
 void InitCairo(Napi::Env env, Napi::Object exports);
 // win32: probeHostOpenGL / preloadOpenGL / currentGLStrings (opengl-win32.cc); a no-op elsewhere.
 void InitOpenGLWin32(Napi::Env env, Napi::Object exports);
+// Android: install GLib's print/log/writer handlers onto logcat (android-log.cc), where
+// stderr goes nowhere. Elsewhere only the `androidLogBridge` probe, answering false.
+void InitAndroidLog(Napi::Env env, Napi::Object exports);
+// Android: androidInitGdk(), the opt-in GDK bring-up that replaces GTK's
+// RuntimeApplication (android-gdk.cc). Elsewhere the export answers false.
+void InitAndroidGdk(Napi::Env env, Napi::Object exports);
 
 // ---- GJS-exact 64-bit integer marshalling helpers (shared) -------------------
 //

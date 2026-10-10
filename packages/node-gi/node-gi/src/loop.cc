@@ -1203,10 +1203,14 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (g_loop_started) return env.Undefined();
 
-  // The looper of the thread that called in — the JS thread. NativeScript runs
-  // JS on Android's UI thread, which always has one; a null answer means the
-  // host called from a bare pthread that never prepared a looper, and there is
-  // then nothing for GLib to be pumped by.
+  // The looper of the thread that called in — whichever JS thread that is. The
+  // UI thread always has one, and so does a NativeScript Worker (its Java side
+  // runs Looper.prepare() + Looper.loop() around the runtime, see the host's
+  // WorkerWrapper). A Worker is in fact the better owner for GTK: GTK's Android
+  // glue blocks the UI thread on a default-GMainContext idle (GlibContext
+  // .blockForMain), which only returns if some OTHER thread iterates that
+  // context. A null answer means the host called from a bare pthread that never
+  // prepared a looper, and there is then nothing for GLib to be pumped by.
   ALooper* looper = ALooper_forThread();
   if (looper == nullptr) {
     Napi::Error::New(env,
