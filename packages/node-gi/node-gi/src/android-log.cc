@@ -57,10 +57,13 @@ static GLogWriterOutput AndroidLogWriter(GLogLevelFlags log_level, const GLogFie
     else if (g_strcmp0(fields[i].key, "MESSAGE") == 0)
       message = static_cast<const gchar*>(fields[i].value);
   }
+  // liblog answers with the bytes it wrote, or a negative errno: anything above zero is
+  // a delivery. Reporting UNHANDLED on one sends GLib to its default writer, i.e. to the
+  // stderr this whole file exists because of.
   int rc = __android_log_print(AndroidPriority(log_level),
                                domain != nullptr ? domain : "**", "%s",
                                message != nullptr ? message : "(empty)");
-  return rc == 0 ? G_LOG_WRITER_HANDLED : G_LOG_WRITER_UNHANDLED;
+  return rc > 0 ? G_LOG_WRITER_HANDLED : G_LOG_WRITER_UNHANDLED;
 }
 
 // androidLogBridge() -> boolean — whether GLib's messages reach logcat.
