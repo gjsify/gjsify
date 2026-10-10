@@ -44,6 +44,15 @@ on:
         required: false
         default: ''
 
+# ONE publishing run at a time, whatever its ref or trigger: a release event, a tag recovery and a
+# main dispatch share this group and queue behind each other. Every npm publish job lives in this
+# file, so this one group is the whole guard. NEVER `cancel-in-progress` — a cancelled publishing
+# run leaves a partial release. GitHub keeps ONE pending run per group and cancels an older pending
+# one, so batch every missing name into a single `only=` (docs/publishing.md, "One publishing run at a time").
+concurrency:
+  group: release-npm-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     name: Publish to NPM
