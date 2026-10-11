@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.60.0](https://github.com/gjsify/gjsify/compare/v0.59.1...v0.60.0) (2026-10-11)
+
+### Features
+
+* **adwaita-nativescript:** add Gtk.Widget tree members ([#2158](https://github.com/gjsify/gjsify/issues/2158)) ([5bf39a1](https://github.com/gjsify/gjsify/commit/5bf39a12fded94d870f77bf84a8547a45033344e))
+* **adwaita:** real Gio backs the subset via node-gi (ADR 0105) ([#2155](https://github.com/gjsify/gjsify/issues/2155)) ([475a572](https://github.com/gjsify/gjsify/commit/475a572e67a2de0ecd01290d12b68b20023c3b6b)), closes [#2151](https://github.com/gjsify/gjsify/issues/2151)
+* **dav:** `CalDAV/CardDAV` client (+ domparser XML namespaces) ([#2161](https://github.com/gjsify/gjsify/issues/2161)) ([ce2c466](https://github.com/gjsify/gjsify/commit/ce2c4667139c13c3cadbd8f3d2bf6b51fbefd1c5))
+* **vite-plugin-gjsify:** add giRenderer for NativeScript ([#2159](https://github.com/gjsify/gjsify/issues/2159)) ([d29c5ea](https://github.com/gjsify/gjsify/commit/d29c5ea592898327bfff51f093b4f1a205bccda9))
+
+### Bug Fixes
+
+* **adwaita-web:** run GNOME components unchanged ([#2157](https://github.com/gjsify/gjsify/issues/2157)) ([f809b84](https://github.com/gjsify/gjsify/commit/f809b84da8cab8cf3ec9461b197ba9a1b28f9414))
+* **nativescript-vite:** keep SBG-readable code on minify ([#2153](https://github.com/gjsify/gjsify/issues/2153)) ([9e83ff3](https://github.com/gjsify/gjsify/commit/9e83ff3a278ffbdbeb50ca866071623041f2595e)), closes [#222](https://github.com/gjsify/gjsify/issues/222)
+* **publish:** hold on unserved npm versions, slim tarballs ([#2163](https://github.com/gjsify/gjsify/issues/2163)) ([fc64ea9](https://github.com/gjsify/gjsify/commit/fc64ea921f4b79ff13d04614ddd6e4939f172186))
+
+### Build System
+
+* **deps:** align MCP SDK to ^1.32.1 ([#2156](https://github.com/gjsify/gjsify/issues/2156)) ([1c3bc43](https://github.com/gjsify/gjsify/commit/1c3bc43657329b26bcbcecf8b686e27f87852a27))
+
+### Maintenance
+
+* **dav:** clear the npm bootstrap ledger ([#2164](https://github.com/gjsify/gjsify/issues/2164)) ([572fe2e](https://github.com/gjsify/gjsify/commit/572fe2eb53bee7d0ebc6494135b1127d80bf0094)), closes [#2161](https://github.com/gjsify/gjsify/issues/2161)
+* update native prebuilds [skip ci] ([0ccaf69](https://github.com/gjsify/gjsify/commit/0ccaf690d404284a6b0b7cce157421ab452520c4))
+
+### Tests
+
+* **adwaita-core:** the GObject vectors on a real arm64 device ([#2154](https://github.com/gjsify/gjsify/issues/2154)) ([0b750d8](https://github.com/gjsify/gjsify/commit/0b750d80baf44999cc1063448abecd0321bbc9e7)), closes [#2152](https://github.com/gjsify/gjsify/issues/2152)
+* **adwaita:** the GObject vectors against node-gi (ADR 0105 stage 0) ([#2152](https://github.com/gjsify/gjsify/issues/2152)) ([1dc7100](https://github.com/gjsify/gjsify/commit/1dc7100bdfd2334d26d8be0885d15108042285e7)), closes [#2151](https://github.com/gjsify/gjsify/issues/2151)
+
 ## [0.59.1](https://github.com/gjsify/gjsify/compare/v0.59.0...v0.59.1) (2026-10-10)
 
 ### Features
