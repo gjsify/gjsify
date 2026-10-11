@@ -23,9 +23,18 @@ customElements.define('corpus-extern', CorpusExtern);
 registerTemplateClass(EXTERN_VECTOR_CLASS, 'corpus-extern');
 
 function observe(vector: ConstructVector): unknown {
-    if (vector.kind === 'layout' || vector.kind === 'sibling-object') {
+    if (vector.kind === 'sibling-object') {
         buildSharedTree(vector.tree);
         return undefined;
+    }
+    if (vector.kind === 'layout') {
+        // CSS Grid lines count from 1, GTK cells from 0: `2 / span 2` is column 1, columnSpan 2.
+        const start = (line: string) => Number(line.split(' / ')[0]) - 1;
+        const span = (line: string) => Number(line.split('span ')[1]);
+        return [...buildSharedTree(vector.tree).children].map((child) => {
+            const { gridRow, gridColumn } = (child as HTMLElement).style;
+            return { row: start(gridRow), column: start(gridColumn), columnSpan: span(gridColumn) };
+        });
     }
     if (vector.kind === 'page') {
         const stack = buildSharedTree(vector.tree);
