@@ -30,6 +30,7 @@ import {
     emitInstance,
     notifyInstance,
     registeredClassOf,
+    registeredEngine,
     type BuiltTemplate,
     type ClassLike,
     type GObjectDoor,
@@ -151,19 +152,26 @@ const door: GObjectDoor = {
     },
 };
 
-// THE REAL-GObject OPT-IN IS ONE ARGUMENT, AND IT IS DELIBERATELY NOT MADE HERE YET.
-// `createGObject(door, createRealGioEngine(requireGi))` from `@gjsify/adwaita-gobject-native`
-// puts a real GObject behind this subset (ADR 0105 § 2), and the engine is implemented, wired
-// into CI and green on all 24 `GOBJECT_VECTORS` over node-gi. What is missing is the premise
-// UNDER it: that node-gi loads on NativeScript's V8 at all. That is ADR 0105's own open
-// question, and this line is evaluated at MODULE LOAD — a `requireGi` that throws on a device
-// would take the app down at startup, which is the failure mode this tree has already paid for
-// once (`AGENTS.md` § "What the slice PROMISES"). A try/catch fallback is not the answer either:
-// it would make "the subset is backed by real GObject" unknowable from inside the app.
-// So the argument goes in when the probe says it can, and not before.
-const created = createGObject(door);
+// THE REAL-GObject OPT-IN IS THIS ARGUMENT, AND IT IS THE APP'S TO MAKE (ADR 0105 § 4).
+//
+// `registeredEngine()` is empty unless the app called `useRealGObjectEngine(requireGi)` from
+// `@gjsify/adwaita-gobject-native` in a module evaluated before this one, in which case the
+// subset below is backed by a real GObject reached through node-gi (ADR 0105 § 2). Empty slot →
+// `createGObject`'s default, the pure-JS engine, which is what every build that does not ask for
+// the Android payload gets.
+//
+// WHY THIS MODULE DOES NOT OPT IN ITSELF. It would have to import `@gjsify/node-gi/gi` to get a
+// `requireGi`, and this line is evaluated at MODULE LOAD: a `requireGi` that throws — no
+// `@gjsify/gi-runtime-android` in the APK, wrong ABI, no extracted typelibs — would take the app
+// down at startup, the failure mode this tree has already paid for once (`AGENTS.md` § "What the
+// slice PROMISES"). It would also make a browser-installable tier-2 package depend on an
+// Android-only tier-3 one. A try/catch here is not the answer either: it would make "the subset
+// is backed by real GObject" unknowable from inside the app. So the app decides, loudly, and
+// `engineName` below reports what it got.
+const created = createGObject(door, registeredEngine());
 
 const {
+    engineName,
     Object: GObjectBase,
     registerClass,
     ParamSpec,
@@ -188,7 +196,12 @@ const {
     signal_stop_emission_by_name,
 } = created;
 
+// NOT a GJS member, and the one in this file: GJS has no second engine to tell apart. It is here
+// rather than only in `@gjsify/adwaita-core` so an app that imports this namespace and nothing
+// else can still answer "what backs my subset" — `GObject.engineName === 'real-gio'` after a
+// successful opt-in, `'pure-js'` without one.
 export {
+    engineName,
     GObjectBase as Object,
     registerClass,
     ParamSpec,

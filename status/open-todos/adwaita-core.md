@@ -143,6 +143,16 @@ bounds far enough to tell `CLAMP` from `Math.min`/`Math.max`. The
 `SIDEBAR_WIDTH_VECTORS`, which is why `GLIB_CLAMP_VECTORS`' own exemption is a
 chain rather than a gap; the module is still held to nothing under its own name.
 
+`engine.ts` joins them for a different reason, and it may be a permanent one.
+Its CONTRACT is tabled and well driven — `GOBJECT_VECTORS` runs against the
+pure-JS engine as the core's own subject and against the real-Gio engine as
+`@gjsify/adwaita-gobject-native`'s — but its process-global opt-in SLOT
+(write-once, freeze on first read) cannot be driven by a renderer suite: a suite
+that registered an engine would pick the engine for every other suite in the
+same run. `engine-slot.spec.ts` holds it in core, and ADR 0105 stage 4 measured
+the slot on a device instead. What would retire this entry is a per-call
+injection point beside the global slot, which no consumer has needed yet.
+
 
 ### A table can be "driven" while the rows that matter are skipped
 

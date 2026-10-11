@@ -317,8 +317,11 @@ const ALL_TMP = [];
  * the path to the lib copy. `nsVite` describes the fixture `@nativescript/vite`
  * (`{ version, peerName?, eagerImport? }`); pass `null` to install NO
  * `@nativescript/vite` at all (the genuinely-absent case).
+ *
+ * `linkLib` puts the built lib OUTSIDE the app and symlinks it in, the way a `file:`
+ * dependency / `npm link` / a workspace checkout does — see the Bug 3 suite.
  */
-function makeIsolatedFixture(nsVite) {
+function makeIsolatedFixture(nsVite, { linkLib = false } = {}) {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-nsvite-'));
     ALL_TMP.push(root);
     if (nsVite) {
@@ -339,8 +342,15 @@ function makeIsolatedFixture(nsVite) {
 
     const app = join(root, 'app');
     const appNm = join(app, 'node_modules');
-    const libDir = join(appNm, '@gjsify', 'nativescript-vite');
+    // `linkLib`: the lib's REAL location is a sibling checkout, reachable from the app only
+    // through a symlink — so Node resolves the lib's own bare imports from `checkout/`, where
+    // the app's `node_modules` is invisible.
+    const libDir = linkLib ? join(root, 'checkout', 'nativescript-vite') : join(appNm, '@gjsify', 'nativescript-vite');
     mkdirSync(libDir, { recursive: true });
+    if (linkLib) {
+        mkdirSync(join(appNm, '@gjsify'), { recursive: true });
+        symlinkSync(libDir, join(appNm, '@gjsify', 'nativescript-vite'), 'dir');
+    }
     copyFileSync(fileURLToPath(LIB_URL), join(libDir, 'index.js'));
     writeFileSync(
         join(libDir, 'package.json'),
@@ -457,6 +467,43 @@ describe('@gjsify/nativescript-vite missing-framework-peer stubs (Bug 2: Core ap
             `a framework-less Core app must compose without throwing — got "${out}" (the missing peer should be stubbed)`,
         );
         assert.ok(out.includes('config'), `the composed result must be a real Vite config object — got "${out}"`);
+    });
+});
+
+// `@nativescript/vite` is an OPTIONAL PEER, and a peer resolves from the consuming PROJECT.
+// `loadUpstreamConfig` used to `import('@nativescript/vite')` with a bare specifier, which Node
+// resolves relative to the importing FILE — fine in a flat install, wrong the moment
+// `@gjsify/nativescript-vite` is a symlink into a checkout (`file:` dependency, `npm link`, a
+// workspace): the peer is then looked up next to the link TARGET, not in the app, and config-load
+// dies with `ERR_MODULE_NOT_FOUND: Cannot find package '@nativescript/vite'` even though the app
+// installed it. Measured on 2026-10-11 in `tests/integration/nativescript-gi`, whose `@gjsify/*`
+// deps are `file:` paths. The fix resolves from `process.cwd()` first and imports a file URL.
+describe('@gjsify/nativescript-vite peer resolution (Bug 3: symlinked lib)', () => {
+    function compose(nsVite, options) {
+        const { app } = makeIsolatedFixture(nsVite, options);
+        return runInFixture(
+            app,
+            `(async () => { const cfg = await mod()({ command: 'build', mode: 'production' });` +
+                ` return 'OK:' + (Array.isArray(cfg.plugins) ? 'config' : typeof cfg); })()`,
+        );
+    }
+
+    it('finds the app’s @nativescript/vite when the lib is symlinked in from a checkout', () => {
+        const out = compose({ version: '8.0.0-alpha.57' }, { linkLib: true });
+        assert.ok(out.startsWith('OK:'), `a symlinked lib must still find the project's optional peer — got "${out}"`);
+        assert.ok(out.includes('config'), `the composed result must be a real Vite config object — got "${out}"`);
+    });
+
+    it('still fails loudly when the app has not installed the peer at all', () => {
+        // `runInFixture` surfaces `e.cause.code`: the actionable "install @nativescript/vite"
+        // message is the outer error, the module-not-found code its cause. The point of the case
+        // is that the cwd-first resolution does not turn an absent peer into something quieter.
+        const out = compose(null, { linkLib: true });
+        assert.equal(
+            out,
+            'ERR:ERR_MODULE_NOT_FOUND',
+            `a genuinely absent peer must still throw with the module-not-found cause — got "${out}"`,
+        );
     });
 });
 

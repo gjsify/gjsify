@@ -210,3 +210,13 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    back and no vectors to measure. That is ADR 0099/0100 work first.
 4. Packaging: GI `.so` files and typelibs as a NativeScript plugin. Measurement: APK delta per ABI,
    compressed, and cold-start delta against an app without it, on an arm64 device.
+   **Done, minus the cold start:** [report](../reports/2026-10-11-node-gi-nativescript-plugin.md).
+   `@gjsify/gi-runtime-android` ships `libnode_gi.so`, a MEASURED 14-library closure and 7
+   typelibs as one AAR for both ABIs; an app gets them from one dependency, and the stage-3
+   opt-in is flipped: on an SM-G960F the subset answers **41 of 41** rows with
+   `gobjectEngineName() === 'real-gio'`, the same APK with the opt-in refused **27 of 27** on
+   pure JS. Plugin share of a universal debug APK: 32,468,780 B compressed, ~15.5 MB per ABI.
+   Finding: under `@nativescript/vite` the vendor chunk evaluates first, so **no app-side import
+   order can register the engine in time** — the app must disable `manualChunks`. Not measured:
+   the cold-start delta (both runs carry the same payload and differ in a build-time `define`),
+   x86_64 on any host, a per-ABI or release APK, and the published-npm install path.

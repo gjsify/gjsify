@@ -146,6 +146,69 @@ test('the GDK bring-up without a bootstrap class is refused, not left to fail in
     assert.match(r.stderr, /__NODE_GI_ANDROID_JNI_BOOTSTRAP/);
 });
 
+// The loader chain, as a function — the device half of this is a gradle build and an APK, so
+// the ORDER and the fallbacks are pinned here instead.
+test('resolveNativeRequire prefers webpack rewrite, then the runtime globals', async () => {
+    const { resolveNativeRequire } = await import('../host.nativescript.js');
+    const webpack = () => 'webpack';
+    const runtime = () => 'runtime';
+    const internal = () => 'internal';
+
+    // webpack's rewritten name wins even when the globals are there: in a webpack bundle the
+    // module-scoped `require` is webpack's own and would resolve against the bundle graph.
+    assert.deepEqual(resolveNativeRequire({ require: runtime, __nativeRequire: internal }, webpack), {
+        load: webpack,
+        via: '__non_webpack_require__',
+    });
+    assert.deepEqual(resolveNativeRequire({ require: runtime, __nativeRequire: internal }, undefined), {
+        load: runtime,
+        via: 'require',
+    });
+    // An ESM bundle on a runtime that exposes only its internal name — the case webpack's
+    // single check could not reach at all.
+    assert.deepEqual(resolveNativeRequire({ __nativeRequire: internal }, undefined), {
+        load: internal,
+        via: '__nativeRequire',
+    });
+    assert.deepEqual(resolveNativeRequire({}, undefined), { load: null, via: null });
+    // Not a function is not a loader: a bundler may leave `require` defined as something else.
+    assert.deepEqual(resolveNativeRequire({ require: 'not a function' }, undefined), { load: null, via: null });
+    assert.deepEqual(resolveNativeRequire(undefined, undefined), { load: null, via: null });
+});
+
+// What @nativescript/vite produces: ESM, no `__non_webpack_require__` anywhere. Before the
+// chain this threw and told the app to switch to webpack.
+test('a bundle with only the runtime global still loads the addon', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         const calls = [];
+         globalThis.require = (id) => { calls.push(id); return { prependSearchPath: (d) => calls.push(d) }; };
+         globalThis.__NODE_GI_TYPELIB_PATH = '/app/typelibs';
+         h.loadNativeHost();
+         console.log(JSON.stringify({ calls }))`,
+    );
+    assert.deepEqual(out.calls, ['system_lib://libnode_gi.so', '/app/typelibs']);
+});
+
+test('no loader at all names every name it looked for', () => {
+    const r = spawnSync(
+        process.execPath,
+        [
+            '--conditions=nativescript',
+            '--input-type=module',
+            '-e',
+            `import * as h from '#host';
+             delete globalThis.require;
+             h.loadNativeHost();`,
+        ],
+        { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /__non_webpack_require__/);
+    assert.match(r.stderr, /globalThis\.require and globalThis\.__nativeRequire/);
+});
+
 test('nativescript.webpack.js adds the nativescript condition (and require() hands back the hook)', () => {
     const set = [];
     const hook = createRequire(import.meta.url)('../nativescript.webpack.js');

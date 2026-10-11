@@ -72,8 +72,16 @@ import { defineRule } from '../registry.mjs';
  *
  * And the trigger is `files`, not the `bin` MANIFEST FIELD — a package declaring
  * executables via `"bin": {…}` is untouched.
+ *
+ * `'platforms'` is the third, for `@gjsify/gi-runtime-android`, whose payload is an AAR of
+ * `libnode_gi.so` plus fourteen unmodified GLib/GObject/Gio/cairo libraries. The directory name
+ * is not this repository's choice: NativeScript's gradle scans a dependency's
+ * `platforms/android` for `**\/*.aar`, so a plugin that wants its payload packaged into an APK
+ * has to put it there. Which is the pattern to expect — the payload directory of the NEXT
+ * bundle will be named by whatever build system has to find it, not by a convention here, and
+ * the same `files` edit is silent for it until its name is in this set.
  */
-const PAYLOAD_DIRS = new Set(['gtk', 'bin']);
+const PAYLOAD_DIRS = new Set(['gtk', 'bin', 'platforms']);
 
 /** `SEE LICENSE IN <file>` — npm's documented form for a licence too complex to express. */
 const SEE_LICENSE_IN = /^SEE LICEN[CS]E IN\s+(.+)$/;

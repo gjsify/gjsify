@@ -20,8 +20,11 @@ import requireGi from '@gjsify/node-gi/gi';
 
 import { realGioEngineSuite } from './engine.node-gi.spec.js';
 import { realGioListStoreSuite } from './list-store.node-gi.spec.js';
+import optInTestSuite from './opt-in.spec.js';
 
 run({
     realGioEngineTestSuite: realGioEngineSuite(requireGi),
     realGioListStoreTestSuite: realGioListStoreSuite(requireGi),
+    // The opt-in's refusals need no GI stack — this is just the only entry the package has.
+    optInTestSuite,
 });

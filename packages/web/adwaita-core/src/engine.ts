@@ -99,3 +99,74 @@ export interface GObjectEngine {
         flags: readonly BindingFlag[],
     ): Binding;
 }
+
+// --- The slot --------------------------------------------------------------------------------
+//
+// `createGObject(door, engine)` is an argument, and a PORT is the one that calls it: by the time
+// an app imports `@gjsify/adwaita-nativescript/gobject` that module has already built its
+// namespace. So the app cannot pass the engine — it has to put the engine somewhere the port
+// reads. This is that somewhere, and it is in the CORE rather than in the NativeScript port
+// because the core is what owns the default (ADR 0105 § 2).
+//
+// WHY THE APP AND NOT THE PORT DECIDES. The engine needs `requireGi`, and `requireGi` needs
+// `@gjsify/node-gi` plus the `@gjsify/gi-runtime-android` payload. Both are tier-3 Android-only
+// things; the port is tier 2 and installable in a browser. A port that reached for them itself
+// would make every consumer an Android consumer. So the opt-in is one call in app code —
+// `useRealGObjectEngine(requireGi)` from `@gjsify/adwaita-gobject-native` — and the port only
+// reads what it finds.
+//
+// WHY IT FREEZES ON FIRST READ, AND WHY A LATE REGISTRATION THROWS. The port reads the slot once,
+// when its module body runs. An app that registers AFTER that would get a namespace backed by the
+// pure-JS engine while believing it had a real GObject — a silent, whole-app-wide wrong answer,
+// and the exact kind of "which engine is this actually" doubt a try/catch fallback would create.
+// So the read is recorded and a later registration is an error that names the fix. The ordering
+// the app owes is ordinary ESM: the module that calls `useRealGObjectEngine` must be EVALUATED
+// before the port's, which means importing it first, from its own side-effect module.
+//
+// A QUERY IS A READ. {@link gobjectEngineName} freezes the slot too, because an answer that a
+// later registration would invalidate is worse than no answer.
+
+let registered: GObjectEngine | undefined;
+let wasRead = false;
+
+/**
+ * Makes `engine` the engine behind every GObject namespace a port builds AFTER this call. Throws
+ * when the slot has already been read, or when a DIFFERENT engine holds it — re-registering the
+ * same one is idempotent, so a module two bundles both evaluate is not an error.
+ *
+ * Nothing calls this in the core. `@gjsify/adwaita-gobject-native`'s `useRealGObjectEngine` is the
+ * one caller the workspace has, and it is the app that calls that.
+ */
+export function registerGObjectEngine(engine: GObjectEngine): void {
+    if (registered === engine) return;
+    if (registered) {
+        throw new Error(
+            `GObject engine already registered: '${registered.name}' cannot be replaced by '${engine.name}'. ` +
+                'Register exactly one engine, once, before anything builds a GObject namespace.',
+        );
+    }
+    if (wasRead) {
+        throw new Error(
+            `GObject engine '${engine.name}' registered too late: a GObject namespace was already built ` +
+                'on the default engine. Move the registering call into a module that is imported BEFORE ' +
+                "'@gjsify/adwaita-nativescript/gobject' — its own side-effect import, listed first — so " +
+                'that it is evaluated first.',
+        );
+    }
+    registered = engine;
+}
+
+/**
+ * The engine a port must build its namespace on, or `undefined` when none was registered — which
+ * the caller is to read as "use the default", not as an error. Freezes the slot.
+ */
+export function registeredEngine(): GObjectEngine | undefined {
+    wasRead = true;
+    return registered;
+}
+
+/** Forgets the slot. For tests, which need a second app's worth of module state in one process. */
+export function resetRegisteredEngine(): void {
+    registered = undefined;
+    wasRead = false;
+}

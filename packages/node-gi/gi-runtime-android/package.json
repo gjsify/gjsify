@@ -1,0 +1,54 @@
+{
+    "name": "@gjsify/gi-runtime-android",
+    "version": "0.60.0",
+    "description": "NativeScript plugin that puts the GObject-Introspection runtime into an Android APK — libnode_gi.so plus the GLib/GObject/Gio closure and their typelibs, for arm64-v8a and x86_64. Add it as a dependency and @gjsify/node-gi's `requireGi` works on the device; no hand-copied .so, no jniLibs dir in App_Resources.",
+    "type": "module",
+    "license": "SEE LICENSE IN platforms/THIRD-PARTY-NOTICES.md",
+    "main": "./index.js",
+    "types": "./index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./index.d.ts",
+            "default": "./index.js"
+        },
+        "./platforms/android": "./platforms/android",
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "index.js",
+        "index.d.ts",
+        "platforms"
+    ],
+    "nativescript": {
+        "platforms": {
+            "android": "7.0.0"
+        }
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "none",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "native"
+        },
+        "nativescriptPlatforms": [
+            "android"
+        ],
+        "tier": 3
+    },
+    "scripts": {
+        "build:bundle": "node scripts/build-gi-runtime-android.mjs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node-gi/gi-runtime-android"
+    },
+    "keywords": [
+        "nativescript",
+        "android",
+        "gobject-introspection",
+        "glib",
+        "gjsify"
+    ]
+}

@@ -18,6 +18,7 @@
 // what deliberately stays here rather than moving behind it: `engine.ts`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
+import { registeredEngine } from './engine.js';
 import type { GObjectEngine } from './engine.js';
 
 /** What `registerClass` accepts as `Template`: the projected tree of a `?template` import (ADR 0096 § 4). */
@@ -1076,6 +1077,12 @@ function installInstanceApi(proto: object): void {
 }
 
 export interface GObjectNamespace {
+    /**
+     * Names the {@link GObjectEngine} THIS namespace was built on — `'pure-js'` for the default.
+     * The answer to "what actually backs the subset in this app", asked of the only thing that
+     * cannot be wrong about it; {@link gobjectEngineName} is the same answer without a handle.
+     */
+    readonly engineName: string;
     readonly Object: GObjectConstructor;
     readonly registerClass: RegisterClass;
     readonly ParamSpec: typeof ParamSpec;
@@ -1108,6 +1115,7 @@ export interface GObjectNamespace {
  */
 export function createGObject(door: GObjectDoor, engine: GObjectEngine = PURE_JS_ENGINE): GObjectNamespace {
     return {
+        engineName: engine.name,
         Object: GObjectObject as unknown as GObjectConstructor,
         registerClass: ((...args: unknown[]) => registerWith(door, engine, args)) as RegisterClass,
         ParamSpec,
@@ -1134,4 +1142,17 @@ export function createGObject(door: GObjectDoor, engine: GObjectEngine = PURE_JS
         },
         signal_stop_emission_by_name: stopEmissionByName,
     };
+}
+
+/**
+ * Which engine a namespace built from here would be on — `'pure-js'` unless something called
+ * `registerGObjectEngine`. The runtime answer to "is the subset backed by real GObject in this
+ * build", for an app that wants to log it or a test that wants to assert it, and the reason no
+ * caller ever needs a try/catch to find out.
+ *
+ * Asking FREEZES the slot, exactly as a port's read does: an answer a later registration would
+ * turn into a lie is worse than no answer. See `engine.ts` § "The slot".
+ */
+export function gobjectEngineName(): string {
+    return registeredEngine()?.name ?? PURE_JS_ENGINE.name;
 }

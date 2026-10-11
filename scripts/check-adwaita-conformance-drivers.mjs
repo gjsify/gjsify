@@ -243,6 +243,16 @@ const MODULE_REASONS = {
     'breakpoint-driver': { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
+    // The `GObjectEngine` type plus the process-global SLOT an app writes to opt into a
+    // different engine (ADR 0105 stage 4). The engine CONTRACT is tabled — every engine is
+    // held to `GOBJECT_VECTORS` through `driveGObjectVectors`, the pure-JS one as the core's
+    // own subject and the real-Gio one as the tier-3 package's — so what has no table of its
+    // own is the slot's registration behaviour: write-once, freeze on first read, throw on a
+    // second write. That is not a derivation a vector row can state, and no renderer can
+    // drive it either: the slot is global to the process, so a renderer suite that registered
+    // an engine would decide the engine for every other suite in the same run. It is held by
+    // `engine-slot.spec.ts` in core instead, and the missing renderer-driven table is the gap.
+    engine: { table: 'GOBJECT_VECTORS', gap: NO_DRIVER_LEDGER },
     // `gdk.ts` is tabled in `conformance/gdk-clipboard.ts`, driven by the core, both doors and real gi://Gdk.
     gdk: { table: 'GDK_CLIPBOARD_VECTORS' },
     glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },

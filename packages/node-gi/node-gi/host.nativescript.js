@@ -158,17 +158,73 @@ function configureEnvironment() {
 }
 
 /**
+ * The names under which NativeScript's own module loader can be reached from the GLOBAL scope,
+ * in the order a bundle may offer them. `system_lib://` is the runtime's scheme, so whichever
+ * of these answers, it is the same loader underneath.
+ *
+ *   * `require` — the loader the runtime installs globally. A CommonJS bundle also has a
+ *     module-scoped `require`, but that one is the BUNDLER's; reading the global by name is
+ *     what keeps the two apart, and it is why this list is read off a scope object rather
+ *     than written as bare identifiers.
+ *   * `__nativeRequire` — the same loader under the name the runtime uses internally
+ *     (measured in @nativescript/android 9.1's libNativeScript.so, beside `ns:module`'s
+ *     `createRequire`). It is the fallback for a runtime that stops exposing `require`
+ *     globally, which an ESM-only bundle would otherwise have no way to reach.
+ */
+const RUNTIME_REQUIRE_GLOBALS = ['require', '__nativeRequire'];
+
+/**
+ * Pick the function that can load `system_lib://libnode_gi.so`.
+ *
+ * WHY THIS IS A CHAIN AND NOT webpack's ONE NAME. `__non_webpack_require__` only exists
+ * because webpack REWRITES that free identifier to the runtime's require; under
+ * @nativescript/vite (Rolldown, ESM output) nothing rewrites it, so the old single check made
+ * every non-webpack NativeScript bundle fail at the first `requireGi` with a message telling
+ * the app to switch bundlers — which is not a fix available to a vite app.
+ *
+ * ORDER MATTERS. webpack's rewrite wins first: in a webpack bundle the module-scoped `require`
+ * is webpack's own and would resolve `system_lib://…` against the bundle graph instead of the
+ * runtime. Only after that do the runtime's global names get a turn.
+ *
+ * Pure on purpose — `scope` is an argument so the chain is testable without a device
+ * (`test/host-nativescript.test.mjs`).
+ *
+ * @param {Record<string, unknown>} scope the global object to read the runtime names off
+ * @param {unknown} webpackRequire webpack's rewritten `__non_webpack_require__`, if any
+ * @returns {{ load: ((id: string) => any) | null, via: string | null }}
+ */
+export function resolveNativeRequire(scope, webpackRequire) {
+    if (typeof webpackRequire === 'function') {
+        return { load: /** @type {(id: string) => any} */ (webpackRequire), via: '__non_webpack_require__' };
+    }
+    for (const name of RUNTIME_REQUIRE_GLOBALS) {
+        const candidate = scope?.[name];
+        if (typeof candidate === 'function') {
+            return { load: /** @type {(id: string) => any} */ (candidate), via: name };
+        }
+    }
+    return { load: null, via: null };
+}
+
+/**
  * Load the addon from the APK's native libs and point GI at the app's typelibs.
  * @returns {Record<string, any>} the native engine
  */
 export function loadNativeHost() {
     configureEnvironment();
-    // webpack rewrites __non_webpack_require__ to the runtime's own `require`.
-    const load = typeof __non_webpack_require__ === 'function' ? __non_webpack_require__ : null;
+    // The bare identifier is what webpack rewrites; everything else is read off the global
+    // scope inside resolveNativeRequire.
+    const { load } = resolveNativeRequire(
+        globalThis,
+        typeof __non_webpack_require__ === 'function' ? __non_webpack_require__ : undefined,
+    );
     if (load === null) {
         throw new Error(
-            '@gjsify/node-gi: the NativeScript host needs __non_webpack_require__ ' +
-                '(bundle with @nativescript/webpack, which adds the `nativescript` resolve condition).',
+            '@gjsify/node-gi: the NativeScript host found no module loader to pass ' +
+                "'system_lib://libnode_gi.so' to. It looked for __non_webpack_require__ (webpack " +
+                `rewrites it) and then for ${RUNTIME_REQUIRE_GLOBALS.map((n) => `globalThis.${n}`).join(' and ')}` +
+                " — the names NativeScript's own loader answers to. None of them is a function, which " +
+                'means this is not a NativeScript runtime, or its loader moved.',
         );
     }
     const native = load('system_lib://libnode_gi.so');

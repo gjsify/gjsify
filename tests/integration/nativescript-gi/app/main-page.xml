@@ -1,0 +1,9 @@
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="onNavigatingTo">
+    <ActionBar title="gjsify GI on NativeScript" />
+    <GridLayout rows="*, auto" columns="*">
+        <Label row="0" id="result" text="running…" textWrap="true"
+               horizontalAlignment="center" verticalAlignment="center" fontSize="22" />
+        <Label row="1" id="engine" text="" textWrap="true"
+               horizontalAlignment="center" fontSize="14" padding="12" />
+    </GridLayout>
+</Page>
