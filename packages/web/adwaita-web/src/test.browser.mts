@@ -144,6 +144,7 @@ import { ApplicationTest } from './application.spec.js';
 import { GdkTest } from './gdk.spec.js';
 import { WidgetMembersTest } from './widget-members.spec.js';
 import { GLibTest } from './glib.spec.js';
+import { GtkPlatformTest } from './gtk-platform.spec.js';
 import { StyleManagerTest } from './style-manager.spec.js';
 import { GioActionsTest } from './gio.spec.js';
 import { MenuActionsTest } from './menu-actions.spec.js';
@@ -165,6 +166,7 @@ run({
     GdkTest,
     WidgetMembersTest,
     GLibTest,
+    GtkPlatformTest,
     StyleManagerTest,
     GioActionsTest,
     MenuActionsTest,

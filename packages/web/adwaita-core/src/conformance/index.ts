@@ -722,6 +722,8 @@ export type {
 } from './application.js';
 export { GLIB_TIMER_ROWS, GLIB_TIMER_VECTORS, driveGLibTimerVectors } from './glib-timers.js';
 export type { GLibTimerRow, GLibTimersLike, GLibTimersSubject, GLibTimerVector } from './glib-timers.js';
+export { GTK_PLATFORM_ROWS, GTK_PLATFORM_VECTORS, driveGtkPlatformVectors } from './gtk-platform.js';
+export type { GtkPlatformLike, GtkPlatformRow, GtkPlatformSubject, GtkPlatformVector } from './gtk-platform.js';
 export type { GObjectRow, GObjectSubject, GObjectTemplateSource, GObjectVector } from './gobject.js';
 
 export { POPUP_MENU_PLAN_VECTORS, popupMenuOutline } from './popup-menu-plan.js';

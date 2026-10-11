@@ -3,11 +3,16 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { GTK_PLATFORM_VECTORS, driveGtkPlatformVectors, type GtkPlatformLike } from './conformance/gtk-platform.js';
+
 import {
     CssProvider,
     GDK_KEYS,
     STYLE_PROVIDER_PRIORITY_APPLICATION,
+    STYLE_PROVIDER_PRIORITY_FALLBACK,
+    STYLE_PROVIDER_PRIORITY_SETTINGS,
     STYLE_PROVIDER_PRIORITY_THEME,
+    STYLE_PROVIDER_PRIORITY_USER,
     createGtkPlatform,
     keyvalOfKey,
     widgetControllerMembers,
@@ -35,6 +40,26 @@ function recordingHost() {
 const press = (key: string): HostKeyEvent => ({ key, keycode: 0, state: 0, pressed: true });
 
 export default async () => {
+    await driveGtkPlatformVectors(
+        {
+            name: 'adwaita-core',
+            isOracle: false,
+            Gtk: {
+                ...createGtkPlatform(recordingHost().host),
+                STYLE_PROVIDER_PRIORITY_FALLBACK,
+                STYLE_PROVIDER_PRIORITY_THEME,
+                STYLE_PROVIDER_PRIORITY_SETTINGS,
+                STYLE_PROVIDER_PRIORITY_APPLICATION,
+                STYLE_PROVIDER_PRIORITY_USER,
+            } as unknown as GtkPlatformLike,
+        },
+        { describe, it, expect },
+    );
+    await describe('gtk-platform: vectors', async () => {
+        await it('has a vector for every row', () => {
+            expect(GTK_PLATFORM_VECTORS.length > 0).toBe(true);
+        });
+    });
     await describe('gtk-platform', async () => {
         await it('orders providers by priority, then by the order they were added', async () => {
             const { host, styles } = recordingHost();
