@@ -101,11 +101,12 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
         undeclared.push([entry.member, `${namespace}-${repo.get_version(namespace)}`]);
         continue;
     }
-    const plain = entry.flags === true || entry.kind !== undefined;
+    // A function or constant carries no GType; its row names itself so the spec can tell it apart.
+    const plain = entry.kind !== undefined;
     declared.push([
         entry.member,
         plain ? `${namespace}.${entry.gir}` : info.get_type_name(),
-        plain ? false : ancestryOf(info).includes('GtkWidget'),
+        plain || entry.flags === true ? false : ancestryOf(info).includes('GtkWidget'),
     ]);
 }
 

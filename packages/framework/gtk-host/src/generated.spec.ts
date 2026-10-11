@@ -1252,6 +1252,8 @@ export default async () => {
                         problems.push(`${member} is not a member of its namespace on this host`);
                         continue;
                     }
+                    // A function or constant has no GType; the row names itself and presence is the whole fact.
+                    if (row.gtype === member) continue;
                     if (klass.$gtype === undefined) {
                         problems.push(`${member} resolves to something with no GType`);
                         continue;
@@ -1278,6 +1280,10 @@ export default async () => {
                 let checked = 0;
                 for (const [member, row] of Object.entries(VALUE_TYPES)) {
                     const klass = valueClass(member);
+                    if (row.gtype === member) {
+                        checked++;
+                        continue;
+                    }
                     if (klass?.$gtype === undefined) continue;
                     checked++;
                     const isWidget = GObject.type_is_a(klass.$gtype, Gtk.Widget.$gtype);

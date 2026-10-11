@@ -31,7 +31,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Adw.TabPage': { gtype: 'AdwTabPage', widget: false },
     'Adw.ViewStackPage': { gtype: 'AdwViewStackPage', widget: false },
     'Gio.Application': { gtype: 'GApplication', widget: false },
-    'Gio.ApplicationFlags': { gtype: 'Gio.ApplicationFlags', widget: false },
+    'Gio.ApplicationFlags': { gtype: 'GApplicationFlags', widget: false },
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
     'Gio.Settings': { gtype: 'GSettings', widget: false },
