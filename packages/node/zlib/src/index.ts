@@ -32,8 +32,10 @@ import {
     decompressStreamWithGio,
     DEFAULT_LEVEL,
     gunzipWithGio,
+    hasGzipMagic,
     type GioFormat,
 } from './gio-codec.js';
+import { bufferTooLargeError, isBufferTooLargeError, resolveMaxOutputLength } from './max-output-length.js';
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
@@ -58,12 +60,27 @@ const hasWebCompression = (): boolean => typeof globalThis.CompressionStream !==
 // transform-streams.ts, incl. the bounded-slice gzip member walk) live in
 // gio-codec.ts — see the performance contract documented there.
 
-function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
+function decompressWithGio(data: Uint8Array, format: GioFormat, maxOutputLength?: number): Uint8Array {
     if (format !== 'gzip') {
-        return decompressStreamWithGio(data, format);
+        return decompressStreamWithGio(data, format, maxOutputLength);
     }
     // Gzip: handle concatenated members (Node.js gunzip behavior).
-    return gunzipWithGio(data);
+    return gunzipWithGio(data, maxOutputLength);
+}
+
+/** Node's `Unzip`: gzip (all members) when the magic bytes say so, else zlib-wrapped deflate. */
+function unzipFormat(data: Uint8Array): GioFormat {
+    return hasGzipMagic(data) ? 'gzip' : 'deflate';
+}
+
+/**
+ * Compression output is not decoded incrementally, so the limit is checked on the
+ * result. That is still bounded: deflate output never exceeds its input by more
+ * than a few bytes per block, unlike inflate, where the guard has to stop the loop.
+ */
+function assertWithinLimit(result: Uint8Array, maxOutputLength: number): Uint8Array {
+    if (result.length > maxOutputLength) throw bufferTooLargeError(maxOutputLength);
+    return result;
 }
 
 // Drive a (de)compression Transform by piping a single-chunk source through it
@@ -78,6 +95,7 @@ function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
 async function runWebTransform(
     data: Uint8Array,
     transform: ReadableWritablePair<Uint8Array, Uint8Array>,
+    maxOutputLength = Infinity,
 ): Promise<Uint8Array> {
     const source = new ReadableStream<Uint8Array>({
         start(controller) {
@@ -87,10 +105,18 @@ async function runWebTransform(
     });
 
     const chunks: Uint8Array[] = [];
+    let produced = 0;
     const reader = source.pipeThrough(transform).getReader();
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        produced += value.length;
+        if (produced > maxOutputLength) {
+            // Cancelling stops the decoder pulling more input, so a bomb is not
+            // inflated past the chunk that crossed the limit.
+            await reader.cancel();
+            throw bufferTooLargeError(maxOutputLength);
+        }
         chunks.push(value);
     }
 
@@ -108,8 +134,16 @@ async function compressWithWeb(data: Uint8Array, format: CompressionFormat): Pro
     return runWebTransform(data, new CompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
 }
 
-async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): Promise<Uint8Array> {
-    return runWebTransform(data, new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
+async function decompressWithWeb(
+    data: Uint8Array,
+    format: CompressionFormat,
+    maxOutputLength: number,
+): Promise<Uint8Array> {
+    return runWebTransform(
+        data,
+        new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>,
+        maxOutputLength,
+    );
 }
 
 /**
@@ -140,11 +174,16 @@ function requestedLevel(options?: ZlibOptions): number | undefined {
  * rather than to ignore. With no level asked for, the Web path stays the default
  * for the reason in {@link decompress}: it is the platform's own C zlib.
  */
-async function compress(data: Uint8Array, format: GioFormat, level?: number): Promise<Uint8Array> {
+async function compress(
+    data: Uint8Array,
+    format: GioFormat,
+    level: number | undefined,
+    maxOutputLength: number,
+): Promise<Uint8Array> {
     if (level === undefined && hasWebCompression()) {
-        return compressWithWeb(data, format as CompressionFormat);
+        return assertWithinLimit(await compressWithWeb(data, format as CompressionFormat), maxOutputLength);
     }
-    return compressWithGio(data, format, level);
+    return assertWithinLimit(compressWithGio(data, format, level), maxOutputLength);
 }
 
 /**
@@ -176,16 +215,16 @@ async function compress(data: Uint8Array, format: GioFormat, level?: number): Pr
  * walking them. A genuinely corrupt stream still rejects, because `gunzipWithGio`
  * re-decodes and surfaces GLib's error — what the truncated-input tests assert.
  */
-async function decompress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
+async function decompress(data: Uint8Array, format: GioFormat, maxOutputLength: number): Promise<Uint8Array> {
     if (hasWebCompression()) {
         try {
-            return await decompressWithWeb(data, format as CompressionFormat);
+            return await decompressWithWeb(data, format as CompressionFormat, maxOutputLength);
         } catch (err) {
-            if (format !== 'gzip') throw err;
-            return decompressWithGio(data, format);
+            if (format !== 'gzip' || isBufferTooLargeError(err)) throw err;
+            return decompressWithGio(data, format, maxOutputLength);
         }
     }
-    return decompressWithGio(data, format);
+    return decompressWithGio(data, format, maxOutputLength);
 }
 
 function toUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
@@ -198,115 +237,125 @@ function toUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
     return data;
 }
 
-export function gzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function gzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
-export function gzip(
-    data: string | Uint8Array | ArrayBuffer,
+type ZlibInput = string | Uint8Array | ArrayBuffer;
+
+/**
+ * Shared body of the callback API. The options are validated BEFORE anything is
+ * scheduled, so a bad `level` or `maxOutputLength` throws synchronously from the
+ * call, as Node's does, instead of arriving through the callback.
+ */
+function runAsync(
+    data: ZlibInput,
     optionsOrCallback: ZlibOptions | ZlibCallback,
-    callback?: ZlibCallback,
+    callback: ZlibCallback | undefined,
+    run: (input: Uint8Array, options: ZlibOptions | undefined, maxOutputLength: number) => Promise<Uint8Array>,
 ): void {
     const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
     const options = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
-    compress(toUint8Array(data), 'gzip', requestedLevel(options)).then(
+    const maxOutputLength = resolveMaxOutputLength(options);
+    run(toUint8Array(data), options, maxOutputLength).then(
         (result) => cb(null, result),
         (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
     );
 }
 
-export function gunzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function gunzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
-export function gunzip(
-    data: string | Uint8Array | ArrayBuffer,
-    optionsOrCallback: ZlibOptions | ZlibCallback,
-    callback?: ZlibCallback,
-): void {
-    const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    decompress(toUint8Array(data), 'gzip').then(
-        (result) => cb(null, result),
-        (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
-    );
+function compressAsync(format: GioFormat) {
+    return (input: Uint8Array, options: ZlibOptions | undefined, maxOutputLength: number) =>
+        compress(input, format, requestedLevel(options), maxOutputLength);
 }
 
-export function deflate(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function deflate(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
-export function deflate(
-    data: string | Uint8Array | ArrayBuffer,
-    optionsOrCallback: ZlibOptions | ZlibCallback,
-    callback?: ZlibCallback,
-): void {
-    const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    const options = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
-    compress(toUint8Array(data), 'deflate', requestedLevel(options)).then(
-        (result) => cb(null, result),
-        (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
-    );
+function decompressAsync(format: GioFormat) {
+    return (input: Uint8Array, _options: ZlibOptions | undefined, maxOutputLength: number) =>
+        decompress(input, format, maxOutputLength);
 }
 
-export function inflate(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function inflate(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
-export function inflate(
-    data: string | Uint8Array | ArrayBuffer,
-    optionsOrCallback: ZlibOptions | ZlibCallback,
-    callback?: ZlibCallback,
-): void {
-    const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    decompress(toUint8Array(data), 'deflate').then(
-        (result) => cb(null, result),
-        (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
-    );
+export function gzip(data: ZlibInput, callback: ZlibCallback): void;
+export function gzip(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
+export function gzip(data: ZlibInput, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+    runAsync(data, optionsOrCallback, callback, compressAsync('gzip'));
 }
 
-export function deflateRaw(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function deflateRaw(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function gunzip(data: ZlibInput, callback: ZlibCallback): void;
+export function gunzip(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
+export function gunzip(data: ZlibInput, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+    runAsync(data, optionsOrCallback, callback, decompressAsync('gzip'));
+}
+
+export function deflate(data: ZlibInput, callback: ZlibCallback): void;
+export function deflate(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
+export function deflate(data: ZlibInput, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+    runAsync(data, optionsOrCallback, callback, compressAsync('deflate'));
+}
+
+export function inflate(data: ZlibInput, callback: ZlibCallback): void;
+export function inflate(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
+export function inflate(data: ZlibInput, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+    runAsync(data, optionsOrCallback, callback, decompressAsync('deflate'));
+}
+
+export function deflateRaw(data: ZlibInput, callback: ZlibCallback): void;
+export function deflateRaw(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
 export function deflateRaw(
-    data: string | Uint8Array | ArrayBuffer,
+    data: ZlibInput,
     optionsOrCallback: ZlibOptions | ZlibCallback,
     callback?: ZlibCallback,
 ): void {
-    const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    const options = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
-    compress(toUint8Array(data), 'deflate-raw', requestedLevel(options)).then(
-        (result) => cb(null, result),
-        (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
-    );
+    runAsync(data, optionsOrCallback, callback, compressAsync('deflate-raw'));
 }
 
-export function inflateRaw(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
-export function inflateRaw(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
+export function inflateRaw(data: ZlibInput, callback: ZlibCallback): void;
+export function inflateRaw(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
 export function inflateRaw(
-    data: string | Uint8Array | ArrayBuffer,
+    data: ZlibInput,
     optionsOrCallback: ZlibOptions | ZlibCallback,
     callback?: ZlibCallback,
 ): void {
-    const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
-    decompress(toUint8Array(data), 'deflate-raw').then(
-        (result) => cb(null, result),
-        (err) => cb(err instanceof Error ? err : new Error(String(err)), new Uint8Array(0)),
+    runAsync(data, optionsOrCallback, callback, decompressAsync('deflate-raw'));
+}
+
+export function unzip(data: ZlibInput, callback: ZlibCallback): void;
+export function unzip(data: ZlibInput, options: ZlibOptions, callback: ZlibCallback): void;
+export function unzip(data: ZlibInput, optionsOrCallback: ZlibOptions | ZlibCallback, callback?: ZlibCallback): void {
+    runAsync(data, optionsOrCallback, callback, (input, _options, maxOutputLength) =>
+        decompress(input, unzipFormat(input), maxOutputLength),
     );
 }
 
-export function gzipSync(data: string | Uint8Array | ArrayBuffer, options?: ZlibOptions): Uint8Array {
-    return compressWithGio(toUint8Array(data), 'gzip', options?.level ?? DEFAULT_LEVEL);
+function compressSync(data: ZlibInput, format: GioFormat, options?: ZlibOptions): Uint8Array {
+    const maxOutputLength = resolveMaxOutputLength(options);
+    return assertWithinLimit(
+        compressWithGio(toUint8Array(data), format, options?.level ?? DEFAULT_LEVEL),
+        maxOutputLength,
+    );
 }
 
-export function gunzipSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-    return decompressWithGio(toUint8Array(data), 'gzip');
+export function gzipSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return compressSync(data, 'gzip', options);
 }
 
-export function deflateSync(data: string | Uint8Array | ArrayBuffer, options?: ZlibOptions): Uint8Array {
-    return compressWithGio(toUint8Array(data), 'deflate', options?.level ?? DEFAULT_LEVEL);
+export function gunzipSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return decompressWithGio(toUint8Array(data), 'gzip', resolveMaxOutputLength(options));
 }
 
-export function inflateSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-    return decompressWithGio(toUint8Array(data), 'deflate');
+export function deflateSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return compressSync(data, 'deflate', options);
 }
 
-export function deflateRawSync(data: string | Uint8Array | ArrayBuffer, options?: ZlibOptions): Uint8Array {
-    return compressWithGio(toUint8Array(data), 'deflate-raw', options?.level ?? DEFAULT_LEVEL);
+export function inflateSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return decompressWithGio(toUint8Array(data), 'deflate', resolveMaxOutputLength(options));
 }
 
-export function inflateRawSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
-    return decompressWithGio(toUint8Array(data), 'deflate-raw');
+export function deflateRawSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return compressSync(data, 'deflate-raw', options);
+}
+
+export function inflateRawSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    return decompressWithGio(toUint8Array(data), 'deflate-raw', resolveMaxOutputLength(options));
+}
+
+export function unzipSync(data: ZlibInput, options?: ZlibOptions): Uint8Array {
+    const input = toUint8Array(data);
+    return decompressWithGio(input, unzipFormat(input), resolveMaxOutputLength(options));
 }
 
 // Node's CompressCallback signature requires a `result: Uint8Array` even on
@@ -448,12 +497,14 @@ export default {
     inflate,
     deflateRaw,
     inflateRaw,
+    unzip,
     gzipSync,
     gunzipSync,
     deflateSync,
     inflateSync,
     deflateRawSync,
     inflateRawSync,
+    unzipSync,
     brotliCompress,
     brotliDecompress,
     brotliCompressSync,

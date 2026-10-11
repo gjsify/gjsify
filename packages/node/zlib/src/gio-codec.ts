@@ -31,6 +31,7 @@
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
+import { bufferTooLargeError, MAX_OUTPUT_LENGTH_DEFAULT, remainingReadBudget } from './max-output-length.js';
 
 export type GioFormat = 'gzip' | 'deflate' | 'deflate-raw';
 
@@ -64,6 +65,11 @@ export function getGioFormat(format: GioFormat): Gio.ZlibCompressorFormat {
         case 'deflate-raw':
             return Gio.ZlibCompressorFormat.RAW;
     }
+}
+
+/** RFC 1952 §2.3.1: a gzip member starts with the magic bytes 1f 8b. */
+export function hasGzipMagic(data: Uint8Array, offset = 0): boolean {
+    return data.length - offset >= 2 && data[offset] === 0x1f && data[offset + 1] === 0x8b;
 }
 
 function concat(chunks: Uint8Array[]): Uint8Array {
@@ -149,8 +155,18 @@ export function compressWithGio(data: Uint8Array, format: GioFormat, level: numb
  * One-shot decompression of a single zlib/raw/gzip stream via
  * `Gio.ConverterInputStream`. For gzip this decodes exactly ONE member —
  * concatenated members need {@link gunzipWithGio}.
+ *
+ * `maxOutputLength` is Node's zip-bomb guard, counted from `produced` (the
+ * output earlier gzip members already used). Each read asks for no more than
+ * the remaining budget plus one byte, so decoding stops at the first byte past
+ * the limit and never holds more than the limit plus one read in memory.
  */
-export function decompressStreamWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
+export function decompressStreamWithGio(
+    data: Uint8Array,
+    format: GioFormat,
+    maxOutputLength: number = MAX_OUTPUT_LENGTH_DEFAULT,
+    produced = 0,
+): Uint8Array {
     const decompressor = new Gio.ZlibDecompressor({ format: getGioFormat(format) });
     const memInput = Gio.MemoryInputStream.new_from_bytes(new GLib.Bytes(data));
     const converter = new Gio.ConverterInputStream({
@@ -159,10 +175,17 @@ export function decompressStreamWithGio(data: Uint8Array, format: GioFormat): Ui
     });
 
     const chunks: Uint8Array[] = [];
+    let total = produced;
     while (true) {
-        const bytes = converter.read_bytes(STREAM_READ_CHUNK, null);
+        const want = Math.min(STREAM_READ_CHUNK, remainingReadBudget(maxOutputLength, total));
+        const bytes = converter.read_bytes(want, null);
         const size = bytes.get_size();
         if (size === 0) break;
+        total += size;
+        if (total > maxOutputLength) {
+            converter.close(null);
+            throw bufferTooLargeError(maxOutputLength);
+        }
         chunks.push(new Uint8Array(bytes.get_data()!));
     }
     converter.close(null);
@@ -187,17 +210,26 @@ export function decompressStreamWithGio(data: Uint8Array, format: GioFormat): Ui
  * On malformed or truncated input the scan stops and reports the bytes
  * consumed so far; the caller's real decompression of that slice surfaces the
  * proper GLib error.
+ *
+ * The scan inflates too, so it honours `outputLimit` as well: a zip-bomb member
+ * would otherwise be inflated in full here before the bounded decode ever ran.
+ * Once more than `outputLimit` bytes came out it stops, and the caller's decode
+ * of the consumed prefix, which yields at least as much, raises
+ * `ERR_BUFFER_TOO_LARGE`.
  */
-export function findGzipMemberEnd(data: Uint8Array): number {
+export function findGzipMemberEnd(data: Uint8Array, outputLimit = Infinity): number {
     const decompressor = new Gio.ZlibDecompressor({ format: Gio.ZlibCompressorFormat.GZIP });
     const outBuf = new Uint8Array(SCAN_OUT_BUF_SIZE);
     let totalRead = 0;
+    let totalWritten = 0;
     while (true) {
         const input = data.subarray(totalRead, totalRead + CONVERT_INPUT_SLICE);
         try {
             const [result, bytesRead, bytesWritten] = decompressor.convert(input, outBuf, Gio.ConverterFlags.NONE);
             totalRead += bytesRead;
+            totalWritten += bytesWritten;
             if (result === Gio.ConverterResult.FINISHED) return totalRead;
+            if (totalWritten > outputLimit) return totalRead;
             if (bytesRead === 0 && bytesWritten === 0) {
                 // Termination backstop. Per Gio's contract a zero-progress
                 // convert() raises instead (G_IO_ERROR_PARTIAL_INPUT /
@@ -224,27 +256,26 @@ export function findGzipMemberEnd(data: Uint8Array): number {
  * `gzip -c a b`, bgzip, and some HTTP servers), ignore trailing non-gzip
  * bytes after the last complete member.
  */
-export function gunzipWithGio(data: Uint8Array): Uint8Array {
+export function gunzipWithGio(data: Uint8Array, maxOutputLength: number = MAX_OUTPUT_LENGTH_DEFAULT): Uint8Array {
     const allChunks: Uint8Array[] = [];
     let inputOffset = 0;
+    let produced = 0;
 
-    while (inputOffset < data.length) {
-        // Only continue while the remainder looks like another gzip member.
-        if (data.length - inputOffset < 2 || data[inputOffset] !== 0x1f || data[inputOffset + 1] !== 0x8b) {
-            break;
-        }
-
+    // Only continue while the remainder looks like another gzip member.
+    while (hasGzipMagic(data, inputOffset)) {
         const memberData = data.subarray(inputOffset);
-        const consumed = findGzipMemberEnd(memberData);
+        const consumed = findGzipMemberEnd(memberData, maxOutputLength - produced);
         if (consumed <= 0) break; // No progress — avoid an infinite loop.
 
-        allChunks.push(decompressStreamWithGio(memberData.subarray(0, consumed), 'gzip'));
+        const member = decompressStreamWithGio(memberData.subarray(0, consumed), 'gzip', maxOutputLength, produced);
+        allChunks.push(member);
+        produced += member.length;
         inputOffset += consumed;
     }
 
     if (allChunks.length === 0) {
         // No valid gzip members — let the member decoder surface the real error.
-        return decompressStreamWithGio(data, 'gzip');
+        return decompressStreamWithGio(data, 'gzip', maxOutputLength);
     }
     return concat(allChunks);
 }
