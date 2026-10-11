@@ -490,10 +490,7 @@ describe('@gjsify/nativescript-vite peer resolution (Bug 3: symlinked lib)', () 
 
     it('finds the app’s @nativescript/vite when the lib is symlinked in from a checkout', () => {
         const out = compose({ version: '8.0.0-alpha.57' }, { linkLib: true });
-        assert.ok(
-            out.startsWith('OK:'),
-            `a symlinked lib must still find the project's optional peer — got "${out}"`,
-        );
+        assert.ok(out.startsWith('OK:'), `a symlinked lib must still find the project's optional peer — got "${out}"`);
         assert.ok(out.includes('config'), `the composed result must be a real Vite config object — got "${out}"`);
     });
 
