@@ -58,6 +58,18 @@ import {
     type ReadbackResult,
 } from '../utils/publish-readback.js';
 import { collectWorkspacePins, REQUIRED_BLOCK, type WorkspacePin } from '../utils/publish-pins.js';
+import {
+    appendLedger,
+    DEFAULT_HOLD_WAIT_MS,
+    findUnavailablePins,
+    holdsPublish,
+    readLedger,
+    recordUnserved,
+    renderLedgerSummary,
+    summariseReasons,
+    type HoldReason,
+} from '../utils/publish-hold.js';
+import { describeClass, statusTokenFromEnv, type Classification } from '../utils/publish-status.js';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider, withOtpRetry, isOtpChallenge } from '../utils/npm-otp.js';
 import { promptLine } from '../utils/prompt.js';
@@ -71,6 +83,9 @@ interface PublishOptions {
     'tolerate-untrusted-new'?: boolean;
     'verify-timeout'?: number;
     'verify-defer'?: boolean;
+    'hold-timeout'?: number;
+    'report-ledger'?: boolean;
+    ref?: string;
     provenance?: boolean;
     'dry-run'?: boolean;
     json?: boolean;
@@ -123,6 +138,22 @@ export const publishCommand: Command<unknown, PublishOptions> = {
                     'Report an unconfirmed read-back and exit 0 instead of 1. ONLY for a caller that re-checks the same set afterwards — `gjsify run npm:publish` passes it because `scripts/verify-published-closure.mjs` sweeps the whole roster at the end of release.yml. Everywhere else an unconfirmed publish must fail the job that made it.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('hold-timeout', {
+                description:
+                    'Seconds to wait for an intra-repo dependency pin whose exact version the registry does not serve (yet) before HOLDING this package instead of publishing it. A version npm accepted but never serves (status "validating") would make every dependent uninstallable; the write lag measured on v0.46.0 reaches 252s, hence the default. `0` probes once and holds without waiting. A hold exits 1, or 0 under `--verify-defer`.',
+                type: 'number',
+                default: DEFAULT_HOLD_WAIT_MS / 1000,
+            })
+            .option('report-ledger', {
+                description:
+                    'Print the job-summary markdown for the publish ledger named by $GJSIFY_PUBLISH_LEDGER (versions npm accepted but does not serve, packages held because of them, the recovery command) and exit. Pair with `--ref <tag>`.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('ref', {
+                description: 'With --report-ledger: the git ref to put in the printed recovery command.',
+                type: 'string',
             })
             .option('provenance', {
                 description:
@@ -181,6 +212,20 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         const trustedFlag = args.trusted;
         const verbose = Boolean(process.env.GJSIFY_PUBLISH_DEBUG);
 
+        if (args['report-ledger'] === true) {
+            const summary = renderLedgerSummary(readLedger(process.env.GJSIFY_PUBLISH_LEDGER), args.ref ?? '<tag>');
+            if (summary) process.stdout.write(`${summary}\n`);
+            return;
+        }
+
+        const holdSeconds = args['hold-timeout'] ?? DEFAULT_HOLD_WAIT_MS / 1000;
+        if (!Number.isFinite(holdSeconds) || holdSeconds < 0) {
+            console.error(
+                `gjsify publish: --hold-timeout must be a non-negative number of seconds, got ${JSON.stringify(args['hold-timeout'])}`,
+            );
+            return process.exit(2);
+        }
+
         if (provenance) {
             console.warn('gjsify publish: --provenance recorded but not signed (no sigstore integration yet).');
         }
@@ -193,7 +238,10 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         // entries with `ok: false`) to surface failures.
         if (checkTrustedOnly) {
             const rawPkgPath = join(wsDir, 'package.json');
-            const rawPkg = JSON.parse(readFileSync(rawPkgPath, 'utf-8')) as { name?: string; private?: boolean };
+            const rawPkg = JSON.parse(readFileSync(rawPkgPath, 'utf-8')) as {
+                name?: string;
+                private?: boolean;
+            };
             if (typeof rawPkg.name !== 'string') {
                 process.stderr.write(`gjsify publish --check-trusted: ${rawPkgPath} has no \`name\` field\n`);
                 // `return` — a bare `process.exit()` is deferred under GJS and
@@ -264,7 +312,11 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         const otpNpmrc = await loadNpmrc(wsDir);
         let otpPkgName: string | undefined;
         try {
-            otpPkgName = (JSON.parse(readFileSync(join(wsDir, 'package.json'), 'utf-8')) as { name?: string }).name;
+            otpPkgName = (
+                JSON.parse(readFileSync(join(wsDir, 'package.json'), 'utf-8')) as {
+                    name?: string;
+                }
+            ).name;
         } catch {
             /* no readable manifest — fall back to the default registry below */
         }
@@ -289,6 +341,7 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             otpProvider,
             seedOtpFirst: otp !== undefined,
             verifyBudgetMs,
+            holdWaitMs: Math.round(holdSeconds * 1000),
         });
         reportPublishOutcome(outcome, args.json === true, deferUnconfirmed);
     },
@@ -335,6 +388,11 @@ export interface PublishWorkspaceInput {
      * success, which is the pre-v0.46.0 behaviour and why this defaults on.
      */
     verifyBudgetMs?: number;
+    /**
+     * How long to wait for an intra-repo pin the registry does not serve before
+     * holding this package. Default {@link DEFAULT_HOLD_WAIT_MS}.
+     */
+    holdWaitMs?: number;
 }
 
 /** Discriminated result of {@link publishWorkspace}; the caller owns presentation. */
@@ -378,6 +436,21 @@ export type PublishOutcome =
           putUrl: string;
           payloadBytes: number;
           readback: ReadbackResult;
+          /** What the unserved version IS (validating / staged / blocked / …). */
+          classification: Classification;
+      }
+    /**
+     * The tarball was NOT sent, because an intra-repo pin in it names a version
+     * the registry does not serve — an accepted-but-"validating" upload, say.
+     * `ok` is the tolerance, as for `blocked-missing-dependency`.
+     */
+    | {
+          ok: false;
+          action: 'held-unpublished-dependency';
+          name: string;
+          version: string;
+          registry: string;
+          reasons: HoldReason[];
       }
     | {
           ok: true;
@@ -410,11 +483,44 @@ export type PublishOutcome =
           tolerated: boolean;
           missing: WorkspacePin[];
       }
-    | { ok: false; action: 'otp-required'; name: string; version: string; status: number }
-    | { ok: false; action: 'oidc-failed'; name: string; version: string; error: unknown }
-    | { ok: false; action: 'oidc-no-token'; name: string; version: string; error: unknown }
-    | { ok: false; action: 'diagnostic'; name: string; version: string; status: number; diag: Diagnose404Result }
-    | { ok: false; action: 'error'; name: string; version: string; status: number; statusText: string; text: string };
+    | {
+          ok: false;
+          action: 'otp-required';
+          name: string;
+          version: string;
+          status: number;
+      }
+    | {
+          ok: false;
+          action: 'oidc-failed';
+          name: string;
+          version: string;
+          error: unknown;
+      }
+    | {
+          ok: false;
+          action: 'oidc-no-token';
+          name: string;
+          version: string;
+          error: unknown;
+      }
+    | {
+          ok: false;
+          action: 'diagnostic';
+          name: string;
+          version: string;
+          status: number;
+          diag: Diagnose404Result;
+      }
+    | {
+          ok: false;
+          action: 'error';
+          name: string;
+          version: string;
+          status: number;
+          statusText: string;
+          text: string;
+      };
 
 /**
  * Pack + PUT a single workspace to its npm registry, returning a structured
@@ -527,6 +633,45 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
                 registry,
                 tolerated: tolerateUntrustedNew,
                 missing,
+            };
+        }
+    }
+
+    // 5b. Do not PUT a tarball whose pin names a VERSION the registry does not
+    //     serve (v0.59.x: adwaita-fonts "Validating" while its dependents shipped).
+    //     Unlike 5 this waits, because a version is late for minutes after its own
+    //     2xx; see publish-hold.ts.
+    const ledgerPath = process.env.GJSIFY_PUBLISH_LEDGER;
+    if (pins.length > 0) {
+        const reasons = await findUnavailablePins({
+            registry: registryClean,
+            pins,
+            ledger: readLedger(ledgerPath),
+            authorization: headers['authorization'],
+            statusToken: statusTokenFromEnv(process.env),
+            waitBudgetMs: input.holdWaitMs ?? DEFAULT_HOLD_WAIT_MS,
+            log: verbose ? (m) => console.error(m) : undefined,
+        });
+        for (const r of reasons.filter((x) => !holdsPublish(x))) {
+            console.error(
+                `gjsify publish: ${r.block}.${r.name}@${r.version} is not served (${r.detail}) — optional edge, publishing anyway`,
+            );
+        }
+        const holding = reasons.filter(holdsPublish);
+        if (holding.length > 0) {
+            appendLedger(ledgerPath, {
+                ev: 'held',
+                name: packed.name,
+                version: packed.version,
+                reasons: holding,
+            });
+            return {
+                ok: false,
+                action: 'held-unpublished-dependency',
+                name: packed.name,
+                version: packed.version,
+                registry: registryClean,
+                reasons: holding,
             };
         }
     }
@@ -710,6 +855,14 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
                 putUrl: url,
                 payloadBytes: bodyStr.length,
                 readback,
+                classification: await recordUnserved({
+                    ledgerPath,
+                    registry: registryClean,
+                    name: packed.name,
+                    version: packed.version,
+                    verdict: readback.verdict,
+                    statusToken: statusTokenFromEnv(process.env),
+                }),
             };
         }
         return {
@@ -758,6 +911,14 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
                 putUrl: url,
                 payloadBytes: bodyStr.length,
                 readback,
+                classification: await recordUnserved({
+                    ledgerPath,
+                    registry: registryClean,
+                    name: packed.name,
+                    version: packed.version,
+                    verdict: readback.verdict,
+                    statusToken: statusTokenFromEnv(process.env),
+                }),
             };
         }
         return {
@@ -887,8 +1048,38 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
             if (!verification.verified) warnUnverified(outcome.name, outcome.version, outcome.registry);
             return;
         }
+        case 'held-unpublished-dependency': {
+            const because = summariseReasons(outcome.reasons);
+            if (asJson) {
+                process.stdout.write(
+                    `${JSON.stringify(
+                        {
+                            ok: false,
+                            action: 'held-unpublished-dependency',
+                            name: outcome.name,
+                            version: outcome.version,
+                            registry: outcome.registry,
+                            reasons: outcome.reasons,
+                            deferred: deferUnconfirmed,
+                        },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            } else {
+                process.stderr.write(`~ ${outcome.name}@${outcome.version} (HELD — not published: ${because})\n`);
+            }
+            if (process.env.GITHUB_ACTIONS) {
+                process.stderr.write(
+                    `::warning title=Package held::${outcome.name}@${outcome.version} was NOT published: ${because}\n`,
+                );
+            }
+            // The sweep defers like an unconfirmed publish: the closure job goes red
+            // on the missing package, and the job summary carries the recovery.
+            return deferUnconfirmed ? undefined : process.exit(1);
+        }
         case 'publish-unconfirmed': {
-            const message = formatUnconfirmedPublish(outcome);
+            const message = `${formatUnconfirmedPublish(outcome)}\n  state: ${describeClass(outcome.classification.cls)} — ${outcome.classification.detail}`;
             if (asJson) {
                 process.stdout.write(
                     `${JSON.stringify(
@@ -908,6 +1099,8 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                             verdictDetail: outcome.readback.verdictDetail,
                             recordedAt: outcome.readback.recordedAt ?? null,
                             deferred: deferUnconfirmed,
+                            class: outcome.classification.cls,
+                            classDetail: outcome.classification.detail,
                         },
                         null,
                         2,
@@ -929,7 +1122,7 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                     process.stderr.write(
                         `::warning title=Publish unconfirmed::${outcome.name}@${outcome.version} ${claimed} ` +
                             `(HTTP ${outcome.putStatus}) but did not resolve on ${outcome.registry} within ` +
-                            `${(outcome.readback.elapsedMs / 1000).toFixed(1)}s [${outcome.readback.verdict}] — ` +
+                            `${(outcome.readback.elapsedMs / 1000).toFixed(1)}s [${outcome.readback.verdict}; ${describeClass(outcome.classification.cls)}] — ` +
                             'the release-closure job must confirm it\n',
                     );
                 }
