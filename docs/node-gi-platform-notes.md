@@ -41,13 +41,19 @@ TWO KINDS OF EMPTY, and the ledger has to say which is which. **Structurally emp
 
 ## NativeScript (Android) host
 
-The JS layer loads under NativeScript's V8 (a Node-API host with no Node module system) when bundled
-by `@nativescript/webpack`. Every Node-only dependency sits behind `#host` (package.json `imports`):
-`host.node.js` is the default and holds what `index.js`/`gi.js` did inline before; `host.nativescript.js`
-is chosen by the `nativescript` condition, which the shipped `nativescript.webpack.js` plugin hook adds
-to the webpack resolver (the file is ESM, so `require()` of it needs Node >= 22.12).
+The JS layer loads under NativeScript's V8 (a Node-API host with no Node module system). Every
+Node-only dependency sits behind `#host` (package.json `imports`): `host.node.js` is the default and
+holds what `index.js`/`gi.js` did inline before; `host.nativescript.js` is chosen by the
+`nativescript` condition. Both bundlers supply it: the shipped `nativescript.webpack.js` plugin hook
+adds the condition to the webpack resolver (the file is ESM, so `require()` of it needs Node >= 22.12),
+and `@gjsify/vite-plugin-gjsify` sets `conditions: ['import', 'nativescript']` for the vite path.
 
-The NativeScript host loads the addon with `__non_webpack_require__('system_lib://libnode_gi.so')`,
+The NativeScript host loads the addon through `resolveNativeRequire`, a CHAIN rather than one name:
+`__non_webpack_require__` (which only webpack rewrites) first, then `globalThis.require` and
+`globalThis.__nativeRequire` — the names NativeScript's own loader answers to, read off the global
+scope so a bundler's module-scoped `require` cannot be mistaken for the runtime's. Before the chain,
+a vite/Rolldown ESM bundle had no reachable loader and failed at the first `requireGi` with a message
+telling the app to change bundlers. It
 takes timers from the globals, stands in a minimal `process` (`platform: 'android'`, no-op `on`,
 `exit` = `killProcess`), and skips prebuild/GTK-bundle discovery. `RUNTIME` is `'nativescript'`:
 `requireGi` calls `startMainLoop()` (the native ALooper pump) and never arms the portable timer pump.
