@@ -19,6 +19,34 @@ function asciiLower(value: string): string {
     return value.replace(/[A-Z]+/g, (run) => run.toLowerCase());
 }
 
+/** A prefix (`''` = the default) mapped to its namespace URI. */
+type NamespaceScope = ReadonlyMap<string, string>;
+
+const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
+
+/** The scope an element opens: its parent's, plus its own `xmlns` / `xmlns:p` attributes. */
+function openScope(parent: NamespaceScope, el: DOMElement): NamespaceScope {
+    let scope: Map<string, string> | null = null;
+    for (const { name, value } of el.attributes) {
+        const prefix = name === 'xmlns' ? '' : name.startsWith('xmlns:') ? name.slice(6) : null;
+        if (prefix === null) continue;
+        scope ??= new Map(parent);
+        scope.set(prefix, value);
+    }
+    return scope ?? parent;
+}
+
+/** Splits `D:multistatus` and resolves the prefix; an undeclared one yields no namespace. */
+function applyName(el: DOMElement, tagName: string, scope: NamespaceScope): void {
+    const colon = tagName.indexOf(':');
+    const prefix = colon > 0 ? tagName.slice(0, colon) : null;
+    if (prefix !== null) {
+        el.prefix = prefix;
+        el.localName = tagName.slice(colon + 1).toLowerCase();
+    }
+    el.namespaceURI = scope.get(prefix ?? '') || null;
+}
+
 function parseAttributes(attrsStr: string, el: DOMElement): void {
     let m: RegExpExecArray | null;
     ATTR_PATTERN.lastIndex = 0;
@@ -30,6 +58,8 @@ function parseAttributes(attrsStr: string, el: DOMElement): void {
 export function parseXml(xml: string): DOMDocument {
     const doc = new DOMDocument();
     const stack: DOMElement[] = [doc];
+    // Parallel to `stack`: the namespaces in force inside each open element.
+    const scopes: NamespaceScope[] = [new Map([['xml', XML_NAMESPACE]])];
     let i = 0;
     const len = xml.length;
 
@@ -109,7 +139,10 @@ export function parseXml(xml: string): DOMDocument {
 
         // Closing tag
         if (tagContent.startsWith('/')) {
-            if (stack.length > 1) stack.pop();
+            if (stack.length > 1) {
+                stack.pop();
+                scopes.pop();
+            }
             i = gtIdx + 1;
             continue;
         }
@@ -126,6 +159,8 @@ export function parseXml(xml: string): DOMDocument {
 
         const el = new DOMElement(tagName);
         if (wsIdx !== -1) parseAttributes(inner.slice(wsIdx), el);
+        const scope = openScope(scopes[scopes.length - 1], el);
+        applyName(el, tagName, scope);
 
         const top = stack[stack.length - 1];
         el.parentNode = top;
@@ -135,7 +170,10 @@ export function parseXml(xml: string): DOMDocument {
             doc.documentElement = el;
         }
 
-        if (!selfClosing) stack.push(el);
+        if (!selfClosing) {
+            stack.push(el);
+            scopes.push(scope);
+        }
 
         i = gtIdx + 1;
     }
