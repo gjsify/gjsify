@@ -18,7 +18,7 @@ import { GridLayout, ItemSpec, TextView, type EventData } from '@nativescript/co
 import { classNameWith } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
-import { xmlBoolean } from './xml-values.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link GtkTextView.text} changes. Mirrors `notify::text`. */
 export const NOTIFY_TEXT_VIEW_TEXT = 'notify::text';
@@ -123,7 +123,7 @@ export class GtkTextView extends withSignals(GridLayout) {
     }
 
     set topMargin(value: number | string) {
-        this._field.paddingTop = Number(value);
+        this._field.paddingTop = xmlNumber(value, this._margin('paddingTop'));
     }
 
     /** `Gtk.TextView:bottom-margin`. */
@@ -132,7 +132,7 @@ export class GtkTextView extends withSignals(GridLayout) {
     }
 
     set bottomMargin(value: number | string) {
-        this._field.paddingBottom = Number(value);
+        this._field.paddingBottom = xmlNumber(value, this._margin('paddingBottom'));
     }
 
     /** `Gtk.TextView:left-margin`. */
@@ -141,7 +141,7 @@ export class GtkTextView extends withSignals(GridLayout) {
     }
 
     set leftMargin(value: number | string) {
-        this._field.paddingLeft = Number(value);
+        this._field.paddingLeft = xmlNumber(value, this._margin('paddingLeft'));
     }
 
     /** `Gtk.TextView:right-margin`. */
@@ -150,7 +150,7 @@ export class GtkTextView extends withSignals(GridLayout) {
     }
 
     set rightMargin(value: number | string) {
-        this._field.paddingRight = Number(value);
+        this._field.paddingRight = xmlNumber(value, this._margin('paddingRight'));
     }
 
     private _margin(side: 'paddingTop' | 'paddingBottom' | 'paddingLeft' | 'paddingRight'): number {
@@ -172,28 +172,31 @@ export class GtkTextView extends withSignals(GridLayout) {
     private _cursor = 0;
 
     private _makeBuffer(): GtkTextBufferSubset {
-        const view = this;
+        const read = (): string => this._text;
+        const cursor = (): number => Math.min(this._cursor, this._text.length);
+        const clip = (text: string, len: number): string => (len < 0 ? (text ?? '') : (text ?? '').slice(0, len));
+        const set_text = (text: string, len = -1): void => {
+            const next = clip(text, len);
+            this._applyText(next);
+            this._cursor = next.length;
+        };
         return {
             get text(): string {
-                return view._text;
+                return read();
             },
             set text(value: string) {
-                this.set_text(value, -1);
+                set_text(value, -1);
             },
             get cursor_position(): number {
-                return Math.min(view._cursor, view._text.length);
+                return cursor();
             },
-            get_text: () => view._text,
-            set_text(text: string, len = -1): void {
-                const next = len < 0 ? (text ?? '') : (text ?? '').slice(0, len);
-                view._applyText(next);
-                view._cursor = next.length;
-            },
-            insert_at_cursor(text: string, len = -1): void {
-                const piece = len < 0 ? (text ?? '') : (text ?? '').slice(0, len);
-                const at = Math.min(view._cursor, view._text.length);
-                view._applyText(view._text.slice(0, at) + piece + view._text.slice(at));
-                view._cursor = at + piece.length;
+            get_text: read,
+            set_text,
+            insert_at_cursor: (text: string, len = -1): void => {
+                const piece = clip(text, len);
+                const at = cursor();
+                this._applyText(this._text.slice(0, at) + piece + this._text.slice(at));
+                this._cursor = at + piece.length;
             },
         };
     }
