@@ -248,6 +248,25 @@ On-device polyfill smoke suite — runs gjsify `nativescript:'polyfill'` package
 
 **HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): not selectable at all: the root manifest excludes `tests/integration/nativescript` from `workspaces`, so no `@gjsify/integration-nativescript` workspace exists (`gjsify workspace …` answers `no workspace named …`). It also drives a real device over `adb`.
 
+## nativescript-gi
+
+ADR 0105 stage 4's device measurement — the GI runtime reaching an APK as **one dependency**
+(`@gjsify/gi-runtime-android`, an AAR carrying `libnode_gi.so`, a measured 14-library closure and
+7 typelibs for arm64-v8a + x86_64) and the real-Gio GObject engine backing adwaita's subset on
+the phone. **41/41 green with the opt-in** (SM-G960F, arm64-v8a, NS 9.1.1, `@nativescript/vite` 8:
+24 `GOBJECT_VECTORS` + 9 `LIST_ITEMS_CHANGED_VECTORS` on a real `Gio.ListStore` + 4 engine rows +
+4 loader-probe rows, `gobjectEngineName() = real-gio`) and **27/27 green without it** (same APK,
+`GJSIFY_GI_OPT_IN=0`, `engineName = pure-js`) — the two runs differ in a vite `define`, not in
+payload. Findings: `@nativescript/vite`'s vendor chunk evaluates before any app module, so an app
+must disable `manualChunks` for its opt-in to win; and `host.nativescript.js` reached the NS
+loader only through webpack's rewritten name (fixed at the core). Report:
+`docs/reports/2026-10-11-node-gi-nativescript-plugin.md`.
+
+**HELD OUT of CI**: needs a physical arm64 device over `adb`, the NS CLI and an Android NDK, and
+the root manifest excludes it from `workspaces`. The host-side half of the contract IS in CI —
+`packages/node-gi/node-gi/test/gi-runtime-android.test.mjs` (41 tests: manifest, exports, AAR
+layout, closure/typelib agreement) in `node-gi.yml`.
+
 ## oxfmt-native
 
 **12 green under GJS (8 tests)** (GJS-only — the native bridge needs the GjsifyOxfmt typelib). Locks in the Node-free `gjsify format` contract end-to-end against the `@gjsify/oxfmt-native` prebuild: `hasNativeOxfmt()` typelib load, single-shot `format()` (Prettier-default output + TSX dialect-from-extension + throw-on-parse-error), and the full in-process CLI `runOxfmt()` — `--write` on-disk effect + exit 0, `--list-different` exit 1 on drift, `--check` exit 0 when clean, `.oxfmtrc.json` honoring via `--config`, exit 2 when no files match.
