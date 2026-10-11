@@ -203,3 +203,15 @@ Follows the ADR above. Vectors for the subset in `adwaita-core/conformance`, dri
 a `gi://GObject` row in `GI_RENDERERS`; an arm in `tests/e2e/gi-renderer-arms` that registers a
 class with a template and binds a property through `--gi-renderer`. The vectors come first: an
 implementation on one port with no vector is how the two ports diverged before.
+
+
+### Platform members still missing for Learn6502 (gap report, `packages/app-gnome`)
+
+Done on both ports: `Gio.Settings`, `Adw.ColorScheme`, `Gtk.CssProvider`/`StyleContext`/`Settings`/
+`IconTheme`/`EventControllerKey`, `Gtk.show_uri`, `Gdk.KEY_*`, web `Gtk.License`. Open:
+
+- NativeScript has no `Gtk.Window`, so `root instanceof Gtk.Window` in `share-dialog.ts` is unmet there.
+- Browser refuses `GtkStackPage` (a `StackPage { child: … }` node must fold into its child),
+  `sibling-object` (one root per mount) and `layout` (layout-manager placement).
+- Conformance vectors for the platform slice do not yet run against real `gi://` under GJS.
+- `keyvalOfKey` ignores Shift, so an uppercase key reports the lower-case keysym.
