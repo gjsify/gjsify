@@ -283,6 +283,9 @@ const MODULE_REASONS = {
     // is a renderer that reads them — nine registers of these values exist and none consults
     // this module yet, which is the gap the ledger tracks.
     'tokens.generated': { gap: NO_TABLE_LEDGER },
+    // The Gtk.Widget tree walk a renderer adds to its elements; `widget-members.spec.ts` (adwaita-web)
+    // holds it in the browser, a vector table both renderers drive is the open item.
+    'widget-members': { gap: NO_TABLE_LEDGER },
 };
 
 /** `PREFIX_*[_VECTORS]` glob | `A/B_VECTORS` pair | a plain table name. */

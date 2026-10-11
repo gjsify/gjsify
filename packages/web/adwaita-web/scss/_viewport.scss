@@ -47,4 +47,13 @@ gtk-viewport {
   > * {
     flex: none;
   }
+
+  // A `GtkScrollable` is the one child GTK does NOT put in a viewport: `gtk_scrolled_window_set_child`
+  // takes it as the window's own scrollable (gtkscrolledwindow.c:4362), so it is allocated the
+  // window's size and scrolls itself. The builder wraps every child, so the scrollable has to fill
+  // the viewport it lands in, in both axes.
+  > gtk-source-view {
+    flex: 1 1 auto;
+    align-self: stretch;
+  }
 }

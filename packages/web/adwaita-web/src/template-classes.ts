@@ -26,6 +26,12 @@ export function registerTemplateClass(name: string, tag: string): void {
     registry.set(name, tag);
 }
 
+/** Whether `tag` is an element an application class registered, whose properties are GObject properties. */
+export function isTemplateTag(tag: string): boolean {
+    for (const known of registry.values()) if (known === tag) return true;
+    return false;
+}
+
 /** The tag `name` was registered under, or a refusal that names what is missing. */
 export function templateTagFor(name: string): string {
     const tag = registry.get(name);
