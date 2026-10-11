@@ -212,7 +212,7 @@ export function defineSettings(storage: SettingsStorage): SettingsClass {
         }
 
         #emit(key: string): void {
-            for (const { key: only, run } of [...this.#handlers.values()]) {
+            for (const { key: only, run } of Array.from(this.#handlers.values())) {
                 if (only === null || only === key) run(this, key);
             }
         }
