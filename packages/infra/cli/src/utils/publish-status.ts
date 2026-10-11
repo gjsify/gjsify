@@ -174,6 +174,11 @@ export interface Classification {
     terminal: boolean;
 }
 
+/** `classifyUnserved(...).terminal` for a class read back from the ledger. */
+export function isTerminalClass(cls: UnservedClass): boolean {
+    return cls !== 'validating' && cls !== 'published-lagging' && cls !== 'unchecked';
+}
+
 /** Why the status could not be asked, in the words the `unchecked` line uses. */
 function whyUnchecked(probe: Extract<StatusProbe, { state: 'unavailable' }>): string {
     return probe.reason === 'no-credential' ? 'status endpoint not asked: no NPM_STATUS_TOKEN' : probe.detail;
