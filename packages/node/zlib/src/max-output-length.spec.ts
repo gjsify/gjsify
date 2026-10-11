@@ -142,6 +142,22 @@ export default async () => {
             });
         }
 
+        // On GJS the Web path is the compression-streams polyfill, which inflates the
+        // whole body before anything is counted; a limit must keep the decode bounded.
+        const bombPlain = Buffer.alloc(4 * 1024 * 1024);
+        const bombs: [string, AsyncCodec, Buffer][] = [
+            ['inflate', inflate as AsyncCodec, deflateSync(bombPlain)],
+            ['inflateRaw', inflateRaw as AsyncCodec, deflateRawSync(bombPlain)],
+            ['gunzip', gunzip as AsyncCodec, gzipSync(bombPlain)],
+            ['unzip', unzip as AsyncCodec, gzipSync(bombPlain)],
+        ];
+        for (const [name, codec, bomb] of bombs) {
+            await it(`${name} stops a small input that expands far past the limit`, async () => {
+                const { err } = await runAsync(codec, bomb, { maxOutputLength: 1024 });
+                expectTooLarge(err, 1024);
+            });
+        }
+
         await it('deflate passes ERR_BUFFER_TOO_LARGE to the callback', async () => {
             const { err } = await runAsync(deflate as AsyncCodec, plain, { maxOutputLength: 5 });
             expectTooLarge(err, 5);

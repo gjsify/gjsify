@@ -176,19 +176,20 @@ export function decompressStreamWithGio(
 
     const chunks: Uint8Array[] = [];
     let total = produced;
-    while (true) {
-        const want = Math.min(STREAM_READ_CHUNK, remainingReadBudget(maxOutputLength, total));
-        const bytes = converter.read_bytes(want, null);
-        const size = bytes.get_size();
-        if (size === 0) break;
-        total += size;
-        if (total > maxOutputLength) {
-            converter.close(null);
-            throw bufferTooLargeError(maxOutputLength);
+    try {
+        while (true) {
+            const want = Math.min(STREAM_READ_CHUNK, remainingReadBudget(maxOutputLength, total));
+            const bytes = converter.read_bytes(want, null);
+            const size = bytes.get_size();
+            if (size === 0) break;
+            total += size;
+            if (total > maxOutputLength) throw bufferTooLargeError(maxOutputLength);
+            chunks.push(new Uint8Array(bytes.get_data()!));
         }
-        chunks.push(new Uint8Array(bytes.get_data()!));
+    } finally {
+        // Also on corrupt input, where `read_bytes` throws mid-stream.
+        converter.close(null);
     }
-    converter.close(null);
 
     return concat(chunks);
 }

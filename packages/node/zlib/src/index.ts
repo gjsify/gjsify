@@ -35,7 +35,12 @@ import {
     hasGzipMagic,
     type GioFormat,
 } from './gio-codec.js';
-import { bufferTooLargeError, isBufferTooLargeError, resolveMaxOutputLength } from './max-output-length.js';
+import {
+    bufferTooLargeError,
+    isBufferTooLargeError,
+    MAX_OUTPUT_LENGTH_DEFAULT,
+    resolveMaxOutputLength,
+} from './max-output-length.js';
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
@@ -214,9 +219,15 @@ async function compress(
  * member ends, so "does this have a second one" is not answerable more cheaply than
  * walking them. A genuinely corrupt stream still rejects, because `gunzipWithGio`
  * re-decodes and surfaces GLib's error — what the truncated-input tests assert.
+ *
+ * A CALLER-SET `maxOutputLength` LEAVES THE WEB PATH. On GJS the global is the
+ * `@gjsify/compression-streams` polyfill, whose `flush` inflates the whole body in
+ * one call with no limit, so a zip bomb was fully allocated before
+ * {@link runWebTransform} counted a single byte. The Gio decoder bounds each read
+ * by the remaining budget, which stops the allocation rather than detecting it.
  */
 async function decompress(data: Uint8Array, format: GioFormat, maxOutputLength: number): Promise<Uint8Array> {
-    if (hasWebCompression()) {
+    if (hasWebCompression() && maxOutputLength >= MAX_OUTPUT_LENGTH_DEFAULT) {
         try {
             return await decompressWithWeb(data, format as CompressionFormat, maxOutputLength);
         } catch (err) {
