@@ -195,6 +195,22 @@ export default async (): Promise<void> => {
                 expect(withDev.edges.get('lib')!.has('tooling')).toBe(true);
             });
 
+            await it('links an optional peer the package also builds against (peer + dev)', () => {
+                const ws: Workspace[] = [
+                    makeWs('ui', '1.0.0', {
+                        peerDependencies: { store: 'workspace:^', other: 'workspace:^' },
+                        devDependencies: { store: 'workspace:^' },
+                    }),
+                    makeWs('store', '1.0.0'),
+                    makeWs('other', '1.0.0'),
+                ];
+                const g = buildDependencyGraph(ws);
+                expect(g.edges.get('ui')!.has('store')).toBe(true);
+                expect(g.edges.get('ui')!.has('other')).toBeFalsy();
+                const order = topologicalSort(g).map((w) => w.name);
+                expect(order.indexOf('store') < order.indexOf('ui')).toBe(true);
+            });
+
             await it('topologicalSort puts dependencies BEFORE dependents', () => {
                 const ws: Workspace[] = [
                     makeWs('app', '1.0.0', { dependencies: { lib: 'workspace:^', utils: 'workspace:^' } }),
