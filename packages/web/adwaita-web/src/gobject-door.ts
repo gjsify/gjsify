@@ -106,7 +106,8 @@ export const webDoor: GObjectDoor = {
         }
 
         const Parent = Object.getPrototypeOf(klass) as Ctor;
-        const baseTag = customElements.getName(Parent);
+        // `getName` is missing from some non-browser evaluators; without it a registered class just inherits no styles.
+        const baseTag = typeof customElements.getName === 'function' ? customElements.getName(Parent) : null;
         class Constructing extends Parent {
             constructor(params?: Record<string, unknown>) {
                 super();
