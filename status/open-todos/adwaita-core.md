@@ -203,3 +203,12 @@ Follows the ADR above. Vectors for the subset in `adwaita-core/conformance`, dri
 a `gi://GObject` row in `GI_RENDERERS`; an arm in `tests/e2e/gi-renderer-arms` that registers a
 class with a template and binds a property through `--gi-renderer`. The vectors come first: an
 implementation on one port with no vector is how the two ports diverged before.
+
+
+### The file chooser has no iOS picker and no on-device Android run
+
+ADR 0100 decides Android's Storage Access Framework only. `file-chooser-source.ios.ts` rejects, so
+`Gtk.FileDialog.open`/`save` answer `Gtk.DialogError.FAILED` on iOS; `UIDocumentPickerViewController`
+is the counterpart and needs its own decision. The Android door (`file-chooser-source.android.ts`)
+is covered by the intent-mapping specs and the `gi-renderer-arms` arm with a scripted driver, but
+no run has gone through a real `startActivityForResult` on a device or emulator yet.
