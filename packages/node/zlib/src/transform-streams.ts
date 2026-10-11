@@ -21,7 +21,8 @@ import type { ZlibOptions } from 'node:zlib';
 // Gio codec primitives shared with the one-shot API in index.ts — see the
 // performance contract documented in gio-codec.ts (bounded-slice member scan,
 // 1 MiB stream reads).
-import { compressWithGio, decompressStreamWithGio, gunzipWithGio, type GioFormat } from './gio-codec.js';
+import { compressWithGio, decompressStreamWithGio, gunzipWithGio, hasGzipMagic, type GioFormat } from './gio-codec.js';
+import { resolveMaxOutputLength } from './max-output-length.js';
 
 function toUint8Array(chunk: Uint8Array | string): Uint8Array {
     if (typeof chunk === 'string') return new TextEncoder().encode(chunk);
@@ -56,6 +57,11 @@ export class ZlibBase extends Transform {
     private _chunks: Uint8Array[] = [];
 
     constructor(mode: ZlibMode, options?: ZlibOptions) {
+        // Validated, not enforced: Node's streams check the option at construction
+        // and only the convenience API (`inflateSync`, `inflate`, …) applies it —
+        // measured on Node 24, `createInflate({ maxOutputLength: 10 })` emits all
+        // 5000 bytes of a 5000-byte stream.
+        resolveMaxOutputLength(options);
         super(options as unknown as TransformOptions);
         this._mode = mode;
     }
@@ -88,7 +94,7 @@ export class ZlibBase extends Transform {
             case 'unzip':
                 // Auto-detect: gzip magic (0x1f 0x8b) → gunzip, else zlib-wrapped
                 // deflate. Node's Unzip sniffs the same two bytes.
-                if (input.length >= 2 && input[0] === 0x1f && input[1] === 0x8b) {
+                if (hasGzipMagic(input)) {
                     return gunzipWithGio(input);
                 }
                 return decompressStreamWithGio(input, 'deflate');
