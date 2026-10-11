@@ -276,6 +276,17 @@ export const GtkDropDownTest = async () => {
             dd.remove();
         });
 
+        await it('get_selected / set_selected are the GTK spelling of `selected`', async () => {
+            const dd = makeDropDown();
+            dd.model = ['a', 'b', 'c'];
+            (dd as unknown as { set_selected(n: number): void }).set_selected(2);
+            expect(dd.selected).toBe(2);
+            expect((dd as unknown as { get_selected(): number }).get_selected()).toBe(2);
+            (dd as unknown as { set_selected(n: number): void }).set_selected(9);
+            expect(dd.selected).toBe(2);
+            dd.remove();
+        });
+
         await it('selected reflects to the attribute + marks the row', async () => {
             const dd = makeDropDown();
             dd.model = ['a', 'b'];

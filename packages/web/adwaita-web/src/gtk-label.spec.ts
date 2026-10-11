@@ -207,6 +207,18 @@ export const GtkLabelTest = async () => {
         });
     });
 
+    await describe('<gtk-label> get_label / set_label', async () => {
+        await it('are the GTK spelling of the `label` property', () => {
+            const { el, host } = mount('Hello');
+            const gtk = el as unknown as { get_label(): string; set_label(str: string): void };
+            expect(gtk.get_label()).toBe('Hello');
+            gtk.set_label('World');
+            expect(el.label).toBe('World');
+            expect(el.textContent).toBe('World');
+            host.remove();
+        });
+    });
+
     await describe('<gtk-label> xalign and justify', async () => {
         await it('centres the text in its box by default (xalign 0.5)', () => {
             const { el, host } = mount('Hi');

@@ -75,6 +75,14 @@ const WRAP_WHITE_SPACE: Record<TextViewWrapMode, string> = {
     char: 'pre-wrap',
 };
 
+/** The members of `Gtk.TextBuffer` this element has: text in and out, and the insertion cursor. */
+export interface GtkTextBufferSubset {
+    readonly cursor_position: number;
+    insert_at_cursor(text: string, len?: number): void;
+    set_text(text: string, len?: number): void;
+    get_text(): string;
+}
+
 export class GtkTextView extends HTMLElement {
     private _area!: HTMLTextAreaElement;
     private _initialized = false;
@@ -193,6 +201,38 @@ export class GtkTextView extends HTMLElement {
 
     set rightMargin(value: number) {
         this.setAttribute('right-margin', String(value));
+    }
+
+    /**
+     * `gtk_text_view_get_buffer`: the part of `Gtk.TextBuffer` a program writes through. The text
+     * stays the element's own, so the buffer is a view onto it: the cursor is the textarea's caret,
+     * and a length of -1 means "the whole string", as in GTK.
+     */
+    get buffer(): GtkTextBufferSubset {
+        return {
+            cursor_position: this._area ? (this._area.selectionEnd ?? this._area.value.length) : this.text.length,
+            insert_at_cursor: (text: string, len = -1) => {
+                const piece = len < 0 ? text : text.slice(0, len);
+                const area = this._area;
+                if (!area) {
+                    this.text = this.text + piece;
+                    return;
+                }
+                const at = area.selectionEnd ?? area.value.length;
+                area.setRangeText(piece, at, at, 'end');
+                this._emitChanged();
+            },
+            set_text: (text: string, len = -1) => {
+                this.text = len < 0 ? text : text.slice(0, len);
+                if (this._area) this._emitChanged();
+            },
+            get_text: () => this.text,
+        } as GtkTextBufferSubset;
+    }
+
+    /** `gtk_text_view_get_buffer`. */
+    get_buffer(): GtkTextBufferSubset {
+        return this.buffer;
     }
 
     /** The inner native textarea, for focus and selection. */

@@ -24,6 +24,7 @@ interface WidgetNode {
     readonly nextElementSibling: unknown;
     readonly previousElementSibling: unknown;
     readonly parentElement: unknown;
+    readonly classList: { add(name: string): void; remove(name: string): void; contains(name: string): boolean };
 }
 
 const DIRECTION = new WeakMap<object, number>();
@@ -69,6 +70,18 @@ export function widgetTreeMembers(): Record<string, (this: WidgetNode, ...args: 
         },
         get_parent(this: WidgetNode) {
             return this.parentElement;
+        },
+        /** `gtk_widget_add_css_class`: the CSS class is a DOM class. */
+        add_css_class(this: WidgetNode, css_class: string) {
+            this.classList.add(css_class);
+        },
+        /** `gtk_widget_remove_css_class`. */
+        remove_css_class(this: WidgetNode, css_class: string) {
+            this.classList.remove(css_class);
+        },
+        /** `gtk_widget_has_css_class`. */
+        has_css_class(this: WidgetNode, css_class: string) {
+            return this.classList.contains(css_class);
         },
         /** `gtk_widget_insert_action_group`: `null` removes the group of `name`. */
         insert_action_group(this: WidgetNode, name: string, group: ActionGroupLike | null) {

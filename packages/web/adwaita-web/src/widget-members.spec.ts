@@ -68,6 +68,18 @@ export const WidgetMembersTest = async () => {
             expect(parent.get_parent()).toBe(null);
         });
 
+        await it('adds, tests and removes a CSS class with the GTK names', () => {
+            const widget = make('WidgetMembersCss') as unknown as {
+                add_css_class(c: string): void;
+                remove_css_class(c: string): void;
+                has_css_class(c: string): boolean;
+            };
+            widget.add_css_class('dim-label');
+            expect(widget.has_css_class('dim-label')).toBe(true);
+            widget.remove_css_class('dim-label');
+            expect(widget.has_css_class('dim-label')).toBe(false);
+        });
+
         await it('takes an action group and drops it again with null', () => {
             const widget = make('WidgetMembersActions');
             const group = new Gio.SimpleActionGroup();

@@ -262,6 +262,16 @@ export class GtkLabel extends HTMLElement {
         this.toggleAttribute('selectable', !!value);
     }
 
+    /** `gtk_label_get_label`. */
+    get_label(): string {
+        return this.label;
+    }
+
+    /** `gtk_label_set_label`. */
+    set_label(str: string): void {
+        this.label = str;
+    }
+
     /** `gtk_label_get_text` — the text as SHOWN, markup reduced and the marker removed. */
     getText(): string {
         return labelDisplayText(this.label, this.useMarkup, this.useUnderline);

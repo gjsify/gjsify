@@ -420,11 +420,51 @@ function writeLook(el: HTMLElement, node: SharedTreeNode, menus?: SharedTreeNode
     writeExtensions(el, node);
 }
 
+/** The `GtkGridLayoutChild` properties `layout { }` may carry, and the CSS Grid line each one is. */
+const GRID_CELL: Readonly<Record<string, { property: 'gridRow' | 'gridColumn'; span: boolean }>> = {
+    row: { property: 'gridRow', span: false },
+    column: { property: 'gridColumn', span: false },
+    'row-span': { property: 'gridRow', span: true },
+    'column-span': { property: 'gridColumn', span: true },
+};
+
+/**
+ * ADR 0092's `layout { }`: the child's cell in a `Gtk.Grid`. GTK counts from 0 and CSS Grid from 1,
+ * and a span is `span N` after the start line. The one layout manager here is the grid, so a
+ * layout under any other parent, a key the grid child has no spelling for, or a value that is not
+ * a whole number is REFUSED by name: the cell would otherwise be dropped at exit 0.
+ */
+function writeGridCell(parent: HTMLElement, childEl: HTMLElement, child: SharedTreeNode): void {
+    const layout = child.layout ?? {};
+    if (parent.localName !== 'gtk-grid') {
+        throw new Error(
+            `layout (${Object.keys(layout).join(', ')}) on \`${child.tag}\` under \`${parent.localName}\`: ` +
+                "this renderer's only layout manager is the grid, so the placement would be dropped.",
+        );
+    }
+    const cell = { row: 0, column: 0, 'row-span': 1, 'column-span': 1 } as Record<string, number>;
+    for (const [key, value] of Object.entries(layout)) {
+        if (GRID_CELL[key] === undefined) {
+            throw new Error(
+                `layout \`${key}\` on \`${child.tag}\` reaches nothing: a grid child takes ` +
+                    `${Object.keys(GRID_CELL).join(', ')}.`,
+            );
+        }
+        if (typeof value !== 'number' || !Number.isInteger(value)) {
+            throw new Error(`layout \`${key}: ${String(value)}\` on \`${child.tag}\` is not a whole number.`);
+        }
+        cell[key] = value;
+    }
+    childEl.style.gridRow = `${cell.row + 1} / span ${cell['row-span']}`;
+    childEl.style.gridColumn = `${cell.column + 1} / span ${cell['column-span']}`;
+}
+
 /** The built children of `node`, placed (`page`, `slot`) but not yet appended to `el`. */
 function buildChildren(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): HTMLElement[] {
     const built: HTMLElement[] = [];
     for (const child of node.children ?? []) {
         const childEl = buildNode(child, record);
+        if (child.layout !== undefined) writeGridCell(el, childEl, child);
         if (child.page !== undefined) writePage(el, childEl, child);
         if (child.slot !== undefined) {
             childEl.setAttribute('slot', child.slot);

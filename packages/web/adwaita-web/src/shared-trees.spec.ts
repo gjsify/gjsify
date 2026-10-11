@@ -364,6 +364,42 @@ export const AdwSharedTreesTest = async () => {
             ).toThrow('has no slot "middle"');
         });
 
+        // ADR 0092's `layout { }`: a grid child's cell. GTK counts from 0, CSS Grid from 1.
+        await it('`layout { }` places a grid child in its cell, spans defaulting to one', () => {
+            mounted(
+                {
+                    tag: 'GtkGrid',
+                    children: [
+                        { tag: 'GtkLabel', id: 'a', layout: { row: 0, column: 0 } },
+                        { tag: 'GtkLabel', id: 'b', layout: { row: 1, column: 1, 'column-span': 2 } },
+                    ],
+                },
+                (root) => {
+                    const a = root.querySelector<HTMLElement>('#a')!;
+                    const b = root.querySelector<HTMLElement>('#b')!;
+                    expect(a.style.gridRow).toBe('1 / span 1');
+                    expect(a.style.gridColumn).toBe('1 / span 1');
+                    expect(b.style.gridRow).toBe('2 / span 1');
+                    expect(b.style.gridColumn).toBe('2 / span 2');
+                },
+            );
+        });
+
+        await it('`layout { }` under a parent that is not a grid is refused BY NAME', () => {
+            expect(() =>
+                mountSharedTree({ tag: 'GtkBox', children: [{ tag: 'GtkLabel', layout: { row: 0, column: 0 } }] }),
+            ).toThrow('only layout manager is the grid');
+        });
+
+        await it('a `layout { }` key or value the grid child cannot take is refused BY NAME', () => {
+            expect(() =>
+                mountSharedTree({ tag: 'GtkGrid', children: [{ tag: 'GtkLabel', layout: { colum: 0 } }] }),
+            ).toThrow('layout `colum`');
+            expect(() =>
+                mountSharedTree({ tag: 'GtkGrid', children: [{ tag: 'GtkLabel', layout: { row: 1.5 } }] }),
+            ).toThrow('is not a whole number');
+        });
+
         // `child: Gtk.Label {…}` in a `.blp` authors `slot: 'child'` — the widget's own
         // GObject property name — for every single-child widget the corpus never places
         // one on. `<adw-clamp>` has no separate box to route into (every child is already
