@@ -49,3 +49,12 @@ export { GtkStringList as StringList } from '@gjsify/adwaita-core';
 export { GtkTextView as TextView } from '../widgets/gtk-text-view.js';
 export { GtkToggleButton as ToggleButton } from '../widgets/gtk-toggle-button.js';
 export { GtkApplication as Application } from '../widgets/application.js';
+export {
+    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    STYLE_PROVIDER_PRIORITY_FALLBACK,
+    STYLE_PROVIDER_PRIORITY_SETTINGS,
+    STYLE_PROVIDER_PRIORITY_THEME,
+    STYLE_PROVIDER_PRIORITY_USER,
+} from '@gjsify/adwaita-core';
+export { CssProvider, EventControllerKey, IconTheme, show_uri, StyleContext, Settings } from './gtk-platform.js';
+export { AdwWindow as Window } from '../widgets/adw-window.js';

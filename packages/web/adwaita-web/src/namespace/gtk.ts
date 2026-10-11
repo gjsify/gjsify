@@ -97,3 +97,11 @@ export { GtkWindowControls as WindowControls } from '../elements/gtk-window-cont
 export { GtkViewport as Viewport } from '../elements/gtk-viewport.js';
 export { GtkWindowHandle as WindowHandle } from '../elements/gtk-window-handle.js';
 export { GtkApplication as Application } from '../application.js';
+export {
+    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    STYLE_PROVIDER_PRIORITY_FALLBACK,
+    STYLE_PROVIDER_PRIORITY_SETTINGS,
+    STYLE_PROVIDER_PRIORITY_THEME,
+    STYLE_PROVIDER_PRIORITY_USER,
+} from '@gjsify/adwaita-core';
+export { CssProvider, EventControllerKey, IconTheme, show_uri, StyleContext, Settings } from './gtk-platform.js';
