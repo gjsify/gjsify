@@ -180,6 +180,7 @@
         "tests/dom/*",
         "tests/integration/*",
         "!tests/integration/nativescript",
+        "!tests/integration/nativescript-gi",
         "tests/e2e/*",
         "website"
     ]
