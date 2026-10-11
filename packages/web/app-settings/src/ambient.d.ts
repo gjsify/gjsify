@@ -1,7 +1,7 @@
 // The two host modules the platform entries import, typed as narrowly as they are used. The
 // real declarations (`@girs/gio-2.0`, `@nativescript/core`) are not dependencies of this package.
 
-declare module 'gi://Gio' {
+declare module 'gi://Gio?version=2.0' {
     class Settings {
         constructor(props: { schema_id: string; path?: string });
         readonly schema_id: string;
