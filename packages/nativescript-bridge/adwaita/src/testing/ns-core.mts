@@ -841,3 +841,30 @@ export const Application = {
     /** Absent, as on every platform that is not iOS — and this is not iOS. */
     ios: undefined as undefined,
 };
+
+/** An in-memory `ApplicationSettings`, the store `@gjsify/app-settings` reads on a device. */
+const SETTINGS = new Map<string, boolean | string | number>();
+
+export const ApplicationSettings = {
+    hasKey(key: string): boolean {
+        return SETTINGS.has(key);
+    },
+    getBoolean(key: string): boolean {
+        return SETTINGS.get(key) as boolean;
+    },
+    getString(key: string): string {
+        return SETTINGS.get(key) as string;
+    },
+    getNumber(key: string): number {
+        return SETTINGS.get(key) as number;
+    },
+    setBoolean(key: string, value: boolean): void {
+        SETTINGS.set(key, value);
+    },
+    setString(key: string, value: string): void {
+        SETTINGS.set(key, value);
+    },
+    setNumber(key: string, value: number): void {
+        SETTINGS.set(key, value);
+    },
+};
