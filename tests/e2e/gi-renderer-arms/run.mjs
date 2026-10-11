@@ -424,7 +424,12 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
     it('--app browser --gi-renderer fails the build on a refused construct, naming file and line', () => {
         const built = build('template-refused.ts', 'browser', { name: 'template-refused' });
         assert.notEqual(built.status, 0, `a refused construct built anyway\n${built.output}`);
-        assert.match(built.output, /19-layout\.blp:\d+/, 'the refusal does not name file and line');
+        assert.match(built.output, /23-widget-reference-list\.blp:\d+/, 'the refusal does not name file and line');
+    });
+
+    it('--app browser --gi-renderer builds a grid layout block', () => {
+        const built = build('template-layout-ok.ts', 'browser', { name: 'template-layout-ok' });
+        assert.equal(built.status, 0, `a grid layout was refused\n${built.output}`);
     });
 
     it('--app gjs serves ?template as the GtkBuilder XML string', () => {

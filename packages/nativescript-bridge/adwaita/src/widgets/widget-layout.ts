@@ -85,6 +85,7 @@ import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
 import { xmlBoolean } from './xml-values.js';
 import { insertActionGroup } from './actions.js';
+import { applyNativeTooltip } from './native-tooltip.js';
 import type { ActionGroupLike } from '@gjsify/adwaita-core';
 
 /**
@@ -101,6 +102,7 @@ interface LaidOut {
     id: string | undefined;
     minWidth: NsLength;
     minHeight: NsLength;
+    accessibilityHint?: string;
     readonly style: { direction?: 'ltr' | 'rtl' | null };
 }
 
@@ -248,6 +250,7 @@ function readSizeRequest(length: NsLength): number {
 
 /** Per-instance `name`s, held beside the view because `id` may belong to a `.blp`. */
 const NAMES = new WeakMap<object, string>();
+const TOOLTIPS = new WeakMap<object, string>();
 
 /** The per-instance expand flags, kept off the instance so the mixin adds no own property. */
 const EXPAND = new WeakMap<object, { h: boolean; v: boolean }>();
@@ -281,6 +284,8 @@ export interface GtkWidgetLayout {
     sensitive: boolean;
     /** `GtkWidget:name` — the CSS `#name`, written through to `id` when the view has none. */
     name: string;
+    /** `GtkWidget:tooltip-text` — the accessibility hint, plus a native long-press tooltip on Android. */
+    tooltipText: string;
     /** `GtkWidget:width-request` — `minWidth`; `-1` is unset. */
     widthRequest: number;
     /** `GtkWidget:height-request` — `minHeight`; `-1` is unset. */
@@ -443,6 +448,18 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
         /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
         insert_action_group(prefix: string, group: ActionGroupLike | null): void {
             insertActionGroup(this as unknown as Parameters<typeof insertActionGroup>[0], prefix, group);
+        }
+
+        get tooltipText(): string {
+            return TOOLTIPS.get(this) ?? '';
+        }
+
+        set tooltipText(value: string) {
+            const view = laidOut(this, 'tooltipText');
+            const next = value ?? '';
+            TOOLTIPS.set(this, next);
+            view.accessibilityHint = next;
+            applyNativeTooltip(this, next);
         }
 
         get widthRequest(): number {

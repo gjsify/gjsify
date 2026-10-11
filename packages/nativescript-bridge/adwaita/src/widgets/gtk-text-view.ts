@@ -6,8 +6,8 @@
 //
 // THE BUFFER IS NOT MODELLED. `Gtk.TextView` edits a `Gtk.TextBuffer` (marks, tags, iters);
 // the platform has a string. So the text is the widget's own `text` property — port-owned,
-// recorded in the vocabulary ledger — and `buffer`, tags, `accepts-tab`, the margins and
-// the indent are not here. `wrap-mode` is held and read back, but the platform's text view
+// recorded in the vocabulary ledger — and `buffer` is a small subset over it (text, cursor,
+// insert_at_cursor, set_text); tags, `accepts-tab` and the indent are not here. `wrap-mode` is held and read back, but the platform's text view
 // always wraps at the edge, so `none` has no effect. `monospace` switches the font family.
 //
 // Reference: refs/gtk gtk/gtktextview.c (GtkTextView)
@@ -18,7 +18,7 @@ import { GridLayout, ItemSpec, TextView, type EventData } from '@nativescript/co
 import { classNameWith } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
-import { xmlBoolean } from './xml-values.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link GtkTextView.text} changes. Mirrors `notify::text`. */
 export const NOTIFY_TEXT_VIEW_TEXT = 'notify::text';
@@ -26,6 +26,15 @@ export const NOTIFY_TEXT_VIEW_TEXT = 'notify::text';
 /** `Gtk.WrapMode`'s nicks, in the enum's order (NONE=0 … WORD_CHAR=3). */
 export const GTK_WRAP_MODES = ['none', 'char', 'word', 'word-char'] as const;
 export type GtkWrapModeNick = (typeof GTK_WRAP_MODES)[number];
+
+/** The part of `Gtk.TextBuffer` the port carries (see {@link GtkTextView.buffer}). */
+export interface GtkTextBufferSubset {
+    text: string;
+    readonly cursor_position: number;
+    get_text(): string;
+    set_text(text: string, len?: number): void;
+    insert_at_cursor(text: string, len?: number): void;
+}
 
 export class GtkTextView extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'GtkTextView';
@@ -94,7 +103,11 @@ export class GtkTextView extends withSignals(GridLayout) {
     }
 
     set wrapMode(value: GtkWrapModeNick) {
-        const index = typeof value === 'number' ? (value as number) : GTK_WRAP_MODES.indexOf(value);
+        // GTK's enum parser takes `word_char` and `word-char` alike; Blueprint writes the former.
+        const index =
+            typeof value === 'number'
+                ? (value as number)
+                : GTK_WRAP_MODES.indexOf(String(value).replace(/_/g, '-') as GtkWrapModeNick);
         const next = GTK_WRAP_MODES[index];
         if (next === undefined) {
             throw new TypeError(
@@ -102,6 +115,90 @@ export class GtkTextView extends withSignals(GridLayout) {
             );
         }
         this._wrapMode = next;
+    }
+
+    /** `Gtk.TextView:top-margin` — the gap above the text, as padding on the inner field. */
+    get topMargin(): number {
+        return this._margin('paddingTop');
+    }
+
+    set topMargin(value: number | string) {
+        this._field.paddingTop = xmlNumber(value, this._margin('paddingTop'));
+    }
+
+    /** `Gtk.TextView:bottom-margin`. */
+    get bottomMargin(): number {
+        return this._margin('paddingBottom');
+    }
+
+    set bottomMargin(value: number | string) {
+        this._field.paddingBottom = xmlNumber(value, this._margin('paddingBottom'));
+    }
+
+    /** `Gtk.TextView:left-margin`. */
+    get leftMargin(): number {
+        return this._margin('paddingLeft');
+    }
+
+    set leftMargin(value: number | string) {
+        this._field.paddingLeft = xmlNumber(value, this._margin('paddingLeft'));
+    }
+
+    /** `Gtk.TextView:right-margin`. */
+    get rightMargin(): number {
+        return this._margin('paddingRight');
+    }
+
+    set rightMargin(value: number | string) {
+        this._field.paddingRight = xmlNumber(value, this._margin('paddingRight'));
+    }
+
+    private _margin(side: 'paddingTop' | 'paddingBottom' | 'paddingLeft' | 'paddingRight'): number {
+        const raw = this._field[side] as unknown;
+        const n = typeof raw === 'number' ? raw : Number.parseFloat(String(raw ?? 0));
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    /**
+     * `Gtk.TextView:buffer` — a SUBSET of `Gtk.TextBuffer` over the widget's own string: `text`,
+     * `cursor_position`, `insert_at_cursor`, `set_text` and `get_text`. No marks, tags or iters.
+     * The cursor is the insert mark's offset; programmatic inserts advance it, as in GTK.
+     */
+    get buffer(): GtkTextBufferSubset {
+        return (this._buffer ??= this._makeBuffer());
+    }
+
+    private _buffer?: GtkTextBufferSubset;
+    private _cursor = 0;
+
+    private _makeBuffer(): GtkTextBufferSubset {
+        const read = (): string => this._text;
+        const cursor = (): number => Math.min(this._cursor, this._text.length);
+        const clip = (text: string, len: number): string => (len < 0 ? (text ?? '') : (text ?? '').slice(0, len));
+        const set_text = (text: string, len = -1): void => {
+            const next = clip(text, len);
+            this._applyText(next);
+            this._cursor = next.length;
+        };
+        return {
+            get text(): string {
+                return read();
+            },
+            set text(value: string) {
+                set_text(value, -1);
+            },
+            get cursor_position(): number {
+                return cursor();
+            },
+            get_text: read,
+            set_text,
+            insert_at_cursor: (text: string, len = -1): void => {
+                const piece = clip(text, len);
+                const at = cursor();
+                this._applyText(this._text.slice(0, at) + piece + this._text.slice(at));
+                this._cursor = at + piece.length;
+            },
+        };
     }
 
     /** The inner `TextView` — for focus, selection and host-specific keyboard options. */

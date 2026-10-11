@@ -4,10 +4,7 @@
 
 /** @type {import('./capabilities.d.mts').capabilities} */
 export const capabilities = {
-    layout: {
-        refused:
-            'an <adw-…> element is placed by DOM order and slot=, so a layout-manager placement has no door in the markup this package reads (ADR 0092)',
-    },
+    layout: 'implemented',
     strings: 'implemented',
     responses: 'implemented',
     page: 'implemented',

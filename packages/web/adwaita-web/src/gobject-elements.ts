@@ -148,6 +148,10 @@ export function installElementApi(el: HTMLElement): void {
     });
     define('emit', (signal: string, ...args: unknown[]): void => dispatchElement(el, signal, args));
     define('notify', (name: string): void => notifyElement(el, name));
+    // The `Gtk.Widget` CSS-class calls a template's TypeScript makes on its children.
+    define('add_css_class', (name: string): void => el.classList.add(name));
+    define('remove_css_class', (name: string): void => el.classList.remove(name));
+    define('has_css_class', (name: string): boolean => el.classList.contains(name));
 }
 
 const API_MEMBERS = new Set(['connect', 'disconnect', 'emit', 'notify']);

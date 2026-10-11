@@ -183,7 +183,7 @@ verifies it or turns the cell into a refusal.
 
 | construct | GTK | `gtk-host` | `adwaita-web` | `adwaita-nativescript` |
 |---|---|---|---|---|
-| `layout` (0092) | native | refused | refused | port |
+| `layout` (0092) | native | refused | port (grid only) | port |
 | `strings`, `responses` (0072) | native | refused | port | port |
 | `signal` | native | refused | port | port |
 | `bind` (simple) | native | refused | port (plain form only) | port (plain form only) |

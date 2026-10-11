@@ -53,6 +53,28 @@ export const GtkTextViewTest = async () => {
             second.remove();
         });
 
+        await it('`buffer.insert_at_cursor` appends at the caret and `cursor_position` follows it', () => {
+            const el = mount('');
+            expect(el.buffer.cursor_position).toBe(0);
+            el.buffer.insert_at_cursor('one', -1);
+            el.buffer.insert_at_cursor('\ntwo', -1);
+            expect(el.text).toBe('one\ntwo');
+            expect(el.buffer.cursor_position).toBe(7);
+            el.buffer.insert_at_cursor('xyz', 1);
+            expect(el.text).toBe('one\ntwox');
+            unmountAll();
+        });
+
+        await it('`buffer.set_text` replaces the text and `get_text` reads it', () => {
+            const el = mount('old');
+            el.buffer.set_text('new', -1);
+            expect(el.buffer.get_text()).toBe('new');
+            el.buffer.set_text('', 0);
+            expect(el.text).toBe('');
+            expect(el.buffer.cursor_position).toBe(0);
+            unmountAll();
+        });
+
         await it("re-emits the buffer's `changed` on an edit", () => {
             const el = mount('a');
             const seen: unknown[] = [];

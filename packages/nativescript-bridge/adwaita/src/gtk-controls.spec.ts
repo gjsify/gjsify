@@ -153,9 +153,66 @@ export const GtkControlsNsTest = async () => {
             expect(view.wrapMode).toBe('word');
             view.wrapMode = 3 as never;
             expect(view.wrapMode).toBe('word-char');
+            view.wrapMode = 'none';
+            view.wrapMode = 'word_char' as never;
+            expect(view.wrapMode).toBe('word-char');
             expect(() => {
                 view.wrapMode = 'sideways' as never;
             }).toThrow();
+        });
+
+        await it('offers a buffer subset whose inserts advance the cursor', () => {
+            const view = new Gtk.TextView();
+            expect(view.buffer.cursor_position).toBe(0);
+            view.buffer.insert_at_cursor('a', -1);
+            view.buffer.insert_at_cursor('\nb', -1);
+            expect(view.text).toBe('a\nb');
+            expect(view.buffer.cursor_position).toBe(3);
+            view.buffer.set_text('', 0);
+            expect(view.text).toBe('');
+            expect(view.buffer.cursor_position).toBe(0);
+        });
+
+        await it('holds the four margins as padding on the inner field', () => {
+            const view = new Gtk.TextView();
+            view.topMargin = 1;
+            view.bottomMargin = 12;
+            view.leftMargin = '8' as never;
+            view.rightMargin = 4;
+            expect(view.topMargin).toBe(1);
+            expect(view.bottomMargin).toBe(12);
+            expect(view.leftMargin).toBe(8);
+            expect(view.rightMargin).toBe(4);
+        });
+    });
+
+    await describe('Gtk.Label selectable', async () => {
+        await it('is false by default and holds what it is given, as a boolean or an XML string', () => {
+            const label = new Gtk.Label();
+            expect(label.selectable).toBe(false);
+            label.selectable = true;
+            expect(label.selectable).toBe(true);
+            label.selectable = 'false' as never;
+            expect(label.selectable).toBe(false);
+        });
+    });
+
+    await describe('Gtk.Label label accessors', async () => {
+        await it('reads and writes the label through get_label and set_label', () => {
+            const label = new Gtk.Label();
+            label.set_label('R0');
+            expect(label.get_label()).toBe('R0');
+            expect(label.get_text()).toBe('R0');
+        });
+    });
+
+    await describe('Gtk.DropDown selected accessors', async () => {
+        await it('reads and writes the selection through get_selected and set_selected', () => {
+            const drop = new Gtk.DropDown({ model: ['a', 'b', 'c'] });
+            expect(drop.get_selected()).toBe(0);
+            drop.set_selected(2);
+            expect(drop.get_selected()).toBe(2);
+            expect(drop.selected).toBe(2);
         });
     });
 
