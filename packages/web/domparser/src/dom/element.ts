@@ -13,7 +13,20 @@ export class DOMElement extends DOMNode {
      * `src/xml-shape.spec.ts` fails if it moves.
      */
     tagName: string;
+    /**
+     * The name without its prefix, folded to lower case like `tagName` (a
+     * prefixed XML element reports `multistatus` for `<D:multistatus>`).
+     */
     localName: string;
+    /**
+     * XML only: what the element's prefix — or the default `xmlns` — resolved to
+     * where it was parsed; `null` for an element in no namespace, an undeclared
+     * prefix, and EVERY HTML element (the tree builder has no foreign content,
+     * ADR 0026, so it cannot tell an SVG child from an HTML one).
+     */
+    namespaceURI: string | null = null;
+    /** XML only: the prefix as written (`D` for `<D:multistatus>`), else `null`. */
+    prefix: string | null = null;
     /** `<template>` holds its children here, never in `childNodes`. */
     content?: DOMDocumentFragment;
     /**
@@ -118,6 +131,31 @@ export class DOMElement extends DOMNode {
 
     closest(selector: string): DOMElement | null {
         return closestSelector<DOMNode>(selector, this, this._adapter()) as DOMElement | null;
+    }
+
+    /**
+     * Descendants (not the element itself) in document order. `'*'` matches any
+     * namespace or any name; `null` matches an element in no namespace. Local
+     * names are compared the way `localName` is stored, i.e. ASCII-folded.
+     */
+    getElementsByTagNameNS(namespaceURI: string | null, localName: string): DOMElement[] {
+        const wanted = localName.toLowerCase();
+        const found: DOMElement[] = [];
+        const visit = (node: DOMNode): void => {
+            for (const child of node.childNodes) {
+                if (child.nodeType !== ELEMENT_NODE) continue;
+                const el = child as DOMElement;
+                if (
+                    (namespaceURI === '*' || el.namespaceURI === namespaceURI) &&
+                    (wanted === '*' || el.localName === wanted)
+                ) {
+                    found.push(el);
+                }
+                visit(el);
+            }
+        };
+        visit(this);
+        return found;
     }
 
     /** A space-separated list, and EVERY name in it has to be present. */

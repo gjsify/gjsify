@@ -5,6 +5,7 @@ import htmlTestSuite from './html.spec.js';
 import htmlTokenizerTestSuite from './html-tokenizer.spec.js';
 import domParserTestSuite from './index.spec.js';
 import registerTestSuite from './register.gjs.spec.js';
+import namespacesTestSuite from './namespaces.spec.js';
 import selectorsTestSuite from './selectors.spec.js';
 import selectorsDomTestSuite from './selectors-dom.spec.js';
 import serializeTestSuite from './serialize.spec.js';
@@ -13,6 +14,7 @@ import xmlShapeTestSuite from './xml-shape.spec.js';
 run({
     domParserTestSuite,
     xmlShapeTestSuite,
+    namespacesTestSuite,
     entitiesTestSuite,
     htmlTokenizerTestSuite,
     htmlTestSuite,

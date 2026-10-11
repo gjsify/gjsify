@@ -35,6 +35,17 @@ console.log(map.documentElement?.getAttribute('width'));
 console.log(map.querySelectorAll('layer > data').length);
 ```
 
+### XML namespaces
+
+The XML scanner resolves `xmlns` and `xmlns:p` while it parses, so a document is read by namespace and local name, not by whichever prefix a server picked:
+
+```typescript
+const doc = new DOMParser().parseFromString(multistatus, 'application/xml');
+for (const href of doc.getElementsByTagNameNS('DAV:', 'href')) console.log(href.textContent);
+```
+
+`namespaceURI` and `prefix` are on every element; `localName` of `<D:href>` is `href`. `getElementsByTagNameNS(ns, local)` takes `'*'` for either argument and `null` for "no namespace". An undeclared prefix resolves to `null`, and so does every HTML element — the HTML tree builder has no foreign content. The frozen `tagName` / `nodeName` spellings are unchanged.
+
 ### What the HTML mode gives you
 
 - implicit `html`/`head`/`body`, the void-element set, the implied-end-tag table, table sections, `<template>` content as a fragment, EOF auto-close;
