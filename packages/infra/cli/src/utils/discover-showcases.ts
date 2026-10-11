@@ -36,6 +36,10 @@ interface Manifest {
 }
 
 function manifestPath(): string {
+    // Test seam: e2e points this at a fixture catalog (a gjs-only workspace showcase),
+    // since the curated list no longer holds one.
+    const override = process.env.GJSIFY_SHOWCASES_MANIFEST;
+    if (override) return override;
     const here = dirname(fileURLToPath(import.meta.url));
     // `showcases.json` sits at the CLI package root, but its depth below this
     // module depends on how the CLI was loaded: two levels from

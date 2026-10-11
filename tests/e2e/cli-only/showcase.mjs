@@ -72,15 +72,15 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
 
     it('output contains known showcase names', () => {
         const { stdout } = runShowcase(projectDir);
-        const expected = ['three-postprocessing-pixel', 'three-geometry-teapot', 'canvas2d-fireworks'];
+        const expected = ['express-webserver', 'adwaita-storybook'];
         for (const name of expected) {
             assert.ok(stdout.includes(name), `Missing showcase "${name}" in output:\n${stdout}`);
         }
     });
 
-    it('output groups by category (DOM)', () => {
+    it('output groups by category (NODE)', () => {
         const { stdout } = runShowcase(projectDir);
-        assert.ok(stdout.includes('DOM:'), `Missing "DOM:" category header\n${stdout}`);
+        assert.ok(stdout.includes('NODE:'), `Missing "NODE:" category header\n${stdout}`);
     });
 
     it('output shows usage hint', () => {
@@ -125,13 +125,13 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
             );
         }
         // NOT `every category is "dom"`, which is what stood here: measured, the command reports
-        // `{ dom: 7, gtk: 1, node: 1 }`, so that claim was false about correct code and had been
+        // `{ gtk: 1, node: 1 }`, so that claim was false about correct code and had been
         // since the first non-dom showcase shipped. It is the second stale assertion in this one
         // test — see the note above. A list of the categories that exist today would drift the same
         // way, so what is held is the SHAPE plus one anchor that proves the reader read something.
         assert.ok(
-            parsed.some((entry) => entry.category === 'dom'),
-            `expected at least one dom showcase among ${parsed.length} entries`,
+            parsed.some((entry) => entry.category === 'node'),
+            `expected at least one node showcase among ${parsed.length} entries`,
         );
     });
 
@@ -139,27 +139,8 @@ describe('gjsify showcase E2E', { timeout: 10 * 60 * 1000 }, () => {
         const { stdout } = runShowcase(projectDir, ['--json']);
         const parsed = JSON.parse(stdout);
         const names = parsed.map((e) => e.name);
-        assert.ok(names.includes('three-postprocessing-pixel'), 'Missing three-postprocessing-pixel');
-        assert.ok(names.includes('three-geometry-teapot'), 'Missing three-geometry-teapot');
-        assert.ok(names.includes('canvas2d-fireworks'), 'Missing canvas2d-fireworks');
-    });
-
-    it('running a webgl showcase does not fail with Gwebgl typelib error', () => {
-        // Run a WebGL showcase — it will fail (no display/GTK in headless),
-        // but the error must NOT be about Gwebgl typelib resolution.
-        // This proves that runGjsBundle resolves native prebuilds from the bundle's location.
-        const { stdout, stderr } = runShowcase(projectDir, ['three-postprocessing-pixel']);
-        const combined = stdout + stderr;
-
-        // If the showcase isn't installed, skip gracefully
-        if (combined.includes('Unknown showcase')) {
-            return;
-        }
-
-        assert.ok(
-            !combined.includes("Typelib file for namespace 'Gwebgl'"),
-            `Gwebgl typelib should be resolved via native prebuilds, but got:\n${combined}`,
-        );
+        assert.ok(names.includes('express-webserver'), 'Missing express-webserver');
+        assert.ok(names.includes('adwaita-storybook'), 'Missing adwaita-storybook');
     });
 
     it('invalid showcase name exits non-zero with helpful error', () => {

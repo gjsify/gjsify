@@ -806,7 +806,7 @@ Output is a colour-coded table (red major, yellow minor, green patch, cyan prere
 Run the GJS bundle of a published package without adding it to your project, like `npx` or `yarn dlx`. It is strictly a GJS-bundle runner. It resolves the package's GJS entry and calls `gjs -m <bundle>`. A package with no GJS entry fails loudly.
 
 ```bash
-gjsify dlx @gjsify/example-dom-canvas2d-fireworks
+gjsify dlx @gjsify/example-node-express-webserver
 gjsify dlx @scope/pkg@1.2.3                    # version-pinned
 gjsify dlx @scope/pkg my-bin -- --opt value    # pick a bin, forward args
 gjsify dlx ./local/path                        # local dir, no install, no cache
@@ -831,7 +831,7 @@ Downloads are cached under `$XDG_CACHE_HOME/gjsify/dlx/`, keyed by the package s
 
 ```jsonc
 {
-  "name": "@gjsify/example-dom-canvas2d-fireworks",
+  "name": "@scope/my-app",
   "main": "dist/node.js",        // optional Node entry
   "gjsify": {
     "main": "dist/gjs.js",       // the GJS entry dlx runs
@@ -1334,7 +1334,7 @@ List or run the curated showcase applications.
 
 ```bash
 gjsify showcase                           # list them
-gjsify showcase three-geometry-teapot     # run one
+gjsify showcase express-webserver         # run one
 gjsify showcase --json                    # machine-readable list
 ```
 
@@ -1374,7 +1374,7 @@ An example or showcase can declare which runtimes it supports, so `--runtime` va
 }
 ```
 
-Leaving `runtimes` out is permissive. The showcases built on `@gjsify/iframe` (WebKit) and `@gjsify/webrtc` (GStreamer WebRTC) declare `["gjs"]`, so `--runtime node` errors cleanly. When `node` is omitted, the node bundle is derived from the GJS entry by convention: `dist/<name>.gjs.js` becomes `dist/<name>.node.mjs`.
+Leaving `runtimes` out is permissive. A package built on `@gjsify/iframe` (WebKit) or `@gjsify/webrtc` (GStreamer WebRTC) declares `["gjs"]`, so `--runtime node` errors cleanly. When `node` is omitted, the node bundle is derived from the GJS entry by convention: `dist/<name>.gjs.js` becomes `dist/<name>.node.mjs`.
 
 ## Debug a running app
 

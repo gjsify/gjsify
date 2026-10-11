@@ -172,7 +172,7 @@ describe('homepage create/showcase variations across runtimes', { timeout: 5 * 6
                 const r = await run(runtime, ['showcase']);
                 assert.equal(r.status, 0, r.stderr);
                 assert.match(r.stdout, /Available gjsify showcases/);
-                assert.match(r.stdout, /canvas2d-fireworks/);
+                assert.match(r.stdout, /express-webserver/);
             });
 
             it('showcase --json emits a valid catalog', async (t) => {
@@ -182,7 +182,7 @@ describe('homepage create/showcase variations across runtimes', { timeout: 5 * 6
                 const catalog = JSON.parse(r.stdout);
                 assert.ok(Array.isArray(catalog) && catalog.length > 0, 'empty/invalid catalog');
                 assert.ok(
-                    catalog.some((e) => e.name === 'canvas2d-fireworks'),
+                    catalog.some((e) => e.name === 'express-webserver'),
                     'known showcase missing from catalog',
                 );
             });
@@ -211,7 +211,7 @@ describe('homepage create/showcase variations across runtimes', { timeout: 5 * 6
             // rejected with the declared choices (locale-independent literals).
             it('showcase --runtime <bogus> is rejected by the selector', async (t) => {
                 if (!available) return t.skip(`${runtime} not on PATH`);
-                const r = await run(runtime, ['showcase', 'canvas2d-fireworks', '--runtime', 'bogus']);
+                const r = await run(runtime, ['showcase', 'express-webserver', '--runtime', 'bogus']);
                 assert.notEqual(r.status, 0, 'invalid runtime should fail');
                 const out = r.stdout + r.stderr;
                 assert.match(out, /runtime/);

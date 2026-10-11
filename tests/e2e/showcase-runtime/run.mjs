@@ -108,6 +108,27 @@ describe('gjsify run --runtime', { timeout: 120_000 }, () => {
 // download), and a GJS-only showcase is rejected by its declaration BEFORE any
 // bundle is touched — so nothing launches a GUI.
 describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
+    // The curated catalog lists no gjs-only showcase any more (the `showcases/dom/*` ones are
+    // private), so the probes name two of those workspace packages through a fixture catalog.
+    // They still resolve locally via the workspace links, which is all these tests need.
+    let fixtureDir;
+    let fixtureEnv;
+    before(() => {
+        fixtureDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-showcase-catalog-'));
+        const manifest = join(fixtureDir, 'showcases.json');
+        const entry = (name) => ({
+            name,
+            category: 'dom',
+            package: `@gjsify/example-dom-${name}`,
+            description: 'fixture',
+        });
+        writeFileSync(manifest, JSON.stringify({ showcases: [entry('webrtc-loopback'), entry('minimalist-browser')] }));
+        fixtureEnv = { ...process.env, GJSIFY_SHOWCASES_MANIFEST: manifest };
+    });
+    after(() => {
+        rmSync(fixtureDir, { recursive: true, force: true });
+    });
+
     // The CLI pre-flights system deps (gjs, gtk4) before the runtime check; a
     // host without them can't reach the assertion, so self-skip there rather
     // than reporting an unrelated failure.
@@ -120,7 +141,9 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
     }
 
     it('rejects --runtime node for a showcase declaring only gjs', async (t) => {
-        const r = await runCli(cliEntry, ['showcase', 'webrtc-loopback', '--runtime', 'node']);
+        const r = await runCli(cliEntry, ['showcase', 'webrtc-loopback', '--runtime', 'node'], {
+            env: fixtureEnv,
+        });
         if (skipIfMissingSystemDeps(t, r)) return;
         assert.equal(r.status, 1, r.stderr);
         // The ACTIONABLE message ("this showcase is GJS-only"), not the
@@ -133,7 +156,9 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
     });
 
     it('rejects --runtime bun for a showcase declaring only gjs', async (t) => {
-        const r = await runCli(cliEntry, ['showcase', 'minimalist-browser', '--runtime', 'bun']);
+        const r = await runCli(cliEntry, ['showcase', 'minimalist-browser', '--runtime', 'bun'], {
+            env: fixtureEnv,
+        });
         if (skipIfMissingSystemDeps(t, r)) return;
         assert.equal(r.status, 1, r.stderr);
         assert.match(r.stderr, /does not support --runtime bun/);
@@ -199,7 +224,7 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
             // No `cwd`: the showcase dir resolves through `createRequire`
             // relative to the CLI's own lib, never through the caller's cwd.
             const r = await runCli(cliEntry, ['showcase', 'webrtc-loopback', '--runtime', 'node'], {
-                env: { ...process.env, PATH: emptyBin },
+                env: { ...fixtureEnv, PATH: emptyBin },
             });
             assert.doesNotMatch(r.stderr, /Missing system dependencies/);
             assert.match(r.stderr, /does not support --runtime node/);
