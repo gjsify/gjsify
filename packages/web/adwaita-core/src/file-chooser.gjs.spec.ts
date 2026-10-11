@@ -6,7 +6,12 @@
 
 import { describe, expect, it, on } from '@gjsify/unit';
 
-import { driveFileChooserVectors, type FileChooserNamespaces, type ScriptedPick } from './conformance/file-chooser.js';
+import {
+    driveFileChooserVectors,
+    FILE_CHOOSER_VECTORS,
+    type FileChooserNamespaces,
+    type ScriptedPick,
+} from './conformance/file-chooser.js';
 
 type Callback = (source: unknown, result: unknown) => void;
 type Outcome = { file: unknown } | { error: unknown };
@@ -81,6 +86,7 @@ export default async () => {
                     },
                 } as FileChooserNamespaces & Parameters<typeof driveFileChooserVectors>[0],
                 { describe, it, expect },
+                FILE_CHOOSER_VECTORS,
             );
         } finally {
             const enumerator = Gio.File.new_for_path(dir).enumerate_children('standard::name', 0, null);

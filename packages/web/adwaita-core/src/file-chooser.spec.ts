@@ -4,7 +4,12 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { driveFileChooserVectors, type FileChooserNamespaces, type ScriptedPick } from './conformance/file-chooser.js';
+import {
+    driveFileChooserVectors,
+    FILE_CHOOSER_VECTORS,
+    type FileChooserNamespaces,
+    type ScriptedPick,
+} from './conformance/file-chooser.js';
 import {
     dismissedError,
     FileCreateFlags,
@@ -108,6 +113,7 @@ export default async () => {
                 cancelled: () => ({ is_cancelled: () => true }),
             },
             { describe, it, expect },
+            FILE_CHOOSER_VECTORS,
         );
 
         await describe('adwaita-core: the file-chooser driver seam', async () => {

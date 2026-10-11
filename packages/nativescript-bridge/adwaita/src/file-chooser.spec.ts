@@ -20,6 +20,7 @@ import {
 } from '@gjsify/adwaita-core';
 import {
     driveFileChooserVectors,
+    FILE_CHOOSER_VECTORS,
     type FileChooserNamespaces,
     type ScriptedPick,
 } from '@gjsify/adwaita-core/conformance';
@@ -105,6 +106,7 @@ export default async () => {
                 cancelled: () => ({ is_cancelled: () => true }),
             },
             { describe, it, expect },
+            FILE_CHOOSER_VECTORS,
         );
     } finally {
         useDocumentSource(null);

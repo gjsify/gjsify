@@ -8,6 +8,7 @@
 
 import {
     driveFileChooserVectors,
+    FILE_CHOOSER_VECTORS,
     type FileChooserNamespaces,
     type FileChooserSubject,
     type ScriptedPick,
@@ -203,7 +204,7 @@ export const FileChooserTest = async () => {
         const dir = await scratch();
         const { env, subject } = make(dir);
         try {
-            await withEnv(env, () => driveFileChooserVectors(subject, { describe, it, expect }));
+            await withEnv(env, () => driveFileChooserVectors(subject, { describe, it, expect }, FILE_CHOOSER_VECTORS));
         } finally {
             await dropScratch(dir);
         }
