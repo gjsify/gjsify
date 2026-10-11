@@ -282,24 +282,17 @@ in a window.
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const window = new Gtk.Window({ default_width: 420, default_height: 140 });
+    // The NativeScript `Gtk.Window` is the application root and holds `title`, the
+    // default size and one child. It has no titlebar slot and none of the frame
+    // properties (`resizable`, `deletable`, `maximized`, `icon_name`), so the controls
+    // stand on their own here.
+    const window = new Gtk.Window({ defaultWidth: 420, defaultHeight: 140 });
     window.set_child(new Gtk.Label({ label: 'Content' }));
 
-    // A window with no titlebar of its own, so the controls really are the titlebar —
-    // which is the shape `update_window_buttons` reads its four window properties for.
-    const controls = new Gtk.WindowControls();
-    window.set_titlebar(controls);
-
     // Which half of the layout to build, and what the buttons do.
+    const controls = new Gtk.WindowControls();
     controls.side = Gtk.PackType.END;
     controls.decoration_layout = 'menu:minimize,maximize,close';
-
-    // The four properties each token reads (gtkwindowcontrols.c:270-274): they decide
-    // whether there IS an icon, a minimize, a maximize and a close.
-    window.icon_name = 'utilities-terminal';
-    window.resizable = true;
-    window.maximized = false;
-    window.deletable = true;
 
     // `empty` is the property that says none of them did — and a header bar binds it to
     // `visible`, which is why a bar with no buttons for its side shows nothing at all.
@@ -518,30 +511,11 @@ handled it — hiding the window when `hide-on-close` is set and destroying it o
     ```ts
     import Gtk from 'gi://Gtk?version=4.0';
 
-    const window = new Gtk.Window({ default_width: 440, default_height: 200 });
-
-    // The titlebar. A `Gtk.HeaderBar` brings its own frame buttons with it, which is
-    // the point of it (gtkheaderbar.c:36-60).
-    window.set_titlebar(new Gtk.HeaderBar());
-
-    // The one child.
+    // A true subset: `title`, `default-width`, `default-height` and the one child.
+    // The titlebar, the frame properties, `maximize()` and `close-request` have no
+    // counterpart on a platform with one full-screen window, so they are absent.
+    const window = new Gtk.Window({ title: 'Documents', defaultWidth: 440, defaultHeight: 200 });
     window.set_child(new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12 }));
-
-    // The frame. `decorated: false` DROPS the titlebar outright rather than hiding it.
-    window.decorated = true;
-    window.deletable = true;
-    window.resizable = true;
-
-    // `maximize()`/`unmaximize()` are ASYNCHRONOUS (the GIR says so at gtkwindow.c:1044),
-    // so the property is what a caller watches.
-    window.maximize();
-
-    // Close emits `close-request` first and acts only if nothing handled it. An
-    // application that wants to keep the window stops the default handler:
-    window.connect('close-request', () => {
-        window.hide();
-        return true; // handled — the default destroy does not run
-    });
     ```
   </Fragment>
 </AdwWidget>
