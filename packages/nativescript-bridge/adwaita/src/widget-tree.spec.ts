@@ -24,7 +24,7 @@ export const GtkWidgetTreeNsTest = async () => {
             expect(first.get_parent()).toBe(box);
         });
 
-        await it('sees through the scroller\'s inner view to the widget', () => {
+        await it("sees through the scroller's inner view to the widget", () => {
             const scrolled = new Gtk.ScrolledWindow();
             const child = new Gtk.Label();
             scrolled.set_child(child);
