@@ -10,8 +10,15 @@
 //
 // THE SUBSET IS A BOUNDARY, NOT A DEFAULT: a meta key, a `vfunc_*` or a signal parameter type
 // that ADR 0096 § 2 does not list is refused by name at registration, where GJS would accept it.
+//
+// THE STORE IS A SEAM (ADR 0105 § 2). Everything above is the subset's own and runs on every
+// target. Where an instance's values and handlers actually LIVE is a {@link GObjectEngine}, and
+// `createGObject(door, engine)` picks it; {@link PURE_JS_ENGINE} — the WeakMaps in this file — is
+// the default on every target and the only one in the browser. Why the split is where it is, and
+// what deliberately stays here rather than moving behind it: `engine.ts`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
+import type { GObjectEngine } from './engine.js';
 
 /** What `registerClass` accepts as `Template`: the projected tree of a `?template` import (ADR 0096 § 4). */
 export type BlueprintTemplate = SharedTreeNode;
@@ -269,6 +276,8 @@ export interface RegisteredClass {
     readonly internalChildren: readonly string[];
     readonly cssName?: string;
     readonly door: GObjectDoor;
+    /** Where instances of this class keep their values and handlers (ADR 0105 § 2). */
+    readonly engine: GObjectEngine;
 }
 
 const REGISTRY = new WeakMap<object, RegisteredClass>();
@@ -328,6 +337,13 @@ export interface GObjectInstance {
     emit(signal: string, ...args: unknown[]): void;
 }
 
+function parseSignal(signal: string): { name: string; detail?: string } {
+    const at = signal.indexOf('::');
+    return at === -1 ? { name: signal } : { name: signal.slice(0, at), detail: signal.slice(at + 2) };
+}
+
+// --- The pure-JS engine: the store this file has always been ----------------------------------
+
 interface InstanceState {
     readonly values: Map<string, unknown>;
     readonly handlers: Map<string, { id: number; handler: SignalHandler }[]>;
@@ -337,7 +353,6 @@ interface InstanceState {
 }
 
 const STATE = new WeakMap<object, InstanceState>();
-let nextHandlerId = 0;
 
 function stateOf(instance: object): InstanceState {
     let state = STATE.get(instance);
@@ -351,26 +366,6 @@ function stateOf(instance: object): InstanceState {
         STATE.set(instance, state);
     }
     return state;
-}
-
-function parseSignal(signal: string): { name: string; detail?: string } {
-    const at = signal.indexOf('::');
-    return at === -1 ? { name: signal } : { name: signal.slice(0, at), detail: signal.slice(at + 2) };
-}
-
-function addHandler(instance: object, key: string, handler: SignalHandler): number {
-    const state = stateOf(instance);
-    const id = ++nextHandlerId;
-    const list = state.handlers.get(key) ?? [];
-    list.push({ id, handler });
-    state.handlers.set(key, list);
-    state.connections.set(id, () => {
-        list.splice(
-            list.findIndex((each) => each.id === id),
-            1,
-        );
-    });
-    return id;
 }
 
 function runHandlers(instance: GObjectInstance, key: string, args: readonly unknown[]): void {
@@ -388,6 +383,104 @@ function runHandlers(instance: GObjectInstance, key: string, args: readonly unkn
         state.emissions.pop();
     }
 }
+
+/**
+ * The default {@link GObjectEngine}: per-instance `Map`s behind a `WeakMap`, the only one the
+ * browser can have. Registration needs nothing of it — a `$gtype` here is a token, not a GType.
+ */
+export const PURE_JS_ENGINE: GObjectEngine = {
+    name: 'pure-js',
+
+    register() {},
+
+    getValue(instance, spec) {
+        const { values } = stateOf(instance);
+        if (!values.has(spec.name)) values.set(spec.name, spec.get_default_value());
+        return values.get(spec.name);
+    },
+
+    setValue(instance, spec, value) {
+        const { values } = stateOf(instance);
+        // An unset slot reads as `undefined`, so the first assignment of a property nobody has
+        // read yet counts as a change even when it equals the default — as `_generateAccessors` does.
+        const changed = value !== values.get(spec.name);
+        values.set(spec.name, value);
+        return changed;
+    },
+
+    addHandler(instance, id, key, handler) {
+        const state = stateOf(instance);
+        const list = state.handlers.get(key) ?? [];
+        list.push({ id, handler });
+        state.handlers.set(key, list);
+        state.connections.set(id, () => {
+            list.splice(
+                list.findIndex((each) => each.id === id),
+                1,
+            );
+        });
+    },
+
+    removeHandler(instance, id) {
+        const state = stateOf(instance);
+        const remove = state.connections.get(id);
+        if (!remove) return false;
+        state.connections.delete(id);
+        remove();
+        return true;
+    },
+
+    emit(instance, key, args) {
+        runHandlers(instance, key, args);
+    },
+
+    notify(instance, spec) {
+        runHandlers(instance, `notify::${spec.name}`, [spec]);
+    },
+
+    stopEmission(instance, key) {
+        const { emissions } = stateOf(instance);
+        for (let index = emissions.length - 1; index >= 0; index--) {
+            const emission = emissions[index]!;
+            if (emission.key === key && !emission.stopped) {
+                emission.stopped = true;
+                return true;
+            }
+        }
+        return false;
+    },
+
+    bind(source, sourceProperty, target, targetProperty, flags) {
+        return bindProperties(source, sourceProperty, target, targetProperty, flags);
+    },
+};
+
+// --- Which engine an instance uses, and the core's own connection book ------------------------
+
+/**
+ * Memoised per instance: the engine of its MOST DERIVED registered class, so one instance has one
+ * store even where a hierarchy mixes engines. Unregistered objects (a port widget reached through
+ * the door) answer the default — they have no properties of their own to hold.
+ */
+const ENGINES = new WeakMap<object, GObjectEngine>();
+
+function engineOf(instance: object): GObjectEngine {
+    let engine = ENGINES.get(instance);
+    if (!engine) {
+        engine = chainOfInstance(instance)[0]?.engine ?? PURE_JS_ENGINE;
+        ENGINES.set(instance, engine);
+    }
+    return engine;
+}
+
+let nextHandlerId = 0;
+
+/**
+ * The connections that are NOT the engine's: a signal the subset does not know, listened to on the
+ * port's own event system through the door. They share the engine's id space, because
+ * `disconnect(id)` is one call that must find either.
+ */
+const FOREIGN = new WeakMap<object, Map<number, () => void>>();
 
 /**
  * How an object that is no registered class (the GtkSource buffer and view) takes part in
@@ -434,14 +527,7 @@ export function stopEmissionByName(instance: GObjectInstance, detailedSignal: st
         console.warn(`signal '${detailedSignal}' is invalid for instance of type '${typeName}'`);
         return;
     }
-    const emissions = stateOf(instance).emissions;
-    for (let index = emissions.length - 1; index >= 0; index--) {
-        const emission = emissions[index]!;
-        if (emission.key === key && !emission.stopped) {
-            emission.stopped = true;
-            return;
-        }
-    }
+    if (engineOf(instance).stopEmission(instance, key)) return;
     console.warn(`no emission of signal "${detailedSignal}" to stop for instance of type '${typeName}'`);
 }
 
@@ -449,12 +535,19 @@ export function connectInstance(instance: GObjectInstance, signal: string, handl
     const chain = chainOfInstance(instance);
     const typeName = typeNameOf(instance, chain);
     const { name, detail } = parseSignal(signal);
+    const own = (key: string): number => {
+        const id = ++nextHandlerId;
+        engineOf(instance).addHandler(instance, id, key, handler);
+        return id;
+    };
     const foreign = (): number => {
         const door = chain[0]?.door;
         if (!door) throw new Error(`No signal '${signal}' on object '${typeName}'`);
         const id = ++nextHandlerId;
         const unlisten = door.listen(instance, signal, handler as (...args: unknown[]) => unknown);
-        stateOf(instance).connections.set(id, unlisten);
+        let book = FOREIGN.get(instance);
+        if (!book) FOREIGN.set(instance, (book = new Map()));
+        book.set(id, unlisten);
         return id;
     };
     if (name === 'notify') {
@@ -465,21 +558,24 @@ export function connectInstance(instance: GObjectInstance, signal: string, handl
             );
         }
         const spec = findProperty(chain, detail);
-        return spec ? addHandler(instance, `notify::${spec.name}`, handler) : foreign();
+        return spec ? own(`notify::${spec.name}`) : foreign();
     }
     if (findSignal(chain, name)) {
         if (detail !== undefined) throw new Error(`Signal '${name}' on object '${typeName}' has no detail`);
-        return addHandler(instance, name, handler);
+        return own(name);
     }
     return foreign();
 }
 
 export function disconnectInstance(instance: GObjectInstance, id: number): void {
-    const state = stateOf(instance);
-    const disconnect = state.connections.get(id);
-    if (!disconnect) throw new Error(`No handler with id ${id} is connected to ${String(instance)}`);
-    state.connections.delete(id);
-    disconnect();
+    const unlisten = FOREIGN.get(instance)?.get(id);
+    if (unlisten) {
+        FOREIGN.get(instance)!.delete(id);
+        unlisten();
+        return;
+    }
+    if (engineOf(instance).removeHandler(instance, id)) return;
+    throw new Error(`No handler with id ${id} is connected to ${String(instance)}`);
 }
 
 export function emitInstance(instance: GObjectInstance, signal: string, ...args: unknown[]): void {
@@ -490,7 +586,7 @@ export function emitInstance(instance: GObjectInstance, signal: string, ...args:
         if (args.length !== types.length) {
             throw new Error(`Signal '${signal}' on ${typeName} requires ${types.length} args got ${args.length}`);
         }
-        runHandlers(instance, signal, args);
+        engineOf(instance).emit(instance, signal, args);
         return;
     }
     const door = chain[0]?.door;
@@ -502,7 +598,7 @@ export function notifyInstance(instance: GObjectInstance, name: string): void {
     const chain = chainOfInstance(instance);
     const spec = findProperty(chain, name);
     if (spec) {
-        runHandlers(instance, `notify::${spec.name}`, [spec]);
+        engineOf(instance).notify(instance, spec);
         return;
     }
     const door = chain[0]?.door;
@@ -524,18 +620,11 @@ function generateAccessors(spec: ParamSpec, existing: PropertyDescriptor | undef
     if (readable && writable) {
         if (!descriptor.get && !descriptor.set) {
             descriptor.get = function (this: object) {
-                const { values } = stateOf(this);
-                if (!values.has(name)) values.set(name, spec.get_default_value());
-                return values.get(name);
+                return engineOf(this).getValue(this, spec);
             };
             descriptor.set = function (this: GObjectInstance, value: unknown) {
-                const { values } = stateOf(this);
-                // An unset slot reads as `undefined`, so the first assignment of a property nobody
-                // has read yet notifies even when it equals the default — as `_generateAccessors` does.
-                if (value !== values.get(name)) {
-                    values.set(name, value);
-                    this.notify(name);
-                }
+                // The engine answers whether that CHANGED anything; one notify per change.
+                if (engineOf(this).setValue(this, spec, value)) this.notify(name);
             };
         } else if (!descriptor.get) {
             descriptor.get = function () {
@@ -591,11 +680,12 @@ function checkAccessors(proto: object, spec: ParamSpec): void {
 
 /** A construct-only property has no accessor on the class; the instance carries the value it was built with. */
 function defineConstructOnly(instance: object, spec: ParamSpec, value: unknown): void {
-    const { values } = stateOf(instance);
-    values.set(spec.name, value);
+    const engine = engineOf(instance);
+    // The write itself notifies nothing: construction is not a change anyone could have seen.
+    engine.setValue(instance, spec, value);
     for (const alias of new Set(aliasesOf(spec.name))) {
         Object.defineProperty(instance, alias, {
-            get: () => values.get(spec.name),
+            get: () => engine.getValue(instance, spec),
             enumerable: true,
             configurable: true,
         });
@@ -663,11 +753,13 @@ export function createClosure(
 }
 
 function scopeOf(instance: object): TemplateScope {
+    const engine = engineOf(instance);
     return {
         instance,
         handler: (name, options) =>
             createClosure(instance, name, options?.flags?.includes('swapped') ?? false, options?.object),
-        bind: bindProperties,
+        bind: (source, sourceProperty, target, targetProperty, flags) =>
+            engine.bind(source, sourceProperty, target, targetProperty, flags ?? []),
     };
 }
 
@@ -788,7 +880,7 @@ function describeType(type: unknown): string {
 
 let anonymousClasses = 0;
 
-function registerWith(door: GObjectDoor, args: readonly unknown[]): ClassLike {
+function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly unknown[]): ClassLike {
     const given = args.length === 2 ? args[1] : args[0];
     if (typeof given !== 'function') throw new TypeError('GObject.registerClass() needs a class');
     const klass = given as unknown as Klass;
@@ -877,6 +969,7 @@ function registerWith(door: GObjectDoor, args: readonly unknown[]): ClassLike {
         internalChildren: (declared(META_SYMBOLS.internalChildren) ?? []) as readonly string[],
         cssName: declared(META_SYMBOLS.cssName) as string | undefined,
         door,
+        engine,
     };
 
     Object.defineProperty(klass, '$gtype', {
@@ -887,6 +980,8 @@ function registerWith(door: GObjectDoor, args: readonly unknown[]): ClassLike {
     for (const spec of properties) checkAccessors(klass.prototype, spec);
     installInstanceApi(klass.prototype);
     REGISTRY.set(klass, info);
+    // The engine first: the door's `register` may already build objects of this class.
+    engine.register(info);
     door.register(info.klass, info);
     return info.klass;
 }
@@ -901,6 +996,7 @@ export function registerBaseClass(
     typeName: string,
     signals: Readonly<Record<string, readonly GType[]>>,
     properties: readonly ParamSpec[] = [],
+    engine: GObjectEngine = PURE_JS_ENGINE,
 ): void {
     const missing = (event: string): never => {
         throw new Error(`No signal '${event}' on object '${typeName}'`);
@@ -912,13 +1008,14 @@ export function registerBaseClass(
         configurable: false,
     });
     for (const spec of properties) checkAccessors(klass.prototype, spec);
-    REGISTRY.set(klass, {
+    const info: RegisteredClass = {
         klass,
         typeName,
         gtype,
         properties,
         signals,
         internalChildren: [],
+        engine,
         door: {
             name: typeName,
             dispatch: (_target, event) => missing(event),
@@ -927,7 +1024,9 @@ export function registerBaseClass(
             attach() {},
             register() {},
         },
-    });
+    };
+    REGISTRY.set(klass, info);
+    engine.register(info);
 }
 
 // --- The base class and the namespace --------------------------------------------------------
@@ -1002,13 +1101,15 @@ export interface GObjectNamespace {
 }
 
 /**
- * The `GObject` namespace of a port: `registerClass` registers against `door`. There is no
- * `bind_property` here until a consumer calls it (ADR 0096 § 2); the engine is {@link bindProperties}.
+ * The `GObject` namespace of a port: `registerClass` registers against `door`, and instances of
+ * what it registers keep their values and handlers in `engine` (ADR 0105 § 2) — the pure-JS one
+ * unless a port passes another. There is no `bind_property` here until a consumer calls it
+ * (ADR 0096 § 2); the binding engine is the engine's `bind`, {@link bindProperties} by default.
  */
-export function createGObject(door: GObjectDoor): GObjectNamespace {
+export function createGObject(door: GObjectDoor, engine: GObjectEngine = PURE_JS_ENGINE): GObjectNamespace {
     return {
         Object: GObjectObject as unknown as GObjectConstructor,
-        registerClass: ((...args: unknown[]) => registerWith(door, args)) as RegisterClass,
+        registerClass: ((...args: unknown[]) => registerWith(door, engine, args)) as RegisterClass,
         ParamSpec,
         ParamFlags,
         Value,
