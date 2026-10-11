@@ -17,7 +17,9 @@
 // how it does: a JSONL file named by `GJSIFY_PUBLISH_LEDGER`, appended by every
 // process that finds a version unserved or holds a package. A dependent of a held
 // package then holds at once from the ledger instead of waiting out the budget
-// again, and the end-of-job summary is rendered from the same file.
+// again — but only for a TERMINAL class; a `validating` entry is re-probed, and a
+// confirmed re-probe appends `served`. The end-of-job summary is rendered from
+// the same file.
 
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { REQUIRED_BLOCK, type DependencyBlock, type WorkspacePin } from './publish-pins.js';
@@ -26,6 +28,7 @@ import {
     classifyUnserved,
     describeClass,
     fetchVersionStatus,
+    isTerminalClass,
     type Classification,
     type UnservedClass,
 } from './publish-status.js';
@@ -56,7 +59,9 @@ export type LedgerEntry =
           detail: string;
       }
     /** This run did NOT publish the package, because of the listed dependencies. */
-    | { ev: 'held'; name: string; version: string; reasons: HoldReason[] };
+    | { ev: 'held'; name: string; version: string; reasons: HoldReason[] }
+    /** A later probe found a version an earlier `unserved` entry recorded now served; it supersedes that entry. */
+    | { ev: 'served'; name: string; version: string };
 
 export function appendLedger(path: string | undefined, entry: LedgerEntry): void {
     if (!path) return;
@@ -71,7 +76,7 @@ export function readLedger(path: string | undefined): LedgerEntry[] {
         if (!line.trim()) continue;
         try {
             const parsed = JSON.parse(line) as LedgerEntry;
-            if (parsed.ev === 'unserved' || parsed.ev === 'held') entries.push(parsed);
+            if (parsed.ev === 'unserved' || parsed.ev === 'held' || parsed.ev === 'served') entries.push(parsed);
         } catch {
             /* a torn line from a killed process must not hide the entries around it */
         }
@@ -93,6 +98,8 @@ export interface FindUnavailablePinsInput {
     registry: string;
     pins: readonly WorkspacePin[];
     ledger: readonly LedgerEntry[];
+    /** Where a re-probe that finds a ledger-`unserved` version served records it, so later dependents skip the probe. */
+    ledgerPath?: string;
     /** Forwarded to the packument GETs, as the publish's own read-back does. */
     authorization?: string;
     statusToken?: string;
@@ -140,8 +147,16 @@ export async function findUnavailablePins(input: FindUnavailablePinsInput): Prom
 
 async function judgePin(input: FindUnavailablePinsInput, name: string, version: string): Promise<HoldReason | null> {
     const base = { name, version, block: 'dependencies' as DependencyBlock };
-    const known = input.ledger.find((e) => e.name === name && e.version === version);
-    if (known?.ev === 'unserved') return { ...base, cls: known.cls, detail: known.detail };
+    // The LAST entry wins: a `served` entry supersedes the `unserved` one before it.
+    const known = [...input.ledger].reverse().find((e) => e.name === name && e.version === version);
+    if (known?.ev === 'served') return null;
+    // Only a terminal class short-circuits. npm holds EVERY new version in
+    // `validating` for 30–90 s, and the publisher's own read-back runs inside
+    // that window, so a non-terminal entry is stale by the time a dependent
+    // looks (v0.60.0: 92 of 215 packages held on it). Fall through and re-probe.
+    if (known?.ev === 'unserved' && isTerminalClass(known.cls)) {
+        return { ...base, cls: known.cls, detail: known.detail };
+    }
     if (known?.ev === 'held') {
         return {
             ...base,
@@ -164,7 +179,7 @@ async function judgePin(input: FindUnavailablePinsInput, name: string, version: 
         ...probeInput,
         budgetMs: SINGLE_PROBE_BUDGET_MS,
     });
-    if (readback.confirmed) return null;
+    if (readback.confirmed) return confirmedServed(input, known, name, version);
 
     const ask = () =>
         fetchVersionStatus({
@@ -180,10 +195,20 @@ async function judgePin(input: FindUnavailablePinsInput, name: string, version: 
             ...probeInput,
             budgetMs: input.waitBudgetMs,
         });
-        if (readback.confirmed) return null;
+        if (readback.confirmed) return confirmedServed(input, known, name, version);
         classification = classifyUnserved(readback.verdict, await ask());
     }
     return { ...base, cls: classification.cls, detail: classification.detail };
+}
+
+function confirmedServed(
+    input: FindUnavailablePinsInput,
+    known: LedgerEntry | undefined,
+    name: string,
+    version: string,
+): null {
+    if (known?.ev === 'unserved') appendLedger(input.ledgerPath, { ev: 'served', name, version });
+    return null;
 }
 
 /** Only a `dependencies` edge holds a publish, as in the name-level guard; the rest are reported. */
@@ -229,7 +254,11 @@ export async function recordUnserved(input: {
  * dependencies are installable. `undefined` when nothing needs saying.
  */
 export function renderLedgerSummary(entries: readonly LedgerEntry[], ref: string): string | undefined {
-    const unserved = entries.filter((e): e is Extract<LedgerEntry, { ev: 'unserved' }> => e.ev === 'unserved');
+    const served = new Set(entries.filter((e) => e.ev === 'served').map((e) => `${e.name}@${e.version}`));
+    const unserved = entries.filter(
+        (e): e is Extract<LedgerEntry, { ev: 'unserved' }> =>
+            e.ev === 'unserved' && !served.has(`${e.name}@${e.version}`),
+    );
     const held = entries.filter((e): e is Extract<LedgerEntry, { ev: 'held' }> => e.ev === 'held');
     if (unserved.length === 0 && held.length === 0) return undefined;
     const lines: string[] = ['### npm versions that were accepted but are not installable', ''];

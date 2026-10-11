@@ -647,6 +647,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
             registry: registryClean,
             pins,
             ledger: readLedger(ledgerPath),
+            ledgerPath,
             authorization: headers['authorization'],
             statusToken: statusTokenFromEnv(process.env),
             waitBudgetMs: input.holdWaitMs ?? DEFAULT_HOLD_WAIT_MS,

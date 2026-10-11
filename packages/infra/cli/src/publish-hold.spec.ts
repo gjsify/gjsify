@@ -181,14 +181,14 @@ export default async () => {
             expect(reasons.length).toBe(0);
         });
 
-        await it('takes the ledger as the answer, without any request', async () => {
+        await it('takes a terminal ledger entry as the answer, without any request', async () => {
             const reg = fakeRegistry({ served: ['@gjsify/a@1.0.0'] });
             const ledger: LedgerEntry[] = [
                 {
                     ev: 'unserved',
                     name: '@gjsify/a',
                     version: '1.0.0',
-                    cls: 'validating',
+                    cls: 'staged',
                     detail: 'pending',
                 },
             ];
@@ -200,7 +200,85 @@ export default async () => {
                 fetchImpl: reg.fetchImpl,
                 ...clock(),
             });
-            expect(reasons[0]?.cls).toBe('validating');
+            expect(reasons[0]?.cls).toBe('staged');
+            expect(reg.packumentGets()).toBe(0);
+        });
+
+        await it('re-probes a non-terminal ledger entry and does not hold once served', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-ledger-'));
+            try {
+                const ledgerPath = join(dir, 'l.jsonl');
+                const reg = fakeRegistry({ served: ['@gjsify/a@1.0.0'] });
+                const ledger: LedgerEntry[] = [
+                    { ev: 'unserved', name: '@gjsify/a', version: '1.0.0', cls: 'validating', detail: 'pending' },
+                ];
+                const reasons = await findUnavailablePins({
+                    registry: REGISTRY,
+                    pins: [pin('@gjsify/a', '^1.0.0')],
+                    ledger,
+                    ledgerPath,
+                    waitBudgetMs: 300_000,
+                    fetchImpl: reg.fetchImpl,
+                    ...clock(),
+                });
+                expect(reasons.length).toBe(0);
+                expect(reg.packumentGets()).toBe(1);
+                const written = readLedger(ledgerPath);
+                expect(written.length).toBe(1);
+                expect(written[0]?.ev).toBe('served');
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('waits for a non-terminal ledger entry that turns up during the wait', async () => {
+            const reg = fakeRegistry({ servedAfter: { key: '@gjsify/a@1.0.0', afterRequests: 3 } });
+            const ledger: LedgerEntry[] = [
+                { ev: 'unserved', name: '@gjsify/a', version: '1.0.0', cls: 'validating', detail: 'pending' },
+            ];
+            const reasons = await findUnavailablePins({
+                registry: REGISTRY,
+                pins: [pin('@gjsify/a', '1.0.0')],
+                ledger,
+                waitBudgetMs: 300_000,
+                fetchImpl: reg.fetchImpl,
+                ...clock(),
+            });
+            expect(reasons.length).toBe(0);
+        });
+
+        await it('lets a later served entry supersede an unserved one', async () => {
+            const reg = fakeRegistry({});
+            const ledger: LedgerEntry[] = [
+                { ev: 'unserved', name: '@gjsify/a', version: '1.0.0', cls: 'blocked', detail: 'd' },
+                { ev: 'served', name: '@gjsify/a', version: '1.0.0' },
+            ];
+            const reasons = await findUnavailablePins({
+                registry: REGISTRY,
+                pins: [pin('@gjsify/a', '1.0.0')],
+                ledger,
+                waitBudgetMs: 300_000,
+                fetchImpl: reg.fetchImpl,
+                ...clock(),
+            });
+            expect(reasons.length).toBe(0);
+            expect(reg.packumentGets()).toBe(0);
+        });
+
+        await it('holds at once on a terminal ledger entry', async () => {
+            const reg = fakeRegistry({ served: ['@gjsify/a@1.0.0'] });
+            const ledger: LedgerEntry[] = [
+                { ev: 'unserved', name: '@gjsify/a', version: '1.0.0', cls: 'blocked', detail: 'failed' },
+            ];
+            const reasons = await findUnavailablePins({
+                registry: REGISTRY,
+                pins: [pin('@gjsify/a', '^1.0.0')],
+                ledger,
+                waitBudgetMs: 300_000,
+                fetchImpl: reg.fetchImpl,
+                ...clock(),
+            });
+            expect(reasons[0]?.cls).toBe('blocked');
             expect(reg.packumentGets()).toBe(0);
         });
 
