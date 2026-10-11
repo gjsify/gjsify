@@ -446,6 +446,11 @@
       "status": "full",
       "note": "Deprecated Node alias — re-exports `@gjsify/util`."
     },
+    "@gjsify/dav": {
+      "status": "partial",
+      "missing": "Run against mocked multistatus fixtures only, never against a live CalDAV/CardDAV server. No WebDAV ACL, no scheduling (RFC 6638), no recurrence expansion; iCalendar and vCard stay text.",
+      "note": "CalDAV and CardDAV client over fetch: discovery (well-known, current-user-principal, home sets), collections, calendar-query/addressbook-query/multiget, sync-collection (RFC 6578) and conditional PUT/DELETE. Auth is an injectable header provider (Basic, Bearer)."
+    },
     "@gjsify/system-accounts": {
       "status": "partial",
       "missing": "Linux on GNOME Online Accounts is the only driver; every other host answers with empty capabilities (ADR 0095). The OAuth2 path has run against the fake accounts service only, never against a real provider account. The fake serves what libgoa's client calls on a peer-to-peer D-Bus server, so a change in libgoa's wire use is not caught until a real session is measured. The `&optional` entry point (`createSystemAccounts`) adds a top-level await to every bundle that imports it, so a `@gjsify/unit` run that reaches it wedges (ADR 0085 clause 5); its specs reach the driver directly.",
