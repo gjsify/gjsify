@@ -148,7 +148,11 @@ identity-counted survivors work unchanged — `get_item(0) === the object splice
 - **Nothing ran on Android.** No physical device and no emulator leg was used, so every number
   here is `x86_64` Linux under Node or GJS. The ADR's stage-2 measurement asks for the vectors
   "on device" and for per-instance construction cost against the pure-JS engine; neither was
-  measured. The NativeScript harness gap stage 0 recorded is still the blocker.
+  measured. The harness gap stage 0 first recorded is *closed* — the
+  [arm64 leg](2026-10-10-gobject-oracle-arm64.md) drives 44 rows on a real `arm64-v8a` phone
+  through an APK and an adb driver that live outside the repo — but that harness carries the
+  ORACLE's subjects, not this engine, and no device was free for this work. Wiring the engine
+  into it is the smallest next step, and it is not taken here.
 - **The device opt-in is deliberately not flipped.** `packages/nativescript-bridge/adwaita/`
   still builds its GObject namespace with the pure-JS engine. The reason is at the call site, in a
   comment rather than a TODO: `createGObject(door)` is evaluated at module load, so a throwing

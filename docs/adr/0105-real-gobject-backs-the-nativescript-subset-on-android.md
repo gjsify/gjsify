@@ -193,8 +193,10 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    **24 of 24** rows on Linux under Node in CI, refusals and widget rows included, with no vector
    weakened and no node-gi fix needed. Finding: the "no notify on an equal write" rule lives in
    the GENERATED ACCESSOR, not in GObject — `g_object_set_property` notifies unconditionally — so
-   the engine owns the comparison. Not done: nothing ran on Android (no device, no emulator leg,
-   the stage-0 harness gap stands) and no construction cost was timed. Deviation: the real-ENGINE
+   the engine owns the comparison. Not done: this engine ran on no Android host. Stage 0's arm64
+   leg shows a device harness now exists (an APK plus an adb driver, outside the repo), but it
+   drives the ORACLE's subjects, not this engine, and no device was free for this work; no
+   per-instance construction cost was timed either. Deviation: the real-ENGINE
    subject lives in the new tier-3 package, the stage-0 ORACLE subject stays in adwaita-core,
    because tier 2 may not depend on tier 3.
 3. Settings and `Gio.File` on real Gio. Measurement: the ADR 0099 and 0100 vectors on device.
