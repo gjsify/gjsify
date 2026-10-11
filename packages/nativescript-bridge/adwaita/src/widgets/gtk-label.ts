@@ -53,7 +53,7 @@
 // line count GTK does is unverified off a device.
 //
 // WHAT IT DOES NOT DO: `attributes`, `justify`, `natural-wrap-mode`, `wrap-mode`, `width-chars`,
-// `max-width-chars`, `tabs`, `yalign`, `selectable` and the mnemonic-widget link are declared gaps
+// `max-width-chars`, `tabs`, `yalign` and the mnemonic-widget link are declared gaps
 // in `check-nativescript-widget-coverage.mjs` — that gate holds the list, so it is not restated
 // here. `yalign` is a continuum on the view's OWN `verticalAlignment` (four positions), which
 // `Gtk.Align` already answers to on every widget (`gtk-align.ts`): a second claim on it would
@@ -97,6 +97,7 @@ export class GtkLabel extends withSignals(Label) {
     private _lines = -1;
     private _styleClasses: string[] = [];
     private _xalign = DEFAULT_LABEL_XALIGN;
+    private _selectable = false;
 
     constructor(props?: ConstructProps<GtkLabel>) {
         super();
@@ -105,6 +106,9 @@ export class GtkLabel extends withSignals(Label) {
         // gives: GTK's `label` is a CSS NAME and never a member of `css-classes`, and
         // libadwaita's label looks are all opt-in style classes. So the list starts empty
         // and holds exactly what a caller puts in it.
+        // The native view does not exist when `selectable` is first written from XML, so the
+        // held value is applied again once the view is loaded.
+        this.addEventListener('loaded', () => this._applySelectable());
         applyConstructProps(this, props);
     }
 
@@ -208,6 +212,27 @@ export class GtkLabel extends withSignals(Label) {
         this._applyLines();
     }
 
+    /**
+     * `Gtk.Label:selectable` — whether the user can select and copy the text. Held on every
+     * platform; ENFORCED on Android, where a NativeScript `Label` is a `TextView` and
+     * `setTextIsSelectable` is its own switch. On a platform view without that method (iOS
+     * `UILabel`) the value is only read back.
+     */
+    get selectable(): boolean {
+        return this._selectable;
+    }
+
+    set selectable(raw: boolean | string) {
+        this._selectable = xmlBoolean(raw, this._selectable);
+        this._applySelectable();
+    }
+
+    private _applySelectable(): void {
+        const native = (this as unknown as { nativeViewProtected?: { setTextIsSelectable?: (value: boolean) => void } })
+            .nativeViewProtected;
+        native?.setTextIsSelectable?.(this._selectable);
+    }
+
     private _applyLines(): void {
         this.maxLines = labelEffectiveLines(this._lines, this._ellipsize) ?? 0;
     }
@@ -252,6 +277,16 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     // --- methods, under GTK's own names ---
+
+    /** `gtk_label_get_label`. */
+    get_label(): string {
+        return this.label;
+    }
+
+    /** `gtk_label_set_label`. */
+    set_label(value: string): void {
+        this.label = value;
+    }
 
     /** `gtk_label_set_markup` — set the text AND turn markup interpretation on. */
     set_markup(markup: string): void {

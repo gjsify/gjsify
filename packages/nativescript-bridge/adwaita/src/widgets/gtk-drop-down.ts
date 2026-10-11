@@ -177,6 +177,16 @@ export class GtkDropDown extends withSignals(StackLayout) {
         this._state.setSelectedIndex(value);
     }
 
+    /** `gtk_drop_down_get_selected`. */
+    get_selected(): number {
+        return this.selected;
+    }
+
+    /** `gtk_drop_down_set_selected`. */
+    set_selected(position: number): void {
+        this.selected = position;
+    }
+
     /** The selected option's `value`, or `''` when out of range. */
     get selectedValue(): string {
         return this._state.selectedValue;
