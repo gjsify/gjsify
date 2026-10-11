@@ -1486,6 +1486,18 @@ function diffDeclared(rows, malformed = new Set()) {
             // The gi://-reaches-node-gi tolerance (see above). `none` needs no clause:
             // it already equals the suggestion, so it never reaches this filter.
             if (giUrlReachesNodeBridge && s === 'node' && r.declared[s] === 'polyfill') return false;
+            // A slot routed to its own `src/<target>.ts` (ADR 0014) is judged on THAT entry,
+            // not on the GJS-only root the signal scan also sees. The reachability pass
+            // scans the routed entry and is fatal on browser/nativescript, so this stays guarded.
+            if (
+                s !== 'gjs' &&
+                r.declared[s] === 'polyfill' &&
+                r.suggested[s] === 'none' &&
+                r.signals.gi_url &&
+                existsSync(join(PACKAGES_DIR, r.path, 'src', `${s}.ts`))
+            ) {
+                return false;
+            }
             return r.declared[s] !== r.suggested[s];
         });
         if (mismatches.length > 0) {

@@ -1,0 +1,4 @@
+lib
+test.gjs.mjs
+test.node.mjs
+*.tsbuildinfo

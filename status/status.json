@@ -585,6 +585,11 @@
       "status": "full",
       "note": "WebSocket, MessageEvent, CloseEvent (W3C spec). NUL-byte-safe text frames (send via `send_message(TEXT, GLib.Bytes)` — Soup's `send_text` truncates at `\\0`), permessage-deflate negotiation (RFC 7692; extension manager + deflate registered explicitly), `extensions` reflects the negotiated set. RFC 6455 fuzz-validated via Autobahn: 510 OK / 4 NON-STRICT / 3 INFO / 0 FAILED."
     },
+    "@gjsify/app-settings": {
+      "status": "partial",
+      "note": "`Gio.Settings` as a strict subset (ADR 0099): `get/set_{boolean,int,uint,double,string}`, `connect('changed[::key]')`, `disconnect`, `schema_id`/`path`, key types `b i u d s`, schema from a `.gschema.xml`. Browser = localStorage, NativeScript = ApplicationSettings, GJS = the real `Gio.Settings`. Conformance vectors run on Node and against the real Gio memory backend under GJS.",
+      "missing": "`bind()` throws by name; `list_keys`, `get_value`, `reset`, `apply`, `delay`, `Gio.Settings.new` are refused. No range/choices/enum/flags/child/override in a schema. Not yet run on a device."
+    },
     "@gjsify/webstorage": {
       "status": "full",
       "note": "Storage, localStorage, sessionStorage (W3C Web Storage) over an in-memory Map. No GNOME backing yet: `localStorage` does not survive the process, and `Gio.File`+`GLib.KeyFile` is the named candidate (`src/index.ts`), unbuilt."
