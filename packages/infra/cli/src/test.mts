@@ -51,6 +51,8 @@ import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
 import publishDiagnoseSuite from './publish-diagnose.spec.js';
 import publishReadbackSuite from './publish-readback.spec.js';
+import publishStatusSuite from './publish-status.spec.js';
+import publishHoldSuite from './publish-hold.spec.js';
 import publishHeadersSuite from './utils/publish-headers.spec.js';
 import cliRuntimeClosureSuite from './utils/cli-runtime-closure.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
@@ -315,6 +317,8 @@ run(
         npmOidcSuite,
         publishDiagnoseSuite,
         publishReadbackSuite,
+        publishStatusSuite,
+        publishHoldSuite,
         publishHeadersSuite,
         cliRuntimeClosureSuite,
         whoamiCommandSuite,

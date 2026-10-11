@@ -221,6 +221,23 @@ jobs:
         env:
           GJSIFY_PUBLISH_DEBUG: "1"
           ONLY: ${{ inputs.only }}
+          # One JSONL file shared by the per-package `gjsify publish` processes:
+          # a dependent of an unserved/held package holds at once, and the
+          # summary step below renders it.
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          # Optional. The version-status endpoint rejects the OIDC publish token;
+          # without a read-only npm token the unserved class degrades to
+          # "unchecked" (the hold still applies).
+          NPM_STATUS_TOKEN: ${{ secrets.NPM_STATUS_TOKEN }}
+
+      - name: Report held and unserved packages
+        if: ${{ always() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify publish --report-ledger --ref "$RELEASE_REF" >> "$GITHUB_STEP_SUMMARY" || true
+        env:
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          RELEASE_REF: ${{ github.event.release.tag_name || inputs.release_tag || github.ref_name }}
 
       # Phase F: ship install.mjs + cli.gjs.mjs as GitHub-release assets so end
       # users can bootstrap gjsify (or any gjsify-based GJS app) with a single

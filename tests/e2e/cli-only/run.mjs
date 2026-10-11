@@ -169,7 +169,7 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
             // `--runtime gjs` explicitly: the default now follows the host
             // runtime (node under npx), and this test exercises the gjs/dlx
             // delegation path specifically.
-            combined = execFileSync('npx', ['gjsify', 'showcase', '--runtime', 'gjs', 'three-postprocessing-pixel'], {
+            combined = execFileSync('npx', ['gjsify', 'showcase', '--runtime', 'gjs', 'express-webserver'], {
                 cwd: projectDir,
                 encoding: 'utf-8',
                 stdio: ['ignore', 'pipe', 'pipe'],
