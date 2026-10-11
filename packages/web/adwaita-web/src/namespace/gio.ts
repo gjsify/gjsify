@@ -12,10 +12,11 @@
 // `check-vocabulary-alignment.mjs` derives their members from the elements this package
 // defines. GIO defines none: what lands here is the handful of GObject types an Adwaita
 // author CONSTRUCTS while building a tree — today the menu a `menuModel` property takes.
-// `Gio.File`, `Gio.Settings` and the rest of the library are NOT this
-// package's business; a namespace that grows past what the elements consume is a second,
+// `Gio.Settings` is here (ADR 0099, the `localStorage` door); `Gio.File` and the rest of
+// the library are NOT this package's business; a namespace that grows past what the elements consume is a second,
 // unheld vocabulary.
 
 export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
 export { SimpleAction, SimpleActionGroup, ApplicationFlags } from '@gjsify/adwaita-core';
 export { GioApplication as Application } from '../application.js';
+export { Settings } from '@gjsify/app-settings/browser';

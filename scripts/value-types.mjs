@@ -103,6 +103,11 @@ export const CONSTRUCTIBLE_VALUES = [
         why: "`Gio.SimpleAction`'s container — what `insertActionGroup` (`gtk_widget_insert_action_group`) puts under a prefix such as `source-view`, unreachable without it.",
     },
     {
+        member: 'Gio.Settings',
+        gir: 'Settings',
+        why: "GJS writes `new Gio.Settings({ schema_id, path })` and `get_boolean` / `set_int` / `connect('changed::key')`; ADR 0099 carries that subset on the browser (localStorage) and NativeScript (ApplicationSettings) and refuses the rest by name. A GObject, not a widget.",
+    },
+    {
         member: 'Gtk.Adjustment',
         gir: 'Adjustment',
         why: 'GJS writes `adjustment: new Gtk.Adjustment({ lower: 0, upper: 100, value: 16, stepIncrement: 1 })`, and ADR 0047 already made the VALUE behind it portable — the class IS `AdwAdjustment` wearing the GIR spelling. It closed the `Adw.SpinRow` pane divergence down to the one property the port has no counterpart for.',

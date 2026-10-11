@@ -34,6 +34,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Gio.ApplicationFlags': { gtype: 'GApplicationFlags', widget: false },
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
+    'Gio.Settings': { gtype: 'GSettings', widget: false },
     'Gio.SimpleAction': { gtype: 'GSimpleAction', widget: false },
     'Gio.SimpleActionGroup': { gtype: 'GSimpleActionGroup', widget: false },
     'Gtk.Adjustment': { gtype: 'GtkAdjustment', widget: false },

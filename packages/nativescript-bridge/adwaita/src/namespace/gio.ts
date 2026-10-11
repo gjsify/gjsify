@@ -13,7 +13,8 @@
 // GIO has no widgets: what lands here is the handful of GObject types an Adwaita author
 // CONSTRUCTS while building a widget tree — today the menu a `menuModel` property takes.
 // `SimpleAction`/`SimpleActionGroup` ARE here — the `GAction` registry a Button's
-// `action-name` resolves through (`../widgets/actions.ts`). `Gio.File`, `Gio.Settings` and the rest of the library are NOT this
+// `action-name` resolves through (`../widgets/actions.ts`). `Gio.Settings` is here (ADR 0099, the
+// `ApplicationSettings` door); `Gio.File` and the rest of the library are NOT this
 // package's business; a namespace that grows past what the widgets consume is a second,
 // unheld vocabulary.
 
@@ -21,3 +22,4 @@ export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
 export { SimpleAction, SimpleActionGroup } from '../widgets/actions.js';
 export { ApplicationFlags } from '@gjsify/adwaita-core';
 export { GioApplication as Application } from '../widgets/application.js';
+export { Settings } from '@gjsify/app-settings/nativescript';
