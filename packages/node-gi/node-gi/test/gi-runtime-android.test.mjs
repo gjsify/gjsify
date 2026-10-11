@@ -483,6 +483,17 @@ describe('the package itself: what npm installs and what a checkout keeps', () =
         for (const runtime of ['gjs', 'node', 'browser']) assert.equal(manifest.gjsify.runtimes[runtime], 'none');
     });
 
+    it('carries the `nativescript` key, without which the CLI never calls it a plugin', () => {
+        // The NS CLI writes `platforms/android/dependencies.json` from the dependencies whose
+        // manifest has this key, and the generated gradle scans THAT list for `platforms/android`
+        // AARs. Drop the key and everything else still works — npm installs the package, the
+        // import resolves, `isPresent` is true — while the APK gets no payload at all and the
+        // device reports a dlopen failure that reads like a node-gi bug. So it is asserted here,
+        // where the cause is one line away from the symptom.
+        assert.equal(typeof manifest.nativescript?.platforms?.android, 'string');
+        assert.equal(manifest.nativescript.platforms.ios, undefined, 'the payload is Android-only');
+    });
+
     it('node-gi never depends on it — resolved by name, like the GTK bundle (ADR 0023)', () => {
         // @gjsify/node-gi is tier 2 and has to stay installable with zero Android bytes:
         // npm has no per-platform file filtering, so a dependency here would put a 33 MB

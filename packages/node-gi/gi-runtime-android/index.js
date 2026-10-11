@@ -6,6 +6,11 @@
 // dependency, after which AGP packages `jni/<abi>/*.so` into the APK and merges
 // `assets/**` into it. Nothing has to import this module for the plugin to work.
 //
+// What DOES have to be there is the `nativescript` key in package.json: the CLI lists only
+// dependencies carrying one in `platforms/android/dependencies.json`, and that file is what
+// gradle scans. Without the key the package installs, resolves and imports perfectly well
+// and the APK gets nothing — a failure that looks like a node-gi bug on the device.
+//
 // What it is for is the HOST side of that: a build script, a device harness or a report
 // that wants to know whether the payload is present and what is in it — before spending
 // a gradle run to find out. The payload is built by scripts/build-gi-runtime-android.mjs

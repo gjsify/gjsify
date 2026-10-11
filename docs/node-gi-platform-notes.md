@@ -79,3 +79,41 @@ Link against the **`optimized`** NativeScript AAR: the `regular` one fails with
 `__ANDROID__`, ALooper pump instead), so check the result: `llvm-nm -D --undefined-only libnode_gi.so | grep ' uv_'`
 must print nothing, and `readelf -d` NEEDED should be the GI libs, `libNativeScript.so`, `libandroid` and
 libc/libm/libdl. Android is not in `gjsify.platforms` until a loadable prebuild exists (ADR 0104).
+
+### The NativeScript plugin
+
+`libnode_gi.so` alone is useless on a device: it is linked against the GI stack by `NEEDED`, so the
+addon and its closure are ONE unit and have to travel together. They do, as
+**`@gjsify/gi-runtime-android`** (`packages/node-gi/gi-runtime-android/`) — a NativeScript plugin an
+app gets by adding one dependency. It is its own tier-3 package so that `@gjsify/node-gi` stays
+installable with zero Android bytes, and it carries BOTH ABIs in one package (gradle's `abiFilters`
+picks, a universal APK keeps both).
+
+The envelope is an **AAR** in `platforms/android/`, which is what makes the dependency enough: the NS
+gradle plugin scans `$rootDir/${dep.directory}/platforms/android` for `**\/*.aar` and adds each as
+`implementation`, so `lib/<abi>/*.so` reaches the APK through the normal Android dependency path.
+Typelibs ride in the same AAR under `assets/app/girepository-1.0/`, which NS extracts to
+`<filesDir>/app/girepository-1.0` — exactly `host.nativescript.js`'s default for
+`__NODE_GI_TYPELIB_PATH`, so nothing has to be configured. Discovery needs
+`"nativescript": { "platforms": { "android": "<version>" } }` in the plugin's own manifest: the CLI
+lists ONLY dependencies carrying that key in `platforms/android/dependencies.json`, and gradle reads
+that list. Without the key the package installs, the AAR sits there unread, and the device fails at
+the first `requireGi` with a `dlopen` error. `test/gi-runtime-android.test.mjs` asserts the key.
+
+The payload is BUILT, never committed: `scripts/build-gi-runtime-android.mjs` (`--ndk`,
+`--gi-sysroot`, `--node-gi-lib`, `--typelib-dir <abi>=<dir>`) stages the tree, writes the AAR with a
+deterministic STORE-only zip writer (`packages/node-gi/scripts/aar-zip.mjs`), and records what it did
+in `platforms/android/gi-runtime.json`. The AAR, the staged tree and the generated
+`platforms/THIRD-PARTY-NOTICES.md` are gitignored; `platforms/android/include.gradle` is the one
+committed file under `platforms/`, and it fails the gradle build by name when the AAR is absent.
+
+The closure is **measured, not listed**: a transitive `DT_NEEDED` walk from `libnode_gi.so`. Every
+soname it cannot resolve in the prefix must be in the script's `SYSTEM_PROVIDED` set, or the build
+fails naming it — so a new upstream dependency cannot slip in as a missing library at runtime. The
+typelib set follows the same closure, which is why 7 of the prefix's 21 typelibs ship and 14 are
+dropped as unbacked. Typelibs are ABI-sensitive in principle: the script declares its source ABI
+(`arm64-v8a`), compares the ABIs byte for byte and fails on an UNDECLARED divergence (today exactly
+`GLib-2.0.typelib` diverges, by 60 bytes).
+
+`android-*` still does not enter `gjsify.platforms` (ADR 0104's conformance rule); the package
+declares `runtimes.nativescript: 'native'` and `gjsify.nativescriptPlatforms: ["android"]` instead.

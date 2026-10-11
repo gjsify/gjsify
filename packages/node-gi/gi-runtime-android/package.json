@@ -11,13 +11,19 @@
             "types": "./index.d.ts",
             "default": "./index.js"
         },
-        "./platforms/android": "./platforms/android"
+        "./platforms/android": "./platforms/android",
+        "./package.json": "./package.json"
     },
     "files": [
         "index.js",
         "index.d.ts",
         "platforms"
     ],
+    "nativescript": {
+        "platforms": {
+            "android": "7.0.0"
+        }
+    },
     "gjsify": {
         "runtimes": {
             "gjs": "none",
