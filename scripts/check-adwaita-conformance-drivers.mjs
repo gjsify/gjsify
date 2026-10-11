@@ -256,6 +256,10 @@ const MODULE_REASONS = {
     // `gdk.ts` is tabled in `conformance/gdk-clipboard.ts`, driven by the core, both doors and real gi://Gdk.
     gdk: { table: 'GDK_CLIPBOARD_VECTORS' },
     glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },
+    // `GLib.Bytes` and `GLib.Error` (ADR 0100) are reached through the subject's `GLib`
+    // namespace, never imported, so the file-chooser table carries their `bytes`/`error` rows.
+    'glib-bytes': { table: 'FILE_CHOOSER_VECTORS' },
+    'glib-error': { table: 'FILE_CHOOSER_VECTORS' },
     'length-unit': { table: 'ADW_LENGTH_UNIT_VECTORS', gap: NO_DRIVER_LEDGER },
     // THE THREE GIR AUTHORING DOORS (ADR 0034 § Amendment 19). `gio-menu.ts`,
     // `gtk-string-list.ts` and `gtk-adjustment.ts` add NO behaviour of their own: each one

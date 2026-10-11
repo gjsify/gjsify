@@ -21,6 +21,9 @@
 // are the same write and nothing in this package had to learn a second input shape.
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
+// ADR 0100: the file dialog is no element either — `present`-less, it asks the driver
+// `../file-chooser-host.ts` registers (imported by `./gio.ts`) and resolves a `Gio.File`.
+export { GtkFileDialog as FileDialog, GtkFileFilter as FileFilter, DialogError } from '@gjsify/adwaita-core';
 export { License, PolicyType, TextDirection, TextExtendSelection, TextWindowType } from './gtk-enums.js';
 export { GtkAboutDialog as AboutDialog } from '../elements/gtk-about-dialog.js';
 export { GtkActionBar as ActionBar } from '../elements/gtk-action-bar.js';

@@ -447,6 +447,33 @@ export type { ClipboardHost, GdkClipboard } from './gdk.js';
 export { createGLibTimers } from './glib-timers.js';
 export type { GLibTimers, SourceFunc, TimerHost } from './glib-timers.js';
 
+// --- Gtk.FileDialog, Gio.File and the GLib values they need (ADR 0100) ---
+export { GLibError, DialogError, IOErrorEnum, asGLibError } from './glib-error.js';
+export { Bytes as GLibBytes } from './glib-bytes.js';
+export {
+    FileDialog as GtkFileDialog,
+    FileFilter as GtkFileFilter,
+    GioFile,
+    GioListStore,
+    OutputStream as GioOutputStream,
+    FileOutputStream as GioFileOutputStream,
+    FileCreateFlags,
+    promisify,
+    registerFileChooserDriver,
+    fileForHandle,
+    fileFilterSpec,
+    fileFilterAccepts,
+    dismissedError,
+    dialogFailedError,
+} from './file-chooser.js';
+export type {
+    FileChooserDriver,
+    FileChooserHandle,
+    FileChooserRequest,
+    FileChooserWriter,
+    FileFilterSpec,
+} from './file-chooser.js';
+
 // --- View stack selection (Adw.ViewStack) ---
 export { ViewStackState, normalizeIconName, resolvePageTitle } from './view-stack.js';
 export type {

@@ -1,0 +1,82 @@
+{
+    "name": "@gjsify/file-chooser",
+    "version": "0.60.0",
+    "description": "Gtk.FileDialog, Gtk.FileFilter and Gio.File as one import on GJS, the browser and NativeScript: the native classes on GJS, File System Access or a self-drawn OPFS dialog on the web, the Storage Access Framework on Android",
+    "keywords": [
+        "gjs",
+        "gtk",
+        "gio",
+        "file-dialog",
+        "file-system-access",
+        "opfs",
+        "nativescript",
+        "storage-access-framework"
+    ],
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./conformance": {
+            "types": "./lib/types/conformance.d.ts",
+            "default": "./lib/esm/conformance.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "lib",
+        "!lib/types/**/*.spec.d.ts",
+        "!lib/types/test.d.mts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs dist",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}' 'src/test.browser.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "polyfill",
+            "nativescript": "polyfill"
+        },
+        "tier": 3
+    },
+    "dependencies": {
+        "@gjsify/adwaita-core": "workspace:^",
+        "@gjsify/adwaita-nativescript": "workspace:^",
+        "@gjsify/adwaita-web": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gio-2.0": "5.4.0",
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gtk-4.0": "5.4.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/file-chooser"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/file-chooser#readme"
+}

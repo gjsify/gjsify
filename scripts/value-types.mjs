@@ -203,6 +203,61 @@ export const CONSTRUCTIBLE_VALUES = [
         kind: 'constant',
         why: "The priority `Gtk.StyleContext.add_provider_for_display` orders providers by; GTK's number, so the order matches. A constant, not a widget.",
     },
+    {
+        member: 'Gtk.FileDialog',
+        gir: 'FileDialog',
+        why: 'GJS writes `new Gtk.FileDialog({ title, filters }).open(window, null, cb)`; ADR 0100 carries the modal open/save subset over a per-renderer driver and refuses the rest by name. A GObject, not a widget — the portal draws the dialog.',
+    },
+    {
+        member: 'Gtk.FileFilter',
+        gir: 'FileFilter',
+        why: "`Gtk.FileDialog`'s `filters` hold these: `new Gtk.FileFilter({ name })` with `add_suffix` / `add_mime_type` (ADR 0100). A GObject the dialog reads, not a widget.",
+    },
+    {
+        member: 'Gtk.DialogError',
+        gir: 'DialogError',
+        enum: true,
+        why: 'An app tells a dismissed dialog from a failed one with `error.matches(Gtk.DialogError, Gtk.DialogError.DISMISSED)` (ADR 0100). An error-domain enum, not a widget.',
+    },
+    {
+        member: 'Gio.File',
+        gir: 'File',
+        interface: true,
+        why: 'What `Gtk.FileDialog` hands back: `get_basename`, `load_contents_async`, `replace_async` (ADR 0100 subset over the driver handle). A GInterface, not a widget.',
+    },
+    {
+        member: 'Gio.ListStore',
+        gir: 'ListStore',
+        why: 'GJS writes `filters: new Gio.ListStore({ itemType: Gtk.FileFilter })` for `Gtk.FileDialog` (ADR 0100). A GObject list model, not a widget.',
+    },
+    {
+        member: 'Gio.OutputStream',
+        gir: 'OutputStream',
+        why: '`replace_async` resolves to a stream an app writes with `write_bytes_async` and closes with `close_async` (ADR 0100). A GObject, not a widget.',
+    },
+    {
+        member: 'Gio.FileOutputStream',
+        gir: 'FileOutputStream',
+        why: 'The concrete type `Gio.File.replace_async` returns, the `Gio.OutputStream` subclass an app passes to `_promisify` (ADR 0100). A GObject, not a widget.',
+    },
+    {
+        member: 'Gio.FileCreateFlags',
+        gir: 'FileCreateFlags',
+        flags: true,
+        why: 'GJS writes `file.replace_async(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, …)`; ADR 0100 accepts NONE and REPLACE_DESTINATION and refuses the rest by name. A flags type, not a widget.',
+    },
+    {
+        member: 'Gio.IOErrorEnum',
+        gir: 'IOErrorEnum',
+        enum: true,
+        why: 'The domain a refused or failed `Gio.File` call rejects with — `NOT_SUPPORTED`, `CANCELLED`, `CLOSED` (ADR 0100). An error-domain enum, not a widget.',
+    },
+    {
+        member: 'Gio._promisify',
+        gir: '_promisify',
+        override: true,
+        why: "GJS apps write `Gio._promisify(Gio.File.prototype, 'load_contents_async')` before awaiting (ADR 0100). A function GJS's own Gio override adds; the typelib has no entry, so the generator reads it off the namespace.",
+    },
 ];
 
 /** `Gio.Menu` -> `{ namespace: 'Gio', member: 'Menu' }`. A GIR namespace carries no dot. */

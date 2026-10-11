@@ -1252,6 +1252,14 @@ export default async () => {
                         problems.push(`${member} is not a member of its namespace on this host`);
                         continue;
                     }
+                    // An empty `gtype` is a GJS override function (`Gio._promisify`): no
+                    // typelib entry, so the row only promises a function with no GType.
+                    if (row.gtype === '') {
+                        if (typeof (klass as unknown) !== 'function' || klass.$gtype !== undefined) {
+                            problems.push(`${member} is no plain override function on this host`);
+                        }
+                        continue;
+                    }
                     // A function or constant has no GType; the row names itself and presence is the whole fact.
                     if (row.gtype === member) continue;
                     if (klass.$gtype === undefined) {
@@ -1259,6 +1267,9 @@ export default async () => {
                         continue;
                     }
                     const gtype = GObject.type_name(klass.$gtype);
+                    // GJS gives an error-domain enum (`Gtk.DialogError`, `Gio.IOErrorEnum`) the
+                    // `GError` GType; the typelib name the artifact carries is not registered at all.
+                    if (gtype === 'GError' && GObject.type_from_name(row.gtype) === null) continue;
                     if (gtype !== row.gtype) {
                         problems.push(`${member} registers ${String(gtype)} here, the artifact says ${row.gtype}`);
                     }
@@ -1278,6 +1289,8 @@ export default async () => {
                 // exists to prevent.
                 const problems: string[] = [];
                 let checked = 0;
+                // Override functions carry no GType, so nothing of theirs can be a widget.
+                const overrides = Object.values(VALUE_TYPES).filter((row) => row.gtype === '').length;
                 for (const [member, row] of Object.entries(VALUE_TYPES)) {
                     const klass = valueClass(member);
                     if (row.gtype === member) {
@@ -1296,7 +1309,7 @@ export default async () => {
                 // Not vacuous: `type_is_a` answering false for everything would pass above, so
                 // the probe asserts it answers TRUE for a type that really is a widget.
                 expect(GObject.type_is_a(Gtk.Button.$gtype, Gtk.Widget.$gtype)).toBe(true);
-                expect(checked).toBe(Object.keys(VALUE_TYPES).length);
+                expect(checked).toBe(Object.keys(VALUE_TYPES).length - overrides);
             });
 
             await it('excuses only the values this host really has no type for', async () => {

@@ -188,6 +188,11 @@
       "status": "full",
       "note": "fetch(), Request (raw body via `set_request_body_from_bytes`), Response, Headers, Referrer-Policy, `file://` URI support, streaming gzip decode (full-body buffer through `DecompressionStream`; `Soup.ContentDecoder` removed per-session to avoid double decompression), per-connection TLS opt-out (`rejectUnauthorized: false`, undici-style — that `Soup.Message` only, never the shared session) + `NODE_TLS_REJECT_UNAUTHORIZED=0`, AbortSignal honored during connect/request-send/TTFB. XHR + `URL.createObjectURL` moved out into `@gjsify/xmlhttprequest` + `@gjsify/url`."
     },
+    "@gjsify/file-chooser": {
+      "status": "partial",
+      "missing": "iOS has no picker (`open`/`save` reject `Gtk.DialogError.FAILED`). The Android SAF door is unverified on a device. On the ports `replace_async` is not atomic, `etag` is `null`, and `open_multiple`, `select_folder`, `File.new_for_uri`, `get_parent`, `query_exists` and non-extension globs are refused by name (ADR 0100).",
+      "note": "`Gtk.FileDialog`, `Gtk.FileFilter` and `Gio.File` as one import (ADR 0100). Forks on one relative `./platform.js` into `platform.gtk.ts` (the native `gi://` classes by identity), `platform.web.ts` (adwaita-web: File System Access, else a self-drawn Adwaita dialog over OPFS) and `platform.native.ts` (adwaita-nativescript: the Storage Access Framework), because `--app gjs` and `--app browser` share the `browser` exports condition and no condition tells them apart. The subset and its vectors live in `@gjsify/adwaita-core`; `./conformance` re-exports them, and they run against real GJS as the oracle."
+    },
     "@gjsify/formdata": {
       "status": "full",
       "note": "FormData, File, multipart encoding."

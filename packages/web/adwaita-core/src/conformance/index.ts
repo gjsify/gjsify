@@ -762,3 +762,16 @@ export type {
     GdkClipboardSubject,
     GdkClipboardVector,
 } from './gdk-clipboard.js';
+export {
+    FILE_CHOOSER_ROWS,
+    FILE_CHOOSER_VECTORS,
+    driveFileChooserVectors,
+    promisifyFileChooser,
+} from './file-chooser.js';
+export type {
+    FileChooserNamespaces,
+    FileChooserRow,
+    FileChooserSubject,
+    FileChooserVector,
+    ScriptedPick,
+} from './file-chooser.js';

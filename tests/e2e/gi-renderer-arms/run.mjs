@@ -273,6 +273,23 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             });
         });
 
+        it(`--app ${app} --gi-renderer opens, reads and saves through Gtk.FileDialog`, () => {
+            const built = build('file-chooser.ts', app, { name: 'file-chooser' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'application');
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'Gtk.FileDialog is not a class');
+            assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
+            assert.deepEqual(report.application, {
+                openedName: 'demo.asm',
+                text: 'LDA #$01',
+                savedName: 'out.asm',
+                written: 'BRK',
+                committed: true,
+                refusesUri: true,
+            });
+        });
+
         it(`--app ${app} --gi-renderer answers the path, action-group and style-manager helpers`, () => {
             const built = build('gtksource-helpers.ts', app, { name: 'gtksource-helpers' });
             assert.equal(built.status, 0, `build failed\n${built.output}`);

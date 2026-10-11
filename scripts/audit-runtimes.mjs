@@ -261,6 +261,8 @@ async function scanSourceTree(pkgDir) {
     const signals = {
         girs_value: false,
         gi_url: false,
+        // `gi://` / `@girs` only inside a desktop-only platform variant (`*.gtk.ts`).
+        desktop_variant_gi: false,
         dynamic_gi: false,
         imports_legacy: false,
         gjs_imports_guard: false,
@@ -357,6 +359,13 @@ async function walkSource(dir, signals) {
         if (entry.name.endsWith('.d.blp.ts')) continue;
         signals.file_count++;
         const text = await readFile(full, 'utf8');
+        // A desktop-only platform variant (`platform.gtk.ts`) binds GJS by design: only the
+        // gjs/node chain resolves it, so its `gi://` import says nothing about the browser or
+        // NativeScript slot. The reach pass makes the same cut per target.
+        if (isUnreachableVariant(full, 'browser') && isUnreachableVariant(full, 'nativescript')) {
+            if (GI_URL_RE.test(text) || GIRS_VALUE_RE.test(text)) signals.desktop_variant_gi = true;
+            continue;
+        }
         if (GIRS_VALUE_RE.test(text)) signals.girs_value = true;
         if (GI_URL_RE.test(text)) signals.gi_url = true;
         if (DYNAMIC_GI_RE.test(text)) signals.dynamic_gi = true;
@@ -880,6 +889,27 @@ async function runProbes(rows) {
 const REACH_TARGETS = [...VALID_TARGETS].filter((t) => t !== 'gjs');
 
 /**
+ * Platform-file suffixes (`foo.<suffix>.ts`) the target's resolution chain can never pick, so
+ * their imports are not the target's reach. Mirrors `platform-resolve.ts`: node and gjs take the
+ * desktop chain (`.gtk` → `.<os>` → `.desktop`), the browser `.web`, NativeScript
+ * `.android|ios` → `.native`, and Metro `.android|ios|native`. Without this a package that forks
+ * on `./platform.js` into `platform.gtk.ts` + `platform.web.ts` was judged on its GJS sibling
+ * for the browser.
+ */
+const UNREACHABLE_SUFFIXES = {
+    node: new Set(['web', 'native', 'android', 'ios']),
+    browser: new Set(['gtk', 'desktop', 'linux', 'macos', 'windows', 'native', 'android', 'ios']),
+    nativescript: new Set(['gtk', 'desktop', 'linux', 'macos', 'windows', 'web']),
+    'react-native': new Set(['gtk', 'desktop', 'linux', 'macos', 'windows', 'web']),
+};
+
+/** Whether `file` is a platform variant the `target`'s chain never resolves. */
+function isUnreachableVariant(file, target) {
+    const suffix = /\.([a-z]+)\.[a-z]+$/.exec(file.slice(file.lastIndexOf(sep) + 1))?.[1];
+    return suffix !== undefined && (UNREACHABLE_SUFFIXES[target]?.has(suffix) ?? false);
+}
+
+/**
  * Targets where a GJS leak is SILENT (`gjsImportsEmptyPlugin` → `{}`) and must
  * therefore be caught statically. `node` is excluded on purpose — see the
  * "FATAL SCOPE" note in this section's header.
@@ -1051,7 +1081,11 @@ async function auditReachability(meta) {
             // A non-routing package must not be judged on OTHER targets' entries.
             const scanFiles = routes
                 ? entryFiles
-                : entryFiles.filter((f) => !REACH_TARGETS.some((t) => t !== target && f === join(srcDir, `${t}.ts`)));
+                : entryFiles.filter(
+                      (f) =>
+                          !REACH_TARGETS.some((t) => t !== target && f === join(srcDir, `${t}.ts`)) &&
+                          !isUnreachableVariant(f, target),
+                  );
             const { bare, direct } = await walkEntryGraph(scanFiles);
             checked++;
 
