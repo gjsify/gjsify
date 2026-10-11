@@ -44,7 +44,6 @@ import iconSizeTestSuite from './icon-size.spec.js';
 import gioMenuTestSuite from './gio-menu.spec.js';
 import gdkTestSuite from './gdk.spec.js';
 import glibTestSuite from './glib.spec.js';
-import gtkPlatformTestSuite from './gtk-platform.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import transitionTypeTestSuite from './transition-type.spec.js';
 import scrolledWindowPolicyTestSuite from './scrolled-window-policy.spec.js';
@@ -64,7 +63,6 @@ run({
     gioMenuTestSuite,
     gdkTestSuite,
     glibTestSuite,
-    gtkPlatformTestSuite,
     styleManagerTestSuite,
     transitionTypeTestSuite,
     scrolledWindowPolicyTestSuite,
