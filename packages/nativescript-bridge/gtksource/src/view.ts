@@ -177,17 +177,6 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         return this.direction;
     }
 
-    /** A view has no widget children of its own here: its parts are the platform's. */
-    get_first_child(): null {
-        return null;
-    }
-    get_next_sibling(): null {
-        return null;
-    }
-    get_parent(): unknown {
-        return (this as unknown as { parent?: unknown }).parent ?? null;
-    }
-
     /** `null` for any side but LEFT and RIGHT, as in GtkSourceView (ADR 0103). */
     get_gutter(window_type: number): Gutter | null {
         return this.gutters.get(window_type);
