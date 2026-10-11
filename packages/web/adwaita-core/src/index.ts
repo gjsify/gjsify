@@ -1018,6 +1018,7 @@ export {
     createGObject,
     disconnectInstance,
     emitInstance,
+    gobjectEngineName,
     notifyInstance,
     PURE_JS_ENGINE,
     registeredClassOf,
@@ -1067,6 +1068,7 @@ export type {
     SignalMeta,
     TemplateScope,
 } from './gobject.js';
+export { registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
 export type { GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
 export { StyleManagerBase } from './style-manager.js';

@@ -63,11 +63,42 @@ No file but the test entry names `@gjsify/node-gi`. A static import in a type-ch
 TS2307 off this leg, and a `gi://`-shaped dynamic load would set `dynamic_gi` in
 `audit-runtimes.mjs`'s textual walk — which reads COMMENTS too — and mis-declare the package.
 
-## Not opted in on device
+## How an app opts in (ADR 0105 stage 4)
 
-`packages/nativescript-bridge/adwaita/src/namespace/gobject.ts`'s `createGObject(door)` still
-takes the pure-JS engine. That line is evaluated at module load, so a throwing `requireGi` on NS
-V8 would kill app startup, and a try/catch fallback would make "is this app backed by real
-GObject?" unanswerable at runtime. The evidence for the engine is the Node leg, not Android; the
-flip belongs with ADR 0105's stage-4 packaging work, which is what makes `requireGi` reliably
-available there. A comment at the call site records this rather than a TODO.
+The engine is **off by default on every target**, and turning it on is one call in APP code:
+
+```ts
+// app/engine-opt-in.ts
+import requireGi from '@gjsify/node-gi/gi';
+import { useRealGObjectEngine } from '@gjsify/adwaita-gobject-native';
+useRealGObjectEngine(requireGi);
+
+// app/app.ts
+import './engine-opt-in.js'; // FIRST import — it must be EVALUATED before the line below
+import { Application } from '@gjsify/adwaita-nativescript';
+```
+
+Three things make that one call enough, and each is a refusal rather than a convenience:
+
+- **The slot.** `useRealGObjectEngine` hands the engine to `registerGObjectEngine` in
+  `@gjsify/adwaita-core`, and `namespace/gobject.ts` builds its namespace with
+  `createGObject(door, registeredEngine())`. The port cannot take the engine as an argument — by
+  the time an app imports `@gjsify/adwaita-nativescript/gobject` that module body has already run
+  — so the app leaves it somewhere the port reads. An empty slot is `PURE_JS_ENGINE`.
+- **Why the app and not the port decides.** The engine needs `requireGi`, which needs
+  `@gjsify/node-gi` plus `@gjsify/gi-runtime-android`'s payload: tier-3, Android-only. The port is
+  tier 2 and installable in a browser. A port that reached for them itself would make every
+  consumer an Android consumer.
+- **Loud, never a fallback.** `useRealGObjectEngine` resolves `GObject` eagerly, so a missing AAR,
+  a dropped ABI or unextracted typelibs throw at opt-in time, naming
+  `@gjsify/gi-runtime-android` and keeping the dlopen message as `cause`. A try/catch that fell
+  back to pure JS would turn a build problem into an app that works, differently, forever.
+  Registering AFTER the port has read the slot throws too, with the import-order fix in the
+  message — otherwise an app would believe it had real GObject and not have it.
+
+Which engine is actually behind the subset is a runtime QUESTION with an answer:
+`GObject.engineName` off `@gjsify/adwaita-nativescript/gobject` (or `gobjectEngineName()` from
+`@gjsify/adwaita-core`) is `'real-gio'` after a successful opt-in and `'pure-js'` without one.
+Asking freezes the slot, because an answer a later registration would invalidate is worse than
+none. The refusals are held in `src/opt-in.spec.ts` (no GI stack needed) and
+`adwaita-core/src/engine-slot.spec.ts`.
