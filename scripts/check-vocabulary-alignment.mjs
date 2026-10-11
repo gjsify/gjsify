@@ -833,10 +833,8 @@ const NS_METHOD_ALIGNMENT = {
     'adw-inline-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
 
     // ── A NativeScript lifecycle hook. ────────────────────────────────────────────────
-    'adw-application-window.onLoaded': { own: ON_LOADED },
     'adw-bin.onLoaded': { own: ON_LOADED },
     'adw-dialog.onLoaded': { own: ON_LOADED },
-    'adw-window.onLoaded': { own: ON_LOADED },
     'gtk-overlay.onLoaded': { own: ON_LOADED },
     'gtk-window.onLoaded': { own: ON_LOADED },
     'gtk-revealer.onLoaded': { own: ON_LOADED },
