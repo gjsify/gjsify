@@ -45,6 +45,7 @@ const { auditBundledLicense, collectBundlingPackages, createContext } = await im
 
 /** Every package this repository publishes with a third-party payload inside it. */
 const BUNDLING_PACKAGES = [
+    '@gjsify/gi-runtime-android',
     '@gjsify/gl-runtime-win32-x64',
     '@gjsify/gtk-runtime-darwin-arm64',
     '@gjsify/gtk-runtime-darwin-x64',
@@ -220,7 +221,7 @@ describe('bundled-license — the packages this repository publishes', () => {
         for (const pkg of packages) {
             assert.match(
                 String(pkg.license),
-                /^SEE LICEN[CS]E IN\s+(gtk|bin)\//,
+                /^SEE LICEN[CS]E IN\s+(gtk|bin|platforms)\//,
                 `${pkg.name} declares "${pkg.license}", which names no notice inside its payload — the ` +
                     '`files` narrowing is silent for it again. Keep the `SEE LICENSE IN <payload>/…` form, ' +
                     'or give `collectBundlingPackages` a way in that does not read the licence.',

@@ -1,0 +1,28 @@
+{
+    "$comment": [
+        "An AAR has ONE `assets/` tree and no per-ABI variant of it, so the typelibs this plugin",
+        "ships are taken from a single declared source ABI and used by every ABI in the APK. That",
+        "is only sound while the typelibs are ABI-neutral, and `.typelib` blobs are NOT neutral in",
+        "general: they record struct sizes and field offsets.",
+        "",
+        "MEASURED on the arm64-v8a and x86_64 trees this bundle is built from: 20 of the 21 typelibs",
+        "are BYTE-IDENTICAL across the two ABIs — including Gio-2.0 and GObject-2.0, which describe",
+        "hundreds of structs. Both ABIs are 64-bit little-endian with the same alignment rules, so",
+        "no offset differs. The 21st is listed below.",
+        "",
+        "The build therefore compares every typelib across every requested ABI and FAILS BY NAME on",
+        "a divergence that is not declared here. A real offset difference — a 32-bit ABI, say — would",
+        "be red rather than a shared asset tree quietly describing the wrong layout."
+    ],
+    "sourceAbi": "arm64-v8a",
+    "divergent": [
+        {
+            "typelib": "GLib-2.0.typelib",
+            "reason": "x86_64 introspects one extra constant, VA_COPY_AS_ARRAY, which arm64-v8a's va_copy does not produce. Measured: the x86_64 blob's string pool is a strict superset of arm64-v8a's by exactly that one name (230,648 vs 230,588 bytes); no other string differs in either direction. Shipping the arm64-v8a blob therefore omits GLib.VA_COPY_AS_ARRAY from introspection on x86_64 — a constant absent, never a wrong layout — and nothing in @gjsify reads it.",
+            "measuredBytes": {
+                "arm64-v8a": 230588,
+                "x86_64": 230648
+            }
+        }
+    ]
+}

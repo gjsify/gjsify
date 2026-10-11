@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: MIT
+// Applied by NativeScript into the app's gradle build, from this directory — the same
+// directory it scans for `**/*.aar` (see @nativescript/android's app/build.gradle, where
+// `$rootDir/${dep.directory}/platforms/android` supplies both the AAR list and this file).
+//
+// THE ONLY THING THIS DOES IS FAIL LOUDLY. The AAR beside it is the payload, it is
+// gitignored, and it is built by `scripts/build-gi-runtime-android.mjs` against an Android
+// GObject-Introspection prefix. In a fresh checkout — a locally linked worktree, a CI job
+// that did not run the bundle build — it is simply ABSENT, and NativeScript's `**/*.aar`
+// scan then finds nothing and says nothing: the app builds, installs, starts, and dies in
+// `dlopen` the first time anything calls `requireGi`, with a message about
+// `libnode_gi.so` and no hint that a build step was skipped hours earlier.
+//
+// So the absence is turned into a gradle failure that names the command to run. This file
+// is the one thing in `platforms/` that is COMMITTED, for exactly that reason — a guard
+// that ships with the payload is a guard that is missing whenever it is needed.
+//
+// `buildscript.sourceFile` is this script's own path: `projectDir` here is the APP's, not
+// the plugin's, and hardcoding a `node_modules` path would break under `file:` links,
+// pnpm's store and a gjsify worktree alike.
+def gjsifyGiRuntimeDir = buildscript.sourceFile.parentFile
+def gjsifyGiRuntimeAar = new File(gjsifyGiRuntimeDir, 'gi-runtime-android.aar')
+
+if (!gjsifyGiRuntimeAar.exists()) {
+    throw new GradleException("""
+@gjsify/gi-runtime-android has no payload: ${gjsifyGiRuntimeAar} does not exist.
+
+This package carries libnode_gi.so, the GObject-Introspection libraries it needs and their
+typelibs as ONE AAR, and that AAR is built rather than committed. Without it the APK would
+contain no GI runtime at all and the app would fail in dlopen at the first requireGi call,
+so the build stops here instead.
+
+Build it in the gjsify checkout:
+
+  node packages/node-gi/node-gi/scripts/build-android.mjs --abi arm64-v8a --out <libdir> \\
+      --ndk <ndk> --gi-sysroot <prefix> --napi-lib <nativescript-aar>
+  node packages/node-gi/gi-runtime-android/scripts/build-gi-runtime-android.mjs \\
+      --ndk <ndk> --gi-sysroot <prefix> --node-gi-lib <libdir>
+
+Both scripts print their options with --help; packages/node-gi/gi-runtime-android/README.md
+has a worked invocation. An installed npm tarball always carries the AAR — this failure can
+only happen against a source checkout.
+""")
+}

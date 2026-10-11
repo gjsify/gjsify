@@ -1,0 +1,77 @@
+{
+    "$comment": [
+        "Which PROJECT each bundled library belongs to — a NAME MAP, never a statement of terms.",
+        "Same doctrine as bundle-licenses.mjs's WIN32_LICENSE_FAMILIES: the table says who to",
+        "attribute, the terms come from the build prefix. A soname in the closure with no entry",
+        "here fails the build by name, so a new transitive dependency cannot arrive unattributed.",
+        "NO SPDX EXPRESSIONS. The Android GI prefix this bundles from (pixiewood's meson tree)",
+        "ships no COPYING corpus at all, so an expression here would be this builder's RECOLLECTION",
+        "of each project's terms rather than something read off the prefix — which is the guess",
+        "bundled-license.mjs refuses on win32 for the same reason. The notice therefore names the",
+        "project and its upstream and says plainly that the text is not embedded, unless",
+        "--license-corpus supplies one."
+    ],
+    "libraries": {
+        "libglib-2.0.so": "glib",
+        "libgobject-2.0.so": "glib",
+        "libgio-2.0.so": "glib",
+        "libgmodule-2.0.so": "glib",
+        "libgirepository-2.0.so": "glib",
+        "libcairo.so": "cairo",
+        "libcairo-gobject.so": "cairo",
+        "libpixman-1.so": "pixman",
+        "libfreetype.so": "freetype",
+        "libfontconfig.so": "fontconfig",
+        "libpng16.so": "libpng",
+        "libxml2.so": "libxml2",
+        "libffi.so": "libffi",
+        "libintl.so": "proxy-libintl"
+    },
+    "projects": {
+        "glib": {
+            "name": "GLib (GLib, GObject, GIO, GModule, GIRepository)",
+            "upstream": "https://gitlab.gnome.org/GNOME/glib",
+            "licenseFiles": ["COPYING"]
+        },
+        "cairo": {
+            "name": "cairo",
+            "upstream": "https://gitlab.freedesktop.org/cairo/cairo",
+            "licenseFiles": ["COPYING", "COPYING-LGPL-2.1", "COPYING-MPL-1.1"]
+        },
+        "pixman": {
+            "name": "pixman",
+            "upstream": "https://gitlab.freedesktop.org/pixman/pixman",
+            "licenseFiles": ["COPYING"]
+        },
+        "freetype": {
+            "name": "FreeType",
+            "upstream": "https://gitlab.freedesktop.org/freetype/freetype",
+            "licenseFiles": ["LICENSE.TXT", "docs/FTL.TXT", "docs/GPLv2.TXT"]
+        },
+        "fontconfig": {
+            "name": "fontconfig",
+            "upstream": "https://gitlab.freedesktop.org/fontconfig/fontconfig",
+            "licenseFiles": ["COPYING"]
+        },
+        "libpng": {
+            "name": "libpng",
+            "upstream": "https://github.com/pnggroup/libpng",
+            "licenseFiles": ["LICENSE"]
+        },
+        "libxml2": {
+            "name": "libxml2",
+            "upstream": "https://gitlab.gnome.org/GNOME/libxml2",
+            "licenseFiles": ["Copyright"]
+        },
+        "libffi": {
+            "name": "libffi",
+            "upstream": "https://github.com/libffi/libffi",
+            "licenseFiles": ["LICENSE"]
+        },
+        "proxy-libintl": {
+            "name": "proxy-libintl",
+            "upstream": "https://github.com/frida/proxy-libintl",
+            "licenseFiles": ["COPYING"]
+        }
+    }
+}
