@@ -9,13 +9,27 @@ import ts from 'typescript';
 const isExported = (statement) =>
     statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
 
-/** The member names a barrel's syntax tree exports as values: `export const x`, `export { x }`. */
+/** Every name a binding introduces: `x`, and each leaf of `{ a, b: c }` / `[a, b]`. */
+const addBindingNames = (name, names) => {
+    if (ts.isIdentifier(name)) {
+        names.add(name.text);
+        return;
+    }
+    for (const element of name.elements) {
+        if (ts.isBindingElement(element)) addBindingNames(element.name, names);
+    }
+};
+
+/**
+ * The member names a barrel's syntax tree exports as values: `export const x`,
+ * `export const { x, y } = z`, `export { x }`.
+ */
 export const exportedValueNames = (sourceFile) => {
     const names = new Set();
     for (const statement of sourceFile.statements) {
         if (ts.isVariableStatement(statement) && isExported(statement)) {
             for (const declaration of statement.declarationList.declarations) {
-                if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+                addBindingNames(declaration.name, names);
             }
         } else if (
             ts.isExportDeclaration(statement) &&
