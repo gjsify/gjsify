@@ -63,7 +63,7 @@
         "tier": 3,
         "runtimes": {
             "gjs": "polyfill",
-            "node": "native",
+            "node": "none",
             "browser": "none",
             "nativescript": "none"
         },
