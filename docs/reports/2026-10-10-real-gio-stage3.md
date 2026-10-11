@@ -163,6 +163,13 @@ identity-counted survivors work unchanged — `get_item(0) === the object splice
   emission through napi all cost more than a JS object field, and none of it was timed.
 - The engine's `vfunc`, `Implements` and `Requires` paths are not exercised beyond the refusals —
   the subset refuses them, so there is nothing behind the refusal to measure.
+- **`@gjsify/adwaita-gobject-native` is not on npm yet**, and could not be: Trusted Publishing
+  needs the name to exist before OIDC can publish it, so the first publish is a maintainer action
+  with a credential and an OTP. It is declared in `status/pending-npm-bootstrap.json` with the
+  command sequence and its owner — the "queued as the next maintainer action" branch of
+  `docs/publishing.md` § *New `@gjsify/*` package*. Nothing in this repo pins the name, so the only
+  consequence until the publish is that the name is absent; the next release cut is red on it,
+  deliberately, because the post-release phase ignores that ledger.
 
 ## Where this runs
 
