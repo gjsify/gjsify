@@ -73,6 +73,8 @@ import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
 import simpleActionGroupTestSuite from './simple-action-group.spec.js';
 import simpleActionGroupOracleTestSuite from './simple-action-group.gjs.spec.js';
+import fileChooserTestSuite from './file-chooser.spec.js';
+import fileChooserOracleTestSuite from './file-chooser.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -148,4 +150,6 @@ run({
     styleManagerOracleTestSuite,
     simpleActionGroupTestSuite,
     simpleActionGroupOracleTestSuite,
+    fileChooserTestSuite,
+    fileChooserOracleTestSuite,
 });

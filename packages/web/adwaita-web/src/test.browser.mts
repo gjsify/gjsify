@@ -142,6 +142,7 @@ import { AdwConstructVectorsTest } from './construct-vectors.spec.js';
 import { GObjectDoorTest } from './gobject-door.spec.js';
 import { ApplicationTest } from './application.spec.js';
 import { GdkTest } from './gdk.spec.js';
+import { FileChooserTest } from './file-chooser.spec.js';
 import { WidgetMembersTest } from './widget-members.spec.js';
 import { GLibTest } from './glib.spec.js';
 import { StyleManagerTest } from './style-manager.spec.js';
@@ -163,6 +164,7 @@ run({
     GObjectDoorTest,
     ApplicationTest,
     GdkTest,
+    FileChooserTest,
     WidgetMembersTest,
     GLibTest,
     StyleManagerTest,

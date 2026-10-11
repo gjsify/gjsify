@@ -7,8 +7,13 @@
 // in `glib-paths.ts` of the core; the host has no filesystem, so `get_current_dir()` is `"/"` and
 // `get_system_data_dirs()` is `[]`. A port that knows better replaces the member in its own file.
 //
-// A TRUE SUBSET: everything else in GLib (`MainLoop`, `Source`, `timeout_add_seconds`, `Bytes`,
+// `Bytes` and `Error` are the ADR 0100 subset a `Gio.File` reads and fails with (`get_data`,
+// `matches`, `code`, `message`), re-exported from the core's `glib-bytes.ts` / `glib-error.ts`.
+//
+// A TRUE SUBSET: everything else in GLib (`MainLoop`, `Source`, `timeout_add_seconds`,
 // `get_home_dir`, …) is absent, and the `gi://GLib` arm refuses it by name.
+
+export { GLibBytes as Bytes, GLibError as Error } from '@gjsify/adwaita-core';
 
 import {
     buildFilenamev,

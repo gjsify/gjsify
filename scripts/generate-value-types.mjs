@@ -32,6 +32,7 @@ import GIRepository from 'gi://GIRepository?version=3.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import system from 'system';
 
 import { CONSTRUCTIBLE_VALUES, splitMember, VALUE_TYPES_FILE } from './value-types.mjs';
@@ -82,11 +83,32 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
         );
     }
     namespaces.add(namespace);
+    // An `override: true` entry is a function GJS's own overrides put on the namespace
+    // (`Gio._promisify`): the typelib has no entry for it, so the answer is read from the
+    // overridden namespace itself — a function, and no GType that could be a widget.
+    if (entry.override === true) {
+        const value = { Gio, Gtk, Adw }[namespace]?.[entry.gir];
+        if (typeof value !== 'function' || value.$gtype !== undefined) {
+            undeclared.push([entry.member, `${namespace}-${repo.get_version(namespace)}`]);
+            continue;
+        }
+        declared.push([entry.member, '', false]);
+        continue;
+    }
     const info = repo.find_by_name(namespace, entry.gir);
-    // A `flags: true` entry is a GLib flags type (`Gio.ApplicationFlags`): no GObject, but a value
-    // a namespace carries, and the typelib still has to declare it as exactly that.
-    const kind = entry.flags === true ? GIRepository.FlagsInfo : GIRepository.ObjectInfo;
-    if (info === null || !(info instanceof kind)) {
+    // A `flags: true` entry is a GLib flags type (`Gio.ApplicationFlags`), an `enum: true`
+    // entry an enum (`Gtk.DialogError`), an `interface: true` entry a GInterface (`Gio.File`):
+    // no GObject class, but values a namespace carries, and the typelib still has to declare
+    // each as exactly that. `FlagsInfo` IS an `EnumInfo` subclass, so an enum excludes it.
+    const isKind = (i) =>
+        entry.flags === true
+            ? i instanceof GIRepository.FlagsInfo
+            : entry.enum === true
+              ? i instanceof GIRepository.EnumInfo && !(i instanceof GIRepository.FlagsInfo)
+              : entry.interface === true
+                ? i instanceof GIRepository.InterfaceInfo
+                : i instanceof GIRepository.ObjectInfo;
+    if (info === null || !isKind(info)) {
         // DECLARED, not skipped, and one row for both shapes: a name the namespace does not
         // carry and a name that is not a GObject are the same finding for a ledger whose
         // entries are all "a GObject you construct", and the gate asks one question of it.
@@ -96,7 +118,7 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
     declared.push([
         entry.member,
         info.get_type_name(),
-        entry.flags === true ? false : ancestryOf(info).includes('GtkWidget'),
+        info instanceof GIRepository.ObjectInfo ? ancestryOf(info).includes('GtkWidget') : false,
     ]);
 }
 

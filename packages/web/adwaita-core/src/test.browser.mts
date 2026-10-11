@@ -47,6 +47,7 @@ import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
 import shortcutFormatTestSuite from './shortcut-format.spec.js';
 import sourceTestSuite from './source.spec.js';
+import fileChooserTestSuite from './file-chooser.spec.js';
 
 run({
     adjustmentTestSuite,
@@ -91,4 +92,5 @@ run({
     shortcutLabelTestSuite,
     shortcutFormatTestSuite,
     sourceTestSuite,
+    fileChooserTestSuite,
 });
