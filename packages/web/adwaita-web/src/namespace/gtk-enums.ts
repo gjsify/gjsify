@@ -1,9 +1,11 @@
 // The plain GTK enums an application reads off `Gtk` — `Gtk.PolicyType`, `Gtk.TextDirection`,
-// `Gtk.TextExtendSelection` and `Gtk.TextWindowType`, as value tables. The numbers are the typelib's (GIR declaration order),
-// and the same tables the NativeScript port publishes.
+// `Gtk.TextExtendSelection`, `Gtk.TextWindowType` and `Gtk.License`, as value tables. The numbers
+// are the typelib's (GIR declaration order), and the same tables the NativeScript port publishes.
 //
 // Reference: refs/gtk gtk/gtkenums.h (GtkPolicyType, GtkTextDirection), gtk/gtktextview.h (GtkTextWindowType)
 // Copyright (c) The GTK Team. LGPLv2.1+.
+
+import { GTK_LICENSE } from '@gjsify/adwaita-core';
 
 /** `Gtk.PolicyType`: `ALWAYS` 0, `AUTOMATIC` 1, `NEVER` 2, `EXTERNAL` 3. */
 export const PolicyType = Object.freeze({
@@ -32,3 +34,6 @@ export const TextWindowType = Object.freeze({
 
 /** `Gtk.TextExtendSelection`: `WORD` 0 (a double click), `LINE` 1 (a triple click). */
 export const TextExtendSelection = Object.freeze({ WORD: 0, LINE: 1 } as const);
+
+/** `Gtk.License`, the table `Adw.AboutDialog` reads. */
+export const License = GTK_LICENSE;
