@@ -14,6 +14,13 @@ Add it as a dependency and `requireGi` works on the device. No `jniLibs` directo
 }
 ```
 
+> **NOT ON NPM YET.** The name has never been published, and npm's Trusted Publishing
+> cannot create one — the first publish is a manual maintainer action, queued in
+> [`status/pending-npm-bootstrap.json`](../../../status/pending-npm-bootstrap.json) with
+> its command sequence. Until then the dependency above resolves to nothing; link the
+> package locally (`file:` / `workspace:^`) to use it. Nothing in this repository pins
+> the name, so the gap costs no other install.
+
 Tier 3 (experimental). Stage 4 of
 [ADR 0105](../../../docs/adr/0105-real-gobject-backs-the-nativescript-subset-on-android.md).
 
