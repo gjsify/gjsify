@@ -43,6 +43,7 @@ import * as nodePath from 'node:path';
 
 import {
     gjsImportsEmptyPlugin,
+    giRendererPlugin,
     platformResolvePlugin,
     nativescriptSuffixChain,
     browserSuffixChain,
@@ -53,7 +54,7 @@ import {
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
-import { ALIASES_NODE_FOR_NATIVESCRIPT } from '@gjsify/resolve-npm';
+import { ALIASES_NODE_FOR_NATIVESCRIPT, GI_RENDERERS } from '@gjsify/resolve-npm';
 import { installedGjsifyPackages } from './nativescript-dedupe.js';
 
 export interface GjsifyBrowserOptions {
@@ -239,6 +240,13 @@ export interface GjsifyNativescriptOptions {
      * is always excluded.
      */
     optimizeDepsExclude?: string[];
+    /**
+     * Answer `gi://Adw` / `gi://Gtk` / `gi://GObject` … with `@gjsify/adwaita-nativescript`'s
+     * namespaces instead of an empty module — the Vite mirror of `gjsify build --app nativescript
+     * --gi-renderer`. `@girs/<ns>-<ver>` then falls through to its package (whose body is the
+     * `gi://` line). Off by default: it makes the widget toolkit a build-time dependency.
+     */
+    giRenderer?: boolean;
 }
 
 /**
@@ -460,8 +468,11 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         },
     };
 
+    const giRenderer = options.giRenderer ? GI_RENDERERS['nativescript'] : undefined;
+
     return [
-        gjsImportsEmptyPlugin() as unknown as Plugin,
+        ...(giRenderer ? [giRendererPlugin({ app: 'nativescript', ...giRenderer }) as unknown as Plugin] : []),
+        gjsImportsEmptyPlugin({ emptyGirs: !giRenderer }) as unknown as Plugin,
         // Platform-specific source variants (`*.android` / `*.ios` /
         // `*.native`). A `resolveId` HOOK, NOT a `resolve.alias` — so it works
         // under Vite 8 / Rolldown, where @nativescript/vite's function-based
