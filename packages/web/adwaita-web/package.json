@@ -34,7 +34,11 @@
         "scss",
         "dist",
         "lib",
-        "style.css.d.ts"
+        "style.css.d.ts",
+        "!src/**/*.spec.ts",
+        "!src/test.browser.mts",
+        "!dist/test.browser.mjs",
+        "!lib/types/**/*.spec.d.ts"
     ],
     "scripts": {
         "clear": "gjsify clear lib dist tsconfig.tsbuildinfo scss/_icons.generated.scss src/styles.generated.ts",
