@@ -42,6 +42,7 @@ export { GtkPopoverMenu as PopoverMenu } from '../widgets/gtk-popover-menu.js';
 export { GtkOverlay as Overlay } from '../widgets/gtk-overlay.js';
 export { GtkRevealer as Revealer } from '../widgets/gtk-revealer.js';
 export { GtkScrolledWindow as ScrolledWindow } from '../widgets/gtk-scrolled-window.js';
+export { GtkWindow as Window } from '../widgets/gtk-window.js';
 export { GtkSeparator as Separator } from '../widgets/gtk-separator.js';
 export { GtkStack as Stack } from '../widgets/gtk-stack.js';
 export { GtkStackPage as StackPage } from '../widgets/stack-page.js';

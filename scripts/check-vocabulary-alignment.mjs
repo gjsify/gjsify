@@ -838,6 +838,7 @@ const NS_METHOD_ALIGNMENT = {
     'adw-dialog.onLoaded': { own: ON_LOADED },
     'adw-window.onLoaded': { own: ON_LOADED },
     'gtk-overlay.onLoaded': { own: ON_LOADED },
+    'gtk-window.onLoaded': { own: ON_LOADED },
     'gtk-revealer.onLoaded': { own: ON_LOADED },
     'gtk-scrolled-window.onLoaded': { own: ON_LOADED },
 

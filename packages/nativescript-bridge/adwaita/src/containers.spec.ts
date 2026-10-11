@@ -350,6 +350,24 @@ export const AdwContainersNsTest = async () => {
             expect(childrenOf(scrollOf(window).content)[0] instanceof Adw.Clamp).toBe(true);
         });
     });
+
+    await describe('Gtk.Window', async () => {
+        await it('is the base of Adw.Window and Adw.ApplicationWindow, so a root passes instanceof', () => {
+            const windows = [new Adw.Window(), new Adw.ApplicationWindow()];
+            for (const window of windows) {
+                expect(window instanceof Gtk.Window).toBe(true);
+                expect(window instanceof View).toBe(true);
+            }
+            expect(new Gtk.Window() instanceof Adw.Window).toBe(false);
+        });
+
+        await it('holds title and default size, and a plain widget is not a window', () => {
+            const window = new Gtk.Window({ title: 'Share' });
+            expect(window.title).toBe('Share');
+            expect(new Gtk.Box() instanceof Gtk.Window).toBe(false);
+            expect(new Adw.Bin() instanceof Gtk.Window).toBe(false);
+        });
+    });
 };
 
 export default AdwContainersNsTest;
