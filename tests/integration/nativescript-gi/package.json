@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/integration-nativescript-gi",
     "description": "On-device measurement for ADR 0105 stage 4: an app that gets the GObject-Introspection runtime from the @gjsify/gi-runtime-android plugin dependency alone — no hand-copied .so, no jniLibs in App_Resources — opts the real-Gio GObject engine in at app level, and drives @gjsify/adwaita-core's GOBJECT_VECTORS and LIST_ITEMS_CHANGED_VECTORS against it on a real Android device. Requires the NativeScript CLI + an adb device; NOT wired into CI, and excluded from the root workspace.",
-    "version": "0.59.1",
+    "version": "0.60.0",
     "private": true,
     "main": "app/app.ts",
     "scripts": {

@@ -10,7 +10,7 @@ Add it as a dependency and `requireGi` works on the device. No `jniLibs` directo
 ```jsonc
 // package.json of a NativeScript app
 "dependencies": {
-    "@gjsify/gi-runtime-android": "^0.59.1"
+    "@gjsify/gi-runtime-android": "^0.60.0"
 }
 ```
 
