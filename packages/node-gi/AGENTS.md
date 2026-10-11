@@ -4,6 +4,10 @@
 > NOT a workspace member — own CI (`node-gi.yml`). Prebuild rules: [docs/prebuilds.md](../../docs/prebuilds.md).
 > Platform-specific loader gaps, the macOS/Windows GTK bundles and the musl/Bun/Deno
 > measurements are [docs/node-gi-platform-notes.md](../../docs/node-gi-platform-notes.md).
+> Android payload = tier-3 `gi-runtime-android/`: addon + a MEASURED DT_NEEDED closure + its
+> typelibs as ONE gitignored AAR, built never committed; the app opts into the real engine, and
+> `@nativescript/vite`'s vendor chunk evaluates first so import order cannot win — disable
+> `manualChunks` ([report](../../docs/reports/2026-10-11-node-gi-nativescript-plugin.md)).
 > The GJS-compatible surface (engine + L1 + cairo, with the measured divergences) is
 > [docs/node-gi-gjs-surface.md](../../docs/node-gi-gjs-surface.md); build/test, the
 > golden-diff conformance contract and the display capstones are
