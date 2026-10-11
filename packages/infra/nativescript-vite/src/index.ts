@@ -49,7 +49,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import module, { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mergeConfig } from 'vite';
 import type { ConfigEnv, UserConfig, Plugin, AliasOptions, Alias } from 'vite';
 import { gjsifyNativescript as gjsifyNativescriptTransforms } from '@gjsify/vite-plugin-gjsify';
@@ -299,7 +299,7 @@ async function loadUpstreamConfig(env: ConfigEnv): Promise<UserConfig> {
     for (const specifier of candidates) {
         let mod: { typescriptConfig?: unknown };
         try {
-            mod = (await import(specifier)) as { typescriptConfig?: unknown };
+            mod = (await import(importSpecifierFor(specifier))) as { typescriptConfig?: unknown };
         } catch (cause) {
             lastError = cause;
             continue;
@@ -315,6 +315,29 @@ async function loadUpstreamConfig(env: ConfigEnv): Promise<UserConfig> {
             '(install it alongside @nativescript/core in your NativeScript app).',
         { cause: lastError },
     );
+}
+
+/**
+ * Turn a bare specifier for an optional peer into one Node can load from THIS
+ * project. A bare `import()` resolves relative to this module's own file, which
+ * is wrong whenever `@gjsify/nativescript-vite` is a SYMLINK into a checkout
+ * (`file:` dependency, `npm link`, a workspace): the peer then gets looked up in
+ * the link TARGET's `node_modules`, not in the app's, and config-load dies with
+ * `ERR_MODULE_NOT_FOUND` even though the app installed the peer. Resolve from the
+ * project root (`process.cwd()` — where Vite runs the config) first and hand
+ * `import()` the concrete file URL; fall back to the bare specifier when the
+ * project-root lookup finds nothing, so the error message stays the peer's own.
+ */
+function importSpecifierFor(specifier: string): string {
+    const require = createRequire(import.meta.url);
+    try {
+        const entry = require.resolve(specifier, {
+            paths: [process.cwd(), dirname(fileURLToPath(import.meta.url))],
+        });
+        return pathToFileURL(entry).href;
+    } catch {
+        return specifier;
+    }
 }
 
 /** One-time guard so the missing-framework-peer stub notice prints at most once per process. */
