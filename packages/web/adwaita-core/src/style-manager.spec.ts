@@ -4,7 +4,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { STYLE_MANAGER_VECTORS, driveStyleManagerVectors } from './conformance/style-manager.js';
 import type { AdwStyleLike } from './conformance/style-manager.js';
-import { StyleManagerBase, type StyleSource } from './style-manager.js';
+import { ColorScheme, StyleManagerBase, type StyleSource } from './style-manager.js';
 
 function fakeSource(): StyleSource & { set(dark: boolean): void } {
     let dark = false;
@@ -19,6 +19,9 @@ function fakeSource(): StyleSource & { set(dark: boolean): void } {
             dark = value;
             for (const listener of Array.from(listeners)) listener();
         },
+        force(value) {
+            if (value !== null) this.set(value);
+        },
     };
 }
 
@@ -31,7 +34,7 @@ export default async () => {
         {
             name: 'adwaita-core',
             isOracle: false,
-            Adw: { StyleManager } as unknown as AdwStyleLike,
+            Adw: { StyleManager, ColorScheme } as unknown as AdwStyleLike,
             setDark: (dark) => source.set(dark),
             settle: async () => {},
         },

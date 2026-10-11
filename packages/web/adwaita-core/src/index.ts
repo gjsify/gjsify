@@ -1071,5 +1071,5 @@ export type {
 export { registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
 export type { GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
-export { StyleManagerBase } from './style-manager.js';
+export { ColorScheme, StyleManagerBase } from './style-manager.js';
 export type { StyleSource } from './style-manager.js';

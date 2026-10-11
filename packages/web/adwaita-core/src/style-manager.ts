@@ -1,10 +1,12 @@
 // `Adw.StyleManager`, renderer-free: the SUBSET a widget needs to follow the system appearance —
 // `get_default()`, the read-only `dark` property and `notify::dark`.
 //
-// Out of the subset, and so absent (a caller meets `undefined`, not a quiet no-op): `color_scheme`,
-// `set_color_scheme`, `get_for_display`, `system_supports_color_schemes`, `high_contrast`, `accent_color`
-// and `Adw.ColorScheme`. Forcing a scheme is the app's own call on a port (`setAdwaitaColorScheme`),
-// not a property of this object, so a port's `source` answers `dark` and nothing here writes it.
+// Also in the subset: `color_scheme` / `set_color_scheme` / `get_color_scheme` and `Adw.ColorScheme`.
+// FORCE_LIGHT and FORCE_DARK pin `dark` through the source's `force`; DEFAULT and the two PREFER_*
+// values let the system answer (the subset has no preference of its own to weigh against it).
+//
+// Out of the subset, and so absent (a caller meets `undefined`, not a quiet no-op): `get_for_display`,
+// `system_supports_color_schemes`, `high_contrast`, `accent_color`.
 //
 // A port supplies a {@link StyleSource} as the static `source` of the class it exports; the class
 // reads it and notifies when it changes. `notify::dark` fires only when the value changed, as on GTK
@@ -20,10 +22,30 @@ export interface StyleSource {
     dark(): boolean;
     /** Calls `changed` whenever `dark()` may have changed; returns the unsubscribe. */
     subscribe(changed: () => void): () => void;
+    /** Pins the interface dark or light; `null` hands it back to the system. */
+    force?(dark: boolean | null): void;
 }
+
+/** `Adw.ColorScheme`, with the values of the GIR. */
+export const ColorScheme = {
+    DEFAULT: 0,
+    FORCE_LIGHT: 1,
+    PREFER_LIGHT: 2,
+    PREFER_DARK: 3,
+    FORCE_DARK: 4,
+} as const;
 
 const LAST = new WeakMap<object, boolean>();
 const DEFAULTS = new WeakMap<object, StyleManagerBase>();
+const SCHEME = new WeakMap<object, number>();
+
+function refresh(manager: StyleManagerBase): void {
+    if (!LAST.has(manager)) return;
+    const dark = sourceOf(manager).dark();
+    if (LAST.get(manager) === dark) return;
+    LAST.set(manager, dark);
+    manager.notify('dark');
+}
 
 function sourceOf(manager: object): StyleSource {
     const source = (manager.constructor as { source?: StyleSource }).source;
@@ -44,12 +66,7 @@ export class StyleManagerBase extends GObjectObject {
             DEFAULTS.set(this, manager);
             const source = sourceOf(manager);
             LAST.set(manager, source.dark());
-            source.subscribe(() => {
-                const dark = source.dark();
-                if (LAST.get(manager!) === dark) return;
-                LAST.set(manager!, dark);
-                manager!.notify('dark');
-            });
+            source.subscribe(() => refresh(manager!));
         }
         return manager;
     }
@@ -61,8 +78,33 @@ export class StyleManagerBase extends GObjectObject {
     get_dark(): boolean {
         return this.dark;
     }
+
+    get color_scheme(): number {
+        return SCHEME.get(this) ?? ColorScheme.DEFAULT;
+    }
+
+    set color_scheme(scheme: number) {
+        if (!Object.values(ColorScheme).includes(scheme as never)) {
+            throw new Error(`Adw.StyleManager: ${scheme} is not an Adw.ColorScheme`);
+        }
+        if (scheme === this.color_scheme) return;
+        SCHEME.set(this, scheme);
+        const forced = scheme === ColorScheme.FORCE_DARK ? true : scheme === ColorScheme.FORCE_LIGHT ? false : null;
+        sourceOf(this).force?.(forced);
+        this.notify('color-scheme');
+        refresh(this);
+    }
+
+    get_color_scheme(): number {
+        return this.color_scheme;
+    }
+
+    set_color_scheme(scheme: number): void {
+        this.color_scheme = scheme;
+    }
 }
 
 registerBaseClass(StyleManagerBase as never, 'AdwStyleManager', {}, [
     ParamSpec.boolean('dark', '', '', ParamFlags.READABLE, false),
+    ParamSpec.int('color-scheme', '', '', ParamFlags.READWRITE, 0, 4, 0),
 ]);
