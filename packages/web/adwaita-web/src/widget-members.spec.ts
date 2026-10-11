@@ -119,7 +119,10 @@ export const WidgetMembersTest = async () => {
         });
 
         await it('reaches the DOM when a class writes icon_name or tooltip_text on a button', () => {
-            const button = document.createElement('gtk-button') as HTMLElement & { icon_name: string; tooltip_text: string };
+            const button = document.createElement('gtk-button') as HTMLElement & {
+                icon_name: string;
+                tooltip_text: string;
+            };
             document.body.append(button);
             button.icon_name = 'edit-copy-symbolic';
             button.tooltip_text = 'Copy';
