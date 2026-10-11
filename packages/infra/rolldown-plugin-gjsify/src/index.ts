@@ -43,6 +43,8 @@ export {
     IMPLICIT_GLOBAL_ASSIGN_PLUGIN,
 } from './plugins/implicit-global-assign.js';
 export type { ImplicitGlobalAssignment } from './plugins/implicit-global-assign.js';
+export { gschemaPlugin, parseGschema, GSCHEMA_PLUGIN } from './plugins/gschema.js';
+export type { GschemaOut, GschemaKey, GschemaPluginOptions } from './plugins/gschema.js';
 export { cssAsStringPlugin } from './plugins/css-as-string.js';
 export { textLoaderPlugin } from './plugins/text-loader.js';
 export type { TextLoaderPluginOptions, LoaderKind } from './plugins/text-loader.js';

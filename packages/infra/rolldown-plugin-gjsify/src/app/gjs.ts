@@ -32,6 +32,7 @@ import { processStubPlugin } from '../plugins/process-stub.js';
 import type { GiSystemProbe } from '../plugins/gi-runtime-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { consoleAssignPlugin } from '../plugins/console-assign.js';
+import { gschemaPlugin } from '../plugins/gschema.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
@@ -262,6 +263,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // define in `transform.define` replaces the assignment TARGET, emitting
         // `globalThis = {…}`, i.e. code that would replace the whole global object if the
         // branch ever ran. Measured; the plugin header carries the artifact diff.
+        gschemaPlugin({ mode: 'ignore' }),
         implicitGlobalAssignPlugin(),
         // `gi://Ns?version=X&optional` → a guarded import (ADR 0087), claimed `pre`
         // so the externals policy never sees the flagged specifier.
