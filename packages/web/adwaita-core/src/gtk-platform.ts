@@ -205,7 +205,7 @@ export class EventControllerKey {
         const signal = event.pressed ? 'key-pressed' : 'key-released';
         const keyval = keyvalOfKey(event.key);
         let handled = false;
-        for (const { signal: wanted, handler } of [...controller.#handlers.values()]) {
+        for (const { signal: wanted, handler } of Array.from(controller.#handlers.values())) {
             if (wanted !== signal) continue;
             if (handler(controller, keyval, event.keycode, event.state) === true) {
                 handled = true;
