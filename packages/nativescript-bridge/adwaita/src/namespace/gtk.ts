@@ -57,4 +57,3 @@ export {
     STYLE_PROVIDER_PRIORITY_USER,
 } from '@gjsify/adwaita-core';
 export { CssProvider, EventControllerKey, IconTheme, show_uri, StyleContext, Settings } from './gtk-platform.js';
-export { AdwWindow as Window } from '../widgets/adw-window.js';

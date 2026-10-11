@@ -31,7 +31,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Adw.TabPage': { gtype: 'AdwTabPage', widget: false },
     'Adw.ViewStackPage': { gtype: 'AdwViewStackPage', widget: false },
     'Gio.Application': { gtype: 'GApplication', widget: false },
-    'Gio.ApplicationFlags': { gtype: 'GApplicationFlags', widget: false },
+    'Gio.ApplicationFlags': { gtype: 'Gio.ApplicationFlags', widget: false },
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
     'Gio.Settings': { gtype: 'GSettings', widget: false },
@@ -39,8 +39,19 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Gio.SimpleActionGroup': { gtype: 'GSimpleActionGroup', widget: false },
     'Gtk.Adjustment': { gtype: 'GtkAdjustment', widget: false },
     'Gtk.Application': { gtype: 'GtkApplication', widget: false },
+    'Gtk.CssProvider': { gtype: 'GtkCssProvider', widget: false },
+    'Gtk.EventControllerKey': { gtype: 'GtkEventControllerKey', widget: false },
+    'Gtk.IconTheme': { gtype: 'GtkIconTheme', widget: false },
+    'Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION': { gtype: 'Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION', widget: false },
+    'Gtk.STYLE_PROVIDER_PRIORITY_FALLBACK': { gtype: 'Gtk.STYLE_PROVIDER_PRIORITY_FALLBACK', widget: false },
+    'Gtk.STYLE_PROVIDER_PRIORITY_SETTINGS': { gtype: 'Gtk.STYLE_PROVIDER_PRIORITY_SETTINGS', widget: false },
+    'Gtk.STYLE_PROVIDER_PRIORITY_THEME': { gtype: 'Gtk.STYLE_PROVIDER_PRIORITY_THEME', widget: false },
+    'Gtk.STYLE_PROVIDER_PRIORITY_USER': { gtype: 'Gtk.STYLE_PROVIDER_PRIORITY_USER', widget: false },
+    'Gtk.Settings': { gtype: 'GtkSettings', widget: false },
     'Gtk.StackPage': { gtype: 'GtkStackPage', widget: false },
     'Gtk.StringList': { gtype: 'GtkStringList', widget: false },
+    'Gtk.StyleContext': { gtype: 'GtkStyleContext', widget: false },
+    'Gtk.show_uri': { gtype: 'Gtk.show_uri', widget: false },
 };
 
 /**

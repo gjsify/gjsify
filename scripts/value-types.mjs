@@ -142,6 +142,67 @@ export const CONSTRUCTIBLE_VALUES = [
         gir: 'TabPage',
         why: 'A `.blp` writes `Adw.TabPage { title: "…"; child: … }` inside an `Adw.TabView`, and the NativeScript shared-tree builder has to build it: the page is a GObject around its child, which the view reads into its model as a titled page.',
     },
+    {
+        member: 'Gtk.CssProvider',
+        gir: 'CssProvider',
+        why: 'GJS writes `new Gtk.CssProvider(); provider.load_from_string(css)` and hands it to `Gtk.StyleContext.add_provider_for_display`; the ports carry that loader and refuse the file loaders by name. A GObject, not a widget.',
+    },
+    {
+        member: 'Gtk.StyleContext',
+        gir: 'StyleContext',
+        why: '`Gtk.StyleContext.add_provider_for_display` / `remove_provider_for_display` is how an application puts its own CSS on the display; the ports carry those two statics. A GObject, not a widget.',
+    },
+    {
+        member: 'Gtk.Settings',
+        gir: 'Settings',
+        why: '`Gtk.Settings.get_default()?.gtk_font_name` is how an application reads the system UI font; the ports carry that one property. A GObject, not a widget.',
+    },
+    {
+        member: 'Gtk.IconTheme',
+        gir: 'IconTheme',
+        why: "`Gtk.IconTheme.get_for_display(display).add_resource_path(path)` registers an application's icons; the ports remember the path and the icon registry is the lookup. A GObject, not a widget.",
+    },
+    {
+        member: 'Gtk.EventControllerKey',
+        gir: 'EventControllerKey',
+        why: "GJS writes `new Gtk.EventControllerKey()`, `widget.add_controller(c)` and `c.connect('key-pressed', …)`; the ports carry `key-pressed` / `key-released` with GTK's return-value rule. A GObject, not a widget.",
+    },
+    {
+        member: 'Gtk.show_uri',
+        gir: 'show_uri',
+        kind: 'function',
+        why: "`Gtk.show_uri(parent, uri, Gdk.CURRENT_TIME)` opens a link in the user's handler; the ports hand it to the platform (window.open, an Android intent). A function, not a widget.",
+    },
+    {
+        member: 'Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION',
+        gir: 'STYLE_PROVIDER_PRIORITY_APPLICATION',
+        kind: 'constant',
+        why: "The priority `Gtk.StyleContext.add_provider_for_display` orders providers by; GTK's number, so the order matches. A constant, not a widget.",
+    },
+    {
+        member: 'Gtk.STYLE_PROVIDER_PRIORITY_FALLBACK',
+        gir: 'STYLE_PROVIDER_PRIORITY_FALLBACK',
+        kind: 'constant',
+        why: "The priority `Gtk.StyleContext.add_provider_for_display` orders providers by; GTK's number, so the order matches. A constant, not a widget.",
+    },
+    {
+        member: 'Gtk.STYLE_PROVIDER_PRIORITY_SETTINGS',
+        gir: 'STYLE_PROVIDER_PRIORITY_SETTINGS',
+        kind: 'constant',
+        why: "The priority `Gtk.StyleContext.add_provider_for_display` orders providers by; GTK's number, so the order matches. A constant, not a widget.",
+    },
+    {
+        member: 'Gtk.STYLE_PROVIDER_PRIORITY_THEME',
+        gir: 'STYLE_PROVIDER_PRIORITY_THEME',
+        kind: 'constant',
+        why: "The priority `Gtk.StyleContext.add_provider_for_display` orders providers by; GTK's number, so the order matches. A constant, not a widget.",
+    },
+    {
+        member: 'Gtk.STYLE_PROVIDER_PRIORITY_USER',
+        gir: 'STYLE_PROVIDER_PRIORITY_USER',
+        kind: 'constant',
+        why: "The priority `Gtk.StyleContext.add_provider_for_display` orders providers by; GTK's number, so the order matches. A constant, not a widget.",
+    },
 ];
 
 /** `Gio.Menu` -> `{ namespace: 'Gio', member: 'Menu' }`. A GIR namespace carries no dot. */

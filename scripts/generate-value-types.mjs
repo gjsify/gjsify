@@ -85,7 +85,15 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
     const info = repo.find_by_name(namespace, entry.gir);
     // A `flags: true` entry is a GLib flags type (`Gio.ApplicationFlags`): no GObject, but a value
     // a namespace carries, and the typelib still has to declare it as exactly that.
-    const kind = entry.flags === true ? GIRepository.FlagsInfo : GIRepository.ObjectInfo;
+    // `kind: 'function' | 'constant'` is a namespace member that is neither type nor widget.
+    const kind =
+        entry.kind === 'function'
+            ? GIRepository.FunctionInfo
+            : entry.kind === 'constant'
+              ? GIRepository.ConstantInfo
+              : entry.flags === true
+                ? GIRepository.FlagsInfo
+                : GIRepository.ObjectInfo;
     if (info === null || !(info instanceof kind)) {
         // DECLARED, not skipped, and one row for both shapes: a name the namespace does not
         // carry and a name that is not a GObject are the same finding for a ledger whose
@@ -93,10 +101,11 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
         undeclared.push([entry.member, `${namespace}-${repo.get_version(namespace)}`]);
         continue;
     }
+    const plain = entry.flags === true || entry.kind !== undefined;
     declared.push([
         entry.member,
-        info.get_type_name(),
-        entry.flags === true ? false : ancestryOf(info).includes('GtkWidget'),
+        plain ? `${namespace}.${entry.gir}` : info.get_type_name(),
+        plain ? false : ancestryOf(info).includes('GtkWidget'),
     ]);
 }
 

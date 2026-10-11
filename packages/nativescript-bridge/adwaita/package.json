@@ -70,20 +70,24 @@
     ],
     "dependencies": {
         "@gjsify/adwaita-core": "workspace:^",
-        "@gjsify/app-settings": "workspace:^",
         "@gjsify/adwaita-fonts": "workspace:^",
         "@gjsify/adwaita-icons": "workspace:^",
         "@gjsify/native-platform": "workspace:^"
     },
     "peerDependencies": {
-        "@nativescript/core": "*"
+        "@nativescript/core": "*",
+        "@gjsify/app-settings": "workspace:^"
     },
     "peerDependenciesMeta": {
         "@nativescript/core": {
             "optional": true
+        },
+        "@gjsify/app-settings": {
+            "optional": true
         }
     },
     "devDependencies": {
+        "@gjsify/app-settings": "workspace:^",
         "@gjsify/blueprint": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
