@@ -165,13 +165,25 @@ export const PangoMarkupTest = async () => {
             expect(refused.target.querySelector('span')!.style.color).toBe('');
         });
 
-        await it('a size travels with its unit — a bare number is a CSS FONT-SIZE FACTOR', () => {
-            const points = render('<span size="12">x</span>');
-            expect(points.target.querySelector('span')!.style.fontSize).toBe('12pt');
+        await it('a size travels with its unit — a bare pango number is 1024ths of a point', () => {
+            const units = render('<span size="12288">x</span>');
+            expect(units.target.querySelector('span')!.style.fontSize).toBe('12pt');
+            const points = render('<span size="12.5pt">x</span>');
+            expect(points.target.querySelector('span')!.style.fontSize).toBe('12.5pt');
+            const relative = render('<span font_size="larger">x</span>');
+            expect(relative.target.querySelector('span')!.style.fontSize).toBe('larger');
             const percent = render('<span size="150%">x</span>');
             expect(percent.target.querySelector('span')!.style.fontSize).toBe('150%');
             const named = render('<span size="x-small">x</span>');
             expect(named.target.querySelector('span')!.style.fontSize).toBe('x-small');
+        });
+
+        await it("reads pango's aliases and a numeric weight", () => {
+            const { target } = render('<span font_weight="600" font_style="italic" face="monospace">x</span>');
+            const span = target.querySelector('span')!;
+            expect(span.style.fontWeight).toBe('600');
+            expect(span.style.fontStyle).toBe('italic');
+            expect(span.style.fontFamily).toBe('monospace');
         });
 
         await it('an attribute pango accepts but CSS cannot express is dropped', () => {

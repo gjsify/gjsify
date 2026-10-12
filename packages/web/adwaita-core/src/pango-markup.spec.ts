@@ -83,6 +83,33 @@ export default async () => {
             });
         });
 
+        // THE ALIASES AND SPELLINGS PANGO DOCUMENTS, pinned here because the failure they
+        // cause is SILENT and lands on the far side of a fallback: the parser validates no
+        // attribute NAME and no attribute VALUE, so a spelling it stopped accepting would
+        // return `null` — and a renderer would then show the WHOLE string as text, which is
+        // the safe outcome and a silent one. `renderPangoMarkup` is where these are read
+        // (pango_markup.html: `font_weight`/`font_style`/`face`/`font_size`, a numeric
+        // `weight`, and `size` as 1024ths of a point, `12.5pt` or `200%` since 1.50, plus
+        // `smaller`/`larger`); this asserts the parse lets all of them THROUGH.
+        for (const [markup, attribute, value] of [
+            ['<span font_weight="600">x</span>', 'font_weight', '600'],
+            ['<span font_style="italic">x</span>', 'font_style', 'italic'],
+            ['<span face="monospace">x</span>', 'face', 'monospace'],
+            ['<span font_size="larger">x</span>', 'font_size', 'larger'],
+            ['<span size="12288">x</span>', 'size', '12288'],
+            ['<span size="12.5pt">x</span>', 'size', '12.5pt'],
+            ['<span size="200%">x</span>', 'size', '200%'],
+            ['<span size="smaller">x</span>', 'size', 'smaller'],
+            ['<span weight="700">x</span>', 'weight', '700'],
+        ] as const) {
+            await it(`${JSON.stringify(markup)} parses, so it is not shown as a raw string`, () => {
+                const nodes = parsePangoMarkup(markup);
+                expect(nodes).not.toBe(null);
+                expect(nodes![0]).toMatchObject({ kind: 'element', tag: 'span', attributes: { [attribute]: value } });
+                expect(stripMarkup(markup)).toBe('x');
+            });
+        }
+
         await it('an entity pango cannot resolve fails the parse rather than reaching a renderer raw', () => {
             expect(parsePangoMarkup('<span weight="a&nosuch">x</span>')).toBe(null);
             expect(parsePangoMarkup('a&nbsp;b')).toBe(null);

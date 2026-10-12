@@ -81,10 +81,26 @@ const SPAN_STYLES: Readonly<Record<string, string>> = {
 };
 
 /**
- * The pango attribute values each property accepts. `font-weight` takes pango's WEIGHT
- * NAMES; `text-decoration-line` takes CSS keywords, which are NOT pango's underline /
- * strikethrough booleans — `underline="single"` has to become `underline`, and that
- * mapping is one line per attribute, not a parser.
+ * pango's alternative spellings for the attributes above, which `<span>` documents as
+ * equivalent (`pango_markup.html`: "the `font_weight` attribute is an alias for `weight`",
+ * and so on). Resolved BEFORE {@link SPAN_STYLES}, so an alias reaches the same whitelist
+ * as the name it aliases — reading them as separate properties would let one of the pair
+ * through as an unstyled run while the other worked.
+ */
+const SPAN_ALIASES: Readonly<Record<string, string>> = {
+    font_weight: 'weight',
+    font_style: 'style',
+    face: 'font_family',
+    font_size: 'size',
+};
+
+/**
+ * The pango attribute values each property accepts, by NAME. `font-weight` takes pango's
+ * weight names and, beside them, pango's own numbers — CSS numbers weights on the same
+ * 1–1000 scale, so `weight="600"` is the one value that needs no translation. `weight`
+ * and `style` are the only two with a table; `text-decoration-line` takes CSS keywords,
+ * which are NOT pango's underline / strikethrough booleans — `underline="single"` has to
+ * become `underline`, and that mapping is one line per attribute, not a parser.
  */
 const ATTRIBUTE_VALUES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
     weight: {
@@ -129,7 +145,8 @@ function applySpanAttributes(el: HTMLElement, attributes: Readonly<Record<string
     // Additive, so `<span underline="single" strikethrough="true">` draws BOTH —
     // `text-decoration` is a shorthand that would drop the first one.
     const decorations: string[] = [];
-    for (const [attribute, value] of Object.entries(attributes)) {
+    for (const [name, value] of Object.entries(attributes)) {
+        const attribute = SPAN_ALIASES[name] ?? name;
         const property = SPAN_STYLES[attribute];
         if (property === undefined) continue;
 
@@ -150,6 +167,12 @@ function applySpanAttributes(el: HTMLElement, attributes: Readonly<Record<string
         if (attribute === 'size') {
             const size = sanitizeFontSize(value);
             if (size !== null) el.style.setProperty(property, size);
+            continue;
+        }
+
+        // pango also takes a numeric weight; CSS reads the same integers from 1 to 1000.
+        if (attribute === 'weight' && /^[0-9]{1,4}$/.test(value) && +value >= 1 && +value <= 1000) {
+            el.style.setProperty(property, value);
             continue;
         }
 
@@ -199,7 +222,8 @@ function sanitizeFontFamily(value: string): string | null {
 /** A pango `size` as a CSS `font-size`, or `null` when it cannot be one. */
 function sanitizeFontSize(value: string): string | null {
     const trimmed = value.trim();
-    // pango's named absolute sizes, which CSS also names (the same ladder, one step apart).
+    // pango's named sizes, which CSS ALSO names — the same absolute ladder, plus pango's
+    // two relative steps, so the whole set needs no conversion at all.
     const named: Readonly<Record<string, string>> = {
         'xx-small': 'xx-small',
         'x-small': 'x-small',
@@ -208,15 +232,17 @@ function sanitizeFontSize(value: string): string | null {
         large: 'large',
         'x-large': 'x-large',
         'xx-large': 'xx-large',
+        smaller: 'smaller',
+        larger: 'larger',
     };
     const namedSize = named[trimmed];
     if (namedSize !== undefined) return namedSize;
-    // A pango size is POINTS; a bare number in CSS is a font-size factor, so the unit has
-    // to travel with it or 12 would render as twelve times the surrounding text.
-    if (/^[0-9]+(\.[0-9]+)?$/.test(trimmed)) return `${trimmed}pt`;
-    // pango's relative form, `<size>` or `<size>pt` against the parent.
+    // A bare pango size is in 1024ths of a point (`size="12288"` is 12pt), so it is scaled,
+    // never passed on: CSS would read a bare number as no length at all.
+    if (/^[0-9]+$/.test(trimmed)) return `${+trimmed / 1024}pt`;
+    // Since pango 1.50: points with their unit, and a percentage of the parent.
+    if (/^[0-9]+(\.[0-9]+)?pt$/.test(trimmed)) return trimmed;
     if (/^[0-9]+(\.[0-9]+)?%$/.test(trimmed)) return trimmed;
-    if (/^[0-9]+(\.[0-9]+)?x$/.test(trimmed)) return trimmed.replace(/x$/, 'em');
     return null;
 }
 
