@@ -16,6 +16,8 @@ import loaderProbe from './specs/loader.probe.js';
 import { engineSpec } from './specs/engine.js';
 import gobjectVectors from './specs/gobject.vectors.js';
 import listStoreVectors from './specs/list-store.js';
+import settingsVectors from './specs/settings.js';
+import fileChooserVectors from './specs/file-chooser.js';
 
 // Module-level result the page binds to (set when the async run lands).
 export const result: { summary: Summary | null; runId: string } = {
@@ -53,6 +55,9 @@ async function runSuite(): Promise<void> {
             await engineSpec(optedIn ? 'real-gio' : 'pure-js')();
             await gobjectVectors();
             if (optedIn) await listStoreVectors();
+            // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
+            if (optedIn) await settingsVectors();
+            if (optedIn) await fileChooserVectors();
         }
     } catch (err) {
         // A throw OUTSIDE an it() — an import-time crash, a typelib missing a type the subject

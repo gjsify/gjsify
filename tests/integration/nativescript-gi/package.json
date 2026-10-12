@@ -24,6 +24,7 @@
         "@gjsify/adwaita-core": "file:../../../packages/web/adwaita-core",
         "@gjsify/adwaita-gobject-native": "file:../../../packages/nativescript-bridge/gobject",
         "@gjsify/adwaita-nativescript": "file:../../../packages/nativescript-bridge/adwaita",
+        "@gjsify/app-settings": "file:../../../packages/web/app-settings",
         "@gjsify/gi-runtime-android": "file:../../../packages/node-gi/gi-runtime-android",
         "@gjsify/nativescript-vite": "file:../../../packages/infra/nativescript-vite",
         "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
