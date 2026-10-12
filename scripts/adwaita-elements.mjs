@@ -150,6 +150,14 @@ const APPLICATION_DEFINE = {
     call: /customElements\s*\.\s*define\(\s*tag\s*,/g,
 };
 
+// The second: `Canvas2DBridge` (ADR 0107) is the web half of an `@gjsify/canvas2d` widget, not an
+// Adwaita or Gtk element, so it has no matrix row and no ADR 0010 reset entry to miss. The tag is
+// `gjsify-canvas2d-bridge`; any other unreadable call in that file still fails.
+const CANVAS2D_BRIDGE_DEFINE = {
+    file: `${ADWAITA_WEB_SRC}/canvas2d/canvas2d-bridge.ts`,
+    call: /customElements\s*\.\s*define\(\s*TAG\s*,/g,
+};
+
 /**
  * Every non-spec `.ts` source file of the web renderer, absolute.
  *
@@ -711,10 +719,11 @@ export function adwaitaWebElements(root) {
     for (const file of files) {
         const text = readFileSync(file, 'utf8');
         const calls = (text.match(DEFINE_CALL) ?? []).length;
-        let matched =
-            toPosixPath(relative(root, file)) === APPLICATION_DEFINE.file
-                ? (text.match(APPLICATION_DEFINE.call) ?? []).length
-                : 0;
+        const posix = toPosixPath(relative(root, file));
+        let matched = 0;
+        for (const allowed of [APPLICATION_DEFINE, CANVAS2D_BRIDGE_DEFINE]) {
+            if (posix === allowed.file) matched += (text.match(allowed.call) ?? []).length;
+        }
         for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
             matched += 1;
             const expected = tagClass(tag);

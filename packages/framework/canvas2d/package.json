@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/canvas2d",
     "version": "0.60.0",
-    "description": "Canvas 2D rendering context for GJS, backed by Cairo",
+    "description": "Canvas 2D rendering context for GJS, backed by Cairo; Canvas2DBridge on GJS, the browser and NativeScript",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -9,6 +9,18 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
+        "./nativescript": {
+            "types": "./lib/types/nativescript.d.ts",
+            "default": "./lib/esm/nativescript.js"
+        },
+        "./conformance": {
+            "types": "./lib/types/conformance.d.ts",
+            "default": "./lib/esm/conformance.js"
         },
         "./register": {
             "types": "./lib/types/register.d.ts",
@@ -19,18 +31,21 @@
         "./lib/esm/register.js"
     ],
     "files": [
-        "lib"
+        "lib",
+        "!lib/types/**/*.spec.d.ts",
+        "!lib/types/test.d.mts"
     ],
     "scripts": {
-        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs",
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs dist",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
-        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}' 'src/test.browser.{mts,ts}'",
         "build:types": "gjsify tsc",
         "build:test": "gjsify run build:test:gjs",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
-        "test:gjs": "gjsify run test.gjs.mjs"
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs"
     },
     "keywords": [
         "gjs",
@@ -54,6 +69,8 @@
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
+        "@gjsify/adwaita-nativescript": "workspace:^",
+        "@gjsify/adwaita-web": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
@@ -77,5 +94,17 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d#readme",
+    "peerDependencies": {
+        "@gjsify/adwaita-web": "workspace:^",
+        "@gjsify/adwaita-nativescript": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/adwaita-web": {
+            "optional": true
+        },
+        "@gjsify/adwaita-nativescript": {
+            "optional": true
+        }
+    }
 }

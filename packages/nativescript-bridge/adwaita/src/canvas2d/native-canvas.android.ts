@@ -14,8 +14,15 @@
 // Not device-verified: written against the Android API and run off-device through the fake the
 // specs use (`canvas-subset.spec.ts`); see the package README.
 
-import type { AndroidBitmap, AndroidCanvas, AndroidImageView, AndroidNamespace, AndroidPaint, AndroidPath } from './android-types.js';
-import type { NativeCanvasDriver } from './native-canvas.js';
+import type {
+    AndroidBitmap,
+    AndroidCanvas,
+    AndroidImageView,
+    AndroidNamespace,
+    AndroidPaint,
+    AndroidPath,
+} from './android-types.js';
+import type { NativeCanvasDriver } from './native-driver.js';
 
 declare const android: AndroidNamespace;
 
