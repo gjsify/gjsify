@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.62.0](https://github.com/gjsify/gjsify/compare/v0.61.0...v0.62.0) (2026-10-12)
+
+### Features
+
+* `ADR` 0105 stage 3, Settings and Gio.File on real Gio ([#2177](https://github.com/gjsify/gjsify/issues/2177)) ([f18b928](https://github.com/gjsify/gjsify/commit/f18b928745898ce779db49676d594fef6bf65216))
+* **canvas2d:** portable Canvas2DBridge on web and NativeScript ([#2175](https://github.com/gjsify/gjsify/issues/2175)) ([a4c338c](https://github.com/gjsify/gjsify/commit/a4c338c959ef90303e2aebea4b2db8a9acc9bc48))
+
+### Documentation
+
+* **adr:** record stage 4 follow-up in 0105 ([#2176](https://github.com/gjsify/gjsify/issues/2176)) ([bebb517](https://github.com/gjsify/gjsify/commit/bebb517c694bc8238ea824f59680fcc73ab4cd27)), closes [#2168](https://github.com/gjsify/gjsify/issues/2168) [#2169](https://github.com/gjsify/gjsify/issues/2169)
+* **reports:** add x86_64 run and cold-start delta ([#2174](https://github.com/gjsify/gjsify/issues/2174)) ([22904ba](https://github.com/gjsify/gjsify/commit/22904bac78423c07fc5268b2e6cffe8e7d6b32ec)), closes [#2162](https://github.com/gjsify/gjsify/issues/2162)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([d88c4d9](https://github.com/gjsify/gjsify/commit/d88c4d925e5f4e7677f72bfa0b224fbda2167004))
+
 ## [0.61.0](https://github.com/gjsify/gjsify/compare/v0.60.0...v0.61.0) (2026-10-12)
 
 ### Features
