@@ -2245,6 +2245,12 @@ jobs:
       - name: Fetch the GI prefix and the NativeScript runtime (sha256-pinned)
         run: node "$PKG/scripts/fetch-build-inputs.mjs" --out "$INPUTS"
 
+      # Only node-addon-api's headers: `--ignore-scripts` skips node-gi's `install`, a
+      # node-gyp build for THIS host that would need the host's GTK.
+      - name: Install node-gi's build dependencies
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --ignore-scripts
+
       - name: Cross-build libnode_gi.so per ABI
         run: |
           for abi in arm64-v8a x86_64; do

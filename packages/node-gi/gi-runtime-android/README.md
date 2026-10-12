@@ -91,7 +91,8 @@ IN=/tmp/gi-runtime-android-inputs
 # 0. the pinned inputs: $IN/sysroot and $IN/nativescript
 node scripts/fetch-build-inputs.mjs --out "$IN"
 
-# 1. the addon, per ABI — @gjsify/node-gi's own cross-build
+# 1. the addon, per ABI — @gjsify/node-gi's own cross-build, needing node-addon-api
+(cd ../node-gi && npm install --no-audit --no-fund --ignore-scripts)
 for abi in arm64-v8a x86_64; do
   node ../node-gi/scripts/build-android.mjs --abi "$abi" --ndk "$NDK" \
       --gi-sysroot "$IN/sysroot" --napi-lib "$IN/nativescript" --out /tmp/gi-android/"$abi"
