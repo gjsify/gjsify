@@ -154,7 +154,8 @@ prefix; `Gio.PropertyAction`, `add_action_entries`, other `Gio.ActionGroup`/`Act
 ### 4. Accelerators
 
 Not here: ADR 0098 § 4 stage 1 owns `set_accels_for_action` (browser keydown listener, NativeScript
-refusal). Until it lands the call throws rather than leaving a dead shortcut (ADR 0071 § 3). An item's
+hardware keys). A key name outside its keysym subset throws rather than leaving a dead shortcut
+(ADR 0071 § 3). An item's
 `accel` is decoration (0042 § 6) and is drawn where the surface draws one.
 
 ### 5. Proof

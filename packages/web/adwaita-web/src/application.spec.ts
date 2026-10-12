@@ -63,6 +63,39 @@ export const ApplicationTest = async () => {
         await it('Adw.Application is a Gtk.Application', () => {
             expect(Adw.Application.prototype instanceof Gtk.Application).toBe(true);
         });
+        await it('a keydown in the window runs the accelerator, with its target', () => {
+            const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebAccel' });
+            const window = scene.window(app as never) as Element;
+            const hits: unknown[] = [];
+            for (const [owner, name] of [
+                [app, 'save'],
+                [window, 'open'],
+                [app, 'view'],
+            ] as const) {
+                const action = new Gio.SimpleAction({ name });
+                action.connect('activate', (_a: unknown, parameter: unknown) => hits.push([name, parameter ?? null]));
+                (owner as unknown as { add_action(a: object): void }).add_action(action);
+            }
+            app.set_accels_for_action('app.save', ['<Primary>s']);
+            app.set_accels_for_action('win.open', ['<Primary><Shift>o']);
+            app.set_accels_for_action('app.view::list', ['<Primary>l']);
+            const press = (init: KeyboardEventInit): boolean => {
+                const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+                window.dispatchEvent(event);
+                return event.defaultPrevented;
+            };
+            expect(press({ key: 's', ctrlKey: true })).toBe(true);
+            expect(press({ key: 'O', ctrlKey: true, shiftKey: true })).toBe(true);
+            expect(press({ key: 'l', ctrlKey: true })).toBe(true);
+            expect(press({ key: 's' })).toBe(false);
+            expect(hits).toStrictEqual([
+                ['save', null],
+                ['open', null],
+                ['view', 'list'],
+            ]);
+            (window as unknown as { application: object | null }).application = null;
+            expect(press({ key: 's', ctrlKey: true })).toBe(false);
+        });
         await it('quit() takes the windows it added off the page', async () => {
             const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebQuit' });
             const window = scene.window(app as never) as Element;
