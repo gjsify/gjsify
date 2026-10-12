@@ -1,5 +1,6 @@
 // Canvas 2D rendering context for GJS, backed by Cairo
-// Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DBridge (GTK).
+// Core classes live in @gjsify/canvas2d-core; this package adds Canvas2DBridge (GTK). The browser and NativeScript
+// doors are the `./browser` and `./nativescript` entries (ADR 0107).
 // Reimplemented for GJS using Cairo (built-in) and GdkPixbuf for pixel I/O.
 //
 // Barrel — named exports only, ZERO top-level side effects. The `globalThis`

@@ -13,6 +13,7 @@
 
 import { run } from '@gjsify/unit';
 
+import { Canvas2DBridgeNsTest } from './canvas2d/canvas2d-bridge.spec.js';
 import { AdwApplicationNsTest } from './application.spec.js';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
@@ -73,4 +74,5 @@ run({
     AdwBlueprintTreesNsTest,
     AdwBlueprintMarkupNsTest,
     AdwGalleryBlueprintsNsTest,
+    Canvas2DBridgeNsTest,
 });
