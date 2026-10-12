@@ -817,6 +817,9 @@ jobs:
           gjsify workspace @gjsify/iframe build:gjsify --with-dependencies
           gjsify workspace @gjsify/adwaita-core build:gjsify --with-dependencies
           gjsify workspace @gjsify/adwaita-gobject-native build:gjsify --with-dependencies
+          # A devDependency of adwaita-gobject-native (its Settings vectors), so the line above
+          # does not build it.
+          gjsify workspace @gjsify/app-settings build:gjsify --with-dependencies
 
       # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
       # addon regardless of how the install materialised it (belt-and-suspenders,
