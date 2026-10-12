@@ -27,6 +27,16 @@ npm Trusted Publishing (OIDC) requires the package to ALREADY EXIST — the **fi
 |**the positive-fact rule needed a pre-release arm of its own.** Post-release the floor is "the release published something"; pre-release that is never true, and the roster does NOT substitute for it, because the roster fires only on an UNDECLARED absence. Measured 2026-09-03: a tree with every publishable name declared pending exited **0** printing *"Every one of 0 publishable name(s) exists on npm"* — a success claim over an empty set, which is the one sentence the script's own header forbids. Pre-release now FAILS when not one name was confirmed. The ledger buys time for a queued publish; it does not get to become the answer to the question.
 |the #1494 shape reports ONCE, not twice, and a red-proof that cannot tell those apart is measuring the wrong thing: `violations()` requires `isLive(e.from)`, so when a brand-new bridge AND its brand-new target are both absent only the ROSTER fires. Only "existing published bridge + brand-new target" trips both arms. Both are e2e cases in `tests/e2e/published-closure`, which drives the script against a local fake registry through `--root` fixture trees — including the ledger, which is why that file is read `--root`-relative.
 
+### Packages published by hand, every release
+
+A package on the release train whose payload no CI job can build is bumped with the
+train, never published by `release.yml`, and therefore reds `Verify the published
+dependency closure` on every release until a maintainer publishes it. Re-running the
+workflow does not help: no job owns the package. The list is short on purpose, and each
+entry names the issue that removes it.
+
+|`@gjsify/gi-runtime-android` — the AAR needs the cross-built Android GI prefix and the NDK, which no runner has (#2179). Procedure: its [README § Releasing](../packages/node-gi/gi-runtime-android/README.md#releasing). The Trusted Publisher on `release.yml` already exists, so a CI build is all that is missing
+
 ### Two entry points, because CI has already built and a human has not
 
 `npm:publish` is `gjsify run build && gjsify run build:examples && gjsify run npm:publish:prebuilt`, and **`release.yml` runs the second half only** — its job builds the workspace in its own two steps immediately above, in the same checkout and the same container, so the script's build was a REBUILD of the tree it had just produced. Measured on run 33735989472 (v0.46.0) from the API's own step timestamps: `Build packages` 5m16s, `Build examples` 3m04s, and the publish step then spent 8m41s before its first registry `PUT` — 41% of a 21m02s step, inside a 33m02s job (#1522). That window also covers `verify-package-outputs.mjs --scope examples`, which the CI half keeps; the issue left the two unsplit, and the same job log splits them — last example build 09:16:09.626, the check's own two lines 09:16:09.724, the sweep's first child 09:16:10.084, so the check is under half a second of it and the 8m41s is the duplicated build. The split is not "delete the build from the script": run by hand there is no preceding step, and publishing from a stale `dist/` is worse than publishing slowly, so `npm:publish` stays whole and `npm:publish:prebuilt` is the half whose precondition is the two steps above it in the workflow.

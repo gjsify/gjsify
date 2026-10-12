@@ -14,11 +14,10 @@ Add it as a dependency and `requireGi` works on the device. No `jniLibs` directo
 }
 ```
 
-> **NOT ON NPM YET.** The name has never been published, and npm's Trusted Publishing
-> cannot create one — the first publish is a manual maintainer action, queued in
-> [`status/pending-npm-bootstrap.json`](../../../status/pending-npm-bootstrap.json) with
-> its command sequence. Until then the dependency above resolves to nothing; link the
-> package locally (`file:` / `workspace:^`) to use it. Nothing in this repository pins
+> **PUBLISHED BY HAND, every release.** No CI job can build the AAR yet (#2179), so
+> `release.yml` never publishes this package and the closure check reds each train
+> until a maintainer does — [§ Releasing](#releasing). Between the tag and that publish,
+> the train's version of this package does not exist; nothing in this repository pins
 > the name, so the gap costs no other install.
 
 Tier 3 (experimental). Stage 4 of
@@ -102,6 +101,24 @@ node scripts/build-gi-runtime-android.mjs --ndk "$NDK" --gi-sysroot "$GI/root" \
 `--typelib-dir` is repeatable and per-ABI because a meson build tree has no single
 typelib directory: one GI build keeps them in an install root, another one directory per
 subproject. Omit it and the default is `<gi-sysroot>/lib/<abi>/girepository-1.0`.
+
+## Releasing
+
+The release bumps this manifest with the rest of the train, and `release.yml` has no job
+that can produce the AAR, so the version stays unpublished until a maintainer publishes
+it. `Verify the published dependency closure` fails the release on exactly that absence,
+and re-running the workflow does not fix it.
+
+1. Check out the release tag: `git worktree add <dir> v<version>`.
+2. Build the AAR as in [§ The payload is built](#the-payload-is-built-never-committed).
+   Its bytes depend on the GI prefix and the node-gi sources, not on the version, so an
+   AAR from the previous train can be reused when neither changed.
+3. `gjsify publish packages/node-gi/gi-runtime-android --access public --otp <code>`
+   from the tag checkout. `gjsify publish` reads the version back from the registry.
+4. Re-run the failed verify job: `gh run rerun <run-id> --failed`.
+
+The Trusted Publisher for `release.yml` already exists, so once CI can build the AAR, the
+regular sweep takes over and this section goes away.
 
 ## What the build decides, and refuses
 

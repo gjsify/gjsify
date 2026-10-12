@@ -837,7 +837,9 @@ if (!preRelease && errored.length === 0 && live.length > 0 && notLive.length > 0
             'release intended to publish it. A package with no incoming manifest edge (`@gjsify/napi`, ' +
             '`@gjsify/node-gi`, the `@gjsify/gtk-runtime-*` bundles) has its own publish job as its ONLY guard, ' +
             'and a skipped job is neither red nor examined. Re-run the release workflow: `gjsify publish ' +
-            '--tolerate-republish` no-ops for what already landed and publishes the rest.',
+            '--tolerate-republish` no-ops for what already landed and publishes the rest. A package whose ' +
+            'payload no CI job can build is published BY HAND instead, and a re-run never publishes it — ' +
+            'docs/publishing.md § Packages published by hand lists them with their procedure.',
     );
 }
 
