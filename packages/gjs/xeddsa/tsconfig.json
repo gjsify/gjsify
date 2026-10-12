@@ -27,6 +27,7 @@
         "src"
     ],
     "exclude": [
-        "src/test.mts"
+        "src/test.mts",
+        "src/test.browser.mts"
     ]
 }
