@@ -84,9 +84,11 @@ NDK=~/Android/Sdk/ndk/27.1.12297006
 GI=~/.cache/gjsify-android/gi-probe/.pixiewood
 
 # 1. the addon, per ABI — @gjsify/node-gi's own cross-build
-for abi in arm64-v8a x86_64; do
+for pair in arm64-v8a:aarch64 x86_64:x86_64; do
+  abi=${pair%%:*} arch=${pair##*:}
   node ../node-gi/scripts/build-android.mjs --abi "$abi" --ndk "$NDK" \
       --gi-sysroot "$GI/root" --out /tmp/gi-android/"$abi" \
+      --pkg-config-libdir "$GI/bin-$arch/meson-uninstalled" \
       --napi-lib ~/.cache/gjsify-android/ns/aar
 done
 
