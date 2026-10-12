@@ -19,7 +19,10 @@ import { attachEventControllers } from '@gjsify/event-bridge';
 import type { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
 import { Event } from '@gjsify/dom-events';
 
-type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
+/** `FrameRequestCallback` without `lib.dom`: a GJS program has none. */
+export type FrameCallback = (time: number) => void;
+
+type Canvas2DReadyCallback = (canvas: GjsifyHTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
 
 /**
  * A `Gtk.DrawingArea` subclass that creates an `HTMLCanvasElement` +
@@ -44,7 +47,7 @@ export const Canvas2DBridge = GObject.registerClass(
         _readyCallbacks: Canvas2DReadyCallback[] = [];
         _resizeCallbacks: ((w: number, h: number) => void)[] = [];
         _tickCallbackId: number | null = null;
-        _frameCallback: FrameRequestCallback | null = null;
+        _frameCallback: FrameCallback | null = null;
         // Origin for both rAF timestamps and `performance.now()`, per the browser
         // DOMHighResTimeStamp spec.
         _timeOrigin: number = GLib.get_monotonic_time();
@@ -81,7 +84,7 @@ export const Canvas2DBridge = GObject.registerClass(
                 this._ctx = this._canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
                 if (this._ctx) {
                     for (const cb of this._readyCallbacks) {
-                        cb(this._canvas as unknown as globalThis.HTMLCanvasElement, this._ctx);
+                        cb(this._canvas, this._ctx);
                     }
                     this._readyCallbacks = [];
                 }
@@ -107,8 +110,8 @@ export const Canvas2DBridge = GObject.registerClass(
         }
 
         /** The HTMLCanvasElement backing this widget. Available after the first draw. */
-        get canvas(): globalThis.HTMLCanvasElement | null {
-            return this._canvas as unknown as globalThis.HTMLCanvasElement | null;
+        get canvas(): GjsifyHTMLCanvasElement | null {
+            return this._canvas;
         }
 
         /** The 2D rendering context; available after the first draw. */
@@ -119,7 +122,7 @@ export const Canvas2DBridge = GObject.registerClass(
         /** Runs `cb` once the 2D context is ready — synchronously if it already is. */
         onReady(cb: Canvas2DReadyCallback): void {
             if (this._canvas && this._ctx) {
-                cb(this._canvas as unknown as globalThis.HTMLCanvasElement, this._ctx);
+                cb(this._canvas, this._ctx);
                 return;
             }
             this._readyCallbacks.push(cb);
@@ -137,7 +140,7 @@ export const Canvas2DBridge = GObject.registerClass(
          * Browser `requestAnimationFrame`, driven by the vsync-synced GTK frame clock.
          * Always returns 0: there is no `cancelAnimationFrame` here to hand a handle to.
          */
-        requestAnimationFrame(cb: FrameRequestCallback): number {
+        requestAnimationFrame(cb: FrameCallback): number {
             this._frameCallback = cb;
             if (this._tickCallbackId === null) {
                 this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, frameClock: Gdk.FrameClock) => {
@@ -160,12 +163,12 @@ export const Canvas2DBridge = GObject.registerClass(
          */
         installGlobals(): void {
             interface _RafGlobals {
-                requestAnimationFrame?: (cb: FrameRequestCallback) => number;
+                requestAnimationFrame?: (cb: FrameCallback) => number;
                 performance?: { now: () => number; timeOrigin: number };
             }
             const g = globalThis as unknown as _RafGlobals;
 
-            g.requestAnimationFrame = (cb: FrameRequestCallback) => this.requestAnimationFrame(cb);
+            g.requestAnimationFrame = (cb: FrameCallback) => this.requestAnimationFrame(cb);
             // Always overridden: GJS's own `performance.now()` may sit on a different time
             // origin than the frame clock, and rAF timestamps must be comparable to it.
             const timeOrigin = this._timeOrigin;

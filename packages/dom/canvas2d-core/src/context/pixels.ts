@@ -9,11 +9,11 @@ import { OurImageData } from '../image-data.js';
 import { getCanvasPixelBridge } from '../pixel-bridge.js';
 
 export interface PixelMethods {
-    createImageData(sw: number, sh: number): ImageData;
-    createImageData(imagedata: ImageData): ImageData;
-    getImageData(sx: number, sy: number, sw: number, sh: number): ImageData;
+    createImageData(sw: number, sh: number): OurImageData;
+    createImageData(imagedata: OurImageData): OurImageData;
+    getImageData(sx: number, sy: number, sw: number, sh: number): OurImageData;
     putImageData(
-        imageData: ImageData,
+        imageData: OurImageData,
         dx: number,
         dy: number,
         dirtyX?: number,
@@ -28,14 +28,14 @@ declare module '../canvas-rendering-context-2d.js' {
 }
 
 const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
-    createImageData(this: CanvasRenderingContext2D, swOrImageData: number | ImageData, sh?: number): ImageData {
+    createImageData(this: CanvasRenderingContext2D, swOrImageData: number | OurImageData, sh?: number): OurImageData {
         if (typeof swOrImageData === 'number') {
-            return new OurImageData(Math.abs(swOrImageData), Math.abs(sh!)) as unknown as ImageData;
+            return new OurImageData(Math.abs(swOrImageData), Math.abs(sh!));
         }
-        return new OurImageData(swOrImageData.width, swOrImageData.height) as unknown as ImageData;
+        return new OurImageData(swOrImageData.width, swOrImageData.height);
     },
 
-    getImageData(this: CanvasRenderingContext2D, sx: number, sy: number, sw: number, sh: number): ImageData {
+    getImageData(this: CanvasRenderingContext2D, sx: number, sy: number, sw: number, sh: number): OurImageData {
         this._ensureSurface();
         this._surface.flush();
 
@@ -43,7 +43,7 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
         // pixel bridge (GDK's `pixbuf_get_from_surface` today).
         const pixbuf = getCanvasPixelBridge().imageFromSurface(this._surface, sx, sy, sw, sh);
         if (!pixbuf) {
-            return new OurImageData(sw, sh) as unknown as ImageData;
+            return new OurImageData(sw, sh);
         }
 
         const pixels = pixbuf.get_pixels();
@@ -63,12 +63,12 @@ const pixelMethods: PixelMethods & ThisType<CanvasRenderingContext2D> = {
             }
         }
 
-        return new OurImageData(out, sw, sh) as unknown as ImageData;
+        return new OurImageData(out, sw, sh);
     },
 
     putImageData(
         this: CanvasRenderingContext2D,
-        imageData: ImageData,
+        imageData: OurImageData,
         dx: number,
         dy: number,
         dirtyX?: number,

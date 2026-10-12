@@ -18,7 +18,17 @@ import GLib from 'gi://GLib?version=2.0';
 import './context/index.js';
 
 import { asCairoPattern } from './cairo-types.js';
-import type { CanvasLike } from './dom-types.js';
+import type {
+    CanvasDirection,
+    CanvasLike,
+    CanvasLineCap,
+    CanvasLineJoin,
+    CanvasTextAlign,
+    CanvasTextBaseline,
+    GlobalCompositeOperation,
+    ImageSmoothingQuality,
+    PredefinedColorSpace,
+} from './dom-types.js';
 import { parseColor } from './color.js';
 import { COMPOSITE_OP_MAP, LINE_CAP_MAP, LINE_JOIN_MAP } from './cairo-utils.js';
 import { type CanvasState, createDefaultState, cloneState } from './canvas-state.js';
@@ -201,11 +211,11 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    get fillStyle(): string | CanvasGradient | CanvasPattern {
+    get fillStyle(): string | OurCanvasGradient | OurCanvasPattern {
         return this._state.fillStyle;
     }
 
-    set fillStyle(value: string | CanvasGradient | CanvasPattern) {
+    set fillStyle(value: string | OurCanvasGradient | OurCanvasPattern) {
         if (typeof value === 'string') {
             const parsed = parseColor(value);
             if (parsed) {
@@ -217,11 +227,11 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    get strokeStyle(): string | CanvasGradient | CanvasPattern {
+    get strokeStyle(): string | OurCanvasGradient | OurCanvasPattern {
         return this._state.strokeStyle;
     }
 
-    set strokeStyle(value: string | CanvasGradient | CanvasPattern) {
+    set strokeStyle(value: string | OurCanvasGradient | OurCanvasPattern) {
         if (typeof value === 'string') {
             const parsed = parseColor(value);
             if (parsed) {

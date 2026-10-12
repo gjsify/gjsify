@@ -95,8 +95,51 @@ export interface DOMMatrix2DLike {
  * Constructor signature for the platform `DOMMatrix`, so the runtime constructor an embedder
  * registered on `globalThis` is reachable without an `any` cast.
  */
-export type DOMMatrixConstructor = new (init?: number[] | string) => DOMMatrix;
+export type DOMMatrixConstructor = new (init?: number[] | string) => DOMMatrix2DLike;
 
 export interface CanvasGlobalThis {
     DOMMatrix?: DOMMatrixConstructor;
+}
+
+// Own copies of the WHATWG string unions and dictionaries the context uses, so the shipped typings
+// resolve without `lib.dom.d.ts` (a GJS program has none).
+export type CanvasFillRule = 'evenodd' | 'nonzero';
+export type CanvasLineCap = 'butt' | 'round' | 'square';
+export type CanvasLineJoin = 'bevel' | 'miter' | 'round';
+export type CanvasTextAlign = 'center' | 'end' | 'left' | 'right' | 'start';
+export type CanvasTextBaseline = 'alphabetic' | 'bottom' | 'hanging' | 'ideographic' | 'middle' | 'top';
+export type CanvasDirection = 'inherit' | 'ltr' | 'rtl';
+export type ImageSmoothingQuality = 'high' | 'low' | 'medium';
+export type GlobalCompositeOperation = string;
+export type PredefinedColorSpace = 'display-p3' | 'srgb';
+
+/** The `setTransform(matrix)` dictionary: `a`–`f` or `m11`…`m42`, all optional. */
+export interface DOMMatrix2DInit {
+    a?: number;
+    b?: number;
+    c?: number;
+    d?: number;
+    e?: number;
+    f?: number;
+    m11?: number;
+    m12?: number;
+    m21?: number;
+    m22?: number;
+    m41?: number;
+    m42?: number;
+}
+
+export interface TextMetrics {
+    readonly width: number;
+    readonly actualBoundingBoxAscent: number;
+    readonly actualBoundingBoxDescent: number;
+    readonly actualBoundingBoxLeft: number;
+    readonly actualBoundingBoxRight: number;
+    readonly fontBoundingBoxAscent: number;
+    readonly fontBoundingBoxDescent: number;
+    readonly alphabeticBaseline: number;
+    readonly emHeightAscent: number;
+    readonly emHeightDescent: number;
+    readonly hangingBaseline: number;
+    readonly ideographicBaseline: number;
 }
