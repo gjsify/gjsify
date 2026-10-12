@@ -193,7 +193,9 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    **24 of 24** rows on Linux under Node in CI, refusals and widget rows included, with no vector
    weakened and no node-gi fix needed. Finding: the "no notify on an equal write" rule lives in
    the GENERATED ACCESSOR, not in GObject — `g_object_set_property` notifies unconditionally — so
-   the engine owns the comparison. Not done: this engine ran on no Android host. Stage 0's arm64
+   the engine owns the comparison. (Since stage 4 this engine HAS run on Android — 24 of 24 on an
+   arm64 phone and an x86_64 emulator; the per-instance construction cost is still untimed.)
+   Not done at the time: this engine ran on no Android host. Stage 0's arm64
    leg shows a device harness now exists (an APK plus an adb driver, outside the repo), but it
    drives the ORACLE's subjects, not this engine, and no device was free for this work; no
    per-instance construction cost was timed either. Deviation: the real-ENGINE
@@ -207,16 +209,22 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    model emits nothing" is kept only by not splicing — a rule pure JS hid. **Settings and
    `Gio.File` are NOT done and cannot be as written:** `@gjsify/app-settings` (ADR 0099) and
    `@gjsify/file-chooser` (ADR 0100) are Accepted but never implemented, so there is no subset to
-   back and no vectors to measure. That is ADR 0099/0100 work first.
+   back and no vectors to measure. That is ADR 0099/0100 work first. (Unblocked on 2026-10-12:
+   #2168 shipped `@gjsify/app-settings` and #2169 `@gjsify/file-chooser`, each with conformance
+   vectors — the Settings and `Gio.File` half of this stage can now be measured.)
 4. Packaging: GI `.so` files and typelibs as a NativeScript plugin. Measurement: APK delta per ABI,
    compressed, and cold-start delta against an app without it, on an arm64 device.
-   **Done, minus the cold start:** [report](../reports/2026-10-11-node-gi-nativescript-plugin.md).
+   **Done:** [report](../reports/2026-10-11-node-gi-nativescript-plugin.md).
    `@gjsify/gi-runtime-android` ships `libnode_gi.so`, a MEASURED 14-library closure and 7
    typelibs as one AAR for both ABIs; an app gets them from one dependency, and the stage-3
    opt-in is flipped: on an SM-G960F the subset answers **41 of 41** rows with
    `gobjectEngineName() === 'real-gio'`, the same APK with the opt-in refused **27 of 27** on
    pure JS. Plugin share of a universal debug APK: 32,468,780 B compressed, ~15.5 MB per ABI.
    Finding: under `@nativescript/vite` the vendor chunk evaluates first, so **no app-side import
-   order can register the engine in time** — the app must disable `manualChunks`. Not measured:
-   the cold-start delta (both runs carry the same payload and differ in a build-time `define`),
-   x86_64 on any host, a per-ABI or release APK, and the published-npm install path.
+   order can register the engine in time** — the app must disable `manualChunks`. Follow-up
+   (2026-10-12, same report): **cold start** on the same arm64 phone, median of ten launches,
+   **~83 ms (~6.5 %)** from no plugin to plugin with the opt-in — carrying the payload ~0–20 ms,
+   importing node-gi ~20 ms (its module body loads the native library, opt-in or not), the
+   opt-in ~45 ms. **x86_64** ran on an API 36 emulator, 41 of 41 and 27 of 27. The **published
+   npm** tarball, in place of the `file:` link, ran 41 of 41. Not measured: a per-ABI or release
+   APK.
