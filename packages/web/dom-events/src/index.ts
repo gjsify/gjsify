@@ -6,6 +6,17 @@
 import { DOMException } from '@gjsify/dom-exception';
 export { DOMException };
 
+// Structural slices of AbortSignal / MessagePort: `@gjsify/abort-controller` depends on this package,
+// and `lib.dom` is absent from a GJS program, so neither name can be borrowed from either place.
+interface AbortSignalLike {
+    addEventListener(type: 'abort', listener: () => void, options?: { once?: boolean }): void;
+}
+
+interface MessagePortLike {
+    postMessage(message: unknown): void;
+    close(): void;
+}
+
 type EventListenerOrEventListenerObject = EventListener | EventListenerObject;
 
 interface EventListener {
@@ -19,7 +30,7 @@ interface EventListenerObject {
 interface AddEventListenerOptions extends EventListenerOptions {
     once?: boolean;
     passive?: boolean;
-    signal?: AbortSignal;
+    signal?: AbortSignalLike;
 }
 
 interface EventListenerOptions {
@@ -196,7 +207,7 @@ interface MessageEventInit<T = any> extends EventInit {
     origin?: string;
     lastEventId?: string;
     source?: EventTarget | null;
-    ports?: MessagePort[];
+    ports?: MessagePortLike[];
 }
 
 export class MessageEvent<T = any> extends Event {
@@ -204,7 +215,7 @@ export class MessageEvent<T = any> extends Event {
     readonly origin: string;
     readonly lastEventId: string;
     readonly source: EventTarget | null;
-    readonly ports: readonly MessagePort[];
+    readonly ports: readonly MessagePortLike[];
 
     constructor(type: string, eventInitDict?: MessageEventInit<T>) {
         super(type, eventInitDict);

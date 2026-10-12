@@ -9,6 +9,7 @@ import Pango from 'gi://Pango?version=1.0';
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
+import type { TextMetrics } from '../dom-types.js';
 import { parseColor } from '../color.js';
 
 export interface TextMethods {

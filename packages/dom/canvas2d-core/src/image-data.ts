@@ -1,5 +1,6 @@
 // ImageData implementation for Canvas 2D context
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/ImageData
+import type { PredefinedColorSpace } from './dom-types.js';
 
 /**
  * ImageData represents the pixel data of a canvas area.

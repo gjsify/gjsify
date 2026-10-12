@@ -8,6 +8,7 @@
 import Cairo from 'cairo';
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
+import type { CanvasFillRule } from '../dom-types.js';
 import { asCairoPattern } from '../cairo-types.js';
 import { isPixbufImageSource, isCanvasImageSource } from '../dom-types.js';
 import { Path2D } from '../canvas-path.js';

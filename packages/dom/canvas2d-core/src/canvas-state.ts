@@ -1,6 +1,17 @@
 // Drawing state for Canvas 2D context save()/restore() stack.
 // Each save() pushes a clone of the current state; restore() pops it.
 
+import type { CanvasGradient } from './canvas-gradient.js';
+import type { CanvasPattern } from './canvas-pattern.js';
+import type {
+    CanvasDirection,
+    CanvasLineCap,
+    CanvasLineJoin,
+    CanvasTextAlign,
+    CanvasTextBaseline,
+    GlobalCompositeOperation,
+    ImageSmoothingQuality,
+} from './dom-types.js';
 import type { RGBA } from './color.js';
 import { BLACK } from './color.js';
 

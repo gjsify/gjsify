@@ -7,9 +7,9 @@ import { CanvasGradient as OurCanvasGradient } from '../canvas-gradient.js';
 import { CanvasPattern as OurCanvasPattern } from '../canvas-pattern.js';
 
 export interface FactoryMethods {
-    createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradient;
-    createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient;
-    createPattern(image: unknown, repetition: string | null): CanvasPattern | null;
+    createLinearGradient(x0: number, y0: number, x1: number, y1: number): OurCanvasGradient;
+    createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): OurCanvasGradient;
+    createPattern(image: unknown, repetition: string | null): OurCanvasPattern | null;
 }
 
 declare module '../canvas-rendering-context-2d.js' {
@@ -23,8 +23,8 @@ const factoryMethods: FactoryMethods & ThisType<CanvasRenderingContext2D> = {
         y0: number,
         x1: number,
         y1: number,
-    ): CanvasGradient {
-        return new OurCanvasGradient('linear', x0, y0, x1, y1) as unknown as CanvasGradient;
+    ): OurCanvasGradient {
+        return new OurCanvasGradient('linear', x0, y0, x1, y1);
     },
 
     createRadialGradient(
@@ -35,12 +35,12 @@ const factoryMethods: FactoryMethods & ThisType<CanvasRenderingContext2D> = {
         x1: number,
         y1: number,
         r1: number,
-    ): CanvasGradient {
-        return new OurCanvasGradient('radial', x0, y0, x1, y1, r0, r1) as unknown as CanvasGradient;
+    ): OurCanvasGradient {
+        return new OurCanvasGradient('radial', x0, y0, x1, y1, r0, r1);
     },
 
-    createPattern(this: CanvasRenderingContext2D, image: unknown, repetition: string | null): CanvasPattern | null {
-        return OurCanvasPattern.create(image, repetition) as unknown as CanvasPattern | null;
+    createPattern(this: CanvasRenderingContext2D, image: unknown, repetition: string | null): OurCanvasPattern | null {
+        return OurCanvasPattern.create(image, repetition);
     },
 };
 

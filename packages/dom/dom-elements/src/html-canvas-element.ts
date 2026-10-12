@@ -2,7 +2,19 @@
 // Copyright (c) David Ortner (capricorn86). MIT license.
 // Modifications: Simplified for gjsify — stubs only, no window reference, no MediaStream/OffscreenCanvas deps.
 
+import type { Event } from '@gjsify/dom-events';
 import { HTMLElement } from './html-element.js';
+
+/** The `Blob` slice `toBlob` hands out; `lib.dom` is absent from a GJS program. */
+export interface CanvasBlob {
+    readonly size: number;
+    readonly type: string;
+    arrayBuffer(): Promise<ArrayBuffer>;
+    text(): Promise<string>;
+}
+
+// Method-style so a consumer's `(blob: Blob | null) => void` (lib.dom) stays assignable.
+type BlobCallback = { bivarianceHack(blob: CanvasBlob | null): void }['bivarianceHack'];
 
 /**
  * A DOM-spec-compliant canvas with no rendering of its own. `@gjsify/webgl` extends it with a
@@ -63,7 +75,7 @@ export class HTMLCanvasElement extends HTMLElement {
     }
 
     /** Calls back with `null` when there is no 2D context to read pixels from. */
-    toBlob(callback: (blob: Blob | null) => void, type?: string, quality?: unknown): void {
+    toBlob(callback: BlobCallback, type?: string, quality?: unknown): void {
         const dataUrl = this.toDataURL(type, quality);
         if (!dataUrl) {
             callback(null);

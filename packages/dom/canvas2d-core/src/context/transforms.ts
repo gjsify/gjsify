@@ -2,7 +2,7 @@
 // Reference: refs/node-canvas — Canvas 2D affine transform semantics.
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
-import type { CanvasGlobalThis, DOMMatrix2DLike } from '../dom-types.js';
+import type { CanvasGlobalThis, DOMMatrix2DInit, DOMMatrix2DLike } from '../dom-types.js';
 
 export interface TransformMethods {
     translate(x: number, y: number): void;
@@ -11,7 +11,7 @@ export interface TransformMethods {
     transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
     setTransform(matrix?: DOMMatrix2DInit): void;
     setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
-    getTransform(): DOMMatrix;
+    getTransform(): DOMMatrix2DLike;
     resetTransform(): void;
 }
 
@@ -120,7 +120,7 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
         }
     },
 
-    getTransform(this: CanvasRenderingContext2D): DOMMatrix {
+    getTransform(this: CanvasRenderingContext2D): DOMMatrix2DLike {
         // GJS' Cairo.Context exposes no `getMatrix()`, so [a,b,c,d,e,f] is reconstructed from three
         // userToDevice probes:
         //   userToDevice(0, 0) = (e,     f)      — translation
@@ -154,7 +154,7 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
 };
 
 /** Build a `DOMMatrix` when the global exists, else a structurally equal plain object. */
-function makeMatrix(a: number, b: number, c: number, d: number, e: number, f: number): DOMMatrix {
+function makeMatrix(a: number, b: number, c: number, d: number, e: number, f: number): DOMMatrix2DLike {
     const DOMMatrixCtor = (globalThis as CanvasGlobalThis).DOMMatrix;
     if (typeof DOMMatrixCtor === 'function') {
         return new DOMMatrixCtor([a, b, c, d, e, f]);
@@ -185,7 +185,7 @@ function makeMatrix(a: number, b: number, c: number, d: number, e: number, f: nu
         is2D: true,
         isIdentity: a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0,
     };
-    return fallback as unknown as DOMMatrix;
+    return fallback;
 }
 
 /** Install transform methods on CanvasRenderingContext2D.prototype. */
