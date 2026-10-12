@@ -20,7 +20,10 @@ import {
     registerBaseClass,
     type SignalHandler,
 } from './gobject.js';
-import { installActionMap, linkWindow } from './gio-actions.js';
+import { AcceleratorMap } from './accelerators.js';
+import { applicationOfWindow, findActionGroup, installActionMap, linkWindow } from './gio-actions.js';
+import { keyvalOfKey } from './gtk-platform.js';
+import { parseDetailedAction } from './menu.js';
 
 /** `Gio.ApplicationFlags`: only the default is accepted (ADR 0098 § 1). */
 export const ApplicationFlags = {
@@ -109,10 +112,6 @@ const REFUSED_PROPERTIES = [
 const REFUSED_SIGNALS = ['open', 'command-line', 'handle-local-options', 'shutdown', 'name-lost'] as const;
 
 const GTK_REFUSED_METHODS = [
-    'set_accels_for_action',
-    'get_accels_for_action',
-    'list_action_descriptions',
-    'get_actions_for_accel',
     'set_menubar',
     'get_menubar',
     'get_menu_by_id',
@@ -144,6 +143,44 @@ function stateOf(app: object): AppState {
         STATE.set(app, state);
     }
     return state;
+}
+
+const ACCELERATORS = new WeakMap<object, AcceleratorMap>();
+
+function acceleratorsOf(app: object): AcceleratorMap {
+    let map = ACCELERATORS.get(app);
+    if (map === undefined) {
+        map = new AcceleratorMap();
+        ACCELERATORS.set(app, map);
+    }
+    return map;
+}
+
+/**
+ * `gtk_application_window`'s accelerator pass: a key press in `window` activates the first enabled
+ * action whose accelerator it matches, found as `gtk_widget_activate_action` finds it (`win.` on the
+ * window, `app.` on its application), with the target of the detailed name. Returns whether one ran.
+ */
+export function dispatchAccelerator(
+    window: object,
+    event: { readonly key: string; readonly state: number; readonly pressed: boolean },
+    parent: (node: object) => object | null | undefined,
+): boolean {
+    if (!event.pressed) return false;
+    const app = applicationOfWindow(window);
+    if (app === null) return false;
+    for (const detailed of acceleratorsOf(app).matching(keyvalOfKey(event.key), event.state)) {
+        const parsed = parseDetailedAction(detailed);
+        const dot = parsed?.name.indexOf('.') ?? -1;
+        if (parsed === null || dot <= 0) continue;
+        const action = findActionGroup(window, parsed.name.slice(0, dot), parent)?.lookup_action(
+            parsed.name.slice(dot + 1),
+        );
+        if (!action || !action.enabled) continue;
+        action.activate(parsed.target ?? null);
+        return true;
+    }
+    return false;
 }
 
 function hostOf(app: object): ApplicationHost {
@@ -335,6 +372,10 @@ type GioApplicationConstructor = new (...args: any[]) => GioApplicationBase;
 /** What `withGtkApplication` adds, named so the emitted `.d.ts` of a subclass refers to it. */
 export interface GtkApplicationMembers {
     readonly active_window: object | null;
+    set_accels_for_action(detailed_action_name: string, accels: string[]): void;
+    get_accels_for_action(detailed_action_name: string): string[];
+    get_actions_for_accel(accel: string): string[];
+    list_action_descriptions(): string[];
     get_active_window(): object | null;
     get_windows(): object[];
     add_window(window: object): void;
@@ -359,6 +400,22 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
 
         get_active_window(): object | null {
             return this.active_window;
+        }
+
+        set_accels_for_action(detailed: string, accels: string[]): void {
+            acceleratorsOf(this).set(detailed, accels);
+        }
+
+        get_accels_for_action(detailed: string): string[] {
+            return acceleratorsOf(this).get(detailed);
+        }
+
+        get_actions_for_accel(accel: string): string[] {
+            return acceleratorsOf(this).actionsFor(accel);
+        }
+
+        list_action_descriptions(): string[] {
+            return acceleratorsOf(this).list();
         }
 
         get_windows(): object[] {

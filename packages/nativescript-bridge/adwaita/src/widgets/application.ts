@@ -14,9 +14,11 @@ import {
     GioApplicationBase,
     withGtkApplication,
     applicationOfWindow,
+    dispatchAccelerator,
     installActionMap,
     type ApplicationHost,
 } from '@gjsify/adwaita-core';
+import { nativePlatformHost } from '../platform-host.js';
 
 export const nativeScriptHost: ApplicationHost = {
     name: 'adwaita-nativescript',
@@ -54,6 +56,23 @@ export class AdwApplication extends GtkApplication {
 
 type WindowApplication = { add_window(window: object): void; remove_window(window: object): void };
 
+const ACCEL_LISTENERS = new WeakMap<object, () => void>();
+const parentOf = (node: object): object | null | undefined => (node as { parent?: object | null }).parent;
+
+/**
+ * Hardware keys of a window of an application run its accelerators. `listenPlatformKeys` delivers
+ * them on Android; on iOS it is a stub, so no accelerator fires there.
+ */
+function followAccelerators(window: object, application: WindowApplication | null): void {
+    ACCEL_LISTENERS.get(window)?.();
+    ACCEL_LISTENERS.delete(window);
+    if (application === null) return;
+    ACCEL_LISTENERS.set(
+        window,
+        nativePlatformHost.listenKeys(window, (event) => dispatchAccelerator(window, event, parentOf)),
+    );
+}
+
 /**
  * `Gtk.Window:application` and the window's `Gio.ActionMap` (`win.` actions) on a window class.
  * Setting the property is `add_window`, as on GTK; setting it to `null` is `remove_window`.
@@ -71,6 +90,7 @@ export function defineWindowApplication(proto: object): void {
             if (current === value) return;
             current?.remove_window(this);
             value?.add_window(this);
+            followAccelerators(this, value);
         },
     });
 }
