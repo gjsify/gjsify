@@ -871,12 +871,15 @@ export {
     createSearchRowSubtitle,
     defaultCaseFolder,
     derivePreferencesGroupHeader,
-    escapeMarkup,
     makeComparable,
     rowMatchesQuery,
     searchPreferences,
-    stripMarkup,
 } from './preferences.js';
+
+// --- Pango markup: the parse, and the text reduction over it ---
+export { PANGO_MARKUP_TAGS, escapeMarkup, parsePangoMarkup, stripMarkup } from './pango-markup.js';
+export type { PangoMarkupNode, PangoMarkupTag } from './pango-markup.js';
+
 export type {
     CaseFolder,
     MakeComparableOptions,

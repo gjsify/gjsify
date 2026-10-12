@@ -5,9 +5,11 @@
 //
 // THE DISPLAY ROWS ARE GTK'S, measured under gjs 1.88.1 / gtk 4.22.4 with
 // `Gtk.Label.get_text()` read back after each write — except the one row marked as the
-// declared divergence: GTK RENDERS markup bold, and no port here renders markup, because
-// on the web the short road to styled runs is `innerHTML`, which executes what the string
-// carries. The ports show the markup's TEXT, which is what `get_text()` returns anyway.
+// declared divergence: GTK RENDERS markup bold, and a LABEL reduces it to text on both
+// ports, because `Gtk.Label` is a single measured run of text and this element's box is
+// composed around ONE span (see `label.ts`'s header — the bold IS drawable here, the
+// banner and the alert dialog draw it). The ports show the markup's TEXT, which is what
+// `get_text()` returns anyway.
 //
 // THE INT/ENUM ROWS BELOW ARE THE PSPEC'S, measured the same way — `width-chars` /
 // `max-width-chars` / `lines` against `label.set_property()` on gjs 1.88.1 / gtk 4.22.5

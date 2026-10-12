@@ -10,13 +10,12 @@ import {
     createSearchRowSubtitle,
     defaultCaseFolder,
     derivePreferencesGroupHeader,
-    escapeMarkup,
     makeComparable,
     rowMatchesQuery,
     searchPreferences,
-    stripMarkup,
     stripMnemonic,
 } from './preferences.js';
+import { escapeMarkup, stripMarkup } from './pango-markup.js';
 import {
     CASE_FOLD_VECTORS,
     MAKE_COMPARABLE_VECTORS,

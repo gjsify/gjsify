@@ -5,9 +5,11 @@
 // the reason this module exists: `revealed` is FALSE and `use-markup` is TRUE.
 //
 // MODIFICATION: the spec value for `use-markup` lives here, but the browser renderer
-// deliberately departs from it and says so at its call site — Pango markup and HTML
-// are different languages, and `innerHTML`-by-default would make an injection sink out
-// of a widget that is not one in GTK.
+// deliberately departs from it and says so at its call site. The reason is no longer
+// HOW markup is drawn — `parsePangoMarkup` (this package's `pango-markup.ts`) renders
+// it into nodes without ever handing it to `innerHTML` — but THAT a `title` ATTRIBUTE
+// should not be markup by default: a renderer that parsed it would be one an author, or
+// an injected value, could drive, for a widget that is not one in GTK.
 //
 // Reference: refs/libadwaita/src/adw-banner.c (AdwBanner)
 // Reference: refs/libadwaita/src/adw-banner.ui (the template both labels come from)

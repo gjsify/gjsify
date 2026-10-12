@@ -288,6 +288,15 @@ const MODULE_REASONS = {
     // builder, and each port's `blueprint-markup.spec.ts` asks exactly that against every
     // gallery `.blp`.
     markup: { table: 'ATTRIBUTE_OF_VECTORS' },
+    // The Pango PARSE, lifted out of `preferences.ts` because it stopped being preferences'
+    // own: `stripMarkup` is its text reduction for the search pipeline (that table, still
+    // core-only) and adwaita-web's `renderPangoMarkup` builds DOM nodes from the tree it
+    // returns. So what a renderer IS held to is the RENDERED result — bold drawn, a tag
+    // outside pango's set left as text — which the browser suite asserts against a real
+    // widget in `pango-markup.spec.ts` rather than through this corpus. A row here could
+    // state that the tree has an element child, which is a spec of the parse rather than of
+    // a widget, so the gap is the corpus form of what that suite already asserts directly.
+    'pango-markup': { table: 'STRIP_MARKUP_VECTORS', gap: NO_DRIVER_LEDGER },
     scrolling: { gap: NO_TABLE_LEDGER },
     // Half of this module IS driven already: `formatAcceleratorLabel` is a thin wrapper
     // over `shortcut-label.ts`'s `shortcutKeycaps`, so its GTK-accelerator half rides

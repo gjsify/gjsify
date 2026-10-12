@@ -35,13 +35,7 @@ import { asm6502 } from './asm6502.js';
 import { adwaitaEditorTheme, adwaitaHighlightStyle, ensureSourceViewStyleInjected } from './theme.js';
 import { formatHexAddress, formatLineNumber, stripSourceWhitespace } from '@gjsify/adwaita-core';
 import { createGtkImage } from '../elements/gtk-image.js';
-
-/** A recognisable copy glyph rendered inline so the subpath needs no icon CSS. */
-const COPY_SVG =
-    '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">' +
-    '<path d="M4 1a2 2 0 0 0-2 2v7h2V3h6V1H4z"/>' +
-    '<path d="M7 4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h5a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H7zm0 2h5v7H7V6z"/>' +
-    '</svg>';
+import { createCopyGlyph } from './copy-glyph.js';
 
 /** Parse a boolean attribute: present (any value but "false") ⇒ true. */
 function boolAttr(value: string | null): boolean {
@@ -400,7 +394,7 @@ export class AdwSourceView extends HTMLElement {
     private _renderCopyIcon(): void {
         const name = this._copyButtonIcon || 'edit-copy';
         if (name === 'edit-copy' || name === 'copy' || name === '') {
-            this._copyButton.innerHTML = COPY_SVG;
+            this._copyButton.replaceChildren(createCopyGlyph(this._copyButton.ownerDocument));
             return;
         }
         // A non-default icon uses the adwaita-web mask class (requires the main
