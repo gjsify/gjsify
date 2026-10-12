@@ -99,3 +99,12 @@ above is node-gi on Linux.
 slot is `'polyfill'` rather than `'none'`, which is an exception to the convention in
 [AGENTS.md](../AGENTS.md): node-gi makes the engine measurable on Linux CI, and a leg that cannot
 run is a claim nobody checks.
+
+## Settings and Gio.File
+
+`createRealGioSettingsSubject` and `createRealGioFileChooserSubject` hold ADR 0099's
+`SETTINGS_VECTORS` and ADR 0100's `FILE_CHOOSER_VECTORS` to real `Gio.Settings` and `Gio.File`.
+Settings needs a compiled schema directory and the `memory` backend (never dconf); the subject
+reads the schema from an explicit source because the default one is fixed at first use. Without a
+Gtk typelib (Android) the file-chooser subject uses a stand-in and `rowsFor` drops the rows that
+are about GTK. Report: `docs/reports/2026-10-12-real-gio-settings-file.md`.

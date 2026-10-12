@@ -20,11 +20,17 @@ import requireGi from '@gjsify/node-gi/gi';
 
 import { realGioEngineSuite } from './engine.node-gi.spec.js';
 import { realGioListStoreSuite } from './list-store.node-gi.spec.js';
+import { realGioFileChooserSuite } from './file-chooser.node-gi.spec.js';
+import { realGioSettingsSuite } from './settings.node-gi.spec.js';
 import optInTestSuite from './opt-in.spec.js';
 
 run({
     realGioEngineTestSuite: realGioEngineSuite(requireGi),
     realGioListStoreTestSuite: realGioListStoreSuite(requireGi),
+    // Settings first: GIO fixes its schema source and backend at the first use, and GTK's init is one.
+    realGioSettingsTestSuite: realGioSettingsSuite(requireGi),
+    realGioFileChooserTestSuite: realGioFileChooserSuite(requireGi),
+    realGioFileChooserStandInTestSuite: realGioFileChooserSuite(requireGi, true),
     // The opt-in's refusals need no GI stack — this is just the only entry the package has.
     optInTestSuite,
 });

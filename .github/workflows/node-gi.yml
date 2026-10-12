@@ -897,7 +897,11 @@ jobs:
         working-directory: packages/nativescript-bridge/gobject
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
-          NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+          # xvfb since stage 3: the file-chooser vectors load real GTK where it is installed, and a
+          # GTK object needs a display. The Settings vectors need glib-compile-schemas.
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            NODE_GI_NATIVE=build gjsify run test:gjs-on-node
 
   # aarch64 proof: build the Node-API addon + run the core suite, the golden-diff
   # conformance (gjs/node/bun/deno byte-identical) and the tier-B typelib oracle on
