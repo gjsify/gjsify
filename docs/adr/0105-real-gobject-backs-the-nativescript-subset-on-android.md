@@ -207,11 +207,12 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    **9 of 9** `LIST_ITEMS_CHANGED_VECTORS` plus 3 real-store rows. Finding:
    `g_list_store_splice` emits `items-changed` unconditionally, so the portable model's "an equal
    model emits nothing" is kept only by not splicing — a rule pure JS hid. **Settings and
-   `Gio.File` are NOT done and cannot be as written:** `@gjsify/app-settings` (ADR 0099) and
-   `@gjsify/file-chooser` (ADR 0100) are Accepted but never implemented, so there is no subset to
-   back and no vectors to measure. That is ADR 0099/0100 work first. (Unblocked on 2026-10-12:
-   #2168 shipped `@gjsify/app-settings` and #2169 `@gjsify/file-chooser`, each with conformance
-   vectors — the Settings and `Gio.File` half of this stage can now be measured.)
+   `Gio.File` are done too:** [report](../reports/2026-10-12-real-gio-settings-file.md). The ADR
+   0099 and 0100 vectors pass on real Gio on the host (79 tests) and on an `x86_64` emulator
+   (60 of 60, pure-JS control 27 of 27), none weakened. Five node-gi defects were fixed against
+   GJS behaviour; the device has no Gtk typelib or schema compiler, so it uses a Gtk stand-in and
+   a host-compiled schema. Two `GLib.Error` rows are not run on node-gi (domain shape) and the
+   prebuilt payload still needs a rebuild for the `calls.cc` fix.
 4. Packaging: GI `.so` files and typelibs as a NativeScript plugin. Measurement: APK delta per ABI,
    compressed, and cold-start delta against an app without it, on an arm64 device.
    **Done:** [report](../reports/2026-10-11-node-gi-nativescript-plugin.md).
