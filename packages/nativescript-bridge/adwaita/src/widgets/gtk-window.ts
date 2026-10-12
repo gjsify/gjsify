@@ -6,16 +6,38 @@
 // Gtk.Window` holds for the application root, which is how an application finds the window to
 // hand `Gtk.show_uri`.
 //
-// A TRUE SUBSET: `title`, `default-width` and `default-height` are held and read back; every
-// other `GtkWindow` member is absent, not stubbed.
+// A TRUE SUBSET: `title`, `default-width` and `default-height` are held and read back, and the
+// state members below are mapped where the platform can say the fact. What it cannot say is
+// refused by name, never faked:
+//
+//   is-active      the application is in the foreground: `resume` / `suspend`, from load to unload.
+//   close-request  emitted by `close()` with GTK's handled accumulator (adwaita-core). A handler
+//                  returning true keeps the window. Android's back button is NOT mapped.
+//   close()        Android `finish()` of the foreground activity. iOS has no public API to close the
+//                  root: `close()` throws there, BEFORE `close-request` is emitted.
+//   focus-widget   `get_focus()` / `set_focus()` read and move native focus. `connect
+//                  ('notify::focus-widget')` is refused: focus the user moves is unobservable here.
+//   maximized      constant true — the window is the screen. `maximize()` is a no-op; `unmaximize()`
+//                  and `maximized = false` throw. Split-screen or multi-window is not detected.
+//   present()      a no-op: the window the application's `activate` returns is already the root.
+//   hide-on-close  absent; a window here is never hidden, only ended.
 //
 // Reference: refs/gtk/gtk/gtkwindow.c (GtkWindow)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
+import { CloseRequestState, HandledAccumulator, WindowMemberState } from '@gjsify/adwaita-core';
+import type { EventData, View } from '@nativescript/core';
+
+import { windowHost } from '../window-host.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwSingleChildBase } from './single-child-base.js';
 import { surfaceSize } from './window-state.js';
-import { xmlNumber } from './xml-values.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
+
+export const NOTIFY_IS_ACTIVE = 'notify::is-active';
+export const NOTIFY_MAXIMIZED = 'notify::maximized';
+export const NOTIFY_FOCUS_WIDGET = 'notify::focus-widget';
+export const CLOSE_REQUEST = 'close-request';
 
 export class GtkWindow extends AdwSingleChildBase {
     static readonly GTypeName: string = 'GtkWindow';
@@ -23,10 +45,129 @@ export class GtkWindow extends AdwSingleChildBase {
     private _title = '';
     private _defaultWidth = 0;
     private _defaultHeight = 0;
+    private readonly _members = new WindowMemberState<View>(
+        (property) => {
+            const eventName = property === 'is-active' ? NOTIFY_IS_ACTIVE : NOTIFY_MAXIMIZED;
+            this.notify({ eventName, object: this, value: property === 'is-active' ? this.isActive : this.maximized });
+        },
+        { maximized: true },
+    );
+    private readonly _closeRequest = new CloseRequestState();
+    private _unwatchForeground: (() => void) | null = null;
 
     constructor(props?: ConstructProps<GtkWindow>) {
         super();
         applyConstructProps(this, props);
+    }
+
+    onLoaded(): void {
+        super.onLoaded();
+        const host = windowHost();
+        this._unwatchForeground?.();
+        this._unwatchForeground = host.watchForeground((foreground) => this._members.reportActive(foreground));
+        this._members.reportActive(host.isForeground());
+    }
+
+    onUnloaded(): void {
+        this._unwatchForeground?.();
+        this._unwatchForeground = null;
+        this._members.reportActive(false);
+        super.onUnloaded();
+    }
+
+    /** `GtkWindow:is-active` (read-only): the application is in the foreground. */
+    get isActive(): boolean {
+        return this._members.active;
+    }
+
+    is_active(): boolean {
+        return this.isActive;
+    }
+
+    /** `GtkWindow:maximized`: always true here. Writing false throws; writing true is a no-op. */
+    get maximized(): boolean {
+        return this._members.maximized;
+    }
+
+    set maximized(value: boolean | string) {
+        if (xmlBoolean(value, true)) this.maximize();
+        else this.unmaximize();
+    }
+
+    is_maximized(): boolean {
+        return this.maximized;
+    }
+
+    /** The window is the screen already: nothing to do, nothing to notify. */
+    maximize(): void {}
+
+    unmaximize(): void {
+        throw new Error(
+            'GtkWindow.unmaximize is not supported on NativeScript: the window is the whole screen and ' +
+                'the platform has no un-maximized state to go back to.',
+        );
+    }
+
+    /** The application's `activate` returns the root window, so it is presented already. */
+    present(): void {}
+
+    /** `GtkWindow:focus-widget` (read-only): the view holding native focus, found live. */
+    get focusWidget(): View | null {
+        return this.get_focus();
+    }
+
+    get_focus(): View | null {
+        const host = windowHost();
+        return findView(this, (view) => host.isFocused(view));
+    }
+
+    /** Move native focus to a descendant, or clear it with `null`. */
+    set_focus(widget: View | null): void {
+        const host = windowHost();
+        if (widget === null) {
+            const current = this.get_focus();
+            if (current !== null) host.clearFocus(current);
+            return;
+        }
+        if (findView(this, (view) => view === widget) === null) {
+            throw new Error('GtkWindow.set_focus: the widget is not a descendant of this window.');
+        }
+        host.requestFocus(widget);
+    }
+
+    /**
+     * `gtk_window_close`: emit `close-request`; a handler returning true keeps the window, else
+     * it ends. Throws on iOS (no public API to end the root) before any handler runs.
+     */
+    close(): void {
+        const host = windowHost();
+        if (this.isLoaded && !host.canFinish) {
+            throw new Error(
+                'GtkWindow.close is not supported on this platform: iOS has no public API to close the ' +
+                    'root window. Android finishes the foreground activity.',
+            );
+        }
+        this._closeRequest.close({
+            realized: this.isLoaded,
+            hideOnClose: false,
+            emit: () => {
+                const accumulator = new HandledAccumulator();
+                this.notify({ eventName: CLOSE_REQUEST, object: this, accumulator });
+                return accumulator.stopped;
+            },
+            hide: () => {},
+            destroy: () => host.finish(),
+        });
+    }
+
+    connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
+        if (eventName === NOTIFY_FOCUS_WIDGET) {
+            throw new Error(
+                'GtkWindow notify::focus-widget is not supported on NativeScript: focus the user moves ' +
+                    'is not observable here. Read get_focus() when you need it.',
+            );
+        }
+        return super.connect(eventName, callback);
     }
 
     /** `GtkWindow:title`. Held: a `Page` has no title bar of this window's to put it in. */
@@ -55,4 +196,18 @@ export class GtkWindow extends AdwSingleChildBase {
     set defaultHeight(value: number | string) {
         this._defaultHeight = surfaceSize(xmlNumber(value, Number.NaN), value, this._defaultHeight, 'defaultHeight');
     }
+}
+
+/** The first view under `root`, depth first, that satisfies `match`. */
+function findView(root: View, match: (view: View) => boolean): View | null {
+    let found: View | null = null;
+    root.eachChildView((child) => {
+        if (match(child)) {
+            found = child;
+            return false;
+        }
+        found = findView(child, match);
+        return found === null;
+    });
+    return found;
 }

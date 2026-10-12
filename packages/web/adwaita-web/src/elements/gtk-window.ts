@@ -47,7 +47,7 @@
 // difference a reader of the DOM can see.
 //
 // NOT PORTED, and why — these are the KNOWN_GAPS of this element:
-//   `application`, `child`, `default-widget`, `display`, `focus-widget` — WIDGET- or
+//   `application`, `child`, `default-widget`, `display` — WIDGET- or
 //     DISPLAY-typed, so a slot or an id here rather than an attribute; `child` and
 //     `titlebar` ARE slots and `transient-for` only has to be PRESENT.
 //   `destroy-with-parent` — a DOM node has no destroy, and a page has no parent to destroy.
@@ -59,14 +59,31 @@
 //     business and needs the `Gio.MenuModel` it is built from (:1150).
 //   `startup-id` — write-only, and written by the launcher that started the application (:883).
 //
+// THE STATE MEMBERS, and what each is in a page (the shared rules — notify only on change, the
+// close sequence — live in `@gjsify/adwaita-core`'s `window-members.ts`):
+//   `is-active`    — the DOCUMENT has focus and this frame is connected and shown. A page has one
+//                    focus for all its windows, so every shown frame is active together; that is
+//                    the honest limit of a frame (`document.hasFocus()`, window focus/blur and
+//                    `visibilitychange` feed it). Read-only, as in GTK.
+//   `focus-widget` — the element inside the frame that holds `document.activeElement`, live.
+//                    `set_focus(el)` calls `el.focus()` and refuses an element outside the frame;
+//                    `set_focus(null)` blurs. `focusin`/`focusout` notify; focus that merely
+//                    leaves with the window (blur) keeps its widget, as GTK keeps it.
+//   `maximized`    — the FRAME's state (square corners), not the browser window's: a page cannot
+//                    maximize its browser window. `is_maximized()` reads it.
+//   `present()`    — un-hides the frame; a page cannot raise or focus a window it does not own.
+//
 // Events: `notify::<prop>` (CustomEvent, bubbles, detail `{ <prop>: value }`) on every real
-// change, and `close-request` (CustomEvent, bubbles, CANCELLED, no detail), which is
-// `Gtk.Window::close-request`.
+// change, and `close-request` (CustomEvent, bubbles, CANCELLABLE, no detail), which is
+// `Gtk.Window::close-request`: a listener that calls `preventDefault()` is a GTK handler that
+// returns true. `window.close()` runs it through `CloseRequestState`.
 //
 // Reference: refs/gtk/gtk/gtkwindow.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_window.scss (GtkWindow)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+
+import { CloseRequestState, WindowMemberState, type WindowMemberProperty } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
 
@@ -88,6 +105,20 @@ export class GtkWindow extends HTMLElement {
     private _titleLabel: HTMLElement | null = null;
     /** Watches the strip for an author's titlebar arriving after the build. */
     private _titlebarObserver: MutationObserver | null = null;
+    /** `is-active` and `focus-widget`; `maximized` stays the attribute above. */
+    private readonly _members = new WindowMemberState<Element>((property) => this._notifyMember(property));
+    private readonly _closing = new CloseRequestState();
+    private readonly _syncActive = (): void => void this._members.reportActive(this._documentIsActive());
+    private readonly _onFocusIn = (event: FocusEvent): void => {
+        if (event.target instanceof Element) this._members.reportFocus(event.target);
+    };
+    private readonly _onFocusOut = (event: FocusEvent): void => {
+        const next = event.relatedTarget;
+        if (next instanceof Node && this.contains(next)) return;
+        // Focus leaving WITH the window (tab switch, another app) keeps the widget; GTK does too.
+        if (next === null && !document.hasFocus()) return;
+        this._members.reportFocus(null);
+    };
 
     static get observedAttributes() {
         return [
@@ -103,6 +134,8 @@ export class GtkWindow extends HTMLElement {
             'resizable',
             'title',
             'transient-for',
+            // Not a window property: `is-active` depends on it, so it is watched but never notified.
+            'hidden',
         ];
     }
 
@@ -186,11 +219,13 @@ export class GtkWindow extends HTMLElement {
 
     connectedCallback() {
         if (this._initialized) {
+            this._watchActivity();
             this._watchTitlebar();
             this._render();
             return;
         }
         this._initialized = true;
+        this._watchActivity();
 
         this._titlebar = document.createElement('div');
         this._titlebar.className = 'adw-gtk-window-titlebar';
@@ -216,6 +251,37 @@ export class GtkWindow extends HTMLElement {
     disconnectedCallback() {
         this._titlebarObserver?.disconnect();
         this._titlebarObserver = null;
+        window.removeEventListener('focus', this._syncActive);
+        window.removeEventListener('blur', this._syncActive);
+        document.removeEventListener('visibilitychange', this._syncActive);
+        this.removeEventListener('focusin', this._onFocusIn);
+        this.removeEventListener('focusout', this._onFocusOut);
+        // An unmapped window is neither active nor holding focus.
+        this._members.reportActive(false);
+        this._members.reportFocus(null);
+    }
+
+    private _watchActivity(): void {
+        window.addEventListener('focus', this._syncActive);
+        window.addEventListener('blur', this._syncActive);
+        document.addEventListener('visibilitychange', this._syncActive);
+        this.addEventListener('focusin', this._onFocusIn);
+        this.addEventListener('focusout', this._onFocusOut);
+        this._syncActive();
+    }
+
+    private _documentIsActive(): boolean {
+        return this.isConnected && !this.hidden && document.visibilityState !== 'hidden' && document.hasFocus();
+    }
+
+    private _notifyMember(property: WindowMemberProperty): void {
+        const detail =
+            property === 'is-active'
+                ? this._members.active
+                : property === 'focus-widget'
+                  ? this._members.focus
+                  : this.maximized;
+        this.dispatchEvent(new CustomEvent(`notify::${property}`, { bubbles: true, detail: { [property]: detail } }));
     }
 
     /**
@@ -248,8 +314,13 @@ export class GtkWindow extends HTMLElement {
     }
 
     attributeChangedCallback(name: string) {
-        if (!this._initialized) return;
-        this._render();
+        if (name === 'hidden') {
+            this._syncActive();
+            return;
+        }
+        // Before the first connect there is nothing to draw, but the property still moved: GTK
+        // notifies a window that was never mapped, and a listener on a detached frame hears it.
+        if (this._initialized) this._render();
         this.dispatchEvent(
             new CustomEvent(`notify::${name}`, { bubbles: true, detail: { [name]: this._property(name) } }),
         );
@@ -344,14 +415,78 @@ export class GtkWindow extends HTMLElement {
      * it, hide the window when `hide-on-close` is set and DESTROY it otherwise. "Destroy" is
      * the one word this port cannot mean — a page has no unref — so the default detaches the
      * frame, which is the same observable outcome for everything above it.
+     *
+     * A frame that is not in the page is not realized, so there is nothing to close; a listener
+     * that calls `close()` again is ignored, as GTK ignores it. Answers whether the window went
+     * away (hidden or detached), `false` when a listener took the request over or it was ignored.
      */
     close(): boolean {
-        const request = new CustomEvent('close-request', { bubbles: true, cancelable: true });
-        this.dispatchEvent(request);
-        if (request.defaultPrevented) return false;
-        if (this._offByDefault('hide-on-close')) this.hidden = true;
-        else this.remove();
-        return true;
+        const outcome = this._closing.close({
+            realized: this.isConnected,
+            hideOnClose: this._offByDefault('hide-on-close'),
+            emit: () => {
+                const request = new CustomEvent('close-request', { bubbles: true, cancelable: true });
+                this.dispatchEvent(request);
+                return request.defaultPrevented;
+            },
+            hide: () => void (this.hidden = true),
+            destroy: () => this.remove(),
+        });
+        return outcome === 'hidden' || outcome === 'destroyed';
+    }
+
+    /**
+     * `gtk_window_present`: show the frame. GTK also raises and focuses the toplevel, which is
+     * the window manager's to grant; a page owns no such surface, so this is only the first half.
+     */
+    present(): void {
+        this.hidden = false;
+    }
+
+    /** `Gtk.Window:is-active` — see the header: the document's focus, while this frame is shown. */
+    get isActive(): boolean {
+        return this._members.active;
+    }
+
+    /** `gtk_window_is_active`. */
+    is_active(): boolean {
+        return this._members.active;
+    }
+
+    /** `Gtk.Window:focus-widget`, read live from the document. */
+    get focusWidget(): Element | null {
+        return this.get_focus();
+    }
+
+    /** `gtk_window_get_focus`: the element inside the frame that has focus, or `null`. */
+    get_focus(): Element | null {
+        const active = document.activeElement;
+        return active !== null && active !== this && this.contains(active) ? active : null;
+    }
+
+    /**
+     * `gtk_window_set_focus`. `null` clears the focus. An element outside the frame is refused:
+     * GTK's window only focuses its own descendants.
+     */
+    set_focus(widget: Element | null): void {
+        if (widget === null) {
+            const current = this.get_focus();
+            if (current instanceof HTMLElement || current instanceof SVGElement) current.blur();
+            this._members.reportFocus(null);
+            return;
+        }
+        if (widget === this || !this.contains(widget)) {
+            throw new Error('<gtk-window>.set_focus: the widget is not inside this window');
+        }
+        if (widget instanceof HTMLElement || widget instanceof SVGElement) widget.focus();
+        // `focus()` fires no focusin while the document itself is unfocused, so report what the
+        // document now says; an equal write is dropped by the state.
+        this._members.reportFocus(this.get_focus());
+    }
+
+    /** `gtk_window_is_maximized`: the FRAME's state, not the browser window's. */
+    is_maximized(): boolean {
+        return this.maximized;
     }
 
     /**

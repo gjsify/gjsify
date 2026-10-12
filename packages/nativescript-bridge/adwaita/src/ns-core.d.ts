@@ -71,6 +71,10 @@ declare module '@nativescript/core' {
     export class View extends Observable {
         /** Lifecycle hook NativeScript calls once the native view is created and attached. */
         onLoaded(): void;
+        /** Lifecycle hook NativeScript calls when the view leaves the visual tree. */
+        onUnloaded(): void;
+        /** Upstream's `eachChildView`: visit direct children; return `false` from the callback to stop. */
+        eachChildView(callback: (child: View) => boolean): void;
         /** The Android `Context`; defined once the view is attached to an activity. */
         _context: unknown;
         /** The platform view `createNativeView()` returned; `undefined` before attach and after dispose. */

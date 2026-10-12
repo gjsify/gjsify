@@ -775,3 +775,7 @@ export type {
     FileChooserVector,
     ScriptedPick,
 } from './file-chooser.js';
+
+// --- Gtk.Window close / maximize / focus members, held on real GJS and on each port ---
+export { WINDOW_ROWS, WINDOW_VECTORS, driveWindowVectors } from './window-members.js';
+export type { WindowCapabilities, WindowRow, WindowSubject, WindowVector } from './window-members.js';

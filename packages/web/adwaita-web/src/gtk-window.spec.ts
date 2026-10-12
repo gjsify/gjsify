@@ -5,6 +5,8 @@
 // (gtkwindow.c:1274-1287).
 import { describe, expect, it } from '@gjsify/unit';
 
+import { driveWindowVectors, WINDOW_VECTORS, type WindowSubject } from '@gjsify/adwaita-core/conformance';
+
 import type { GtkWindow } from './elements/gtk-window.js';
 
 function mount(attrs: Record<string, string> = {}): { el: GtkWindow; host: HTMLElement } {
@@ -196,6 +198,126 @@ export const GtkWindowTest = async () => {
             el.addEventListener('close-request', (e) => e.preventDefault());
             expect(el.close()).toBe(false);
             expect(el.isConnected).toBe(true);
+            host.remove();
+        });
+    });
+
+    // The element's native close contract is `preventDefault()`; a GTK handler "returns true". The
+    // adapter below is that mapping, and it also stops later listeners, which is what the handled
+    // accumulator does. So the "third never runs" row exercises the adapter plus the element's
+    // sequence, not DOM dispatch alone.
+    const windows = new Map<object, HTMLElement>();
+    const webSubject: WindowSubject = {
+        name: '<gtk-window>',
+        isOracle: false,
+        capabilities: { maximizable: true, observesFocus: true, hideOnClose: true },
+        create({ hideOnClose }) {
+            // Never in a page: not realized, which is GTK's state for a window before `present()`.
+            const el = document.createElement('gtk-window') as GtkWindow;
+            if (hideOnClose) el.setAttribute('hide-on-close', 'true');
+            el.append(document.createElement('button'), document.createElement('button'));
+            return el;
+        },
+        show(w) {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            host.appendChild(w as GtkWindow);
+            windows.set(w, host);
+            (w as GtkWindow).present();
+        },
+        connect(w, signal, handler) {
+            (w as GtkWindow).addEventListener(signal, (event) => {
+                if (signal === 'close-request') {
+                    if (event.defaultPrevented) return;
+                    if (handler()) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                    }
+                    return;
+                }
+                handler();
+            });
+            return 1;
+        },
+        close: (w) => void (w as GtkWindow).close(),
+        maximize: (w) => (w as GtkWindow).maximize(),
+        unmaximize: (w) => (w as GtkWindow).unmaximize(),
+        isMaximized: (w) => (w as GtkWindow).is_maximized(),
+        isVisible: (w) => (w as GtkWindow).isConnected && !(w as GtkWindow).hidden,
+        focusables: (w) => [...(w as GtkWindow).querySelectorAll('button')] as unknown as [Element, Element],
+        setFocus: (w, widget) => (w as GtkWindow).set_focus(widget as Element | null),
+        getFocus: (w) => (w as GtkWindow).get_focus(),
+    };
+    await driveWindowVectors(webSubject, { describe, it, expect }, WINDOW_VECTORS);
+    for (const host of windows.values()) host.remove();
+
+    await describe('<gtk-window> state members', async () => {
+        await it('a frame that was never connected is not realized: close() does nothing', async () => {
+            const el = document.createElement('gtk-window') as GtkWindow;
+            let seen = 0;
+            el.addEventListener('close-request', () => void seen++);
+            expect(el.close()).toBe(false);
+            expect(seen).toBe(0);
+        });
+
+        await it('is-active follows the document focus and notifies only on change', async () => {
+            const { el, host } = mount();
+            const seen: boolean[] = [];
+            el.addEventListener('notify::is-active', (e) => seen.push((e as CustomEvent).detail['is-active']));
+            const before = el.isActive;
+            expect(before).toBe(document.hasFocus());
+            el.hidden = true;
+            expect(el.is_active()).toBe(false);
+            el.present();
+            expect(el.isActive).toBe(document.hasFocus());
+            // Every transition above is one notification at most, and none repeats a value.
+            for (let i = 1; i < seen.length; i++) expect(seen[i]).not.toBe(seen[i - 1]);
+            host.remove();
+            expect(el.isActive).toBe(false);
+        });
+
+        await it('is-active has no setter: GTK declares it read-only', async () => {
+            const { el, host } = mount();
+            const descriptor =
+                Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el.constructor.prototype), 'isActive') ??
+                Object.getOwnPropertyDescriptor(el.constructor.prototype, 'isActive');
+            expect(descriptor?.set).toBe(undefined);
+            host.remove();
+        });
+
+        await it('set_focus refuses an element outside the frame, by name', async () => {
+            const { el, host } = mount();
+            const outside = document.createElement('button');
+            document.body.append(outside);
+            let message = '';
+            try {
+                el.set_focus(outside);
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes('set_focus')).toBe(true);
+            outside.remove();
+            host.remove();
+        });
+
+        await it('focus-widget notifies with the widget in its detail', async () => {
+            const { el, host } = mount();
+            const button = document.createElement('button');
+            el.append(button);
+            await Promise.resolve();
+            let detail: unknown;
+            el.addEventListener('notify::focus-widget', (e) => (detail = (e as CustomEvent).detail['focus-widget']));
+            el.set_focus(button);
+            expect(detail).toBe(button);
+            expect(el.focusWidget).toBe(button);
+            host.remove();
+        });
+
+        await it('is_maximized() reads the frame state', async () => {
+            const { el, host } = mount();
+            expect(el.is_maximized()).toBe(false);
+            el.maximize();
+            expect(el.is_maximized()).toBe(true);
             host.remove();
         });
     });

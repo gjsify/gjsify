@@ -294,6 +294,9 @@ export class View extends Observable {
     translateY = 0;
     /** Never loaded here: nothing mounts a view into a page without a platform. */
     readonly isLoaded: boolean = false;
+    /** Nothing loads a view here; a spec calls these to stand in for the platform's. */
+    onLoaded(): void {}
+    onUnloaded(): void {}
     androidOverflowEdge = 'none';
     accessibilityRole: string | undefined;
     accessibilityState: string | undefined;
@@ -834,6 +837,11 @@ export const Application = {
         if (existing === undefined) return;
         const at = existing.indexOf(callback);
         if (at !== -1) existing.splice(at, 1);
+    },
+
+    /** Deliver a lifecycle event (`resume`, `suspend`) to its subscribers, as the platform does. */
+    emitLifecycle(event: string): void {
+        for (const callback of (LIFECYCLE.get(event) ?? []).slice()) callback({ eventName: event });
     },
 
     /** Absent, as on every platform that is not Android — and this is not Android. */

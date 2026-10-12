@@ -1080,6 +1080,8 @@ export {
     dispatchAccelerator,
     isValidApplicationId,
 } from './application.js';
+export { CloseRequestState, HandledAccumulator, WindowMemberState } from './window-members.js';
+export type { CloseOutcome, CloseRequestSteps, WindowMemberInit, WindowMemberProperty } from './window-members.js';
 export { AcceleratorMap, ModifierMask, acceleratorName, parseAcceleratorKeyval } from './accelerators.js';
 export type { Accelerator } from './accelerators.js';
 export type { ApplicationHost, GtkApplicationMembers, GtkApplicationConstructor } from './application.js';
