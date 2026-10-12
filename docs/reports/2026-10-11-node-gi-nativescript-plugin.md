@@ -166,28 +166,57 @@ single contributors are pixman (2.9/4.4 MB), Gio (2.7/2.6 MB), GLib (2.6 MB) and
 
 ## Not done, and not measured
 
-- **x86_64 ran nowhere.** It is built, walked, compared against arm64 and shipped in the APK, but
-  no emulator or device executed it. Everything behavioural here is arm64-v8a.
-- **No cold-start delta**, which ADR 0105 stage 4 explicitly asks for. The two runs differ in a
-  `define`, not in payload, so the APK carries the full 32.5 MB in both — the honest comparison
-  would need a build with the dependency removed, and it was not made. Nothing about startup cost
-  is claimed.
+- ~~**x86_64 ran nowhere.**~~ Ran on 2026-10-12 — see "Follow-up" below.
+- ~~**No cold-start delta.**~~ Measured on 2026-10-12 — see "Follow-up" below.
 - **No per-ABI and no release APK.** The number above is one universal debug build; an ABI split
   and R8 would both move it.
 - **iOS is absent entirely.** The plugin is Android-only by name and by manifest.
-- **The published-npm install path is unverified.** Every dependency was a `file:` link.
-  `@gjsify/gi-runtime-android` is not on npm and cannot be until the name exists — it is declared
-  in `status/pending-npm-bootstrap.json` and carried as `partial` in `status/status.json`. The
-  claim "an installed tarball always carries the AAR" rests on the `files` field, not on an
-  install.
-- **No performance number.** Nothing was timed: not twin construction, not `set_property`
-  round-trips through napi, not `dlopen` of the closure.
+- ~~**The published-npm install path is unverified.**~~ Verified on 2026-10-12: the suite with
+  `@gjsify/gi-runtime-android@0.60.0` from the registry in place of the `file:` link ran 41 of
+  41 on the S9. The tarball's AAR has the sha256 above (`dccae30b89df…`). The other `@gjsify/*`
+  deps were still `file:` links.
+- **No performance number beyond startup.** Not twin construction, not `set_property`
+  round-trips through napi. Loading the closure is only seen inside the cold-start steps below.
 - **Settings and `Gio.File`** (ADR 0105 stage 3's literal content) remain blocked on ADR 0099/0100
   being implemented at all, unchanged by this work.
 - The engine-slot error message is imprecise in one case the device hit: a second, *different*
   engine instance with the same name reads as `'real-gio' cannot be replaced by 'real-gio'`. It is
   the correct refusal with a confusing text; the adwaita-core slot tests assert the strings
   verbatim, so changing it is a deliberate edit, not a tidy-up.
+
+## Follow-up (2026-10-12): x86_64 and the cold-start delta
+
+**x86_64.** A fresh AVD (API 36, `google_apis_playstore` x86_64, model `sdk_gphone64_x86_64`,
+12 GB `/data`) ran the same suite: opt-in **41 of 41** on `real-gio` (24 + 9 + 4 + 4), control
+**27 of 27** on `pure-js`. The x86_64 half of the AAR now has behaviour behind it, not just a
+walked closure.
+
+**Cold start.** Galaxy S9 (SM-G960F, Android 15, API 35, arm64-v8a). Each variant: one warm-up,
+then ten `am start -S -W` launches, `TotalTime` in ms. Without root the page cache cannot be
+dropped, so this is a cold *process* on warm files. The suite runs at launch, so `TotalTime` is
+first frame of a test app, not of an empty one. All four in one session:
+
+- **A0** — no plugin, no node-gi in the bundle: median **1263** (1255–1311)
+- **B0** — plugin in the APK, no node-gi in the bundle: median **1281** (1256–1300)
+- **B** — plugin, node-gi imported, opt-in off (the control): median **1301** (1281–1314)
+- **C** — plugin, opt-in on (the subject): median **1346** (1318–1488)
+
+Read as steps: carrying the payload costs **~0–20 ms** (the minima are equal, the medians 18 ms
+apart — noise-sized); importing node-gi costs **~20 ms**; the opt-in itself costs **~45 ms**.
+C against A0 is **~83 ms, ~6.5 %**. An earlier session gave B 1312 and C 1345, the same picture.
+
+Two things this measurement exposed:
+
+- **Importing `@gjsify/node-gi` loads the native library, opt-in or not.** Its module body runs
+  `loadNativeHost()`, so the control run B already `dlopen`s `libnode_gi.so` and its closure.
+  A build that removes the plugin but keeps the import crashes at startup. That is by design of
+  the suite (B and C differ in the decision only), but it means an app that wants the pure-JS
+  path to cost nothing must not import node-gi at all — a lazy or conditional import is the
+  app's job, not the opt-in's.
+- **The APK file size is not the APK content size.** Gradle's incremental packaging reuses the
+  previous APK and does not shrink it, so A0's file stayed at 152.2 MB with the 33 MB payload
+  gone. Content sizes (`unzip -v` totals) carry the comparison; `stat` on an incrementally
+  rebuilt APK does not. `scripts/apk-size.mjs` reads entries, so the numbers above stand.
 
 ## Where this runs
 
