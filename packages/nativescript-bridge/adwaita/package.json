@@ -22,6 +22,10 @@
             "types": "./lib/types/namespace/gobject.d.ts",
             "default": "./lib/esm/namespace/gobject.js"
         },
+        "./canvas2d": {
+            "types": "./lib/types/canvas2d/index.d.ts",
+            "default": "./lib/esm/canvas2d/index.js"
+        },
         "./builder": {
             "types": "./lib/types/builder/index.d.ts",
             "default": "./lib/esm/builder/index.js"
@@ -72,6 +76,7 @@
         "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/adwaita-fonts": "workspace:^",
         "@gjsify/adwaita-icons": "workspace:^",
+        "@gjsify/canvas2d-core": "workspace:^",
         "@gjsify/native-platform": "workspace:^"
     },
     "peerDependencies": {

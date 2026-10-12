@@ -14,6 +14,10 @@
             "types": "./lib/types/gdk-pixel-bridge.d.ts",
             "default": "./lib/esm/gdk-pixel-bridge.js"
         },
+        "./color": {
+            "types": "./lib/types/color.d.ts",
+            "default": "./lib/esm/color.js"
+        },
         "./globals": "./globals.mjs"
     },
     "files": [

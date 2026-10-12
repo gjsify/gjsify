@@ -71,6 +71,13 @@ declare module '@nativescript/core' {
     export class View extends Observable {
         /** Lifecycle hook NativeScript calls once the native view is created and attached. */
         onLoaded(): void;
+        /** The Android `Context`; defined once the view is attached to an activity. */
+        _context: unknown;
+        /** The platform view `createNativeView()` returned; `undefined` before attach and after dispose. */
+        nativeViewProtected: unknown;
+        createNativeView(): object;
+        initNativeView(): void;
+        disposeNativeView(): void;
         /**
          * `ViewCommon` declares `private _measuredWidth`
          * (`ui/core/view/view-common.d.ts:80`). Declared here so a widget that

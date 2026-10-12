@@ -5,6 +5,7 @@ import svgPathTestSuite from './svg-path.spec.js';
 import actionsTestSuite from './actions.spec.js';
 import popupMenuTestSuite from './popup-menu.spec.js';
 import iconThemeTestSuite from './icon-theme.spec.js';
+import { Canvas2DSubsetNsTest } from './canvas2d/canvas-subset.spec.js';
 import { AdwBottomSheetNsTest } from './bottom-sheet.spec.js';
 import bottomSheetDragTestSuite from './bottom-sheet-drag.spec.js';
 import bottomSheetInsetsTestSuite from './bottom-sheet-insets.spec.js';
@@ -108,4 +109,5 @@ run({
     wrapBoxNsTestSuite,
     statusPageNsTestSuite,
     avatarNsTestSuite,
+    Canvas2DSubsetNsTest,
 });
