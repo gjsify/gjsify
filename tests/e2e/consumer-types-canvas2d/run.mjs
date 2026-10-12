@@ -3,6 +3,7 @@
 // nativescript types to import the package:
 //
 //   - fixture/gjs:     lib es2022, types @girs/gjs, NO DOM  → `@gjsify/canvas2d`
+//   - fixture/gjs-dom: as gjs plus lib DOM (the templates)  → `onReady` canvas is a DOM HTMLCanvasElement
 //   - fixture/browser: lib es2022 + DOM                     → `@gjsify/canvas2d/browser`
 //
 // The fixtures resolve workspace packages through the monorepo node_modules,
@@ -42,6 +43,11 @@ describe('@gjsify/canvas2d — consumer typings', () => {
 
     it('GJS consumer without lib.dom compiles the root entry', () => {
         const { code, output } = runGjsifyTsc(join(__dirname, 'fixture', 'gjs', 'tsconfig.json'));
+        assert.equal(code, 0, `expected clean exit, got ${code}:\n${output}`);
+    });
+
+    it('GJS consumer with lib.dom passes the bridge canvas to DOM-typed code', () => {
+        const { code, output } = runGjsifyTsc(join(__dirname, 'fixture', 'gjs-dom', 'tsconfig.json'));
         assert.equal(code, 0, `expected clean exit, got ${code}:\n${output}`);
     });
 

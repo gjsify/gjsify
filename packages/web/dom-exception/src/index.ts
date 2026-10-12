@@ -43,7 +43,10 @@ class _DOMExceptionPolyfill extends Error {
  * Native is available in Node.js 17+ and modern browsers.
  * On GJS, the polyfill is used.
  */
-export type DOMException = Error & { readonly code: number };
+type DOMExceptionShape = Error & { readonly code: number };
+
+// The DOM `DOMException` when the consumer loads `lib.dom`, the structural shape otherwise.
+export type DOMException = typeof globalThis extends { DOMException: { prototype: infer T } } ? T : DOMExceptionShape;
 
 export interface DOMExceptionConstructor {
     new (message?: string, name?: string): DOMException;
@@ -54,7 +57,8 @@ export interface DOMExceptionConstructor {
 // without `lib.dom.d.ts`, which a GJS program does not load.
 const nativeDOMException = (globalThis as { DOMException?: DOMExceptionConstructor }).DOMException;
 
-export const DOMException: DOMExceptionConstructor = nativeDOMException ?? _DOMExceptionPolyfill;
+export const DOMException: DOMExceptionConstructor = (nativeDOMException ??
+    _DOMExceptionPolyfill) as unknown as DOMExceptionConstructor;
 
 // Note: globals are no longer registered at import time. Use the `/register`
 // subpath (`import '@gjsify/dom-exception/register'`) if you need

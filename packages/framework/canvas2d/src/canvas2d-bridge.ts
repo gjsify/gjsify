@@ -22,7 +22,16 @@ import { Event } from '@gjsify/dom-events';
 /** `FrameRequestCallback` without `lib.dom`: a GJS program has none. */
 export type FrameCallback = (time: number) => void;
 
-type Canvas2DReadyCallback = (canvas: GjsifyHTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
+/**
+ * The canvas type handed to consumers: the DOM `HTMLCanvasElement` when the consumer loads
+ * `lib.dom`, gjsify's own element otherwise. Resolved through `globalThis` so this file never
+ * names a lib.dom type directly.
+ */
+export type BridgeCanvas = typeof globalThis extends { HTMLCanvasElement: { prototype: infer T } }
+    ? T
+    : GjsifyHTMLCanvasElement;
+
+type Canvas2DReadyCallback = (canvas: BridgeCanvas, ctx: CanvasRenderingContext2D) => void;
 
 /**
  * A `Gtk.DrawingArea` subclass that creates an `HTMLCanvasElement` +
@@ -84,7 +93,7 @@ export const Canvas2DBridge = GObject.registerClass(
                 this._ctx = this._canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
                 if (this._ctx) {
                     for (const cb of this._readyCallbacks) {
-                        cb(this._canvas, this._ctx);
+                        cb(this._canvas as unknown as BridgeCanvas, this._ctx);
                     }
                     this._readyCallbacks = [];
                 }
@@ -110,8 +119,8 @@ export const Canvas2DBridge = GObject.registerClass(
         }
 
         /** The HTMLCanvasElement backing this widget. Available after the first draw. */
-        get canvas(): GjsifyHTMLCanvasElement | null {
-            return this._canvas;
+        get canvas(): BridgeCanvas | null {
+            return this._canvas as unknown as BridgeCanvas | null;
         }
 
         /** The 2D rendering context; available after the first draw. */
@@ -122,7 +131,7 @@ export const Canvas2DBridge = GObject.registerClass(
         /** Runs `cb` once the 2D context is ready — synchronously if it already is. */
         onReady(cb: Canvas2DReadyCallback): void {
             if (this._canvas && this._ctx) {
-                cb(this._canvas, this._ctx);
+                cb(this._canvas as unknown as BridgeCanvas, this._ctx);
                 return;
             }
             this._readyCallbacks.push(cb);
