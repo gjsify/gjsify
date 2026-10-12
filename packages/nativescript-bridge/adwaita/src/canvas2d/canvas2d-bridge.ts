@@ -160,7 +160,7 @@ export class Canvas2DBridge extends withGtkWidgetLayout(NsView) {
         this._canvas.width = width;
         this._canvas.height = height;
         this._canvas.dispatchEvent({ type: 'resize' });
-        for (const handler of [...this._handlers.values()]) handler(this, width, height);
+        for (const handler of Array.from(this._handlers.values())) handler(this, width, height);
         for (const cb of this._resizeCallbacks) cb(width, height);
     }
 }

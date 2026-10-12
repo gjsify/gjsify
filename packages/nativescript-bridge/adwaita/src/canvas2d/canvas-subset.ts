@@ -95,7 +95,7 @@ export class NsCanvas {
     }
 
     dispatchEvent(event: { type: string }): boolean {
-        for (const listener of [...(this.listeners.get(event.type) ?? [])]) listener({ ...event, target: this });
+        for (const listener of Array.from(this.listeners.get(event.type) ?? [])) listener({ ...event, target: this });
         return true;
     }
 }

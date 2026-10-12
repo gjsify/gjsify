@@ -205,7 +205,7 @@ export class Canvas2DBridgeElement extends HTMLElement {
         this._canvas.width = width;
         this._canvas.height = height;
         this._canvas.dispatchEvent(new Event('resize'));
-        for (const { signal, handler } of [...this._handlers.values()]) {
+        for (const { signal, handler } of Array.from(this._handlers.values())) {
             if (signal === 'resize') handler(this, width, height);
         }
         for (const cb of this._resizeCallbacks) cb(width, height);
