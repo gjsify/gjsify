@@ -403,11 +403,11 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
         }
 
         set_accels_for_action(detailed: string, accels: string[]): void {
-            acceleratorsOf(this).set(detailed, accels);
+            acceleratorsOf(this).setAccels(detailed, accels);
         }
 
         get_accels_for_action(detailed: string): string[] {
-            return acceleratorsOf(this).get(detailed);
+            return acceleratorsOf(this).getAccels(detailed);
         }
 
         get_actions_for_accel(accel: string): string[] {
@@ -415,7 +415,7 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
         }
 
         list_action_descriptions(): string[] {
-            return acceleratorsOf(this).list();
+            return acceleratorsOf(this).listActions();
         }
 
         get_windows(): object[] {

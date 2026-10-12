@@ -207,7 +207,7 @@ export class AcceleratorMap {
      * `gtk_application_set_accels_for_action`. An empty list removes the action. An accelerator that
      * does not parse logs a critical and changes nothing, as on GTK; a key name outside the subset throws.
      */
-    set(detailed: string, accelerators: readonly string[]): void {
+    setAccels(detailed: string, accelerators: readonly string[]): void {
         const key = canonicalDetailedName(detailed);
         const parsed: Accelerator[] = [];
         for (const text of accelerators) {
@@ -224,11 +224,11 @@ export class AcceleratorMap {
         else this.#entries.set(key, { names: parsed.map(acceleratorName), parsed });
     }
 
-    get(detailed: string): string[] {
+    getAccels(detailed: string): string[] {
         return [...(this.#entries.get(canonicalDetailedName(detailed))?.names ?? [])];
     }
 
-    list(): string[] {
+    listActions(): string[] {
         return [...this.#entries.keys()];
     }
 

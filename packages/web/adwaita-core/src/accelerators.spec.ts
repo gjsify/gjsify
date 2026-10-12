@@ -82,40 +82,40 @@ export default async () => {
     await describe('accelerators: AcceleratorMap bookkeeping', async () => {
         await it('stores normalized names and shares one entry across detailed spellings', () => {
             const map = new AcceleratorMap();
-            map.set('app.a', ['<Primary>q', '<Ctrl><Shift>S']);
-            map.set('app.foo::bar', ['<Primary>b']);
-            expect(map.get('app.a')).toStrictEqual(['<Control>q', '<Shift><Control>s']);
-            expect(map.get("app.foo('bar')")).toStrictEqual(['<Control>b']);
-            expect(map.get('app.unknown')).toStrictEqual([]);
+            map.setAccels('app.a', ['<Primary>q', '<Ctrl><Shift>S']);
+            map.setAccels('app.foo::bar', ['<Primary>b']);
+            expect(map.getAccels('app.a')).toStrictEqual(['<Control>q', '<Shift><Control>s']);
+            expect(map.getAccels("app.foo('bar')")).toStrictEqual(['<Control>b']);
+            expect(map.getAccels('app.unknown')).toStrictEqual([]);
         });
 
         await it('removes an entry with an empty list and keeps insertion order', () => {
             const map = new AcceleratorMap();
-            map.set('app.one', ['<Primary>1']);
-            map.set('app.two', ['<Primary>2']);
-            map.set('app.three', ['<Primary>3']);
-            map.set('app.two', []);
-            expect(map.list()).toStrictEqual(['app.one', 'app.three']);
+            map.setAccels('app.one', ['<Primary>1']);
+            map.setAccels('app.two', ['<Primary>2']);
+            map.setAccels('app.three', ['<Primary>3']);
+            map.setAccels('app.two', []);
+            expect(map.listActions()).toStrictEqual(['app.one', 'app.three']);
         });
 
         await it('keeps the previous value when an accelerator does not parse', () => {
             const map = new AcceleratorMap();
-            map.set('app.x', ['<Primary>x']);
+            map.setAccels('app.x', ['<Primary>x']);
             const original = console.error;
             console.error = () => {};
             try {
-                map.set('app.x', ['<bogus>a']);
+                map.setAccels('app.x', ['<bogus>a']);
             } finally {
                 console.error = original;
             }
-            expect(map.get('app.x')).toStrictEqual(['<Control>x']);
+            expect(map.getAccels('app.x')).toStrictEqual(['<Control>x']);
         });
 
         await it('keeps duplicates within a call and lets actions share an accelerator', () => {
             const map = new AcceleratorMap();
-            map.set('app.s', ['<Primary>s', '<Primary>s']);
-            map.set('app.t', ['<Primary>s']);
-            expect(map.get('app.s')).toStrictEqual(['<Control>s', '<Control>s']);
+            map.setAccels('app.s', ['<Primary>s', '<Primary>s']);
+            map.setAccels('app.t', ['<Primary>s']);
+            expect(map.getAccels('app.s')).toStrictEqual(['<Control>s', '<Control>s']);
             expect(map.actionsFor('<Control>s')).toStrictEqual(['app.s', 'app.t']);
             expect(map.actionsFor('<Control>z')).toStrictEqual([]);
         });
