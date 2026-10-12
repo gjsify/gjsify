@@ -34,6 +34,7 @@ import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
 import { GtkControlsNsTest } from './gtk-controls.spec.js';
 import { GtkStackNsTest } from './gtk-stack.spec.js';
 import { GtkToggleButtonNsTest } from './gtk-toggle-button.spec.js';
+import { GtkWindowMembersNsTest } from './window-members.spec.js';
 import { GtkWidgetTreeNsTest } from './widget-tree.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
 import { AdwRegisterBarrelNsTest } from './register-barrel.spec.js';
@@ -61,6 +62,7 @@ run({
     GtkStackNsTest,
     AdwWidgetBaseNsTest,
     AdwWindowRootsNsTest,
+    GtkWindowMembersNsTest,
     AdwWindowShellNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,

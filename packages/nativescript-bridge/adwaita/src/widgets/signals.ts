@@ -55,6 +55,12 @@ import type { EventData, Observable } from '@nativescript/core';
 
 import { withGtkWidgetLayout } from './widget-layout.js';
 
+/** The shape of `HandledAccumulator` (adwaita-core) a signal payload may carry; read structurally. */
+interface HandledAccumulatorLike {
+    readonly stopped: boolean;
+    collect(returned: unknown): void;
+}
+
 /** What `connect` records per handler, keyed on the id it handed back. */
 interface Handler {
     readonly eventName: string;
@@ -88,7 +94,7 @@ export interface GObjectSignals {
      * The callback receives the emitting widget FIRST, as a GJS signal handler does,
      * then the NativeScript payload.
      */
-    connect(eventName: string, callback: (self: this, data: EventData) => void): number;
+    connect(eventName: string, callback: (self: this, data: EventData) => unknown): number;
     /** Remove exactly the handler `connect` returned this id for. Throws on an id nothing holds. */
     disconnect(handlerId: number): void;
     /** `g_signal_emit_by_name`: run every handler `connect` added for `eventName`, with `args` in the payload. */
@@ -115,10 +121,20 @@ export type ObservableConstructor = abstract new (...args: any[]) => Observable;
  */
 export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
     abstract class WithSignals extends withGtkWidgetLayout(Base) implements GObjectSignals {
-        connect(eventName: string, callback: (self: this, data: EventData) => void): number {
+        connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
             // One wrapper per connect, so two handlers sharing a callback stay two
             // handlers — `removeEventListener(name, callback)` would drop both.
-            const listener = (data: EventData): void => callback(this, data);
+            // A payload carrying an `accumulator` is a signal with a handled-accumulator (`close-request`):
+            // handlers after the one that took it over do not run, and each return value is folded in.
+            const listener = (data: EventData): void => {
+                const accumulator = (data as { accumulator?: HandledAccumulatorLike }).accumulator;
+                if (accumulator === undefined) {
+                    callback(this, data);
+                    return;
+                }
+                if (accumulator.stopped) return;
+                accumulator.collect(callback(this, data));
+            };
             const id = nextHandlerId++;
             let handlers = HANDLERS.get(this);
             if (handlers === undefined) {
