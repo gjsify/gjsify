@@ -2,14 +2,14 @@
 // oracle, in adwaita-core's `style-manager.gjs.spec.ts`). The scheme is the app's: `setAdwaitaColorScheme`.
 
 import { STYLE_MANAGER_VECTORS, driveStyleManagerVectors, type AdwStyleLike } from '@gjsify/adwaita-core/conformance';
-import { setAdwaitaColorScheme } from '@gjsify/adwaita-core';
+import { ColorScheme, setAdwaitaColorScheme } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { AdwStyleManager } from './widgets/style-manager.js';
 
 // `namespace/adw.ts` pulls in `@nativescript/core`, which a Node run has not got; the namespace only
 // re-exports this class as `StyleManager` (the e2e `gi://Adw` arm holds that line).
-const Adw = { StyleManager: AdwStyleManager };
+const Adw = { StyleManager: AdwStyleManager, ColorScheme };
 
 export default async () => {
     try {

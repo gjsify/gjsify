@@ -4,6 +4,7 @@ import addonResolveSuite from './shims/addon-resolve.spec.js';
 import nativescriptExternalSuite from './app/nativescript-external.spec.js';
 import rnRouteManifestSuite from './plugins/rn-route-manifest.spec.js';
 import cssAsStringSuite from './plugins/css-as-string.spec.js';
+import gschemaSuite from './plugins/gschema.spec.js';
 import giOptionalSuite from './plugins/gi-optional.spec.js';
 import implicitGlobalAssignSuite from './plugins/implicit-global-assign.spec.js';
 import entryWrapperSuite from './utils/entry-wrapper.spec.js';
@@ -16,6 +17,7 @@ run({
     cssAsStringSuite,
     entryWrapperSuite,
     giOptionalSuite,
+    gschemaSuite,
     implicitGlobalAssignSuite,
     nativescriptExternalSuite,
     rnRouteManifestSuite,

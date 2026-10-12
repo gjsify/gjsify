@@ -26,9 +26,8 @@ import { Application, GridLayout, type View } from '@nativescript/core';
 
 import { builderSlotsOf } from './builder-slots.js';
 import { type SchemeClassView, syncColorSchemeClasses } from './color-scheme-classes.js';
-import { AdwSingleChildBase } from './single-child-base.js';
-import { type DialogHost, surfaceSize } from './window-state.js';
-import { xmlNumber } from './xml-values.js';
+import { GtkWindow } from './gtk-window.js';
+import type { DialogHost } from './window-state.js';
 
 /**
  * The class a window wears — the one the theme already gives a `Page`
@@ -52,13 +51,10 @@ function wireColorSchemeSync(): void {
     });
 }
 
-export abstract class AdwWindowBase extends AdwSingleChildBase implements DialogHost {
+export abstract class AdwWindowBase extends GtkWindow implements DialogHost {
     /** `content` is the one destination, so it is also the fallback. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(['content'], 'content');
 
-    private _title = '';
-    private _defaultWidth = 0;
-    private _defaultHeight = 0;
     private readonly _dialogs: View[] = [];
 
     constructor() {
@@ -90,35 +86,6 @@ export abstract class AdwWindowBase extends AdwSingleChildBase implements Dialog
     /** `adw_window_get_content`. */
     get_content(): View | null {
         return this.child;
-    }
-
-    // --- properties ---
-
-    /** `GtkWindow:title`. Held: a `Page` has no title bar of this window's to put it in. */
-    get title(): string {
-        return this._title;
-    }
-
-    set title(value: string | null) {
-        this._title = value ?? '';
-    }
-
-    /** `GtkWindow:default-width` — held and read back; the screen is the width. */
-    get defaultWidth(): number {
-        return this._defaultWidth;
-    }
-
-    set defaultWidth(value: number | string) {
-        this._defaultWidth = surfaceSize(xmlNumber(value, Number.NaN), value, this._defaultWidth, 'defaultWidth');
-    }
-
-    /** `GtkWindow:default-height` — held and read back; the screen is the height. */
-    get defaultHeight(): number {
-        return this._defaultHeight;
-    }
-
-    set defaultHeight(value: number | string) {
-        this._defaultHeight = surfaceSize(xmlNumber(value, Number.NaN), value, this._defaultHeight, 'defaultHeight');
     }
 
     // --- dialogs ---

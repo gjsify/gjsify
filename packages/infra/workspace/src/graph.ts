@@ -158,10 +158,18 @@ export function buildDependencyGraph(
         // edge. The filter below is why the two are separated.
         const candidates: UnlinkedDependency[] = [];
         const m = ws.manifest;
+        // An optional peer the package also lists in `devDependencies` is one it BUILDS against
+        // (its `.d.ts` are read by `tsc`) while consumers stay free to leave it out. Without
+        // this edge `--topological` / `--with-dependencies` build the consumer first and its
+        // typecheck fails on a missing `lib/` (`@gjsify/adwaita-web` → `@gjsify/app-settings`).
+        const builtAgainst: Record<string, string> = {};
+        for (const [depName, spec] of Object.entries(m.peerDependencies ?? {})) {
+            if (typeof m.devDependencies?.[depName] === 'string') builtAgainst[depName] = spec;
+        }
         for (const block of [
             m.dependencies,
             includeDev ? m.devDependencies : undefined,
-            includePeer ? m.peerDependencies : undefined,
+            includePeer ? m.peerDependencies : builtAgainst,
             includeOptional ? m.optionalDependencies : undefined,
         ]) {
             if (!block) continue;

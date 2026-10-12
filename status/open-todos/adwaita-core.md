@@ -205,6 +205,16 @@ class with a template and binds a property through `--gi-renderer`. The vectors 
 implementation on one port with no vector is how the two ports diverged before.
 
 
+### Platform members still missing for Learn6502 (gap report, `packages/app-gnome`)
+
+Done on both ports: `Gio.Settings`, `Adw.ColorScheme`, `Gtk.CssProvider`/`StyleContext`/`Settings`/
+`IconTheme`/`EventControllerKey`, `Gtk.show_uri`, `Gdk.KEY_*`, web `Gtk.License`. Open:
+
+- Browser refuses `GtkStackPage` (a `StackPage { child: … }` node must fold into its child),
+  `sibling-object` (one root per mount) and `layout` (layout-manager placement).
+- Conformance vectors for the platform slice do not yet run against real `gi://` under GJS.
+- `keyvalOfKey` ignores Shift, so an uppercase key reports the lower-case keysym.
+
 ### The file chooser has no iOS picker and no on-device Android run
 
 ADR 0100 decides Android's Storage Access Framework only. `file-chooser-source.ios.ts` rejects, so

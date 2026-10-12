@@ -36,6 +36,7 @@ import { giRendererPlugin } from '../plugins/gi-renderer.js';
 import { blueprintTemplateExit } from '../utils/blueprint-template-exit.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
+import { gschemaPlugin } from '../plugins/gschema.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 
 export interface BrowserBuildConfig {
@@ -172,6 +173,7 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         // readily as a read, so `window = {…}` would emit `globalThis = {…}` — code that
         // replaces the whole global object. This transform runs first and leaves the define
         // nothing to rewrite; the guarded branch stays unreachable on a page either way.
+        gschemaPlugin({ mode: 'emit' }),
         implicitGlobalAssignPlugin(),
         cssAsStringPlugin(),
         // `order: 'post'` — see app/gjs.ts. The browser target's whole job is to

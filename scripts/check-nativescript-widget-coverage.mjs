@@ -142,6 +142,25 @@ const MIN_REASON = 40;
  * has drifted twice.
  */
 const KNOWN_GAPS = {
+    'gtk-window': {
+        gaps: [
+            'decorated',
+            'deletable',
+            'destroyWithParent',
+            'focusVisible',
+            'fullscreened',
+            'gravity',
+            'handleMenubarAccel',
+            'hideOnClose',
+            'iconName',
+            'maximized',
+            'mnemonicsVisible',
+            'modal',
+            'resizable',
+            'startupId',
+        ],
+        why: 'The port is a true SUBSET of GtkWindow: a title, a default size and one child (gtk-window.ts). Android has one activity surface with no frame, icon, stacking or window-manager state, so none of the frame and window-manager properties has anything to read or write.',
+    },
     'gtk-popover-menu': {
         gaps: ['visibleSubmenu'],
         why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',

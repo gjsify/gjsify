@@ -24,7 +24,7 @@ export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 // ADR 0100: the file dialog is no element either — `present`-less, it asks the driver
 // `../file-chooser-host.ts` registers (imported by `./gio.ts`) and resolves a `Gio.File`.
 export { GtkFileDialog as FileDialog, GtkFileFilter as FileFilter, DialogError } from '@gjsify/adwaita-core';
-export { PolicyType, TextDirection, TextExtendSelection, TextWindowType } from './gtk-enums.js';
+export { License, PolicyType, TextDirection, TextExtendSelection, TextWindowType } from './gtk-enums.js';
 export { GtkAboutDialog as AboutDialog } from '../elements/gtk-about-dialog.js';
 export { GtkActionBar as ActionBar } from '../elements/gtk-action-bar.js';
 export { GtkApplicationWindow as ApplicationWindow } from '../elements/gtk-application-window.js';
@@ -100,3 +100,11 @@ export { GtkWindowControls as WindowControls } from '../elements/gtk-window-cont
 export { GtkViewport as Viewport } from '../elements/gtk-viewport.js';
 export { GtkWindowHandle as WindowHandle } from '../elements/gtk-window-handle.js';
 export { GtkApplication as Application } from '../application.js';
+export {
+    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    STYLE_PROVIDER_PRIORITY_FALLBACK,
+    STYLE_PROVIDER_PRIORITY_SETTINGS,
+    STYLE_PROVIDER_PRIORITY_THEME,
+    STYLE_PROVIDER_PRIORITY_USER,
+} from '@gjsify/adwaita-core';
+export { CssProvider, EventControllerKey, IconTheme, show_uri, StyleContext, Settings } from './gtk-platform.js';

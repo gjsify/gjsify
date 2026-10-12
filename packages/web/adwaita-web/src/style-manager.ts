@@ -3,7 +3,7 @@
 // core's (`style-manager.ts`); this file is the SOURCE: the root's `class` attribute and the media
 // query are the two things that can flip it. Without a `document` (SSR) it is light and never changes.
 
-import { StyleManagerBase, type StyleSource } from '@gjsify/adwaita-core';
+import { ColorScheme, StyleManagerBase, type StyleSource } from '@gjsify/adwaita-core';
 
 import { isAdwaitaDark } from './accent.js';
 
@@ -22,6 +22,15 @@ export const webStyleSource: StyleSource = {
     },
 };
 
+// FORCE_DARK / FORCE_LIGHT write the same root class an app writes by hand; DEFAULT takes it away.
+webStyleSource.force = (dark) => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.classList.remove('theme-dark', 'theme-light');
+    if (dark !== null) root.classList.add(dark ? 'theme-dark' : 'theme-light');
+};
+
 export class AdwStyleManager extends StyleManagerBase {
+    static readonly ColorScheme = ColorScheme;
     static override source = webStyleSource;
 }

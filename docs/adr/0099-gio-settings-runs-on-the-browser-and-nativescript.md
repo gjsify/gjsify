@@ -143,7 +143,7 @@ already has (`SYNC_CREATE`, `BIDIRECTIONAL`), with
 | `import { Settings } from '@gjsify/app-settings'` | native `Gio.Settings`, re-exported | the subset |
 
 Both name the same class with the same semantics on each target. `@gjsify/app-settings` is importable
-directly on GJS: the package will ship a `.gtk` platform file (`index.gtk.ts`) that re-exports
+directly on GJS: the package will ship a `.gtk` platform file (`src/index.ts`) that re-exports
 `Gio.Settings`. The GTK chain is `.gtk` → `.<os>` → `.desktop` → base
 (`packages/infra/rolldown-plugin-gjsify/src/plugins/platform-resolve.ts`, ADR 0032 § 9), and the
 browser chain refuses `.gtk`, so the base file there is the subset.

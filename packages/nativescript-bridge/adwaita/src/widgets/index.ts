@@ -105,6 +105,7 @@ export { GtkRevealer, NOTIFY_REVEAL_CHILD } from './gtk-revealer.js';
 export { revealerChildVisibility } from './revealer-state.js';
 export type { RevealerChildVisibility } from './revealer-state.js';
 export { GtkScrolledWindow } from './gtk-scrolled-window.js';
+export { GtkWindow } from './gtk-window.js';
 export {
     DEFAULT_SCROLLBAR_POLICY,
     GTK_POLICY_TYPES,
@@ -463,6 +464,7 @@ import { AdwBin } from './adw-bin.js';
 import { GtkOverlay } from './gtk-overlay.js';
 import { GtkRevealer } from './gtk-revealer.js';
 import { GtkScrolledWindow } from './gtk-scrolled-window.js';
+import { GtkWindow } from './gtk-window.js';
 import { GtkStack } from './gtk-stack.js';
 import { GtkToggleButton } from './gtk-toggle-button.js';
 import { GtkCheckButton } from './gtk-check-button.js';
@@ -533,6 +535,7 @@ const ELEMENTS = {
     GtkOverlay,
     GtkRevealer,
     GtkScrolledWindow,
+    GtkWindow,
     GtkStack,
     GtkToggleButton,
     GtkCheckButton,

@@ -60,7 +60,16 @@
         "@gjsify/gtksource-core": "workspace:^",
         "@lezer/highlight": "^1.2.3"
     },
+    "peerDependencies": {
+        "@gjsify/app-settings": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/app-settings": {
+            "optional": true
+        }
+    },
     "devDependencies": {
+        "@gjsify/app-settings": "workspace:^",
         "@gjsify/blueprint": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",

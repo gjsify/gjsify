@@ -100,14 +100,19 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
     // entry an enum (`Gtk.DialogError`), an `interface: true` entry a GInterface (`Gio.File`):
     // no GObject class, but values a namespace carries, and the typelib still has to declare
     // each as exactly that. `FlagsInfo` IS an `EnumInfo` subclass, so an enum excludes it.
+    // `kind: 'function' | 'constant'` is a namespace member that is neither type nor widget.
     const isKind = (i) =>
-        entry.flags === true
-            ? i instanceof GIRepository.FlagsInfo
-            : entry.enum === true
-              ? i instanceof GIRepository.EnumInfo && !(i instanceof GIRepository.FlagsInfo)
-              : entry.interface === true
-                ? i instanceof GIRepository.InterfaceInfo
-                : i instanceof GIRepository.ObjectInfo;
+        entry.kind === 'function'
+            ? i instanceof GIRepository.FunctionInfo
+            : entry.kind === 'constant'
+              ? i instanceof GIRepository.ConstantInfo
+              : entry.flags === true
+                ? i instanceof GIRepository.FlagsInfo
+                : entry.enum === true
+                  ? i instanceof GIRepository.EnumInfo && !(i instanceof GIRepository.FlagsInfo)
+                  : entry.interface === true
+                    ? i instanceof GIRepository.InterfaceInfo
+                    : i instanceof GIRepository.ObjectInfo;
     if (info === null || !isKind(info)) {
         // DECLARED, not skipped, and one row for both shapes: a name the namespace does not
         // carry and a name that is not a GObject are the same finding for a ledger whose
@@ -115,10 +120,12 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
         undeclared.push([entry.member, `${namespace}-${repo.get_version(namespace)}`]);
         continue;
     }
+    // A function or constant carries no GType; its row names itself so the spec can tell it apart.
+    const plain = entry.kind !== undefined;
     declared.push([
         entry.member,
-        info.get_type_name(),
-        info instanceof GIRepository.ObjectInfo ? ancestryOf(info).includes('GtkWidget') : false,
+        plain ? `${namespace}.${entry.gir}` : info.get_type_name(),
+        !plain && info instanceof GIRepository.ObjectInfo ? ancestryOf(info).includes('GtkWidget') : false,
     ]);
 }
 

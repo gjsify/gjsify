@@ -37,6 +37,7 @@ import {
     type GObjectInstance,
     type RegisteredClass,
     type SignalHandler,
+    widgetControllerMembers,
     widgetDisplayMembers,
 } from '@gjsify/adwaita-core';
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
@@ -45,6 +46,7 @@ import type { View } from '@nativescript/core';
 
 import { buildInto } from '../builder/index.js';
 import { gdk } from './gdk.js';
+import { nativePlatformHost } from '../platform-host.js';
 import { registerTemplateClass, type TemplateClass } from '../builder/template-classes.js';
 import { applyConstructProps } from '../widgets/construct-props.js';
 
@@ -105,7 +107,10 @@ function spliceLayer(klass: ClassLike): void {
         },
     };
     // `this.get_display()` / `this.get_clipboard()`, as on a realized Gtk.Widget; a parent's own wins.
-    for (const [name, member] of Object.entries(widgetDisplayMembers(gdk))) {
+    for (const [name, member] of Object.entries({
+        ...widgetDisplayMembers(gdk),
+        ...widgetControllerMembers(nativePlatformHost),
+    })) {
         if (!(name in Parent.prototype)) instanceApi[name] = member;
     }
     for (const [name, value] of Object.entries(instanceApi)) {

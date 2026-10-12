@@ -12,11 +12,21 @@ export interface StyleManagerLike {
     get_dark(): boolean;
     connect(signal: string, handler: (manager: StyleManagerLike, pspec: { name: string }) => void): number;
     disconnect(id: number): void;
+    color_scheme: number;
+    get_color_scheme(): number;
+    set_color_scheme(scheme: number): void;
 }
 
 /** The part of `Adw` the vectors read. */
 export interface AdwStyleLike {
     StyleManager: { get_default(): StyleManagerLike };
+    ColorScheme: {
+        DEFAULT: number;
+        FORCE_LIGHT: number;
+        PREFER_LIGHT: number;
+        PREFER_DARK: number;
+        FORCE_DARK: number;
+    };
 }
 
 export interface StyleManagerSubject {
@@ -28,7 +38,18 @@ export interface StyleManagerSubject {
     settle(): Promise<void>;
 }
 
-export const STYLE_MANAGER_ROWS = ['default', 'dark', 'notify', 'unchanged', 'disconnect', 'readonly'] as const;
+export const STYLE_MANAGER_ROWS = [
+    'default',
+    'dark',
+    'notify',
+    'unchanged',
+    'disconnect',
+    'readonly',
+    'scheme-values',
+    'scheme-force',
+    'scheme-notify',
+    'scheme-default',
+] as const;
 
 export type StyleManagerRow = (typeof STYLE_MANAGER_ROWS)[number];
 
@@ -123,6 +144,56 @@ export const STYLE_MANAGER_VECTORS: readonly StyleManagerVector[] = [
             }
         },
         shows: true,
+    },
+    {
+        row: 'scheme-values',
+        rule: 'Adw.ColorScheme carries the libadwaita values',
+        observe: ({ Adw }) => Object.values(Adw.ColorScheme).sort(),
+        shows: [0, 1, 2, 3, 4],
+    },
+    {
+        row: 'scheme-force',
+        rule: 'FORCE_DARK / FORCE_LIGHT pin `dark`, and color_scheme reads back through all three spellings',
+        async observe({ Adw, settle }) {
+            const manager = Adw.StyleManager.get_default();
+            const seen: unknown[] = [];
+            for (const scheme of [Adw.ColorScheme.FORCE_DARK, Adw.ColorScheme.FORCE_LIGHT]) {
+                manager.set_color_scheme(scheme);
+                await settle();
+                seen.push(manager.dark, manager.color_scheme === scheme, manager.get_color_scheme() === scheme);
+            }
+            return seen;
+        },
+        shows: [true, true, true, false, true, true],
+    },
+    {
+        row: 'scheme-notify',
+        rule: 'notify::color-scheme fires once per change and not for the value it already has',
+        async observe({ Adw, settle }) {
+            const manager = Adw.StyleManager.get_default();
+            manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT);
+            await settle();
+            let calls = 0;
+            const id = manager.connect('notify::color-scheme', () => void (calls += 1));
+            manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK);
+            manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK);
+            await settle();
+            manager.disconnect(id);
+            return calls;
+        },
+        shows: 1,
+    },
+    {
+        row: 'scheme-default',
+        rule: 'DEFAULT hands the interface back and reads back as DEFAULT',
+        async observe({ Adw, settle }) {
+            const manager = Adw.StyleManager.get_default();
+            manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK);
+            manager.set_color_scheme(Adw.ColorScheme.DEFAULT);
+            await settle();
+            return manager.color_scheme;
+        },
+        shows: 0,
     },
 ];
 

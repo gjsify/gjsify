@@ -11,7 +11,13 @@ export default async () => {
         const Gtk = (await import('gi://Gtk?version=4.0' as string)).default as { init_check(): boolean };
         const Adw = (await import('gi://Adw?version=1' as string)).default as AdwStyleLike & {
             init(): void;
-            ColorScheme: { FORCE_DARK: number; FORCE_LIGHT: number };
+            ColorScheme: {
+                DEFAULT: number;
+                FORCE_DARK: number;
+                FORCE_LIGHT: number;
+                PREFER_LIGHT: number;
+                PREFER_DARK: number;
+            };
         };
         if (!Gtk.init_check()) return;
         Adw.init();
