@@ -78,47 +78,45 @@ Same arrangement as the `@gjsify/gtk-runtime-*` bundles' `gtk/`. A fresh checkou
 AAR, which is what `include.gradle` is committed for: it turns the absence into a gradle
 failure that names the build command, instead of an APK that dies in `dlopen` at startup.
 
+The inputs are pinned by sha256 in [`build-inputs.json`](./build-inputs.json): the GLib /
+GObject-Introspection prefix, released per ABI in
+[gjsify/android-sysroot](https://github.com/gjsify/android-sysroot), and the `optimized`
+runtime AAR of the published `@nativescript/android`. Besides them the build needs only the
+pinned NDK.
+
 ```sh
 NDK=~/Android/Sdk/ndk/27.1.12297006
-GI=~/.cache/gjsify-android/gi-probe/.pixiewood
+IN=/tmp/gi-runtime-android-inputs
+
+# 0. the pinned inputs: $IN/sysroot and $IN/nativescript
+node scripts/fetch-build-inputs.mjs --out "$IN"
 
 # 1. the addon, per ABI — @gjsify/node-gi's own cross-build
-for pair in arm64-v8a:aarch64 x86_64:x86_64; do
-  abi=${pair%%:*} arch=${pair##*:}
+for abi in arm64-v8a x86_64; do
   node ../node-gi/scripts/build-android.mjs --abi "$abi" --ndk "$NDK" \
-      --gi-sysroot "$GI/root" --out /tmp/gi-android/"$abi" \
-      --pkg-config-libdir "$GI/bin-$arch/meson-uninstalled" \
-      --napi-lib ~/.cache/gjsify-android/ns/aar
+      --gi-sysroot "$IN/sysroot" --napi-lib "$IN/nativescript" --out /tmp/gi-android/"$abi"
 done
 
 # 2. the bundle
-node scripts/build-gi-runtime-android.mjs --ndk "$NDK" --gi-sysroot "$GI/root" \
-    --node-gi-lib /tmp/gi-android \
-    --typelib-dir "arm64-v8a=$GI/typelib-root/lib/arm64-v8a/girepository-1.0" \
-    --typelib-dir "x86_64=$GI/bin-x86_64/subprojects/glib/girepository/introspection"
+node scripts/build-gi-runtime-android.mjs --ndk "$NDK" --gi-sysroot "$IN/sysroot" \
+    --node-gi-lib /tmp/gi-android --license-corpus "$IN/sysroot/share/licenses"
 ```
 
-`--typelib-dir` is repeatable and per-ABI because a meson build tree has no single
-typelib directory: one GI build keeps them in an install root, another one directory per
-subproject. Omit it and the default is `<gi-sysroot>/lib/<abi>/girepository-1.0`.
+The prefix is not built in CI because g-ir-scanner has to *run* a dumper compiled for the
+target, which needs an emulator or a device. android-sysroot's README holds that recipe;
+a new prefix is a new release there plus a bump of the tag and both digests here.
+
+`--typelib-dir <abi>=<dir>` (repeatable) points at typelibs outside
+`<gi-sysroot>/lib/<abi>/girepository-1.0`, for a GI build tree that is not installed.
 
 ## Releasing
 
-The release bumps this manifest with the rest of the train, and `release.yml` has no job
-that can produce the AAR, so the version stays unpublished until a maintainer publishes
-it. `Verify the published dependency closure` fails the release on exactly that absence,
-and re-running the workflow does not fix it.
-
-1. Check out the release tag: `git worktree add <dir> v<version>`.
-2. Build the AAR as in [§ The payload is built](#the-payload-is-built-never-committed).
-   Its bytes depend on the GI prefix and the node-gi sources, not on the version, so an
-   AAR from the previous train can be reused when neither changed.
-3. `gjsify publish packages/node-gi/gi-runtime-android --access public --otp <code>`
-   from the tag checkout. `gjsify publish` reads the version back from the registry.
-4. Re-run the failed verify job: `gh run rerun <run-id> --failed`.
-
-The Trusted Publisher for `release.yml` already exists, so once CI can build the AAR, the
-regular sweep takes over and this section goes away.
+`release.yml`'s `publish-gi-runtime-android` job runs the three steps above on
+`ubuntu-latest` and publishes through the Trusted Publisher, like every other runtime
+bundle. Its bytes depend on the pinned inputs and the node-gi sources, not on the
+version: built from the 2026.10.12 prefix, the AAR is byte-identical to the 0.62.0 one
+that was published by hand (sha256 `ada5b59b…`); only `THIRD-PARTY-NOTICES.md` beside it
+gained the licence texts.
 
 ## What the build decides, and refuses
 
@@ -156,13 +154,12 @@ seventh and its consequence are recorded in
 **Every bundled library is attributed.** [`licenses/bundled-projects.json`](./licenses/bundled-projects.json)
 maps soname → project; a soname the closure grew with no entry fails the notice
 generation rather than shipping unattributed. The table is a NAME MAP and states no
-terms: the Android GI prefix is a meson build tree and ships no licence corpus at all
-(measured: zero `COPYING`/`LICENSE` files under the whole prefix), unlike the Homebrew
-kegs the darwin bundle reads terms from. So the notice names each project and its
-upstream and says plainly that the text is not embedded — an unspecific true claim
-instead of an SPDX expression written from recollection, which is what `bundled-license`
-refuses on win32 for the same reason. `--license-corpus <dir>` embeds texts when a build
-has them.
+terms; the terms are the licence texts android-sysroot copies from every subproject's
+source tree into `share/licenses/`, which `--license-corpus` embeds in the notice. A build
+without a corpus (a bare meson build tree ships none) names each project and its upstream
+and says plainly that the text is not embedded — an unspecific true claim instead of an
+SPDX expression written from recollection, which is what `bundled-license` refuses on
+win32 for the same reason.
 
 ## Size
 
