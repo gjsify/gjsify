@@ -117,7 +117,9 @@ export class Canvas2DBridge extends withGtkWidgetLayout(NsView) {
 
     /** NativeScript's own `requestAnimationFrame`, here so the call reads the same on every target. */
     requestAnimationFrame(cb: FrameRequestCallback): number {
-        return (globalThis as unknown as { requestAnimationFrame(cb: FrameRequestCallback): number }).requestAnimationFrame(cb);
+        return (
+            globalThis as unknown as { requestAnimationFrame(cb: FrameRequestCallback): number }
+        ).requestAnimationFrame(cb);
     }
 
     /** A no-op: NativeScript already has `requestAnimationFrame` and `performance`. */

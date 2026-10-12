@@ -195,7 +195,13 @@ export class NsCanvasRenderingContext2D {
     private argb(style: string): number {
         const color = parseColor(style)!;
         const alpha = Math.round(color.a * this.state.globalAlpha * 255);
-        return ((alpha << 24) | (Math.round(color.r * 255) << 16) | (Math.round(color.g * 255) << 8) | Math.round(color.b * 255)) | 0;
+        return (
+            (alpha << 24) |
+            (Math.round(color.r * 255) << 16) |
+            (Math.round(color.g * 255) << 8) |
+            Math.round(color.b * 255) |
+            0
+        );
     }
 
     private static finite(...values: number[]): boolean {

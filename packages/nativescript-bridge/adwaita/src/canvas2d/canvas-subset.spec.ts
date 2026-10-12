@@ -7,17 +7,39 @@ import { type Canvas2DBackend, NsCanvas } from './canvas-subset.js';
 
 class Recorder implements Canvas2DBackend {
     readonly calls: string[] = [];
-    resize(w: number, h: number) { this.calls.push(`resize ${w}x${h}`); }
-    fillRect(x: number, y: number, w: number, h: number, argb: number) { this.calls.push(`fillRect ${x},${y},${w},${h} ${(argb >>> 0).toString(16)}`); }
-    clearRect(x: number, y: number, w: number, h: number) { this.calls.push(`clearRect ${x},${y},${w},${h}`); }
-    resetPath() { this.calls.push('resetPath'); }
-    moveTo(x: number, y: number) { this.calls.push(`moveTo ${x},${y}`); }
-    lineTo(x: number, y: number) { this.calls.push(`lineTo ${x},${y}`); }
-    rect(x: number, y: number, w: number, h: number) { this.calls.push(`rect ${x},${y},${w},${h}`); }
-    closePath() { this.calls.push('closePath'); }
-    fillPath(argb: number) { this.calls.push(`fillPath ${(argb >>> 0).toString(16)}`); }
-    strokePath(argb: number, width: number) { this.calls.push(`strokePath ${(argb >>> 0).toString(16)} ${width}`); }
-    setImageSmoothing(on: boolean) { this.calls.push(`smoothing ${on}`); }
+    resize(w: number, h: number) {
+        this.calls.push(`resize ${w}x${h}`);
+    }
+    fillRect(x: number, y: number, w: number, h: number, argb: number) {
+        this.calls.push(`fillRect ${x},${y},${w},${h} ${(argb >>> 0).toString(16)}`);
+    }
+    clearRect(x: number, y: number, w: number, h: number) {
+        this.calls.push(`clearRect ${x},${y},${w},${h}`);
+    }
+    resetPath() {
+        this.calls.push('resetPath');
+    }
+    moveTo(x: number, y: number) {
+        this.calls.push(`moveTo ${x},${y}`);
+    }
+    lineTo(x: number, y: number) {
+        this.calls.push(`lineTo ${x},${y}`);
+    }
+    rect(x: number, y: number, w: number, h: number) {
+        this.calls.push(`rect ${x},${y},${w},${h}`);
+    }
+    closePath() {
+        this.calls.push('closePath');
+    }
+    fillPath(argb: number) {
+        this.calls.push(`fillPath ${(argb >>> 0).toString(16)}`);
+    }
+    strokePath(argb: number, width: number) {
+        this.calls.push(`strokePath ${(argb >>> 0).toString(16)} ${width}`);
+    }
+    setImageSmoothing(on: boolean) {
+        this.calls.push(`smoothing ${on}`);
+    }
     invalidate() {}
 }
 
@@ -45,7 +67,9 @@ export const Canvas2DSubsetNsTest = async () => {
         await it('delivers dispatched events to listeners until they are removed', () => {
             const { canvas } = setup();
             let heard = 0;
-            const listener = () => { heard++; };
+            const listener = () => {
+                heard++;
+            };
             canvas.addEventListener('resize', listener);
             canvas.dispatchEvent({ type: 'resize' });
             canvas.removeEventListener('resize', listener);
@@ -74,7 +98,9 @@ export const Canvas2DSubsetNsTest = async () => {
 
         await it('refuses a gradient or pattern where a colour string is expected', () => {
             const { ctx } = setup();
-            expect(() => { ctx.fillStyle = {} as unknown as string; }).toThrow('Canvas2D subset');
+            expect(() => {
+                ctx.fillStyle = {} as unknown as string;
+            }).toThrow('Canvas2D subset');
         });
 
         await it('ignores a non-positive lineWidth and an out-of-range globalAlpha', () => {
@@ -112,7 +138,9 @@ export const Canvas2DSubsetNsTest = async () => {
             ctx.fillRect(1, 2, 3, 4);
             ctx.globalAlpha = 0.5;
             ctx.fillRect(0, 0, 1, 1);
-            expect(JSON.stringify(backend.calls.slice(1))).toBe(JSON.stringify(['fillRect 1,2,3,4 ffff8000', 'fillRect 0,0,1,1 80ff8000']));
+            expect(JSON.stringify(backend.calls.slice(1))).toBe(
+                JSON.stringify(['fillRect 1,2,3,4 ffff8000', 'fillRect 0,0,1,1 80ff8000']),
+            );
         });
 
         await it('normalises a negative size and skips an empty or non-finite rectangle', () => {
@@ -121,7 +149,9 @@ export const Canvas2DSubsetNsTest = async () => {
             ctx.fillRect(0, 0, 0, 5);
             ctx.fillRect(NaN, 0, 1, 1);
             ctx.clearRect(5, 5, -5, 5);
-            expect(JSON.stringify(backend.calls.slice(1))).toBe(JSON.stringify(['fillRect 6,8,4,2 ff000000', 'clearRect 0,5,5,5']));
+            expect(JSON.stringify(backend.calls.slice(1))).toBe(
+                JSON.stringify(['fillRect 6,8,4,2 ff000000', 'clearRect 0,5,5,5']),
+            );
         });
 
         await it('starts a subpath on a lineTo without a current point', () => {
@@ -131,7 +161,9 @@ export const Canvas2DSubsetNsTest = async () => {
             ctx.lineTo(4, 4);
             ctx.closePath();
             ctx.fill();
-            expect(JSON.stringify(backend.calls.slice(1))).toBe(JSON.stringify(['resetPath', 'moveTo 3,3', 'lineTo 4,4', 'closePath', 'fillPath ff000000']));
+            expect(JSON.stringify(backend.calls.slice(1))).toBe(
+                JSON.stringify(['resetPath', 'moveTo 3,3', 'lineTo 4,4', 'closePath', 'fillPath ff000000']),
+            );
         });
 
         await it('leaves the current point at the corner of a rect, as the spec does', () => {
@@ -140,16 +172,33 @@ export const Canvas2DSubsetNsTest = async () => {
             ctx.rect(1, 1, 5, 5);
             ctx.lineTo(9, 9);
             ctx.stroke();
-            expect(JSON.stringify(backend.calls.slice(2))).toBe(JSON.stringify(['rect 1,1,5,5', 'moveTo 1,1', 'lineTo 9,9', 'strokePath ff000000 1']));
+            expect(JSON.stringify(backend.calls.slice(2))).toBe(
+                JSON.stringify(['rect 1,1,5,5', 'moveTo 1,1', 'lineTo 9,9', 'strokePath ff000000 1']),
+            );
         });
     });
 
     await describe('Canvas2D subset: absent members', async () => {
         await it('has NO member outside the subset, so a call is a TypeError and not a silent no-op', () => {
             const { ctx } = setup();
-            const absent = ['arc', 'drawImage', 'getImageData', 'putImageData', 'fillText', 'translate', 'scale',
-                'rotate', 'setTransform', 'clip', 'createLinearGradient', 'bezierCurveTo', 'quadraticCurveTo',
-                'measureText', 'strokeRect', 'isPointInPath'];
+            const absent = [
+                'arc',
+                'drawImage',
+                'getImageData',
+                'putImageData',
+                'fillText',
+                'translate',
+                'scale',
+                'rotate',
+                'setTransform',
+                'clip',
+                'createLinearGradient',
+                'bezierCurveTo',
+                'quadraticCurveTo',
+                'measureText',
+                'strokeRect',
+                'isPointInPath',
+            ];
             for (const name of absent) {
                 expect(name in ctx).toBe(false);
                 expect(() => (ctx as unknown as Record<string, () => void>)[name]!()).toThrow();
