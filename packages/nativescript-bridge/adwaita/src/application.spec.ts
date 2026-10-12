@@ -13,8 +13,10 @@ import {
     type ApplicationScene,
     type ApplicationSubject,
 } from '@gjsify/adwaita-core/conformance';
+import type { HostKeyEvent } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
+import { nativePlatformHost } from './platform-host.js';
 import { activateWidgetAction } from './widgets/actions.js';
 import * as Adw from './namespace/adw.js';
 import * as Gio from './namespace/gio.js';
@@ -97,6 +99,43 @@ export const AdwApplicationNsTest = async () => {
                 message = (error as Error).message;
             }
             expect(message.includes('added no window')).toBe(true);
+        });
+        // The base `listenPlatformKeys` never delivers (iOS and the unit tests), so the wiring is
+        // tested through a host whose `listenKeys` hands over its handler.
+        await it('hardware keys delivered to the window run the accelerator', () => {
+            const original = nativePlatformHost.listenKeys;
+            let handler: ((event: HostKeyEvent) => boolean) | undefined;
+            let stopped = false;
+            nativePlatformHost.listenKeys = (_widget, h) => {
+                handler = h;
+                return () => {
+                    stopped = true;
+                };
+            };
+            try {
+                const app = new Adw.Application({ application_id: 'org.gjsify.vec.NsAccel' });
+                const window = scene.window(app as never) as Adw.ApplicationWindow;
+                const hits: unknown[] = [];
+                for (const [owner, name] of [
+                    [app, 'save'],
+                    [window, 'open'],
+                ] as const) {
+                    const action = new Gio.SimpleAction({ name });
+                    action.connect('activate', () => hits.push(name));
+                    (owner as unknown as { add_action(a: object): void }).add_action(action);
+                }
+                app.set_accels_for_action('app.save', ['<Primary>s']);
+                app.set_accels_for_action('win.open', ['<Primary><Shift>o']);
+                const key = (k: string, state: number) => handler!({ key: k, keycode: 0, state, pressed: true });
+                expect(key('s', 4)).toBe(true);
+                expect(key('O', 5)).toBe(true);
+                expect(key('s', 0)).toBe(false);
+                expect(hits).toStrictEqual(['save', 'open']);
+                (window as unknown as { application: object | null }).application = null;
+                expect(stopped).toBe(true);
+            } finally {
+                nativePlatformHost.listenKeys = original;
+            }
         });
         await it('a button in the window resolves app. and win. through View.parent', async () => {
             const app = new Adw.Application({ application_id: 'org.gjsify.vec.NsResolve' });

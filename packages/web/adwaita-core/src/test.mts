@@ -63,6 +63,7 @@ import engineSlotTestSuite from './engine-slot.spec.js';
 import gobjectOracleTestSuite from './gobject.gjs.spec.js';
 import applicationTestSuite from './application.spec.js';
 import applicationOracleTestSuite from './application.gjs.spec.js';
+import acceleratorsTestSuite from './accelerators.spec.js';
 import glibTimersTestSuite from './glib-timers.spec.js';
 import glibTimersOracleTestSuite from './glib-timers.gjs.spec.js';
 import gdkTestSuite from './gdk.spec.js';
@@ -141,6 +142,7 @@ run({
     gobjectOracleTestSuite,
     applicationTestSuite,
     applicationOracleTestSuite,
+    acceleratorsTestSuite,
     glibTimersTestSuite,
     glibTimersOracleTestSuite,
     gdkTestSuite,

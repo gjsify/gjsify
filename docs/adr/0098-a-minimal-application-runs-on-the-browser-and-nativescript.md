@@ -70,8 +70,7 @@ Refused by name, with a vector that holds on the subset only (ADR 0096 § 3): `r
 signals and their `vfunc_*` (not on the list of § 1a), `set_inactivity_timeout`, `send_notification`, `register_session`,
 `set_option_context_*`, `add_main_option*`, `Gio.ApplicationFlags` other than the default,
 `resource_base_path`, `Gio.Application.get_default()` beyond the instance just made, any D-Bus
-property (`is_remote`, `get_dbus_*`), `set_accels_for_action` (stage 2 below, but it throws until then,
-because a shortcut that silently dies is the drop ADR 0071 § 3 forbids), `set_menubar`, `get_menu_by_id`,
+property (`is_remote`, `get_dbus_*`), `set_menubar`, `get_menu_by_id`,
 `app_menu`.
 
 ### 1a. `vfunc_*` is unlocked one by one
@@ -119,9 +118,15 @@ A widget with no window above it finds no `app` group, which is not an empty gro
 
 ### 4. Later stages, each a pure addition
 
-1. **Accelerators.** `set_accels_for_action`, `get_accels_for_action`, `list_action_descriptions`.
-   Browser: a document `keydown` listener resolves the string to the action; NativeScript keeps the
-   refusal (ADR 0097 § 4). Accelerators in `.blp` items follow.
+1. **Accelerators (landed).** `set_accels_for_action`, `get_accels_for_action`,
+   `get_actions_for_accel`, `list_action_descriptions`, with the bookkeeping and the parser in
+   `@gjsify/adwaita-core`. A key press in a window of the application activates the matching action
+   through the normal group lookup, with the detailed target, only when the action is enabled. The
+   browser listens to the window's `keydown`; NativeScript uses the hardware-key path
+   (`listenPlatformKeys`): wired for Android through `View.setOnKeyListener` (not yet verified on a
+   device), a no-op on iOS, which delivers no hardware keys, so a shortcut set there never fires.
+   The key names are a subset of the keysym table; any other name throws, naming the key, instead
+   of installing a dead shortcut (ADR 0071 § 3). Accelerators in `.blp` items follow.
 2. **`Gio.Menu` as application menu** and `set_menubar`/`get_menu_by_id` over ADR 0097's value.
 3. **`hold`/`release`/`mark_busy`**, defined on the lifecycle of § 3.
 4. **`open` with files** (`Gio.ApplicationFlags.HANDLES_OPEN`, `Gio.File` from a URL or an Android intent)
@@ -146,8 +151,8 @@ A widget with no window above it finds no `app` group, which is not an empty gro
 
 ## Consequences
 
-- The Learn6502 `Application` class compiles unchanged for both ports, except `set_accels_for_action`,
-  which throws until stage 1 of § 4; that is one line to guard, and then it is a pure addition.
+- The Learn6502 `Application` class compiles unchanged for both ports, including `set_accels_for_action`
+  (stage 1 of § 4), within the keysym subset.
 - **For ADR 0097.** `app.` resolves through this Application, so ADR 0097 § 3's "explicitly inserted
   `app` group until then" and its "What this does not decide" line on the application object are
   superseded. On NativeScript, menus render as a native Android `PopupMenu` anchored at the menu

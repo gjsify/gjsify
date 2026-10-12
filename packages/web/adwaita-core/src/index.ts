@@ -1077,8 +1077,11 @@ export {
     GioApplicationBase,
     GtkApplicationBase,
     withGtkApplication,
+    dispatchAccelerator,
     isValidApplicationId,
 } from './application.js';
+export { AcceleratorMap, ModifierMask, acceleratorName, parseAcceleratorKeyval } from './accelerators.js';
+export type { Accelerator } from './accelerators.js';
 export type { ApplicationHost, GtkApplicationMembers, GtkApplicationConstructor } from './application.js';
 export {
     ActionRegistry,

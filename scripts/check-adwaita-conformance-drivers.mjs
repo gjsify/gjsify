@@ -235,6 +235,13 @@ const MODULE_REASONS = {
     // Input interpretation, not widget behaviour: it turns macOS's `AppleAccentColor` into
     // an accent NAME, which the renderers then paint through `accent.ts` (tabled). Its only
     // caller is `@gjsify/adwaita-app/system-accent`, a reader outside every renderer.
+    // The parser, the canonical names and the matcher behind `Gtk.Application`'s accelerator
+    // methods. They are reached only through those methods, so the `accels` rows of
+    // `APPLICATION_VECTORS` carry them: real-GTK oracle vectors for the parsed forms, the
+    // normalised names, the order and the `[]` removal, driven by both renderers. The keysym
+    // SUBSET and the dispatch of a key press are not rows; `accelerators.spec.ts` in core and
+    // each port's `application.spec.ts` hold them.
+    accelerators: { table: 'APPLICATION_VECTORS' },
     'apple-accent': { gap: NO_TABLE_LEDGER },
     breakpoint: { gap: NO_TABLE_LEDGER },
     // The wiring around `breakpoint.ts`: it applies and restores setters through a renderer's

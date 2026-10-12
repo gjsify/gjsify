@@ -150,5 +150,47 @@ export default async () => {
             );
             expect(cipher.getAuthTag().toString('hex')).toBe('db8820f968fc16628f4b13db40e04219');
         });
+
+        // IVs other than 96 bits derive J0 = GHASH_H(IV || pad || 0^64 || [len(IV)]_64)
+        // (NIST SP 800-38D §7.1). OMEMO (XEP-0384) uses 16-byte IVs.
+        const nistKey = Buffer.from('feffe9928665731c6d6a8f9467308308', 'hex');
+        const nistPlaintext = Buffer.from(
+            'd9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72' +
+                '1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39',
+            'hex',
+        );
+        const nistAad = Buffer.from('feedfacedeadbeeffeedfacedeadbeefabaddad2', 'hex');
+
+        await it('should accept a 64-bit IV (NIST SP 800-38D test case 5)', async () => {
+            const iv = Buffer.from('cafebabefacedbad', 'hex');
+            const cipher = createCipheriv('aes-128-gcm', nistKey, iv);
+            cipher.setAAD(nistAad);
+            const ciphertext = Buffer.concat([cipher.update(nistPlaintext), cipher.final()]);
+            expect(ciphertext.toString('hex')).toBe(
+                '61353b4c2806934a777ff51fa22a4755699b2a714fcdc6f83766e5f97b6c7423' +
+                    '73806900e49f24b22b097544d4896b424989b5e1ebac0f07c23f4598',
+            );
+            expect(cipher.getAuthTag().toString('hex')).toBe('3612d2e79e3b0785561be14aaca2fccb');
+        });
+
+        await it('should accept a 128-bit IV and round-trip it', async () => {
+            // Known answer computed with Node's OpenSSL.
+            const iv = Buffer.from('000102030405060708090a0b0c0d0e0f', 'hex');
+            const cipher = createCipheriv('aes-128-gcm', nistKey, iv);
+            cipher.setAAD(nistAad);
+            const ciphertext = Buffer.concat([cipher.update(nistPlaintext), cipher.final()]);
+            const tag = cipher.getAuthTag();
+            expect(ciphertext.toString('hex')).toBe(
+                '9333269f7190747c0c40f4e68b264bccb425eb7f01668da81e32f7c519b37524' +
+                    '9297ea2dc3f88c3a2b1c70373831df37959db053642fb009a4710555',
+            );
+            expect(tag.toString('hex')).toBe('e2982c8b98fdd5eaa7d9f52990d8978b');
+
+            const decipher = createDecipheriv('aes-128-gcm', nistKey, iv);
+            decipher.setAAD(nistAad);
+            decipher.setAuthTag(tag);
+            const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+            expect(plaintext.toString('hex')).toBe(nistPlaintext.toString('hex'));
+        });
     });
 };

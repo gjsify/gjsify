@@ -20,6 +20,7 @@ export const APPLICATION_ROWS = [
     'windows',
     'resolution',
     'refusal',
+    'accels',
 ] as const;
 
 export type ApplicationRow = (typeof APPLICATION_ROWS)[number];
@@ -424,21 +425,72 @@ export const APPLICATION_VECTORS: readonly ApplicationVector[] = [
     refusedBy("the 'command-line' signal", (app) => app.connect('command-line', () => {})),
     refusedBy('send_notification()', (app) => (app as unknown as { send_notification(): void }).send_notification()),
     {
-        row: 'refusal',
-        rule: 'set_accels_for_action throws until stage 2, because a shortcut that silently dies is a drop',
-        holds: 'subset',
-        windowed: true,
+        row: 'accels',
+        rule: 'get_accels_for_action returns the normalized names, and the detailed spellings share one entry',
+        holds: 'oracle',
         observe(s) {
-            const app = new s.Application({ application_id: idOf() }) as unknown as {
-                set_accels_for_action(action: string, accels: string[]): void;
-            };
-            return (attempt(() => app.set_accels_for_action('app.quit', ['<Control>q'])) ?? '').includes(
-                'set_accels_for_action',
+            const app = new s.Application({ application_id: idOf() }) as unknown as AccelApplication;
+            app.set_accels_for_action('app.a', ['<Primary>q', '<Ctrl><Shift>S']);
+            app.set_accels_for_action('app.foo::bar', ['<Primary>b']);
+            return [
+                app.get_accels_for_action('app.a'),
+                app.get_accels_for_action("app.foo('bar')"),
+                app.get_accels_for_action('app.unknown'),
+            ];
+        },
+        shows: [['<Control>q', '<Shift><Control>s'], ['<Control>b'], []],
+    },
+    {
+        row: 'accels',
+        rule: 'an empty list removes the entry, and list_action_descriptions keeps insertion order',
+        holds: 'oracle',
+        observe(s) {
+            const app = new s.Application({ application_id: idOf() }) as unknown as AccelApplication;
+            app.set_accels_for_action('app.one', ['<Primary>1']);
+            app.set_accels_for_action('app.two', ['<Primary>2']);
+            app.set_accels_for_action('app.three', ['<Primary>3']);
+            const before = app.list_action_descriptions();
+            app.set_accels_for_action('app.two', []);
+            return [before, app.list_action_descriptions(), app.get_accels_for_action('app.two')];
+        },
+        shows: [['app.one', 'app.two', 'app.three'], ['app.one', 'app.three'], []],
+    },
+    {
+        row: 'accels',
+        rule: 'get_actions_for_accel finds every action of an accelerator, in order, and [] for none',
+        holds: 'oracle',
+        observe(s) {
+            const app = new s.Application({ application_id: idOf() }) as unknown as AccelApplication;
+            app.set_accels_for_action('app.quit', ['<Primary>q']);
+            app.set_accels_for_action('app.dup', ['<Control>q']);
+            return [
+                app.get_actions_for_accel('<Primary>q'),
+                app.get_actions_for_accel('<Control>q'),
+                app.get_actions_for_accel('<Primary>z'),
+            ];
+        },
+        shows: [['app.quit', 'app.dup'], ['app.quit', 'app.dup'], []],
+    },
+    {
+        row: 'accels',
+        rule: 'a key name outside the keysym subset is refused, naming the key',
+        holds: 'subset',
+        observe(s) {
+            const app = new s.Application({ application_id: idOf() }) as unknown as AccelApplication;
+            return (attempt(() => app.set_accels_for_action('app.x', ['<Control>NoSuchKeysym'])) ?? '').includes(
+                'NoSuchKeysym',
             );
         },
         shows: true,
     },
 ];
+
+interface AccelApplication {
+    set_accels_for_action(action: string, accels: string[]): void;
+    get_accels_for_action(action: string): string[];
+    get_actions_for_accel(accel: string): string[];
+    list_action_descriptions(): string[];
+}
 
 /** Every `Class.vfunc_name` of `UNLOCKED_VFUNCS`, for the gate that an entry without a vector fails. */
 export function unlockedVfuncNames(): string[] {

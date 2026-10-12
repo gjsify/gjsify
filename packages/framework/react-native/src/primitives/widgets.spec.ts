@@ -335,6 +335,13 @@ export default async () => {
         Gtk.init();
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();
+        // The same macOS frame-clock warning router.spec.ts sets aside (gdk/gdkframetimings.c,
+        // the GDK_FRAME_SKIPPED arm of `gdk_frame_timings_presented`): the rail vector presents a
+        // window and waits on the frame clock, and darwin-arm64 reported it there on two attempts
+        // of run 38282414757 while Linux and win32 stayed silent.
+        if (process.platform === 'darwin') {
+            diagnostics.allowEnvironment('gdk_frame_timings_presented() called on skipped frame.');
+        }
         const gated = (name: string, run: () => Promise<void>): Promise<void> =>
             describe(name, async () => {
                 beforeEach(() => {
