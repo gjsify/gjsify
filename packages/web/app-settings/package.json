@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/app-settings",
-    "version": "0.59.1",
+    "version": "0.61.0",
     "description": "Gio.Settings as a strict subset for the browser (localStorage) and NativeScript (ApplicationSettings); the native Gio.Settings on GJS",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -42,7 +42,13 @@
         "test:gjs": "gjsify run test.gjs.mjs",
         "test:node": "node test.node.mjs"
     },
-    "keywords": ["gjs", "gsettings", "settings", "nativescript", "browser"],
+    "keywords": [
+        "gjs",
+        "gsettings",
+        "settings",
+        "nativescript",
+        "browser"
+    ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
