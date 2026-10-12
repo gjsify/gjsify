@@ -180,11 +180,15 @@ test('Gio._promisify: same method name on two classes resolves per-class', async
     const GLib = requireGi('GLib', '2.0');
 
     // Register load_contents_async on Gio.File FIRST (its real finish), then on an
-    // UNRELATED class with a BOGUS finish. The File registration is no longer last,
-    // so a correct read proves the instance resolved its OWN class's registration
-    // (native.isInstanceOf), not a naive fallback-to-last (which would pick the
-    // bogus finish and throw).
+    // UNRELATED class with a BOGUS finish (stand-in methods: _promisify refuses a method that
+    // does not exist, like GJS). The File registration is no longer last, so a correct read
+    // proves the instance resolved its OWN class's registration (native.isInstanceOf), not a
+    // naive fallback-to-last (which would pick the bogus finish and throw).
     Gio._promisify(Gio.File.prototype, 'load_contents_async', 'load_contents_finish');
+    Gio.Cancellable.prototype.load_contents_async = () => {};
+    Gio.Cancellable.prototype.nonexistent_finish = () => {
+        throw new Error('the bogus finish must not be picked');
+    };
     Gio._promisify(Gio.Cancellable.prototype, 'load_contents_async', 'nonexistent_finish');
 
     const dir = mkdtempSync(join(tmpdir(), 'node-gi-async-multi-'));

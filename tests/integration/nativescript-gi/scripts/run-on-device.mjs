@@ -71,6 +71,9 @@ if (devices.length > 1 && !process.env.ANDROID_SERIAL) {
 }
 say(`device ${process.env.ANDROID_SERIAL ?? devices[0]}`);
 
+// 0. The compiled Gio.Settings fixture schema, which the bundle carries as base64.
+if (run('node', [join(root, 'scripts', 'compile-schemas.mjs')]).status !== 0) die('schema compile failed.');
+
 // 1. Bundle. The define is read from the environment by ../vite.config.ts, so the flag has to be
 //    in scope for THIS step — the APK built afterwards carries the decision.
 say('nativescript prepare android --no-hmr --disable-npm-install …');

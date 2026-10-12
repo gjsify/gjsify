@@ -37,6 +37,8 @@ explicit opt-in: pure JS stays the default even when the bytes are right there.
 | `app/specs/engine.ts` | `gobjectEngineName()` **and** `@gjsify/adwaita-nativescript/gobject`'s `engineName` report the expected engine; a second opt-in is refused, not silently honoured |
 | `app/specs/gobject.vectors.ts` | `GOBJECT_VECTORS` against `createSubsetSubject(registeredEngine())` — the engine the app really got |
 | `app/specs/list-store.ts` | `LIST_ITEMS_CHANGED_VECTORS` through a real `Gio.ListStore`, with item identity counted off the live model |
+| `app/specs/settings.ts` | `SETTINGS_VECTORS` through real `Gio.Settings` (memory backend); the schema is compiled on the host by `scripts/compile-schemas.mjs` and travels as base64 |
+| `app/specs/file-chooser.ts` | `FILE_CHOOSER_VECTORS` through real `Gio.File` with a Gtk stand-in (the payload has no Gtk typelib) |
 
 The GObject subject is **imported, not re-made**: `createSubsetSubject` ships from
 `@gjsify/adwaita-gobject-native`, and `engine.node-gi.spec.ts` drives the same door

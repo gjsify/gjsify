@@ -451,3 +451,31 @@ timeout on every main push from 6a5ad46 on; 73eb0e3 was the last green run. The 
 the process after a 5 s grace, which hides the symptom. Open: which source or handle the new
 gallery stories leave alive after `Adw.Application.quit()` on node-gi. Look for it by bisecting
 the stories added in #2011 with `GJSIFY_STORYBOOK_PROBE_STORY`, then drop the grace exit.
+
+### node-gi's marshaller wraps an out-of-range `guint`/`gint` argument; GJS throws
+
+Found running the ADR 0099 vectors on real Gio (stage 3). `Gio.Settings.set_uint('k', -1)`
+reaches `g_settings_set_uint` as 4294967295 on node-gi; GJS throws `Argument value: value is out
+of range for uint32`. The `Gio.Settings` override (`overrides/gio-settings.js`) now guards the
+two calls the vectors use, so that call matches — the general rule does not: every other
+`guint32`/`gint32` IN argument still wraps modulo 2^32. Fix in `marshal.cc`'s number-to-int path,
+with a `gimarshalling` row, then drop the two range checks from the override.
+
+### node-gi's `GLib.Error` prints and carries its domain differently from GJS
+
+`new GLib.Error(Gtk.DialogError, 2, 'x')`: GJS gives `.domain` a number and `String(e)` is
+`Gtk.DialogError: x`; node-gi gives the quark NAME and `GLib.Error gtk-dialog-error-quark: x`
+(measured on node-gi 0.61.0, GJS 1.88.1). Two ADR 0100 `error` vectors cannot
+hold on node-gi until that is decided; `@gjsify/adwaita-gobject-native` leaves them out of the
+real-Gio run and says why. Decision needed: keep the divergence (and keep the rows out) or move
+node-gi to GJS's shapes, which touches every consumer that reads `.domain`.
+
+
+### `@gjsify/gi-runtime-android@0.60.0` ships the `calls.cc` use-after-free
+
+The stage-3 Settings/`Gio.File` work fixed an async call freeing its IN arrays before the callback
+(`replace_contents_async` wrote freed memory). The published AAR predates the fix: its
+`libnode_gi.so` for both ABIs still has it, and the emulator run passed only with a locally
+rebuilt library swapped in. Rebuild the payload per the package README for `arm64-v8a` and
+`x86_64`, release it on the next train version, and rerun the device suite against the
+registry tarball.

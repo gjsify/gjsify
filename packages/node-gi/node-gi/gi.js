@@ -12,6 +12,7 @@ import * as native from './index.js';
 // NativeScript Android variant).
 import { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites } from '#host';
 import { createGioDBus } from './overrides/gio-dbus.js';
+import { createGioSettings } from './overrides/gio-settings.js';
 
 // The raw native GObject handle on a wrapped instance, so it can be unwrapped again
 // when passed back into the engine as a GI argument.
@@ -120,7 +121,9 @@ function unwrapProps(props) {
 // An enum object's GError-domain descriptor ({ name, quark }), so GLib.Error.matches
 // can resolve an error-enum (Gio.IOErrorEnum) to the domain it represents. Attached by
 // makeEnum when the enum is registered as a GError domain.
-const ERROR_DOMAIN = Symbol('nodeGiErrorDomain');
+// A registry symbol, so a host-side stand-in for an enum the typelib lacks (Gtk.DialogError on
+// Android) can declare itself an error domain without importing this module.
+const ERROR_DOMAIN = Symbol.for('nodeGiErrorDomain');
 
 // GLib.Error, L1: the engine throws one of these on a failed sync GI invoke (via the
 // builder registered below) and `requireGi('GLib').Error` is this constructor, so a
@@ -204,6 +207,10 @@ const CLASS_INFO = Symbol('nodeGiClassInfo');
 // Gio.File.prototype) reaches the wrapper only through this registry; when two classes
 // promisify the SAME method name it picks the registration whose class the instance is-a.
 const promisifiedMethods = new Map();
+// Wrappers `_promisify` made, so a second `_promisify` of the same name does not take one for an override.
+const promisifiedWrappers = new WeakSet();
+// The introspected method thunks of makeGiMethod: present on a prototype, but never a user override.
+const nativeThunks = new WeakSet();
 
 function wrapReturn(value) {
     if (native.isGObjectHandle(value)) return wrapInstance(value);
@@ -685,9 +692,12 @@ function decorateGioNamespace(baseNs) {
         }
         return dbus;
     };
+    // Same laziness, for the same reason: patching Gio.Settings touches its prototype.
+    let settings;
     return new Proxy(baseNs, {
         get(t, prop) {
             if (prop === '_promisify') return promisify;
+            if (prop === 'Settings') return (settings ??= createGioSettings(t));
             if (prop === 'DBus') return getDBus().DBus;
             if (prop === 'DBusProxy') return getDBus().DBusProxy;
             if (prop === 'DBusExportedObject') return getDBus().DBusExportedObject;
@@ -1624,8 +1634,15 @@ function prototypeMethodHandle(self, where) {
 // GtkStack's takes 0` was this thunk, not the typelib.
 function makeGiMethod(where, method, arity) {
     const fn = function (...args) {
-        return wrapReturn(native.callMethod(prototypeMethodHandle(this, where), method, unwrapArgs(args)));
+        const handle = prototypeMethodHandle(this, where);
+        // Each class prototype materialises its INHERITED methods as its own thunks, so a
+        // `Gio._promisify(Gio.OutputStream.prototype, …)` is not on a FileOutputStream's chain;
+        // the registration is honoured here, where the instance is known.
+        const promisified = promisifiedMethods.size === 0 ? undefined : resolveRegistered(handle, method);
+        if (promisified !== undefined) return promisified.apply(this, args);
+        return wrapReturn(native.callMethod(handle, method, unwrapArgs(args)));
     };
+    nativeThunks.add(fn);
     Object.defineProperty(fn, 'name', { value: method, configurable: true });
     Object.defineProperty(fn, 'length', { value: arity, configurable: true });
     return fn;
@@ -1984,9 +2001,28 @@ function deriveFinishName(asyncName) {
 
 // Build the promisified wrapper for `asyncName`. Uses `this` (the instance proxy)
 // so it works both bound from the registry and as a prototype method.
-function makePromisified(asyncName, finishName) {
+//
+// `override` is a plain JS function already installed on the prototype under `asyncName`
+// (a test double, a subclass hook): GJS's _promisify wraps whatever the prototype holds at
+// that moment, so the wrapper drives the override instead of the native method.
+function makePromisified(asyncName, finishName, override = undefined) {
     const giAsync = camelToSnake(asyncName);
     return function promisified(...args) {
+        if (override !== undefined) {
+            if (args.length > 0 && typeof args[args.length - 1] === 'function') return override.apply(this, args);
+            const self = this;
+            return new Promise((resolve, reject) => {
+                override.call(self, ...args, (source, res) => {
+                    try {
+                        const value = (source ?? self)[finishName](res);
+                        if (Array.isArray(value) && value.length > 1 && value[0] === true) value.shift();
+                        resolve(value);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            });
+        }
         const handle = this[HANDLE];
         // A trailing callback → plain async method (the caller drives the callback).
         // Wrap it so its (source, result) args are marshalled to wrapped instances —
@@ -2044,7 +2080,16 @@ function promisify(proto, asyncName, finishName = undefined) {
         throw new TypeError('Gio._promisify: asyncName must be a string');
     }
     const finish = finishName === undefined ? deriveFinishName(asyncName) : finishName;
-    const wrapper = makePromisified(asyncName, finish);
+    // GJS refuses a missing method at the call, not at first use.
+    if (typeof proto[asyncName] !== 'function') throw new Error(`${proto} has no method named ${asyncName}`);
+    if (typeof proto[finish] !== 'function') throw new Error(`${proto} has no method named ${finish}`);
+    const present = Object.getOwnPropertyDescriptor(proto, asyncName)?.value;
+    const override =
+        typeof present === 'function' && !promisifiedWrappers.has(present) && !nativeThunks.has(present)
+            ? present
+            : undefined;
+    const wrapper = makePromisified(asyncName, finish, override);
+    promisifiedWrappers.add(wrapper);
     // Install on the prototype (so proto[asyncName] IS the promisified method, and a
     // registerClass subclass — which resolves its userProto — picks it up) AND in
     // the global registry (introspected instances resolve methods dynamically, with
@@ -2075,6 +2120,18 @@ function promisify(proto, asyncName, finishName = undefined) {
         if (i >= 0) existing[i] = registration;
         else existing.push(registration);
     }
+}
+
+// The registered wrapper for `methodName` only when the instance IS-A the class it was registered
+// on; unlike resolvePromisified there is no fallback, because a native thunk is already the
+// right call for every other class.
+function resolveRegistered(handle, methodName) {
+    const registrations = promisifiedMethods.get(methodName);
+    if (registrations === undefined) return undefined;
+    for (const r of registrations) {
+        if (r.namespace !== undefined && native.isInstanceOf(handle, r.namespace, r.typeName)) return r.wrapper;
+    }
+    return undefined;
 }
 
 // Resolve the promisified wrapper for `methodName` on an instance handle. The

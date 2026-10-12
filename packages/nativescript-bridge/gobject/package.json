@@ -39,6 +39,7 @@
         "@gjsify/adwaita-core": "workspace:^"
     },
     "devDependencies": {
+        "@gjsify/app-settings": "workspace:^",
         "@gjsify/cli": "workspace:^",
         "@gjsify/node-gi": "file:../../node-gi/node-gi",
         "@gjsify/unit": "workspace:^",

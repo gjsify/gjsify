@@ -21,3 +21,11 @@ export type { RequireGi } from './engine.js';
 export { createRealGioListStore } from './list-store.js';
 export type { RealGioListStore } from './list-store.js';
 export { createSubsetSubject, SUBSET_SUBJECT_NAME } from './vector-subject.js';
+
+// ADR 0105 stage 3: `Gio.Settings` and `Gio.File` on a real Gio, as conformance SUBJECTS for the
+// vectors of ADR 0099 and ADR 0100. Same reason they are shipped: the host leg and the device leg
+// drive one subject each, not two copies.
+export { createRealGioSettingsSubject } from './settings-subject.js';
+export type { RealGioSettingsOptions, RealGioSettingsSubject } from './settings-subject.js';
+export { createRealGioFileChooserSubject, rowsFor } from './file-chooser-subject.js';
+export type { RealGioFileChooserOptions, RealGioFileChooserSubject } from './file-chooser-subject.js';
