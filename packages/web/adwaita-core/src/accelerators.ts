@@ -109,7 +109,18 @@ export const KEYSYM_NAMES: Readonly<Record<string, number>> = Object.freeze({
     KP_Divide: 0xffaf,
     ISO_Left_Tab: 0xfe20,
     Delete: 0xffff,
-    ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, 0xffbe + i])),
+    F1: 0xffbe,
+    F2: 0xffbf,
+    F3: 0xffc0,
+    F4: 0xffc1,
+    F5: 0xffc2,
+    F6: 0xffc3,
+    F7: 0xffc4,
+    F8: 0xffc5,
+    F9: 0xffc6,
+    F10: 0xffc7,
+    F11: 0xffc8,
+    F12: 0xffc9,
 });
 
 const NAME_OF = new Map<number, string>(Object.entries(KEYSYM_NAMES).map(([name, keyval]) => [keyval, name]));
