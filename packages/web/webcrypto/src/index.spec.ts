@@ -631,6 +631,24 @@ export default async () => {
             expect(new TextDecoder().decode(decrypted)).toBe('AES-GCM test');
         });
 
+        await it('AES-GCM should accept a 16-byte IV (as OMEMO uses)', async () => {
+            // Known answer computed with Node's webcrypto (OpenSSL). A non-96-bit IV derives J0
+            // through GHASH (NIST SP 800-38D §7.1).
+            const key = await subtle.importKey('raw', new Uint8Array(32).fill(9), 'AES-GCM', false, [
+                'encrypt',
+                'decrypt',
+            ]);
+            const iv = new Uint8Array(16).map((_, i) => i);
+            const plaintext = new TextEncoder().encode('OMEMO 0.8 payload');
+
+            const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+            const hex = Array.from(new Uint8Array(ciphertext), (b) => b.toString(16).padStart(2, '0')).join('');
+            expect(hex).toBe('797e2eea65869285749dca48ecec0c946370f770f5c5ecfdd90cce06f4b3dfcfe4');
+
+            const decrypted = await subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+            expect(new TextDecoder().decode(decrypted)).toBe('OMEMO 0.8 payload');
+        });
+
         await it('should encrypt and decrypt with AES-CTR', async () => {
             const key = (await subtle.generateKey({ name: 'AES-CTR', length: 128 }, true, [
                 'encrypt',
