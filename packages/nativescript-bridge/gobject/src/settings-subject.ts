@@ -58,7 +58,11 @@ export function createRealGioSettingsSubject(
     const Gio = requireGi('Gio', '2.0') as {
         Settings: RealSettingsClass;
         SettingsSchemaSource: {
-            new_from_directory(dir: string, parent: null, trusted: boolean): { lookup(id: string, recursive: boolean): unknown };
+            new_from_directory(
+                dir: string,
+                parent: null,
+                trusted: boolean,
+            ): { lookup(id: string, recursive: boolean): unknown };
         };
     };
     // The schema comes from an explicit source rather than GSETTINGS_SCHEMA_DIR: GIO builds its

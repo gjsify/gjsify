@@ -22,12 +22,35 @@ const INT32_MAX = 2 ** 31 - 1;
 const UINT32_MAX = 2 ** 32 - 1;
 
 const CHECKED = [
-    'get_boolean', 'set_boolean', 'get_double', 'set_double', 'get_enum', 'set_enum',
-    'get_flags', 'set_flags', 'get_int', 'set_int', 'get_int64', 'set_int64',
-    'get_string', 'set_string', 'get_strv', 'set_strv', 'get_uint', 'set_uint',
-    'get_uint64', 'set_uint64', 'get_value', 'set_value',
-    'bind', 'bind_writable', 'create_action', 'get_default_value', 'get_user_value',
-    'is_writable', 'reset',
+    'get_boolean',
+    'set_boolean',
+    'get_double',
+    'set_double',
+    'get_enum',
+    'set_enum',
+    'get_flags',
+    'set_flags',
+    'get_int',
+    'set_int',
+    'get_int64',
+    'set_int64',
+    'get_string',
+    'set_string',
+    'get_strv',
+    'set_strv',
+    'get_uint',
+    'set_uint',
+    'get_uint64',
+    'set_uint64',
+    'get_value',
+    'set_value',
+    'bind',
+    'bind_writable',
+    'create_action',
+    'get_default_value',
+    'get_user_value',
+    'is_writable',
+    'reset',
 ];
 
 /** The range a setter's JS number must be in; GJS's marshaller throws this exact message. */
@@ -93,7 +116,10 @@ export function createGioSettings(Gio) {
     // by the methods the constructor needs instead.
     const isSchema = (value) =>
         value instanceof Gio.SettingsSchema ||
-        (value !== null && typeof value === 'object' && typeof value.get_id === 'function' && typeof value.list_keys === 'function');
+        (value !== null &&
+            typeof value === 'object' &&
+            typeof value.get_id === 'function' &&
+            typeof value.list_keys === 'function');
 
     return new Proxy(Settings, {
         construct(target, args) {

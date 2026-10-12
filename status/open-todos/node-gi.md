@@ -470,3 +470,12 @@ hold on node-gi until that is decided; `@gjsify/adwaita-gobject-native` leaves t
 real-Gio run and says why. Decision needed: keep the divergence (and keep the rows out) or move
 node-gi to GJS's shapes, which touches every consumer that reads `.domain`.
 
+
+### `@gjsify/gi-runtime-android@0.60.0` ships the `calls.cc` use-after-free
+
+The stage-3 Settings/`Gio.File` work fixed an async call freeing its IN arrays before the callback
+(`replace_contents_async` wrote freed memory). The published AAR predates the fix: its
+`libnode_gi.so` for both ABIs still has it, and the emulator run passed only with a locally
+rebuilt library swapped in. Rebuild the payload per the package README for `arm64-v8a` and
+`x86_64`, release it on the next train version, and rerun the device suite against the
+registry tarball.
