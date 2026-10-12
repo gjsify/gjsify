@@ -46,6 +46,10 @@ struct NodeGiCallback {
   // immortal: GDK leaves a ~1 s repeating timeout armed, so the context reports
   // work forever while nothing is ever ready to dispatch.
   bool pumpCounted = false;
+  // IN containers (typed-array `contents`, string arrays) of the call that armed a scope=async
+  // callback. The callee reads them until the operation completes, so they outlive the invoke and
+  // are released with the callback — `g_file_replace_contents_async` wrote freed memory otherwise.
+  std::vector<InContainer> heldContainers;
 };
 
 static void NodeGiCallbackPumpRelease(NodeGiCallback* cb) {
@@ -58,6 +62,7 @@ static void NodeGiCallbackPumpRelease(NodeGiCallback* cb) {
 static void NodeGiCallbackFree(NodeGiCallback* cb) {
   if (cb == nullptr) return;
   NodeGiCallbackPumpRelease(cb);  // never fired (error/teardown path)
+  for (const InContainer& c : cb->heldContainers) FreeInContainer(c);
   if (cb->jsFn != nullptr) napi_delete_reference(cb->env, cb->jsFn);
   if (cb->closure != nullptr) gi_callable_info_destroy_closure(cb->info, cb->closure);
   if (cb->info != nullptr) gi_base_info_unref(cb->info);
@@ -964,6 +969,16 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // below so no freed pointer is revisited; releasing a CALL-scope cb is a no-op.
   if (!success) {
     for (NodeGiCallback* cb : created) NodeGiCallbackPumpRelease(cb);
+  }
+  // The IN containers of an async call stay alive until its callback is released.
+  if (success) {
+    for (NodeGiCallback* cb : created) {
+      if (cb->scope == GI_SCOPE_TYPE_ASYNC) {
+        cb->heldContainers = std::move(inContainers);
+        inContainers.clear();
+        break;
+      }
+    }
   }
   // Call-scope closures are only valid for the duration of the invoke; free them
   // now (notified/async closures are owned by the callee / self-freeing).
