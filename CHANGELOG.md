@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.61.0](https://github.com/gjsify/gjsify/compare/v0.60.0...v0.61.0) (2026-10-12)
+
+### Features
+
+* **adwaita:** `Gio.Settings` and Gtk platform members ([#2168](https://github.com/gjsify/gjsify/issues/2168)) ([241d6ac](https://github.com/gjsify/gjsify/commit/241d6ac2d5c64c847ddf4fe6c8000de59b032175))
+* **adwaita:** widget members the shared debugger needs ([#2166](https://github.com/gjsify/gjsify/issues/2166)) ([1550843](https://github.com/gjsify/gjsify/commit/1550843fdb8c335e1162bbde3bb49ee76271554f))
+* **file-chooser:** `Gtk.FileDialog` + Gio.File on the browser and NativeScript ([#2169](https://github.com/gjsify/gjsify/issues/2169)) ([f958709](https://github.com/gjsify/gjsify/commit/f958709c3c1935292e2c58c1ae6402850134b6f1))
+* **node-gi:** node-gi as a NativeScript plugin for Android (ADR 0105 stage 4) ([#2162](https://github.com/gjsify/gjsify/issues/2162)) ([c8312c5](https://github.com/gjsify/gjsify/commit/c8312c5ced18204b6d7f622a902825722c652668)), closes [#2155](https://github.com/gjsify/gjsify/issues/2155)
+* **zlib:** support maxOutputLength ([#2167](https://github.com/gjsify/gjsify/issues/2167)) ([bf40e2f](https://github.com/gjsify/gjsify/commit/bf40e2fbeea3da3a27e24837a4c9078c8861aac5))
+
+### Bug Fixes
+
+* **cli:** re-probe non-terminal ledger entries in hold ([#2165](https://github.com/gjsify/gjsify/issues/2165)) ([f6911f9](https://github.com/gjsify/gjsify/commit/f6911f9abb4f096c9152dea4499e37bd72e01779))
+
+### Maintenance
+
+* drop gi-runtime-android from bootstrap ([#2171](https://github.com/gjsify/gjsify/issues/2171)) ([8c8a0c4](https://github.com/gjsify/gjsify/commit/8c8a0c40739973509e9493af086898a80fcf2dea))
+* **publish:** drop adwaita-gobject-native ledger entry ([#2170](https://github.com/gjsify/gjsify/issues/2170)) ([69ec5e7](https://github.com/gjsify/gjsify/commit/69ec5e7746ba3f7fa4c4b648275e4f1bdfe62243))
+* update native prebuilds [skip ci] ([8a982ad](https://github.com/gjsify/gjsify/commit/8a982adb1b599c46e9aae41d3afb17f0a11342ed))
+
 ## [0.60.0](https://github.com/gjsify/gjsify/compare/v0.59.1...v0.60.0) (2026-10-11)
 
 ### Features
