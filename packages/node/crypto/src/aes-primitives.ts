@@ -253,6 +253,22 @@ export function incrementCounter(counter: Uint8Array): void {
 
 // ---- GCM counter increment (only the last 32 bits) ----
 
+/**
+ * Pre-counter block J0 per NIST SP 800-38D §7.1: `IV || 0^31 || 1` for a 96-bit IV,
+ * otherwise `GHASH_H(IV || pad || 0^64 || [len(IV)]_64)`.
+ */
+export function gcmJ0(H: Uint8Array, iv: Uint8Array): Uint8Array {
+    if (iv.length === 12) {
+        const j0 = new Uint8Array(16);
+        j0.set(iv);
+        j0[15] = 1;
+        return j0;
+    }
+    // ghash(H, A = empty, C = IV) pads IV and appends [0]_64 || [len(IV)]_64 — exactly the
+    // block sequence §7.1 hashes.
+    return ghash(H, new Uint8Array(0), iv);
+}
+
 export function gcmIncrementCounter(counter: Uint8Array): void {
     for (let i = 15; i >= 12; i--) {
         counter[i] = (counter[i] + 1) & 0xff;

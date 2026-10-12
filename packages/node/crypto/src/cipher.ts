@@ -20,6 +20,7 @@ import {
     aesDecryptBlock,
     incrementCounter,
     gcmIncrementCounter,
+    gcmJ0,
     ghash,
 } from './aes-primitives.js';
 import {
@@ -47,7 +48,12 @@ class CipherBase {
         if (key.length !== info.keySize) {
             throw new Error(`Invalid key length ${key.length}, expected ${info.keySize} for ${algorithm}`);
         }
-        if (info.ivSize > 0 && (!iv || iv.length !== info.ivSize)) {
+        if (info.mode === 'gcm') {
+            // NIST SP 800-38D allows any non-empty IV; non-96-bit IVs go through GHASH (gcmJ0).
+            if (!iv || iv.length === 0) {
+                throw new Error(`Invalid IV length 0 for ${algorithm}`);
+            }
+        } else if (info.ivSize > 0 && (!iv || iv.length !== info.ivSize)) {
             throw new Error(`Invalid IV length ${iv?.length ?? 0}, expected ${info.ivSize} for ${algorithm}`);
         }
         this._roundKeys = keyExpansion(key);
@@ -83,10 +89,7 @@ class Cipher extends CipherBase {
             // H = AES_K(0^128) — encrypt zero block with the key
             this._gcmH = aesEncryptBlock(new Uint8Array(16), this._roundKeys);
 
-            // J0 = IV || 0^31 || 1 (when IV is 96 bits / 12 bytes)
-            this._gcmJ0 = new Uint8Array(16);
-            this._gcmJ0.set(this._iv.subarray(0, 12));
-            this._gcmJ0[15] = 1; // last byte = 1 (0^31 || 1)
+            this._gcmJ0 = gcmJ0(this._gcmH, this._iv);
 
             // Counter starts at J0 incremented by 1 (ICB = inc32(J0))
             this._counter = new Uint8Array(this._gcmJ0);
@@ -296,9 +299,7 @@ class Decipher extends CipherBase {
             // GCM initialization (same as Cipher)
             this._gcmH = aesEncryptBlock(new Uint8Array(16), this._roundKeys);
 
-            this._gcmJ0 = new Uint8Array(16);
-            this._gcmJ0.set(this._iv.subarray(0, 12));
-            this._gcmJ0[15] = 1;
+            this._gcmJ0 = gcmJ0(this._gcmH, this._iv);
 
             this._counter = new Uint8Array(this._gcmJ0);
             gcmIncrementCounter(this._counter);
