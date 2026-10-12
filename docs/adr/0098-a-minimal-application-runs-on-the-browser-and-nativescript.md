@@ -204,3 +204,25 @@ run on real GJS first:
 
 `Gio.File.query_exists` is NOT added: `Gio.File` is ADR 0100's, which refuses it by name until a path
 can be named.
+
+## Amendment 2: `Gtk.Window` state members
+
+`Gtk.Window` gains `is-active`, `focus-widget` (`get_focus` / `set_focus`), `close-request` with
+`close()`, `present()` and `maximized` (`maximize` / `unmaximize` / `is_maximized`). The decisions that
+make them the same member on both ports (`WindowMemberState`, `HandledAccumulator` and
+`CloseRequestState` in adwaita-core, rows in `WINDOW_VECTORS`, checked against real GTK): a property
+notifies only when its value moves; the first `close-request` handler to return true stops the emission;
+`close()` before the window is realized, or from inside a `close-request` handler, does nothing.
+
+| Member | Browser | NativeScript |
+|---|---|---|
+| `is-active` | tab visible, frame shown and `document.hasFocus()` | application foreground (`resume` / `suspend`) while the window is loaded |
+| `get_focus` / `set_focus` | `document.activeElement` inside the frame; outside it, `set_focus` throws | native focus walk (`isFocused`, `requestFocus`); a non-descendant throws |
+| `notify::focus-widget` | `focusin` / `focusout` | refused by `connect`: user-moved focus is unobservable |
+| `close-request` / `close()` | cancelable DOM event, `preventDefault` = handled; `hide-on-close` hides | Android `finish()`; iOS has no public API, `close()` throws before `close-request` |
+| `maximized` | the frame's state | constant true; `unmaximize()` / `maximized = false` throw |
+| `present()` | un-hides the frame | no-op: the window `activate` returns is the root |
+
+Not covered, because nothing here can say: the Android back button as a `close-request`, split-screen
+or multi-window as un-maximized, and `hide-on-close` on NativeScript. The Android and iOS calls are
+unverified on a device.
