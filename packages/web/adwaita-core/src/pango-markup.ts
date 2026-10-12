@@ -21,9 +21,11 @@
 // unknown tag SAFE: `<img src=x onerror=…>` is not markup pango can parse, so the whole
 // string comes back as text, never as an element.
 //
-// Reference: refs/pango/pango/pango-markup.c (pango_parse_markup, pango_markup_parse_context_push)
-// Reference: refs/glib/glib/gmarkup.c (GMarkupParser: the entity set, the attribute
-//   grammar, passthrough constructs, end_parse on an unclosed element)
+// Reference: https://docs.gtk.org/Pango/pango_markup.html (the tag and `<span>` attribute
+//   set; no `refs/pango` pool — pango_parse_markup, pango_markup_parse_context_push)
+// Reference: https://docs.gtk.org/glib/markup.html (GMarkupParser: the entity set, the
+//   attribute grammar, passthrough constructs, end_parse on an unclosed element; no
+//   `refs/glib` pool)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 /** The tag names pango's markup parser knows; anything else is a parse ERROR. */
