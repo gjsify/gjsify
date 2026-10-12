@@ -99,3 +99,13 @@ test('a base-class _promisify reaches the subclass instances, and the contents o
     }
     assert.equal(await closing, true);
 });
+
+test('Gio.Settings accepts a settings_schema looked up in an explicit source', (t) => {
+    if (!compileSchema()) return t.skip('glib-compile-schemas is not installed');
+    const source = Gio.SettingsSchemaSource.new_from_directory(dir, null, false);
+    const schema = source.lookup('test.stage3', false);
+    const settings = new Gio.Settings({ settings_schema: schema });
+    assert.equal(settings.schema_id, 'test.stage3');
+    assert.equal(settings.get_int('size'), 3);
+    assert.throws(() => new Gio.Settings({ settings_schema: {} }), /is not of type Gio\.SettingsSchema/);
+});

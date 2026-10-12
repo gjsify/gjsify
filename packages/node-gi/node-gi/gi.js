@@ -121,7 +121,9 @@ function unwrapProps(props) {
 // An enum object's GError-domain descriptor ({ name, quark }), so GLib.Error.matches
 // can resolve an error-enum (Gio.IOErrorEnum) to the domain it represents. Attached by
 // makeEnum when the enum is registered as a GError domain.
-const ERROR_DOMAIN = Symbol('nodeGiErrorDomain');
+// A registry symbol, so a host-side stand-in for an enum the typelib lacks (Gtk.DialogError on
+// Android) can declare itself an error domain without importing this module.
+const ERROR_DOMAIN = Symbol.for('nodeGiErrorDomain');
 
 // GLib.Error, L1: the engine throws one of these on a failed sync GI invoke (via the
 // builder registered below) and `requireGi('GLib').Error` is this constructor, so a

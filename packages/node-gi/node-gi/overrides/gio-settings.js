@@ -88,6 +88,13 @@ export function createGioSettings(Gio) {
         return realGetChild.call(this, name);
     };
 
+    // A boxed instance is a Proxy over a handle with no prototype link to its class, so
+    // `instanceof Gio.SettingsSchema` is false for the very schema `lookup` returned. Recognise it
+    // by the methods the constructor needs instead.
+    const isSchema = (value) =>
+        value instanceof Gio.SettingsSchema ||
+        (value !== null && typeof value === 'object' && typeof value.get_id === 'function' && typeof value.list_keys === 'function');
+
     return new Proxy(Settings, {
         construct(target, args) {
             const props = args[0] ?? {};
@@ -96,7 +103,7 @@ export function createGioSettings(Gio) {
             if (!schemaIdProp && !schemaProp) {
                 throw new Error("One of property 'schema-id' or 'settings-schema' are required for Gio.Settings");
             }
-            if (schemaProp && !(props[schemaProp] instanceof Gio.SettingsSchema)) {
+            if (schemaProp && !isSchema(props[schemaProp])) {
                 throw new Error(`Value of property '${schemaProp}' is not of type Gio.SettingsSchema`);
             }
             const schema = schemaProp
