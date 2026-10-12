@@ -122,6 +122,11 @@ export function createGioSettings(Gio) {
             typeof value.list_keys === 'function');
 
     return new Proxy(Settings, {
+        // Read with the class itself as receiver: node-gi's class Proxy hides `$gtype` from any
+        // other receiver (so a subclass does not inherit its base's), which would include this one.
+        get(target, prop) {
+            return Reflect.get(target, prop);
+        },
         construct(target, args) {
             const props = args[0] ?? {};
             const schemaIdProp = ['schema', 'schema-id', 'schema_id', 'schemaId'].find((p) => p in props);

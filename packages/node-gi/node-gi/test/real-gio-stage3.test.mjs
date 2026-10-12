@@ -18,6 +18,7 @@ import { requireGi } from '../gi.js';
 
 const GLib = requireGi('GLib', '2.0');
 const Gio = requireGi('Gio', '2.0');
+const GObject = requireGi('GObject', '2.0');
 
 const dir = mkdtempSync(join(tmpdir(), 'node-gi-stage3-'));
 test.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -49,6 +50,12 @@ test('Gio.Settings throws instead of aborting on an unknown key or schema', (t) 
     assert.throws(() => settings.set_int('size', 2 ** 31), /out of range for int32/);
     settings.set_uint('count', 5);
     assert.equal(settings.get_uint('count'), 5);
+});
+
+// The override hands out a Proxy; node-gi hides `$gtype` from a foreign receiver, and
+// @gjsify/gtk-host's value-type gate reads it off the namespace member.
+test('the wrapped Gio.Settings keeps its GType', () => {
+    assert.equal(GObject.type_name(Gio.Settings.$gtype), 'GSettings');
 });
 
 test('Gio._promisify drives a function already on the prototype', async () => {
