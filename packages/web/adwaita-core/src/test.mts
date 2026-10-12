@@ -18,6 +18,7 @@ import gridNavigationTestSuite from './grid-navigation.spec.js';
 import tabViewTestSuite from './tab-view.spec.js';
 import carouselTestSuite from './carousel.spec.js';
 import preferencesTestSuite from './preferences.spec.js';
+import pangoMarkupTestSuite from './pango-markup.spec.js';
 import chromeTestSuite from './chrome.spec.js';
 import headerBarTestSuite from './header-bar.spec.js';
 import dataGridTestSuite from './data-grid.spec.js';
@@ -123,6 +124,7 @@ run({
     carouselTestSuite,
     swipeTestSuite,
     preferencesTestSuite,
+    pangoMarkupTestSuite,
     chromeTestSuite,
     headerBarTestSuite,
     dataGridTestSuite,

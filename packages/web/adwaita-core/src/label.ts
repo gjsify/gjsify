@@ -5,14 +5,20 @@
 // two things they must not decide separately are here: the text reduction and the
 // property readings.
 //
-// MARKUP IS REDUCED TO ITS PLAIN TEXT, NEVER RENDERED. `use-markup` says the label is
-// Pango markup; a renderer that honoured it would have to turn a string into styled
-// runs, and on the web the short road there is `innerHTML` — which executes whatever the
-// string carries. So both renderers show the TEXT of the markup, through the same
-// `stripMarkup` that `Adw.Banner:use-markup` already goes through, and unparseable markup
-// keeps the raw string, which is the C fallback (`gtk_label_set_markup` warns and shows
-// the text as given). `use-markup` defaults to FALSE, as in GTK, so a `<` in ordinary
-// prose is shown literally unless a caller asks otherwise.
+// MARKUP IS REDUCED TO ITS PLAIN TEXT, AND THAT IS A STATED DIVERGENCE, NOT A LIMIT OF
+// THE PARSE. `use-markup` says the label is Pango markup. `parsePangoMarkup` (this
+// package's `pango-markup.ts`) turns such a string into a TREE — elements with `<span>`
+// attributes — and `Adw.Banner:use-markup` and `Adw.AlertDialog:{heading,body}-use-markup`
+// are rendered from that tree, so bold IS drawable on this package's web port.
+// A LABEL reduces it to text anyway: `Gtk.Label` is a single run of text, its `label` is
+// the property a caller sets on a plain widget rather than the markup surface of a
+// dialog, and the web element composes its measured box around ONE span (`_renderSpan`)
+// — admitting nested elements would mean re-measuring that box, which is a different
+// element's job. So both renderers show the TEXT, through the same `stripMarkup` (the
+// reduction over that same parse) that `GtkInscription:markup` uses, and unparseable
+// markup keeps the raw string, which is the C fallback (`gtk_label_set_markup` warns and
+// shows the text as given). `use-markup` defaults to FALSE, as in GTK, so a `<` in
+// ordinary prose is shown literally unless a caller asks otherwise.
 //
 // THE MNEMONIC IS STRIPPED, NOT UNDERLINED OR BOUND: neither renderer has GTK's
 // accelerator layer behind a label. Same reduction `Adw.ButtonContent` makes.
@@ -52,7 +58,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { glibClamp, stripMnemonic } from './glib.js';
-import { stripMarkup } from './preferences.js';
+import { stripMarkup } from './pango-markup.js';
 
 /** `Gtk.Label:xalign`'s default — `0.5` in the pspec: a label centres its text. */
 export const DEFAULT_LABEL_XALIGN = 0.5;
