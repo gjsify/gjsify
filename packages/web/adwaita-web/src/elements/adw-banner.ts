@@ -20,6 +20,8 @@ import {
     parseBannerButtonStyle,
 } from '@gjsify/adwaita-core';
 
+import { renderPangoMarkup } from '../pango-markup.js';
+
 export class AdwBanner extends HTMLElement {
     private _titleEl!: HTMLSpanElement;
     private _button!: HTMLButtonElement;
@@ -52,17 +54,20 @@ export class AdwBanner extends HTMLElement {
 
     private _render() {
         const title = this.getAttribute('title') ?? '';
-        // DELIBERATE DEPARTURE FROM THE C DEFAULT. `Adw.Banner:use-markup`
-        // defaults to TRUE and `@gjsify/adwaita-core`
-        // carries that as the spec value — but Pango markup is not HTML. Pango
-        // has a fixed tag set and no scripting; `innerHTML` will run an
-        // `onerror` handler. Adopting the C default here would turn every
-        // `title` attribute into an injection sink for a widget that is not one
-        // in GTK, so on this renderer markup is OPT-IN and the default is text.
-        // The opt-in is the developer asserting the title is trusted.
+        // DELIBERATE DEPARTURE FROM THE C DEFAULT, and the departure is now about
+        // SAFETY rather than about how markup is spelt. `Adw.Banner:use-markup`
+        // defaults to TRUE and `@gjsify/adwaita-core` carries that as the spec
+        // value — but a `title` attribute is an ATTRIBUTE, and a renderer that
+        // parsed it as markup would be one an author (or an injected value) could
+        // drive. Adopting the C default here would make every banner title markup
+        // by default for a widget that is not one in GTK, so on this renderer
+        // markup is OPT-IN and the default is text.
+        // Opting in renders PANGO markup — parsed by `renderPangoMarkup`, never
+        // handed to `innerHTML`, so nothing the title carries can become a node
+        // beyond the eleven tags pango itself knows.
         // The title label carries `use-underline=False` in the template
         //, so its underscores are literal — no stripping here.
-        if (this.hasAttribute('use-markup')) this._titleEl.innerHTML = title;
+        if (this.hasAttribute('use-markup')) renderPangoMarkup(this._titleEl, title);
         else this._titleEl.textContent = title;
 
         // `label && label[0]` — a first-character test, so a label of

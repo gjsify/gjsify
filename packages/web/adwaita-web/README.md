@@ -130,6 +130,37 @@ auto-dismiss runs on the browser's timers by default; assign
 defines) to drive toast lifetimes from your own clock — that is how the
 package's own regression tests advance time without real timers.
 
+## Pango markup (`use-markup`)
+
+`<adw-banner>`'s `title`, `<adw-alert-dialog>`'s `heading` and `body` and
+`<gtk-label>` / `<gtk-inscription>`'s `markup` read Pango markup — GTK's eleven
+tags (`b`, `i`, `u`, `s`, `tt`, `big`, `small`, `sub`, `sup`, `span`,
+`markup`), `<span>` attributes, and `&amp;`/`&lt;`/`&gt;`/`&quot;`/`&apos;`
+plus numeric character references.
+
+Pango markup is **not** HTML, and nothing here is handed to `innerHTML`:
+`renderPangoMarkup` (in `src/pango-markup.ts`) builds elements and text nodes
+from the tree `parsePangoMarkup` (`@gjsify/adwaita-core`) returns. The banner
+and the alert dialog therefore DRAW the runs:
+
+```html
+<adw-banner title="<b>Metered</b> connection" use-markup revealed></adw-banner>
+```
+
+Anything pango cannot parse comes back as **text**, exactly as
+`gtk_label_set_markup` keeps an unparseable string: a bare `&`, a `<` in prose,
+a mismatched tag — and, importantly, every tag outside pango's set. An
+`<img src=x onerror=…>` in a banner title is shown, not run; there is no code
+path that creates an element for a name the parser did not recognise, and a
+`<span>` attribute becomes a CSS declaration (or is dropped), never a DOM
+attribute.
+
+Without `use-markup` every one of these strings is literal text — that is
+`Adw.Banner:use-markup`'s deliberate departure from the libadwaita default of
+`TRUE`, documented in `src/elements/adw-banner.ts`.
+`scripts/check-adwaita-no-markup-sinks.mjs` holds the no-`innerHTML` rule for
+the package's shipping sources.
+
 ## Theming a page without `<adw-window>`
 
 The components read their colours from the `--window-*` CSS custom properties,

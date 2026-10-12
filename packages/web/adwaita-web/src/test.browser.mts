@@ -59,6 +59,8 @@ import { GtkAboutDialogTest } from './gtk-about-dialog.spec.js';
 import { GtkEmojiChooserTest } from './gtk-emoji-chooser.spec.js';
 import { GtkPrintDialogsTest } from './gtk-print-dialogs.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
+import { PangoMarkupTest } from './pango-markup.spec.js';
+import { CopyGlyphTest } from './source-view/copy-glyph.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { GtkImageTest } from './gtk-image.spec.js';
 import { AdwIconRegistryTest } from './icon-registry.spec.js';
@@ -191,6 +193,8 @@ run({
     AdwAboutDialogTest,
     AdwAlertDialogTest,
     AdwBannerTest,
+    PangoMarkupTest,
+    CopyGlyphTest,
     AdwButtonContentTest,
     GtkImageTest,
     AdwIconRegistryTest,

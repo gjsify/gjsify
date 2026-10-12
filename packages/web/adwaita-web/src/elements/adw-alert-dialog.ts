@@ -25,9 +25,11 @@
 // `Adw.AlertDialog:heading-use-markup` and `:body-use-markup` both default to FALSE
 // (`Adw.Banner:use-markup` is the one that defaults to TRUE, which is why
 // `adw-banner.ts` documents a deliberate departure and this file does not need to).
-// Opting in renders through `innerHTML`, which is the author asserting the string is
-// trusted — Pango markup has a fixed tag set and no scripting, HTML has neither
-// property.
+// Opting in renders PANGO MARKUP through `renderPangoMarkup`: the string is PARSED by
+// `@gjsify/adwaita-core` and turned into nodes one at a time, never handed to
+// `innerHTML`. So opting in is no longer an assertion that the string is trusted —
+// `<b>` is drawn bold whether or not the author vouched for it, and a tag pango does
+// not know comes back as text.
 //
 // Buttons are stacked vertically by default (the Adw.AlertDialog default at medium
 // sizes) and laid out horizontally when prefer-wide-layout is set and there are no more
@@ -56,6 +58,7 @@
 import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
+import { renderPangoMarkup } from '../pango-markup.js';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
@@ -463,12 +466,12 @@ export class AdwAlertDialog extends HTMLElement {
         this.classList.toggle('open', this.open);
 
         const heading = this.heading;
-        if (this.headingUseMarkup) this._headingEl.innerHTML = heading;
+        if (this.headingUseMarkup) renderPangoMarkup(this._headingEl, heading);
         else this._headingEl.textContent = heading;
         this._headingEl.hidden = heading.length === 0;
 
         const body = this.body;
-        if (this.bodyUseMarkup) this._bodyEl.innerHTML = body;
+        if (this.bodyUseMarkup) renderPangoMarkup(this._bodyEl, body);
         else this._bodyEl.textContent = body;
         this._bodyEl.hidden = body.length === 0;
 
