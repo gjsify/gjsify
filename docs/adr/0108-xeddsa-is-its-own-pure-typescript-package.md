@@ -1,4 +1,4 @@
-# 107. XEdDSA is its own pure-TypeScript package on @noble/curves
+# 108. XEdDSA is its own pure-TypeScript package on @noble/curves
 
 - Status: **Accepted** (2026-10-12)
 - Date: 2026-10-12
