@@ -171,9 +171,10 @@ single contributors are pixman (2.9/4.4 MB), Gio (2.7/2.6 MB), GLib (2.6 MB) and
 - **No per-ABI and no release APK.** The number above is one universal debug build; an ABI split
   and R8 would both move it.
 - **iOS is absent entirely.** The plugin is Android-only by name and by manifest.
-- **The published-npm install path is unverified.** Every dependency was a `file:` link.
-  `@gjsify/gi-runtime-android@0.60.0` is on npm since 2026-10-12 and its tarball unpacks to
-  ~33 MB, so the AAR is in it — but no app has installed it from the registry and run yet.
+- ~~**The published-npm install path is unverified.**~~ Verified on 2026-10-12: the suite with
+  `@gjsify/gi-runtime-android@0.60.0` from the registry in place of the `file:` link ran 41 of
+  41 on the S9. The tarball's AAR has the sha256 above (`dccae30b89df…`). The other `@gjsify/*`
+  deps were still `file:` links.
 - **No performance number beyond startup.** Not twin construction, not `set_property`
   round-trips through napi. Loading the closure is only seen inside the cold-start steps below.
 - **Settings and `Gio.File`** (ADR 0105 stage 3's literal content) remain blocked on ADR 0099/0100
