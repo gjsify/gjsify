@@ -67,6 +67,7 @@ import glibTimersTestSuite from './glib-timers.spec.js';
 import glibTimersOracleTestSuite from './glib-timers.gjs.spec.js';
 import gdkTestSuite from './gdk.spec.js';
 import gdkOracleTestSuite from './gdk.gjs.spec.js';
+import gtkPlatformTestSuite from './gtk-platform.spec.js';
 import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
@@ -144,6 +145,7 @@ run({
     glibTimersOracleTestSuite,
     gdkTestSuite,
     gdkOracleTestSuite,
+    gtkPlatformTestSuite,
     glibPathsTestSuite,
     glibPathsOracleTestSuite,
     styleManagerTestSuite,

@@ -425,6 +425,23 @@ export type {
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
 export { ContentFormats, ContentProvider, Clipboard, Display, createGdk, widgetDisplayMembers } from './gdk.js';
+export {
+    CURRENT_TIME,
+    CssProvider,
+    EventControllerKey,
+    GDK_KEYS,
+    GtkSettings,
+    IconTheme,
+    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    STYLE_PROVIDER_PRIORITY_FALLBACK,
+    STYLE_PROVIDER_PRIORITY_SETTINGS,
+    STYLE_PROVIDER_PRIORITY_THEME,
+    STYLE_PROVIDER_PRIORITY_USER,
+    createGtkPlatform,
+    keyvalOfKey,
+    widgetControllerMembers,
+} from './gtk-platform.js';
+export type { GtkPlatform, HostKeyEvent, PlatformHost } from './gtk-platform.js';
 export { syncDirection, widgetTreeMembers } from './widget-members.js';
 export type { ClipboardHost, GdkClipboard } from './gdk.js';
 export { createGLibTimers } from './glib-timers.js';
@@ -1098,5 +1115,5 @@ export type {
 export { registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
 export type { GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
-export { StyleManagerBase } from './style-manager.js';
+export { ColorScheme, StyleManagerBase } from './style-manager.js';
 export type { StyleSource } from './style-manager.js';

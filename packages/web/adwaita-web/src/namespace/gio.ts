@@ -12,10 +12,11 @@
 // `check-vocabulary-alignment.mjs` derives their members from the elements this package
 // defines. GIO defines none: what lands here is the handful of GObject types an Adwaita
 // author CONSTRUCTS while building a tree — today the menu a `menuModel` property takes.
-// `Gio.Settings` and the rest of the library are NOT this package's business; a namespace
-// that grows past what the elements consume is a second, unheld vocabulary.
+// `Gio.Settings` is here (ADR 0099, the `localStorage` door); the rest of the library is NOT
+// this package's business; a namespace that grows past what the elements consume is a second,
+// unheld vocabulary.
 //
-// THE ONE EXCEPTION IS ADR 0100: the `Gio.File` a `Gtk.FileDialog` hands back, with the
+// THE ONE OTHER EXCEPTION IS ADR 0100: the `Gio.File` a `Gtk.FileDialog` hands back, with the
 // `ListStore` its `filters` take, the streams `replace_async` opens, `FileCreateFlags`,
 // `IOErrorEnum` and `_promisify`. The subset lives in `@gjsify/adwaita-core`
 // (`file-chooser.ts`), which refuses everything past it by name; `../file-chooser-host.ts`
@@ -35,3 +36,4 @@ export {
 } from '@gjsify/adwaita-core';
 export { SimpleAction, SimpleActionGroup, ApplicationFlags } from '@gjsify/adwaita-core';
 export { GioApplication as Application } from '../application.js';
+export { Settings } from '@gjsify/app-settings/browser';

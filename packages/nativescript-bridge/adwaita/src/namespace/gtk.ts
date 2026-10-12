@@ -45,6 +45,7 @@ export { GtkPopoverMenu as PopoverMenu } from '../widgets/gtk-popover-menu.js';
 export { GtkOverlay as Overlay } from '../widgets/gtk-overlay.js';
 export { GtkRevealer as Revealer } from '../widgets/gtk-revealer.js';
 export { GtkScrolledWindow as ScrolledWindow } from '../widgets/gtk-scrolled-window.js';
+export { GtkWindow as Window } from '../widgets/gtk-window.js';
 export { GtkSeparator as Separator } from '../widgets/gtk-separator.js';
 export { GtkStack as Stack } from '../widgets/gtk-stack.js';
 export { GtkStackPage as StackPage } from '../widgets/stack-page.js';
@@ -52,3 +53,11 @@ export { GtkStringList as StringList } from '@gjsify/adwaita-core';
 export { GtkTextView as TextView } from '../widgets/gtk-text-view.js';
 export { GtkToggleButton as ToggleButton } from '../widgets/gtk-toggle-button.js';
 export { GtkApplication as Application } from '../widgets/application.js';
+export {
+    STYLE_PROVIDER_PRIORITY_APPLICATION,
+    STYLE_PROVIDER_PRIORITY_FALLBACK,
+    STYLE_PROVIDER_PRIORITY_SETTINGS,
+    STYLE_PROVIDER_PRIORITY_THEME,
+    STYLE_PROVIDER_PRIORITY_USER,
+} from '@gjsify/adwaita-core';
+export { CssProvider, EventControllerKey, IconTheme, show_uri, StyleContext, Settings } from './gtk-platform.js';

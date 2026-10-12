@@ -301,6 +301,12 @@ describe('report-target-gap', () => {
             assert.deepEqual(issuesOn(barrelOf("export { registerClass } from './x.js';")), []);
         });
 
+        it('counts every name a destructuring export introduces', () => {
+            const names = barrelOf('export const { registerClass, a: b, c: [d] } = x;').get('GObject');
+            assert.deepEqual([...names].sort(), ['b', 'd', 'registerClass']);
+            assert.equal(hasTemplateScope(barrelOf('export const { registerClass } = x;')), true);
+        });
+
         it('does not count a type-only or a non-exported registerClass', () => {
             assert.equal(hasTemplateScope(barrelOf('const registerClass = 1;')), false);
             assert.equal(hasTemplateScope(barrelOf("export type { registerClass } from './x.js';")), false);

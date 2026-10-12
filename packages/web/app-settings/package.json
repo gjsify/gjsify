@@ -1,0 +1,79 @@
+{
+    "name": "@gjsify/app-settings",
+    "version": "0.59.1",
+    "description": "Gio.Settings as a strict subset for the browser (localStorage) and NativeScript (ApplicationSettings); the native Gio.Settings on GJS",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
+        "./nativescript": {
+            "types": "./lib/types/nativescript.d.ts",
+            "default": "./lib/esm/nativescript.js"
+        },
+        "./conformance": {
+            "types": "./lib/types/conformance/index.d.ts",
+            "default": "./lib/esm/conformance/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/**/*.spec.d.ts"
+    ],
+    "sideEffects": false,
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify env GSETTINGS_BACKEND=memory gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": ["gjs", "gsettings", "settings", "nativescript", "browser"],
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "peerDependencies": {
+        "@nativescript/core": "*"
+    },
+    "peerDependenciesMeta": {
+        "@nativescript/core": {
+            "optional": true
+        }
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "polyfill",
+            "nativescript": "polyfill"
+        },
+        "tier": 3
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/app-settings"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/app-settings#readme"
+}

@@ -111,7 +111,10 @@ function expectedNsCoreNames(pkgName, index, seen = new Set()) {
     for (const file of jsFilesUnder(join(entry.dir, 'lib', 'esm'))) {
         for (const name of nsCoreImportNames(readFileSync(file, 'utf8'))) names.add(name);
     }
-    for (const dep of Object.keys(entry.manifest.dependencies ?? {})) {
+    // A peer is in the closure too: the monorepo installs it, so the build inlines it
+    // (adwaita-nativescript's optional @gjsify/app-settings brings ApplicationSettings).
+    const deps = { ...entry.manifest.peerDependencies, ...entry.manifest.dependencies };
+    for (const dep of Object.keys(deps)) {
         if (!dep.startsWith('@gjsify/')) continue;
         for (const name of expectedNsCoreNames(dep, index, seen)) names.add(name);
     }

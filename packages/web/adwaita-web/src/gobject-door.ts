@@ -19,12 +19,14 @@ import {
     type RegisteredClass,
     type TemplateScope,
     syncDirection,
+    widgetControllerMembers,
     widgetDisplayMembers,
     widgetTreeMembers,
 } from '@gjsify/adwaita-core';
 import { propertyOf } from '@gjsify/adwaita-core/tags';
 
 import { gdk } from './namespace/gdk.js';
+import { webPlatformHost } from './platform-host.js';
 import { inheritStyles } from './registered-styles.js';
 import { dispatchElement, listenElement } from './gobject-elements.js';
 import { buildTemplateTree, type BuiltTemplateTree } from './shared-tree-builder.js';
@@ -127,7 +129,11 @@ export const webDoor: GObjectDoor = {
 
         const proto = (klass as { prototype: Record<string, unknown> }).prototype;
         // `this.get_display()`, `this.set_direction()`, `this.insert_action_group()` …, as on a Gtk.Widget; a class's own wins.
-        for (const [name, member] of Object.entries({ ...widgetDisplayMembers(gdk), ...widgetTreeMembers() })) {
+        for (const [name, member] of Object.entries({
+            ...widgetDisplayMembers(gdk),
+            ...widgetTreeMembers(),
+            ...widgetControllerMembers(webPlatformHost),
+        })) {
             if (!(name in proto))
                 Object.defineProperty(proto, name, { value: member, writable: true, configurable: true });
         }

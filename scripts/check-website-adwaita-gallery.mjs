@@ -741,6 +741,13 @@ const PANE_TEXT_DIVERGENCES = {
         'property: the port refuses set_menubar by name in ADR 0098 stage 1 (Android has no menubar), so ' +
         'its pane registers an app. action and builds the window in activate where GTK fills the menubar ' +
         'and sets show_menubar.',
+    'Gtk.Window':
+        'property: the NativeScript Gtk.Window is a true subset (title, default size, one child) — it has ' +
+        'no titlebar slot, frame properties, maximize() or close-request, and its size is spelled ' +
+        'defaultWidth/defaultHeight in the construct-props bag.',
+    'Gtk.WindowControls':
+        'property: the NativeScript Gtk.Window has no titlebar slot and none of icon_name, resizable, ' +
+        'maximized or deletable, so its pane builds the controls beside the window instead of in it.',
     'Gtk.Entry':
         'property: widthRequest and halign are GTK size and alignment requests, and the port has no layout ' +
         'surface to put them on.',

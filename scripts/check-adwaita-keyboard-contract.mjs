@@ -80,6 +80,10 @@ const CONTRACT_SPECS = [`${ADWAITA_WEB_SRC}/keyboard-operable.spec.ts`, 'tests/b
  * that has nothing to do with its items shows up here as a diff to be argued for.
  */
 const ROVING_LEDGER = {
+    // Not a roving widget: `listenKeys` gives a bare element `tabindex="-1"` so
+    // `Gtk.EventControllerKey` can hear it, and the keydown listener it adds is the
+    // controller itself. The reader sees a tabindex and a keydown; nothing arrows.
+    'packages/web/adwaita-web/src/platform-host.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/gtk-drop-down.ts': 'own keydown listener',
     // `tab-behavior: item`/`cell` is `GtkListTabBehavior` — the list is ONE tab stop and
     // the arrows move inside it, which is the roving tabindex in GTK's own vocabulary. The

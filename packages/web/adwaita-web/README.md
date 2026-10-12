@@ -185,6 +185,17 @@ Chromium 149 to `rgb(0, 117, 255)`: both blue, neither the desktop's accent. A p
 cannot tell such a default from a real accent, which is why the server handoff ranks
 above it.
 
+## Platform members
+
+`Gtk.CssProvider`, `Gtk.StyleContext`, `Gtk.Settings`, `Gtk.IconTheme`, `Gtk.EventControllerKey`,
+`Gtk.show_uri`, `Gdk.KEY_*`, `Adw.ColorScheme` and the web `Gtk.License` are ONE behaviour in
+`adwaita-core/src/gtk-platform.ts`. Each port only supplies a `PlatformHost` (`src/platform-host.ts`):
+a `<style>` element, `window.open` and a keydown listener on the web; `Application.addCss`, an Intent
+and an `OnKeyListener` on NativeScript, where iOS never delivers keys.
+
+`Gio.Settings` is `@gjsify/app-settings` (ADR 0099), an OPTIONAL peer of both ports (Tier 3, ADR 0003
+rule 1).
+
 ## Icons, and the ones the stylesheet does not ship
 
 A `<gtk-image icon-name="go-next">` is a CSS mask: the box takes its colour from
