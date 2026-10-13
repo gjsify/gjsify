@@ -19,6 +19,9 @@ import { xmlNumber } from '../widgets/xml-values.js';
 import { NsCanvas, type NsCanvasRenderingContext2D } from './canvas-subset.js';
 import { createNativeCanvasDriver, type NativeCanvasDriver } from './native-canvas.js';
 
+/** `FrameRequestCallback` without `lib.dom`: a NativeScript app has none. */
+export type FrameCallback = (time: number) => void;
+
 type ReadyCallback = (canvas: NsCanvas, ctx: NsCanvasRenderingContext2D) => void;
 type ResizeCallback = (width: number, height: number) => void;
 type SignalHandler = (self: Canvas2DBridge, width: number, height: number) => unknown;
@@ -116,10 +119,10 @@ export class Canvas2DBridge extends withGtkWidgetLayout(NsView) {
     }
 
     /** NativeScript's own `requestAnimationFrame`, here so the call reads the same on every target. */
-    requestAnimationFrame(cb: FrameRequestCallback): number {
-        return (
-            globalThis as unknown as { requestAnimationFrame(cb: FrameRequestCallback): number }
-        ).requestAnimationFrame(cb);
+    requestAnimationFrame(cb: FrameCallback): number {
+        return (globalThis as unknown as { requestAnimationFrame(cb: FrameCallback): number }).requestAnimationFrame(
+            cb,
+        );
     }
 
     /** A no-op: NativeScript already has `requestAnimationFrame` and `performance`. */

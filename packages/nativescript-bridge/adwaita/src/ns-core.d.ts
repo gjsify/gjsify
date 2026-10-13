@@ -22,6 +22,8 @@
 // `scripts/nativescript-xml-doors.mjs` records), and `AdwSplitButton.direction` over
 // `ViewCommon.direction`, NativeScript's RTL layout property. All three are a type
 // error for a consumer that compiles our `lib/types` without `skipLibCheck`.
+// `tests/e2e/consumer-types-adwaita` merges the upstream shapes of those members onto this
+// slice and lists every such clash (also `AdwBottomSheet.modal`, `AdwToggle.name`) by name.
 //
 // AND THE OTHER DIRECTION IS NOT HELD AT ALL. `widgets/signals.ts` adds `connect` and
 // `disconnect` to every widget, on the measurement that no view base of 9.1.0-alpha.11
@@ -318,7 +320,7 @@ declare module '@nativescript/core' {
     export class LayoutBase extends View {
         addChild(view: View): void;
         /** Insert a child at a specific index (paint/stacking order). */
-        insertChild(view: View, atIndex: number): void;
+        insertChild(view: View, atIndex: number): boolean;
         removeChild(view: View): void;
         /** Detach every child at once — `adw_wrap_box_remove_all`'s counterpart. */
         removeChildren(): void;

@@ -132,9 +132,10 @@ export class GtkListBox extends AdwStyledLayoutBase {
         this._adopt(view);
     }
 
-    insertChild(child: View, atIndex: number): void {
-        super.insertChild(child, atIndex);
+    insertChild(child: View, atIndex: number): boolean {
+        const inserted = super.insertChild(child, atIndex);
         this._adopt(child);
+        return inserted;
     }
 
     removeChild(view: View): void {

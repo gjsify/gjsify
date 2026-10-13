@@ -27,7 +27,7 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
     private unsubscribe: (() => void) | null = null;
     private readonly vadj = new GtkAdjustment();
     private readonly hadj = new GtkAdjustment();
-    private direction = 1;
+    private _direction = 1;
     private readonly gutters = new GutterSet(this);
 
     constructor() {
@@ -171,10 +171,10 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
         if (![0, 1, 2].includes(direction)) {
             throw new TypeError(`${direction} is not a valid value for enum argument dir`);
         }
-        this.direction = direction;
+        this._direction = direction;
     }
     get_direction(): number {
-        return this.direction;
+        return this._direction;
     }
 
     /** `null` for any side but LEFT and RIGHT, as in GtkSourceView (ADR 0103). */
