@@ -153,6 +153,12 @@ function errorClassForQuark(quark) {
     // registers the class it builds on the way out. Without this an error whose domain
     // enum the application never named would fall back to the base class, which is
     // exactly the `catch (e) { if (e instanceof Gio.IOErrorEnum) }` case.
+    // Guarded for the cross-version pairing the `native.setPropertySetCallback` guard
+    // below describes: an addon older than this JS does not export it. Degrading means
+    // falling back to what the map alone knows — a domain whose enum `makeEnum` has
+    // already realized is in it, one nothing has touched yet lands on the base class.
+    // Nothing is cached in that case, so a later `makeEnum` still registers.
+    if (typeof native.errorDomainInfo !== 'function') return null;
     const info = native.errorDomainInfo(quark);
     errorClassByQuark.set(quark, null); // also breaks the cycle while the namespace loads
     if (info === null) return null;
@@ -360,7 +366,15 @@ function makeErrorDomainClass(namespace, typeName, members, quark) {
 // Called by the engine on a failed GI invoke, with ownership of the GError* already
 // transferred to the boxed handle. Named, so the position properties report the
 // application frame rather than this one.
-native.setErrorBuilder(function buildThrownGError(handle) {
+native.setErrorBuilder(function buildThrownGError(handle, quark, code, message) {
+    // Same cross-version pairing: an addon older than this JS calls the builder with
+    // the GError's FIELDS (domainName, quark, code, message) rather than a handle, and
+    // there is no second `errorClass` argument to give it. Rebuilding the GError from
+    // the fields keeps the ONE shape on that pairing too — it costs only the original
+    // GError's address, which nothing can read.
+    if (typeof handle === 'string') {
+        return wrapGError(newErrorLiteral(quark, code, message), true, buildThrownGError);
+    }
     return wrapGError(handle, true, buildThrownGError);
 });
 
