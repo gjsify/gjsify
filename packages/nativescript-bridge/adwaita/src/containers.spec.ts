@@ -103,7 +103,7 @@ export const AdwContainersNsTest = async () => {
 
     await describe('single-child containers: alignment sizes the column', async () => {
         const columns = (view: object): string[] =>
-            ((view as unknown as Record<string, { gridUnitType: string }[]>)._columns ?? []).map((s) => s.gridUnitType);
+            ((view as unknown as Record<string, { gridUnitType: string }[]>)._cols ?? []).map((s) => s.gridUnitType);
 
         // The platform double has no `onLoaded` lifecycle to drive, so the load step is called directly.
         const load = (bin: object): void =>

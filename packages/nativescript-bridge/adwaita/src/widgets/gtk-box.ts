@@ -63,7 +63,7 @@ export class GtkBox extends AdwStyledLayoutBase {
     private _spacing = DEFAULT_BOX_SPACING;
     private _orientation: BoxOrientation = 'horizontal';
     private _homogeneous = false;
-    // What the track lists were last built for. NOT `_rows`/`_columns`: `GridLayoutBase` owns
+    // What the track lists were last built for. NOT `_rows`/`_cols`: `GridLayoutBase` owns
     // `_rows` and assigns it in its constructor, and a subclass field of that name replaces it.
     private _trackKey = '';
     private readonly _followers = new Map<View, () => void>();

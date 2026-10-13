@@ -42,7 +42,7 @@ export class GtkGrid extends AdwStyledLayoutBase {
     private _columnSpacing = 0;
     private _rowHomogeneous = false;
     private _columnHomogeneous = false;
-    // What the track list was last built for. NOT `_rows`/`_columns`: `GridLayoutBase` owns
+    // What the track list was last built for. NOT `_rows`/`_cols`: `GridLayoutBase` owns
     // `_rows` and assigns it in its constructor, and a subclass field of that name replaces it.
     private _columnKey = '';
     private _rowKey = '';
