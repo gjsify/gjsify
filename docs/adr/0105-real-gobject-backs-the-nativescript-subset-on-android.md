@@ -1,6 +1,6 @@
 # 105. Real GObject can back the NativeScript subset on Android, and is its oracle there
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-13)
 - Date: 2026-10-10
 - Deciders: Pascal Garber
 - Related: [ADR 0003](0003-package-tiering.md) (new packages start at tier 3),
