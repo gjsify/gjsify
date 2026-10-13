@@ -12,7 +12,12 @@
 //
 //   is-active      the application is in the foreground: `resume` / `suspend`, from load to unload.
 //   close-request  emitted by `close()` with GTK's handled accumulator (adwaita-core). A handler
-//                  returning true keeps the window. Android's back button is NOT mapped.
+//                  returning true keeps the window. On Android the back button / gesture of the
+//                  TOPLEVEL window asks the same question, after nested things had their turn:
+//                  1 the topmost presented dialog closes (`can-close` false keeps it, still
+//                  consumed), 2 the innermost `Adw.NavigationView` pops (`popFromShortcut`), 3
+//                  `close-request` — a handler returning true keeps the window, else `finish()`.
+//                  iOS has no back button: nothing is watched there.
 //   close()        Android `finish()` of the foreground activity. iOS has no public API to close the
 //                  root: `close()` throws there, BEFORE `close-request` is emitted.
 //   focus-widget   `get_focus()` / `set_focus()` read and move native focus. `connect
@@ -54,6 +59,7 @@ export class GtkWindow extends AdwSingleChildBase {
     );
     private readonly _closeRequest = new CloseRequestState();
     private _unwatchForeground: (() => void) | null = null;
+    private _unwatchBack: (() => void) | null = null;
 
     constructor(props?: ConstructProps<GtkWindow>) {
         super();
@@ -66,11 +72,15 @@ export class GtkWindow extends AdwSingleChildBase {
         this._unwatchForeground?.();
         this._unwatchForeground = host.watchForeground((foreground) => this._members.reportActive(foreground));
         this._members.reportActive(host.isForeground());
+        this._unwatchBack?.();
+        this._unwatchBack = this._isToplevel() ? host.watchBack(() => this._handleBack()) : null;
     }
 
     onUnloaded(): void {
         this._unwatchForeground?.();
         this._unwatchForeground = null;
+        this._unwatchBack?.();
+        this._unwatchBack = null;
         this._members.reportActive(false);
         super.onUnloaded();
     }
@@ -147,6 +157,11 @@ export class GtkWindow extends AdwSingleChildBase {
                     'root window. Android finishes the foreground activity.',
             );
         }
+        this._requestClose();
+    }
+
+    private _requestClose(): void {
+        const host = windowHost();
         this._closeRequest.close({
             realized: this.isLoaded,
             hideOnClose: false,
@@ -158,6 +173,35 @@ export class GtkWindow extends AdwSingleChildBase {
             hide: () => {},
             destroy: () => host.finish(),
         });
+    }
+
+    /**
+     * What the back button does, in order: the topmost dialog, the innermost navigation view, then
+     * `close-request`. Always consumes the press — the system's own back would `finish()` too, but
+     * without asking the handlers.
+     */
+    private _handleBack(): boolean {
+        if (this._consumeBack()) return true;
+        if (popInnermostNavigation(this)) return true;
+        this._requestClose();
+        return true;
+    }
+
+    /** A subclass that shows things over the window (dialogs) takes the press first; true = taken. */
+    protected _consumeBack(): boolean {
+        return false;
+    }
+
+    /** Only a window with no window above it owns the back button. */
+    private _isToplevel(): boolean {
+        for (
+            let ancestor = this.parent as View | null | undefined;
+            ancestor;
+            ancestor = ancestor.parent as View | null | undefined
+        ) {
+            if (ancestor instanceof GtkWindow) return false;
+        }
+        return true;
     }
 
     connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
@@ -210,4 +254,31 @@ function findView(root: View, match: (view: View) => boolean): View | null {
         return found === null;
     });
     return found;
+}
+
+interface PopsOnBack {
+    popFromShortcut(): 'stop' | 'propagate';
+}
+
+const popsOnBack = (view: View): view is View & PopsOnBack =>
+    typeof (view as Partial<PopsOnBack>).popFromShortcut === 'function';
+
+/**
+ * Pop the innermost navigation view that takes the press: `'stop'` means it did (or its page has
+ * `can-pop` false), `'propagate'` hands the press outward, as the shortcut does in libadwaita.
+ */
+function popInnermostNavigation(root: View): boolean {
+    let taken = false;
+    root.eachChildView((child) => {
+        if (popInnermostNavigation(child)) {
+            taken = true;
+            return false;
+        }
+        if (popsOnBack(child) && child.isLoaded && child.popFromShortcut() === 'stop') {
+            taken = true;
+            return false;
+        }
+        return true;
+    });
+    return taken;
 }

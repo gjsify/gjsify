@@ -22,3 +22,13 @@ export function focusView(_view: View): void {
 export function blurView(_view: View): void {
     throw new Error('there is no platform focus to clear on this host');
 }
+
+/** Back-button event data NativeScript hands its listeners: `cancel` stops the system's own back. */
+export interface BackPressedEvent {
+    cancel: boolean;
+}
+
+/** This host has no back button to hear; nothing to unsubscribe. */
+export function watchBackButton(_onBack: (event: BackPressedEvent) => void): () => void {
+    return () => {};
+}

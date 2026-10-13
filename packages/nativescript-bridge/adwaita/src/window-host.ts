@@ -6,7 +6,7 @@
 
 import { Application, type View } from '@nativescript/core';
 
-import { blurView, canFinishWindow, finishWindow, focusView, isViewFocused } from './window-source.js';
+import { blurView, canFinishWindow, finishWindow, focusView, isViewFocused, watchBackButton } from './window-source.js';
 
 export interface WindowHost {
     /** Whether {@link finish} can end the window; asked BEFORE a `close-request` is emitted. */
@@ -15,6 +15,12 @@ export interface WindowHost {
     isForeground(): boolean;
     /** Call `onChange` whenever the application enters or leaves the foreground; returns the unsubscribe. */
     watchForeground(onChange: (foreground: boolean) => void): () => void;
+    /**
+     * Call `onBack` when the system's back button or gesture is used; it answers whether it took
+     * the press (true stops the system's own back). Returns the unsubscribe. Never fires where
+     * the platform has no back button.
+     */
+    watchBack(onBack: () => boolean): () => void;
     /** End the window. Throws where the platform has no way to. */
     finish(): void;
     isFocused(view: View): boolean;
@@ -44,6 +50,11 @@ export const nativeWindowHost: WindowHost = {
             Application.off('resume', resume);
             Application.off('suspend', suspend);
         };
+    },
+    watchBack(onBack) {
+        return watchBackButton((event) => {
+            if (onBack()) event.cancel = true;
+        });
     },
     finish: finishWindow,
     isFocused: isViewFocused,

@@ -620,6 +620,9 @@ declare module '@nativescript/core' {
             | {
                   readonly foregroundActivity?: AndroidActivityLike | null;
                   readonly startActivity?: AndroidActivityLike | null;
+                  /** `AndroidApplication` events; `activityBackPressed` carries `cancel`. */
+                  on(event: string, callback: (args: unknown) => void): void;
+                  off(event: string, callback: (args: unknown) => void): void;
               }
             | undefined;
 

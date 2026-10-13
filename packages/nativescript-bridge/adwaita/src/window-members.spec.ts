@@ -16,6 +16,9 @@ interface FakeHost extends WindowHost {
     finished: number;
     focused: View | null;
     foreground: boolean;
+    backListeners: Array<() => boolean>;
+    /** A back press: true when a listener took it (the system's own back is cancelled). */
+    pressBack(): boolean;
 }
 
 function fakeHost(canFinish: boolean): FakeHost {
@@ -24,6 +27,14 @@ function fakeHost(canFinish: boolean): FakeHost {
         finished: 0,
         focused: null,
         foreground: true,
+        backListeners: [],
+        pressBack: () => host.backListeners.slice().some((listener) => listener()),
+        watchBack(onBack) {
+            host.backListeners.push(onBack);
+            return () => {
+                host.backListeners = host.backListeners.filter((listener) => listener !== onBack);
+            };
+        },
         isForeground: () => host.foreground,
         watchForeground(onChange) {
             const resume = (): void => onChange(true);
@@ -123,6 +134,104 @@ export const GtkWindowMembersNsTest = async () => {
                 window.connect('close-request', () => false);
                 window.close();
                 expect(host.finished).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back on the toplevel window asks close-request; unhandled ends the window', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = loadedWindow();
+                window.onLoaded();
+                let asked = 0;
+                window.connect('close-request', () => {
+                    asked++;
+                    return false;
+                });
+                expect(host.pressBack()).toBe(true);
+                expect(asked).toBe(1);
+                expect(host.finished).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back with a close-request handler returning true keeps the window', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = loadedWindow();
+                window.onLoaded();
+                window.connect('close-request', () => true);
+                expect(host.pressBack()).toBe(true);
+                expect(host.finished).toBe(0);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back closes the topmost dialog before asking close-request', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = new Adw.Window();
+                Object.defineProperty(window, 'isLoaded', { value: true });
+                window.onLoaded();
+                let asked = 0;
+                window.connect('close-request', () => {
+                    asked++;
+                    return false;
+                });
+                const dialog = new Adw.Dialog();
+                dialog.present(window as never);
+                host.pressBack();
+                expect(dialog.open).toBe(false);
+                expect(asked).toBe(0);
+                expect(host.finished).toBe(0);
+                const stuck = new Adw.Dialog({ canClose: false });
+                stuck.present(window as never);
+                host.pressBack();
+                expect(stuck.open).toBe(true);
+                expect(asked).toBe(0);
+                stuck.force_close();
+                host.pressBack();
+                expect(asked).toBe(1);
+                expect(host.finished).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('a window inside another window does not watch back', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const outer = new Adw.Window();
+                const inner = new Gtk.Window();
+                const box = new Gtk.Box();
+                box.append(inner as never);
+                outer.content = box as never;
+                inner.onLoaded();
+                expect(host.backListeners.length).toBe(0);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('unload and re-load never double-subscribe back, and unload unsubscribes', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = loadedWindow();
+                window.onLoaded();
+                window.onLoaded();
+                expect(host.backListeners.length).toBe(1);
+                window.onUnloaded();
+                expect(host.backListeners.length).toBe(0);
+                expect(host.pressBack()).toBe(false);
+                expect(host.finished).toBe(0);
             } finally {
                 useWindowHost(null);
             }

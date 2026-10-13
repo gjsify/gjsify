@@ -134,3 +134,16 @@ it is not something an agent needs on every turn.
 `scripts/check-storybook-widget-coverage.mjs` explains separately why the matrix is not
 machine-checked against the same reader that generates it — `f(x)` against `f(x)` is
 green for every tree.
+
+## Android back — one NS event, and the window answers it last
+
+`Gtk.Window` maps the back button/gesture to `close-request` through NativeScript's
+`activityBackPressed` event on `Application.android` (`window-source.android.ts`). NS 9.1 raises it
+from the legacy `onBackPressed` AND from the AndroidX `OnBackPressedCallback` it registers on the
+activity's dispatcher for API 33+, where predictive back needs a registered callback. A second
+dispatcher callback of our own would race NS's for the gesture, so there is none.
+
+Order, toplevel window only: topmost open dialog, innermost `Adw.NavigationView.popFromShortcut()`,
+then `close-request` (a handler returning true keeps the window, else `finish()`). The window always
+sets `cancel`. A window nested in another window subscribes nothing; `onUnloaded` unsubscribes.
+Unverified on a device.

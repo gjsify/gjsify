@@ -219,10 +219,17 @@ notifies only when its value moves; the first `close-request` handler to return 
 | `is-active` | tab visible, frame shown and `document.hasFocus()` | application foreground (`resume` / `suspend`) while the window is loaded |
 | `get_focus` / `set_focus` | `document.activeElement` inside the frame; outside it, `set_focus` throws | native focus walk (`isFocused`, `requestFocus`); a non-descendant throws |
 | `notify::focus-widget` | `focusin` / `focusout` | refused by `connect`: user-moved focus is unobservable |
-| `close-request` / `close()` | cancelable DOM event, `preventDefault` = handled; `hide-on-close` hides | Android `finish()`; iOS has no public API, `close()` throws before `close-request` |
+| `close-request` / `close()` | cancelable DOM event, `preventDefault` = handled; `hide-on-close` hides | Android `finish()`; iOS has no public API, `close()` throws before `close-request`. Android back on the toplevel window asks `close-request` too, after a presented dialog and a navigation view had their turn |
 | `maximized` | the frame's state | constant true; `unmaximize()` / `maximized = false` throw |
 | `present()` | un-hides the frame | no-op: the window `activate` returns is the root |
 
-Not covered, because nothing here can say: the Android back button as a `close-request`, split-screen
-or multi-window as un-maximized, and `hide-on-close` on NativeScript. The Android and iOS calls are
+Back button order (Android, toplevel window only): topmost open dialog (`close()`, so `can-close` false
+keeps it and still takes the press), then the innermost `Adw.NavigationView` (`popFromShortcut`, so
+`can-pop` is honoured), then `close-request`. The window always takes the press, since the system's own
+back would `finish()` without asking handlers. iOS has no back button. The hook is NativeScript's
+`activityBackPressed` event, which NS 9.1 raises from both `onBackPressed` and the AndroidX
+`OnBackPressedCallback` it registers for predictive back.
+
+Not covered, because nothing here can say: split-screen or multi-window as un-maximized, and
+`hide-on-close` on NativeScript. The Android and iOS calls are
 unverified on a device.
