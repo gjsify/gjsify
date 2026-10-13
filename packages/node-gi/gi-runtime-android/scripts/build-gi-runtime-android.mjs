@@ -27,7 +27,18 @@
 // (SYSTEM_PROVIDED) and fails on a fourth answer.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    lstatSync,
+    mkdirSync,
+    readFileSync,
+    readdirSync,
+    readlinkSync,
+    realpathSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -587,18 +598,39 @@ function typelibDirsByAbi(specs, abis, giSysroot) {
     return byAbi;
 }
 
+/**
+ * A licence file as a regular file, following symlinks. A link whose target is missing is
+ * an error naming both ends: the prefix was packed with links that only resolved on the
+ * machine that built it, and dropping the file would ship a notice without that text.
+ */
+function resolveLicenseFile(path) {
+    try {
+        const real = realpathSync(path);
+        return statSync(real).isFile() ? real : null;
+    } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        const target = lstatSync(path).isSymbolicLink() ? readlinkSync(path) : '(not a link)';
+        throw new Error(
+            `--license-corpus: ${path} is a dangling symlink -> ${target}. The prefix was packed with a link ` +
+                'to a file that is not in the archive, so its licence text is missing. Repack the prefix with ' +
+                'symlinks dereferenced (tar -h) in gjsify/android-sysroot and bump build-inputs.json.',
+        );
+    }
+}
+
 /** `<project>/<file>` licence texts, or `null` when no corpus was supplied. */
-function readLicenseCorpus(dir) {
+export function readLicenseCorpus(dir) {
     if (dir === undefined) return null;
     const root = requireDir('--license-corpus', dir, 'a directory of <project>/<licence file>');
     const out = new Map();
     for (const project of readdirSync(root).sort()) {
         const projectDir = join(root, project);
         if (!statSync(projectDir).isDirectory()) continue;
-        const texts = readdirSync(projectDir)
-            .sort()
-            .filter((name) => statSync(join(projectDir, name)).isFile())
-            .map((name) => ({ name, body: readFileSync(join(projectDir, name), 'utf8') }));
+        const texts = [];
+        for (const name of readdirSync(projectDir).sort()) {
+            const real = resolveLicenseFile(join(projectDir, name));
+            if (real !== null) texts.push({ name, body: readFileSync(real, 'utf8') });
+        }
         if (texts.length > 0) out.set(project, texts);
     }
     if (out.size === 0) fail(`--license-corpus ${root}: no <project>/<file> texts found`);

@@ -12,15 +12,15 @@
   "ndk": "27.1.12297006",
   "sysroot": {
     "repository": "gjsify/android-sysroot",
-    "tag": "2026.10.12",
+    "tag": "2026.10.13",
     "assets": {
       "arm64-v8a": {
-        "name": "android-sysroot-2026.10.12-arm64-v8a.tar.gz",
-        "sha256": "4df2fcff0f27724bce4e677e55cb340ddde8eb2f8b3f4b5f73b0a3349624d018"
+        "name": "android-sysroot-2026.10.13-arm64-v8a.tar.gz",
+        "sha256": "0418ad79936b3606f26ebe6d9ca02f3d79ddc2012ea0b2d5426fc1da22b06799"
       },
       "x86_64": {
-        "name": "android-sysroot-2026.10.12-x86_64.tar.gz",
-        "sha256": "b29cf02458669a98f80f7c79d1201d0039bafc748cd2732a2c1af17625d00e79"
+        "name": "android-sysroot-2026.10.13-x86_64.tar.gz",
+        "sha256": "2e8bc869f06085e747df72e6e2f3aef846d80f2c579feef39fd425e027f5a06e"
       }
     }
   },
