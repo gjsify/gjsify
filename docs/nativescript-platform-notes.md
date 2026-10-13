@@ -134,3 +134,7 @@ it is not something an agent needs on every turn.
 `scripts/check-storybook-widget-coverage.mjs` explains separately why the matrix is not
 machine-checked against the same reader that generates it — `f(x)` against `f(x)` is
 green for every tree.
+
+## Shipped declarations are judged without `skipLibCheck`
+
+`tests/e2e/consumer-types-adwaita` type-checks the built declarations of `adwaita-web`, `adwaita-nativescript` and `gtksource-nativescript` with and without `lib.dom`; `@nativescript/core` is never loaded (its own `.d.ts` fail under TS 6, and its `global-types.d.ts` redeclares `Reflect`/`WeakRef`), the ns cases merge its upstream `View`/`GridLayout` members onto `ns-core.d.ts` instead. Shipped declarations name no `lib.dom` type directly (`BridgeCanvas`/`FrameCallback` in the canvas2d bridges), and a mixin whose accessors the base class re-declares ships as a `declare abstract class` (`GtkWidgetLayoutMembers`), never an interface (TS2611). The five GTK-named clashes with NS members (`AdwBottomSheet.modal`, `AdwDataGrid.rows`/`columns`, `AdwSplitButton.direction`, `AdwToggle.name`) are the fixture's named `KNOWN_GAPS`: a rename-vs-widen decision is pending, and the list fails when it goes stale.
