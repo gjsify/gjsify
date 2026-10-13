@@ -135,6 +135,19 @@ it is not something an agent needs on every turn.
 machine-checked against the same reader that generates it — `f(x)` against `f(x)` is
 green for every tree.
 
+## Android back — one NS event, and the window answers it last
+
+`Gtk.Window` maps the back button/gesture to `close-request` through NativeScript's
+`activityBackPressed` event on `Application.android` (`window-source.android.ts`). NS 9.1 raises it
+from the legacy `onBackPressed` AND from the AndroidX `OnBackPressedCallback` it registers on the
+activity's dispatcher for API 33+, where predictive back needs a registered callback. A second
+dispatcher callback of our own would race NS's for the gesture, so there is none.
+
+Order, toplevel window only: topmost open dialog, innermost `Adw.NavigationView.popFromShortcut()`,
+then `close-request` (a handler returning true keeps the window, else `finish()`). The window always
+sets `cancel`. A window nested in another window subscribes nothing; `onUnloaded` unsubscribes.
+Unverified on a device.
+
 ## Shipped declarations are judged without `skipLibCheck`
 
 `tests/e2e/consumer-types-adwaita` type-checks the built declarations of `adwaita-web`, `adwaita-nativescript` and `gtksource-nativescript` with and without `lib.dom`; `@nativescript/core` is never loaded (its own `.d.ts` fail under TS 6, and its `global-types.d.ts` redeclares `Reflect`/`WeakRef`), the ns cases merge its upstream `View`/`GridLayout` members onto `ns-core.d.ts` instead. Shipped declarations name no `lib.dom` type directly (`BridgeCanvas`/`FrameCallback` in the canvas2d bridges), and a mixin whose accessors the base class re-declares ships as a `declare abstract class` (`GtkWidgetLayoutMembers`), never an interface (TS2611). The five GTK-named clashes with NS members (`AdwBottomSheet.modal`, `AdwDataGrid.rows`/`columns`, `AdwSplitButton.direction`, `AdwToggle.name`) are the fixture's named `KNOWN_GAPS`: a rename-vs-widen decision is pending, and the list fails when it goes stale.

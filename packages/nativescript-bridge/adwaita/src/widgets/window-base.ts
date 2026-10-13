@@ -105,6 +105,18 @@ export abstract class AdwWindowBase extends GtkWindow implements DialogHost {
         this._dialogs.push(view);
     }
 
+    /** Back closes the topmost open dialog; a dialog that cannot close (`can-close`) still takes the press. */
+    protected override _consumeBack(): boolean {
+        for (let at = this._dialogs.length - 1; at >= 0; at--) {
+            const dialog = this._dialogs[at] as View & { open?: boolean; close?(): void };
+            if (dialog.open === true && typeof dialog.close === 'function') {
+                dialog.close();
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** `DialogHost` — the dialog closed. A view this window did not host is left alone. */
     _unhostDialog(dialog: unknown): void {
         const view = dialog as View;
