@@ -44,6 +44,13 @@
 // invocation, in the construction `check-workflow-run-syntax.mjs` uses: a detector that
 // has stopped detecting must fail rather than report "clean".
 //
+// An `echo`/`printf` of an install command is prose too, one layer below `name:` — a
+// printed line reads no registry, and this repo writes the copy-paste command a reader
+// wants into `$GITHUB_STEP_SUMMARY` routinely (`publish-next` prints `npm i
+// @gjsify/cli@next`). It is stripped, but only where it cannot run: a line carrying a
+// pipe, a backtick or `$(` is read whole, because `echo "npm install …" | bash` does
+// install. See `stripEchoedProse`.
+//
 // KNOWN GAPS, stated rather than implied. This reads LINES, not YAML: a shell `#`
 // inside a quoted string truncates the line early (a false negative, never a false
 // positive), and an install performed by a script the workflow merely calls is outside
@@ -173,6 +180,27 @@ function codeOf(line) {
 }
 
 /**
+ * What a line would EXECUTE, with printed prose removed. An `echo`/`printf` of a command
+ * reads no registry — it is the same kind of text as a `name:`, one layer down, and this
+ * repo writes the copy-paste line a reader wants into `$GITHUB_STEP_SUMMARY` constantly
+ * (`publish-next` prints `npm i @gjsify/cli@next`). Without this, the one shape the
+ * channel's summary can have is unflaggable except by an ALLOWED entry claiming a
+ * registry read that does not happen.
+ *
+ * Two bounds, because a printed command is not always inert:
+ *   - A line carrying `|`, a backtick or `$(` is returned WHOLE. `echo "npm install …"
+ *     | bash` and `eval "$(echo npm install …)"` do install, and the cost of the
+ *     bluntness is a false POSITIVE on a markdown table row echoed with `|` — flagging,
+ *     which an ALLOWED entry can answer, never a silent miss.
+ *   - Each `echo`/`printf` is stripped only to the next `;`/`&`/`|`, not to end of line,
+ *     so `echo "installing" ; npm install @gjsify/cli` keeps its second command.
+ */
+function stripEchoedProse(code) {
+    if (/[|`]|\$\(/.test(code)) return code;
+    return code.replace(/\b(?:echo|printf)\b[^;&|]*/g, ' ');
+}
+
+/**
  * One file's logical lines: comments stripped FIRST, then `\` continuations joined —
  * that order, because a `\` inside a comment is not a continuation. Each entry carries
  * the number of the physical line the logical one STARTS on.
@@ -213,7 +241,8 @@ export function findRegistryInstalls(text) {
     const found = [];
     for (const [line, code] of logicalLines(text)) {
         if (!code.trim() || YAML_PROSE.test(code)) continue;
-        if (!INSTALL_VERB.test(code) || !GJSIFY_SPEC.test(code)) continue;
+        const executable = stripEchoedProse(code);
+        if (!INSTALL_VERB.test(executable) || !GJSIFY_SPEC.test(executable)) continue;
         if (code.includes(WRAPPER)) continue;
         found.push({ line, text: code.trim() });
     }
@@ -236,6 +265,11 @@ const MUST_FLAG = [
     'npm install @gjsify/cli --no-save',
     'npm install "@gjsify/cli@0.46.0"   # TODO route via npm-install-published.mjs',
     'npm install --no-audit \\\n  "@gjsify/cli@0.46.0"',
+    // An echoed command is prose, but a PIPED one runs. Both shapes below install.
+    'echo "npm install @gjsify/cli@latest" | bash',
+    'eval "$(echo npm install @gjsify/cli@latest)"',
+    // `echo` is stripped to the next separator only, never to end of line.
+    'echo "staging the CLI" ; npm install "@gjsify/cli@0.46.0"',
 ];
 const MUST_PASS = [
     'node scripts/npm-install-published.mjs -- "@gjsify/cli@0.46.0" --no-audit',
@@ -244,6 +278,10 @@ const MUST_PASS = [
     '# npm install "@gjsify/cli@0.46.0"',
     'npm install -g corepack',
     'npm run build --workspace @gjsify/cli',
+    // The shape `publish-next`'s summary has: the copy-paste line a reader wants,
+    // written to the step summary. No registry is read by printing it.
+    'echo "npm i @gjsify/cli@next   # ${VERSION}"',
+    'printf \'%s\\n\' "npm i @gjsify/cli@next"',
 ];
 
 function selfTest() {

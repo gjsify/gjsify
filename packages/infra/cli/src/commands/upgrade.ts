@@ -31,7 +31,9 @@
 //
 // Workspace-protocol ranges (`workspace:*`, `workspace:^`, …) are always
 // skipped — those are internal links and `gjsify install` resolves them
-// locally.
+// locally. So are DIST-TAG specs (`"@gjsify/cli": "next"`, the `next`-channel
+// opt-in of ADR 0111): a tag carries no version to compare, and `--align`
+// used to overwrite it with one. See `isDistTagSpec`.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -324,7 +326,7 @@ function collectAllDeclarations(workspaces: readonly Workspace[], depFilters: st
     return out;
 }
 
-function collectFromWorkspace(workspace: Workspace, depFilters: string[]): DepDeclaration[] {
+export function collectFromWorkspace(workspace: Workspace, depFilters: string[]): DepDeclaration[] {
     const out: DepDeclaration[] = [];
     const pkg = workspace.manifest;
     for (const field of DEP_FIELDS) {
@@ -333,6 +335,20 @@ function collectFromWorkspace(workspace: Workspace, depFilters: string[]): DepDe
         for (const [name, raw] of Object.entries(map as Record<string, string>)) {
             if (typeof raw !== 'string') continue;
             if (depFilters.length && !depFilters.some((f) => name.toLowerCase().includes(f))) continue;
+            // A DIST-TAG is not a range and has no version to compare. Skipped for the
+            // same reason as the protocols below — `gjsify install` resolves it, and
+            // nothing here can say anything true about it.
+            //
+            // THE DEFECT THIS CLOSES. `"@gjsify/cli": "next"` is how a consumer app opts
+            // into the `next` channel (ADR 0111): one spec, resolved through the
+            // packument's `dist-tags` on every install. Without this skip `splitRange`
+            // returned `{prefix: '', version: null}`, so the declaration joined its dep's
+            // group as the literal range `next`: `--check` reported the dep inconsistent
+            // against every sibling declaring a real range, `checkLockfileRangeViolations`
+            // reported the resolved prerelease as violating `next`, and `--align` —
+            // the repair that failure message names — REWROTE the spec to the group's
+            // highest declared version, silently destroying the opt-in it was pointed at.
+            if (isDistTagSpec(raw)) continue;
             // Skip workspace-protocol + file: + link: + git: + http(s): specs.
             if (
                 raw.startsWith('workspace:') ||
@@ -360,6 +376,39 @@ function collectFromWorkspace(workspace: Workspace, depFilters: string[]): DepDe
         }
     }
     return out;
+}
+
+/** The three spellings of an x-range: alphabetic (or empty) and still a RANGE, not a tag. */
+const X_RANGE_SPELLINGS = new Set(['x', 'X', '*', '']);
+
+/**
+ * Is this spec a dist-tag (`next`, `latest`, `beta`) rather than a version range?
+ *
+ * npm's own rule is "whatever `semver.validRange` rejects is a tag", and that is NOT
+ * usable here: `@gjsify/semver`'s `validRange` reads any unparseable leading token as an
+ * x-range, so it answers `>=0.0.0` for `latest` — the most common dist-tag of all — while
+ * correctly answering `null` for `next`. A detector that disagreed with itself across tag
+ * names is worse than none, so the test is lexical and total instead.
+ *
+ * A semver range begins with a letter in exactly two ways: an x-range (`x`, `X`, and the
+ * `*`/empty spellings beside them) and a `v`-prefixed version (`v1.2.3`, `v1.x`). Every
+ * other letter-initial spec is a tag — which is also the npm rule for what a tag may be
+ * NAMED, since a tag that parses as a version is refused at `npm dist-tag add`.
+ *
+ * Deliberately NOT fixing `validRange` instead: its leniency is what makes `gjsify
+ * install` accept `1`, `1.2` and `x` from real-world manifests, and tightening the shared
+ * parser to serve one caller's discrimination question would be a resolution change to
+ * every install in the repository.
+ */
+export function isDistTagSpec(raw: string): boolean {
+    const spec = raw.trim();
+    if (X_RANGE_SPELLINGS.has(spec)) return false;
+    if (!/^[A-Za-z]/.test(spec)) return false;
+    if (/^v\d/.test(spec) || /^v[xX*]/.test(spec)) return false;
+    // npm tag names are URL path segments: no whitespace, no range operators, nothing the
+    // packument lookup could not carry. A letter-initial spec that is none of the above
+    // and still fails this is malformed either way, and is left to the registry to reject.
+    return /^[A-Za-z][\w.-]*$/.test(spec);
 }
 
 function splitRange(range: string): { prefix: string; version: string | null } {

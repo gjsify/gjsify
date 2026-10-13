@@ -64,6 +64,7 @@ import devLinkSuite from './utils/dev-link.spec.js';
 import resolveBinOnPathSuite from './utils/resolve-bin-on-path.spec.js';
 import showcasePreflightSuite from './commands/showcase-preflight.spec.js';
 import upgradeExactSuite from './commands/upgrade.spec.js';
+import selfUpdateNextNoticeSuite from './commands/self-update-next-notice.spec.js';
 import checkSystemDepsSuite from './utils/check-system-deps.spec.js';
 import dlxCacheSuite from './utils/dlx-cache.spec.js';
 import installCacheFsSuite from './utils/install-cache-fs.spec.js';
@@ -332,6 +333,7 @@ run(
         resolveBinOnPathSuite,
         showcasePreflightSuite,
         upgradeExactSuite,
+        selfUpdateNextNoticeSuite,
         checkSystemDepsSuite,
         dlxCacheSuite,
         installCacheFsSuite,

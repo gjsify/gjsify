@@ -31,6 +31,7 @@ Reference material — read on demand, not loaded every session. Root `docs/`:
 |build artifacts: the git hook, freshness, what an exit code proves → build-artifacts.md
 |native extensions + prebuilds → prebuilds.md
 |first-publish bootstrap + release closure → publishing.md
+|the `next` channel: running an app against `main` → consuming-the-next-channel.md
 |selective CI → ci-selective.md · lint/format → lint-format.md
 |GNOME lib ↔ API mapping table → gnome-mappings.md
 |what SM140 gives you beyond ES2024 → engine-baseline.md
@@ -111,6 +112,11 @@ Shared utils: `@gjsify/utils` — check before duplicating; extract only when a 
 A NEW `@gjsify/*` name needs a manual npm first-publish + Trusted Publisher bootstrap BEFORE
 the release that ships it — skipping it never stalls the train, it SHIPS: the sweep skips it and
 ships its dependents (#1713). [publishing](docs/publishing.md).
+
+TWO dist-tags: `latest` (the train) and `next` — a nightly at 03:00 Europe/Berlin republishes the
+whole sweep as `<next patch>-next.<run number>`, rewritten in the CI checkout and NEVER committed
+(ADR 0111). So a new publishing job belongs in `release.yml`: Trusted Publishing is registered
+against that FILENAME. [publishing](docs/publishing.md) § A second channel.
 
 ## Testing
 
