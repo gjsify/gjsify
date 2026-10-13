@@ -51,7 +51,7 @@ export class GtkApplicationWindow extends GtkWindow {
      * The menubar strip, created once and reused: `strips()` and `extraSlots()` both ask for
      * it, so whichever runs first builds it and the other finds it.
      */
-    private menubarSection(): HTMLDivElement {
+    protected menubarSection(): HTMLDivElement {
         if (this._menubar === null) {
             const section = document.createElement('div');
             section.className = 'adw-gtk-application-window-menubar';
@@ -95,14 +95,14 @@ export class GtkApplicationWindow extends GtkWindow {
      * The observer is what makes the second half live: `bindSlottedChildren` adopts a
      * `slot="menubar"` child after connect, and a bar that appeared then must appear.
      */
-    private _followMenubar(): void {
+    protected _followMenubar(): void {
         this._menubarObserver?.disconnect();
         this._menubarObserver = new MutationObserver(() => this._renderMenubar());
         this._menubarObserver.observe(this.menubarSection(), { childList: true });
         this._renderMenubar();
     }
 
-    private _renderMenubar(): void {
+    protected _renderMenubar(): void {
         const menubar = this.menubarSection();
         menubar.hidden = !this.showMenubar || menubar.childElementCount === 0;
     }
