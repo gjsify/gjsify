@@ -29,8 +29,9 @@
 //
 // No `caption`: as a spanning child it would widen the tracks, since NativeScript
 // cannot exclude a child from track sizing — the caller owns the title above the
-// `ScrollView`. `columns` / `rows` are set from CODE; the element is registered so
-// it can be PLACED in markup, structured data arrives from the code-behind, as for
+// `ScrollView`. Columns and rows are set from CODE, through `set_columns` / `set_rows`
+// (GridLayout owns the two accessor names); the element is registered so it can be
+// PLACED in markup, structured data arrives from the code-behind, as for
 // `AdwComboRow.model`.
 //
 // FIDELITY: approximated, typographically. libadwaita's `.numeric` is
@@ -108,29 +109,43 @@ export class AdwDataGrid extends withSignals(GridLayout) {
     /** The columns×rows the views were built for — the rebuild guard. */
     private _shapeKey = '';
 
-    constructor(props?: ConstructProps<AdwDataGrid>) {
+    constructor(
+        props?: ConstructProps<
+            AdwDataGrid,
+            { columns: ReadonlyArray<AdwDataGridColumn>; rows: ReadonlyArray<AdwDataGridRow> }
+        >,
+    ) {
         super();
         this.className = 'adw-data-grid';
 
         applyConstructProps(this, props);
     }
 
-    /** The column descriptors. Setting them re-derives the tracks. */
-    get columns(): AdwDataGridColumn[] {
+    /**
+     * The column descriptors.
+     *
+     * NO `columns` / `rows` ACCESSORS, by rule (`shadowed-properties.ts`): `GridLayoutBase` owns
+     * both names as its track specs, so `grid.rows = 'auto,*'` keeps meaning what it means on
+     * every NativeScript grid. The data goes through these verbs — the spelling a GObject
+     * property gets in GJS, and the one `<adw-data-grid>` offers too.
+     */
+    get_columns(): AdwDataGridColumn[] {
         return this._columns;
     }
 
-    set columns(value: ReadonlyArray<AdwDataGridColumn>) {
+    /** Set the column descriptors; re-derives the tracks. */
+    set_columns(value: ReadonlyArray<AdwDataGridColumn>): void {
         this._columns = normalizeDataGridColumns(value);
         this._render();
     }
 
     /** The row objects (copied, like the browser element does). */
-    get rows(): AdwDataGridRow[] {
+    get_rows(): AdwDataGridRow[] {
         return this._dataRows;
     }
 
-    set rows(value: ReadonlyArray<AdwDataGridRow>) {
+    /** Set the row objects; they are copied. */
+    set_rows(value: ReadonlyArray<AdwDataGridRow>): void {
         this._dataRows = Array.isArray(value) ? value.map((row) => ({ ...row })) : [];
         this._render();
     }

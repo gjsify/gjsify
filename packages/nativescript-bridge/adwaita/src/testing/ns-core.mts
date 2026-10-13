@@ -503,10 +503,12 @@ const placementOf = (view: View) => {
 
 export class GridLayout extends LayoutBase {
     protected _rows: ItemSpec[] = [];
-    protected _columns: ItemSpec[] = [];
+    // `_cols`, as `GridLayoutBase` names it. The double said `_columns`, and `AdwDataGrid`'s own
+    // `_columns` (its data) received every track spec here and nowhere on a device.
+    protected _cols: ItemSpec[] = [];
 
     addColumn(itemSpec: ItemSpec): void {
-        this._columns.push(itemSpec);
+        this._cols.push(itemSpec);
     }
 
     addRow(itemSpec: ItemSpec): void {
@@ -519,7 +521,7 @@ export class GridLayout extends LayoutBase {
     }
 
     removeColumns(): void {
-        this._columns.length = 0;
+        this._cols.length = 0;
     }
 
     removeRows(): void {

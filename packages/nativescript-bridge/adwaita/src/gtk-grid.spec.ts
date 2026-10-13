@@ -15,7 +15,7 @@ const label = (): View => new Gtk.Label() as unknown as View;
 
 /** The track kinds the grid declared, e.g. `['auto', 'auto']`. */
 function tracks(grid: object, axis: 'columns' | 'rows'): string[] {
-    const specs = (grid as unknown as Record<string, ItemSpec[]>)[axis === 'columns' ? '_columns' : '_rows']!;
+    const specs = (grid as unknown as Record<string, ItemSpec[]>)[axis === 'columns' ? '_cols' : '_rows']!;
     return specs.map((spec) => spec.gridUnitType);
 }
 

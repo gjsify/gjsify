@@ -250,11 +250,10 @@ if (strings === 0) failures.push('no string setter was found at all — the read
 // 2. no getter shadows a NativeScript setter-only accessor
 // ---------------------------------------------------------------------------
 
-// A getter ALONE is the hazard. A class that declares both halves has taken the name
-// over deliberately and answers the assignment itself — `AdwDataGrid` owns `rows` and
-// `columns` as its data, with a setter for each, and giving up GridLayout's track
-// spelling is the documented trade. What throws is a getter with no setter beside it,
-// because the property descriptor then carries `set: undefined`.
+// A getter ALONE is the hazard: the property descriptor then carries `set: undefined`. A
+// class declaring both halves answers the assignment itself and passes here; whether it may
+// take a platform name at all is `check-gtk-host-member-clashes.mjs`'s question (ADR 0112),
+// and today none does — `AdwDataGrid` carries its data behind `get_rows`/`set_rows`.
 let owned = 0;
 for (const [file, text] of files) {
     for (const [, name] of text.matchAll(/^ {4}get (\w+)\(\)/gm)) {
@@ -348,7 +347,9 @@ for (const [tag, { file, text }] of [...sources].sort()) {
         failures.push(`${file}: ${tag} declares no constructor, so nothing here can offer or refuse the bag.`);
         continue;
     }
-    const takes = /\bprops\?: ConstructProps<(\w+)>/.exec(ctor.params);
+    // `ConstructProps<Self, { direction: … }>` carries the GTK properties whose name the
+    // platform owns (widgets/shadowed-properties.ts) — the same bag, typed off the same class.
+    const takes = /\bprops\?: ConstructProps<\s*(\w+)\s*(?:>|,)/.exec(ctor.params);
     const statements = ctor.executable
         .split('\n')
         .map((line) => line.trim())

@@ -27,7 +27,14 @@ export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 // ADR 0100: the file dialog is no widget either — it asks the driver `../file-chooser-host.ts`
 // registers (imported by `./gio.ts`) and resolves a `Gio.File`.
 export { GtkFileDialog as FileDialog, GtkFileFilter as FileFilter, DialogError } from '@gjsify/adwaita-core';
-export { License, PolicyType, TextDirection, TextExtendSelection, TextWindowType } from '../widgets/gtk-enums.js';
+export {
+    ArrowType,
+    License,
+    PolicyType,
+    TextDirection,
+    TextExtendSelection,
+    TextWindowType,
+} from '../widgets/gtk-enums.js';
 export { GtkActionBar as ActionBar } from '../widgets/gtk-action-bar.js';
 export { GtkBox as Box } from '../widgets/gtk-box.js';
 export { GtkButton as Button } from '../widgets/gtk-button.js';

@@ -110,6 +110,15 @@ export class AdwBottomSheet extends HTMLElement {
         this._setBoolAttr('modal', value);
     }
 
+    /** `adw_bottom_sheet_get_modal` — the NativeScript port's only door to it (ADR 0112). */
+    get_modal(): boolean {
+        return this.modal;
+    }
+
+    set_modal(modal: boolean): void {
+        this.modal = modal;
+    }
+
     /** Whether the user can dismiss the sheet (dimming / Escape / sheet.close). */
     get canClose(): boolean {
         return this._state.canClose;

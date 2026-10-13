@@ -110,7 +110,7 @@ export class BottomSheetNsStory extends StoryView {
         // what it has (Android back, an in-sheet button) into
         // `requestClose(source)`.
         this._sheet.canClose = this.args.canClose as boolean;
-        this._sheet.modal = this.args.modal as boolean;
+        this._sheet.set_modal(this.args.modal as boolean);
         this._sheet.open = this.args.open as boolean;
     }
 }

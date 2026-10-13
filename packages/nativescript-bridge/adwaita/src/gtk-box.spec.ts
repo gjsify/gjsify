@@ -17,7 +17,7 @@ const add = (box: Gtk.Box, view: View) => box.append(view as unknown as never);
 
 /** The tracks along one axis as `kind` or `kind:px`, e.g. `['auto', 'pixel:12', 'star']`. */
 function tracks(box: object, axis: 'columns' | 'rows'): string[] {
-    const specs = (box as unknown as Record<string, ItemSpec[]>)[axis === 'columns' ? '_columns' : '_rows']!;
+    const specs = (box as unknown as Record<string, ItemSpec[]>)[axis === 'columns' ? '_cols' : '_rows']!;
     return specs.map((spec) => (spec.gridUnitType === 'pixel' ? `pixel:${spec.value}` : spec.gridUnitType));
 }
 

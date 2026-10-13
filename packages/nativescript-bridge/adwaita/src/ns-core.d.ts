@@ -14,16 +14,16 @@
 //
 // WHAT THIS FILE CANNOT CATCH. A member declared below makes a shadowing widget fail
 // HERE; a member left out stays invisible until a consumer compiles. So this is a
-// growing list, never a guarantee. Measured against `@nativescript/core@9.1.0-alpha.11`,
-// three shadowings remain that this file deliberately does NOT declare, because each is
-// a name the Adwaita vocabulary owns on purpose and declaring it would fail the build
-// here for a decision already taken: `AdwDataGrid.rows`/`.columns` over
-// `GridLayoutBase`'s track spellings (the trade `SETTER_ONLY_ON_BASE` in
-// `scripts/nativescript-xml-doors.mjs` records), and `AdwSplitButton.direction` over
-// `ViewCommon.direction`, NativeScript's RTL layout property. All three are a type
-// error for a consumer that compiles our `lib/types` without `skipLibCheck`.
-// `tests/e2e/consumer-types-adwaita` merges the upstream shapes of those members onto this
-// slice and lists every such clash (also `AdwBottomSheet.modal`, `AdwToggle.name`) by name.
+// growing list, never a guarantee. The complete answer for GTK property names is held
+// elsewhere: `scripts/check-gtk-host-member-clashes.mjs` intersects every port class's GIR
+// properties with the members `@nativescript/core`'s own typings declare (the ledger
+// `status/nativescript-base-members.json`) and holds the result against
+// `widgets/shadowed-properties.ts` (ADR 0112). Under that rule no port class declares an
+// accessor named `direction`, `modal`, `rows` or `columns`; the GTK properties of those
+// names go through `get_<p>()` / `set_<p>()`. This file still leaves those members
+// undeclared, as it leaves out every member nothing here reads.
+// `tests/e2e/consumer-types-adwaita` merges the upstream shapes onto this slice and fails
+// when a shipped declaration conflicts with one.
 //
 // AND THE OTHER DIRECTION IS NOT HELD AT ALL. `widgets/signals.ts` adds `connect` and
 // `disconnect` to every widget, on the measurement that no view base of 9.1.0-alpha.11

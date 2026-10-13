@@ -1946,7 +1946,7 @@ export const REAL_EXPECTATIONS = [
         node: {
             tag: 'AdwBottomSheet',
             id: 'sheet',
-            props: { open: true, modal: true, 'can-close': true },
+            props: { open: true, 'can-close': true },
             children: [
                 {
                     tag: 'GtkButton',

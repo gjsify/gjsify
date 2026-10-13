@@ -47,6 +47,12 @@ import { observeWindowSize } from '../widgets/breakpoint.js';
 import { type GTypeNamed, gtypeNameOf, gtypeNameOfInstance } from '../widgets/gtype-name.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 import { templateClassFor } from './template-classes.js';
+import {
+    gtkPropertyRefusal,
+    hasGtkProperty,
+    readGtkProperty,
+    writeGtkProperty,
+} from '../widgets/shadowed-properties.js';
 
 export { registerTemplateClass } from './template-classes.js';
 
@@ -421,7 +427,7 @@ function buildTree(
                     `so \`${prop}\` would be handed the string instead of the widget it refers to.`,
             );
         }
-        (view as unknown as Record<string, unknown>)[prop] = target;
+        writeGtkProperty(view, prop, target);
     }
     for (const bind of context.binds) bindProperty(bind, context);
     for (const host of context.breakpointHosts) bindBreakpoints(host, context);
@@ -459,22 +465,23 @@ function bindProperty(bind: PendingBind, context: BuildContext): void {
     const targetProp = propertyOf(property);
     const emitted = (from.constructor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
     const notification = `notify::${sourceProperty}`;
-    if (!(sourceProp in from) || !emitted.includes(notification)) {
+    if (!hasGtkProperty(from, sourceProp) || !emitted.includes(notification)) {
         throw new Error(
             `${where}: ${from.constructor.name} does not emit '${notification}', so the target would follow the ` +
                 `source once and never again. It emits: ${emitted.join(', ') || 'none'}.`,
         );
     }
-    if (!(targetProp in target)) {
-        throw new Error(`${where}: the target has no property '${targetProp}'.`);
+    if (!hasGtkProperty(target, targetProp)) {
+        const refusal = gtkPropertyRefusal(target, targetProp);
+        throw new Error(
+            `${where}: the target has no property '${targetProp}'.${refusal === null ? '' : ` ${refusal}`}`,
+        );
     }
     if (template !== undefined) {
         bindThroughEngine(template, { ...bind, from, where, notification });
         return;
     }
-    const follow = () => {
-        (target as Record<string, unknown>)[targetProp] = (from as unknown as Record<string, unknown>)[sourceProp];
-    };
+    const follow = () => writeGtkProperty(target, targetProp, readGtkProperty(from, sourceProp));
     follow();
     (from as unknown as { connect(name: string, callback: () => void): number }).connect(notification, follow);
 }
@@ -502,10 +509,17 @@ function viaProperties(object: object): GObjectInstance {
     const key = (name: string | symbol) => (typeof name === 'string' ? propertyOf(name) : name);
     return new Proxy(object, {
         get(real, name) {
-            const value: unknown = Reflect.get(real, key(name));
+            const value: unknown =
+                typeof name === 'string' && hasGtkProperty(real, key(name) as string)
+                    ? readGtkProperty(real, key(name) as string)
+                    : Reflect.get(real, key(name));
             return typeof value === 'function' ? value.bind(real) : value;
         },
-        set: (real, name, value) => Reflect.set(real, key(name), value),
+        set(real, name, value) {
+            if (typeof name !== 'string') return Reflect.set(real, name, value);
+            writeGtkProperty(real, propertyOf(name), value);
+            return true;
+        },
     }) as GObjectInstance;
 }
 
@@ -588,8 +602,12 @@ function wireBreakpoints(
                 if (object === undefined) {
                     throw new Error(`${where} names no object: nothing in this tree has the id '${setter.object}'.`);
                 }
-                if (!(propertyOf(setter.property) in object)) {
-                    throw new Error(`${where}: the target declares no '${propertyOf(setter.property)}'.`);
+                if (!hasGtkProperty(object, propertyOf(setter.property))) {
+                    const refusal = gtkPropertyRefusal(object, propertyOf(setter.property));
+                    throw new Error(
+                        `${where}: the target declares no '${propertyOf(setter.property)}'.` +
+                            (refusal === null ? '' : ` ${refusal}`),
+                    );
                 }
                 return {
                     object,
@@ -600,13 +618,10 @@ function wireBreakpoints(
         };
     });
     const driver = createBreakpointDriver<View>(definitions, {
-        read: (target, property) => ({
-            original: (target as unknown as Record<string, unknown>)[propertyOf(property)],
-        }),
+        read: (target, property) => ({ original: readGtkProperty(target, propertyOf(property)) }),
         write(target, property, value) {
             const slot = value as { authored: unknown } | { original: unknown };
-            (target as unknown as Record<string, unknown>)[propertyOf(property)] =
-                'authored' in slot ? String(slot.authored) : slot.original;
+            writeGtkProperty(target, propertyOf(property), 'authored' in slot ? String(slot.authored) : slot.original);
         },
     });
     observeSize(view, (size) => driver.evaluate(size));
@@ -751,8 +766,24 @@ function applyLayout(child: SharedTreeNode, built: View | object, parentElement:
     }
 }
 
-/** The refusal for an authored property the class does not declare. */
-function unknownProperty(element: Element, tag: string, authored: string, prop: string, value: unknown): Error {
+/**
+ * The refusal for an authored property the class does not declare — or declares only under a
+ * name NativeScript owns as something else (`shadowed-properties.ts`).
+ */
+function unknownProperty(
+    element: Element,
+    tag: string,
+    authored: string,
+    prop: string,
+    value: unknown,
+    target: object,
+): Error {
+    const refusal = gtkPropertyRefusal(target, prop);
+    if (refusal !== null) {
+        return new Error(
+            `<${element.xmlName} ${authored}="${String(value)}"> reaches nothing on \`${tag}\`: ${refusal}`,
+        );
+    }
     return new Error(
         `<${element.xmlName} ${authored}="${String(value)}"> reaches nothing: \`${tag}\` declares no ` +
             `'${prop}'. NativeScript's builder assigns it anyway, as a dead own-property at exit 0, ` +
@@ -782,8 +813,8 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
     const references = declaredBuilderReferences(element.ctor);
     for (const [authored, model] of menuAssignments(node, context.menus)) {
         const prop = propertyOf(authored);
-        if (!(prop in view)) throw unknownProperty(element, node.tag, authored, prop, authored);
-        (view as unknown as Record<string, unknown>)[prop] = model;
+        if (!hasGtkProperty(view, prop)) throw unknownProperty(element, node.tag, authored, prop, authored, view);
+        writeGtkProperty(view, prop, model);
     }
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         if (authored === 'menu-model') continue;
@@ -791,14 +822,12 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
         // declares it in camel case (`maximumSize`). Without the case rule every hyphenated
         // property of a real `.blp` was refused below, so only hand-authored trees built.
         const prop = propertyOf(authored);
-        if (!(prop in view)) throw unknownProperty(element, node.tag, authored, prop, value);
+        if (!hasGtkProperty(view, prop)) throw unknownProperty(element, node.tag, authored, prop, value, view);
         if (references.includes(prop)) {
             context.pending.push({ view, element, prop, id: String(value) });
             continue;
         }
-        (view as unknown as Record<string, unknown>)[prop] = String(
-            translated(context.translate, value, node.translatable?.[authored]),
-        );
+        writeGtkProperty(view, prop, String(translated(context.translate, value, node.translatable?.[authored])));
     }
     // `styles ["card"]` in a `.blp`. Refused like an attribute when the widget has no
     // `styleClasses` setter: writing `className` instead would bypass the class list the
@@ -841,13 +870,13 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object, conte
     const bag: Record<string, unknown> = {};
     for (const [authored, model] of menuAssignments(node, context.menus)) {
         const prop = propertyOf(authored);
-        if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, authored);
+        if (!hasGtkProperty(probe, prop)) throw unknownProperty(element, node.tag, authored, prop, authored, probe);
         bag[prop] = model;
     }
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         if (authored === 'menu-model') continue;
         const prop = propertyOf(authored);
-        if (!(prop in probe)) throw unknownProperty(element, node.tag, authored, prop, value);
+        if (!hasGtkProperty(probe, prop)) throw unknownProperty(element, node.tag, authored, prop, value, probe);
         bag[prop] = translated(context.translate, value, node.translatable?.[authored]);
     }
     // ADR 0072's string-list items are CONSTRUCT data, the same `{ strings }` bag
