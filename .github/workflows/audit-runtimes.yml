@@ -1035,7 +1035,7 @@ jobs:
       # TS2416 for consumers and a member taken from NativeScript. This intersects every
       # port class's GIR properties with the @nativescript/core and HTMLElement members
       # (committed ledgers, read off their typings) and holds the result against
-      # `widgets/shadowed-properties.ts`: a new collision has to be decided there (ADR 0109).
+      # `widgets/shadowed-properties.ts`: a new collision has to be decided there (ADR 0112).
       - name: Check no GTK property lands on a platform member undecided
         run: node scripts/check-gtk-host-member-clashes.mjs
 
@@ -1767,7 +1767,7 @@ jobs:
       # TS2416 for consumers and a member taken from NativeScript. This intersects every
       # port class's GIR properties with the @nativescript/core and HTMLElement members
       # (committed ledgers, read off their typings) and holds the result against
-      # `widgets/shadowed-properties.ts`: a new collision has to be decided there (ADR 0109).
+      # `widgets/shadowed-properties.ts`: a new collision has to be decided there (ADR 0112).
       - name: Check no GTK property lands on a platform member undecided
         run: node scripts/check-gtk-host-member-clashes.mjs
 

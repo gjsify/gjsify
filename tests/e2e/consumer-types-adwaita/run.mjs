@@ -16,7 +16,7 @@
 //
 // KNOWN GAPS. None. The five members that once re-declared a NativeScript member under its GTK
 // name with an incompatible type (TS2416) — `AdwSplitButton.direction`, `AdwBottomSheet.modal`,
-// `AdwDataGrid.rows`/`.columns`, `AdwToggle.name` — are resolved by the rule of ADR 0109
+// `AdwDataGrid.rows`/`.columns`, `AdwToggle.name` — are resolved by the rule of ADR 0112
 // (`widgets/shadowed-properties.ts`). The list is still asserted EXACTLY, so a new clash fails
 // the suite; `scripts/check-gtk-host-member-clashes.mjs` is the gate that names it first.
 //

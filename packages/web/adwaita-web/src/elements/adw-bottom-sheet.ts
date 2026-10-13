@@ -110,7 +110,7 @@ export class AdwBottomSheet extends HTMLElement {
         this._setBoolAttr('modal', value);
     }
 
-    /** `adw_bottom_sheet_get_modal` — the NativeScript port's only door to it (ADR 0109). */
+    /** `adw_bottom_sheet_get_modal` — the NativeScript port's only door to it (ADR 0112). */
     get_modal(): boolean {
         return this.modal;
     }

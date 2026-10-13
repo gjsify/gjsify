@@ -1,4 +1,4 @@
-// The GTK properties whose name a NativeScript base already owns (ADR 0109,
+// The GTK properties whose name a NativeScript base already owns (ADR 0112,
 // `widgets/shadowed-properties.ts`), held through every door that is not the JS accessor: the
 // verbs, `get_property` / `set_property`, `notify::`, the construct bag and a Blueprint tree as
 // `@gjsify/vite-plugin-blueprint` hands it over (kebab-case keys, enum NICKS as strings). Each

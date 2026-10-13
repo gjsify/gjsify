@@ -18,7 +18,7 @@
 // elsewhere: `scripts/check-gtk-host-member-clashes.mjs` intersects every port class's GIR
 // properties with the members `@nativescript/core`'s own typings declare (the ledger
 // `status/nativescript-base-members.json`) and holds the result against
-// `widgets/shadowed-properties.ts` (ADR 0109). Under that rule no port class declares an
+// `widgets/shadowed-properties.ts` (ADR 0112). Under that rule no port class declares an
 // accessor named `direction`, `modal`, `rows` or `columns`; the GTK properties of those
 // names go through `get_<p>()` / `set_<p>()`. This file still leaves those members
 // undeclared, as it leaves out every member nothing here reads.

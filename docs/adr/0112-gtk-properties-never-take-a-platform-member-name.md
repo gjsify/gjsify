@@ -1,4 +1,4 @@
-# 109. A GTK property never takes a platform member's name as a JS accessor
+# 112. A GTK property never takes a platform member's name as a JS accessor
 
 - Status: **Proposed**
 - Date: 2026-10-13

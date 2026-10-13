@@ -252,7 +252,7 @@ if (strings === 0) failures.push('no string setter was found at all — the read
 
 // A getter ALONE is the hazard: the property descriptor then carries `set: undefined`. A
 // class declaring both halves answers the assignment itself and passes here; whether it may
-// take a platform name at all is `check-gtk-host-member-clashes.mjs`'s question (ADR 0109),
+// take a platform name at all is `check-gtk-host-member-clashes.mjs`'s question (ADR 0112),
 // and today none does — `AdwDataGrid` carries its data behind `get_rows`/`set_rows`.
 let owned = 0;
 for (const [file, text] of files) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// No GTK property lands on a platform member's name undecided (ADR 0109).
+// No GTK property lands on a platform member's name undecided (ADR 0112).
 //
 // WHY. A port widget is a GTK widget AND a platform object, and the two vocabularies overlap.
 // `AdwSplitButton:direction` is a `Gtk.ArrowType`; `ViewCommon.direction` is NativeScript's CSS
@@ -73,7 +73,7 @@ const WEB_OVERLAPS = {
         'AdwSidebarItem is not implemented on web.',
     title:
         "The GTK title is the element's `title` attribute, which is also HTML's advisory tooltip: " +
-        'hovering the element shows the title natively. Known divergence (ADR 0109).',
+        'hovering the element shows the title natively. Known divergence (ADR 0112).',
 };
 
 const rootFlag = process.argv.indexOf('--root');

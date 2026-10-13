@@ -1,5 +1,5 @@
 // GTK properties whose NAME a `@nativescript/core` base already owns — the one table, and the
-// one router every door of this package goes through for them (ADR 0109).
+// one router every door of this package goes through for them (ADR 0112).
 //
 // THE RULE. A port class never declares a JS accessor under a name its platform base already
 // declares. Re-declaring one is TS2416 for every consumer that compiles our `lib/types` without

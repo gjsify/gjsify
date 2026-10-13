@@ -199,7 +199,7 @@ function prefixesOf(node: SharedTreeNode, into: Set<string>): Set<string> {
 const NATIVESCRIPT_XMLNS = 'http://schemas.nativescript.org/tns.xsd';
 
 /**
- * GTK property names a `@nativescript/core` base owns as something else (ADR 0109). NativeScript's
+ * GTK property names a `@nativescript/core` base owns as something else (ADR 0112). NativeScript's
  * `Builder` assigns an attribute as `instance[name] = value`, so `modal="true"` would reach
  * `ViewCommon.modal` and never the sheet's `set_modal`. These names have no XML spelling; a tree
  * that sets one is refused, and the author reaches for Blueprint, a `.ui` file or the verb.
@@ -229,7 +229,7 @@ function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonl
         if (NATIVESCRIPT_HOST_MEMBERS.includes(member)) {
             throw new Error(
                 `sharedTreeNativeScriptXml: \`${node.tag}\`'s '${prop}' has no XML spelling — the attribute ` +
-                    `would reach NativeScript's own \`${member}\` (ADR 0109). Set it from Blueprint, a .ui ` +
+                    `would reach NativeScript's own \`${member}\` (ADR 0112). Set it from Blueprint, a .ui ` +
                     `file or \`set_${prop.replace(/-/g, '_')}()\`.`,
             );
         }

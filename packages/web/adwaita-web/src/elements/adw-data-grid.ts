@@ -112,7 +112,7 @@ export class AdwDataGrid extends HTMLElement {
     }
 
     // The verbs are the spelling the NativeScript port has to use, where `GridLayout` owns both
-    // accessor names (ADR 0109); offered here too so one code-behind runs on both.
+    // accessor names (ADR 0112); offered here too so one code-behind runs on both.
     get_columns(): AdwDataGridColumn[] {
         return this.columns;
     }
