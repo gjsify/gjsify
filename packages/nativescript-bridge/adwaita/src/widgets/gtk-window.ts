@@ -264,12 +264,14 @@ const popsOnBack = (view: View): view is View & PopsOnBack =>
     typeof (view as Partial<PopsOnBack>).popFromShortcut === 'function';
 
 /**
- * Pop the innermost navigation view that takes the press: `'stop'` means it did (or its page has
+ * Pop the innermost visible navigation view that takes the press: `'stop'` means it did (or its page has
  * `can-pop` false), `'propagate'` hands the press outward, as the shortcut does in libadwaita.
  */
 function popInnermostNavigation(root: View): boolean {
     let taken = false;
     root.eachChildView((child) => {
+        // A page the navigation view has hidden is still a loaded child; it is not what back acts on.
+        if (child.visibility !== 'visible') return true;
         if (popInnermostNavigation(child)) {
             taken = true;
             return false;

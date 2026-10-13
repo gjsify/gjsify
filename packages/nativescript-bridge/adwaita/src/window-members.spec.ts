@@ -67,6 +67,26 @@ function loadedWindow(): Gtk.Window {
     return window;
 }
 
+/** Mark a view as loaded, as the platform does once it is on screen. */
+function loaded<T extends object>(view: T): T {
+    Object.defineProperty(view, 'isLoaded', { value: true });
+    return view;
+}
+
+/** A window whose back handling is armed, asking `close-request` into `asked`. */
+function backWindow(host: FakeHost, content: object): { window: Adw.Window; asked: () => number } {
+    const window = loaded(new Adw.Window());
+    window.content = content as never;
+    window.onLoaded();
+    let asked = 0;
+    window.connect('close-request', () => {
+        asked++;
+        return false;
+    });
+    expect(host.backListeners.length).toBe(1);
+    return { window, asked: () => asked };
+}
+
 const throwsWith = (run: () => void, text: string): boolean => {
     try {
         run();
@@ -232,6 +252,99 @@ export const GtkWindowMembersNsTest = async () => {
                 expect(host.backListeners.length).toBe(0);
                 expect(host.pressBack()).toBe(false);
                 expect(host.finished).toBe(0);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back pops a pushed page and does not ask close-request', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const nav = loaded(new Adw.NavigationView());
+                const root = new Gtk.Box();
+                const detail = new Gtk.Box();
+                nav.add(root as never);
+                nav.push(detail as never);
+                const { asked } = backWindow(host, nav);
+                expect(nav.depth).toBe(2);
+                expect(host.pressBack()).toBe(true);
+                expect(nav.depth).toBe(1);
+                expect(asked()).toBe(0);
+                expect(host.finished).toBe(0);
+                // (c) the root page has nothing to pop: the second back reaches close-request
+                expect(host.pressBack()).toBe(true);
+                expect(asked()).toBe(1);
+                expect(host.finished).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back on a page with can-pop false is consumed: no pop, no close-request', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const nav = loaded(new Adw.NavigationView());
+                const root = new Gtk.Box();
+                const detail = new Gtk.Box();
+                nav.add(root as never);
+                nav.push(detail as never);
+                nav.setPageCanPop(detail as never, false);
+                const { asked } = backWindow(host, nav);
+                host.pressBack();
+                expect(nav.depth).toBe(2);
+                expect(asked()).toBe(0);
+                expect(host.finished).toBe(0);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back pops the innermost of nested navigation views first', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const outer = loaded(new Adw.NavigationView());
+                const inner = loaded(new Adw.NavigationView());
+                const outerRoot = new Gtk.Box();
+                const holder = new Gtk.Box();
+                holder.append(inner as never);
+                inner.add(new Gtk.Box() as never);
+                inner.push(new Gtk.Box() as never);
+                outer.add(outerRoot as never);
+                outer.push(holder as never);
+                const { asked } = backWindow(host, outer);
+                host.pressBack();
+                expect(inner.depth).toBe(1);
+                expect(outer.depth).toBe(2);
+                host.pressBack();
+                expect(outer.depth).toBe(1);
+                expect(asked()).toBe(0);
+                host.pressBack();
+                expect(asked()).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back ignores a navigation view inside a page that is not visible', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const outer = loaded(new Adw.NavigationView());
+                const hiddenInner = loaded(new Adw.NavigationView());
+                const first = new Gtk.Box();
+                first.append(hiddenInner as never);
+                hiddenInner.add(new Gtk.Box() as never);
+                hiddenInner.push(new Gtk.Box() as never);
+                outer.add(first as never);
+                outer.push(new Gtk.Box() as never);
+                const { asked } = backWindow(host, outer);
+                host.pressBack();
+                expect(hiddenInner.depth).toBe(2);
+                expect(outer.depth).toBe(1);
+                expect(asked()).toBe(0);
             } finally {
                 useWindowHost(null);
             }
