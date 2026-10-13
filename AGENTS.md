@@ -31,6 +31,7 @@ Reference material — read on demand, not loaded every session. Root `docs/`:
 |build artifacts: the git hook, freshness, what an exit code proves → build-artifacts.md
 |native extensions + prebuilds → prebuilds.md
 |first-publish bootstrap + release closure → publishing.md
+|the `next` channel: running an app against `main` → consuming-the-next-channel.md
 |selective CI → ci-selective.md · lint/format → lint-format.md
 |GNOME lib ↔ API mapping table → gnome-mappings.md
 |what SM140 gives you beyond ES2024 → engine-baseline.md
@@ -111,6 +112,14 @@ Shared utils: `@gjsify/utils` — check before duplicating; extract only when a 
 A NEW `@gjsify/*` name needs a manual npm first-publish + Trusted Publisher bootstrap BEFORE
 the release that ships it — skipping it never stalls the train, it SHIPS: the sweep skips it and
 ships its dependents (#1713). [publishing](docs/publishing.md).
+
+TWO dist-tags: `latest` (the release train) and `next`, which republishes the whole sweep on every
+green `main` merge as `<next patch>-next.<run number>` for apps that need main's code without a
+release cut (ADR 0109). Consequences for work in this repo: every new publishing job belongs in
+`release.yml` — Trusted Publishing is registered against that FILENAME, so a new workflow file
+cannot publish at all; the `next` version is rewritten in the CI checkout and NEVER committed; and
+intra-repo pins are rewritten EXACT inside that channel, a deliberate local deviation from ADR
+0008's published `workspace:^`. [consuming-the-next-channel](docs/consuming-the-next-channel.md).
 
 ## Testing
 

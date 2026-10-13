@@ -3,7 +3,7 @@
  * The `next` channel's version, and the ONE tree rewrite that produces it.
  *
  * `release.yml`'s `publish-next` job publishes every root-workspace package under
- * dist-tag `next` on every push to `main`. Nothing is committed: this script rewrites
+ * dist-tag `next` on every green `GJS` run on `main`. Nothing is committed: this rewrites
  * the CI CHECKOUT, the sweep publishes it, the checkout is thrown away. `main` never
  * carries a `next` version, so the release train (ADR 0008) and `release-it`'s
  * tag-derived next-version are untouched.
