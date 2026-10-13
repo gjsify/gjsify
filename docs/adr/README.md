@@ -123,8 +123,8 @@ the TODO records the *what's left*.
 | [0101](0101-portals-are-the-platform-seam-below-the-gtk-api.md) | xdg-desktop-portal interfaces are the platform seam below the GTK API | Accepted |
 | [0102](0102-install-and-flatpak-sources-take-a-focus.md) | `install` and `flatpak sources` take `--focus`: a workspace closure, computed from the one full lockfile | Accepted |
 | [0103](0103-a-gtksource-gutter-is-a-column-model-with-one-painter-per-platform.md) | A GtkSource gutter is a column model with one painter per platform | Accepted |
-| [0104](0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md) | Real GTK and GI on Android are opt-in tracks beside the NativeScript port | Proposed |
-| [0105](0105-real-gobject-backs-the-nativescript-subset-on-android.md) | Real GObject can back the NativeScript subset on Android, and is its oracle there | Proposed |
+| [0104](0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md) | Real GTK and GI on Android are opt-in tracks beside the NativeScript port | Accepted |
+| [0105](0105-real-gobject-backs-the-nativescript-subset-on-android.md) | Real GObject can back the NativeScript subset on Android, and is its oracle there | Accepted |
 | [0106](0106-mcp-tools-register-per-granted-capability.md) | MCP write tools register per granted capability, and the gate that registers them checks the call | Accepted |
 | [0107](0107-canvas2d-bridge-is-the-portable-2d-surface.md) | `Canvas2DBridge` is the portable 2D surface; `Gtk.DrawingArea` keeps cairo | Proposed |
 | [0108](0108-xeddsa-is-its-own-pure-typescript-package.md) | XEdDSA is its own pure-TypeScript package on @noble/curves | Accepted |
