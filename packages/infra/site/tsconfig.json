@@ -16,10 +16,15 @@
     "comment": [
         "Specs stay INCLUDED here on purpose, so `check` type-checks them; only",
         "`tsconfig.build.json` drops them, because `files` publishes `lib/` and an",
-        "emitted spec would ship. The test ENTRY is excluded from both: it is",
-        "compiled by the test task, which resolves `@gjsify/unit` for it.",
+        "emitted spec would ship. ALL THREE test entries are excluded from both: each",
+        "is compiled by its own test task, which resolves `@gjsify/unit` for it.",
+        "Only `src/test.mts` was listed at first, so `tsc` also compiled",
+        "`src/test.node-gi.mts` — whose `@gjsify/node-gi/gi` import is a `file:`",
+        "devDependency CI does not install. `gjsify tsc` then failed with TS2307 and",
+        "the package's declared outputs were never written, which surfaced as twelve",
+        "missing paths and kicked #2188 out of the merge queue.",
         "`DOM` is in `lib` for `src/client/`, the only tree that runs in a browser;",
         "it is bundled by `build:client`, never emitted into `lib/*.js` as a module."
     ],
-    "exclude": ["src/test.mts"]
+    "exclude": ["src/test.mts", "src/test.gjs.mts", "src/test.node-gi.mts"]
 }
