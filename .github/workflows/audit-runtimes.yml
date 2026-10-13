@@ -1030,6 +1030,15 @@ jobs:
       - name: Check both NativeScript XML doors
         run: node scripts/check-nativescript-xml-doors.mjs
 
+      # A GTK property whose name a platform base already owns — `AdwSplitButton:direction`
+      # vs NativeScript's CSS `direction` — was re-declared as an accessor four times, each a
+      # TS2416 for consumers and a member taken from NativeScript. This intersects every
+      # port class's GIR properties with the @nativescript/core and HTMLElement members
+      # (committed ledgers, read off their typings) and holds the result against
+      # `widgets/shadowed-properties.ts`: a new collision has to be decided there (ADR 0109).
+      - name: Check no GTK property lands on a platform member undecided
+        run: node scripts/check-gtk-host-member-clashes.mjs
+
       # An application id is what `adb` installs, launches and uninstalls. A device
       # PROBE built into the storybook showcase's app directory took its id, was left
       # installed under it, and the launcher icon then opened a throwaway XML probe
@@ -1752,6 +1761,15 @@ jobs:
       # subclass shadows `GridLayoutBase.rows` and makes `widget.rows = 'auto,*'` throw.
       - name: Check both NativeScript XML doors
         run: node scripts/check-nativescript-xml-doors.mjs
+
+      # A GTK property whose name a platform base already owns — `AdwSplitButton:direction`
+      # vs NativeScript's CSS `direction` — was re-declared as an accessor four times, each a
+      # TS2416 for consumers and a member taken from NativeScript. This intersects every
+      # port class's GIR properties with the @nativescript/core and HTMLElement members
+      # (committed ledgers, read off their typings) and holds the result against
+      # `widgets/shadowed-properties.ts`: a new collision has to be decided there (ADR 0109).
+      - name: Check no GTK property lands on a platform member undecided
+        run: node scripts/check-gtk-host-member-clashes.mjs
 
       # An application id is what `adb` installs, launches and uninstalls. A device
       # PROBE built into the storybook showcase's app directory took its id, was left
