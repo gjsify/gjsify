@@ -53,11 +53,23 @@
  *   node scripts/next-channel-version.mjs --write          # rewrite the checkout
  *   node scripts/next-channel-version.mjs --json           # machine-readable report
  *     --build <n>        monotonic counter; default $GITHUB_RUN_NUMBER
+ *     --source-sha <sha> commit the sweep is built from; written as `gitHead`
  *     --github-output    append `version=…` + `base=…` to $GITHUB_OUTPUT
  *
  * `--write` implies `--check`, and re-reads the tree afterwards to assert the rewrite
  * landed: a packer that silently produced a broken tarball is what cost v0.4.20 and
  * v0.4.37, and this script sits one step upstream of the same tarball.
+ *
+ * WHY `--source-sha` IS WRITTEN INTO EVERY MANIFEST. The channel publishes NIGHTLY, not
+ * per merge, so the first question a run has to answer is "is main's HEAD already the
+ * commit the current `next` was built from?" — and the only place that can be read back
+ * without a second ledger to keep in sync is the published package itself. `gitHead` is
+ * npm's own field for it, it survives `gjsify pack` into `package/package.json`
+ * (measured), and `gjsify publish` builds the version document from the TARBALL's
+ * manifest (`loadRewrittenManifest`), so what the registry serves carries the SHA.
+ * `scripts/decide-next-publish.mjs` reads it off the packument and skips when it equals
+ * main's HEAD. A dist-tag alone could not answer this: it names a version, and a version
+ * does not say which commit produced it.
  */
 
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
@@ -69,7 +81,16 @@ import { createContext } from '../packages/infra/manifest-conformance/lib/contex
 // `scripts/verify-published-closure.mjs` states for `--phase`, for the same reason: a
 // typo in a CI step must cost a red, not a silently different mode. `--write` typed as
 // `--wrote` must not print a version and exit 0 while the job believes it rewrote.
-const KNOWN_ARGS = ['--check', '--write', '--json', '--github-output', '--build', '--help', '-h'];
+const KNOWN_ARGS = [
+    '--check',
+    '--write',
+    '--json',
+    '--github-output',
+    '--build',
+    '--source-sha',
+    '--help',
+    '-h',
+];
 
 const argv = process.argv.slice(2);
 for (const arg of argv) {
@@ -90,11 +111,33 @@ function flagValue(name, fallback) {
 
 const has = (name) => argv.includes(name);
 
+/**
+ * `--source-sha`, validated as a full 40-hex commit id, or `undefined`.
+ *
+ * A SHORT sha is rejected rather than accepted and compared loosely: the reader
+ * (`scripts/decide-next-publish.mjs`) answers "is this the commit main is on?" with a
+ * string comparison, and an abbreviated `gitHead` would make every comparison false —
+ * a guard that never fires, publishing nightly whether or not anything changed. The
+ * default is `$GITHUB_SHA` so a CI step that forgets the flag still records the truth.
+ */
+function sourceShaArg() {
+    const value = flagValue('--source-sha', process.env.GITHUB_SHA ?? '');
+    if (!value) return undefined;
+    if (!/^[0-9a-f]{40}$/.test(value)) {
+        fail(
+            `--source-sha must be a full 40-character lowercase commit id, got ${JSON.stringify(value)}. ` +
+                'It is published as `gitHead` and compared against main\'s HEAD verbatim, so an abbreviated ' +
+                'or uppercase value would make the "already published this commit" guard never fire.',
+        );
+    }
+    return value;
+}
+
 if (has('--help') || has('-h')) {
     process.stdout.write(
         readFileSync(new URL(import.meta.url), 'utf8')
             .split('\n')
-            .slice(1, 62)
+            .slice(1, 72)
             .join('\n') + '\n',
     );
     process.exit(0);
@@ -222,33 +265,40 @@ function plan(root, version) {
     return { ctx, sweep, published, failures, edits, edgeCount };
 }
 
-function applyEdits(root, version, edits) {
+function applyEdits(root, version, edits, sourceSha) {
     // The root manifest first: it is what `release-train` grades a committed rewrite
     // against, and what `nextChannelVersion` derived the base from.
     const targets = [{ rel: '.', dir: root, specEdits: [] }, ...edits];
     let versionsWritten = 0;
     let specsWritten = 0;
+    let headsWritten = 0;
     for (const target of targets) {
         const path = join(target.dir, 'package.json');
         const source = readFileSync(path, 'utf8');
         const manifest = JSON.parse(source);
         manifest.version = version;
         versionsWritten += 1;
+        if (sourceSha) {
+            manifest.gitHead = sourceSha;
+            headsWritten += 1;
+        }
         for (const edit of target.specEdits) {
             manifest[edit.block][edit.name] = 'workspace:*';
             specsWritten += 1;
         }
         writeFileSync(path, `${JSON.stringify(manifest, null, indentOf(source))}\n`);
     }
-    return { versionsWritten, specsWritten };
+    return { versionsWritten, specsWritten, headsWritten };
 }
 
 const root = process.cwd();
 const rootManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const build = flagValue('--build', process.env.GITHUB_RUN_NUMBER ?? '0');
 const version = nextChannelVersion(rootManifest.version, build);
+const sourceSha = sourceShaArg();
 
 const report = { base: rootManifest.version, version, build: String(build) };
+if (sourceSha) report.sourceSha = sourceSha;
 
 if (has('--check') || write) {
     const { sweep, failures, edits, edgeCount } = plan(root, version);
@@ -266,7 +316,19 @@ if (has('--check') || write) {
     }
 
     if (write) {
-        const written = applyEdits(root, version, edits);
+        // Refused BEFORE the write, not after: the channel's whole skip decision is "was
+        // this commit already published", read back from the published `gitHead`, and a
+        // `next` on the registry without one answers that with "unknown" forever — so the
+        // channel would republish 218 packages every night regardless of changes. Checking
+        // after the rewrite would leave a tree the next step could still publish from.
+        if (!sourceSha) {
+            fail(
+                'nothing recorded the source commit: `--write` needs `--source-sha <sha>` or $GITHUB_SHA. ' +
+                    "The nightly run skips when main's HEAD is already the commit `next` was built from, and it " +
+                    'reads that from the published `gitHead`.',
+            );
+        }
+        const written = applyEdits(root, version, edits, sourceSha);
         // Re-read from disk rather than trusting the writes: the whole point of the
         // closure is a property of the FILES the sweep will pack, and the only way to
         // claim it is to look at them again.
@@ -286,6 +348,7 @@ if (has('--check') || write) {
         }
         report.versionsWritten = written.versionsWritten;
         report.specsRewritten = written.specsWritten;
+        report.headsWritten = written.headsWritten;
     }
 }
 
