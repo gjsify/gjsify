@@ -357,6 +357,26 @@ jobs:
       - name: Check every publishable npm name is bootstrapped
         run: node scripts/verify-published-closure.mjs --phase pre-release
 
+      # The `next` channel (ADR 0109) publishes from a REWRITTEN checkout: every manifest
+      # version becomes `<next patch>-next.<run>` and every `workspace:^|~` becomes
+      # `workspace:*`, so `gjsify pack` pins the closure exactly. Four tree properties
+      # have to hold for that rewrite to be sound, and all four are things a pull request
+      # can break without touching the channel: a published package depending via
+      # `workspace:` on one the sweep does NOT publish (the pin would name a version that
+      # never existed, and unlike the ordering hazard the step above detects, no later
+      # publish can repair it), a literal intra-repo pin inside the sweep, a
+      # `workspace:` operator `pack` passes through verbatim, and a root version that is
+      # already a prerelease.
+      #
+      # This is the PR-side half of the channel, and the only shape it can have: the
+      # publish job is `workflow_run`-triggered because a job that mints an npm publish
+      # token cannot run on a pull request (see release.yml's trigger comment). So the
+      # same reasoning as the step above applies with the dates swapped — there the
+      # detection was late, here it would be absent, and a `next` channel that breaks on
+      # a merge is a channel consumers stop trusting. `--check` writes nothing.
+      - name: Check the tree is rewritable for the next channel
+        run: node scripts/next-channel-version.mjs --check
+
       # Starlight lays out `.sl-markdown-content` as prose: every element FOLLOWING a
       # sibling gets `margin-top: 1rem` unless it is under `.not-content`. On a widget
       # that reads as anything but a margin bug: a gallery card's first button 8px
