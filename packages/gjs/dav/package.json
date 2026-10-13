@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/dav",
-    "version": "0.62.0",
+    "version": "0.63.0",
     "description": "CalDAV and CardDAV client over fetch: discovery, collections, objects, sync-collection and conditional writes. iCalendar and vCard stay text.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

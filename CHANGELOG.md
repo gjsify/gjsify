@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.63.0](https://github.com/gjsify/gjsify/compare/v0.62.0...v0.63.0) (2026-10-13)
+
+### Features
+
+* **adwaita:** add application accelerators ([#2180](https://github.com/gjsify/gjsify/issues/2180)) ([d24380a](https://github.com/gjsify/gjsify/commit/d24380a052b728bbe03610b24d4afb866e491c6a))
+* **adwaita:** add Gtk.Window state members ([#2184](https://github.com/gjsify/gjsify/issues/2184)) ([2355d0f](https://github.com/gjsify/gjsify/commit/2355d0f920e398ca721e9f54391d5138bc26395b))
+* **xeddsa:** add XEdDSA package ([#2173](https://github.com/gjsify/gjsify/issues/2173)) ([e4b726b](https://github.com/gjsify/gjsify/commit/e4b726b878738cea52567ac9504a00730510addc))
+
+### Bug Fixes
+
+* **adwaita-web:** render Pango markup without innerHTML ([#2182](https://github.com/gjsify/gjsify/issues/2182)) ([09548c6](https://github.com/gjsify/gjsify/commit/09548c6a624ef01b16d2fa9754a5cb2c745d4902))
+* **canvas2d:** ship typings without lib.dom ([#2178](https://github.com/gjsify/gjsify/issues/2178)) ([4d57bf0](https://github.com/gjsify/gjsify/commit/4d57bf080fd03bf84f1309a1876cd5b704d2e361))
+* **cli:** tolerate an unpublished dev-linked pkg ([#2160](https://github.com/gjsify/gjsify/issues/2160)) ([52cc6d0](https://github.com/gjsify/gjsify/commit/52cc6d02f395eab929cb82afbe85b1d09c865893))
+* **crypto:** accept non-96-bit AES-GCM IVs ([#2172](https://github.com/gjsify/gjsify/issues/2172)) ([bd6c7e4](https://github.com/gjsify/gjsify/commit/bd6c7e4da014fba299e9ee6a09afd6cb01aedfdf))
+
+### Documentation
+
+* **gi-runtime-android:** document manual publish ([#2185](https://github.com/gjsify/gjsify/issues/2185)) ([e1bf887](https://github.com/gjsify/gjsify/commit/e1bf8875c24d7ffb869b384da7a05d4878025933)), closes [#2179](https://github.com/gjsify/gjsify/issues/2179) [#2179](https://github.com/gjsify/gjsify/issues/2179)
+
+### Maintenance
+
+* **github:** add funding links ([#2186](https://github.com/gjsify/gjsify/issues/2186)) ([b377703](https://github.com/gjsify/gjsify/commit/b377703626f74e0ce9877d4b0e43a39b192fed94))
+* update native prebuilds [skip ci] ([ba49f29](https://github.com/gjsify/gjsify/commit/ba49f29da4c16fead46f912d16be2554462e49d5))
+
+### Tests
+
+* **react-native:** set aside macOS frame warning ([#2181](https://github.com/gjsify/gjsify/issues/2181)) ([d6166d2](https://github.com/gjsify/gjsify/commit/d6166d2661a84f6d1010f497d83f36c958137caa)), closes [#2178](https://github.com/gjsify/gjsify/issues/2178) [#2113](https://github.com/gjsify/gjsify/issues/2113)
+
 ## [0.62.0](https://github.com/gjsify/gjsify/compare/v0.61.0...v0.62.0) (2026-10-12)
 
 ### Features
