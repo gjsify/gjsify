@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // @gjsify/node-gi — `GLib.Error.new_literal`, the constructor spelling `@girs/*` types.
 //
-// L1 shadows `GLib.Error` with a JS `Error` subclass, and that subclass had only the
+// L1 used to shadow `GLib.Error` with a JS `Error` subclass that had only the
 // three-argument CONSTRUCTOR. `@girs/glib-2.0` types `GLib.Error`'s constructor as
 // `constructor(properties?)` and exposes the positional form solely as the introspected static
 // `new_literal(domain, code, message)` — so a cross-runtime TypeScript source that has to build a
@@ -32,6 +32,20 @@ test('the result answers matches() on a numeric quark and on the error enum', ()
     const err = GLib.Error.new_literal(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED, 'nope');
     assert.equal(err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED), true);
     assert.equal(err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_SUPPORTED), true);
+});
+
+test('a domain no quark stands for is refused, not built as quark 0', () => {
+    // GJS's own GLib.js guards this before the invoke (`quark_to_string(domain) ===
+    // null`), because quark 0 builds an error `matches()` can never answer for — a
+    // silent mismatch far from the call that made it. The wording is the contract:
+    // it is what a cross-runtime test asserting on the refusal compares.
+    for (const bad of [undefined, 0, 7_000_000]) {
+        assert.throws(
+            () => GLib.Error.new_literal(bad, 1, 'no domain'),
+            new RegExp(`Error\\.new_literal: ${bad} is not a valid domain`),
+        );
+        assert.throws(() => new GLib.Error(bad, 1, 'no domain'), /is not a valid domain/);
+    }
 });
 
 test('it does not match a different code or a different domain', () => {

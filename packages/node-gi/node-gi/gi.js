@@ -118,82 +118,251 @@ function unwrapProps(props) {
     return out;
 }
 
-// An enum object's GError-domain descriptor ({ name, quark }), so GLib.Error.matches
-// can resolve an error-enum (Gio.IOErrorEnum) to the domain it represents. Attached by
-// makeEnum when the enum is registered as a GError domain.
-// A registry symbol, so a host-side stand-in for an enum the typelib lacks (Gtk.DialogError on
-// Android) can declare itself an error domain without importing this module.
-const ERROR_DOMAIN = Symbol.for('nodeGiErrorDomain');
-
-// GLib.Error, L1: the engine throws one of these on a failed sync GI invoke (via the
-// builder registered below) and `requireGi('GLib').Error` is this constructor, so a
-// caught error is `instanceof GLib.Error` exactly as under GJS.
+// ---- GLib.Error (L1) ----
 //
-// Deliberate divergence from GJS: `.domain` is the quark NAME string (GJS's is the
-// numeric GQuark), with the numeric quark on `.domainQuark`. `matches()` accepts the
-// domain as an error-enum object, a name string or a numeric quark.
+// ONE object for every GError, as on GJS: a boxed handle over a real `GError*` whose
+// CLASS is the error DOMAIN's class (`Gio.IOErrorEnum`) when the quark names a
+// registered domain, and `GLib.Error` otherwise. There is no JS `Error` subclass
+// behind it — `Error.isError()` is true while `instanceof Error` is FALSE, a
+// combination only `Reflect.construct(Error, [], Ctor)` reaches (GJS gets it from
+// `JSCLASS_IS_DOMJSCLASS` on ErrorBase::klass).
+//
+// Reference: refs/gjs/gi/gerror.cpp (ErrorBase/ErrorInstance/ErrorPrototype) and its
+// `gjs_define_error_properties`, plus the GLib.js override's `Error.new_literal`
+// guard and `Error.prototype.matches`. The old divergence — an `Error` subclass with
+// `.domain` the quark NAME and the number on a node-gi-only `.domainQuark`, beside a
+// SECOND plain-boxed shape for a marshalled one — is gone with no compat shim;
+// test/gerror-identity.test.mjs is the contract.
 
-// Resolve a `matches` domain argument to a { name?, quark? } descriptor.
-function errorDomainOf(domain) {
-    if (domain === null || domain === undefined) return null;
-    if (typeof domain === 'object' && domain[ERROR_DOMAIN] !== undefined) return domain[ERROR_DOMAIN];
-    if (typeof domain === 'string') return { name: domain };
-    if (typeof domain === 'number') return { quark: domain };
-    return null;
+// quark → the class makeErrorDomainClass built for it. A cached `null` means "asked
+// the repository, this quark has no domain class".
+const errorClassByQuark = new Map();
+
+// GJS defines the error methods enumerable and non-configurable, which is observable:
+// a formatter listing a prototype's methods sees them, and nothing can redefine them.
+const errorMethod = (value) => ({ value, enumerable: true, writable: true, configurable: false });
+
+// The class for a GError's domain quark, or null when no typelib registers one (a
+// private quark from `GLib.quark_from_string`), in which case the error is a plain
+// `GLib.Error`.
+function errorClassForQuark(quark) {
+    const cached = errorClassByQuark.get(quark);
+    if (cached !== undefined) return cached;
+    // Nothing has touched the enum yet, so the map cannot know it: ask the repository
+    // which { namespace, name } registered the domain and READ that member — makeEnum
+    // registers the class it builds on the way out. Without this an error whose domain
+    // enum the application never named would fall back to the base class, which is
+    // exactly the `catch (e) { if (e instanceof Gio.IOErrorEnum) }` case.
+    const info = native.errorDomainInfo(quark);
+    errorClassByQuark.set(quark, null); // also breaks the cycle while the namespace loads
+    if (info === null) return null;
+    // Namespace MEMBERS are lazy (createNamespace resolves on first read), so the
+    // namespace object alone builds nothing — the member read is what runs makeEnum.
+    // oxlint-disable-next-line no-unused-expressions -- the READ is the side effect: it runs makeEnum, which registers the class
+    requireGi(info.namespace)[info.name];
+    return errorClassByQuark.get(quark);
 }
 
-class GLibError extends Error {
-    // `new GLib.Error(domain, code, message)`, where `domain` may be an error-enum
-    // object, a quark name string, or a numeric quark.
-    constructor(domain, code, message) {
-        super(typeof message === 'string' ? message : '');
-        this.name = 'GLib.Error';
-        const d = errorDomainOf(domain);
-        this.domain = d !== null && d.name !== undefined ? d.name : typeof domain === 'string' ? domain : undefined;
-        this.domainQuark =
-            d !== null && d.quark !== undefined ? d.quark : typeof domain === 'number' ? domain : undefined;
-        this.code = code;
+// The first parseable `file:line:column` in a V8 stack. The FRAMES stay V8's — only
+// their position is lifted out, and the frame it lands on is node-gi's own dispatch
+// site for a marshalled error (see docs/node-gi-gjs-surface.md).
+function topFrame(stack) {
+    for (const line of String(stack).split('\n')) {
+        const match = /\(?([^()\s]+):(\d+):(\d+)\)?$/.exec(line.trim());
+        if (match !== null) {
+            return { fileName: match[1], lineNumber: Number(match[2]), columnNumber: Number(match[3]) };
+        }
     }
+    return { fileName: undefined, lineNumber: undefined, columnNumber: undefined };
+}
 
-    // g_error_new_literal, which GJS exposes as a static on GLib.Error because it is in
-    // `GLib-2.0.gir` — and which is the only spelling `@girs/glib-2.0` TYPES, its
-    // `constructor(properties?)` signature rejecting the three positional arguments the
-    // constructor above actually takes. So a cross-runtime source that has to build a GError
-    // (a test asserting on an error a host cannot produce, say a CoreText font map's
-    // G_IO_ERROR_NOT_SUPPORTED) type-checks only against this, and without it the gjs leg
-    // passes and the node leg dies with `Error.new_literal is not a function`. Same arguments,
-    // same result — the constructor is the implementation.
-    static new_literal(domain, code, message) {
-        return new GLibError(domain, code, message);
-    }
-
-    // g_error_matches: true when the error's domain AND code both match.
-    matches(domain, code) {
-        const d = errorDomainOf(domain);
-        if (d === null) return false;
-        const domainMatch =
-            (d.name !== undefined && d.name === this.domain) || (d.quark !== undefined && d.quark === this.domainQuark);
-        return domainMatch && code === this.code;
-    }
-
-    toString() {
-        return `GLib.Error ${this.domain}: ${this.message}`;
+// GJS's `gjs_define_error_properties`: four own ENUMERABLE value properties saying
+// where the error came from. Enumerable is the load-bearing half — V8's own `stack`
+// is not, so a `{...err}` spread or a structured log carried the frames on GJS and
+// nothing here.
+function definePositionProperties(error, hideAbove) {
+    Error.captureStackTrace(error, hideAbove);
+    const stack = error.stack;
+    const frame = topFrame(stack);
+    for (const [name, value] of [
+        ['stack', stack],
+        ['fileName', frame.fileName],
+        ['lineNumber', frame.lineNumber],
+        ['columnNumber', frame.columnNumber],
+    ]) {
+        Object.defineProperty(error, name, { value, enumerable: true, writable: true, configurable: true });
     }
 }
 
-// Called by the engine on a failed GI invoke, with the GError's authoritative fields.
-function buildGError(domainName, domainQuark, code, message) {
-    const error = new GLibError(domainName, code, message);
-    error.domain = domainName;
-    error.domainQuark = domainQuark;
+// Wrap a `GError*` handle as the error object. `withPosition` is GJS's asymmetry: the
+// position properties are defined when the error was THROWN or CONSTRUCTED, and
+// otherwise only for an UNKNOWN domain — because GJS then has no domain metadata to
+// build a class from and reaches the GError through its generic struct wrapper, which
+// defines them (gi/struct.cpp). `hideAbove` is the frame the position should be
+// measured at, so `new GLib.Error(…)` reports the caller and not this file.
+function wrapGError(handle, withPosition = false, hideAbove = wrapGError) {
+    const cls = errorClassForQuark(native.getBoxedField(handle, 'domain'));
+    const error = Reflect.construct(Error, [], cls ?? GLibError);
+    error[HANDLE] = handle;
+    if (withPosition || cls === null) definePositionProperties(error, hideAbove);
+    // `Reflect.construct(Error, …)` always leaves V8's own `stack` behind, and GJS has
+    // none on this path at all.
+    else delete error.stack;
     return error;
 }
-// The CLASS is registered with the builder, because the engine needs it the other
-// way round too: a `GError`-typed IN argument recognises a caught (or `new`-ed)
-// GLib.Error by `instanceof` and rebuilds a real GError from its fields, so an
-// application can hand back the error it is holding (`GLib.propagate_error`,
-// `Gst.Message.new_error`). One call, so builder and class cannot drift apart.
-native.setErrorBuilder(buildGError, GLibError);
+
+// g_error_new_literal, behind the quark guard GJS's GLib.js puts in front of it: the
+// domain must already name something, so `new GLib.Error()` is refused here rather
+// than producing a GError no `matches()` can ever hit.
+function newErrorLiteral(domain, code, message) {
+    const quark = toDomainQuark(domain);
+    if (native.callFunction('GLib', 'quark_to_string', [quark]) === null) {
+        throw new TypeError(`Error.new_literal: ${domain} is not a valid domain`);
+    }
+    return native.callStaticMethod('GLib', 'Error', 'new_literal', [quark, code, message]);
+}
+
+// GJS's uint32 conversion for a `domain` argument (gi/js-value-inl.h,
+// js_value_to_c_checked): `undefined` and a non-finite NUMBER become 0 silently,
+// anything else goes through ToNumber and is REFUSED when it misses uint32 range.
+// node-gi's own NodeGiToUint32 has no range check, so the node-gi-only spelling
+// `err.matches('g-io-error-quark', code)` converted to NaN→0 and quietly matched
+// nothing; GJS cannot run that line at all, so neither can this.
+function toDomainQuark(domain) {
+    if (domain === undefined || (typeof domain === 'number' && !Number.isFinite(domain))) return 0;
+    const quark = Number(domain);
+    if (Number.isNaN(quark) || quark < 0 || quark > 0xffffffff) {
+        throw new Error('Argument domain: value is out of range for uint32');
+    }
+    return quark >>> 0;
+}
+
+// `GLib.Error`: a plain FUNCTION, not a `class … extends Error` — GJS's
+// GLib.Error.prototype has Object.prototype on its chain, not Error.prototype.
+function GLibError(domain, code, message) {
+    // The spelling `@girs/glib-2.0`'s `constructor(properties?)` signature invites,
+    // and which GJS runs into its generic boxed-struct constructor with: a GError
+    // field is not writable. Replicated verbatim so the failure reads the same.
+    if (arguments.length === 1 && typeof domain === 'object' && domain !== null) {
+        throw new Error('Writing field GLib.Error.message is not supported');
+    }
+    return wrapGError(newErrorLiteral(domain, code, message), true, GLibError);
+}
+Object.defineProperty(GLibError, 'name', { value: 'GLib_Error', configurable: true });
+defineLazyGType(GLibError, 'GLib', 'Error');
+
+// The static GJS exposes because `g_error_new_literal` is in GLib-2.0.gir — and the
+// only spelling `@girs/glib-2.0` TYPES, so a cross-runtime source that has to build a
+// GError type-checks against this rather than the three positional constructor args.
+GLibError.new_literal = function new_literal(domain, code, message) {
+    return wrapGError(newErrorLiteral(domain, code, message));
+};
+
+// `domain`/`code`/`message` read straight off the `GError*` through a PROTOTYPE
+// accessor, as GJS does: getter-only (a consumer "normalising" an error by assigning
+// `.domain` is a TypeError, not a silent mutation) and own to each prototype, so the
+// refusal below can name the right one.
+function defineErrorFields(proto, displayName, protoQuark) {
+    for (const field of ['domain', 'code', 'message']) {
+        Object.defineProperty(proto, field, {
+            enumerable: true,
+            configurable: false,
+            get() {
+                const handle = this[HANDLE];
+                if (handle !== undefined) return native.getBoxedField(handle, field);
+                // A PROTOTYPE has no GError* behind it, and refusing is what keeps a
+                // prototype walk (util.inspect, a formatter collecting accessors) from
+                // reading a wild pointer. GJS still answers a DOMAIN prototype's
+                // `domain` — that is where `matches(Gio.IOErrorEnum, …)` reads the
+                // quark from — and refuses the other two.
+                if (field === 'domain' && protoQuark !== undefined) return protoQuark;
+                throw new Error(`Can't get a field on ${displayName}.prototype; only on instances`);
+            },
+        });
+    }
+}
+
+Object.defineProperties(GLibError.prototype, {
+    copy: errorMethod(function copy() {
+        return wrapGError(native.callBoxedMethod(this[HANDLE], 'copy', []));
+    }),
+    // g_error_free, for parity. It carries the same double-free footgun as on GJS: the
+    // handle still owns the GError* and frees it again on GC.
+    free: errorMethod(function free() {
+        return native.callBoxedMethod(this[HANDLE], 'free', []);
+    }),
+    matches: errorMethod(function matches(domain, code) {
+        if (arguments.length < 2) {
+            throw new TypeError(
+                `method GLib.Error.matches: At least 2 arguments required, but only ${arguments.length} passed`,
+            );
+        }
+        return native.callBoxedMethod(this[HANDLE], 'matches', [toDomainQuark(domain), code]);
+    }),
+});
+defineErrorFields(GLibError.prototype, 'GLib.Error', undefined);
+// Defined SEPARATELY here and on each domain prototype, which is why on GJS
+// `err.toString !== GLib.Error.prototype.toString` for a known domain: there is no
+// sentinel branch, the class that knows its name owns the method.
+Object.defineProperty(
+    GLibError.prototype,
+    'toString',
+    errorMethod(function toString() {
+        return `GLib.Error ${native.callFunction('GLib', 'quark_to_string', [this.domain])}: ${this.message}`;
+    }),
+);
+
+// An error-domain enum (`Gio.IOErrorEnum`) is BOTH the enum and the CLASS of its
+// errors on GJS — `instanceof` discriminates the domain and `new Gio.IOErrorEnum({
+// message, code })` builds one — so it has to be a function with a prototype chained
+// to GLib.Error.prototype. A frozen object, which is what makeEnum hands out
+// otherwise, can be neither.
+function makeErrorDomainClass(namespace, typeName, members, quark) {
+    const displayName = `${namespace}.${typeName}`;
+    const cls = function (props) {
+        // The wording is the contract — a cross-runtime test asserting on a
+        // constructor refusal compares the string — and `message` is checked BEFORE
+        // `code`, so a call naming neither names `message`.
+        if (arguments.length !== 1 || typeof props !== 'object' || props === null) {
+            throw new Error('Invalid parameters passed to GError constructor, expected one object');
+        }
+        if (typeof props.message !== 'string') {
+            throw new Error("No property 'message' in GError constructor (or it was not a string)");
+        }
+        if (!Number.isInteger(props.code) || props.code < -0x80000000 || props.code > 0x7fffffff) {
+            throw new Error("No property 'code' in GError constructor (or it was not a 32-bit integer)");
+        }
+        return wrapGError(newErrorLiteral(quark, props.code, props.message), true, cls);
+    };
+    Object.defineProperty(cls, 'name', { value: `${namespace}_${typeName}`, configurable: true });
+    Object.assign(cls, members);
+    // G_TYPE_ERROR, NOT the enum's own GIOErrorEnum: on GJS an error domain is an
+    // Error class before it is an enum (ErrorBase::to_gtype), and the enum GType it
+    // shadows is unreachable there, so nothing written for GJS can ask for it.
+    defineLazyGType(cls, 'GLib', 'Error');
+    // A STATIC on GJS (ErrorBase::value_of reads `this.constructor.prototype`'s
+    // domain), and what makes both `Number(Gio.IOErrorEnum)` and
+    // `err.matches(Gio.IOErrorEnum, code)` answer the quark with no registry lookup.
+    cls.valueOf = () => quark;
+    Object.setPrototypeOf(cls.prototype, GLibError.prototype);
+    defineErrorFields(cls.prototype, displayName, quark);
+    Object.defineProperty(
+        cls.prototype,
+        'toString',
+        errorMethod(function toString() {
+            return `${displayName}: ${this.message}`;
+        }),
+    );
+    errorClassByQuark.set(quark, cls);
+    return cls;
+}
+
+// Called by the engine on a failed GI invoke, with ownership of the GError* already
+// transferred to the boxed handle. Named, so the position properties report the
+// application frame rather than this one.
+native.setErrorBuilder(function buildThrownGError(handle) {
+    return wrapGError(handle, true, buildThrownGError);
+});
 
 // Stamps a makeClass prototype with its { namespace, typeName } so Gio._promisify can
 // record WHICH introspected class a registration belongs to — matched against the
@@ -301,6 +470,12 @@ function wrapFundamental(handle) {
 // boxedMemberKind checks methods first — 1 = method, 2 = field, 0 = neither,
 // 3 = undecidable.
 function wrapBoxed(handle) {
+    // A GError gets the full error shape — domain class, Error brand, position
+    // properties — wherever it surfaces: an OUT param, a struct field, a container
+    // element. Routing HERE rather than in the GError-typed OUT arm in C++ is what
+    // makes those three agree; the old code only special-cased the thrown path, so a
+    // GError read out of a container was a bare method-routing proxy.
+    if (native.boxedTypeName(handle) === 'GError') return wrapGError(handle);
     const target = { [HANDLE]: handle };
     const methodDispatch =
         (prop) =>
@@ -612,6 +787,13 @@ function makeLogStructured(baseNs) {
 }
 
 function decorateGLibNamespace(baseNs) {
+    // GJS's GLib override installs this on the GLOBAL Error.prototype, which is what
+    // makes `catch (e) { if (e.matches(domain, code)) … }` safe to write without a
+    // type test in front of it. Plain assignment, so the descriptor is GJS's
+    // (writable, enumerable, configurable) rather than a hardened one.
+    Error.prototype.matches = function matches() {
+        return false;
+    };
     // Per-namespace cache of the overlay functions that need the introspected baseNs
     // (log_structured → log_variant; the *_once helpers → idle_add/timeout_add).
     const cache = new Map();
@@ -658,9 +840,9 @@ function decorateGLibNamespace(baseNs) {
     return new Proxy(baseNs, {
         get(t, prop) {
             if (prop === 'Variant') return variantClass;
-            // GLib.Error is the L1 GError subclass (the engine throws instances of it,
-            // and `new GLib.Error(domain, code, message)` constructs one), shadowing the
-            // introspected boxed type so `instanceof GLib.Error` + `.matches()` work.
+            // GLib.Error is the L1 error base class — every GError reaching JS is an
+            // instance of it or of its domain's subclass — shadowing the introspected
+            // boxed type, which would hand out a bare method-routing proxy.
             if (prop === 'Error') return GLibError;
             if (typeof prop === 'string' && GLIB_OVERLAY_NAMES.has(prop)) return overlay(prop);
             return t[prop];
@@ -1954,13 +2136,11 @@ function makeEnum(namespace, typeName) {
     for (const key of Object.keys(raw)) {
         out[key.toUpperCase().replace(/-/g, '_')] = raw[key];
     }
-    // If this enum is registered as a GError domain (Gio.IOErrorEnum, …), attach
-    // its domain descriptor (non-enumerable) so GLib.Error.matches(enum, code) can
-    // resolve the enum to its domain. A plain enum gets nothing (getErrorDomain → null).
+    // An enum registered as a GError domain (Gio.IOErrorEnum, …) is the CLASS of its
+    // errors as well, which a frozen object cannot be — it keeps its members on the
+    // function form instead.
     const domain = native.getErrorDomain(namespace, typeName);
-    if (domain !== null) {
-        Object.defineProperty(out, ERROR_DOMAIN, { value: domain, enumerable: false });
-    }
+    if (domain !== null) return makeErrorDomainClass(namespace, typeName, out, domain.quark);
     // `Ns.Enum.$gtype` — gjs answers a registered G_TYPE_ENUM/G_TYPE_FLAGS here, so
     // `GObject.type_name(Gio.BusType.$gtype)` is `GBusType` there and was `null` over
     // the bridge: an enum object carried no `$gtype` at all. EAGER rather than

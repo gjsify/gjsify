@@ -235,7 +235,7 @@ test('chain-up surfaces a can-throw parent vfunc GError (native)', () => {
     assert.throws(
         () => callParentVfunc(buf, 'fill', [-1, null]),
         (error) => {
-            assert.equal(error.domain, 'g-io-error-quark');
+            assert.equal(error.domain, requireGi('Gio', '2.0').io_error_quark());
             assert.equal(error.code, requireGi('Gio', '2.0').IOErrorEnum.CLOSED);
             return true;
         },
@@ -265,7 +265,7 @@ test('chain-up surfaces a can-throw parent vfunc as a real GLib.Error (L1 super)
     }
     assert.ok(thrown, 'super.vfunc_fill must throw the parent GError');
     assert.ok(thrown instanceof GLib.Error, 'it is a real GLib.Error');
-    assert.equal(thrown.domain, 'g-io-error-quark');
+    assert.equal(thrown.domain, Gio.io_error_quark());
     assert.equal(thrown.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CLOSED), true);
 });
 

@@ -143,6 +143,22 @@ static Napi::Value WrapBoxed(Napi::Env env, gpointer ptr, GIBaseInfo* structInfo
   return MakeBoxedHandle(env, handlePtr, handleGType, owns, info);
 }
 
+// See common.h. Wrapped through the GLib.Error STRUCT info rather than by GType
+// alone, so `domain`/`code`/`message` resolve as fields — which is how L1 reads
+// them off the GError*.
+Napi::Value MakeGErrorHandle(Napi::Env env, GError* error, GITransfer transfer) {
+  if (error == nullptr) return env.Null();
+  GIRepository* repo = DupDefaultRepository();
+  // GLib is loaded by any namespace require; require defensively anyway so a bare
+  // engine call still resolves the struct info (idempotent, cheap).
+  gi_repository_require(repo, "GLib", "2.0", static_cast<GIRepositoryLoadFlags>(0), nullptr);
+  GIBaseInfo* errInfo = gi_repository_find_by_name(repo, "GLib", "Error");
+  Napi::Value result = WrapBoxed(env, error, errInfo, transfer);
+  if (errInfo != nullptr) gi_base_info_unref(errInfo);
+  g_object_unref(repo);
+  return result;
+}
+
 // Read a boxed handle (ptr + boxed GType) if `v` is one (tag-checked; no deref of
 // ptr). Returns nullptr when `v` is not a node-gi boxed handle. The returned handle
 // is owned by the External — never free it. Callers that need the GType (boxed
@@ -472,47 +488,6 @@ static void ThrowExpectedGLibError(Napi::Env env, const char* argName, const std
       .ThrowAsJavaScriptException();
 }
 
-// Whether `v` is an instance of the L1 `GLib.Error` class — the shape a `catch`
-// around a failed GI invoke hands you, and what `new GLib.Error(domain, code,
-// message)` builds. Recognition is `instanceof` against the class L1 registered
-// alongside its error builder, never duck-typing: a plain object carrying a
-// `code` must still be refused.
-static bool IsL1GLibError(Napi::Env env, Napi::Value v) {
-  if (!v.IsObject()) return false;
-  NodeGiEnvData* d = EnvData(env);
-  if (d == nullptr || d->errorClass == nullptr) return false;
-  napi_value cls = nullptr;
-  if (napi_get_reference_value(env, d->errorClass, &cls) != napi_ok || cls == nullptr) return false;
-  Napi::Value clsValue(env, cls);
-  return clsValue.IsFunction() && v.As<Napi::Object>().InstanceOf(clsValue.As<Napi::Function>());
-}
-
-// Build a real GError out of an L1 `GLib.Error`, which carries no `GError*` of
-// its own. Throws + returns nullptr when its domain is unusable.
-//
-// `.domainQuark` is the numeric GQuark the engine read off the original GError;
-// `.domain` is its NAME (the node-gi divergence documented in
-// docs/node-gi-gjs-surface.md), which is what an error constructed in JS from a
-// quark name carries. Either resolves to the same quark; a value with neither is
-// not a usable GError — quark 0 would produce an error no `matches()` can ever
-// answer for, so it is refused rather than marshalled into a silent mismatch.
-static GError* ErrorFromL1GLibError(Napi::Env env, Napi::Value v, const char* argName) {
-  Napi::Object err = v.As<Napi::Object>();
-  Napi::Value quark = err.Get("domainQuark");
-  Napi::Value domain = err.Get("domain");
-  GQuark gq = 0;
-  if (quark.IsNumber()) gq = static_cast<GQuark>(NodeGiToUint32(quark));
-  else if (domain.IsString())
-    gq = g_quark_from_string(domain.As<Napi::String>().Utf8Value().c_str());
-  if (gq == 0) {
-    ThrowExpectedGLibError(env, argName, "a GLib.Error with no domain");
-    return nullptr;
-  }
-  Napi::Value message = err.Get("message");
-  std::string text = message.IsString() ? message.As<Napi::String>().Utf8Value() : std::string();
-  return g_error_new_literal(gq, NodeGiToInt32(err.Get("code")), text.c_str());
-}
-
 // "Gtk.Box" for an introspected GType, g_type_name() otherwise (a registerClass
 // subtype has no GI info of its own; its C name is still exact). The gjs twin is
 // GIWrapperBase::format_name() (refs/gjs/gi/wrapperutils.h).
@@ -541,7 +516,6 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     CreatedClosures* closures,
                     CreatedBytes* bytes,
                     CreatedValues* values,
-                    CreatedErrors* errors,
                     const char* argName) {
   if (v.IsEmpty()) {
     // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
@@ -829,43 +803,35 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
         out->v_pointer = nullptr;
         return true;
       }
-      // Shape 1: the boxed handle a GError-typed return/OUT produced. Ownership is
-      // the ordinary boxed one and TransferBoxedIn supplies it: transfer-none is a
-      // borrow, transfer-full hands the callee an independent g_error_copy
-      // (g_propagate_error ADOPTS and frees its `src`) so the JS handle's finalizer
-      // cannot double-free it. Measured against gjs: after `GLib.propagate_error(e)`
-      // the original `e` is still readable there too.
+      // There is exactly ONE shape to accept: the boxed handle every GError reaching
+      // JS carries, whether it was marshalled out, copied, constructed or thrown
+      // (L1's wrapGError puts the same handle on all four). The second arm this used
+      // to need — rebuilding a GError from an L1 Error subclass's JS fields — is gone
+      // with the subclass itself.
+      //
+      // Ownership is the ordinary boxed one and TransferBoxedIn supplies it:
+      // transfer-none is a borrow, transfer-full hands the callee an independent
+      // g_error_copy (g_propagate_error ADOPTS and frees its `src`) so the JS
+      // handle's finalizer cannot double-free it. Measured against gjs: after
+      // `GLib.propagate_error(e)` the original `e` is still readable there too.
       //
       // Type-safety is UNCONDITIONAL here, unlike the struct/boxed arm's "compare
       // only when both sides carry a registered GType": the expected type is known
       // (G_TYPE_ERROR, always), so a handle without it is a wrong pointer — and a
       // wrong pointer in a GError slot is a wild dereference inside GLib.
       BoxedHandle* h = TryGetBoxedHandle(v);
-      if (h != nullptr) {
-        if (h->gtype == G_TYPE_INVALID || !g_type_is_a(h->gtype, G_TYPE_ERROR)) {
-          ThrowExpectedGLibError(env, argName,
-                                 h->gtype != G_TYPE_INVALID ? g_type_name(h->gtype)
-                                                            : InformalValueTypeName(v));
-          return false;
-        }
-        out->v_pointer = TransferBoxedIn(h, transfer);
-        return true;
+      if (h == nullptr) {
+        ThrowExpectedGLibError(env, argName, InformalValueTypeName(v));
+        return false;
       }
-      // Shape 2: the L1 `GLib.Error` JS class — a caught error, or one built with
-      // `new GLib.Error(…)`. It carries no GError*, so build one and release it per
-      // transfer (CreatedErrors, the rule GBytes and GValue already follow). gjs has
-      // ONE object for both shapes and accepts either; refusing this one left the
-      // hand-back the OUT direction exists for closed to exactly the errors an
-      // application has in hand.
-      if (errors != nullptr && IsL1GLibError(env, v)) {
-        GError* built = ErrorFromL1GLibError(env, v, argName);
-        if (built == nullptr) return false;  // ErrorFromL1GLibError already threw
-        out->v_pointer = built;
-        errors->Record(built, transfer);
-        return true;
+      if (h->gtype == G_TYPE_INVALID || !g_type_is_a(h->gtype, G_TYPE_ERROR)) {
+        ThrowExpectedGLibError(
+            env, argName,
+            h->gtype != G_TYPE_INVALID ? g_type_name(h->gtype) : InformalValueTypeName(v));
+        return false;
       }
-      ThrowExpectedGLibError(env, argName, InformalValueTypeName(v));
-      return false;
+      out->v_pointer = TransferBoxedIn(h, transfer);
+      return true;
     }
     default:
       Napi::TypeError::New(
@@ -995,23 +961,10 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
     }
     case GI_TYPE_TAG_ERROR: {
       // A GError-typed value (a `GLib.Error` return like Gtk.GLArea.get_error(),
-      // or a GLib.Error.new_literal construct): GJS surfaces it as a GLib.Error
-      // boxed (G_TYPE_ERROR) with `.domain`/`.code`/`.message` field access +
-      // `.matches()`/`.copy()` methods. Wrap through the GLib.Error struct info
-      // so the boxed handle resolves fields and methods; a NULL GError (the
-      // no-error case) stays null. WrapBoxed handles transfer: a transfer-none
-      // borrow is g_boxed_copy'd into an owned copy, transfer-full is adopted.
-      GError* gerr = static_cast<GError*>(arg->v_pointer);
-      if (gerr == nullptr) return env.Null();
-      GIRepository* repo = DupDefaultRepository();
-      // GLib is loaded by any namespace require; require defensively anyway so a
-      // bare engine call still resolves the struct info (idempotent, cheap).
-      gi_repository_require(repo, "GLib", "2.0", static_cast<GIRepositoryLoadFlags>(0), nullptr);
-      GIBaseInfo* errInfo = gi_repository_find_by_name(repo, "GLib", "Error");
-      Napi::Value result = WrapBoxed(env, gerr, errInfo, transfer);
-      if (errInfo != nullptr) gi_base_info_unref(errInfo);
-      g_object_unref(repo);
-      return result;
+      // or a GLib.Error.new_literal construct). The same handle a THROWN error
+      // carries, so L1 builds the same object from both — a NULL GError (the
+      // no-error case) stays null.
+      return MakeGErrorHandle(env, static_cast<GError*>(arg->v_pointer), transfer);
     }
     default:
       Napi::TypeError::New(env, "Unsupported return type tag " +
@@ -1861,7 +1814,7 @@ bool JsToAnswerArgument(Napi::Env env, Napi::Value v, GITypeInfo* ti, GITransfer
   }
   std::string held;
   return JsToGIArgument(env, v, ti, out, &held, transfer, nullptr, nullptr, nullptr, nullptr,
-                        nullptr, argName);
+                        argName);
 }
 
 }  // namespace

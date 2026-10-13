@@ -13,7 +13,6 @@ void NodeGiEnvDataFinalize(napi_env env, void* data, void* /*hint*/) {
   NodeGiEnvData* d = static_cast<NodeGiEnvData*>(data);
   if (d == nullptr) return;
   if (d->errorBuilder != nullptr) napi_delete_reference(env, d->errorBuilder);
-  if (d->errorClass != nullptr) napi_delete_reference(env, d->errorClass);
   if (d->templateCallbackResolver != nullptr)
     napi_delete_reference(env, d->templateCallbackResolver);
   if (d->cairoWrappers != nullptr) napi_delete_reference(env, d->cairoWrappers);
@@ -260,17 +259,52 @@ Napi::Value GetErrorDomain(const Napi::CallbackInfo& info) {
   return result;
 }
 
-// setErrorBuilder(builder: (domainName, domainQuark, code, message) => Error,
-//                 errorClass?: typeof GLib.Error) -> void
-// Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so a
-// failed sync call throws a real GLib.Error, together with the class it builds —
-// which the GError IN-arg path needs to recognise one coming back. Both stored
-// per-env (a napi_ref is env-specific; both paths are gated on the same env), in
-// ONE call so a registration cannot supply the builder and forget the class.
+// errorDomainInfo(quark: number) -> { namespace: string, name: string } | null
+// Which introspected enum registered a GError domain quark, so L1 can resolve a
+// thrown error to its DOMAIN CLASS (Gio.IOErrorEnum) by reading that member.
+// getErrorDomain below answers the same relation the other way round, and L1's
+// quark→class map is only populated by it — which is not enough on its own: an
+// application that never named `Gio.IOErrorEnum` has nothing in the map, and the
+// error it catches would land on the base class, breaking exactly the
+// `catch (e) { if (e instanceof Gio.IOErrorEnum) }` idiom. Null for a quark no
+// typelib registers (a private `GLib.quark_from_string` domain).
+Napi::Value ErrorDomainInfo(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsNumber()) {
+    Napi::TypeError::New(env, "errorDomainInfo(quark: number)").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GQuark quark = static_cast<GQuark>(NodeGiToUint32(info[0]));
+  if (quark == 0) return env.Null();
+  GIRepository* repo = DupDefaultRepository();
+  GIEnumInfo* enumInfo = gi_repository_find_by_error_domain(repo, quark);
+  Napi::Value result = env.Null();
+  if (enumInfo != nullptr) {
+    GIBaseInfo* base = reinterpret_cast<GIBaseInfo*>(enumInfo);
+    const char* ns = gi_base_info_get_namespace(base);
+    const char* name = gi_base_info_get_name(base);
+    if (ns != nullptr && name != nullptr) {
+      Napi::Object obj = Napi::Object::New(env);
+      obj.Set("namespace", Napi::String::New(env, ns));
+      obj.Set("name", Napi::String::New(env, name));
+      result = obj;
+    }
+    gi_base_info_unref(base);
+  }
+  g_object_unref(repo);
+  return result;
+}
+
+// setErrorBuilder(builder: (handle) => GLib.Error) -> void
+// Register the L1 error factory the engine calls when a GI invoke fails, so a
+// failed sync call throws the error object of its domain's class. Stored per-env
+// (a napi_ref is env-specific). It takes the GError's boxed HANDLE — the L1 error
+// IS that handle, which is why nothing else needs registering here: the GError
+// IN-arg direction reads the same handle back off the object.
 Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsFunction()) {
-    Napi::TypeError::New(env, "setErrorBuilder(builder: function, errorClass?: function)")
+    Napi::TypeError::New(env, "setErrorBuilder(builder: function)")
         .ThrowAsJavaScriptException();
     return env.Undefined();
   }
@@ -281,12 +315,6 @@ Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info) {
     d->errorBuilder = nullptr;
   }
   napi_create_reference(env, info[0], 1, &d->errorBuilder);
-  if (d->errorClass != nullptr) {
-    napi_delete_reference(env, d->errorClass);
-    d->errorClass = nullptr;
-  }
-  if (info.Length() >= 2 && info[1].IsFunction())
-    napi_create_reference(env, info[1], 1, &d->errorClass);
   return env.Undefined();
 }
 

@@ -83,11 +83,6 @@ GIRepository* DupDefaultRepository();
 // Init, freed by the instance-data finalizer at env teardown.
 struct NodeGiEnvData {
   napi_ref errorBuilder = nullptr;
-  // The CLASS the builder above constructs — L1's `GLib.Error`. Registered with
-  // the builder (one call, so the two cannot drift apart) and read the other way
-  // round: a GError-typed IN arg uses it to recognise an L1 error and rebuild a
-  // real GError from its fields. Per-env for the same reason as errorBuilder.
-  napi_ref errorClass = nullptr;
   // L1-registered resolver for Gtk.Template `<signal handler="…">` callbacks: given
   // (instanceHandle, handlerName) it returns the instance's bound JS method (or
   // undefined). Stored per-env for the same reason as errorBuilder (a napi_ref is
@@ -160,6 +155,13 @@ extern const napi_type_tag kGObjectHandleTag;
 Napi::Value MakeBoxedHandle(Napi::Env env, gpointer ptr, GType gtype, bool owns,
                             GIBaseInfo* info = nullptr, bool rawOwned = false);
 Napi::Value WrapVariant(Napi::Env env, GVariant* var, GITransfer transfer);
+// Wrap a `GError*` as the boxed handle L1's `wrapGError` turns into the error
+// object. ONE helper for both directions a GError reaches JS by — a GError-typed
+// return/OUT and the error a failed invoke THREW — because those used to produce
+// two different JS shapes, and sharing the wrap is what keeps them from drifting
+// apart again. Transfer follows the boxed rule: transfer-everything is adopted,
+// transfer-none is copied, so the handle always owns what it frees.
+Napi::Value MakeGErrorHandle(Napi::Env env, GError* error, GITransfer transfer);
 BoxedHandle* TryGetBoxedHandle(Napi::Value v);
 bool TryGetBoxedPtr(Napi::Value v, gpointer* out);
 Napi::Value MakeGTypeHandle(Napi::Env env, GType gtype);
@@ -317,13 +319,13 @@ struct CreatedClosures {
 
 // ---- C objects this layer SYNTHESISES for one IN argument --------------------
 //
-// Three IN arms build a throw-away C object out of a plain JS value, because the
-// JS side has no handle to hand over: a Uint8Array for a `GLib.Bytes` arg, a
-// number/string for a `GObject.Value` arg, an L1 `GLib.Error` for a `GError` arg.
-// All three carry the SAME lifetime rule, which is why they share one type
-// instead of a third near-identical struct: transfer-none → the callee borrowed
-// (or copied) it, so we release it after the invoke; transfer-full → the callee
-// adopted it, so it is released only when the invoke never ran.
+// Two IN arms build a throw-away C object out of a plain JS value, because the JS
+// side has no handle to hand over: a Uint8Array for a `GLib.Bytes` arg, a
+// number/string for a `GObject.Value` arg. Both carry the SAME lifetime rule,
+// which is why they share one type instead of a second near-identical struct:
+// transfer-none → the callee borrowed (or copied) it, so we release it after the
+// invoke; transfer-full → the callee adopted it, so it is released only when the
+// invoke never ran.
 template <typename T>
 struct CreatedIn {
   std::vector<T*> transferNone;  // release after the invoke (callee borrowed/copied)
@@ -353,17 +355,6 @@ using CreatedBytes = CreatedIn<GBytes>;
 // boxed-handle path and is passed through untouched.
 using CreatedValues = CreatedIn<GValue>;
 
-// An L1 `GLib.Error` (what a `catch` hands you, and what `new GLib.Error(…)`
-// builds) has no `GError*` behind it — it is a JS class, not a boxed handle — so
-// a `GError`-typed IN arg gets a fresh `g_error_new_literal` built from its
-// domain/code/message. Without this, the hand-back direction the OUT direction
-// exists for is only open to errors that came OUT of GI in the first place:
-// `GLib.propagate_error(caught)` and `Gst.Message.new_error(src, caught, dbg)`
-// both refused where gjs accepts, which is the shape an application actually
-// writes. A marshalled GError (a boxed handle) still routes through
-// TransferBoxedIn and is not copied here.
-using CreatedErrors = CreatedIn<GError>;
-
 // Release a GValue this layer boxed: unset the held value (dropping the ref an
 // object/boxed/string GValue took) and free the struct. A plain `g_free` would
 // leak whatever the GValue owns.
@@ -390,9 +381,6 @@ GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
 // `values` (optional): enables the JS-value→GValue IN-arg boxing above; nullptr
 // (the default) keeps the previous behaviour (plain value → TypeError) on paths
 // that cannot release a created GValue.
-// `errors` (optional): enables the L1-GLib.Error→GError IN-arg build above;
-// nullptr (the default) keeps a marshalled boxed handle working and refuses the
-// L1 class, on paths that cannot release a created GError.
 // `argName` (optional): the introspected argument name, used ONLY in error
 // messages so a refusal reads like gjs's ("Expected type string for argument
 // 'name' but got type number"); nullptr degrades to a message without the name.
@@ -403,7 +391,6 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     CreatedClosures* closures = nullptr,
                     CreatedBytes* bytes = nullptr,
                     CreatedValues* values = nullptr,
-                    CreatedErrors* errors = nullptr,
                     const char* argName = nullptr);
 
 // ---- IN container building -----------------------------------------
@@ -671,6 +658,7 @@ Napi::Value FindInfo(const Napi::CallbackInfo& info);
 Napi::Value GetConstantValue(const Napi::CallbackInfo& info);
 Napi::Value GetEnumValues(const Napi::CallbackInfo& info);
 Napi::Value GetErrorDomain(const Napi::CallbackInfo& info);
+Napi::Value ErrorDomainInfo(const Napi::CallbackInfo& info);
 Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info);
 Napi::Value PrependSearchPath(const Napi::CallbackInfo& info);
 Napi::Value PrependLibraryPath(const Napi::CallbackInfo& info);

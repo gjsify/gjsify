@@ -125,12 +125,14 @@ carry `!IS_GJS` instead, and the GJS leg must pass.
 Incident: #1039 merged ~100 POSIX-semantics rules with a green Linux pipeline
 and put 45 failures on `main` across the two legs — 9 on darwin, 36 on win32.
 
-**The leg axis has the same shape, and `GLib.Error` is where it bites.** Under GJS a
-`GLib.Error` is a boxed GObject value; under `@gjsify/node-gi` — the bridge that runs these
-very suites on Node — it is `class GLibError extends Error`. So `e instanceof Error` answers
-differently on two legs of ONE suite, and a catch that discriminates on it wraps the error on
-one host and passes the raw GError through on the other. Measured while fixing `@gjsify/sqlite`:
-the gjs leg stayed 84/84 green while three tests went red under node-gi. Discriminate on your
-own error classes (`sqlite/src/errors.ts#isNodeSqliteError`), and read `.message` rather than
-stringifying — `String(e)` on a GJS GError yields
+**The leg axis has the same shape, and `GLib.Error` is where it bites.** Under GJS — and now
+under `@gjsify/node-gi`, the bridge that runs these very suites on Node — a `GLib.Error` is a
+boxed GError: `Error.isError()` is true while `instanceof Error` is FALSE. A leg that raises its
+own `Error` instead answers both true, so a catch that discriminates on `instanceof Error` wraps
+the error on one host and passes the raw GError through on the other. Measured while fixing
+`@gjsify/sqlite`: the gjs leg stayed 84/84 green while three tests went red under node-gi, which
+back then had an `Error` subclass of its own with a quark NAME in `.domain`. That second shape is
+gone (`docs/node-gi-gjs-surface.md` § GError identity); the leg hazard is not. Discriminate on
+your own error classes (`sqlite/src/errors.ts#isNodeSqliteError`), and read `.message` rather than
+stringifying — `String(e)` on a GError yields
 `"GLib.Error gda_server_provider_error: no such table: t"` where Node reports `"no such table: t"`.

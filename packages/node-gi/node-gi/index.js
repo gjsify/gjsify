@@ -29,6 +29,7 @@ export const findInfo = native.findInfo;
 export const getConstantValue = native.getConstantValue;
 export const getEnumValues = native.getEnumValues;
 export const getErrorDomain = native.getErrorDomain;
+export const errorDomainInfo = native.errorDomainInfo;
 export const setErrorBuilder = native.setErrorBuilder;
 export const prependSearchPath = native.prependSearchPath;
 export const prependLibraryPath = native.prependLibraryPath;
