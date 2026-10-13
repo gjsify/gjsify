@@ -34,9 +34,15 @@ export class AdwToggle extends withSignals(Observable) {
         applyConstructProps(this, props);
     }
 
-    /** `Adw.Toggle:name` — how `Adw.ToggleGroup:active-name` finds this toggle. */
-    get name(): string | null {
-        return this._name;
+    /**
+     * `Adw.Toggle:name` — how `Adw.ToggleGroup:active-name` finds this toggle; `''` while unset.
+     *
+     * A `string`, as GJS types it and as `GtkWidgetLayoutMembers.name` (which `withSignals`
+     * brings) declares it: `string | null` here was TS2416 for a consumer checking our typings.
+     * `Gtk.StackPage:name` reads the same way.
+     */
+    get name(): string {
+        return this._name ?? '';
     }
 
     set name(value: string | null) {

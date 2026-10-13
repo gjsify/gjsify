@@ -45,7 +45,7 @@
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, ScrollView, StackLayout } from '@nativescript/core';
-import type { TouchGestureEventData } from '@nativescript/core';
+import type { EventData, TouchGestureEventData } from '@nativescript/core';
 import type {
     BottomSheetCloseOutcome,
     BottomSheetCloseSource,
@@ -87,6 +87,9 @@ import { attachRowPressFeedback } from './row-press.js';
 import { withSignals } from './signals.js';
 
 export { CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE };
+
+/** Emitted when {@link AdwBottomSheet.set_modal} changes the value. */
+export const NOTIFY_MODAL = 'notify::modal';
 
 const PANELS = new WeakMap<AdwBottomSheet, View>();
 
@@ -134,6 +137,7 @@ const BOTTOM_SHEET_SLOTS = ['sheet', 'bottomBar', 'bottom-bar', 'content'] as co
 
 export class AdwBottomSheet extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'AdwBottomSheet';
+    static readonly emittedSignals: readonly string[] = [NOTIFY_OPEN, NOTIFY_MODAL];
 
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(BOTTOM_SHEET_SLOTS, 'content');
@@ -166,7 +170,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     /** The shared open/can-close model — the single source of truth for both. */
     private readonly _state = createBottomSheetPresentation();
 
-    constructor(props?: ConstructProps<AdwBottomSheet>) {
+    constructor(props?: ConstructProps<AdwBottomSheet, { modal: boolean }>) {
         super();
 
         this.className = 'adw-bottom-sheet';
@@ -568,17 +572,24 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
     }
 
     /**
-     * Whether the sheet dims the content and blocks it while open (`AdwBottomSheet:modal`,
-     * default `true`). Changing it on an open sheet adds or removes the scrim at once, as
-     * `adw_bottom_sheet_set_modal` does; `open` does not move.
+     * `adw_bottom_sheet_get_modal`: whether the sheet dims the content and blocks it while open
+     * (default `true`).
+     *
+     * NO `modal` ACCESSOR, by rule (`shadowed-properties.ts`): `ViewCommon.modal` is the view a
+     * NativeScript view was shown modally from, so `sheet.modal` stays that.
      */
-    get modal(): boolean {
+    get_modal(): boolean {
         return this._state.modal;
     }
 
-    set modal(raw: boolean | string) {
-        if (!this._state.setModal(xmlBoolean(raw, this.modal))) return;
+    /**
+     * `adw_bottom_sheet_set_modal`. Changing it on an open sheet adds or removes the scrim at
+     * once; `open` does not move. The builder hands over the authored string, which is read too.
+     */
+    set_modal(modal: boolean): void {
+        if (!this._state.setModal(xmlBoolean(modal as boolean | string, this.get_modal()))) return;
         this._paintChrome();
+        this.notify({ eventName: NOTIFY_MODAL, object: this, value: this.get_modal() } as EventData);
     }
 
     /**

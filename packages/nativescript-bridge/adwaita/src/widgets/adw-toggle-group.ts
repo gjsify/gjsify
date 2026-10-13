@@ -166,7 +166,10 @@ export class AdwToggleGroup extends withSignals(StackLayout) {
             );
         }
         const kept = this._toggles.length;
-        this._rebuild([...this._toggles, { label: child.label, icon: child.iconName ?? undefined, name: child.name }]);
+        this._rebuild([
+            ...this._toggles,
+            { label: child.label, icon: child.iconName ?? undefined, name: child.name === '' ? null : child.name },
+        ]);
         if (this._toggles.length === kept) {
             // The C's `g_critical` (adw-toggle-group.c:850): the toggle is not added.
             console.warn(`[AdwToggleGroup] a toggle named '${child.name}' already exists; this one is not added`);

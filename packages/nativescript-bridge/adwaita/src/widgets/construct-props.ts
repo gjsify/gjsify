@@ -33,6 +33,7 @@ import type { AdwAdjustmentInput, AdwListModelInput } from '@gjsify/adwaita-core
 
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { iconSizeNickOf } from './gtk-icon-size.js';
+import { gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
 
 /**
  * The keys a widget's construct-props bag accepts, derived from the widget itself.
@@ -48,14 +49,21 @@ import { iconSizeNickOf } from './gtk-icon-size.js';
  * measured to drop `size` as well — a getter/setter pair with different types does not
  * compare equal under it — and a type that silently loses real properties is worse than
  * one that admits two impossible ones and says so when they arrive.
+ *
+ * A name a NativeScript base owns (`shadowed-properties.ts`) is dropped whatever `T` inherits
+ * under it — read off `T`, `direction` would be NativeScript's layout direction — and comes
+ * back only through `Shadowed`, typed as the class's own `set_<p>` takes it:
+ * `ConstructProps<AdwSplitButton, { direction: number }>`. The applier routes it to that verb.
  */
-export type ConstructProps<T> = Partial<{
-    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: K extends EnumProp
-        ? T[K] | number
-        : K extends ValueProp
-          ? T[K] | ValueProps[K & ValueProp]
-          : T[K];
-}>;
+export type ConstructProps<T, Shadowed extends object = object> = Partial<
+    {
+        [K in keyof T as T[K] extends (...args: never[]) => unknown
+            ? never
+            : K extends ShadowedName | keyof Shadowed
+              ? never
+              : K]: K extends EnumProp ? T[K] | number : K extends ValueProp ? T[K] | ValueProps[K & ValueProp] : T[K];
+    } & Shadowed
+>;
 
 /**
  * The two properties whose SETTER takes a portable VALUE the getter does not hand back, and
@@ -226,6 +234,12 @@ export function nsAlignment(value: unknown, axis: 'horizontal' | 'vertical'): un
 export function applyConstructProps(target: object, props?: Readonly<Record<string, unknown>>): void {
     if (props === undefined || props === null) return;
     for (const [key, value] of Object.entries(props)) {
+        const shadowed = gtkPropertyDoor(target, key);
+        if (shadowed.kind === 'refused') throw new TypeError(`${target.constructor.name}: ${shadowed.why}`);
+        if (shadowed.kind === 'verbs') {
+            if (value !== undefined) (target as Record<string, (value: unknown) => void>)[shadowed.set](value);
+            continue;
+        }
         if (settableDoor(target, key) === null) {
             throw new TypeError(
                 `${target.constructor.name} has no settable '${key}'. A construct-props bag goes through the ` +

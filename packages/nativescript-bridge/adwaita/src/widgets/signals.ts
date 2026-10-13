@@ -53,6 +53,7 @@
 
 import type { EventData, Observable } from '@nativescript/core';
 
+import { camelProperty, readGtkProperty, writeGtkProperty } from './shadowed-properties.js';
 import { withGtkWidgetLayout } from './widget-layout.js';
 
 /** The shape of `HandledAccumulator` (adwaita-core) a signal payload may carry; read structurally. */
@@ -99,6 +100,13 @@ export interface GObjectSignals {
     disconnect(handlerId: number): void;
     /** `g_signal_emit_by_name`: run every handler `connect` added for `eventName`, with `args` in the payload. */
     emit(eventName: string, ...args: unknown[]): void;
+    /**
+     * `g_object_get_property`: the GTK property `name` (`'can-close'` or camel case). A
+     * name NativeScript owns as something else is read through the class's `get_<p>()`.
+     */
+    get_property(name: string): unknown;
+    /** `g_object_set_property`, routed the same way as {@link get_property}. */
+    set_property(name: string, value: unknown): void;
 }
 
 /**
@@ -161,6 +169,14 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
 
         emit(eventName: string, ...args: unknown[]): void {
             this.notify({ eventName, object: this, args });
+        }
+
+        get_property(name: string): unknown {
+            return readGtkProperty(this, camelProperty(name));
+        }
+
+        set_property(name: string, value: unknown): void {
+            writeGtkProperty(this, camelProperty(name), value);
         }
     }
     return WithSignals;

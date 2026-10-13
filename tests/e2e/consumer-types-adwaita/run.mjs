@@ -14,10 +14,11 @@
 // `paths`), merged with `ns-core-contract.d.ts` — the members upstream 9.x declares on `View` and
 // `GridLayout` that our widgets re-declare.
 //
-// KNOWN GAPS. Five widget members re-declare a NativeScript member under its GTK name with an
-// incompatible type (TS2416). That is a pending rename-vs-widen decision, not a pass: the list is
-// asserted EXACTLY, so a new clash fails the suite and so does a gap that was fixed but is still
-// listed. Remove the entry when you fix it.
+// KNOWN GAPS. None. The five members that once re-declared a NativeScript member under its GTK
+// name with an incompatible type (TS2416) — `AdwSplitButton.direction`, `AdwBottomSheet.modal`,
+// `AdwDataGrid.rows`/`.columns`, `AdwToggle.name` — are resolved by the rule of ADR 0109
+// (`widgets/shadowed-properties.ts`). The list is still asserted EXACTLY, so a new clash fails
+// the suite; `scripts/check-gtk-host-member-clashes.mjs` is the gate that names it first.
 //
 // Requires `gjsify run build` of the three packages and their dependencies.
 
@@ -38,13 +39,7 @@ const BUILT_TYPES = [
 ].map(([group, pkg]) => join(MONOREPO_ROOT, 'packages', group, pkg, 'lib', 'types', 'index.d.ts'));
 
 /** `<Class>.<member>` pairs that are known TS2416 clashes with a NativeScript member. */
-const KNOWN_GAPS = [
-    'AdwBottomSheet.modal',
-    'AdwDataGrid.columns',
-    'AdwDataGrid.rows',
-    'AdwSplitButton.direction',
-    'AdwToggle.name',
-];
+const KNOWN_GAPS = [];
 
 /** Run `gjsify tsc -p <cfg>`; return { code, output }. */
 function runGjsifyTsc(cfg) {

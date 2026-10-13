@@ -31,10 +31,14 @@ import { showMenuPopup } from './popup-menu-view.js';
 import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { ArrowType } from './gtk-enums.js';
 import { withSignals } from './signals.js';
 
 /** Event name emitted when the main action part is tapped. Mirrors `Adw.SplitButton::clicked`. */
 export const CLICKED = 'clicked';
+
+/** Emitted when {@link AdwSplitButton.set_direction} moves the arrow. */
+export const NOTIFY_DIRECTION = 'notify::direction';
 
 /** Event name emitted when a dropdown menu item is chosen. */
 export const MENU_TAPPED = 'menuTapped';
@@ -57,6 +61,7 @@ export interface MenuTappedEventData extends EventData {
 
 export class AdwSplitButton extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'AdwSplitButton';
+    static readonly emittedSignals: readonly string[] = [NOTIFY_DIRECTION];
 
     /** The main action part (column 0). */
     protected readonly _actionPart: StackLayout;
@@ -83,7 +88,7 @@ export class AdwSplitButton extends withSignals(GridLayout) {
      */
     private _sensitive = true;
 
-    constructor(props?: ConstructProps<AdwSplitButton>) {
+    constructor(props?: ConstructProps<AdwSplitButton, { direction: number | SplitButtonDirection }>) {
         super();
 
         this.className = 'adw-split-button';
@@ -287,13 +292,40 @@ export class AdwSplitButton extends withSignals(GridLayout) {
         this._actions = value ?? null;
     }
 
-    /** The direction the arrow points (and, on GTK, the popup opens). */
-    get direction(): SplitButtonDirection {
-        return this._state.direction;
+    /**
+     * `adw_split_button_get_direction`: where the arrow points (and, on GTK, the popup opens), as
+     * a `Gtk.ArrowType`.
+     *
+     * NO `direction` ACCESSOR, by rule (`shadowed-properties.ts`): `ViewCommon.direction` is
+     * NativeScript's layout direction, so `button.direction` stays that. The two verbs SHADOW
+     * `Gtk.Widget`'s text-direction pair here exactly as they do in GJS, where
+     * `Adw.SplitButton.get_direction()` answers an `ArrowType` too.
+     */
+    override get_direction(): number {
+        return ArrowType[this._state.direction.toUpperCase() as keyof typeof ArrowType];
     }
 
-    set direction(value: SplitButtonDirection) {
-        this._state.setDirection(value);
+    /**
+     * `adw_split_button_set_direction`. Takes the `Gtk.ArrowType` constant; the builder and the
+     * construct-props bag hand over the nick a `.blp` or `.ui` spells (`up`), which is read too.
+     * Emits `notify::direction` when the arrow moves.
+     */
+    override set_direction(direction: number): void {
+        const raw: unknown = direction;
+        const constant =
+            typeof raw === 'number'
+                ? raw
+                : /^\d+$/.test(String(raw))
+                  ? Number(raw)
+                  : (ArrowType as Readonly<Record<string, number>>)[String(raw).toUpperCase()];
+        const nick = Object.keys(ArrowType)
+            .find((name) => ArrowType[name as keyof typeof ArrowType] === constant)
+            ?.toLowerCase();
+        if (nick === undefined) {
+            throw new TypeError(`${String(raw)} is not a valid value for enum argument direction (Gtk.ArrowType)`);
+        }
+        if (!this._state.setDirection(nick as SplitButtonDirection)) return;
+        this.notify({ eventName: NOTIFY_DIRECTION, object: this, value: this.get_direction() } as EventData);
     }
 
     /**

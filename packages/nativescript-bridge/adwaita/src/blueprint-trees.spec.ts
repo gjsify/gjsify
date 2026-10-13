@@ -103,7 +103,7 @@ export const AdwBlueprintTreesNsTest = async () => {
             const sheet = built(sheetTree);
             const scrims = withClass(sheet, 'adw-bottom-sheet-dimming');
 
-            expect(sheet.modal).toBe(true);
+            expect((sheet as unknown as AdwBottomSheet).get_modal()).toBe(true);
             expect(sheet.open).toBe(true);
             expect(scrims.length).toBe(1);
             expect(scrims[0]?.visibility).toBe('visible');
@@ -117,7 +117,7 @@ export const AdwBlueprintTreesNsTest = async () => {
         await it('a sheet that is not modal opens with no scrim', () => {
             const sheet = built({ tag: 'AdwBottomSheet', props: { modal: false, open: true } });
 
-            expect(sheet.modal).toBe(false);
+            expect((sheet as unknown as AdwBottomSheet).get_modal()).toBe(false);
             expect(withClass(sheet, 'adw-bottom-sheet-dimming')[0]?.visibility).toBe('collapse');
         });
     });

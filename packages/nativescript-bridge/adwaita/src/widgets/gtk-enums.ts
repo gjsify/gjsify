@@ -1,11 +1,12 @@
 // The plain GTK enums an application reads off `Gtk` on a target that has no GI — `Gtk.PolicyType`,
-// `Gtk.TextDirection`, `Gtk.TextExtendSelection` and `Gtk.License`, as value tables.
+// `Gtk.ArrowType`, `Gtk.TextDirection`, `Gtk.TextExtendSelection` and `Gtk.License`, as value tables.
 //
 // The numbers are the typelib's: GIR declaration order, no aliases (unlike `Gtk.Align`, which
 // `gtk-align.ts` has to derive). What each one DOES here:
 //
 //   · `PolicyType` is read by `Gtk.ScrolledWindow:hscrollbar-policy` / `vscrollbar-policy`
 //     (`normalizePolicy` takes the constant), which folds it onto the `ScrollView` axis.
+//   · `ArrowType` is what `Adw.SplitButton.get_direction()` answers and `set_direction()` takes.
 //   · `TextDirection` is held, not acted on: a `get_direction()` here answers `LTR`, and no
 //     widget mirrors under `RTL` — NativeScript's own `flowDirection` is not driven from it.
 //   · `License` is `@gjsify/adwaita-core`'s `GTK_LICENSE`, the table `Adw.AboutDialog` reads.
@@ -25,6 +26,15 @@ export const PolicyType = Object.freeze(
         readonly EXTERNAL: 3;
     },
 );
+
+/** `Gtk.ArrowType`: `UP` 0, `DOWN` 1, `LEFT` 2, `RIGHT` 3, `NONE` 4 — `Adw.SplitButton:direction`. */
+export const ArrowType = Object.freeze({
+    UP: 0,
+    DOWN: 1,
+    LEFT: 2,
+    RIGHT: 3,
+    NONE: 4,
+} as const);
 
 /** `Gtk.TextDirection`: `NONE` 0, `LTR` 1, `RTL` 2. */
 export const TextDirection = Object.freeze({

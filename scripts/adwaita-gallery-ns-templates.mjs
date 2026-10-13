@@ -556,7 +556,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'The NativeScript port has no grid view: GtkBox.addChild appends every child eagerly and lays them out ' +
         'in one direction, with no column count to reflow (status/open-todos/adwaita-ports.md).',
     'Gtk.ColumnView':
-        'The NativeScript port has no column view: AdwDataGrid.columns is the nearest thing and takes rows of ' +
+        'The NativeScript port has no column view: AdwDataGrid.set_columns() is the nearest thing and takes rows of ' +
         'pre-formatted values, not a factory per column (status/open-todos/adwaita-ports.md).',
     'Gtk.ListBox':
         'GtkListBox ships on NativeScript (src/widgets/gtk-list-box.ts), but this block has no XML template for it yet (status/open-todos/adwaita-ports.md).',
@@ -565,7 +565,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'orientation picks the wrap axis and whose addChild takes a plain view with no selection state — ' +
         'the four Gtk.SelectionMode values have nowhere to live (status/open-todos/adwaita-ports.md).',
     'Gtk.Calendar':
-        'The NativeScript port has no calendar: AdwDataGrid.rows is the nearest thing to a month grid and ' +
+        'The NativeScript port has no calendar: AdwDataGrid.set_rows() is the nearest thing to a month grid and ' +
         'takes pre-formatted rows rather than a date, and @nativescript/core ships no DatePicker to take a ' +
         'day, a six-by-seven grid, a marked day or the four navigation arrows from ' +
         '(status/open-todos/adwaita-ports.md).',

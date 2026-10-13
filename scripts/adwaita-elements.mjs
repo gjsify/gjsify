@@ -564,9 +564,17 @@ export function settablePropertiesOfClass(text, className) {
     if (at < 0) return null;
     const from = classes[at].index;
     const to = at + 1 < classes.length ? classes[at + 1].index : code.length;
-    return new Set(
-        [...code.slice(from, to).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name),
-    );
+    const body = code.slice(from, to);
+    const settable = new Set([...body.matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name));
+    // A GTK property whose name the platform base owns has no accessor: the class types it in
+    // the second half of its bag, `ConstructProps<Self, { direction: … }>`, and sets it through
+    // `set_<p>()` (widgets/shadowed-properties.ts). That is a property it sets.
+    const bag = /ConstructProps<\s*\w+\s*,\s*\{([\s\S]*?)\}\s*,?\s*>/.exec(body)?.[1] ?? '';
+    for (const [, name] of bag.matchAll(/(\w+)\??:/g)) {
+        const verb = `set_${name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`;
+        if (new RegExp(`^\\s*(?:override\\s+)?${verb}\\s*\\(`, 'm').test(body)) settable.add(name);
+    }
+    return settable;
 }
 
 /**
