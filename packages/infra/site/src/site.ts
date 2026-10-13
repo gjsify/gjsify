@@ -32,9 +32,11 @@ import {
  */
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const poDir = (dir = packageDir) => join(dir, 'po');
-const clientDir = join(packageDir, 'lib/client');
+const clientDir = (dir = packageDir) => join(dir, 'lib/client');
 /** Where the renderer's translator calls are read from when this package's own catalogue is synced. */
 const rendererDir = (dir = packageDir) => join(dir, 'src/build');
+/** `options.packageDir` when given, else the install this module was loaded from. */
+const selfDir = (given?: string) => (given === undefined ? packageDir : resolve(given));
 
 /** Where a build reads from and writes to. */
 export interface SiteTarget {
@@ -57,6 +59,8 @@ export interface SiteBuildOptions extends SiteTarget {
     githubToken?: string;
     log?: (message: string) => void;
     warn?: (message: string) => void;
+    /** This package's install, for a caller whose module URL does not reveal it — a bundle. */
+    packageDir?: string;
 }
 
 export interface SiteBuildResult {
@@ -85,12 +89,12 @@ function contentHash(content: Buffer): string {
  * Both are built once, when the package is built — a site build neither needs a bundler nor an
  * opinion about one.
  */
-async function stageClientAssets(base: string, out: string): Promise<ClientAssets> {
+async function stageClientAssets(base: string, out: string, self: string): Promise<ClientAssets> {
     const assetDir = join(out, 'assets');
     await mkdir(assetDir, { recursive: true });
     const staged = await Promise.all(
         (['js', 'css'] as const).map(async (extension) => {
-            const content = await readFile(join(clientDir, `site.${extension}`));
+            const content = await readFile(join(clientDir(self), `site.${extension}`));
             const name = `site-${contentHash(content)}.${extension}`;
             await writeFile(join(assetDir, name), content);
             return `${base}assets/${name}`;
@@ -132,9 +136,10 @@ async function publishIcon(data: SiteData, { root, out }: SiteTarget): Promise<s
 async function loadPageCatalogs(
     config: SiteConfig,
     root: string,
+    self: string,
     warn?: (message: string) => void,
 ): Promise<Record<string, Catalog>> {
-    const base = await loadCatalogs(poDir(), config.languages);
+    const base = await loadCatalogs(poDir(self), config.languages);
     const catalogs = config.pageTranslations
         ? mergeCatalogs(base, await loadCatalogs(resolve(root, config.pageTranslations), config.languages))
         : base;
@@ -146,7 +151,7 @@ async function loadPageCatalogs(
             if (missing.length === 0) continue;
             warn(
                 `${language}: ${missing.length} string(s) from gjsify.site are untranslated, e.g. "${missing[0]}". ` +
-                    'Run "gjsify-site i18n" to write them to gjsify.site.pageTranslations.',
+                    'Run "gjsify site i18n" to write them to gjsify.site.pageTranslations.',
             );
         }
     }
@@ -157,13 +162,14 @@ async function loadPageCatalogs(
 export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildResult> {
     const target: SiteTarget = { root: resolve(options.root), out: resolve(options.out) };
     const cacheDir = options.cacheDir === false ? undefined : (options.cacheDir ?? defaultCacheDir(target.root));
+    const self = selfDir(options.packageDir);
     const config = await readConfig(target.root);
 
     await rm(target.out, { recursive: true, force: true });
     await mkdir(target.out, { recursive: true });
-    const assets = await stageClientAssets(config.base, target.out);
+    const assets = await stageClientAssets(config.base, target.out, self);
 
-    const catalogs = await loadPageCatalogs(config, target.root, options.warn);
+    const catalogs = await loadPageCatalogs(config, target.root, self, options.warn);
     const data = await loadSiteData({
         root: target.root,
         uiCatalogs: catalogs,
@@ -193,7 +199,7 @@ export interface SiteI18nOptions {
     root?: string;
     /** Report what a regeneration would change instead of writing it. */
     check?: boolean;
-    /** This package's checkout, for a caller whose module URL does not reveal it. */
+    /** This package's install, for a caller whose module URL does not reveal it — a bundle. */
     packageDir?: string;
 }
 
@@ -209,7 +215,7 @@ async function packageLanguages(dir: string): Promise<string[]> {
  */
 export async function syncSiteI18n(options: SiteI18nOptions = {}): Promise<I18nResult> {
     const check = options.check ?? false;
-    const self = options.packageDir === undefined ? packageDir : resolve(options.packageDir);
+    const self = selfDir(options.packageDir);
     if (options.root === undefined) {
         const renderers = rendererDir(self);
         if (!existsSync(renderers)) {

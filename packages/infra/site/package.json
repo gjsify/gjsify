@@ -13,22 +13,26 @@
         },
         "./package.json": "./package.json"
     },
-    "bin": {
-        "gjsify-site": "./lib/cli.js"
-    },
     "files": [
         "lib",
         "po"
     ],
     "scripts": {
-        "clear": "gjsify clear lib tsconfig.tsbuildinfo test.node.mjs dist",
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs dist",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify tsc -p tsconfig.build.json && gjsify run build:client && gjsify copy src/styles/site.css lib/client/site.css",
         "build:client": "gjsify build src/client/main.ts --app browser --outfile lib/client/site.js",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.gjs.mts --app gjs --outfile test.gjs.mjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
-        "test": "gjsify run build:test:node && gjsify run test:node",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
         "test:node": "node test.node.mjs",
-        "i18n": "gjsify tsc -p tsconfig.build.json && node lib/cli.js i18n --package"
+        "test:bun": "bun test.node.mjs",
+        "test:deno": "deno run -A --no-lock --node-modules-dir=none --min-dep-age=0 test.node.mjs",
+        "test:cross-runtime": "gjsify run build:test:node && gjsify run test:node && gjsify run test:bun && gjsify run test:deno",
+        "test:gjs-on-node": "gjsify build src/test.node-gi.mts --app node --outfile dist/test.node-gi.mjs && node dist/test.node-gi.mjs",
+        "i18n": "gjsify site i18n --package"
     },
     "repository": {
         "type": "git",
@@ -49,12 +53,21 @@
     ],
     "license": "MIT",
     "dependencies": {
+        "@girs/gdkpixbuf-2.0": "5.4.0",
+        "@gjsify/console": "workspace:^",
+        "@gjsify/crypto": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/module": "workspace:^",
+        "@gjsify/os": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/process": "workspace:^",
+        "@gjsify/url": "workspace:^",
         "fast-xml-parser": "^5.11.2",
-        "qrcode-generator": "^2.0.4",
-        "sharp": "^0.35.5"
+        "qrcode-generator": "^2.0.4"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/node-gi": "file:../../node-gi/node-gi",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"

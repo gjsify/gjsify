@@ -1,4 +1,5 @@
 export * from './build/html.js';
+export * from './cli.js';
 export * from './build/i18n.js';
 export * from './build/icons.js';
 export * from './build/images.js';
