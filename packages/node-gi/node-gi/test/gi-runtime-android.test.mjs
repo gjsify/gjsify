@@ -17,13 +17,16 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
     aarEntries,
     parseNeeded,
     planClosure,
+    readLicenseCorpus,
     planTypelibs,
     renderAndroidManifest,
     renderNotice,
@@ -528,5 +531,48 @@ describe('the package itself: what npm installs and what a checkout keeps', () =
             `index.js does not name ${assetDir}`,
         );
         assert.ok(index.includes(`export const deviceTypelibSubdir = '${assetDir.replace('assets/', '')}';`));
+    });
+});
+
+describe('readLicenseCorpus: a licence file is read or the build stops', () => {
+    function corpus(setup) {
+        const root = mkdtempSync(join(tmpdir(), 'licorpus-'));
+        mkdirSync(join(root, 'glib'));
+        setup(root);
+        return root;
+    }
+
+    it('follows a symlink that resolves inside the tree', () => {
+        const root = corpus((r) => {
+            writeFileSync(join(r, 'glib', 'LGPL.txt'), 'real text');
+            symlinkSync('LGPL.txt', join(r, 'glib', 'COPYING'));
+        });
+        try {
+            const texts = readLicenseCorpus(root).get('glib');
+            assert.deepEqual(
+                texts.map((t) => [t.name, t.body]),
+                [
+                    ['COPYING', 'real text'],
+                    ['LGPL.txt', 'real text'],
+                ],
+            );
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('throws naming a dangling symlink and its target instead of dropping it', () => {
+        const root = corpus((r) => {
+            writeFileSync(join(r, 'glib', 'OTHER'), 'x');
+            symlinkSync('/nonexistent/build-host/LGPL.txt', join(r, 'glib', 'COPYING'));
+        });
+        try {
+            assert.throws(
+                () => readLicenseCorpus(root),
+                (e) => /glib\/COPYING is a dangling symlink -> \/nonexistent\/build-host\/LGPL\.txt/.test(e.message),
+            );
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
     });
 });
