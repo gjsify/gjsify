@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"es2022","lib":["es2022","DOM"],"module":"ESNext","moduleResolution":"bundler","types":[],"strict":true,"noEmit":true,"skipLibCheck":false},"files":["index.ts","../../../../../packages/nativescript-bridge/adwaita/src/ns-core.d.ts","ns-core-contract.d.ts"]}
