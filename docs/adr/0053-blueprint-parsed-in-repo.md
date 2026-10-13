@@ -34,7 +34,7 @@ the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 |---|---|---|---|
 | `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 98 | carried by the class name | yes — namespace and version |
 | `Adw.HeaderBar { }` — an object as its own statement | 230 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
-| `title: "…"` — every property whose value is not an anonymous object | 560 | `props: { title: '…' }` | yes — a ParamSpec |
+| `title: "…"` — every property whose value is not an anonymous object | 559 | `props: { title: '…' }` | yes — a ParamSpec |
 | `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 49 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
 | `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 49 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
 | `styles ["flat"]` | 42 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
@@ -54,12 +54,12 @@ it counts instead. The object-id row is the subset of that object row which name
 which is what its "of those" means and what `bind` resolves against.
 
 The two property rows are a PARTITION, and that is the one thing to carry away from this
-table: 560 + 49 = 609, every property assignment in the tree. The 49 are the ones whose
-value is an ANONYMOUS object. The other 560 are not one thing: 540 have no object value at
+table: 559 + 49 = 608, every property assignment in the tree. The 49 are the ones whose
+value is an ANONYMOUS object. The other 559 are not one thing: 539 have no object value at
 all, and 20 have an object value that carries a GtkBuilder id — `content: Gtk.Box
 canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared
 unreproducible during a recount, because both halves were measured against a guess instead of
-against their own total: 560 + 49 was sitting beside the 609 that was already known. Two orphan
+against their own total: 559 + 49 was sitting beside the 608 that was already known. Two orphan
 numbers that sum to a number you already have are a partition, not noise.
 
 ### What the external compiler costs
