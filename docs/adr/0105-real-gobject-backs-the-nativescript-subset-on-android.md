@@ -1,6 +1,6 @@
 # 105. Real GObject can back the NativeScript subset on Android, and is its oracle there
 
-- Status: **Accepted** (2026-10-13)
+- Status: **Accepted** (2026-10-13) — amended 2026-10-13 by [ADR 0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
 - Date: 2026-10-10
 - Deciders: Pascal Garber
 - Related: [ADR 0003](0003-package-tiering.md) (new packages start at tier 3),
@@ -61,6 +61,9 @@ Compressed APK delta: not measured. The stage 3 probe app was 57 MB (`x86_64`) w
 Adwaita author may rely on. The pure-JS implementation stays the default on every target and the
 only one in the browser. A feature enters the contract by ADR 0096 § 2's rule (the gap report plus
 a vector), never because the real backend happens to have it.
+
+[ADR 0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
+makes the real backend the Android default once two gates hold; until then this section stands.
 
 ### 2. An opt-in real backend on NativeScript Android
 
@@ -139,6 +142,9 @@ stage 4 ships a loadable prebuild.
 
 - **Make real GObject the Android default.** Costs the bytes above for every app, and leaves the
   browser and iOS on a different implementation than Android with no check between them.
+  [ADR 0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
+  reverses this under two gates (stage 2 complete, release APK size measured) and keeps the check
+  by running the app and storybook tests once per engine.
 - **Drop the pure-JS subset.** The browser has no GObject. It is also the iOS path.
 - **Use GObject only as a test oracle, never as a backend.** Cheap, and stage 0 below delivers it,
   but a backend is what lets a consumer use `GListModel` or a real `Gio.Settings` today.

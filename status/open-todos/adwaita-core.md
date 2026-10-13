@@ -222,3 +222,15 @@ ADR 0100 decides Android's Storage Access Framework only. `file-chooser-source.i
 is the counterpart and needs its own decision. The Android door (`file-chooser-source.android.ts`)
 is covered by the intent-mapping specs and the `gi-renderer-arms` arm with a scripted driver, but
 no run has gone through a real `startActivityForResult` on a device or emulator yet.
+
+### Real GObject becomes the Android default — two gates, then the flip
+
+[ADR 0110](../../docs/adr/0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
+amends ADR 0105: the real engine becomes the NativeScript Android default, the pure-JS subset stays
+(browser, iOS) and stays tested on Android. Until the flip, ADR 0105 § 1/§ 2 hold. Open, in order:
+
+1. Finish ADR 0105 stage 2 (twins for registered classes) and time per-instance construction cost.
+2. Measure a RELEASE APK: compressed delta per ABI and cold start (stage 4 only has a universal
+   debug APK, ~15.5 MB per ABI, +~83 ms / 6.5 % on arm64).
+3. Wire the dual emulator run: app and storybook tests once per engine, beside the vectors.
+4. Flip the default in a small PR citing steps 1 and 2; if the size is too large, amend ADR 0110.
