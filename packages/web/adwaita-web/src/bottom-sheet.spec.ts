@@ -558,6 +558,15 @@ export const AdwBottomSheetTest = async () => {
             sheet.remove();
         });
 
+        await it('get_modal / set_modal are the same property, the spelling the NativeScript port shares', () => {
+            const sheet = mountSheet();
+            sheet.set_modal(false);
+            expect(sheet.modal).toBe(false);
+            expect(sheet.get_modal()).toBe(false);
+            expect(sheet.classList.contains('modal')).toBe(false);
+            sheet.remove();
+        });
+
         await it('the dimming layer becomes interactive only while open AND modal', () => {
             const sheet = mountSheet();
             expect(dimming(sheet).classList.contains('visible')).toBe(false);

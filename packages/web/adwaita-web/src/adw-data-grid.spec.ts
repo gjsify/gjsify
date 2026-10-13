@@ -33,6 +33,17 @@ export const AdwDataGridTest = async () => {
             grid.remove();
         });
 
+        await it('set_columns / set_rows are the same properties, the spelling the NativeScript port shares', async () => {
+            const grid = makeGrid();
+            grid.set_columns(BWA_COLUMNS);
+            grid.set_rows([{ position: 'Umsatz', total: '1' }]);
+            expect(grid.get_columns().map((column) => column.key)).toStrictEqual(['position', 'total']);
+            expect(grid.columns).toBe(grid.get_columns());
+            expect(grid.get_rows().length).toBe(1);
+            expect(grid.querySelectorAll('.adw-data-grid-row:not(.header)').length).toBe(1);
+            grid.remove();
+        });
+
         await it('falls back to the key when no label is given', async () => {
             const grid = makeGrid([{ key: 'amount' }], []);
             const cell = grid.querySelector('.adw-data-grid-row.header .adw-data-grid-cell');

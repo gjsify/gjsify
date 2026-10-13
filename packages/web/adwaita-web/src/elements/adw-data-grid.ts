@@ -111,6 +111,24 @@ export class AdwDataGrid extends HTMLElement {
         if (this._initialized) this._render();
     }
 
+    // The verbs are the spelling the NativeScript port has to use, where `GridLayout` owns both
+    // accessor names (ADR 0109); offered here too so one code-behind runs on both.
+    get_columns(): AdwDataGridColumn[] {
+        return this.columns;
+    }
+
+    set_columns(value: ReadonlyArray<AdwDataGridColumn>): void {
+        this.columns = value;
+    }
+
+    get_rows(): AdwDataGridRow[] {
+        return this.rows;
+    }
+
+    set_rows(value: ReadonlyArray<AdwDataGridRow>): void {
+        this.rows = value;
+    }
+
     /** The optional grid caption/title (reflected to the attribute). */
     get caption(): string {
         return this.getAttribute('caption') ?? '';
