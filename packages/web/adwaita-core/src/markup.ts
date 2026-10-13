@@ -198,6 +198,23 @@ function prefixesOf(node: SharedTreeNode, into: Set<string>): Set<string> {
 
 const NATIVESCRIPT_XMLNS = 'http://schemas.nativescript.org/tns.xsd';
 
+/**
+ * GTK property names a `@nativescript/core` base owns as something else (ADR 0109). NativeScript's
+ * `Builder` assigns an attribute as `instance[name] = value`, so `modal="true"` would reach
+ * `ViewCommon.modal` and never the sheet's `set_modal`. These names have no XML spelling; a tree
+ * that sets one is refused, and the author reaches for Blueprint, a `.ui` file or the verb.
+ * `scripts/check-gtk-host-member-clashes.mjs` holds this list equal to the keys of
+ * `SHADOWED_PROPERTIES` in `adwaita-nativescript/src/widgets/shadowed-properties.ts`.
+ */
+export const NATIVESCRIPT_HOST_MEMBERS: readonly string[] = [
+    'columns',
+    'cssClasses',
+    'direction',
+    'modal',
+    'rows',
+    'visibility',
+];
+
 function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonly Attribute[]): string {
     refuseBehaviour(node, 'sharedTreeNativeScriptXml');
     const { prefix, member } = xmlNameOf(node.tag);
@@ -208,7 +225,15 @@ function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonl
     // space-separated `styleClasses`.
     if (node.id !== undefined) attributes.push(['id', node.id]);
     for (const [prop, value] of Object.entries(node.props ?? {})) {
-        attributes.push([propertyOf(prop), String(value)]);
+        const member = propertyOf(prop);
+        if (NATIVESCRIPT_HOST_MEMBERS.includes(member)) {
+            throw new Error(
+                `sharedTreeNativeScriptXml: \`${node.tag}\`'s '${prop}' has no XML spelling — the attribute ` +
+                    `would reach NativeScript's own \`${member}\` (ADR 0109). Set it from Blueprint, a .ui ` +
+                    `file or \`set_${prop.replace(/-/g, '_')}()\`.`,
+            );
+        }
+        attributes.push([member, String(value)]);
     }
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
         attributes.push(['styleClasses', node.styleClasses.join(' ')]);

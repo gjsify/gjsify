@@ -197,5 +197,14 @@ export default async () => {
             expect(() => sharedTreeHtml(adapting)).toThrow("`AdwWindow`'s breakpoints");
             expect(() => sharedTreeNativeScriptXml(bound)).toThrow('sharedTreeNativeScriptXml has no markup');
         });
+
+        await it("refuses a GTK property NativeScript's base owns, rather than writing its member", () => {
+            expect(() => sharedTreeNativeScriptXml({ tag: 'AdwBottomSheet', props: { modal: false } })).toThrow(
+                "`AdwBottomSheet`'s 'modal' has no XML spelling",
+            );
+            expect(() => sharedTreeNativeScriptXml({ tag: 'AdwSplitButton', props: { direction: 'up' } })).toThrow(
+                'set_direction()',
+            );
+        });
     });
 };
