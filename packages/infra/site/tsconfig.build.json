@@ -1,0 +1,8 @@
+{
+    "extends": "./tsconfig.json",
+    "comment": [
+        "`src/client/` is excluded as well: it is shipped as the bundle",
+        "`build:client` writes to `lib/client/site.js`, never as emitted modules."
+    ],
+    "exclude": ["src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts", "src/client/**"]
+}

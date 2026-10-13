@@ -1,0 +1,65 @@
+{
+    "name": "@gjsify/site",
+    "version": "0.62.0",
+    "description": "Static landing page generator for a GNOME-style app, rendered from its AppStream metainfo — downloads, screenshots, release notes, support links, no JavaScript required.",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "bin": {
+        "gjsify-site": "./lib/cli.js"
+    },
+    "files": [
+        "lib",
+        "po"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo test.node.mjs dist",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify tsc -p tsconfig.build.json && gjsify run build:client && gjsify copy src/styles/site.css lib/client/site.css",
+        "build:client": "gjsify build src/client/main.ts --app browser --outfile lib/client/site.js",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:test:node && gjsify run test:node",
+        "test:node": "node test.node.mjs",
+        "i18n": "gjsify tsc -p tsconfig.build.json && node lib/cli.js i18n --package"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/site"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/site#readme",
+    "keywords": [
+        "appstream",
+        "metainfo",
+        "static-site",
+        "landing-page",
+        "gnome",
+        "flathub"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "fast-xml-parser": "^5.11.2",
+        "qrcode-generator": "^2.0.4",
+        "sharp": "^0.35.5"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "tier": 2
+    }
+}
