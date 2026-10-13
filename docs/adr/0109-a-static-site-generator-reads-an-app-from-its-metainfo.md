@@ -121,7 +121,8 @@ entire point is that the same code runs on GJS, Node, Bun and Deno.
 ## Implementation
 
 `packages/infra/site/src/`: `site-data/` (config validation, metainfo, GitHub/Flathub, SEPA),
-`build/` (HTML, pages, images, QR, i18n, `image-backend.ts`), `client/` (the two web components),
+`render/` (HTML, pages, images, colour, QR, i18n, `image-backend.ts`), `client/` (the two web
+components),
 `site.ts` (the `buildSite` / `syncSiteI18n` API), `cli.ts` (`runSiteCli`, argv only — no shebang,
 no top-level run). The subcommand is `packages/infra/cli/src/commands/site.ts`.
 
@@ -130,3 +131,44 @@ every runtime; `src/test.gjs.mts` adds `images.gjs.spec.ts`, which needs a real 
 builds its fixtures with GdkPixbuf itself rather than committing a PNG. The fixture repository is
 written to a temporary directory per case, and uses the documentation IBAN
 `DE89370400440532013000`.
+
+## Amendment (2026-10-13) — the metainfo is the only screenshot source, and `<branding>` paints the page
+
+§2 said the page is derived and nothing is invented, but the first implementation still carried a
+`gjsify.site.screenshots` block: a `source` of `metainfo` / `site` / `merge`, per-item captions, and
+four variant files per screenshot (`desktop-light`, `desktop-dark`, `mobile-light`, `mobile-dark`).
+That is four ways for the page to disagree with the store listing, and in practice every consumer
+either shipped one image per screenshot or shipped four that differed only in window chrome.
+
+**The config key is gone.** The screenshots are the metainfo's `<screenshots>`, in that order, with
+its captions — the same images Flathub shows, so the page is also a preview of the listing. An
+`<image>` whose URL points into the app's own repository
+(`raw.githubusercontent.com/<repository>/<ref>/<path>`) is read from the checkout at `<path>`; any
+other is downloaded and kept in the cache directory, so a later `--offline` build still finds it.
+A screenshot that resolves to nothing is skipped with a warning — one unreachable image does not
+fail a release build.
+
+Three things follow, and each fixes something the old model got wrong:
+
+1. **No viewport or scheme variants.** One image per screenshot, so `data-frame` collapsed to
+   `none | undefined` and the image map is keyed by a slug derived from the URL rather than by a
+   repo-relative path.
+2. **Transparent margins are trimmed at build time** (`trimTransparentMargin`, alpha ≤ 1 counts as
+   empty) instead of being drawn around. A GNOME window screenshot carries its shadow as
+   transparent padding; the page's own frame and shadow then sat around empty space. Trimming is
+   the fix that also makes `drop-shadow` unnecessary — the frame follows the window again.
+3. **Nothing is ever upscaled.** Renditions are 640/1280/2560 wide, capped at the source width, and
+   emitted as `srcset` with a per-picture `--shot-w` display width (max 1280 CSS px). A 2560 px
+   capture is therefore sharp on a HiDPI screen and on a phone, and a 400 px one is not blown up.
+
+**`<branding>` is now the page's colour.** The app's `<color type="primary" scheme_preference="…">`
+paints the whole masthead — bar, icon, title, install button, facts row and screenshots — not just
+the screenshot band, and the top bar is drawn in that same colour so that sticking is a CSS
+`position: sticky` plus a scroll-driven shadow, with no script deciding when the bar detached. CSS
+cannot measure a colour, so the generator does: `render/color.ts` computes WCAG 2 relative
+luminance and picks near-black or white as the text colour, writing both into custom properties.
+An app with no `<branding>` keeps the stylesheet's own palette; nothing is hardcoded white.
+
+**Migration:** delete `gjsify.site.screenshots`. It is no longer read, so a leftover block is dead
+config rather than an error, and the screenshots come from the metainfo either way. An app that
+wants its own colour on the page adds `<branding>` to its metainfo, which Flathub reads too.

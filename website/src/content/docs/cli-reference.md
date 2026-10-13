@@ -1963,7 +1963,9 @@ gjsify flatpak release v0.6.6 --skip-tag    # the tag already exists
 
 ### `gjsify site`
 
-Render the project's static landing page from the files it already has — the AppStream metainfo, the root `package.json`, the app's gettext catalogues, a screenshot directory — plus the GitHub release and Flathub APIs at build time. The generator is [`@gjsify/site`](https://www.npmjs.com/package/@gjsify/site), installed per project (`gjsify install -D @gjsify/site`); nothing app-specific is compiled into it, the input is one `gjsify.site` block.
+Render the project's static landing page from the files it already has — the AppStream metainfo, the root `package.json`, the app's gettext catalogues — plus the GitHub release and Flathub APIs at build time. The generator is [`@gjsify/site`](https://www.npmjs.com/package/@gjsify/site), installed per project (`gjsify install -D @gjsify/site`); nothing app-specific is compiled into it, the input is one `gjsify.site` block.
+
+The page shows the screenshots the metainfo's `<screenshots>` lists, in that order and with those captions — the same images Flathub shows, so the page doubles as a preview of the store listing. There is no screenshot setting: an image whose URL points into the app's own repository is read from the checkout, any other is downloaded (and cached, so a later `--offline` build still finds it). The app's `<branding>` colour paints the masthead, with the text colour measured against it.
 
 ```bash
 gjsify site build                       # render ./dist from package.json's gjsify.site
