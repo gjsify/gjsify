@@ -439,6 +439,11 @@ jobs:
       - name: Check release uploads cannot glob to nothing
         run: node scripts/check-workflow-release-globs.mjs
 
+      # `release.yml`'s `only=` gating reads JOBS in this script; a package added under
+      # packages/{node-gi,napi,node-runtime} without an owner there could never be recovered.
+      - name: Check release `only` job map matches the tree
+        run: node scripts/release-only-plan.mjs --check
+
       # The `gjsify ship` format vocabulary lives in `FormatId`, and every consumer
       # is bound to it by the compiler except one: `manifest-conformance`'s
       # `TARGETS`, in a package that must not import the CLI (the rule is portable
@@ -1329,6 +1334,11 @@ jobs:
       # script header.
       - name: Check release uploads cannot glob to nothing
         run: node scripts/check-workflow-release-globs.mjs
+
+      # `release.yml`'s `only=` gating reads JOBS in this script; a package added under
+      # packages/{node-gi,napi,node-runtime} without an owner there could never be recovered.
+      - name: Check release `only` job map matches the tree
+        run: node scripts/release-only-plan.mjs --check
 
       # The `gjsify ship` format vocabulary lives in `FormatId`, and every consumer
       # is bound to it by the compiler except one: `manifest-conformance`'s

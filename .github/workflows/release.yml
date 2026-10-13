@@ -40,7 +40,7 @@ on:
         type: boolean
         default: false
       only:
-        description: 'Space-separated package names/globs (e.g. "@gjsify/adwaita-fonts @gjsify/example-*"). Publishes ONLY those (needs skip_publish=false) instead of the whole ~130-package serial run — the way to land the few packages a release missed.'
+        description: 'Space-separated package names/globs (e.g. "@gjsify/adwaita-fonts @gjsify/example-*"). Publishes ONLY those (needs skip_publish=false) instead of the whole ~130-package serial run — the way to land the few packages a release missed. Covers the dedicated-job packages too (node-gi, napi, gtk/gl/node/gi-runtime-*): those jobs run only when named.'
         required: false
         default: ''
 
@@ -57,6 +57,17 @@ jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
+    # What `only` selects, decided once by scripts/release-only-plan.mjs. The dedicated
+    # jobs below gate on these; `sweep` is the subset foreach can take as --include.
+    outputs:
+      all: ${{ steps.plan.outputs.all }}
+      sweep: ${{ steps.plan.outputs.sweep }}
+      gtk_darwin: ${{ steps.plan.outputs.gtk_darwin }}
+      gtk_win32: ${{ steps.plan.outputs.gtk_win32 }}
+      node_gi: ${{ steps.plan.outputs.node_gi }}
+      napi: ${{ steps.plan.outputs.napi }}
+      node_runtime: ${{ steps.plan.outputs.node_runtime }}
+      gi_android: ${{ steps.plan.outputs.gi_android }}
     permissions:
       # contents: write so softprops/action-gh-release can upload install.mjs
       # + cli.gjs.mjs + .sha256 as assets onto the release record that
@@ -102,6 +113,16 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '26.x'
+
+      # `only` names packages in TWO worlds: root workspaces (the sweep below) and the
+      # non-workspace packages the dedicated jobs publish. foreach cannot see the second
+      # kind and threw "--include matched no workspace" (run 38366110484), skipping every
+      # dedicated job. Plain Node on the bare checkout, as verify-release-closure does.
+      - name: Plan what `only` selects
+        id: plan
+        run: node scripts/release-only-plan.mjs
+        env:
+          ONLY: ${{ inputs.only }}
 
       # Node-free install via the PUBLISHED gjsify (ADR 0002).
       # Mirrors main.yml — see .github/actions/gjsify-setup for the rationale.
@@ -212,8 +233,10 @@ jobs:
           export PATH="$PWD/node_modules/.bin:$PATH"
           if [ -z "$ONLY" ]; then
             gjsify run npm:publish:prebuilt
+          elif [ -z "$SWEEP" ]; then
+            echo "only=$ONLY names no root workspace; the dedicated jobs publish it"
           else
-            inc=(); for p in $ONLY; do inc+=(--include "$p"); done
+            inc=(); for p in $SWEEP; do inc+=(--include "$p"); done
             gjsify foreach -v --topological --no-private --exclude "@girs/*" "${inc[@]}" --exec -- \
               gjsify publish --tolerate-republish --tolerate-untrusted-new --verify-defer \
               --verify-timeout 5 --tag latest --access public
@@ -221,6 +244,7 @@ jobs:
         env:
           GJSIFY_PUBLISH_DEBUG: "1"
           ONLY: ${{ inputs.only }}
+          SWEEP: ${{ steps.plan.outputs.sweep }}
           # One JSONL file shared by the per-package `gjsify publish` processes:
           # a dependent of an unserved/held package holds at once, and the
           # summary step below renders it.
@@ -350,7 +374,7 @@ jobs:
     # Same gate as the ubuntu npm-publish step: a real release, or a dispatch that
     # opts INTO publishing; never in verify_only (audit) mode. On an asset-only
     # re-upload dispatch (skip_publish=true) this whole job is skipped.
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.gtk_darwin == 'true') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -610,7 +634,7 @@ jobs:
     name: Publish @gjsify/gtk-runtime-win32-x64 (Windows bundle)
     # `node-gi-prebuild-win32-x64` for the decode probe — see the darwin sibling.
     needs: [publish, node-gi-prebuild-win32-x64]
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.gtk_win32 == 'true') }}
     # windows-2022, for the reasons node-gi.yml's windows-gtk-windowing-runtime
     # records: libvpx's configure has no VS 18 target, so the gvsbuild GStreamer
     # chain cannot build on windows-latest — and the GTK half of this prefix is a
@@ -1039,7 +1063,7 @@ jobs:
   node-gi-prebuild-linux:
     name: Build @gjsify/node-gi linux-${{ matrix.arch }} prebuild
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.node_gi == 'true') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     strategy:
@@ -1110,7 +1134,7 @@ jobs:
   node-gi-prebuild-win32-x64:
     name: Build @gjsify/node-gi win32-x64 prebuild
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.node_gi == 'true' || needs.publish.outputs.gtk_win32 == 'true') }}
     runs-on: windows-latest
     timeout-minutes: 40
     env:
@@ -1227,7 +1251,7 @@ jobs:
   node-gi-prebuild-win32-arm64:
     name: Build @gjsify/node-gi win32-arm64 prebuild
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.node_gi == 'true') }}
     runs-on: windows-11-arm
     timeout-minutes: 240
     env:
@@ -1318,7 +1342,7 @@ jobs:
   node-gi-prebuild-darwin:
     name: Build @gjsify/node-gi darwin-${{ matrix.arch }} prebuild
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.node_gi == 'true' || needs.publish.outputs.gtk_darwin == 'true') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -1432,7 +1456,7 @@ jobs:
       - node-gi-prebuild-win32-x64
       - node-gi-prebuild-win32-arm64
       - node-gi-prebuild-darwin
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.node_gi == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -1673,7 +1697,7 @@ jobs:
   napi-prebuild-linux:
     name: Build @gjsify/napi linux-x64 prebuild
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.napi == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
@@ -1790,7 +1814,7 @@ jobs:
   napi-prebuild-darwin-arm64:
     name: Build @gjsify/napi darwin-arm64 prebuild
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.napi == 'true') }}
     runs-on: macos-latest
     timeout-minutes: 30
     env:
@@ -1882,7 +1906,7 @@ jobs:
   publish-napi:
     name: Publish @gjsify/napi (N-API host for GJS)
     needs: [publish, napi-prebuild-linux, napi-prebuild-darwin-arm64]
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.napi == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -2089,7 +2113,7 @@ jobs:
     needs: publish
     # Same gate as every other publish job: a real release, or a dispatch that
     # opts INTO publishing; never in verify_only (audit) mode.
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.node_runtime == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -2211,7 +2235,7 @@ jobs:
   publish-gi-runtime-android:
     name: Publish @gjsify/gi-runtime-android (Android AAR)
     needs: publish
-    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.gi_android == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
