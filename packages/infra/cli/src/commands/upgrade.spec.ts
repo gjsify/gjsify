@@ -13,9 +13,10 @@
 // writer only would have passed throughout the defect.
 
 import { describe, expect, it } from '@gjsify/unit';
+import type { Workspace } from '@gjsify/workspace';
 import type { DependencyGroup } from '../utils/dep-aggregation.js';
 
-import { reportInexactRanges, targetRange } from './upgrade.js';
+import { collectFromWorkspace, isDistTagSpec, reportInexactRanges, targetRange } from './upgrade.js';
 
 /** A dependency group with one declaration per given range. */
 function group(name: string, ...ranges: string[]): DependencyGroup {
@@ -80,6 +81,87 @@ export default async () => {
 
             await it('catches operators other than caret', async () => {
                 expect(reportInexactRanges([group('@girs/gio-2.0', '~4.3.0', '>=4.3.0')])).toBe(2);
+            });
+        });
+    });
+
+    // A dist-tag spec is how an app opts into the `next` channel (ADR 0109), and until
+    // this skip existed `--align` was the thing that took it away again: the tag joined
+    // its dep's group as the literal range `next`, `--check` called the dep inconsistent
+    // with every sibling declaring a real range, and the repair its own failure message
+    // names rewrote `"next"` to the highest declared version. The gate demanded a
+    // property the opt-in cannot have, and the fix silently removed the opt-in.
+    await describe('upgrade and dist-tag specs', async () => {
+        await describe('isDistTagSpec', async () => {
+            await it('recognises the tags an app actually declares', async () => {
+                expect(isDistTagSpec('next')).toBe(true);
+                expect(isDistTagSpec('latest')).toBe(true);
+                expect(isDistTagSpec('beta')).toBe(true);
+                expect(isDistTagSpec('canary')).toBe(true);
+                expect(isDistTagSpec('rc-1')).toBe(true);
+                expect(isDistTagSpec('next-2')).toBe(true);
+            });
+
+            await it('does not claim `latest` is a range, which validRange does', async () => {
+                // `@gjsify/semver`'s `validRange('latest')` answers `>=0.0.0` — it reads the
+                // unparseable token as an x-range. npm's "not a valid range ⇒ a tag" rule is
+                // therefore not usable here, and this is the case that proves it.
+                expect(isDistTagSpec('latest')).toBe(true);
+            });
+
+            await it('leaves every real range alone', async () => {
+                for (const range of ['^0.63.0', '~1.2.3', '0.63.1', '>=1.0.0 <2.0.0', '1.x', '1', '1.2']) {
+                    expect(isDistTagSpec(range)).toBe(false);
+                }
+            });
+
+            await it('leaves the alphabetic RANGE spellings alone', async () => {
+                // `x`, `X` and `*` begin with a letter or are letter-free and still mean
+                // "any version" — classing them as tags would stop `upgrade` seeing a
+                // `"x"`-pinned dep at all.
+                for (const range of ['x', 'X', '*', '', 'v1.2.3', 'v1.x']) {
+                    expect(isDistTagSpec(range)).toBe(false);
+                }
+            });
+        });
+
+        await describe('collectFromWorkspace — where the skip has to live', async () => {
+            /** A workspace declaring one dep per entry, in `dependencies`. */
+            function ws(deps: Record<string, string>): Workspace {
+                return {
+                    name: '@acme/app',
+                    location: '/tmp/app',
+                    relativeLocation: '.',
+                    version: '1.0.0',
+                    private: false,
+                    manifest: { name: '@acme/app', version: '1.0.0', dependencies: deps },
+                } as Workspace;
+            }
+
+            await it('drops the tag and keeps the ranges beside it', async () => {
+                // The skip belongs in COLLECTION, not in one mode: every mode —
+                // interactive, `--latest`, `--align`, `--check` and the lockfile
+                // comparison — reads the same declarations, and a per-mode guard would
+                // have to be repeated five times to hold.
+                const decls = collectFromWorkspace(ws({ '@gjsify/cli': 'next', '@girs/gtk-4.0': '^4.3.0' }), []);
+                expect(decls.length).toBe(1);
+                expect(decls[0]!.name).toBe('@girs/gtk-4.0');
+            });
+
+            await it('drops a tag in every dep field, not only `dependencies`', async () => {
+                const w = ws({ a: 'next' });
+                w.manifest.devDependencies = { '@gjsify/cli': 'next' };
+                w.manifest.peerDependencies = { b: 'latest' };
+                w.manifest.optionalDependencies = { c: 'beta' };
+                expect(collectFromWorkspace(w, []).length).toBe(0);
+            });
+
+            await it('still skips the protocol specs it always skipped', async () => {
+                const decls = collectFromWorkspace(
+                    ws({ a: 'workspace:^', b: 'file:../b', c: 'link:../c', d: 'npm:e@^1.0.0' }),
+                    [],
+                );
+                expect(decls.length).toBe(0);
             });
         });
     });
