@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-07-01)
 - **Scope:** all published `@gjsify/*` packages; consumer guidance; relation to `@girs/*`
-- **Amended by [0109](0109-next-prerelease-channel.md) (2026-10-13)** for the `next` prerelease
+- **Amended by [0111](0111-next-prerelease-channel.md) (2026-10-13)** for the `next` prerelease
   channel only: there the train's intra-repo pins are published EXACT rather than as the caret of
   decision 2, because two adjacent `next` versions are minutes apart and a caret would admit the
   stable release beside the prerelease. `latest` is unchanged — decision 2 holds as written for

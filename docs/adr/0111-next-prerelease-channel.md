@@ -1,4 +1,4 @@
-# 109. A `next` prerelease channel publishes every green main merge
+# 111. A `next` prerelease channel publishes every green main merge
 
 - Status: **Accepted** (2026-10-13)
 - Date: 2026-10-13

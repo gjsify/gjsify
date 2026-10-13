@@ -357,7 +357,7 @@ jobs:
       - name: Check every publishable npm name is bootstrapped
         run: node scripts/verify-published-closure.mjs --phase pre-release
 
-      # The `next` channel (ADR 0109) publishes from a REWRITTEN checkout: every manifest
+      # The `next` channel (ADR 0111) publishes from a REWRITTEN checkout: every manifest
       # version becomes `<next patch>-next.<run>` and every `workspace:^|~` becomes
       # `workspace:*`, so `gjsify pack` pins the closure exactly. Four tree properties
       # have to hold for that rewrite to be sound, and all four are things a pull request

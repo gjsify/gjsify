@@ -43,7 +43,7 @@ on:
         description: 'Space-separated package names/globs (e.g. "@gjsify/adwaita-fonts @gjsify/example-*"). Publishes ONLY those (needs skip_publish=false) instead of the whole ~130-package serial run — the way to land the few packages a release missed. Covers the dedicated-job packages too (node-gi, napi, gtk/gl/node/gi-runtime-*): those jobs run only when named.'
         required: false
         default: ''
-  # ── The `next` prerelease channel (ADR 0109) ───────────────────────────
+  # ── The `next` prerelease channel (ADR 0111) ───────────────────────────
   # Fires the `publish-next` job at the bottom of this file. Three things decide
   # that it is a trigger in THIS file rather than a workflow of its own:
   #
@@ -2424,7 +2424,7 @@ jobs:
   # WHAT IT IS. Every green `GJS` run on `main` republishes the whole npm sweep as
   # `<next patch>-next.<run number>` under dist-tag `next`. A consumer app pins
   # `"@gjsify/cli": "next"`, runs `gjsify install`, and is on main's code minutes after
-  # a merge — with no release cut, and with `latest` untouched. ADR 0109 has the why,
+  # a merge — with no release cut, and with `latest` untouched. ADR 0111 has the why,
   # the version scheme and what the channel does NOT cover.
   #
   # NOTHING IS COMMITTED. `scripts/next-channel-version.mjs --write` rewrites THIS

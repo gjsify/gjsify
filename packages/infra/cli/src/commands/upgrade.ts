@@ -32,7 +32,7 @@
 // Workspace-protocol ranges (`workspace:*`, `workspace:^`, …) are always
 // skipped — those are internal links and `gjsify install` resolves them
 // locally. So are DIST-TAG specs (`"@gjsify/cli": "next"`, the `next`-channel
-// opt-in of ADR 0109): a tag carries no version to compare, and `--align`
+// opt-in of ADR 0111): a tag carries no version to compare, and `--align`
 // used to overwrite it with one. See `isDistTagSpec`.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -340,7 +340,7 @@ export function collectFromWorkspace(workspace: Workspace, depFilters: string[])
             // nothing here can say anything true about it.
             //
             // THE DEFECT THIS CLOSES. `"@gjsify/cli": "next"` is how a consumer app opts
-            // into the `next` channel (ADR 0109): one spec, resolved through the
+            // into the `next` channel (ADR 0111): one spec, resolved through the
             // packument's `dist-tags` on every install. Without this skip `splitRange`
             // returned `{prefix: '', version: null}`, so the declaration joined its dep's
             // group as the literal range `next`: `--check` reported the dep inconsistent

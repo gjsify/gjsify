@@ -85,7 +85,7 @@ export default async () => {
         });
     });
 
-    // A dist-tag spec is how an app opts into the `next` channel (ADR 0109), and until
+    // A dist-tag spec is how an app opts into the `next` channel (ADR 0111), and until
     // this skip existed `--align` was the thing that took it away again: the tag joined
     // its dep's group as the literal range `next`, `--check` called the dep inconsistent
     // with every sibling declaring a real range, and the repair its own failure message

@@ -1,7 +1,7 @@
 # The `next` channel — running an app against `main`
 
 > The decision, its alternatives and what the channel does NOT cover:
-> ADR [0109](adr/0109-next-prerelease-channel.md). The release channel and its bootstrap rules:
+> ADR [0111](adr/0111-next-prerelease-channel.md). The release channel and its bootstrap rules:
 > [publishing.md](publishing.md).
 
 Every merge to `main` whose `GJS` CI run went green republishes the whole npm sweep under dist-tag

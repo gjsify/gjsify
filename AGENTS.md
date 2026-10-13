@@ -115,7 +115,7 @@ ships its dependents (#1713). [publishing](docs/publishing.md).
 
 TWO dist-tags: `latest` (the release train) and `next`, which republishes the whole sweep on every
 green `main` merge as `<next patch>-next.<run number>` for apps that need main's code without a
-release cut (ADR 0109). Consequences for work in this repo: every new publishing job belongs in
+release cut (ADR 0111). Consequences for work in this repo: every new publishing job belongs in
 `release.yml` — Trusted Publishing is registered against that FILENAME, so a new workflow file
 cannot publish at all; the `next` version is rewritten in the CI checkout and NEVER committed; and
 intra-repo pins are rewritten EXACT inside that channel, a deliberate local deviation from ADR
