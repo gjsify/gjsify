@@ -288,7 +288,10 @@ async function ciVerdict({ api, repo, sha, ciWorkflow }) {
 }
 
 const short = (value) => (typeof value === 'string' ? value.slice(0, 10) : '<unknown>');
-const first = (error) => String(error?.message ?? error).trim().split('\n')[0];
+const first = (error) =>
+    String(error?.message ?? error)
+        .trim()
+        .split('\n')[0];
 
 /**
  * Both transports are `fetch`, not `gh` and not `curl`, and that is a deliberate

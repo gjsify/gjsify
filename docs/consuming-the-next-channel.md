@@ -4,10 +4,14 @@
 > ADR [0111](adr/0111-next-prerelease-channel.md). The release channel and its bootstrap rules:
 > [publishing.md](publishing.md).
 
-Every merge to `main` whose `GJS` CI run went green republishes the whole npm sweep under dist-tag
-`next`, at version `<next patch>-next.<run number>` — `0.63.1-next.42` while `main` sits on
-`0.63.0`. `latest` is untouched by it. An app on the channel is on main's code minutes after a
-merge, with no release cut.
+Every night at 03:00 Europe/Berlin, `main`'s HEAD is republished as the whole npm sweep under
+dist-tag `next`, at version `<next patch>-next.<run number>` — `0.63.1-next.42` while `main` sits
+on `0.63.0`. `latest` is untouched by it. An app on the channel is on main's code **as of last
+night**, with no release cut.
+
+A fix merged during the day therefore reaches the channel the following morning. When that is too
+slow, a maintainer runs the same sweep on demand: `gh workflow run release.yml -R gjsify/gjsify
+--ref main -f publish_next=true`.
 
 ## Opting in
 
@@ -69,8 +73,8 @@ all-`next` closure; you cannot end up with half the train on a prerelease and ha
 The flip side: do not pin *some* deps to `next` and others to a version range — npm will try to
 satisfy both and either fail or install two copies.
 |**right after a stable release, `next` is briefly BEHIND `latest`.** `0.63.1-next.99` sorts below
-the `0.63.1` the release just cut. The next merge to `main` publishes `0.63.2-next.N` and the
-channel is ahead again. This is expected, not a broken publish.
+the `0.63.1` the release just cut. The next nightly publishes `0.63.2-next.N` and the channel is
+ahead again, so the window is up to a day. This is expected, not a broken publish.
 |**the native prebuilds are NOT on the channel**: `@gjsify/napi*`, `@gjsify/node-gi*`,
 `@gjsify/gtk-runtime-*`, `@gjsify/node-runtime-*`, `@gjsify/gi-runtime-*` (12 packages). They need
 macOS and Windows runners and ship as GitHub release assets, so they stay on `latest` and a
@@ -80,11 +84,17 @@ passed main's CI and nothing else — no release notes, no release assets, no cr
 Ship from `latest`.
 |**nothing is ever unpublished.** Every `next` version stays on the registry as an immutable
 version; only the dist-tag moves. A lockfile pinning `0.63.1-next.42` keeps installing forever.
-|**a merge that changes nothing publishable is skipped** (docs-only, node-gi-only), so `next` can
-point at a version a few merges old. The job summary says so when it skips.
+|**a night on which `main` did not move publishes nothing**, and neither does one whose HEAD main's
+own CI has not accepted, or one that would land inside a release. The job summary names which of
+the three it was, so `next` pointing at yesterday's version is a readable state and not a silent
+failure.
 
 ## Reporting against it
 
-Say the exact version, not "next" — `next` means a different tree every merge. `npm view
-@gjsify/cli@next version` prints it, and the commit it was built from is in the `publish-next` job
-summary of the matching `Release` run.
+Say the exact version, not "next" — `next` means a different tree every night. `npm view
+@gjsify/cli@next version` prints it, and the commit it was built from is both in the `publish-next`
+job summary of the matching `Release` run and on the registry itself, as `gitHead`:
+
+```sh
+npm view @gjsify/cli@next gitHead
+```

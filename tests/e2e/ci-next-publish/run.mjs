@@ -135,9 +135,7 @@ describe('decide-next-publish: is there anything new? (the `gitHead` round-trip)
         // The shape a sweep published before `--source-sha` existed leaves behind. Reading
         // it as "same commit" would freeze the channel permanently, since nothing would
         // ever publish a version that could carry a SHA.
-        const verdict = await decide(
-            fixture({ runs: GREEN_CI, packument: packumentFor(HEAD, { gitHead: null }) }),
-        );
+        const verdict = await decide(fixture({ runs: GREEN_CI, packument: packumentFor(HEAD, { gitHead: null }) }));
         assert.equal(verdict.publish, true, verdict.reason);
         assert.match(verdict.reason, /no usable .*gitHead/);
     });
@@ -202,9 +200,7 @@ describe('decide-next-publish: did main CI accept the commit?', () => {
     });
 
     it('an unreadable run history is not permission — it skips', async () => {
-        const verdict = await decide(
-            fixture({ runs: GREEN_CI, fail: { api: 'gh api failed: Bad credentials' } }),
-        );
+        const verdict = await decide(fixture({ runs: GREEN_CI, fail: { api: 'gh api failed: Bad credentials' } }));
         assert.equal(verdict.publish, false, verdict.reason);
     });
 });
@@ -213,7 +209,10 @@ describe('decide-next-publish: never publish into a release', () => {
     const inFlight = [
         ['a release event run that is queued', { event: 'release', status: 'queued', conclusion: null }],
         ['a release event run in progress', { event: 'release', status: 'in_progress', conclusion: null }],
-        ['a manual recovery dispatch in progress', { event: 'workflow_dispatch', status: 'in_progress', conclusion: null }],
+        [
+            'a manual recovery dispatch in progress',
+            { event: 'workflow_dispatch', status: 'in_progress', conclusion: null },
+        ],
         ['a run waiting on an environment', { event: 'release', status: 'waiting', conclusion: null }],
     ];
     for (const [name, overrides] of inFlight) {
@@ -263,9 +262,7 @@ describe('decide-next-publish: never publish into a release', () => {
     });
 
     it('an unreadable release history is not permission — it skips', async () => {
-        const verdict = await decide(
-            fixture({ runs: GREEN_CI, fail: { releaseHistory: 'gh api failed: 502' } }),
-        );
+        const verdict = await decide(fixture({ runs: GREEN_CI, fail: { releaseHistory: 'gh api failed: 502' } }));
         assert.equal(verdict.publish, false, verdict.reason);
         assert.match(verdict.reason, /standing aside/);
     });
@@ -404,7 +401,9 @@ describe('the wiring in release.yml', () => {
 
     it('the probe package the decision reads is one the sweep actually publishes', () => {
         // A probe on a package the sweep skips would answer for a version that never moves.
-        const manifest = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'package.json'), 'utf8'));
+        const manifest = JSON.parse(
+            readFileSync(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'package.json'), 'utf8'),
+        );
         assert.equal(manifest.name, DEFAULT_PROBE_PACKAGE);
         assert.notEqual(manifest.private, true, 'the probe package must be published');
     });

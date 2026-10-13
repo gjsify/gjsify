@@ -1,10 +1,11 @@
-# 111. A `next` prerelease channel publishes every green main merge
+# 111. A `next` prerelease channel publishes main nightly
 
 - Status: **Accepted** (2026-10-13)
 - Date: 2026-10-13
 - Deciders: Pascal Garber
 - Related: ADR [0008](0008-release-versioning-policy.md) (release-train versioning);
   `.github/workflows/release.yml` (`publish-next`); `scripts/next-channel-version.mjs`;
+  `scripts/decide-next-publish.mjs` (the three skip guards);
   [docs/publishing.md](../publishing.md); consumer guidance in
   [docs/consuming-the-next-channel.md](../consuming-the-next-channel.md)
 
@@ -28,9 +29,28 @@ code, and is unmistakably not a release.
 
 ## Decision
 
-1. **Dist-tag `next`, published on every green `main` merge.** The trigger is
-   `workflow_run` on the `GJS` workflow (`main.yml`) concluding `success`, so the channel only
-   carries code main's own CI accepted. `latest` is never moved by it.
+1. **Dist-tag `next`, published nightly at 03:00 Europe/Berlin.** The trigger is
+   `on.schedule` with `timezone: Europe/Berlin` declared on the cron, plus `workflow_dispatch`
+   with `publish_next=true` for the day that cannot wait. `latest` is never moved by it. The
+   timezone is DECLARED rather than emulated: the alternative, two UTC crons plus a
+   `TZ=Europe/Berlin date +%H` guard in the job, is a shell condition that publishes twice or not
+   at all on the two DST switch days a year.
+   *(This replaced a `workflow_run` trigger on every green `GJS` run of `main` — a ~35 min
+   218-package sweep per merge, which also put a pending `next` run in the release's concurrency
+   group. See the consequences and "Alternatives rejected".)*
+
+   **A scheduled run asks what the old trigger answered for free.**
+   `scripts/decide-next-publish.mjs` runs three guards before anything is built: a release run in
+   progress or queued → stand aside; main's HEAD already the commit the live `next` was built from
+   → nothing to publish; `main.yml` not `success` on that commit → the channel does not carry code
+   CI rejected. The fail directions deliberately differ by question. Unreadable *run history* is
+   not permission, so it skips — bounded at one day, because the schedule fires again. An
+   unreadable *registry* reads as stale, so it publishes: a channel that cannot prove it is fresh
+   must assume it is not. `--force` (the dispatch path) overrides the first two, never the
+   release-in-flight guard. The source commit is readable at all because
+   `next-channel-version.mjs --write --source-sha` writes `gitHead` into every manifest, which
+   survives `gjsify pack` into the tarball manifest `gjsify publish` builds the version document
+   from — measured, not assumed.
 2. **Version scheme `<next patch of root version>-next.<github.run_number>`** — today
    `0.63.1-next.N`. It sorts above every `0.63.0*` and below the eventual stable `0.63.1`, and `N`
    is monotonic per repository, so a `next` version never has to be compared against another one to
@@ -45,10 +65,12 @@ code, and is unmistakably not a release.
    all-`next` closure. This is a deliberate local deviation from ADR 0008 decision 2 (published
    `workspace:^`), and it serves the same goal: the train's coherence, enforced harder on a channel
    where two adjacent versions are minutes apart.
-5. **Every publishable package, every run — one version per run.** 218 packages. `gjsify affected`
-   decides only *whether* a merge is worth a run (`skip-all`), never *which* packages to publish:
-   with exact pins, a partial sweep would publish a `@gjsify/cli@0.63.1-next.42` whose siblings
-   were never published at `-next.42`.
+5. **Every publishable package, every run — one version per run.** 218 packages. Nothing decides
+   *which* packages to publish: with exact pins, a partial sweep would publish a
+   `@gjsify/cli@0.63.1-next.42` whose siblings were never published at `-next.42`. The
+   affected-classifier that used to answer "is this merge worth a run" is gone with the per-merge
+   trigger — a nightly spans any number of merges, so its `HEAD~1` diff base was the wrong
+   question.
 6. **It lives in `release.yml`, as a trigger and a job.** Every Trusted Publisher on npmjs.com is
    registered against the workflow *filename* (npm's OIDC claim is `workflow_ref`'s basename, and
    `gjsify trust` defaults to `release.yml`). A `next.yml` would need all ~218 packages re-trusted
@@ -61,14 +83,19 @@ code, and is unmistakably not a release.
 
 ## Consequences
 
-- An app pins `"@gjsify/cli": "next"`, runs `gjsify install`, and is on main's code minutes after a
-  merge. `install` locks the exact version it resolved, so a lockfile still describes one tree.
+- An app pins `"@gjsify/cli": "next"`, runs `gjsify install`, and is on main's code **as of last
+  night**. `install` locks the exact version it resolved, so a lockfile still describes one tree.
+- **The channel LAGS main by up to a day, and that is the trade.** A fix merged at 10:00 reaches
+  `next` at 03:00 the following morning. The escape hatch is `workflow_dispatch` with
+  `publish_next=true`, which runs the same sweep immediately and skips the freshness and CI guards
+  — the two things a human asking has already accounted for. What it does not skip is the
+  release-in-flight guard; an urgent `next` is still not worth landing in the middle of a release.
 - Going back is `"@gjsify/cli": "^0.63.0"` and an install — no republish, because `latest` was never
   touched.
 - **Right after a stable cut, dist-tag `next` points BELOW `latest` for a while:** `0.63.1-next.99`
   is less than the `0.63.1` the cut just published. An app on the channel is briefly behind the
-  release. The next merge to `main` publishes `0.63.2-next.N` and fixes it. Not worth automating
-  around; worth knowing before reading it as a bug.
+  release — until the next nightly publishes `0.63.2-next.N`, so the window is now up to a day
+  rather than up to a merge. Not worth automating around; worth knowing before reading it as a bug.
 - `next` versions accumulate on the registry and are never unpublished. Each is a legitimate
   immutable version; only the dist-tag moves.
 - `release-it --preRelease=next` by hand would mint a colliding preid. Use the channel or cut a
@@ -76,8 +103,8 @@ code, and is unmistakably not a release.
 - The 12 prebuild packages are a real exclusion, not an oversight: an app on `next` that needs a
   main-only fix inside `@gjsify/node-gi` still waits for a release cut.
 - A red `publish-next` means the channel is stale. It is not a release gate and blocks nothing.
-- Every merge now runs a ~35 min 218-package publish sweep, skipped when `gjsify affected` reports
-  nothing publishable.
+- Runner cost is now ONE ~35 min 218-package sweep a day, not one per merge, and the nights nothing
+  landed cost nothing at all — the freshness guard skips before the install.
 
 ## Alternatives rejected
 
@@ -88,8 +115,21 @@ code, and is unmistakably not a release.
   which requires matching `pull_request` coverage for any push-to-main trigger — and a job that
   mints an npm publish token structurally cannot run on a pull request. The PR-side half that rule
   asks for exists in the shape it can have: `next-channel-version.mjs --check` in
-  `audit-runtimes.yml` grades the rewritability of the tree on every PR. Keying on `workflow_run`
-  additionally buys the property that matters more: `next` carries only code CI accepted.
+  `audit-runtimes.yml` grades the rewritability of the tree on every PR. `schedule` +
+  `workflow_dispatch` is outside that rule's scope, which is one reason the nightly can exist at
+  all.
+- **`workflow_run` on a green `GJS` run of `main`** — what shipped first, and was reworked before
+  merge. It is a merge hook, not a cadence: ~35 min of runner time per merge for a freshness
+  nobody asked for in minutes, and it is what put a pending `next` run in the release's
+  concurrency group. Two of its properties were genuinely free and had to be rebuilt by hand in
+  `decide-next-publish.mjs`: the event only fires on a green CI run, and the shared group held
+  `next` back while a release ran. The third, "something was merged", is now a registry question
+  (`gitHead` on the live `next`) rather than a `HEAD~1` diff, because a nightly spans any number
+  of merges.
+- **Two UTC crons plus a `TZ=Europe/Berlin date +%H` guard in the job**, the usual way to pin a
+  schedule to a wall clock. `timezone` is supported on `on.schedule`, so the guard would only move
+  GitHub's DST arithmetic into a shell condition that publishes twice on one switch day and not at
+  all on the other.
 - **Commit the prerelease version to `main`.** Would put a `-next.N` version in git history on
   every merge, make every PR conflict on 218 manifests, and feed `release-it` a version it would
   have to reason about.

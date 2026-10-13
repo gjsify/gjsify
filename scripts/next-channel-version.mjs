@@ -3,10 +3,10 @@
  * The `next` channel's version, and the ONE tree rewrite that produces it.
  *
  * `release.yml`'s `publish-next` job publishes every root-workspace package under
- * dist-tag `next` on every green `GJS` run on `main`. Nothing is committed: this rewrites
- * the CI CHECKOUT, the sweep publishes it, the checkout is thrown away. `main` never
- * carries a `next` version, so the release train (ADR 0008) and `release-it`'s
- * tag-derived next-version are untouched.
+ * dist-tag `next` nightly at 03:00 Europe/Berlin (and on a `publish_next` dispatch).
+ * Nothing is committed: this rewrites the CI CHECKOUT, the sweep publishes it, the
+ * checkout is thrown away. `main` never carries a `next` version, so the release train
+ * (ADR 0008) and `release-it`'s tag-derived next-version are untouched.
  *
  * WHY A REWRITE AND NOT A PUBLISH FLAG. `npm publish --tag next` only chooses the
  * dist-tag; the VERSION comes from the manifest, and republishing `0.63.0` is refused by
@@ -81,16 +81,7 @@ import { createContext } from '../packages/infra/manifest-conformance/lib/contex
 // `scripts/verify-published-closure.mjs` states for `--phase`, for the same reason: a
 // typo in a CI step must cost a red, not a silently different mode. `--write` typed as
 // `--wrote` must not print a version and exit 0 while the job believes it rewrote.
-const KNOWN_ARGS = [
-    '--check',
-    '--write',
-    '--json',
-    '--github-output',
-    '--build',
-    '--source-sha',
-    '--help',
-    '-h',
-];
+const KNOWN_ARGS = ['--check', '--write', '--json', '--github-output', '--build', '--source-sha', '--help', '-h'];
 
 const argv = process.argv.slice(2);
 for (const arg of argv) {
@@ -126,7 +117,7 @@ function sourceShaArg() {
     if (!/^[0-9a-f]{40}$/.test(value)) {
         fail(
             `--source-sha must be a full 40-character lowercase commit id, got ${JSON.stringify(value)}. ` +
-                'It is published as `gitHead` and compared against main\'s HEAD verbatim, so an abbreviated ' +
+                "It is published as `gitHead` and compared against main's HEAD verbatim, so an abbreviated " +
                 'or uppercase value would make the "already published this commit" guard never fire.',
         );
     }

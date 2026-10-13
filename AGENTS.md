@@ -113,10 +113,10 @@ A NEW `@gjsify/*` name needs a manual npm first-publish + Trusted Publisher boot
 the release that ships it — skipping it never stalls the train, it SHIPS: the sweep skips it and
 ships its dependents (#1713). [publishing](docs/publishing.md).
 
-TWO dist-tags: `latest` (the train) and `next` — every green `main` merge republishes the whole
-sweep as `<next patch>-next.<run number>`, rewritten in the CI checkout and NEVER committed (ADR
-0111). So a new publishing job belongs in `release.yml`: Trusted Publishing is registered against
-that FILENAME. [publishing](docs/publishing.md) § A second channel.
+TWO dist-tags: `latest` (the train) and `next` — a nightly at 03:00 Europe/Berlin republishes the
+whole sweep as `<next patch>-next.<run number>`, rewritten in the CI checkout and NEVER committed
+(ADR 0111). So a new publishing job belongs in `release.yml`: Trusted Publishing is registered
+against that FILENAME. [publishing](docs/publishing.md) § A second channel.
 
 ## Testing
 
