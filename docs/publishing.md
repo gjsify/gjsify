@@ -35,7 +35,8 @@ dependency closure` on every release until a maintainer publishes it. Re-running
 workflow does not help: no job owns the package. The list is short on purpose, and each
 entry names the issue that removes it.
 
-|`@gjsify/gi-runtime-android` — the AAR needs the cross-built Android GI prefix and the NDK, which no runner has (#2179). Procedure: its [README § Releasing](../packages/node-gi/gi-runtime-android/README.md#releasing). The Trusted Publisher on `release.yml` already exists, so a CI build is all that is missing
+None today. The last one, `@gjsify/gi-runtime-android`, got its `release.yml` job in #2179: the
+Android GI prefix it needs is now a sha256-pinned download from gjsify/android-sysroot.
 
 ### Two entry points, because CI has already built and a human has not
 

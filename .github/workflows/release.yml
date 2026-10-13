@@ -2196,6 +2196,88 @@ jobs:
             packages/node-runtime/node-runtime-${{ matrix.target }} \
             --tolerate-republish --tag latest --access public
 
+  # @gjsify/gi-runtime-android's AAR: libnode_gi.so cross-built per ABI plus the GLib /
+  # GObject-Introspection closure it links, for arm64-v8a and x86_64 (#2179).
+  #
+  # WHY THE GI STACK IS DOWNLOADED, NOT BUILT: g-ir-scanner has to RUN a dumper compiled
+  # for the target, which needs an Android emulator or device. So the prefix is built by
+  # hand, rarely, and released in gjsify/android-sysroot; this job fetches it and the
+  # published NativeScript runtime AAR, both pinned by sha256 in the package's
+  # build-inputs.json, and cross-builds the rest with nothing but the NDK. Same split as
+  # NativeScript's own V8 (NativeScript/v8-buildscripts releases).
+  #
+  # RACE SAFETY: same as publish-gtk-runtime-darwin — `packages/node-gi/*` is not a root
+  # workspace, so the ubuntu sweep never enumerates this package.
+  publish-gi-runtime-android:
+    name: Publish @gjsify/gi-runtime-android (Android AAR)
+    needs: publish
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PKG: packages/node-gi/gi-runtime-android
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # The pinned revision, not whatever NDK the runner image carries: the AAR's bytes
+      # depend on the compiler.
+      - name: Install the pinned Android NDK
+        run: |
+          ndk=$(jq -r .ndk "$PKG/build-inputs.json")
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          {
+            echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ndk"
+            echo "INPUTS=$RUNNER_TEMP/gi-runtime-android-inputs"
+            echo "ADDON_OUT=$RUNNER_TEMP/node-gi-android"
+          } >> "$GITHUB_ENV"
+
+      - name: Fetch the GI prefix and the NativeScript runtime (sha256-pinned)
+        run: node "$PKG/scripts/fetch-build-inputs.mjs" --out "$INPUTS"
+
+      # Only node-addon-api's headers: `--ignore-scripts` skips node-gi's `install`, a
+      # node-gyp build for THIS host that would need the host's GTK.
+      - name: Install node-gi's build dependencies
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Cross-build libnode_gi.so per ABI
+        run: |
+          for abi in arm64-v8a x86_64; do
+            node packages/node-gi/node-gi/scripts/build-android.mjs --abi "$abi" \
+              --ndk "$ANDROID_NDK_HOME" --gi-sysroot "$INPUTS/sysroot" \
+              --napi-lib "$INPUTS/nativescript" --out "$ADDON_OUT/$abi"
+          done
+
+      - name: Build the AAR
+        run: |
+          node "$PKG/scripts/build-gi-runtime-android.mjs" --ndk "$ANDROID_NDK_HOME" \
+            --gi-sysroot "$INPUTS/sysroot" --node-gi-lib "$ADDON_OUT" \
+            --license-corpus "$INPUTS/sysroot/share/licenses"
+          ls -la "$PKG/platforms" "$PKG/platforms/android"
+          jq '{abis, typelibs}' "$PKG/platforms/android/gi-runtime.json"
+
+      - name: Prepare a Node-runnable @gjsify/cli
+        id: cli
+        run: node scripts/bootstrap-published-cli.mjs
+
+      - name: Publish @gjsify/gi-runtime-android (OIDC, with payload)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+        run: |
+          node "${{ steps.cli.outputs.bin }}" publish "$PKG" \
+            --tolerate-republish --tag latest --access public
+
   # The LAST word on a release: is what npm now serves internally consistent?
   #
   # Every publish job above is fail-fast, and that is correct — but a publish
@@ -2215,7 +2297,7 @@ jobs:
   # the window, which is why the two shipped together.
   #
   # `needs` every publishing job, so the check sees the whole release including
-  # the three that run after the ubuntu sweep. `!cancelled()` rather than a plain
+  # the jobs that run after the ubuntu sweep. `!cancelled()` rather than a plain
   # dependency: when a publish job FAILS is exactly when the state of npm is
   # worth reporting, and the re-run is then a deliberate act rather than a guess.
   # `--tolerate-republish` makes that re-run the recovery path — it no-ops for
@@ -2233,6 +2315,7 @@ jobs:
       - publish-node-gi
       - publish-napi
       - publish-node-runtime
+      - publish-gi-runtime-android
     if: ${{ !cancelled() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

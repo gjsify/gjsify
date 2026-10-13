@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "What release.yml builds this package's AAR from, pinned by sha256. Read by",
+    "scripts/fetch-build-inputs.mjs; a digest mismatch fails the job before anything is built.",
+    "sysroot: the GLib/GObject-Introspection prefix, prebuilt by hand in gjsify/android-sysroot",
+    "because g-ir-scanner has to run target binaries (README § The payload is built). Bump the",
+    "tag and both digests together, from that release's SHA256SUMS.",
+    "nativescript: the published @nativescript/android whose `optimized` runtime AAR provides",
+    "libNativeScript.so and its Node-API headers. Keep it equal to the version the",
+    "nativescript-gi integration test pins."
+  ],
+  "ndk": "27.1.12297006",
+  "sysroot": {
+    "repository": "gjsify/android-sysroot",
+    "tag": "2026.10.12",
+    "assets": {
+      "arm64-v8a": {
+        "name": "android-sysroot-2026.10.12-arm64-v8a.tar.gz",
+        "sha256": "4df2fcff0f27724bce4e677e55cb340ddde8eb2f8b3f4b5f73b0a3349624d018"
+      },
+      "x86_64": {
+        "name": "android-sysroot-2026.10.12-x86_64.tar.gz",
+        "sha256": "b29cf02458669a98f80f7c79d1201d0039bafc748cd2732a2c1af17625d00e79"
+      }
+    }
+  },
+  "nativescript": {
+    "package": "@nativescript/android",
+    "version": "9.1.1",
+    "aar": "package/framework/app/libs/runtime-libs/nativescript-optimized.aar",
+    "sha256": "d153f6ef8d2d542df8de9da798b520a8ee27f8a6ded68c6d1d2988bbf7bba86b"
+  }
+}
