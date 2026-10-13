@@ -223,6 +223,11 @@ notifies only when its value moves; the first `close-request` handler to return 
 | `maximized` | the frame's state | constant true; `unmaximize()` / `maximized = false` throw |
 | `present()` | un-hides the frame | no-op: the window `activate` returns is the root |
 
+`Adw.Window` and `Adw.ApplicationWindow` carry every row above. On NativeScript they already extended
+`Gtk.Window`; on the web `<adw-window>` now extends `<gtk-window>` and `<adw-application-window>`
+extends `<gtk-application-window>`, as upstream. Both keep no titlebar area (`hasTitlebar()` is false)
+and the 360×200 size request, and both run `WINDOW_VECTORS` through the web subject.
+
 Not covered, because nothing here can say: the Android back button as a `close-request`, split-screen
 or multi-window as un-maximized, and `hide-on-close` on NativeScript. The Android and iOS calls are
 unverified on a device.
