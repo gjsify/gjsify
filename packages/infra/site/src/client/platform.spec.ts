@@ -123,7 +123,9 @@ export default async () => {
         });
 
         await it('matches a list of extensions by browser, never by OS, skipping what is unavailable', async () => {
-            expect(recommendTarget(EXTENSIONS, detectVisitorPlatform({ userAgent: FIREFOX_LINUX }))).toBe(EXTENSIONS[1]);
+            expect(recommendTarget(EXTENSIONS, detectVisitorPlatform({ userAgent: FIREFOX_LINUX }))).toBe(
+                EXTENSIONS[1],
+            );
             expect(recommendTarget(EXTENSIONS, detectVisitorPlatform({ userAgent: EDGE_WINDOWS }))).toBe(EXTENSIONS[3]);
             expect(recommendTarget(EXTENSIONS, detectVisitorPlatform({ userAgent: SAFARI_MAC }))).toBeUndefined();
         });
