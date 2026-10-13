@@ -2,7 +2,7 @@
 // `@gjsify/node-gi` (the sqlite/gamepad/adwaita-core pattern).
 //
 // HOW IT WIRES UP (`gjsify workspace @gjsify/site run test:gjs-on-node`):
-//   • `src/build/image-backend.ts` imports `gi://GdkPixbuf?version=2.0` and nothing else.
+//   • `src/render/image-backend.ts` imports `gi://GdkPixbuf?version=2.0` and nothing else.
 //     `--app node` rewrites that literal to `@gjsify/node-gi/gi`'s
 //     `requireGi('GdkPixbuf','2.0')`, so the SAME source that runs natively under GJS
 //     decides what this host can decode and encode. No test seam, no injected backend.
@@ -17,7 +17,7 @@
 import { run } from '@gjsify/unit';
 import requireGi from '@gjsify/node-gi/gi';
 
-import imagesSuite from './build/images.gjs.spec.js';
+import imagesSuite from './render/images.gjs.spec.js';
 
 void requireGi;
 

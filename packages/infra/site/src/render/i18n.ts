@@ -61,11 +61,7 @@ const HEADER = (language: string | undefined) =>
     ].join('\n');
 
 /** Writes a catalogue: the translations in `known` are kept, everything else is left empty. */
-export function renderPo(
-    msgids: readonly string[],
-    language: string | undefined,
-    known: Catalog = new Map(),
-): string {
+export function renderPo(msgids: readonly string[], language: string | undefined, known: Catalog = new Map()): string {
     const entries = msgids.map((msgid) => `msgid ${quotePo(msgid)}\nmsgstr ${quotePo(known.get(msgid) ?? '')}`);
     return `${[HEADER(language), ...entries].join('\n\n')}\n`;
 }

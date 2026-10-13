@@ -117,7 +117,7 @@ Two catalogue sets meet on the page, and they have different owners.
   turns that into a failure for CI.
 
 `gjsify site i18n --package` is the other mode: it syncs *this package's* `po/site.pot` and
-`po/<lang>.po` from `src/build`, and is what `gjsify workspace @gjsify/site run i18n` calls. No
+`po/<lang>.po` from `src/render`, and is what `gjsify workspace @gjsify/site run i18n` calls. No
 `xgettext` needed in either mode — the msgids are read from the sources directly.
 
 ## Development
@@ -137,7 +137,7 @@ bundler of its own.
 `src/test.mts` holds the suites that need no GI and runs anywhere — `test:cross-runtime` runs that
 one bundle on node, bun and deno. `src/test.gjs.mts` adds the image suites, which need GdkPixbuf,
 and is the gjs leg. `src/test.node-gi.mts` registers the image suite alone and `test:gjs-on-node`
-builds it `--app node`, so the same `src/build/image-backend.ts` encodes under Node through
+builds it `--app node`, so the same `src/render/image-backend.ts` encodes under Node through
 `@gjsify/node-gi` — which is what proves the one image backend really is one.
 
 ## Design

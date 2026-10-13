@@ -51,7 +51,7 @@ entire point is that the same code runs on GJS, Node, Bun and Deno.
    the only image library reachable from all four runtimes — natively under GJS, and through the
    `@gjsify/node-gi` reverse bridge under Node, Bun and Deno, which the bundler substitutes when
    building `--app node`. So there are no per-runtime backends and no runtime with a degraded
-   "copy the screenshot unresized" path; `src/build/image-backend.ts` is the single seam and the
+   "copy the screenshot unresized" path; `src/render/image-backend.ts` is the single seam and the
    rest of the build never names a library. `sharp` is not a dependency.
 5. **No bundler in a site build.** The client bundle and the stylesheet are built once, at package
    build time, into `lib/client/`. A site build content-hashes them and copies them to

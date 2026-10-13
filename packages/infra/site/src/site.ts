@@ -7,9 +7,9 @@ import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promi
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { catalogMsgids, configMsgids, rendererMsgids, syncCatalogs, type I18nResult } from './build/i18n.js';
-import { processImage, type ProcessedImage } from './build/images.js';
-import { pictureVariants, renderPage, renderRoot, type ClientAssets } from './build/pages.js';
+import { catalogMsgids, configMsgids, rendererMsgids, syncCatalogs, type I18nResult } from './render/i18n.js';
+import { processImage, type ProcessedImage } from './render/images.js';
+import { pictureVariants, renderPage, renderRoot, type ClientAssets } from './render/pages.js';
 import {
     UI_SOURCE_LANGUAGE,
     loadCatalogs,
@@ -34,7 +34,7 @@ const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const poDir = (dir = packageDir) => join(dir, 'po');
 const clientDir = (dir = packageDir) => join(dir, 'lib/client');
 /** Where the renderer's translator calls are read from when this package's own catalogue is synced. */
-const rendererDir = (dir = packageDir) => join(dir, 'src/build');
+const rendererDir = (dir = packageDir) => join(dir, 'src/render');
 /** `options.packageDir` when given, else the install this module was loaded from. */
 const selfDir = (given?: string) => (given === undefined ? packageDir : resolve(given));
 

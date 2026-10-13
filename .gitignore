@@ -70,17 +70,14 @@ dist-templates/
 lib/
 build/
 builddir/
-# …and `build/` also matched a package's own SOURCE directory, the fourth instance of
-# the `ship/` collision documented further down — and the first to actually land: the
-# `@gjsify/site` commit that opened #2188 carried `src/site.ts`, which imports
-# `./build/html.js` and nine siblings, and NOT ONE of those ten files, because
-# `git status` and `git add -A` both saw a clean tree. The package could not compile
-# from the pushed branch while every local run stayed green.
-#
-# Scoped to a package's `src/` rather than to that one package, so the fifth instance
-# never happens: a build-time half called `build/` beside a `client/` half is the
-# obvious naming, and nothing about it is specific to the site generator.
-!packages/*/*/src/build/
+# No negation below for a source directory called `build/`, and that is deliberate.
+# `@gjsify/site` first called its renderers `src/build/`; the commit that opened #2188
+# carried `src/site.ts`, which imports `./build/html.js` and nine siblings, and NOT ONE
+# of those ten files, because `git status` and `git add -A` both saw a clean tree. A
+# `!…/src/build/` negation makes `git add` work again and fixes nothing else: `oxlint .`
+# walks the tree by the SAME ignore rules, so the files stay ungraded and
+# `check-lint-visibility` is what says so. The directory is `src/render/` now. Name a
+# source directory anything but `build`, `dist`, `lib` or `tmp`.
 
 # ADR 0002: `cli.gjs.mjs` and `tsc.gjs.mjs` are NO LONGER committed. They stay
 # build outputs at these paths, npm-tarball entries and release assets; CI hands
