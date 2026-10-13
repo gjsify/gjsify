@@ -130,6 +130,7 @@ the TODO records the *what's left*.
 | [0108](0108-xeddsa-is-its-own-pure-typescript-package.md) | XEdDSA is its own pure-TypeScript package on @noble/curves | Accepted |
 | [0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md) | Real GObject becomes the Android default, and the subset stays tested there | Accepted |
 | [0112](0112-gtk-properties-never-take-a-platform-member-name.md) | A GTK property never takes a platform member's name as a JS accessor | Proposed |
+| [0113](0113-distribution-channel-gates-donation-ui.md) | A build-time distribution channel gates the donation UI | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
