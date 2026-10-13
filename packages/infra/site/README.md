@@ -21,16 +21,20 @@ gjsify install -D @gjsify/site
 npm install -D @gjsify/site
 ```
 
-Node-only: the renditions go through [sharp](https://sharp.pixelplumbing.com/), a native Node
-addon, so this is a build-time tool and not part of a GJS bundle.
+Runs on whichever runtime your `gjsify` runs on — GJS, Node, Bun or Deno. The screenshot
+renditions go through GdkPixbuf, reached natively under GJS and through
+[`@gjsify/node-gi`](../../node-gi/node-gi) otherwise, so add that package if you build the page on
+Node, Bun or Deno. A site build also needs the gdk-pixbuf AVIF and WebP loaders, which current
+GNOME ships; if one is missing the build says so and names the format.
 
 ## Use
 
 ```sh
-gjsify-site build                       # render ./dist from ./package.json's gjsify.site
-gjsify-site build --root <repo> --out <dir>
-gjsify-site i18n                        # update the page catalogues of <root>
-gjsify-site i18n --check                # fail instead of writing
+gjsify site build                       # render ./dist from ./package.json's gjsify.site
+gjsify site build --root <repo> --out <dir>
+gjsify site i18n                        # update the page catalogues of <root>
+gjsify site i18n --check                # fail instead of writing
+gjsify site build --runtime node        # build and run on a specific runtime
 ```
 
 | Option | Meaning |
@@ -41,6 +45,7 @@ gjsify-site i18n --check                # fail instead of writing
 | `--no-cache` | Ignore the one-hour HTTP response cache. |
 | `--cache-dir <dir>` | Where the response cache and the image renditions live. Default: `<root>/node_modules/.cache/gjsify-site`. |
 | `--check` | `i18n`: report what is out of date instead of writing it. |
+| `--runtime <r>` | `gjs` \| `node` \| `bun` \| `deno`. Default: the runtime the CLI itself is on. |
 
 `GITHUB_TOKEN` is optional and only raises the API rate limit. When a lookup fails the build
 warns rather than failing: a release API outage is not a reason to have no page.
@@ -107,11 +112,11 @@ Two catalogue sets meet on the page, and they have different owners.
   the source text.
 - **Consumer page strings** — the captions configured under `screenshots.items`, and any page
   string a consumer wants to word differently — live in `pageTranslations`. That directory
-  overlays `po/`: an entry there wins, everything else falls back. `gjsify-site i18n` regenerates
+  overlays `po/`: an entry there wins, everything else falls back. `gjsify site i18n` regenerates
   it from the strings the build can emit and warns about each one still untranslated; `--check`
   turns that into a failure for CI.
 
-`gjsify-site i18n --package` is the other mode: it syncs *this package's* `po/site.pot` and
+`gjsify site i18n --package` is the other mode: it syncs *this package's* `po/site.pot` and
 `po/<lang>.po` from `src/build`, and is what `gjsify workspace @gjsify/site run i18n` calls. No
 `xgettext` needed in either mode — the msgids are read from the sources directly.
 
@@ -119,19 +124,28 @@ Two catalogue sets meet on the page, and they have different owners.
 
 ```sh
 gjsify workspace @gjsify/site build
-gjsify workspace @gjsify/site check    # typecheck + catalogues in sync
-gjsify workspace @gjsify/site test
+gjsify workspace @gjsify/site check       # typecheck + catalogues in sync
+gjsify workspace @gjsify/site test             # the node leg, then the gjs leg
+gjsify workspace @gjsify/site test:cross-runtime  # the GI-free suites on node + bun + deno
+gjsify workspace @gjsify/site test:gjs-on-node    # the image suite via @gjsify/node-gi
 ```
 
 The client bundle and the stylesheet are built once, here, into `lib/client/`. A site build only
 content-hashes them and copies them to `<out>/assets/site-<hash>.{js,css}`, so a consumer needs no
 bundler of its own.
 
+`src/test.mts` holds the suites that need no GI and runs anywhere — `test:cross-runtime` runs that
+one bundle on node, bun and deno. `src/test.gjs.mts` adds the image suites, which need GdkPixbuf,
+and is the gjs leg. `src/test.node-gi.mts` registers the image suite alone and `test:gjs-on-node`
+builds it `--app node`, so the same `src/build/image-backend.ts` encodes under Node through
+`@gjsify/node-gi` — which is what proves the one image backend really is one.
+
 ## Design
 
 [ADR 0109](../../../docs/adr/0109-a-static-site-generator-reads-an-app-from-its-metainfo.md) —
-why the page is derived from the metainfo, why the config is a union rather than a template, and
-why this is its own `bin` instead of a `gjsify` subcommand.
+why the page is derived from the metainfo, why the config is a union rather than a template, why
+the entry point is a `gjsify` subcommand rather than a `bin` with a shebang, and why GdkPixbuf is
+the only image backend.
 
 ## License
 
