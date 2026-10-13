@@ -56,17 +56,18 @@ export function getEnumValues(namespace: string, name: string): Record<string, n
 export function getErrorDomain(namespace: string, name: string): { name: string; quark: number } | null;
 
 /**
- * Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so
- * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`),
- * together with the CLASS it builds — which a `GError`-typed IN argument uses to
- * recognise such an error coming back and rebuild a real `GError` from its
- * fields. Without the class that direction accepts only a marshalled (boxed)
- * error, so a caught one cannot be handed on.
+ * Resolve a domain quark back to the enum type registered for it — the reverse of
+ * {@link getErrorDomain}, so a thrown error reaches its domain class even when
+ * nothing has touched that enum yet. `null` for a quark no typelib claims.
  */
-export function setErrorBuilder(
-    builder: (domainName: string, domainQuark: number, code: number, message: string) => Error,
-    errorClass?: new (domain: unknown, code: number, message: string) => Error,
-): void;
+export function errorDomainInfo(quark: number): { namespace: string; name: string } | null;
+
+/**
+ * Register the L1 `GLib.Error` factory the engine calls when a GI invoke fails. It
+ * receives the failed call's `GError` as a boxed handle, having taken ownership of
+ * it, and returns the object to throw — the same shape a marshalled error gets.
+ */
+export function setErrorBuilder(builder: (handle: BoxedHandle) => unknown): void;
 
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
@@ -599,6 +600,7 @@ declare const native: {
     getConstantValue: typeof getConstantValue;
     getEnumValues: typeof getEnumValues;
     getErrorDomain: typeof getErrorDomain;
+    errorDomainInfo: typeof errorDomainInfo;
     setErrorBuilder: typeof setErrorBuilder;
     prependSearchPath: typeof prependSearchPath;
     prependLibraryPath: typeof prependLibraryPath;

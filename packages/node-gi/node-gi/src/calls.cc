@@ -380,44 +380,40 @@ bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
 
 // ---- GError -> GLib.Error ----
 //
-// A failed GI invoke yields a GError (domain quark + code + message). GJS surfaces
-// it as a real `GLib.Error` (an Error subclass carrying `.domain`/`.code`/
-// `.message` + a `.matches(domain, code)` method). The GLib.Error CLASS itself is
-// owned by L1 (gi.js) so its `matches()` can resolve an error-enum object to its
-// domain; the engine just reports the GError's fields to an L1-registered builder
-// function (stored in this env's instance data — see NodeGiEnvData) and throws
-// what it returns.
+// A failed GI invoke yields a GError (domain quark + code + message), which GJS
+// throws as the error object of that DOMAIN's class. That object is L1's to build
+// (gi.js wrapGError) — only JS can give it the Error brand, the domain class and
+// the position properties — so the engine hands the builder registered in this
+// env's instance data the one thing it needs: the `GError*` itself, as a boxed
+// handle.
 //
-// Read a GError's domain (quark name + numeric quark), code and message, FREE it,
-// and throw the JS error the L1 builder produces (instanceof GLib.Error). Falls
-// back to a plain JS Error when no builder is registered for this env. `context`
-// is the "Ns.method" display name, used only in the fallback message (a real
-// GLib.Error carries the bare GError message, matching GJS).
+// Passing the HANDLE and not the fields is the whole point. The fields used to be
+// read out, the GError g_error_free'd here, and a JS Error subclass built from
+// them — so a thrown error and a marshalled one were two different objects with
+// two different `.domain` types. Ownership now transfers to the handle, which
+// frees the GError when the JS error is collected, and both directions wrap the
+// same pointer the same way.
+//
+// Falls back to a plain JS Error when no builder is registered for this env;
+// `context` is the "Ns.method" display name, used only in that fallback message (a
+// real GLib.Error carries the bare GError message, matching GJS).
 void ThrowGError(Napi::Env env, GError* error, const std::string& context) {
-  // Read everything out of the GError BEFORE g_error_free.
-  GQuark domainQuark = error != nullptr ? error->domain : 0;
-  const char* domainName = domainQuark != 0 ? g_quark_to_string(domainQuark) : nullptr;
-  std::string domain = domainName != nullptr ? domainName : "";
-  int code = error != nullptr ? error->code : 0;
   std::string message =
       (error != nullptr && error->message != nullptr) ? error->message : "invocation failed";
-  if (error != nullptr) g_error_free(error);
 
-  // Prefer this env's L1 GLib.Error builder (instanceof GLib.Error + matches()).
   NodeGiEnvData* d = EnvData(env);
-  if (d != nullptr && d->errorBuilder != nullptr) {
+  if (error != nullptr && d != nullptr && d->errorBuilder != nullptr) {
     napi_value builder = nullptr;
     if (napi_get_reference_value(env, d->errorBuilder, &builder) == napi_ok &&
         builder != nullptr) {
       napi_value undef = nullptr;
       napi_get_undefined(env, &undef);
-      napi_value bargs[4] = {nullptr, nullptr, nullptr, nullptr};
-      napi_create_string_utf8(env, domain.c_str(), NAPI_AUTO_LENGTH, &bargs[0]);
-      napi_create_uint32(env, static_cast<uint32_t>(domainQuark), &bargs[1]);
-      napi_create_int32(env, code, &bargs[2]);
-      napi_create_string_utf8(env, message.c_str(), NAPI_AUTO_LENGTH, &bargs[3]);
+      // GI_TRANSFER_EVERYTHING: the invoke's out-GError is ours, and the handle
+      // adopts it rather than copying — so nothing frees it here.
+      napi_value handle = MakeGErrorHandle(env, error, GI_TRANSFER_EVERYTHING);
+      error = nullptr;  // adopted by the handle; no path below may free it again
       napi_value errObj = nullptr;
-      napi_status st = napi_call_function(env, undef, builder, 4, bargs, &errObj);
+      napi_status st = napi_call_function(env, undef, builder, 1, &handle, &errObj);
       if (st == napi_ok && errObj != nullptr) {
         napi_throw(env, errObj);
         return;
@@ -427,6 +423,7 @@ void ThrowGError(Napi::Env env, GError* error, const std::string& context) {
       if (napi_is_exception_pending(env, &pending) == napi_ok && pending) return;
     }
   }
+  if (error != nullptr) g_error_free(error);
   Napi::Error::New(env, "Calling " + context + ": " + message).ThrowAsJavaScriptException();
 }
 
@@ -636,7 +633,6 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // belong to the callee (dropped only when the callee never ran).
   CreatedBytes createdBytes;
   CreatedValues createdValues;
-  CreatedErrors createdErrors;
   bool ok = true;
   size_t jsCursor = 0;
   std::vector<LengthWrite> lengthWrites;
@@ -815,7 +811,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           jsCursor++;
           GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
           if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr, &ownedInStrings, nullptr,
-                             nullptr, nullptr, &createdErrors,
+                             nullptr, nullptr,
                              gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)))) {
             in_args[inPos[i]].v_pointer = &slots[i];
             out_args[outPos[i]].v_pointer = &slots[i];
@@ -922,7 +918,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
-                            &createdClosures, &createdBytes, &createdValues, &createdErrors,
+                            &createdClosures, &createdBytes, &createdValues,
                             gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)));
       }
     }
@@ -944,9 +940,6 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     // Likewise every GValue boxed from a plain JS value — never adopted.
     for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
     for (GValue* gv : createdValues.transferFull) NodeGiFreeBoxedGValue(gv);
-    // Likewise every GError built from an L1 GLib.Error — never adopted.
-    for (GError* e : createdErrors.transferNone) g_error_free(e);
-    for (GError* e : createdErrors.transferFull) g_error_free(e);
     // Likewise the transfer-full-instance ref: the callee never consumed it.
     if (instanceRefTaken) g_object_unref(static_cast<GObject*>(instance));
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
@@ -1001,11 +994,6 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // box is ours to free — success AND error paths, mirroring the GBytes rule.
   // Transfer-full GValues were adopted by the callee — no release.
   for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
-  // Transfer-none GError IN-args built from an L1 GLib.Error: the callee copied
-  // what it kept (gst_message_new_error copies the GError into the message), so
-  // the build is ours to free — success AND error paths, mirroring the two rules
-  // above. Transfer-full GErrors were adopted by the callee — no release.
-  for (GError* e : createdErrors.transferNone) g_error_free(e);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd

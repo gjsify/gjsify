@@ -88,6 +88,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getConstantValue", Napi::Function::New(env, GetConstantValue));
   exports.Set("getEnumValues", Napi::Function::New(env, GetEnumValues));
   exports.Set("getErrorDomain", Napi::Function::New(env, GetErrorDomain));
+  exports.Set("errorDomainInfo", Napi::Function::New(env, ErrorDomainInfo));
   exports.Set("setErrorBuilder", Napi::Function::New(env, SetErrorBuilder));
   exports.Set("prependSearchPath", Napi::Function::New(env, PrependSearchPath));
   exports.Set("prependLibraryPath", Napi::Function::New(env, PrependLibraryPath));

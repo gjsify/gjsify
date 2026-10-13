@@ -107,34 +107,6 @@ whether the JS answer carries it is a decision gjs has not made either), and
 GList/GSList/GHashTable OUTs.
 
 
-### node-gi: two `GLib.Error` shapes, and they answer `instanceof` differently
-
-A GError node-gi hands to JS takes one of two shapes, and they are not the same
-object. A **thrown** one — a failed sync invoke, via `ThrowGError` → the L1
-builder — is the `GLibError` JS class: `instanceof GLib.Error`, `.domain` the
-quark NAME string with the number on `.domainQuark` (a divergence gjs does not
-have, already documented in `docs/node-gi-gjs-surface.md`). A **marshalled** one
-— a GError-typed return or OUT parameter — is a boxed handle over the real
-`GError*`: `.domain` the numeric GQuark, as on gjs, but `instanceof GLib.Error`
-false, because L1 shadows the introspected `GLib.Error` with the JS class.
-
-What is left open is the IDENTITY, not the marshalling. The hand-back half —
-measured while landing #1495 and fixed with it — was a separable defect and had
-to be: `GLib.propagate_error(caughtError)` refused with `expected a GLib.Error
-for argument 'src', got Object` where gjs accepts, so the direction the OUT half
-exists for was closed to exactly the errors an application holds. A GError IN arg
-now takes either shape (`CreatedErrors`, marshal.cc), which changes nothing about
-what a `catch` sees.
-
-Still divergent: `marshalled instanceof GLib.Error` is false, `.domain` is a
-number on one shape and a name string on the other, and `GLib.Error.new_literal`
-— the introspected constructor — is hidden by the shadow. Fixing THAT is an L1
-identity decision (either the class gains a lazily-built backing GError, or the
-shadow goes and `instanceof` + `.matches()` move onto the boxed handle), and both
-options change what every existing `catch` sees, so it wants its own conformance
-program pinning the two shapes' surfaces before either is picked.
-
-
 ### `@gjsify/node-gi` — an UNANNOTATED pointer array field still marshals EMPTY in silence
 
 The annotated half is CLOSED. `GstMapInfo.data` is `<array length="3" c:type="guint8*">` with field 3 being `size`; `FieldArrayLength()` in `src/marshal.cc` now reads that sibling, and `test/struct-field-array-length.test.mjs` holds it against gjs as the oracle (32 == 32, contents compared, A/B-proved: three of its four cases fail on the previous build).
@@ -461,15 +433,12 @@ two calls the vectors use, so that call matches — the general rule does not: e
 `guint32`/`gint32` IN argument still wraps modulo 2^32. Fix in `marshal.cc`'s number-to-int path,
 with a `gimarshalling` row, then drop the two range checks from the override.
 
-### node-gi's `GLib.Error` prints and carries its domain differently from GJS
-
-`new GLib.Error(Gtk.DialogError, 2, 'x')`: GJS gives `.domain` a number and `String(e)` is
-`Gtk.DialogError: x`; node-gi gives the quark NAME and `GLib.Error gtk-dialog-error-quark: x`
-(measured on node-gi 0.61.0, GJS 1.88.1). Two ADR 0100 `error` vectors cannot
-hold on node-gi until that is decided; `@gjsify/adwaita-gobject-native` leaves them out of the
-real-Gio run and says why. Decision needed: keep the divergence (and keep the rows out) or move
-node-gi to GJS's shapes, which touches every consumer that reads `.domain`.
-
+`GLib.Error.matches`'s `domain` is a second such guard, in L1 (`toDomainQuark`, `gi.js`): GJS
+refuses a NaN or out-of-range domain with `Argument domain: value is out of range for uint32`,
+where node-gi's `NodeGiToUint32` converted it to 0 and matched nothing. It carries GJS's whole
+rule (`undefined` and a non-finite NUMBER are 0 silently, anything else goes through `ToNumber`
+and is range-checked), so it is the reference for the native fix — and drops out of L1 once
+`marshal.cc` does the same.
 
 ### `@gjsify/gi-runtime-android@0.60.0` ships the `calls.cc` use-after-free
 

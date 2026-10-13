@@ -65,9 +65,13 @@ test('a failing sync GI call throws a real GLib.Error (not a plain Error)', () =
 
     assert.ok(caught !== null, 'load_contents on a missing path should throw');
     assert.ok(caught instanceof GLib.Error, 'thrown value is a GLib.Error');
-    assert.ok(caught instanceof Error, 'GLib.Error is a real Error subclass');
-    // .domain / .code / .message read off the GError before it was freed.
-    assert.equal(caught.domain, 'g-io-error-quark');
+    assert.ok(caught instanceof Gio.IOErrorEnum, 'and its CLASS is the error domain');
+    // An Error by brand only — GLib.Error.prototype does not chain to Error.prototype,
+    // here as on gjs (see gerror-identity.test.mjs). The brand is read through
+    // `Object.prototype.toString` rather than `Error.isError`, which needs node 24.
+    assert.equal(Object.prototype.toString.call(caught), '[object Error]');
+    // .domain / .code / .message read off the GError the thrown handle now owns.
+    assert.equal(caught.domain, Gio.io_error_quark());
     assert.equal(caught.code, Gio.IOErrorEnum.NOT_FOUND);
     assert.equal(typeof caught.message, 'string');
     assert.ok(caught.message.length > 0);
@@ -77,9 +81,9 @@ test('a failing sync GI call throws a real GLib.Error (not a plain Error)', () =
     assert.equal(caught.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND), true);
     assert.equal(caught.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS), false);
     assert.equal(caught.matches(GLib.FileError, GLib.FileError.NOENT), false);
-    // matches() also accepts the domain as a name string / numeric quark.
-    assert.equal(caught.matches('g-io-error-quark', Gio.IOErrorEnum.NOT_FOUND), true);
-    assert.equal(caught.matches(caught.domainQuark, Gio.IOErrorEnum.NOT_FOUND), true);
+    // The domain may also be given as the numeric quark — but NOT as its name, which
+    // gjs refuses as out of uint32 range.
+    assert.equal(caught.matches(caught.domain, Gio.IOErrorEnum.NOT_FOUND), true);
 });
 
 test('Gio._promisify: load_contents_async resolves with the GJS-shaped result', async () => {

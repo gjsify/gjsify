@@ -26,8 +26,8 @@
 //   * INOUT               — `GLib.prefix_error_literal` reads and rewrites the slot.
 //   * NULL is a VALUE     — a callee that leaves the slot alone must read back as
 //     `null`, never as an empty GLib.Error.
-//   * BOTH JS shapes      — node-gi hands out two `GLib.Error`s (the L1 JS class for
-//     a thrown one, a boxed handle for a marshalled one) and an IN arg takes either.
+//   * EVERY producer      — marshalled, thrown and constructed errors are ONE shape
+//     (a boxed handle over a real GError*), so the IN arm takes all three.
 //
 // gjs is the reference and every expectation below was measured against
 // gjs 1.88.1 first (`GLib.propagate_error(e)` returns a copy there too, and
@@ -148,23 +148,23 @@ test('a non-GError value at a GError IN arg is refused, not forwarded', () => {
     // The refusal must DISCRIMINATE by more than "not a boxed handle": an object
     // that merely LOOKS like an error is not one, and duck-typing would take it.
     assert.throws(
-        () => GLib.propagate_error({ domainQuark: DOMAIN, code: 1, message: 'lookalike' }),
+        () => GLib.propagate_error({ domain: DOMAIN, code: 1, message: 'lookalike' }),
         /expected a GLib.Error/,
     );
 });
 
-// ---- the SECOND JS shape: the L1 GLib.Error class ---------------------------
+// ---- the other producers: a thrown and a constructed error ------------------
 //
-// A GError reaches JS as one of two objects, and only one of them used to be
-// accepted back: a MARSHALLED error (a GError-typed OUT/RETURN) is a boxed handle
+// A GError used to reach JS as one of TWO objects, and only one of them was
+// accepted back: a MARSHALLED error (a GError-typed OUT/RETURN) was a boxed handle
 // over the real GError*, while a THROWN one — the implicit `throws=1` GError of a
-// failed invoke, and anything `new GLib.Error(…)` builds — is L1's JS class with
-// no GError* behind it at all. gjs has ONE object for both and takes either.
+// failed invoke, and anything `new GLib.Error(…)` built — was an L1 JS class with
+// no GError* behind it at all, which the IN arm refused.
 //
-// Refusing the JS class closed the hand-back direction for exactly the errors an
-// application is holding: you catch a failure and cannot post it. Measured on
-// gjs 1.88.1 first — `GLib.propagate_error(caught)` and
-// `GLib.propagate_error(new GLib.Error(q, c, m))` both succeed there.
+// That closed the hand-back direction for exactly the errors an application is
+// holding: you catch a failure and cannot post it. Both producers now hand out the
+// same boxed shape, so the arm below is the SAME arm the marshalled tests exercise
+// — these pin that there is no second one left to diverge.
 
 test('a CAUGHT GLib.Error can be handed back into a GError IN arg', () => {
     let caught = null;
@@ -174,11 +174,13 @@ test('a CAUGHT GLib.Error can be handed back into a GError IN arg', () => {
         caught = err;
     }
     assert.notEqual(caught, null, 'the failing call must throw — otherwise this proves nothing');
-    assert.ok(caught instanceof GLib.Error, 'a thrown GError is the L1 class, not a boxed handle');
+    assert.ok(caught instanceof GLib.Error, 'a thrown GError is a GLib.Error');
+    assert.equal(typeof boxedAddress(caught), 'string', 'and a boxed handle, like a marshalled one');
 
-    // (transfer full) IN: the binding builds a GError from the JS class and the
-    // callee adopts it, so `dest` carries the same domain/code/message.
+    // (transfer full) IN: the callee adopts a copy, so `dest` carries the same
+    // domain/code/message while the caught error stays usable.
     const propagated = GLib.propagate_error(caught);
+    assert.notEqual(boxedAddress(propagated), boxedAddress(caught), 'the thrown error is not surrendered');
     assert.equal(propagated.message, caught.message);
     assert.equal(propagated.code, caught.code);
     assert.equal(
@@ -190,9 +192,9 @@ test('a CAUGHT GLib.Error can be handed back into a GError IN arg', () => {
 });
 
 test('a CONSTRUCTED GLib.Error can be handed back into a GError IN arg', async () => {
-    // `new GLib.Error(...)` is the other producer of the JS class, and the only one
-    // an application controls. Many rounds + a drain: the built GError is released
-    // per transfer, so a wrong rule surfaces here as a double free rather than at
+    // `new GLib.Error(...)` is the other producer, and the only one an application
+    // controls. Many rounds + a drain: the copy handed over is released per
+    // transfer, so a wrong rule surfaces here as a double free rather than at
     // process exit, where nothing is watching.
     for (let i = 0; i < 200; i++) {
         const made = new GLib.Error(DOMAIN, i, `built ${i}`);
@@ -211,19 +213,9 @@ test('a CONSTRUCTED GLib.Error can be handed back into a GError IN arg', async (
     assert.equal(made.message, 'built', 'the JS error the caller still holds is not rewritten');
 });
 
-test('a GLib.Error with no domain is refused BY NAME, not marshalled as quark 0', () => {
-    // Quark 0 would build an error `matches()` can never answer for — a silent
-    // mismatch far from here. `new GLib.Error(undefined, …)` sets neither `.domain`
-    // nor `.domainQuark`, and the refusal has to say which of the two problems it is.
-    // gjs refuses this too, one step earlier — at construction, with
-    // `Error.new_literal: undefined is not a valid domain`, because there the JS
-    // class IS the introspected boxed. Here the class is L1's, so the refusal can
-    // only land at the marshalling boundary; refused either way, never marshalled.
-    assert.throws(
-        () => GLib.propagate_error(new GLib.Error(undefined, 1, 'no domain')),
-        /expected a GLib\.Error for argument 'src', got a GLib\.Error with no domain/,
-    );
-});
+// A domainless error can no longer REACH this boundary: there is no JS-side error
+// object without a GError* behind it, so `new GLib.Error(undefined, …)` is refused at
+// construction, where gjs refuses it (gerror-new-literal.test.mjs).
 
 // ---- the issue's own call, where GStreamer exists ---------------------------
 //

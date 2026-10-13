@@ -70,18 +70,18 @@ function patternsOf(filter: unknown): string[] {
     return rules.map(([, rule]) => rule);
 }
 
-/** The vector rows whose subject is GTK itself; a stand-in has nothing to say about them. */
-const GTK_ONLY_RULES: readonly RegExp[] = [/^the enum members the subset raises/, /FileFilter/, /FileDialog/];
-
 /**
- * FINDING (stage 3): node-gi's `GLib.Error` differs from GJS's - `.domain` is the quark NAME and
- * `toString()` prints "GLib.Error <quark>: msg". GJS wins per ADR 0105, but moving every consumer
- * that reads `.domain` is a node-gi decision (status/open-todos/node-gi.md), so these two rows
- * are not run here and are recorded in the stage-3 report instead of being weakened.
+ * The vector rows whose subject is GTK itself; a stand-in has nothing to say about them.
+ *
+ * The printed-name row is one of them: an error prints the NAME OF ITS DOMAIN CLASS
+ * (`Gtk.DialogError: x`), which node-gi reads back out of the typelib that registered the
+ * domain — so without GTK there is no class to name and the base form prints instead.
  */
-const NODE_GI_DIVERGENT_RULES: readonly RegExp[] = [
-    /^new GLib\.Error\(domain, code, message\) reads back/,
+const GTK_ONLY_RULES: readonly RegExp[] = [
+    /^the enum members the subset raises/,
     /^a GLib\.Error names its domain when printed/,
+    /FileFilter/,
+    /FileDialog/,
 ];
 
 /** The vectors a subject can answer: all of them on real GTK, those not about GTK otherwise. */
@@ -89,9 +89,8 @@ export function rowsFor<V extends { readonly rule: string; readonly row: string 
     subject: Pick<RealGioFileChooserSubject, 'realGtk'>,
     vectors: readonly V[],
 ): V[] {
-    const answerable = vectors.filter((vector) => !NODE_GI_DIVERGENT_RULES.some((re) => re.test(vector.rule)));
-    if (subject.realGtk) return answerable;
-    return answerable.filter(
+    if (subject.realGtk) return [...vectors];
+    return vectors.filter(
         (vector) =>
             !(vector.row === 'dialog' || vector.row === 'filter' || GTK_ONLY_RULES.some((re) => re.test(vector.rule))),
     );
@@ -148,11 +147,12 @@ function createGtkStandIn(requireGi: RequireGi): any {
         FAILED: 0,
         CANCELLED: 1,
         DISMISSED: 2,
+        // A real `Gtk.DialogError` IS its quark when coerced (a static `valueOf`, so
+        // `new GLib.Error(Gtk.DialogError, …)` and `matches(Gtk.DialogError, …)` take the
+        // enum itself) — the one piece of the domain class a stand-in can honour without
+        // GTK's typelib to register the domain in.
+        valueOf: () => (requireGi('GLib', '2.0') as any).quark_from_string('gtk-dialog-error-quark') as number,
     };
-    // node-gi resolves an error domain by NAME; this registry symbol is how an enum declares one.
-    Object.defineProperty(DialogError, Symbol.for('nodeGiErrorDomain'), {
-        value: { name: 'gtk-dialog-error-quark' },
-    });
 
     return { FileFilter, FileDialog, DialogError };
 }

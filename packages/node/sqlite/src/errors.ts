@@ -82,11 +82,11 @@ export class IllegalConstructorError extends TypeError {
  * translates libgda's must let it through untouched.
  *
  * **The discriminator cannot be `instanceof Error`.** libgda reports through
- * `GLib.Error`, and that is a boxed GObject value under GJS but a real `Error`
- * SUBCLASS under `@gjsify/node-gi` (`class GLibError extends Error` in its `gi.js`)
- * — the bridge that runs this very package's suite on Node. An `instanceof Error`
- * test would therefore wrap on one host and pass the raw GError through on the
- * other, and the leg that disagreed is the one nobody runs locally.
+ * `GLib.Error`, which is a boxed GObject value whose prototype chain does NOT reach
+ * `Error.prototype` — on GJS and, since the GError identity fix, on `@gjsify/node-gi`
+ * too. It used to be a real `Error` subclass there, so an `instanceof Error` test
+ * wrapped on one host and passed the raw GError through on the other; it now agrees on
+ * both, and listing the Node-shaped errors by name keeps it agreeing if either moves.
  */
 export function isNodeSqliteError(cause: unknown): boolean {
     return (

@@ -33,13 +33,9 @@ field-readable `GLib.Error` boxed (`Gst.Message.parse_error()`, `GLib.set_error_
 a slot the callee left alone reads back as `null` rather than an empty error, and an
 IN arg takes such a boxed and honours its transfer — borrowed for `(transfer none)`
 (`Gst.Message.new_error`), an independent `g_error_copy` for `(transfer full)`
-(`g_propagate_error` adopts and frees its `src`). An IN arg ALSO takes the OTHER
-`GLib.Error` shape node-gi hands out — the L1 JS class a `catch` or
-`new GLib.Error(…)` produces, which has no `GError*` behind it — by rebuilding a
-real GError from its domain/code/message and releasing it per the same transfer
-rule GBytes and GValue IN-args follow; an error whose domain resolves to quark 0
-is refused by name rather than marshalled into one `matches()` could never answer
-for. Until #1495 the OUT direction was
+(`g_propagate_error` adopts and frees its `src`). A thrown and a constructed error
+are boxed handles too (see § GError identity), so one IN arm serves every producer.
+Until #1495 the OUT direction was
 refused before the invoke, which put every GStreamer bus-error accessor out of
 reach: an application could see that playback stopped and not why. A JS
 `Uint8Array` (or `Buffer`/`DataView`/`ArrayBuffer`) passed where a **`GLib.Bytes`
@@ -466,10 +462,67 @@ freezes its member object, so nothing can be attached after the fact — a lazy 
 there was tried and is impossible. An enum the typelib does not register carries no
 `$gtype` at all rather than an undefined one.
 
+An enum registered as a GError DOMAIN is the exception: it answers `G_TYPE_ERROR`, as
+GJS does, because there it is an Error class first and an enum second
+(`ErrorBase::to_gtype`) and the enum's own GType is unreachable — see § GError identity.
+
 Two `$gtype` shapes still diverge from GJS and are tracked in `status/open-todos/README.md`:
 the struct path answers a static-method thunk, and the handle itself has no
 `toString`, so `String(Gio.Application.$gtype)` throws where GJS prints
 `[object GType for 'GApplication']`.
+
+### GError identity (`GLib.Error`)
+
+**One shape for every producer.** A GError reaching JS — marshalled out of an
+OUT/RETURN slot, thrown by a failed `throws=1` invoke, or built by
+`new GLib.Error(…)` / `new Gio.IOErrorEnum({…})` / `GLib.Error.new_literal(…)` — is
+always a boxed handle over a real `GError*`, exactly as in GJS. node-gi used to hand
+out TWO objects (an L1 `Error` subclass for a thrown one, a boxed handle for a
+marshalled one), which is what every `.domain`-reading consumer had to branch on; it
+no longer does, and `.domainQuark` is gone with no compat shim.
+
+What that buys, and what it costs a port written against the old shape:
+
+* The CLASS of an error is its error DOMAIN, so the GJS idiom
+  `catch (e) { if (e instanceof Gio.IOErrorEnum) … }` takes the branch. An error whose
+  domain no typelib registers lands on the base `GLib.Error`.
+* `.domain` is the numeric GQuark on every shape — never the quark name. A comparison
+  against `'g-io-error-quark'` is now simply false; `matches('g-io-error-quark', code)`
+  throws `Argument domain: value is out of range for uint32`, as in GJS, rather than
+  converting to quark 0 and quietly matching nothing.
+* **`instanceof Error` is FALSE** (`GLib.Error.prototype` chains to `Object.prototype`,
+  not `Error.prototype`), while `Error.isError(e)` is true — GJS's `JSCLASS_IS_DOMJSCLASS`
+  brand, reproduced with `Reflect.construct(Error, [], DomainClass)`. Anything
+  discriminating a GError with `instanceof Error` has to move to `Error.isError` — and
+  on a runtime WITHOUT it (`Error.isError` is node 24+, and node-gi's CI smoke jobs pin
+  node 22) to `Object.prototype.toString.call(e) === '[object Error]'`, which reads the
+  same internal slot. The two node-gi GError tests take that fallback; `@gjsify/console`
+  still has `instanceof Error` as its no-`Error.isError` arm, so on node 22 it formats a
+  GError as a plain object — `status/open-todos/runtime-apis.md` carries that.
+* `domain`/`code`/`message` are getter-only PROTOTYPE accessors reading the `GError*`,
+  so a consumer "normalising" an error by assigning `.domain` gets a TypeError.
+  Reading one ON a prototype is refused by name, except a domain prototype's `domain`,
+  which answers its quark — that is where `matches(Gio.IOErrorEnum, …)` reads from.
+* `toString()` names the domain class (`Gio.IOErrorEnum: msg`), or the quark when there
+  is none (`GLib.Error g-some-quark: msg`).
+* `Error.prototype.matches` is installed (answering `false`) on the first GLib require,
+  so a `catch` can ask any error without a shape test, as under GJS.
+
+Two things stay divergent, both about the four own position properties
+(`stack`/`fileName`/`lineNumber`/`columnNumber`) GJS's `gjs_define_error_properties`
+attaches. WHICH errors carry them is reproduced exactly — thrown and constructed ones
+always, an error wrapping an existing `GError*` only when its domain is unknown — but
+the VALUES are the engine's own:
+
+* `stack` is V8's format (`at fn (file:line:col)`, with the `Error` prefix line), not
+  SpiderMonkey's `fn@file:line:col`. `@gjsify/console` already normalises that
+  difference for every error.
+* For a MARSHALLED error, the position is node-gi's dispatch frame, because the GError
+  was created in C with no JS frame to attribute: GJS reports the frame its struct
+  wrapper ran on, node-gi the frame its own wrap ran on. Thrown and constructed errors
+  report the application frame, which is the one a consumer reads.
+
+Pinned by `test/gerror-identity.test.mjs`, written against `gjs -m` on the same host.
 
 ### `GObject` conveniences (signals, `GObject.Value`, `Object.new`)
 
