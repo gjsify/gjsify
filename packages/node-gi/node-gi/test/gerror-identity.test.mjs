@@ -48,6 +48,16 @@ const OTHER_DOMAIN = GLib.quark_from_string('node-gi-gerror-identity-test-other'
 /** gjs's error-position properties, in the order `gjs_define_error_properties` defines them. */
 const POSITION_KEYS = ['stack', 'fileName', 'lineNumber', 'columnNumber'];
 
+/**
+ * True when `value` carries the internal error slot — gjs spells this `Error.isError`,
+ * but that landed in node 24 and this suite's CI job runs node 22, where it is not a
+ * function. `Object.prototype.toString` has reported the same slot as `[object Error]`
+ * since ES5, so it reads the brand on both.
+ */
+function hasErrorSlot(value) {
+    return Object.prototype.toString.call(value) === '[object Error]';
+}
+
 /** The error `Gio.File.load_contents` throws for a missing path — the shape an application catches. */
 function caughtIoError() {
     try {
@@ -69,13 +79,16 @@ test('a GError is an Error by BRAND but not by prototype chain, as on gjs', () =
     // and `@gjsify/console` treat it as an error) while `Error.prototype` is NOT on
     // the chain. A `catch (e) { if (e instanceof Error) … }` written for gjs skips
     // a GError, and a test asserting that skip failed here.
-    assert.equal(Error.isError(thrown), true, 'the internal error slot must be set');
+    assert.equal(hasErrorSlot(thrown), true, 'the internal error slot must be set');
     assert.equal(thrown instanceof Error, false, 'gjs: a GError is NOT an Error subclass');
     assert.equal(Object.getPrototypeOf(thrown) === Error.prototype, false);
+    if (typeof Error.isError === 'function') {
+        assert.equal(Error.isError(thrown), true, 'and the gjs spelling agrees where it exists');
+    }
 
     // The marshalled shape carries the same brand — ONE object for both paths.
     const marshalled = GLib.set_error_literal(DOMAIN, 7, 'marshalled');
-    assert.equal(Error.isError(marshalled), true, 'a marshalled GError is branded too');
+    assert.equal(hasErrorSlot(marshalled), true, 'a marshalled GError is branded too');
     assert.equal(marshalled instanceof Error, false);
 });
 
@@ -301,7 +314,7 @@ test('new GLib.Error(domain, code, message) builds a base-class error', () => {
     assert.equal(err.domain, DOMAIN);
     assert.equal(err.code, 3);
     assert.equal(err.message, 'three');
-    assert.equal(Error.isError(err), true);
+    assert.equal(hasErrorSlot(err), true);
 });
 
 test('new GLib.Error({…}) is refused the way gjs refuses a boxed field write', () => {

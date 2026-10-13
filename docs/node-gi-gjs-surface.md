@@ -493,7 +493,12 @@ What that buys, and what it costs a port written against the old shape:
 * **`instanceof Error` is FALSE** (`GLib.Error.prototype` chains to `Object.prototype`,
   not `Error.prototype`), while `Error.isError(e)` is true — GJS's `JSCLASS_IS_DOMJSCLASS`
   brand, reproduced with `Reflect.construct(Error, [], DomainClass)`. Anything
-  discriminating a GError with `instanceof Error` has to move to `Error.isError`.
+  discriminating a GError with `instanceof Error` has to move to `Error.isError` — and
+  on a runtime WITHOUT it (`Error.isError` is node 24+, and node-gi's CI smoke jobs pin
+  node 22) to `Object.prototype.toString.call(e) === '[object Error]'`, which reads the
+  same internal slot. The two node-gi GError tests take that fallback; `@gjsify/console`
+  still has `instanceof Error` as its no-`Error.isError` arm, so on node 22 it formats a
+  GError as a plain object — `status/open-todos/runtime-apis.md` carries that.
 * `domain`/`code`/`message` are getter-only PROTOTYPE accessors reading the `GError*`,
   so a consumer "normalising" an error by assigning `.domain` gets a TypeError.
   Reading one ON a prototype is refused by name, except a domain prototype's `domain`,

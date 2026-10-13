@@ -67,8 +67,9 @@ test('a failing sync GI call throws a real GLib.Error (not a plain Error)', () =
     assert.ok(caught instanceof GLib.Error, 'thrown value is a GLib.Error');
     assert.ok(caught instanceof Gio.IOErrorEnum, 'and its CLASS is the error domain');
     // An Error by brand only — GLib.Error.prototype does not chain to Error.prototype,
-    // here as on gjs (see gerror-identity.test.mjs).
-    assert.ok(Error.isError(caught));
+    // here as on gjs (see gerror-identity.test.mjs). The brand is read through
+    // `Object.prototype.toString` rather than `Error.isError`, which needs node 24.
+    assert.equal(Object.prototype.toString.call(caught), '[object Error]');
     // .domain / .code / .message read off the GError the thrown handle now owns.
     assert.equal(caught.domain, Gio.io_error_quark());
     assert.equal(caught.code, Gio.IOErrorEnum.NOT_FOUND);

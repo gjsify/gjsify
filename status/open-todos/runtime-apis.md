@@ -350,3 +350,31 @@ apt happens to have. That is the whole reason this is tracked rather than done. 
 nothing in the workspace currently reads these two groups for a DECISION —
 `packages/gjs/utils/src/gio-errors.ts` derives `error.errno` from `Gio.Error` itself — so the blast
 radius is a consumer, not us.
+
+
+
+### `@gjsify/console` loses the GError path on a runtime without `Error.isError`
+
+`_isError` (`packages/node/console/src/index.ts:49`) asks `Error.isError` when it exists and
+falls back to `value instanceof Error`. That fallback used to catch a node-gi GError, because
+node-gi threw an L1 `Error` subclass; since the GError rework it is one boxed handle whose
+prototype chains to `Object.prototype`, so `instanceof Error` is false on BOTH runtimes — the
+brand is the only thing left to read. `Error.isError` is node 24+, and node-gi's CI smoke jobs
+pin node 22, so on node 22 (and on the nativescript slot, whose JSC version this repo does not
+pin) a GError now formats through the plain-object path: no `Gio.IOErrorEnum: msg` header, no
+`domain`/`code` line.
+
+The fix is one line — fall back to `Object.prototype.toString.call(value) === '[object Error]'`,
+which has read the same internal slot since ES5 (a `Symbol.toStringTag` can mask it, which no
+error here sets). It is filed rather than done because `src/index.ts` is inside
+`packages/infra/cli/dist/affected.gjs.mjs`'s workspace-dep closure, and that bundle is COMMITTED
+and verified BYTE-FOR-BYTE by `scripts/verify-committed-bundles.mjs` — so the change has to ship
+with a rebuild produced the way CI produces it. Measured while PR #2199 was written: rebuilding
+it from a `git worktree` whose `node_modules` is borrowed from another checkout yields a bundle
+differing from the committed one only in minified identifier names, which is exactly the kind of
+near-miss that reds `verify-bundles` without telling you why. Do it on a tree that can complete
+`gjsify run build:infra` + `gjsify workspace @gjsify/cli build` + `build:affected-bundle` from
+its OWN install.
+
+A regression test belongs with it: `src/index.spec.ts` runs on node, so it can delete
+`Error.isError` for one case and assert the error header still renders.
