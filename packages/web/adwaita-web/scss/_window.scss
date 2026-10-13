@@ -35,6 +35,11 @@ adw-application-window {
     outline: none;
     box-shadow: none;
   }
+
+  // `present()` and `hide-on-close` toggle `hidden`, which `display: flex` would override.
+  &[hidden] {
+    display: none;
+  }
 }
 
 // The content area — the one child slot `Adw.Window:content` fills. It takes the
@@ -64,8 +69,8 @@ adw-application-window {
 // through a selector list: `_reset.scss` re-roots the box model at each registered element,
 // and a shared `adw-window, gtk-window` block would put two component resets in one rule.
 //
-// NOT the same as `<adw-window>`, deliberately. `Adw.Window` is a plain styled container —
-// nothing about it is GTK's `GtkWindow` — while this one answers the FRAME properties:
+// NOT the same as `<adw-window>`, deliberately. `Adw.Window` extends `GtkWindow` but has no
+// titlebar area, while this one answers the FRAME properties:
 // `decorated` drops the titlebar strip, `maximized` and `fullscreened` square the corners
 // off and drop the shadow (`_window.scss:66-72`), and the strip itself is either the
 // application's `titlebar` or the two `<gtk-window-controls>` a server-side decoration would

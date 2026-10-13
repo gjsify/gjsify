@@ -1,5 +1,6 @@
-// <adw-window> — the web counterpart of Adw.Window: a freeform window with no
-// titlebar area. Adw.Window styles nothing itself — you pair it with
+// <adw-window> — the web counterpart of Adw.Window: a Gtk.Window (so <gtk-window>'s state
+// members — is-active, focus-widget, close-request, present(), maximized — are inherited)
+// with no titlebar area. Adw.Window styles nothing itself — you pair it with
 // Adw.ToolbarView and an Adw.HeaderBar (or a Gtk.HeaderBar) to get the chrome —
 // so this element owns the FRAME and the window's own state, and the chrome is
 // whatever you put in it.
@@ -38,159 +39,95 @@
 // Copyright (c) 2020-2023 Alice Mikhaylenko / Purism SPC (libadwaita). LGPLv2.1+
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import { AdwBreakpoint } from '@gjsify/adwaita-core';
-import { addBreakpoints } from '../breakpoints.js';
-import { bindSlottedChildren } from '../slotted-children.js';
+import type { AdwBreakpoint } from '@gjsify/adwaita-core';
+import type { AdwSlot } from '../slotted-children.js';
+import { AdwWindowFeatures } from './adw-window-features.js';
+import { GtkWindow } from './gtk-window.js';
 
-/** The default minimum size of an AdwWindow, from adw_window_init (C:344). */
-const DEFAULT_WIDTH = 360;
-const DEFAULT_HEIGHT = 200;
-
-export class AdwWindow extends HTMLElement {
-    private _initialized = false;
-    private _contentEl!: HTMLDivElement;
-    private _breakpoints: AdwBreakpoint[] = [];
-    private _disposeBreakpoints: (() => void) | null = null;
-    private _openDialogs: HTMLElement[] = [];
+export class AdwWindow extends GtkWindow {
+    private readonly _features = new AdwWindowFeatures(this);
 
     static get observedAttributes() {
-        return ['width', 'height', 'default-width', 'default-height'];
+        return [...GtkWindow.observedAttributes, 'width', 'height'];
     }
 
     /** The content area — the Adw.Window:content property. */
     get contentArea(): HTMLDivElement {
-        return this._contentEl;
+        return this._content;
     }
 
     /** The content widget — the first child of the content area. */
     get content(): HTMLElement | null {
-        return this._contentEl.firstElementChild as HTMLElement | null;
+        return this._features.content;
     }
 
     set content(value: HTMLElement | null) {
-        if (value) {
-            this._contentEl.appendChild(value);
-        }
+        this._features.content = value;
     }
 
     /** The breakpoints added to this window. */
     get breakpoints(): readonly AdwBreakpoint[] {
-        return this._breakpoints;
+        return this._features.breakpoints;
     }
 
     /** The currently applied breakpoint, or null when none is. */
     get currentBreakpoint(): AdwBreakpoint | null {
-        return this._breakpoints.find((bp) => bp.applied) ?? null;
+        return this._features.currentBreakpoint;
     }
 
     /** The open dialogs presented inside this window (Adw.Window:dialogs). */
     get dialogs(): readonly HTMLElement[] {
-        // A dialog taken out of the document never raises `notify::open` on the way
-        // out, so a dialog that was REMOVED while open would otherwise stay listed
-        // for the rest of the window's life.
-        this._openDialogs = this._openDialogs.filter((dialog) => dialog.isConnected);
-        return this._openDialogs;
+        return this._features.dialogs;
     }
 
     /** The currently visible dialog, or null when none is (Adw.Window:visible-dialog). */
     get visibleDialog(): HTMLElement | null {
-        const dialogs = this.dialogs;
-        return dialogs.length > 0 ? (dialogs[dialogs.length - 1] as HTMLElement) : null;
+        return this._features.visibleDialog;
     }
 
-    /**
-     * Add a breakpoint to this window (adw_window_add_breakpoint).
-     * The breakpoint evaluates against the window's own box and sets a
-     * `data-breakpoint` attribute when applied.
-     */
+    /** Add a breakpoint to this window (adw_window_add_breakpoint). */
     addBreakpoint(condition: string): AdwBreakpoint {
-        const bp = new AdwBreakpoint(condition, {
-            onApply: () => (this.dataset.breakpoint = condition),
-            onUnapply: () => {
-                if (this.dataset.breakpoint === condition) delete this.dataset.breakpoint;
-            },
-        });
-        this._breakpoints.push(bp);
-        // Re-evaluated against a box that may have changed since the last add.
-        this._bindBreakpoints();
-        return bp;
+        return this._features.addBreakpoint(condition);
     }
 
     connectedCallback() {
-        this._buildOnce();
-        // EVERY connect, not only the first — see `_bindBreakpoints`.
-        this._bindBreakpoints();
+        super.connectedCallback();
+        this._features.adopt(this._content);
+        // EVERY connect, not only the first — see `AdwWindowFeatures.bind`.
+        this._features.bind();
     }
 
     disconnectedCallback() {
-        this._disposeBreakpoints?.();
-        this._disposeBreakpoints = null;
+        this._features.release();
+        super.disconnectedCallback();
     }
 
     attributeChangedCallback(name: string) {
-        // The size request is read from the ATTRIBUTE, so it is applied on every
-        // change — including one that arrived before the element was connected, which
-        // is the ordinary case for markup already sitting in a document.
-        if (name === 'width' || name === 'height' || name === 'default-width' || name === 'default-height') {
-            this._applySizeRequest();
+        // The size request is read from the ATTRIBUTE, so it is applied on every change —
+        // including one that arrived before the element was connected.
+        if (name === 'width' || name === 'height') {
+            this.renderFrameSize();
+            return;
         }
+        super.attributeChangedCallback(name);
     }
 
-    private _buildOnce() {
-        if (this._initialized) return;
-        this._initialized = true;
-
-        this._applySizeRequest();
-
-        this._contentEl = document.createElement('div');
-        this._contentEl.className = 'adw-window-content';
-
-        // Children are the content — the Adw.Window buildable default, and `content` is
-        // ALSO its name, because a `.blp` writes `content:` on the window and an authored
-        // tree needs the name to route it: `refuseUnknownSlots` in
-        // `src/shared-tree-builder.ts` throws on a slot a defined element does not
-        // declare, and `showcases/gtk/effect-adw-services/src/window.blp` is rooted at
-        // one. The content area becomes the host's own child, so a child appended later
-        // lands in it too (`bindSlottedChildren` is LIVE, see `src/slotted-children.ts`).
-        bindSlottedChildren(this, [{ name: 'content', into: this._contentEl }, { into: this._contentEl }]).install(
-            this._contentEl,
-        );
-
-        // Track open dialogs presented inside this window: an AdwDialog raises
-        // `notify::open`, which bubbles to here.
-        this.addEventListener('notify::open', (e) => {
-            const dialog = e.target as HTMLElement;
-            if (dialog === this) return;
-            if (dialog.hasAttribute('open')) {
-                if (!this._openDialogs.includes(dialog)) this._openDialogs.push(dialog);
-            } else {
-                this._openDialogs = this._openDialogs.filter((d) => d !== dialog);
-            }
-        });
+    /** `Adw.Window` has no titlebar of its own: you pair it with a header bar. */
+    protected override hasTitlebar(): boolean {
+        return false;
     }
 
-    /**
-     * Bind the breakpoints to THIS box.
-     *
-     * NOT once per lifetime: `disconnectedCallback` releases the disposer, so a
-     * window moved between parents would come back deaf — and a window is exactly
-     * the thing a client-side route change re-parents. Re-binding is cheap and
-     * idempotent, and it re-measures the new box on the way.
-     */
-    private _bindBreakpoints() {
-        this._disposeBreakpoints?.();
-        this._disposeBreakpoints = null;
-        if (this._initialized && this._breakpoints.length > 0) {
-            this._disposeBreakpoints = addBreakpoints(this, this._breakpoints);
-        }
+    protected override strips(): Node[] {
+        return [this._content];
     }
 
-    /** The window's size request — GTK's, not CSS's, so an absent attribute means the default. */
-    private _applySizeRequest() {
-        const width = this.getAttribute('default-width') ?? this.getAttribute('width');
-        const height = this.getAttribute('default-height') ?? this.getAttribute('height');
-        this.style.width = width ? `${width}px` : `${DEFAULT_WIDTH}px`;
-        this.style.height = height ? `${height}px` : `${DEFAULT_HEIGHT}px`;
+    protected override extraSlots(): AdwSlot[] {
+        // `content` is the content area's name too: a `.blp` writes `content:` on the window.
+        return [{ name: 'content', into: this._content }];
+    }
+
+    protected override renderFrameSize(): void {
+        this._features.applySizeRequest();
     }
 }
 

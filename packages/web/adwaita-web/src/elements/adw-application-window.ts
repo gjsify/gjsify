@@ -23,8 +23,9 @@
 //   menu-model   (the portable menu model, JSON — the stand-in for the model a
 //     GtkApplication would own; the same value `<gtk-menu-button menu-model>` takes)
 //
-// Extends <adw-window> and adds nothing else: the content property, the size request,
-// the breakpoints and the dialog bookkeeping are all inherited.
+// Extends <gtk-application-window>, as Adw.ApplicationWindow extends Gtk.ApplicationWindow,
+// so the Gtk.Window state members come with it. The content property, the size request, the
+// breakpoints and the dialog bookkeeping are the same AdwWindowFeatures <adw-window> uses.
 //
 // Reference: refs/libadwaita/src/adw-application-window.c (the class adds no behaviour)
 // Reference: Gtk-4.0.gir `Gtk.ApplicationWindow:show-menubar` ("If this property is true,
@@ -40,21 +41,56 @@ import {
     type AdwMenuModel,
 } from '@gjsify/adwaita-core';
 
-import { AdwWindow } from './adw-window.js';
+import type { AdwBreakpoint } from '@gjsify/adwaita-core';
+import type { AdwSlot } from '../slotted-children.js';
+import { AdwWindowFeatures } from './adw-window-features.js';
+import { GtkApplicationWindow } from './gtk-application-window.js';
 import { defineWindowApplication } from '../application.js';
 
-export class AdwApplicationWindow extends AdwWindow {
-    /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
-    declare application: object | null;
-    private _menubarEl: HTMLDivElement | null = null;
+export class AdwApplicationWindow extends GtkApplicationWindow {
+    private readonly _features = new AdwWindowFeatures(this);
     private _model: AdwMenuModel = [];
+    private _menubarEl: HTMLDivElement | null = null;
 
     // The base's list BY NAME, not `super.observedAttributes`: `AdwPasswordEntryRow`
     // spells its spread this way and the attribute readers follow (`adwaita-elements.mjs`
     // resolves a `[...Base.observedAttributes]` spread across files, and reports a
     // `super` one as unreadable rather than as empty).
     static get observedAttributes(): string[] {
-        return [...AdwWindow.observedAttributes, 'show-menubar', 'menu-model'];
+        return [...GtkApplicationWindow.observedAttributes, 'width', 'height', 'menu-model'];
+    }
+
+    /** The content area — the Adw.Window:content property. */
+    get contentArea(): HTMLDivElement {
+        return this._content;
+    }
+
+    get content(): HTMLElement | null {
+        return this._features.content;
+    }
+
+    set content(value: HTMLElement | null) {
+        this._features.content = value;
+    }
+
+    get breakpoints(): readonly AdwBreakpoint[] {
+        return this._features.breakpoints;
+    }
+
+    get currentBreakpoint(): AdwBreakpoint | null {
+        return this._features.currentBreakpoint;
+    }
+
+    get dialogs(): readonly HTMLElement[] {
+        return this._features.dialogs;
+    }
+
+    get visibleDialog(): HTMLElement | null {
+        return this._features.visibleDialog;
+    }
+
+    addBreakpoint(condition: string): AdwBreakpoint {
+        return this._features.addBreakpoint(condition);
     }
 
     /** Whether this window shows the application's menubar (Gtk.ApplicationWindow:show-menubar). */
@@ -84,17 +120,45 @@ export class AdwApplicationWindow extends AdwWindow {
 
     connectedCallback() {
         super.connectedCallback();
-        this._buildMenubar();
+        this._features.adopt(this._content);
+        // EVERY connect, not only the first — see `AdwWindowFeatures.bind`.
+        this._features.bind();
+    }
+
+    disconnectedCallback() {
+        this._features.release();
+        super.disconnectedCallback();
     }
 
     attributeChangedCallback(name: string) {
+        if (name === 'width' || name === 'height') {
+            this.renderFrameSize();
+            return;
+        }
         super.attributeChangedCallback(name);
         // The attribute is the declarative form and it wins when it changes — the same
         // precedence `<gtk-menu-button>` gives `menu-model`, through the same parser.
-        if (name === 'menu-model') this._model = parseMenuModel(this.getAttribute('menu-model'));
-        // Before the first connect the menubar does not exist yet, and `_buildMenubar`
-        // renders from the model this has just read — so nothing is built twice.
-        if (name === 'show-menubar' || name === 'menu-model') this._renderMenubar();
+        if (name === 'menu-model') {
+            this._model = parseMenuModel(this.getAttribute('menu-model'));
+            this._renderMenubar();
+        }
+    }
+
+    /** `Adw.ApplicationWindow` has no titlebar of its own, like `Adw.Window`. */
+    protected override hasTitlebar(): boolean {
+        return false;
+    }
+
+    protected override strips(): Node[] {
+        return [this._content];
+    }
+
+    protected override extraSlots(): AdwSlot[] {
+        return [{ name: 'content', into: this._content }];
+    }
+
+    protected override renderFrameSize(): void {
+        this._features.applySizeRequest();
     }
 
     /**
@@ -104,17 +168,23 @@ export class AdwApplicationWindow extends AdwWindow {
      * into the content area, so a sibling would be re-homed into it one tick later. The
      * content area's own children are not watched, so prepending here is stable — and
      * it is also where the bar belongs: above the toolbar view, inside the window box.
+     * Replaces the base's observer: this bar is filled from the model, not from a slot,
+     * and observing it would re-trigger every render.
      */
-    private _buildMenubar() {
-        if (this._menubarEl) return;
-        this._menubarEl = document.createElement('div');
-        this._menubarEl.className = 'adw-application-window-menubar';
-        this.contentArea.prepend(this._menubarEl);
-
+    protected override _followMenubar(): void {
+        if (this._menubarEl === null) {
+            this._menubarEl = document.createElement('div');
+            this._menubarEl.className = 'adw-application-window-menubar';
+            this._content.prepend(this._menubarEl);
+        }
         this._renderMenubar();
     }
 
-    private _renderMenubar(): void {
+    protected override menubarSection(): HTMLDivElement {
+        return this._menubarEl ?? super.menubarSection();
+    }
+
+    protected override _renderMenubar(): void {
         const bar = this._menubarEl;
         if (bar === null) return;
 
