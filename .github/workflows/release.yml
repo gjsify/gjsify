@@ -43,19 +43,68 @@ on:
         description: 'Space-separated package names/globs (e.g. "@gjsify/adwaita-fonts @gjsify/example-*"). Publishes ONLY those (needs skip_publish=false) instead of the whole ~130-package serial run — the way to land the few packages a release missed. Covers the dedicated-job packages too (node-gi, napi, gtk/gl/node/gi-runtime-*): those jobs run only when named.'
         required: false
         default: ''
+  # ── The `next` prerelease channel (ADR 0109) ───────────────────────────
+  # Fires the `publish-next` job at the bottom of this file. Three things decide
+  # that it is a trigger in THIS file rather than a workflow of its own:
+  #
+  #   1. TRUST. Every Trusted Publisher on npmjs.com is registered against the
+  #      workflow FILENAME `release.yml` (npm's OIDC claim is `workflow_ref`'s
+  #      basename; `gjsify trust` defaults to it). A `next.yml` would need all
+  #      ~218 published packages re-trusted BY HAND before its first publish
+  #      could succeed. The claim is the file, not the trigger or the job — so a
+  #      new trigger here inherits the whole registration.
+  #   2. CONCURRENCY. `concurrency` is workflow-level. Only a trigger in this
+  #      file can be ordered against a release event and a `only=` recovery run
+  #      by the group below; a sibling workflow would publish into the middle of
+  #      a release sweep.
+  #   3. `workflow_run`, NOT `push: branches: [main]`. The `pr-trigger-parity`
+  #      conformance rule fails any workflow carrying a push-to-main trigger
+  #      without a `pull_request` trigger whose path filter matches it — and a
+  #      job that mints an npm publish token structurally cannot run on a pull
+  #      request. The PR-side half that rule asks for exists, as the shape it
+  #      can have: `next-channel-version.mjs --check` in `audit-runtimes.yml`,
+  #      which grades the rewritability of the tree on every PR.
+  #
+  # Keyed on the `GJS` workflow (`main.yml`) concluding, so `next` carries code
+  # main's own CI accepted; the job's `if` requires `success`. The checkout then
+  # targets `workflow_run.head_sha` — a `workflow_run` run's own `github.sha` is
+  # the DEFAULT BRANCH HEAD at dispatch time, which drifts from the commit that
+  # was tested the moment two merges land close together.
+  workflow_run:
+    workflows: [GJS]
+    types: [completed]
+    branches: [main]
 
 # ONE publishing run at a time, whatever its ref or trigger: a release event, a tag recovery and a
 # main dispatch share this group and queue behind each other. Every npm publish job lives in this
 # file, so this one group is the whole guard. NEVER `cancel-in-progress` — a cancelled publishing
 # run leaves a partial release. GitHub keeps ONE pending run per group and cancels an older pending
 # one, so batch every missing name into a single `only=` (docs/publishing.md, "One publishing run at a time").
+#
+# TWO GROUPS, not one. The `next` channel gets its own because of that eviction rule: GitHub keeps
+# one PENDING run per group, so a `next` run queued behind a release would EVICT a queued recovery
+# run — the thing the paragraph above says to batch rather than lose. `next` is also serialised
+# against itself, which is the property that matters on its side: two merges landing a minute apart
+# must not publish two interleaved sweeps of the same 218 packages. The cost of separate groups is
+# that a `next` sweep can overlap a release sweep; they publish DISJOINT versions (`0.63.1-next.N`
+# vs `0.63.1`) under disjoint dist-tags, and `--tolerate-republish` covers the only shared state
+# (the registry's view of a package that already exists).
 concurrency:
-  group: release-npm-publish
+  group: ${{ github.event_name == 'workflow_run' && 'release-npm-next' || 'release-npm-publish' }}
   cancel-in-progress: false
 
 jobs:
   publish:
     name: Publish to NPM
+    # The ONE guard the `next` trigger needs on the release pipeline, and it is not
+    # cosmetic: on a `workflow_run` event `inputs` is null, so `inputs.skip_publish ==
+    # false` evaluates null == false → TRUE, and every gate in this file that spells its
+    # dispatch condition that way would FIRE — a full `latest` publish of main's HEAD on
+    # every merge. This job had no job-level `if:` at all. The other jobs inherit the
+    # skip through `needs: publish` (the precedent documented at the `node-gi-prebuild-linux`
+    # job); the two that do not are this one and `verify-release-closure`, whose
+    # `!cancelled()` deliberately ignores a skipped need.
+    if: ${{ github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     # What `only` selects, decided once by scripts/release-only-plan.mjs. The dedicated
     # jobs below gate on these; `sweep` is the subset foreach can take as --include.
@@ -2340,7 +2389,11 @@ jobs:
       - publish-napi
       - publish-node-runtime
       - publish-gi-runtime-android
-    if: ${{ !cancelled() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    # `github.event_name != 'workflow_run'` because `!cancelled()` runs this job even when
+    # every `needs` SKIPPED, and on that event `inputs.skip_publish == false` is null ==
+    # false → true (see the `publish` job's `if:`). Without it the `next` channel would end
+    # every run by grading the registry against main's unreleased `latest` version.
+    if: ${{ !cancelled() && github.event_name != 'workflow_run' && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -2365,3 +2418,186 @@ jobs:
       # the script header for what it deliberately does NOT fail on, and why.
       - name: Assert every pinned dependency of every published package resolves
         run: node scripts/verify-published-closure.mjs
+
+  # ── The `next` prerelease channel ────────────────────────────────────────────
+  #
+  # WHAT IT IS. Every green `GJS` run on `main` republishes the whole npm sweep as
+  # `<next patch>-next.<run number>` under dist-tag `next`. A consumer app pins
+  # `"@gjsify/cli": "next"`, runs `gjsify install`, and is on main's code minutes after
+  # a merge — with no release cut, and with `latest` untouched. ADR 0109 has the why,
+  # the version scheme and what the channel does NOT cover.
+  #
+  # NOTHING IS COMMITTED. `scripts/next-channel-version.mjs --write` rewrites THIS
+  # CHECKOUT: every manifest `version`, and every `workspace:^|~` spec to `workspace:*`
+  # so `gjsify pack` emits an EXACT pin. That second half is what makes
+  # `npm i @gjsify/cli@next` an all-next closure instead of a caret that also admits
+  # the eventual stable `0.63.1` (script header, "WHY THE SPECS ARE REWRITTEN TOO").
+  # `main` never carries a prerelease version, so the release train (ADR 0008) and
+  # `release-it`'s tag-derived next version are untouched.
+  #
+  # THE WHOLE SWEEP, NOT THE AFFECTED SUBSET. Every intra-repo pin in a next tarball is
+  # EXACT, so a partial sweep publishes a `@gjsify/cli@0.63.1-next.42` whose siblings
+  # were never published at `-next.42` — an uninstallable closure. The classifier is
+  # therefore used for ONE decision only: whether this merge is worth a run at all.
+  #
+  # NOT A RELEASE GATE. The jobs above publish `latest`, upload release assets and
+  # verify the released closure; all of them skip on this event (see the `publish`
+  # job's `if:`). A red `publish-next` means the `next` channel is stale, never that
+  # a release is broken.
+  publish-next:
+    name: Publish the next channel to NPM
+    # `success` only: the trigger is `types: [completed]`, which also fires for
+    # `failure`, `cancelled` and `skipped`. A `workflow_run` run is dispatched against
+    # the default branch, so the `if` cannot be narrowed by a ref condition — the
+    # conclusion IS the gate.
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    # The release `publish` job above runs under the 6 h default. This one runs on every
+    # merge, so a hung sweep would bill a day of container minutes before GitHub noticed.
+    # ~35 min of real work (measured on release run 33735989472, a job of the same shape).
+    timeout-minutes: 120
+    permissions:
+      # Strictly narrower than the `publish` job's: OIDC to mint the per-package publish
+      # token, ghcr to pull the CI image, and read for the checkout. No `contents: write`
+      # (this channel ships no GitHub-release asset — see the ADR) and no `actions: write`
+      # (it dispatches nothing).
+      contents: read
+      id-token: write
+      packages: read
+    container:
+      image: ghcr.io/gjsify/ci-fedora:44
+
+    steps:
+      # `head_sha`, not `github.sha`: on `workflow_run` the latter is the default branch
+      # head at DISPATCH time, which is a different commit than the one `GJS` tested as
+      # soon as two merges land close together. `fetch-depth: 2` is what the classifier
+      # below needs for its `HEAD~1` diff base.
+      - name: Checkout the commit main's CI passed on
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      # OIDC mode: no `registry-url`, for the reason spelled out at the `publish` job's
+      # Setup Node step — the placeholder NODE_AUTH_TOKEN it injects makes `gjsify
+      # publish` skip the OIDC exchange entirely.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26.x'
+
+      # Same committed classifier bundle main.yml's `changes` job runs, against the merge
+      # this run is for. Used for ONE decision: a docs-only or node-gi-only merge changes
+      # nothing a next tarball would carry, and a ~35 min 218-package sweep for it is
+      # waste. `continue-on-error` + an unset output means a crashed classifier PUBLISHES
+      # (fail-safe towards a fresh channel, the inverse of main.yml's fail-safe towards a
+      # full test run). A merge wrongly skipped costs nothing permanent: the next merge
+      # publishes a version containing it.
+      - name: Classify what this merge changed
+        id: affected
+        continue-on-error: true
+        run: |
+          gjs -m packages/infra/cli/dist/affected.gjs.mjs \
+              --base "$(git rev-parse HEAD~1)" \
+              --format=github-actions
+
+      - name: 'Probe outcome: Classify what this merge changed'
+        if: always()
+        env:
+          PROBE_LABEL: 'Classify what this merge changed'
+          PROBE_OUTCOME: ${{ steps.affected.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+
+      - name: Nothing publishable in this merge
+        if: ${{ steps.affected.outputs.skip-all == 'true' }}
+        run: |
+          echo "::notice::next channel skipped — ${REASON:-no workspace affected}"
+          {
+            echo "## next channel: skipped"
+            echo ""
+            echo "This merge affects no published workspace (\`${REASON:-no workspace affected}\`),"
+            echo "so dist-tag \`next\` keeps pointing at the version the previous merge published."
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          REASON: ${{ steps.affected.outputs.reason }}
+
+      # Everything below is the `publish` job's pipeline, in its order, with ONE step
+      # inserted. Mirrors it deliberately rather than sharing a composite action: the two
+      # differ in the rewrite, the dist-tag and the release-asset half, and a composite
+      # that parameterised all three would hide which channel a change is about.
+      - name: Install dependencies (gjsify install --immutable)
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        run: |
+          B=$(XDG_CACHE_HOME="$PWD/.gjsify-cache" gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
+          echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
+
+      - name: Bootstrap the build toolchain (cold trees only)
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        run: .github/scripts/bootstrap-cold-tree.sh node
+
+      # AFTER install, BEFORE build, and neither is a free choice. Rewriting first breaks
+      # `install --immutable` (the lockfile does not describe the rewritten tree);
+      # rewriting after the build ships a `cli.gjs.mjs` whose define-injected
+      # `__PACKAGE_VERSION__` still reads the previous version.
+      - name: Derive the next version and rewrite the checkout
+        id: version
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        run: node scripts/next-channel-version.mjs --write --github-output
+
+      - name: Build packages
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
+
+      # Examples and showcases ARE root workspaces, so the sweep publishes them and
+      # `verify-package-outputs.mjs --scope examples` (inside `npm:publish:next`) grades
+      # their built output.
+      - name: Build examples
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build:examples
+
+      # `npm:publish:next` is `npm:publish:prebuilt` with `--tag next` — same roster, same
+      # `--tolerate-*`, same deferred read-back (docs/publishing.md). The two live side by
+      # side in the root manifest so a change to the sweep's flags is visibly a change to
+      # both channels.
+      #
+      # The `test` guard is not defensive clutter: `--tolerate-republish` turns an
+      # unrewritten tree into a sweep of 218 no-ops that exits 0 and moves no dist-tag —
+      # a GREEN job that published nothing. One string comparison rules out the whole
+      # class, including a future edit that reorders the rewrite out of the way.
+      - name: Publish the sweep under dist-tag next
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          test "$(node -p 'require("./package.json").version')" = "$VERSION"
+          gjsify run npm:publish:next
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          VERSION: ${{ steps.version.outputs.version }}
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          NPM_STATUS_TOKEN: ${{ secrets.NPM_STATUS_TOKEN }}
+
+      - name: Report held and unserved packages
+        if: ${{ always() && steps.affected.outputs.skip-all != 'true' }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify publish --report-ledger --ref "$NEXT_REF" >> "$GITHUB_STEP_SUMMARY" || true
+        env:
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          NEXT_REF: next@${{ steps.version.outputs.version }}
+
+      - name: Summary
+        if: ${{ steps.affected.outputs.skip-all != 'true' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          {
+            echo "## next channel: ${VERSION}"
+            echo ""
+            echo "Published from \`${HEAD_SHA}\` under dist-tag \`next\`."
+            echo ""
+            echo '```sh'
+            echo "npm i @gjsify/cli@next   # ${VERSION}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
