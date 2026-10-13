@@ -1,15 +1,20 @@
 /*
  * One stylesheet for the whole page, driven by the tokens below. The app's own colours only ever
- * reach `--brand`, which paints the screenshot band; every other surface is the site's own
- * neutral palette, so a pale brand colour cannot make text unreadable.
+ * reach `--brand`, which paints the masthead; every other surface is the site's own neutral
+ * palette, so a pale brand colour cannot make the body text unreadable.
  */
 
 :root {
   color-scheme: light dark;
 
   --brand: var(--brand-light, #84bbfd);
-  /* Text on the brand band. A colour cannot be measured in CSS, so each scheme states its own. */
-  --band-fg: #10233b;
+  /* Text on the brand. A colour cannot be measured in CSS, so the generator measures the app's
+   * `<branding>` against near-black and white and writes the winner into `--band-fg-*`; these
+   * fallbacks belong to the two default brand colours above. */
+  --band-fg: var(--band-fg-light, #10233b);
+  /* Pills, dividers and hover fills drawn on the brand: the text colour, thinned. */
+  --band-line: color-mix(in srgb, var(--band-fg) 18%, transparent);
+  --band-tint: color-mix(in srgb, var(--band-fg) 10%, transparent);
 
   --bg: #fff;
   --surface: #f6f5f4;
@@ -35,7 +40,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --brand: var(--brand-dark, #1a5fb4);
-    --band-fg: #fff;
+    --band-fg: var(--band-fg-dark, #fff);
     --bg: #1a1a1c;
     --surface: #26262a;
     --fg: #f6f5f4;
@@ -88,6 +93,8 @@ h3 {
   flex: none;
 }
 
+/* One content width for the whole page: the bar, the hero, the facts, the text and the footer all
+ * start and end on the same two lines. */
 .bar-inner,
 .hero-inner,
 .badges,
@@ -97,26 +104,72 @@ h3 {
   margin-inline: auto;
 }
 
-.column {
-  width: min(100% - 2rem, var(--text));
+/* Masthead: bar, hero, facts and screenshots on the app's own colour */
+
+.masthead {
+  background: var(--brand);
+  color: var(--band-fg);
 }
 
-/* Top bar */
+main {
+  padding-block-start: 2.5rem;
+}
 
+/* The bar is painted in the same colour as the masthead below it, so at rest the two read as one
+ * surface and, once it sticks over the text, it is already an opaque bar — no script has to notice
+ * the moment it detaches. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line);
+  background: var(--brand);
+  color: var(--band-fg);
 }
 
 .bar-inner {
   display: flex;
   align-items: center;
   gap: 1rem;
-  min-height: 3rem;
+  min-height: 3.5rem;
+}
+
+/* Scrolling shrinks the bar and lifts it off the page — driven by the scroll position itself, so
+ * no script is involved. A browser without scroll-driven animations keeps the resting bar, which
+ * is legible at every scroll position because it is opaque. */
+@supports (animation-timeline: scroll()) {
+  .topbar,
+  .bar-inner {
+    animation: linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 6rem;
+  }
+
+  .topbar {
+    animation-name: bar-detach;
+  }
+
+  .bar-inner {
+    animation-name: bar-compact;
+  }
+
+  /* The shrinking is the motion here; the shadow alone still marks the detached bar. */
+  @media (prefers-reduced-motion: reduce) {
+    .bar-inner {
+      animation-name: none;
+    }
+  }
+}
+
+@keyframes bar-detach {
+  to {
+    box-shadow: 0 1px 12px rgb(0 0 0 / 0.22);
+  }
+}
+
+@keyframes bar-compact {
+  to {
+    min-height: 2.75rem;
+  }
 }
 
 .bar-brand {
@@ -139,18 +192,20 @@ h3 {
   margin-inline-start: auto;
 }
 
+/* On the brand colour the muted greys of the text column would be unreadable, so the bar fades its
+ * own text colour instead and restores it fully on hover. */
 .bar-link {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   font-size: 0.9rem;
   text-decoration: none;
-  color: var(--muted);
+  opacity: 0.75;
 }
 
 .bar-link:hover,
 .bar-languages a:hover {
-  color: var(--fg);
+  opacity: 1;
 }
 
 .bar-languages ul,
@@ -173,7 +228,11 @@ h3 {
   font-size: 0.85rem;
 }
 
-.bar-languages a,
+.bar-languages a {
+  text-decoration: none;
+  opacity: 0.75;
+}
+
 .footer-languages a {
   color: var(--muted);
   text-decoration: none;
@@ -184,13 +243,11 @@ h3 {
   font-weight: 700;
 }
 
-/* Hero */
-
 .hero-inner {
   display: flex;
   align-items: center;
   gap: 1.75rem;
-  padding-block: 3rem 1.75rem;
+  padding-block: 2.5rem 1.75rem;
 }
 
 .hero-icon {
@@ -232,7 +289,7 @@ h1 {
 
 .hero-by {
   margin: 0.25rem 0 0;
-  color: var(--muted);
+  opacity: 0.8;
 }
 
 /* Buttons and the download split */
@@ -281,6 +338,18 @@ h1 {
   border-radius: 0 var(--radius) var(--radius) 0;
 }
 
+/* The accent would have to be contrasted against the app's colour, which is unknowable here. The
+ * band's text colour was already measured against it, so the button inverts that pair and is
+ * readable on any brand. */
+.masthead .download-split .button {
+  background: var(--band-fg);
+  color: var(--brand);
+}
+
+.masthead .download-split .button:hover {
+  background: color-mix(in srgb, var(--band-fg) 86%, var(--brand));
+}
+
 /* Badges */
 
 /* One equal column per fact, however many facts there are, spread over the hero's width. */
@@ -289,9 +358,8 @@ h1 {
   grid-template-columns: repeat(var(--badge-count, 4), minmax(0, 1fr));
   gap: 0.75rem 1rem;
   list-style: none;
-  padding: 0 0 0.5rem;
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 1.25rem;
+  padding: 1.25rem 0 0.5rem;
+  border-block-start: 1px solid var(--band-line);
 }
 
 .badge {
@@ -311,22 +379,76 @@ h1 {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--band-tint);
   font-size: 1.15rem;
 }
 
-/* The platform badge draws one glyph per system, so its chip grows into a pill instead. */
+/* The platform badge draws one glyph per system, so its chip grows into a pill instead. A
+ * Firefox and a Chromium glyph are only distinguishable at a size the others do not need. */
 .badge-platforms {
   display: flex;
-  gap: 0.35rem;
-  font-size: 1rem;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.6rem;
 }
 
 .badge:has(.badge-platforms) .badge-pill {
   width: auto;
   min-width: 2.5rem;
-  padding-inline: 0.7rem;
+  height: 2.75rem;
+  padding-inline: 0.85rem;
+}
+
+/* Hovering or tabbing to a platform brings up the colour that system is known by; at rest they all
+ * share the band's text colour, so the row stays one row and not a fruit salad. */
+.platform {
+  color: inherit;
+  transition: color 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform {
+    transition: none;
+  }
+}
+
+.platform:hover {
+  color: var(--platform-color);
+}
+
+/* A glyph is not focusable and a touch screen cannot hover, so there the colours are simply on. */
+@media (hover: none) {
+  .platform {
+    color: var(--platform-color);
+  }
+}
+
+.platform-linux {
+  --platform-color: #f5c211;
+}
+
+.platform-darwin {
+  --platform-color: #d9d9dd;
+}
+
+.platform-win32 {
+  --platform-color: #3584e4;
+}
+
+.platform-android {
+  --platform-color: #3ddc84;
+}
+
+.platform-web {
+  --platform-color: #62a0ea;
+}
+
+.platform-firefox {
+  --platform-color: #ff7139;
+}
+
+.platform-chromium {
+  --platform-color: #4285f4;
 }
 
 /* Kept in the flow even when a badge has no value, so every label sits on the same line. */
@@ -344,14 +466,10 @@ h1 {
   font-size: 0.78rem;
 }
 
-/* Screenshot band */
+/* Screenshot band — the bottom of the masthead, whose colour it already sits on. */
 
 .band {
-  margin-block: 2rem;
-  margin-inline: calc(50% - 50vw);
-  padding-block: 2.5rem;
-  background: var(--brand);
-  color: var(--band-fg);
+  padding-block: 1.5rem 3rem;
 }
 
 .carousel {
@@ -382,50 +500,37 @@ h1 {
 .slide figure {
   margin: 0;
   width: fit-content;
-  max-width: min(92vw, 52rem);
+  max-width: 86vw;
   margin-inline: auto;
   position: relative;
 }
 
-/* A fixed track height keeps mixed aspect ratios from resizing the band slide by slide. */
+/* A fixed track height keeps mixed aspect ratios from resizing the band slide by slide; a shot
+ * that does not fill it sits centred rather than stretched. */
 .slide picture {
   display: flex;
+  align-items: center;
   justify-content: center;
   height: var(--shot-h);
 }
 
+/* `--shot-w` is the CSS width this screenshot's renditions were cut for: at that width a 2560px
+ * source is a 2× image, and above it the browser would be upscaling. Width and max-height
+ * together shrink-wrap the artwork — `object-fit: contain` would letterbox it instead, and the
+ * shadow would then be drawn around the empty strip. */
 .slide img {
-  width: auto;
-  max-width: 100%;
-  height: 100%;
-  object-fit: contain;
+  width: min(100%, var(--shot-w, 100%));
+  height: auto;
+  max-height: 100%;
   border-radius: var(--radius-lg);
   box-shadow: var(--shot-shadow);
 }
 
-/* A window shot carries its own margin and shadow (like on Flathub): show it as it is. */
+/* A window shot carries its own rounded corners and shadow (like on Flathub): show it as it is. */
 .slide picture[data-frame="none"] img,
 .lightbox picture[data-frame="none"] img {
   border-radius: 0;
   box-shadow: none;
-}
-
-/* One slide can pair a desktop window shot with an opaque phone shot: the frame follows the source
- * the browser picks, which switches at the same width as the <source media> queries. */
-@media (min-width: 601px) {
-  .slide picture[data-frame="none-desktop"] img,
-  .lightbox picture[data-frame="none-desktop"] img {
-    border-radius: 0;
-    box-shadow: none;
-  }
-}
-
-@media (max-width: 600px) {
-  .slide picture[data-frame="none-mobile"] img,
-  .lightbox picture[data-frame="none-mobile"] img {
-    border-radius: 0;
-    box-shadow: none;
-  }
 }
 
 .slide figcaption {
@@ -540,8 +645,11 @@ h1 {
   max-width: 100%;
 }
 
+/* The clone keeps the picture's `--shot-w`, so the full-screen view stops at the same width the
+ * renditions were cut for instead of upscaling the file the browser already fetched. */
 .lightbox img {
-  max-width: 100%;
+  width: min(100%, var(--shot-w, 100%));
+  height: auto;
   /* Leaves room for the figure padding, the gap and the caption. */
   max-height: calc(100vh - 8rem);
   object-fit: contain;
