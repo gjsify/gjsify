@@ -1,6 +1,6 @@
 # 104. Real GTK and GI on Android are opt-in tracks beside the NativeScript port
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-13)
 - Date: 2026-10-09
 - Deciders: Pascal Garber
 - Related: [ADR 0003](0003-package-tiering.md) (new packages start at tier 3),

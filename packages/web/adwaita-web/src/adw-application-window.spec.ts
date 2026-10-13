@@ -7,6 +7,9 @@
 // `Adw.Window` plus `Gtk.ApplicationWindow:show-menubar`, so the window half is
 // <adw-window>'s spec and only the delta is asserted here.
 import { describe, it, expect } from '@gjsify/unit';
+import { driveWindowVectors, WINDOW_VECTORS } from '@gjsify/adwaita-core/conformance';
+
+import { webWindowSubject } from './gtk-window.spec.js';
 
 import type { AdwApplicationWindow } from './elements/adw-application-window.js';
 
@@ -30,6 +33,11 @@ function makeWindow(model: unknown = MENU_MODEL): AdwApplicationWindow {
 }
 
 export const AdwApplicationWindowTest = async () => {
+    // `Adw.Window` IS a `Gtk.Window` upstream: the same vectors that run against real GTK and
+    // <gtk-window> must hold here, or the state members have fallen off the subclass again.
+    const { subject, dispose } = webWindowSubject('adw-application-window');
+    await driveWindowVectors(subject, { describe, it, expect }, WINDOW_VECTORS);
+    dispose();
     await describe('adw-application-window is an adw-window', async () => {
         await it('places children in the inherited content area', async () => {
             const win = makeWindow();

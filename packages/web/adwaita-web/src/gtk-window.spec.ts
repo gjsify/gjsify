@@ -26,6 +26,58 @@ function titlebar(el: GtkWindow): HTMLElement {
     return el.querySelector('.adw-gtk-window-titlebar') as HTMLElement;
 }
 
+/** The `Gtk.Window` conformance subject for any window element (`gtk-window`, `adw-window`, …). */
+export function webWindowSubject(tag: string): { subject: WindowSubject; dispose: () => void } {
+    const windows = new Map<object, HTMLElement>();
+    const subject: WindowSubject = {
+        name: `<${tag}>`,
+        isOracle: false,
+        capabilities: { maximizable: true, observesFocus: true, hideOnClose: true },
+        create({ hideOnClose }) {
+            // Never in a page: not realized, which is GTK's state for a window before `present()`.
+            const el = document.createElement(tag) as GtkWindow;
+            if (hideOnClose) el.setAttribute('hide-on-close', 'true');
+            el.append(document.createElement('button'), document.createElement('button'));
+            return el;
+        },
+        show(w) {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            host.appendChild(w as GtkWindow);
+            windows.set(w, host);
+            (w as GtkWindow).present();
+        },
+        connect(w, signal, handler) {
+            (w as GtkWindow).addEventListener(signal, (event) => {
+                if (signal === 'close-request') {
+                    if (event.defaultPrevented) return;
+                    if (handler()) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                    }
+                    return;
+                }
+                handler();
+            });
+            return 1;
+        },
+        close: (w) => void (w as GtkWindow).close(),
+        maximize: (w) => (w as GtkWindow).maximize(),
+        unmaximize: (w) => (w as GtkWindow).unmaximize(),
+        isMaximized: (w) => (w as GtkWindow).is_maximized(),
+        isVisible: (w) => (w as GtkWindow).isConnected && !(w as GtkWindow).hidden,
+        focusables: (w) => [...(w as GtkWindow).querySelectorAll('button')] as unknown as [Element, Element],
+        setFocus: (w, widget) => (w as GtkWindow).set_focus(widget as Element | null),
+        getFocus: (w) => (w as GtkWindow).get_focus(),
+    };
+    return {
+        subject,
+        dispose: () => {
+            for (const host of windows.values()) host.remove();
+        },
+    };
+}
+
 export const GtkWindowTest = async () => {
     await describe('<gtk-window> structure', async () => {
         await it('is a titlebar strip over a content box', async () => {
@@ -206,50 +258,9 @@ export const GtkWindowTest = async () => {
     // adapter below is that mapping, and it also stops later listeners, which is what the handled
     // accumulator does. So the "third never runs" row exercises the adapter plus the element's
     // sequence, not DOM dispatch alone.
-    const windows = new Map<object, HTMLElement>();
-    const webSubject: WindowSubject = {
-        name: '<gtk-window>',
-        isOracle: false,
-        capabilities: { maximizable: true, observesFocus: true, hideOnClose: true },
-        create({ hideOnClose }) {
-            // Never in a page: not realized, which is GTK's state for a window before `present()`.
-            const el = document.createElement('gtk-window') as GtkWindow;
-            if (hideOnClose) el.setAttribute('hide-on-close', 'true');
-            el.append(document.createElement('button'), document.createElement('button'));
-            return el;
-        },
-        show(w) {
-            const host = document.createElement('div');
-            document.body.appendChild(host);
-            host.appendChild(w as GtkWindow);
-            windows.set(w, host);
-            (w as GtkWindow).present();
-        },
-        connect(w, signal, handler) {
-            (w as GtkWindow).addEventListener(signal, (event) => {
-                if (signal === 'close-request') {
-                    if (event.defaultPrevented) return;
-                    if (handler()) {
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                    }
-                    return;
-                }
-                handler();
-            });
-            return 1;
-        },
-        close: (w) => void (w as GtkWindow).close(),
-        maximize: (w) => (w as GtkWindow).maximize(),
-        unmaximize: (w) => (w as GtkWindow).unmaximize(),
-        isMaximized: (w) => (w as GtkWindow).is_maximized(),
-        isVisible: (w) => (w as GtkWindow).isConnected && !(w as GtkWindow).hidden,
-        focusables: (w) => [...(w as GtkWindow).querySelectorAll('button')] as unknown as [Element, Element],
-        setFocus: (w, widget) => (w as GtkWindow).set_focus(widget as Element | null),
-        getFocus: (w) => (w as GtkWindow).get_focus(),
-    };
+    const { subject: webSubject, dispose } = webWindowSubject('gtk-window');
     await driveWindowVectors(webSubject, { describe, it, expect }, WINDOW_VECTORS);
-    for (const host of windows.values()) host.remove();
+    dispose();
 
     await describe('<gtk-window> state members', async () => {
         await it('a frame that was never connected is not realized: close() does nothing', async () => {

@@ -428,6 +428,16 @@ export const GtkWindowMembersNsTest = async () => {
             expect(throwsWith(() => window.connect('notify::focus-widget', () => {}), 'focus-widget')).toBe(true);
         });
 
+        await it('Adw.Window and Adw.ApplicationWindow are Gtk.Windows with the same members', () => {
+            for (const window of [new Adw.Window(), new Adw.ApplicationWindow()]) {
+                expect(window instanceof Gtk.Window).toBe(true);
+                expect(window.maximized).toBe(true);
+                expect(window.isActive).toBe(false);
+                expect(window.get_focus()).toBe(null);
+                expect(throwsWith(() => window.connect('notify::focus-widget', () => {}), 'focus-widget')).toBe(true);
+            }
+        });
+
         await it('present() is a no-op', () => {
             const window = new Gtk.Window();
             window.present();
