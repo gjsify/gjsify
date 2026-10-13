@@ -14,18 +14,39 @@ import {
     type SiteConfig,
 } from '../site-data/index.js';
 
-const T_CALL = /\bt\(\s*"((?:[^"\\]|\\.)*)"\s*\)/g;
+// EITHER quote style, because the formatter picks one and this is not its decision. The renderers
+// were written with double quotes, and the first `gjsify format` that could see them — .gitignore
+// had hidden the directory — rewrote all 66 translator calls to single quotes; a double-quote-only
+// pattern then extracted nothing and the sync offered to delete every translated string in `po/`.
+// Hence also the floor below: an extractor that matches nothing must fail, never quietly empty the
+// catalogues. Note that this pattern reads THIS file too, so no prose here spells out a call.
+const T_CALL = /\bt\(\s*(['"])((?:\\.|(?!\1)[^\\])*)\1\s*\)/g;
+
+/** Decodes a JS string literal body, whichever quote style it was written in. */
+function unquote(body: string, quote: string): string {
+    const json = quote === '"' ? body : body.replace(/\\'/g, "'").replace(/"/g, '\\"');
+    return JSON.parse(`"${json}"`) as string;
+}
 
 /**
  * The msgids the renderer itself can emit: every translator call in its sources, plus the default
  * download labels. They belong to this package and are translated in its own `po/`.
  */
-export async function rendererMsgids(buildDir: string): Promise<string[]> {
+export async function rendererMsgids(renderDir: string): Promise<string[]> {
     const msgids = new Set<string>();
-    for (const file of (await readdir(buildDir)).sort()) {
+    let fromSources = 0;
+    for (const file of (await readdir(renderDir)).sort()) {
         if (!file.endsWith('.ts') || file.endsWith('.spec.ts')) continue;
-        const source = await readFile(join(buildDir, file), 'utf8');
-        for (const match of source.matchAll(T_CALL)) msgids.add(JSON.parse(`"${match[1]}"`) as string);
+        const source = await readFile(join(renderDir, file), 'utf8');
+        for (const match of source.matchAll(T_CALL)) {
+            msgids.add(unquote(match[2], match[1]));
+            fromSources++;
+        }
+    }
+    if (fromSources === 0) {
+        throw new Error(
+            `${renderDir}: no translator call found in any renderer — the extractor is broken, not the sources`,
+        );
     }
     for (const label of [...Object.values(DOWNLOAD_LABELS), ...Object.values(FORMAT_LABELS)]) msgids.add(label);
     return [...msgids];
