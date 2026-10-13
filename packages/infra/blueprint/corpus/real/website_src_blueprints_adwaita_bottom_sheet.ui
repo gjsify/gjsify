@@ -8,7 +8,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
   <requires lib="gtk" version="4.0"/>
   <object class="AdwBottomSheet" id="sheet">
     <property name="open">true</property>
-    <property name="modal">true</property>
     <property name="can-close">true</property>
     <property name="content">
       <object class="GtkButton" id="toggle">
