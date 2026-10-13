@@ -89,10 +89,11 @@ export class GtkGrid extends AdwStyledLayoutBase {
         this._relayout();
     }
 
-    insertChild(child: View, atIndex: number): void {
-        super.insertChild(child, atIndex);
+    insertChild(child: View, atIndex: number): boolean {
+        const inserted = super.insertChild(child, atIndex);
         this._follow(child);
         this._relayout();
+        return inserted;
     }
 
     removeChild(view: View): void {

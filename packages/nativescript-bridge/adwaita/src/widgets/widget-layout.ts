@@ -293,13 +293,63 @@ export interface GtkWidgetLayout {
 }
 
 /**
+ * Everything the mixin adds to an instance, spelled out so the emitted declaration names it.
+ *
+ * Left to inference, `tsc` re-inlines the anonymous mixin class into every subclass's `.d.ts`
+ * and writes each setter as `set x(v): any`, which TS1095 rejects in a consumer that checks
+ * library files. A `declare class`, not an interface: interface accessors count as properties,
+ * and a subclass overriding one with an accessor is then TS2611.
+ * The accessors keep their wider setter types (TS 5.1 unrelated accessor types).
+ */
+export declare abstract class GtkWidgetLayoutMembers {
+    get halign(): string;
+    set halign(value: string | number);
+    get valign(): string;
+    set valign(value: string | number);
+    get hexpand(): boolean;
+    set hexpand(value: boolean | string);
+    get vexpand(): boolean;
+    set vexpand(value: boolean | string);
+    get marginStart(): number;
+    set marginStart(value: number | string);
+    get marginEnd(): number;
+    set marginEnd(value: number | string);
+    get visible(): boolean;
+    set visible(value: boolean | string);
+    get sensitive(): boolean;
+    set sensitive(value: boolean | string);
+    get name(): string;
+    set name(value: string | null);
+    get tooltipText(): string;
+    set tooltipText(value: string);
+    get widthRequest(): number;
+    set widthRequest(value: number | string);
+    get heightRequest(): number;
+    set heightRequest(value: number | string);
+    /** `gtk_widget_set_direction`: written to the CSS `direction` a view resolves its margins by; NONE clears it. */
+    set_direction(direction: number): void;
+    /** `gtk_widget_get_direction`: LTR until set. */
+    get_direction(): number;
+    get_first_child(): object | null;
+    get_last_child(): object | null;
+    get_next_sibling(): object | null;
+    get_prev_sibling(): object | null;
+    get_parent(): object | null;
+    /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
+    insert_action_group(prefix: string, group: ActionGroupLike | null): void;
+}
+
+/**
  * Give a `@nativescript/core` base GTK's widget layout properties.
  *
  * Applied by `withSignals` and nowhere else, so it reaches exactly the classes that meet the
  * platform — the rule arm 6 of `check-nativescript-xml-doors.mjs` already holds for that
  * mixin — and a subclass of a port class inherits it like any other accessor.
  */
-export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: TBase) {
+export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
+    Base: TBase,
+    // oxlint-disable-next-line typescript/no-explicit-any -- TS2545 admits no other spelling for a mixin base
+): (abstract new (...args: any[]) => GtkWidgetLayoutMembers) & TBase {
     abstract class WithGtkWidgetLayout extends Base implements GtkWidgetLayout {
         get halign(): string {
             const view = viewOf(this);
@@ -482,5 +532,5 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(Base: T
             view.minHeight = Math.max(0, sizeRequestOf(value, 'heightRequest'));
         }
     }
-    return WithGtkWidgetLayout;
+    return WithGtkWidgetLayout as unknown as (abstract new (...args: any[]) => GtkWidgetLayoutMembers) & TBase;
 }

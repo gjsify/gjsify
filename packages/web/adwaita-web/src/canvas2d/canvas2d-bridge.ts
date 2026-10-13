@@ -16,7 +16,23 @@
 
 import { registerTemplateClass } from '../template-classes.js';
 
-type ReadyCallback = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
+/**
+ * The DOM types this element names, resolved through `globalThis` so the published `.d.ts`
+ * never names a `lib.dom` type directly: a consumer that loads `lib.dom` gets the real ones,
+ * one that does not still type-checks the declarations with `skipLibCheck: false`.
+ */
+export type BridgeCanvas = typeof globalThis extends { HTMLCanvasElement: { prototype: infer T } } ? T : object;
+export type BridgeContext2D = typeof globalThis extends { CanvasRenderingContext2D: { prototype: infer T } }
+    ? T
+    : object;
+/** `FrameRequestCallback` without `lib.dom`. */
+export type FrameCallback = (time: number) => void;
+type ElementConstructor = typeof globalThis extends { HTMLElement: infer C } ? C : abstract new () => object;
+
+// biome-ignore lint: the annotation, not the value, is what the declaration file keeps
+const HostElement: ElementConstructor = (globalThis as { HTMLElement?: unknown }).HTMLElement as ElementConstructor;
+
+type ReadyCallback = (canvas: BridgeCanvas, ctx: BridgeContext2D) => void;
 type ResizeCallback = (width: number, height: number) => void;
 type SignalHandler = (emitter: Canvas2DBridgeElement, ...args: unknown[]) => unknown;
 
@@ -25,18 +41,18 @@ const TAG = 'gjsify-canvas2d-bridge';
 /** `G_MAXINT`, the top of `g_param_spec_int`'s range. */
 const MAX_INT = 2147483647;
 
-function intAttribute(element: HTMLElement, name: string): number {
+function intAttribute(element: Element, name: string): number {
     const raw = Number.parseInt(element.getAttribute(name) ?? '', 10);
     return Number.isFinite(raw) ? raw : 0;
 }
 
-export class Canvas2DBridgeElement extends HTMLElement {
+export class Canvas2DBridgeElement extends HostElement {
     static readonly GTypeName = 'GjsifyCanvas2DBridge';
     /** The signals `connect()` accepts, as `Gtk.Widget` names them. */
     static readonly signals: Record<string, string> = { resize: 'resize' };
 
-    private _canvas: HTMLCanvasElement | null = null;
-    private _ctx: CanvasRenderingContext2D | null = null;
+    private _canvas: BridgeCanvas | null = null;
+    private _ctx: BridgeContext2D | null = null;
     private _readyCallbacks: ReadyCallback[] = [];
     private _resizeCallbacks: ResizeCallback[] = [];
     private _handlers = new Map<number, { signal: string; handler: SignalHandler }>();
@@ -89,12 +105,12 @@ export class Canvas2DBridgeElement extends HTMLElement {
     }
 
     /** The `<canvas>` backing this widget. Available after the first allocation. */
-    get canvas(): HTMLCanvasElement | null {
+    get canvas(): BridgeCanvas | null {
         return this._canvas;
     }
 
     /** The browser's own 2D context; available after the first allocation. */
-    getContext(_id: '2d'): CanvasRenderingContext2D | null {
+    getContext(_id: '2d'): BridgeContext2D | null {
         return this._ctx;
     }
 
@@ -113,7 +129,7 @@ export class Canvas2DBridgeElement extends HTMLElement {
     }
 
     /** The browser's own, here only so the call reads the same on every target. */
-    requestAnimationFrame(cb: FrameRequestCallback): number {
+    requestAnimationFrame(cb: FrameCallback): number {
         return globalThis.requestAnimationFrame(cb);
     }
 
