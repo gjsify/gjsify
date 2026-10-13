@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { catalogMsgids, configMsgids, rendererMsgids, syncCatalogs, type I18nResult } from './render/i18n.js';
 import { processImage, type ProcessedImage } from './render/images.js';
-import { pictureVariants, renderPage, renderRoot, type ClientAssets } from './render/pages.js';
+import { renderPage, renderRoot, type ClientAssets } from './render/pages.js';
 import {
     UI_SOURCE_LANGUAGE,
     loadCatalogs,
@@ -103,21 +103,22 @@ async function stageClientAssets(base: string, out: string, self: string): Promi
     return { js: staged[0]!, css: [staged[1]!] };
 }
 
+/** Keyed by slug, which is what a `Screenshot` carries and the renderer looks up. */
 async function processScreenshots(
     data: SiteData,
-    { root, out }: SiteTarget,
+    { out }: SiteTarget,
     cacheDir: string,
 ): Promise<Map<string, ProcessedImage>> {
-    const paths = new Set(
-        data.screenshots.flatMap((screenshot) => pictureVariants(screenshot).map((variant) => variant.path)),
-    );
     const options = {
         outDir: join(out, 'img'),
         cacheDir: join(cacheDir, 'images'),
         urlBase: `${data.config.base}img/`,
     };
     const entries = await Promise.all(
-        [...paths].map(async (path) => [path, await processImage(resolve(root, path), path, options)] as const),
+        data.screenshots.map(
+            async (screenshot) =>
+                [screenshot.slug, await processImage(screenshot.file, screenshot.slug, options)] as const,
+        ),
     );
     return new Map(entries);
 }
@@ -172,7 +173,7 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
     const catalogs = await loadPageCatalogs(config, target.root, self, options.warn);
     const data = await loadSiteData({
         root: target.root,
-        uiCatalogs: catalogs,
+        screenshotCacheDir: join(cacheDir ?? defaultCacheDir(target.root), 'screenshots'),
         offline: options.offline ?? false,
         githubToken: options.githubToken,
         network: cacheDir ? { cacheDir: join(cacheDir, 'http') } : {},

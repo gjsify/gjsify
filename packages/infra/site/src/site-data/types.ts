@@ -25,11 +25,6 @@ export type TargetFormat =
     | 'xpi'
     | 'source';
 
-/** The four artwork variants a screenshot can ship; at least one is required. */
-export type ScreenshotVariantKey = 'desktop-light' | 'desktop-dark' | 'mobile-light' | 'mobile-dark';
-
-export type ScreenshotVariants = Partial<Record<ScreenshotVariantKey, string>>;
-
 /**
  * Text with the untranslated source and any translations found in the metainfo. `source` is
  * written in the site's default language; `byLanguage` is keyed by BCP 47 tag as the metainfo
@@ -64,16 +59,6 @@ export interface SiteLegalLink {
     url: string;
 }
 
-export interface ScreenshotItemConfig {
-    /** Index into the metainfo `<screenshots>` list, to reuse its caption and order. */
-    from?: number;
-    /** A msgid of the website catalogue. */
-    caption?: string;
-    variants?: ScreenshotVariants;
-}
-
-export type ScreenshotSource = 'metainfo' | 'site' | 'merge';
-
 /** One entry of `gjsify.site.downloads`: a target the release assets cannot supply (a store page, the install docs). */
 export interface SiteDownloadConfig {
     platform: TargetPlatform;
@@ -103,8 +88,8 @@ export interface SiteConfig {
     translations?: string;
     /**
      * Directory holding `<lang>.po` catalogues for the strings this configuration itself introduces —
-     * screenshot captions and download labels. They overlay the page catalogues shipped with the
-     * renderer, which cannot know a consumer's own copy.
+     * the download labels. They overlay the page catalogues shipped with the renderer, which cannot
+     * know a consumer's own copy.
      */
     pageTranslations?: string;
     /** Repo-relative app icon; defaults to the Flatpak or `ship` icon of the root package.json. */
@@ -115,13 +100,21 @@ export interface SiteConfig {
     releaseAssets: boolean;
     support: SiteSupportEntry[];
     legal: SiteLegalLink[];
-    screenshots: { source: ScreenshotSource; items: ScreenshotItemConfig[] };
 }
 
+/**
+ * One entry of the metainfo `<screenshots>` list, with its artwork located on disk. The same images
+ * Flathub shows, so the page is a preview of the store listing.
+ */
 export interface Screenshot {
+    /** The metainfo caption, translated where the metainfo or a catalogue has a translation. */
     caption: Localized | null;
-    /** Repo-relative file paths, validated to exist. */
-    variants: ScreenshotVariants;
+    /** The `<image>` URL, kept for reference. */
+    url: string;
+    /** Absolute path of the artwork: the repository's own file, or the downloaded copy. */
+    file: string;
+    /** Stem of the published renditions, derived from the URL path; also the key of the image map. */
+    slug: string;
 }
 
 export interface Release {

@@ -9,6 +9,8 @@ export type FetchLike = (
     ok: boolean;
     status: number;
     json(): Promise<unknown>;
+    /** Only the callers that want bytes need this; a JSON-only fake may leave it out. */
+    arrayBuffer?(): Promise<ArrayBuffer>;
 }>;
 
 export interface NetworkOptions {
@@ -73,4 +75,16 @@ export async function fetchJson(
         if (cached) return cached.data;
         throw error;
     }
+}
+
+/**
+ * GETs bytes. Not cached here: the caller writes the file it asked for and finds it again by name,
+ * which is also what makes a later `--offline` build work.
+ */
+export async function fetchBinary(url: string, options: NetworkOptions = {}): Promise<Uint8Array> {
+    const doFetch: FetchLike = options.fetch ?? ((target, init) => fetch(target, init));
+    const response = await doFetch(url, { signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS) });
+    if (!response.ok) throw new HttpError(response.status, url);
+    if (!response.arrayBuffer) throw new Error(`This fetch implementation cannot read bytes (${url})`);
+    return new Uint8Array(await response.arrayBuffer());
 }

@@ -15,8 +15,10 @@ export interface ProcessedImage {
     /** Intrinsic size of the largest rendition, for the `width`/`height` attributes. */
     width: number;
     height: number;
+    /** CSS pixels the page gives this screenshot at most; the renditions above it serve HiDPI. */
+    displayWidth: number;
     formats: Record<ImageFormat, ImageFile[]>;
-    /** The artwork already carries its own transparent margin and shadow (a window shot), so the page adds no frame. */
+    /** The artwork already carries its own shadow (a window shot), so the page adds no frame. */
     frameless: boolean;
 }
 
@@ -28,23 +30,32 @@ export interface ImageOptions {
     urlBase: string;
 }
 
-const TARGET_WIDTHS = [480, 960, 1440];
+/**
+ * The widest the page ever shows a screenshot, in CSS pixels. A screenshot is shown at its natural
+ * width capped here and NEVER upscaled, which also settles what a "2×" source is without asking the
+ * metainfo: a 2560px source fills 1280 CSS px at device-pixel-ratio 2, a 1280px one fills the same
+ * box at ratio 1 and is as sharp as its artwork allows. Renditions therefore go up to twice this.
+ */
+export const MAX_DISPLAY_WIDTH = 1280;
+
+const TARGET_WIDTHS = [640, MAX_DISPLAY_WIDTH, MAX_DISPLAY_WIDTH * 2];
 const FORMATS: ImageFormat[] = ['avif', 'webp', 'png'];
 
-export function imageSlug(path: string): string {
-    return path
-        .replace(/\.[^.]+$/, '')
-        .replace(/[^a-zA-Z0-9.]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .toLowerCase();
-}
-
-/** Never upscales: widths above the source are dropped, and the source's own width is used if it is the largest that fits. */
+/** Never upscales: the largest rendition is the source itself, or twice the display cap if that is smaller. */
 export function renditionWidths(natural: number): number[] {
-    const widths = new Set(TARGET_WIDTHS.filter((width) => width < natural));
-    widths.add(Math.min(natural, TARGET_WIDTHS[TARGET_WIDTHS.length - 1] as number));
+    const largest = Math.min(natural, MAX_DISPLAY_WIDTH * 2);
+    const widths = new Set(TARGET_WIDTHS.filter((width) => width < largest));
+    widths.add(largest);
     return [...widths].sort((a, b) => a - b);
 }
+
+/** CSS pixels this source fills: the display cap, or the source itself when it is narrower. */
+export function displayWidth(natural: number): number {
+    return Math.min(natural, MAX_DISPLAY_WIDTH);
+}
+
+/** Alpha below this is nothing at all: a pixel the source left empty, not the faint tail of a shadow. */
+const ALPHA_EMPTY = 1;
 
 const CORNER_ALPHA_MAX = 16;
 
@@ -64,6 +75,22 @@ function cornersTransparent(image: RasterImage): boolean {
     );
 }
 
+/**
+ * Drops rows and columns in which not one pixel is painted at all.
+ *
+ * A window shot is saved on a canvas large enough for the window's shadow, and how much empty space
+ * is left around that shadow is up to whoever took the shot. The page cannot see it: the slide sizes
+ * the whole file, so the picture shrinks by the margin and the band above and below it stays blank.
+ * Cropping to the painted area makes every screenshot fill its slide equally — and it keeps the
+ * shadow itself, which is why the threshold is "nothing at all" rather than "barely visible".
+ */
+export function trimTransparentMargin(image: RasterImage): RasterImage {
+    const bounds = image.opaqueBounds(ALPHA_EMPTY);
+    if (!bounds) return image;
+    if (bounds.width === image.width && bounds.height === image.height) return image;
+    return image.cropped(bounds);
+}
+
 async function isFresh(cached: string, source: string): Promise<boolean> {
     if (!existsSync(cached)) return false;
     const [a, b] = await Promise.all([stat(cached), stat(source)]);
@@ -71,11 +98,11 @@ async function isFresh(cached: string, source: string): Promise<boolean> {
 }
 
 /** Encodes AVIF, WebP and PNG renditions of one screenshot into `outDir` and describes them. */
-export async function processImage(source: string, repoPath: string, options: ImageOptions): Promise<ProcessedImage> {
-    const image = decodeImageFile(source);
-    if (!image.width || !image.height) throw new Error(`Cannot read the size of ${repoPath}`);
+export async function processImage(source: string, slug: string, options: ImageOptions): Promise<ProcessedImage> {
+    const decoded = decodeImageFile(source);
+    if (!decoded.width || !decoded.height) throw new Error(`Cannot read the size of ${source}`);
+    const image = trimTransparentMargin(decoded);
     const widths = renditionWidths(image.width);
-    const slug = imageSlug(repoPath);
     await Promise.all([mkdir(options.outDir, { recursive: true }), mkdir(options.cacheDir, { recursive: true })]);
 
     const formats: Record<ImageFormat, ImageFile[]> = { avif: [], webp: [], png: [] };
@@ -100,6 +127,7 @@ export async function processImage(source: string, repoPath: string, options: Im
     return {
         width: largest,
         height: Math.round((largest * image.height) / image.width),
+        displayWidth: displayWidth(image.width),
         formats,
         frameless: cornersTransparent(image),
     };

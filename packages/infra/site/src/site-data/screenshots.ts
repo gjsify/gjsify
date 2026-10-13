@@ -1,98 +1,110 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import type {
-    Localized,
-    Metainfo,
-    ScreenshotItemConfig,
-    ScreenshotVariantKey,
-    ScreenshotVariants,
-    Screenshot,
-    SiteConfig,
-} from './types.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { extname, join, resolve } from 'node:path';
 
-/** What each wanted variant falls back to, nearest match first. */
-export const VARIANT_FALLBACK: Record<ScreenshotVariantKey, readonly ScreenshotVariantKey[]> = {
-    'mobile-dark': ['mobile-dark', 'mobile-light', 'desktop-dark', 'desktop-light'],
-    'mobile-light': ['mobile-light', 'mobile-dark', 'desktop-light', 'desktop-dark'],
-    'desktop-dark': ['desktop-dark', 'desktop-light', 'mobile-dark', 'mobile-light'],
-    'desktop-light': ['desktop-light', 'desktop-dark', 'mobile-light', 'mobile-dark'],
-};
+import { fetchBinary, type NetworkOptions } from './network.js';
+import type { Metainfo, Screenshot } from './types.js';
 
-export const VARIANT_KEYS = Object.keys(VARIANT_FALLBACK) as ScreenshotVariantKey[];
+const RAW_GITHUB = 'https://raw.githubusercontent.com/';
 
-/** Picks the file to show for a wanted variant, or `undefined` when the screenshot has no artwork at all. */
-export function resolveVariant(variants: ScreenshotVariants, wanted: ScreenshotVariantKey): string | undefined {
-    for (const key of VARIANT_FALLBACK[wanted]) {
-        const path = variants[key];
-        if (path) return path;
-    }
-    return undefined;
+/**
+ * The repo-relative path a `raw.githubusercontent.com` URL points at, or `undefined` when the URL
+ * belongs to some other repository or host.
+ *
+ * A metainfo pins its screenshots to a tag, so the URL serves the artwork of the release it was
+ * written for. The checkout being built carries that same file — and, between releases, a newer
+ * one — so reading it locally is both faster and more truthful than downloading the tagged copy.
+ */
+export function repositoryPath(url: string, repository: string): string | undefined {
+    if (!url.startsWith(RAW_GITHUB)) return undefined;
+    const [owner, name, ...rest] = urlPath(url).split('/').slice(1);
+    if (!owner || !name || rest.length === 0) return undefined;
+    if (`${owner}/${name}`.toLowerCase() !== repository.toLowerCase()) return undefined;
+    // The ref is one segment (a branch, a commit) or three (`refs/tags/v1.2.0`, which is what the
+    // GitHub web UI copies and what metainfo files therefore tend to carry).
+    const drop = rest[0] === 'refs' && rest.length > 3 ? 3 : 1;
+    const path = rest.slice(drop).join('/');
+    return path === '' ? undefined : decodeURIComponent(path);
+}
+
+/** The path of a URL, leading slash included, without query or fragment. */
+function urlPath(url: string): string {
+    const host = url.replace(/^[a-z]+:\/\//i, '');
+    const slash = host.indexOf('/');
+    return slash === -1 ? '/' : (host.slice(slash).split(/[?#]/)[0] as string);
+}
+
+/** Flattens a path into one filename stem, so `misc/1.png` and `doc/1.png` stay apart. */
+export function imageSlug(path: string): string {
+    return path
+        .replace(/\.[^./]+$/, '')
+        .replace(/[^a-zA-Z0-9.]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
+}
+
+export interface ScreenshotOptions {
+    /** Repository root, which a `raw.githubusercontent.com` URL into this repository is resolved against. */
+    root: string;
+    /** `owner/name` of this repository, from `gjsify.site.repository`. */
+    repository: string;
+    /** Where artwork from other hosts is kept, so a later offline build finds it again. */
+    cacheDir?: string;
+    /** No downloads; a screenshot with no local or cached file is skipped with a warning. */
+    offline?: boolean;
+    network?: NetworkOptions;
+    warn?: (message: string) => void;
 }
 
 /**
- * Combines the metainfo screenshot list with the `gjsify.site.screenshots` items.
+ * The metainfo `<screenshots>` list with every image located on disk — the same artwork Flathub
+ * shows, in the same order, so the page doubles as a preview of the store listing.
  *
- * - `metainfo`: only the metainfo list, in its order, with no artwork of its own, so every entry
- *   needs a `variants` item at its index.
- * - `site`: only the configured items.
- * - `merge`: the configured items; one with `from` borrows the metainfo caption.
- *
- * `captionFor` resolves a `caption` msgid of the website catalogue to a localized text.
+ * A screenshot whose file cannot be found or fetched is skipped with a warning: a page missing one
+ * image is better than no page at all, and the warning names what to fix.
  */
-export function mergeScreenshots(
-    config: SiteConfig,
-    metainfo: Metainfo,
-    captionFor: (msgid: string) => Localized,
-): Array<{ item: ScreenshotItemConfig; caption: Localized | null }> {
-    const { source, items } = config.screenshots;
-    const metainfoCaption = (index: number | undefined): Localized | null =>
-        index === undefined ? null : (metainfo.screenshots[index]?.caption ?? null);
+export async function resolveScreenshots(metainfo: Metainfo, options: ScreenshotOptions): Promise<Screenshot[]> {
+    const warn = options.warn ?? (() => {});
+    const store = options.cacheDir ?? join(tmpdir(), 'gjsify-site-screenshots');
+    const screenshots: Screenshot[] = [];
 
-    const entries: Array<{ item: ScreenshotItemConfig; caption: Localized | null }> = [];
-    if (source === 'metainfo') {
-        metainfo.screenshots.forEach((_screenshot, index) => {
-            const item = items.find((candidate) => candidate.from === index);
-            if (item) entries.push({ item, caption: metainfoCaption(index) });
-        });
-        return entries;
-    }
-
-    for (const item of items) {
-        const caption =
-            item.caption !== undefined
-                ? captionFor(item.caption)
-                : source === 'merge'
-                  ? metainfoCaption(item.from)
-                  : null;
-        entries.push({ item, caption });
-    }
-    return entries;
-}
-
-/** Verifies every configured artwork file exists; the build fails loudly rather than shipping a broken carousel. */
-export function validateVariants(variants: ScreenshotVariants, root: string, label: string): void {
-    const keys = VARIANT_KEYS.filter((key) => variants[key]);
-    if (keys.length === 0)
-        throw new Error(`Screenshot ${label} has no variants; give it at least one of ${VARIANT_KEYS.join(', ')}`);
-    for (const key of keys) {
-        const path = variants[key]!;
-        if (!existsSync(resolve(root, path))) {
-            throw new Error(
-                `Screenshot ${label}: variant "${key}" points to "${path}", which does not exist (relative to ${root})`,
-            );
+    for (const [index, entry] of metainfo.screenshots.entries()) {
+        const label = `Screenshot ${index + 1}`;
+        if (!entry.url) {
+            warn(`${label} of the metainfo has no <image>; skipping it`);
+            continue;
         }
-    }
-}
+        const repoPath = repositoryPath(entry.url, options.repository);
+        const slug = imageSlug(repoPath ?? urlPath(entry.url));
+        const screenshot = { caption: entry.caption, url: entry.url, slug };
 
-export function buildScreenshots(
-    config: SiteConfig,
-    metainfo: Metainfo,
-    root: string,
-    captionFor: (msgid: string) => Localized,
-): Screenshot[] {
-    return mergeScreenshots(config, metainfo, captionFor).map(({ item, caption }, index) => {
-        const variants = item.variants ?? {};
-        validateVariants(variants, root, `#${index + 1}`);
-        return { caption, variants };
-    });
+        if (repoPath !== undefined) {
+            const file = resolve(options.root, repoPath);
+            if (!existsSync(file)) {
+                warn(`${label} points at "${repoPath}" of this repository, which does not exist; skipping it`);
+                continue;
+            }
+            screenshots.push({ ...screenshot, file });
+            continue;
+        }
+
+        const file = join(store, `${slug}${extname(urlPath(entry.url)) || '.png'}`);
+        if (!existsSync(file)) {
+            if (options.offline) {
+                warn(`${label} is hosted at ${entry.url}; skipping it because this build is offline`);
+                continue;
+            }
+            try {
+                await mkdir(store, { recursive: true });
+                await writeFile(file, await fetchBinary(entry.url, options.network ?? {}));
+            } catch (error) {
+                warn(`Could not download ${label} from ${entry.url} (${String(error)}); skipping it`);
+                continue;
+            }
+        }
+        screenshots.push({ ...screenshot, file });
+    }
+
+    return screenshots;
 }
