@@ -1,0 +1,87 @@
+# 110. Real GObject becomes the Android default, and the subset stays tested there
+
+- Status: **Accepted** (2026-10-13)
+- Date: 2026-10-13
+- Deciders: Pascal Garber
+- Related: [ADR 0104](0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md)
+  (§ 1 is untouched),
+  [ADR 0105](0105-real-gobject-backs-the-nativescript-subset-on-android.md) (amended by this ADR),
+  [ADR 0096](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md) (the subset)
+
+## Context
+
+ADR 0105 made real GObject an opt-in backend on NativeScript Android and kept the pure-JS subset as
+the default. Since then stage 4 shipped the engine as `@gjsify/adwaita-gobject-native` plus
+`@gjsify/gi-runtime-android`, and it passes the subset's 41 of 41 rows on an arm64 phone and an
+`x86_64` emulator. Two measurements exist: the plugin share of a universal debug APK is about
+15.5 MB per ABI, and cold start grows by about 83 ms (6.5 %) on arm64. No release APK was measured
+per ABI, and the widget twins for registered classes (stage 2) are not finished.
+
+The project goal is GJS-identical behaviour wherever that is possible. Only real GObject is fully
+GJS-like: node-gi's `GLib.Error` was just made identical to GJS for the same reason. Daily Android
+use of real GObject also surfaces node-gi defects, and fixing them at the core helps Node, Bun and
+Deno too.
+
+## Decision
+
+### 1. Real GObject becomes the Android default, behind two gates
+
+On NativeScript Android the real engine becomes the default once both gates hold:
+
+- ADR 0105 stage 2 is complete: the engine backs real widgets through the twins for registered
+  classes, and per-instance construction cost is timed against the pure-JS engine.
+- The compressed APK size delta per ABI of a release build is measured, with the cold-start delta.
+
+The flip is a small follow-up PR that cites both measurements. If the size delta is judged too
+large, real GObject stays opt-in and this ADR is amended. Until the flip, ADR 0105 § 1 and § 2
+hold unchanged. The pure-JS subset stays available on Android as an explicit opt-out.
+
+### 2. The pure-JS subset stays
+
+The browser has no GObject, and the subset is the iOS path (ADR 0105 § 6). It keeps growing only
+for needs of the browser and iOS. No Android-only feature is re-created in it.
+
+### 3. The subset stays tested on Android
+
+The conformance vectors already run on the same device or emulator against both subjects (ADR 0105
+§ 3); that continues in every run. New: the app-level and storybook tests on the emulator also run
+twice, once per engine. The vectors test GObject logic, not the interplay of NativeScript Views
+(the door) with the engine. Without the second run that interplay could break unnoticed on the
+subset once Android users no longer exercise it. iOS runs the subset under NativeScript and
+covers most of the day-to-day usage the subset loses on Android.
+
+### 4. Not affected: ADR 0104 § 1
+
+The NativeScript port with native widgets stays the Android default renderer. This ADR is about
+the GObject engine under it, not about GTK rendering.
+
+## Consequences
+
+- Android apps get real GObject semantics by default, at the native size ADR 0105 measured per ABI.
+- Real GObject becomes the daily-use oracle on the device and keeps exposing node-gi defects.
+- The subset is no longer exercised by Android users, so the dual emulator run carries that duty.
+- CI and the emulator run take longer: app and storybook tests run once per engine.
+
+## Alternatives rejected
+
+- **Keep the subset as Android default so Android exercises it daily.** The dual runs give the
+  testing benefit without shipping Android users the smaller implementation.
+- **Drop the subset.** The browser has no GObject, and iOS needs it.
+- **Flip the default now.** Stage 2 and the release APK size are not measured.
+
+## What this does not decide
+
+- The exact size threshold that counts as "too large"; the flip PR argues it from the numbers.
+- iOS (ADR 0105 § 6).
+- Which route replaces the twin by a real subclass (ADR 0105 § 2).
+
+## Implementation
+
+1. Finish ADR 0105 stage 2. Measurement: vectors pass on device; per-instance construction cost,
+   real engine against pure JS.
+2. Build a release APK and measure the compressed size delta per ABI and the cold-start delta
+   against an app without the plugin, on an arm64 device.
+3. Wire the dual emulator run: the app and storybook tests execute once per engine, next to the
+   vectors that already run on both subjects.
+4. Flip the default in a small PR that cites steps 1 and 2. Keep the pure-JS opt-out and update
+   ADR 0105 § 2 if the wording needs it.

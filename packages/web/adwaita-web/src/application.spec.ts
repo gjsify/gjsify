@@ -23,7 +23,7 @@ const made: Element[] = [];
 const scene: ApplicationScene = {
     window(app) {
         const window = document.createElement('adw-application-window') as Adw.ApplicationWindow;
-        window.application = app;
+        window.application = app as unknown as Gtk.Application;
         document.body.append(window);
         made.push(window);
         return window;

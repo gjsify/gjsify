@@ -233,7 +233,7 @@ export class GtkWindow extends HTMLElement {
         this._content.className = 'adw-gtk-window-content';
 
         bindSlottedChildren(this, [
-            { name: 'titlebar', into: this._titlebar },
+            ...(this.hasTitlebar() ? [{ name: 'titlebar', into: this._titlebar }] : []),
             ...this.extraSlots(),
             { into: this._content },
         ]).install(...this.strips());
@@ -308,6 +308,15 @@ export class GtkWindow extends HTMLElement {
         return [this._titlebar, this._content];
     }
 
+    /**
+     * Whether this window has a titlebar strip at all. `Adw.Window` has none (it styles nothing
+     * itself, you pair it with a header bar), so a subclass answers `false` and neither the
+     * `titlebar` slot nor the server-side decoration is built.
+     */
+    protected hasTitlebar(): boolean {
+        return true;
+    }
+
     /** The slots a subclass adds beside `titlebar`; none by default. */
     protected extraSlots(): AdwSlot[] {
         return [];
@@ -345,6 +354,19 @@ export class GtkWindow extends HTMLElement {
         this.classList.toggle('maximized', this.decorated && this.maximized);
         this.classList.toggle('fullscreen', this.decorated && this._offByDefault('fullscreened'));
 
+        this.renderFrameSize();
+
+        const title = this.getAttribute('title');
+        if (title === null) this.removeAttribute('aria-label');
+        else this.setAttribute('aria-label', title);
+        this._renderTitlebar();
+    }
+
+    /**
+     * The frame's box from `default-width` / `default-height`; an absent one clears it. A subclass
+     * with a size request of its own (`Adw.Window`'s 360×200) replaces this.
+     */
+    protected renderFrameSize(): void {
         const width = Number.parseFloat(this.getAttribute('default-width') ?? '');
         const height = Number.parseFloat(this.getAttribute('default-height') ?? '');
         for (const [axis, value] of [
@@ -354,11 +376,6 @@ export class GtkWindow extends HTMLElement {
             if (Number.isFinite(value) && value > 0) this.style.setProperty(axis, `${value}px`);
             else this.style.removeProperty(axis);
         }
-
-        const title = this.getAttribute('title');
-        if (title === null) this.removeAttribute('aria-label');
-        else this.setAttribute('aria-label', title);
-        this._renderTitlebar();
     }
 
     /**
@@ -384,7 +401,7 @@ export class GtkWindow extends HTMLElement {
             this._titleLabel = null;
             return;
         }
-        if (!this.decorated) return;
+        if (!this.decorated || !this.hasTitlebar()) return;
 
         if (this._startControls === null) {
             this._startControls = document.createElement('gtk-window-controls');

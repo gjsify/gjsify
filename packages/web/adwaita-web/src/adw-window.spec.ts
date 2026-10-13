@@ -4,6 +4,9 @@
 // these specs create elements via document.createElement and assert their DOM
 // behaviour (content area, breakpoints, dialog tracking).
 import { describe, it, expect } from '@gjsify/unit';
+import { driveWindowVectors, WINDOW_VECTORS } from '@gjsify/adwaita-core/conformance';
+
+import { webWindowSubject } from './gtk-window.spec.js';
 
 import type { AdwWindow } from './elements/adw-window.js';
 
@@ -22,6 +25,11 @@ function settle(): Promise<void> {
 }
 
 export const AdwWindowTest = async () => {
+    // `Adw.Window` IS a `Gtk.Window` upstream: the same vectors that run against real GTK and
+    // <gtk-window> must hold here, or the state members have fallen off the subclass again.
+    const { subject, dispose } = webWindowSubject('adw-window');
+    await driveWindowVectors(subject, { describe, it, expect }, WINDOW_VECTORS);
+    dispose();
     await describe('adw-window content', async () => {
         await it('places children in the content area', async () => {
             const win = makeWindow('<p id="hello">Hello</p>');
