@@ -128,6 +128,7 @@ the TODO records the *what's left*.
 | [0106](0106-mcp-tools-register-per-granted-capability.md) | MCP write tools register per granted capability, and the gate that registers them checks the call | Accepted |
 | [0107](0107-canvas2d-bridge-is-the-portable-2d-surface.md) | `Canvas2DBridge` is the portable 2D surface; `Gtk.DrawingArea` keeps cairo | Proposed |
 | [0108](0108-xeddsa-is-its-own-pure-typescript-package.md) | XEdDSA is its own pure-TypeScript package on @noble/curves | Accepted |
+| [0109](0109-a-static-site-generator-reads-an-app-from-its-metainfo.md) | A static site generator reads an app from its metainfo, as `@gjsify/site` | Accepted |
 | [0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md) | Real GObject becomes the Android default, and the subset stays tested there | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
