@@ -63,6 +63,7 @@ import {
     tscCommand as tsc,
     affectedCommand as affected,
     storybookCommand as storybook,
+    siteCommand as site,
     devCommand as dev,
     debugCommand as debug,
     devtoolsCommand as devtools,
@@ -191,6 +192,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(tsc.command, tsc.description, tsc.builder, tsc.handler)
         .command(affected.command, affected.description, affected.builder, affected.handler)
         .command(storybook.command, storybook.description, storybook.builder, storybook.handler)
+        .command(site.command, site.description, site.builder, site.handler)
         .command(dev.command, dev.description, dev.builder, dev.handler)
         .command(debug.command, debug.description, debug.builder, debug.handler)
         .command(devtools.command, devtools.description, devtools.builder, devtools.handler)

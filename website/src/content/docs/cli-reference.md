@@ -40,7 +40,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Explore | [`showcase`](#gjsify-showcase) |
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
 | Browser extensions | [`webext`](#gjsify-webext) |
-| Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) |
+| Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) · [`site`](#gjsify-site) |
 | Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
 ## Start a project
@@ -1960,6 +1960,33 @@ gjsify flatpak release v0.6.6 --skip-tag    # the tag already exists
 | `--verbose` | `false` | Echo every sub-command. |
 
 `init` and `check` run before the tag is created, so a failure leaves you with no tag rather than a half-released one.
+
+### `gjsify site`
+
+Render the project's static landing page from the files it already has — the AppStream metainfo, the root `package.json`, the app's gettext catalogues, a screenshot directory — plus the GitHub release and Flathub APIs at build time. The generator is [`@gjsify/site`](https://www.npmjs.com/package/@gjsify/site), installed per project (`gjsify install -D @gjsify/site`); nothing app-specific is compiled into it, the input is one `gjsify.site` block.
+
+```bash
+gjsify site build                       # render ./dist from package.json's gjsify.site
+gjsify site build --root <repo> --out <dir>
+gjsify site build --offline             # no network: links the releases page, drops the counts
+gjsify site i18n                        # update the page catalogues of <root>
+gjsify site i18n --check                # fail instead of writing
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `<operation>` | required | `build` renders the pages, `i18n` syncs the page catalogues. |
+| `--root <path>` | cwd | Repository to work on — a checkout whose root `package.json` has `gjsify.site`. |
+| `--out <dir>` | `<root>/dist` | Output directory, emptied first. |
+| `--offline` | `false` | Skip every network call. |
+| `--no-cache` | cache on | Ignore the one-hour HTTP response cache. |
+| `--cache-dir <dir>` | `<root>/node_modules/.cache/gjsify-site` | Where the response cache and the image renditions live. |
+| `--check` | `false` | `i18n`: report what is out of date instead of writing it. |
+| `--package` | `false` | `i18n`: sync `@gjsify/site`'s own catalogues instead of this project's. |
+| `--runtime <gjs\|node\|bun\|deno>` | the host runtime | Runtime to build for and run on. `node`, `bun` and `deno` build the same `--app node` bundle and need `@gjsify/node-gi` installed in the project. |
+| `--globals <value>` | `auto` | Value for `gjsify build --globals`. |
+
+This is a subcommand rather than a `gjsify-site` bin on purpose: a bin's shebang would pick the runtime for you, while the CLI already runs on whichever runtime you installed it with. The screenshot renditions go through GdkPixbuf — natively under GJS, through the [`@gjsify/node-gi`](#gjsify-install) reverse bridge otherwise — so the page is built the same way on all four. `GITHUB_TOKEN` is optional and only raises the API rate limit; a failed lookup warns rather than failing the build.
 
 ## Publish to npm
 

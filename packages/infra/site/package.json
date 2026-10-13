@@ -1,0 +1,78 @@
+{
+    "name": "@gjsify/site",
+    "version": "0.62.0",
+    "description": "Static landing page generator for a GNOME-style app, rendered from its AppStream metainfo — downloads, screenshots, release notes, support links, no JavaScript required.",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "lib",
+        "po"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs dist",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify tsc -p tsconfig.build.json && gjsify run build:client && gjsify copy src/styles/site.css lib/client/site.css",
+        "build:client": "gjsify build src/client/main.ts --app browser --outfile lib/client/site.js",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.gjs.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs",
+        "test:bun": "bun test.node.mjs",
+        "test:deno": "deno run -A --no-lock --node-modules-dir=none --min-dep-age=0 test.node.mjs",
+        "test:cross-runtime": "gjsify run build:test:node && gjsify run test:node && gjsify run test:bun && gjsify run test:deno",
+        "test:gjs-on-node": "gjsify build src/test.node-gi.mts --app node --outfile dist/test.node-gi.mjs && node dist/test.node-gi.mjs",
+        "i18n": "gjsify site i18n --package"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/site"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/site#readme",
+    "keywords": [
+        "appstream",
+        "metainfo",
+        "static-site",
+        "landing-page",
+        "gnome",
+        "flathub"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "@girs/gdkpixbuf-2.0": "5.4.0",
+        "@gjsify/console": "workspace:^",
+        "@gjsify/crypto": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/module": "workspace:^",
+        "@gjsify/os": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/process": "workspace:^",
+        "@gjsify/url": "workspace:^",
+        "fast-xml-parser": "^5.11.2",
+        "qrcode-generator": "^2.0.4"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-gi": "file:../../node-gi/node-gi",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "tier": 2
+    }
+}
