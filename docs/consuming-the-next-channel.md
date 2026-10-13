@@ -43,6 +43,12 @@ For the CLI itself, installed globally:
 gjsify self-update --tag next
 ```
 
+`--tag` is the whole mechanism — nothing remembers a channel, so every `self-update` needs the
+flag again. Because the default is still `latest`, a bare `gjsify self-update` on a `next` build
+would quietly move you back to the release channel; it now prints one line saying so, and naming
+`--tag next` as the way to stay, before doing it. Passing `--tag` explicitly — including `--tag
+latest` — prints nothing.
+
 ## Going back to `latest`
 
 ```jsonc

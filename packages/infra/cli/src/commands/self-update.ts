@@ -25,6 +25,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, resolve, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchPackument, type Packument } from '@gjsify/npm-registry';
+import { parse } from '@gjsify/semver';
 import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
@@ -44,12 +45,16 @@ import { pruneAfterInstall } from '../utils/prune-prefix.js';
 interface SelfUpdateOptions {
     check?: boolean;
     force?: boolean;
-    tag: string;
+    /** `undefined` is "no explicit --tag", which `nextChannelNotice` must tell apart. */
+    tag?: string;
     skipDeps?: boolean;
     prune?: boolean;
 }
 
 const PACKAGE_NAME = '@gjsify/cli';
+
+/** What `self-update` installs when no `--tag` is given. Applied in the handler, not by yargs. */
+const DEFAULT_TAG = 'latest';
 
 export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
     command: 'self-update',
@@ -69,7 +74,10 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             .option('tag', {
                 description: 'npm dist-tag or pinned version to install (e.g. `latest`, `next`, `0.5.0`).',
                 type: 'string',
-                default: 'latest',
+                // No yargs `default` on purpose. The effective default is still
+                // DEFAULT_TAG, applied in the handler — but a default here collapses
+                // "no --tag" and "--tag latest" into one value, and the next-channel
+                // notice is about exactly that distinction.
             })
             .option('prune', {
                 description:
@@ -124,7 +132,16 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             );
         }
 
-        console.log(`Fetching dist-tags for ${PACKAGE_NAME}@${args.tag} ...`);
+        const tag = args.tag ?? DEFAULT_TAG;
+
+        // A bare `self-update` on a `next` build is a CHANNEL CHANGE, and silence
+        // about it is how a user ends up reporting "my prerelease fix disappeared".
+        // One line, then proceed — the default is still `latest`, and `--tag next`
+        // stays the only mechanism for staying on the channel (ADR 0111).
+        const notice = nextChannelNotice({ currentVersion, requestedTag: args.tag });
+        if (notice) console.log(notice);
+
+        console.log(`Fetching dist-tags for ${PACKAGE_NAME}@${tag} ...`);
         let packument: Packument;
         try {
             packument = await fetchPackument(PACKAGE_NAME);
@@ -134,16 +151,16 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
             return process.exit(1);
         }
 
-        const target = resolveTag(packument, args.tag);
+        const target = resolveTag(packument, tag);
         if (!target) {
             console.error(
-                `Unknown dist-tag '${args.tag}' on ${PACKAGE_NAME}. ` +
+                `Unknown dist-tag '${tag}' on ${PACKAGE_NAME}. ` +
                     `Known tags: ${Object.keys(packument['dist-tags'] ?? {}).join(', ') || '(none)'}`,
             );
             return process.exit(1);
         }
 
-        console.log(`Latest matching --tag ${args.tag}: v${target}`);
+        console.log(`Latest matching --tag ${tag}: v${target}`);
 
         // A version match is NOT sufficient to declare "up to date": a global
         // GJS install can be on the right `@gjsify/cli` version yet be MISSING
@@ -339,6 +356,45 @@ export function verifyPathResolution(opts: {
             `  If you ran this through npx/dlx, that temporary copy owns the name only for\n` +
             `  this run — open a new shell and check \`${opts.binName} --version\`.`,
     };
+}
+
+/**
+ * Is `version` a `next`-channel prerelease — the shape `publish-next` publishes?
+ *
+ * The channel's scheme is `<x.y.z>-next.<run number>` (ADR 0111), so the test is the
+ * prerelease identifier `next`, never a substring: `1.2.3-nextgen.1` is somebody else's
+ * preid and `1.2.3-beta.1+next` carries it in build metadata, and neither is this channel.
+ */
+export function isNextChannelVersion(version: string | null | undefined): boolean {
+    if (!version) return false;
+    const parsed = parse(version);
+    return (parsed?.prerelease ?? []).some((id) => id === 'next');
+}
+
+/**
+ * The one line a bare `self-update` prints when it is about to move the user OFF the
+ * `next` channel — or `null` when it is not.
+ *
+ * `--tag` is and stays the only mechanism; there is no remembered channel and no
+ * `--channel` flag, because a second place to record "which channel am I on" is a second
+ * thing that can disagree with the installed version. So the notice is purely derived:
+ * running a `next` build plus no explicit `--tag` means the implicit `latest` is a channel
+ * change the user did not ask for in words. An explicit `--tag` — even `--tag latest` — is
+ * the user saying it, and gets no notice.
+ *
+ * Pure, so the interesting case is testable without a global install on the channel.
+ */
+export function nextChannelNotice(opts: {
+    currentVersion: string | null | undefined;
+    /** `undefined` means no `--tag` was passed; any string is an explicit choice. */
+    requestedTag: string | undefined;
+}): string | null {
+    if (opts.requestedTag !== undefined) return null;
+    if (!isNextChannelVersion(opts.currentVersion)) return null;
+    return (
+        `Note: v${opts.currentVersion} is a \`next\` prerelease; updating without --tag moves you to ` +
+        `\`${DEFAULT_TAG}\`. Use \`--tag next\` to stay on the next channel.`
+    );
 }
 
 /**
