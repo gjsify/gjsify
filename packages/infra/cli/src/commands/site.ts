@@ -22,12 +22,14 @@
 // bundle's `import.meta.url` is the OUTFILE, so the library cannot find its own
 // `po/` and `lib/client/` on its own — only the caller still knows.
 
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 import type { Command } from '../types/index.js';
+import { resolveNodeGi } from '../utils/run-node.js';
 
 /** `gjs` builds `--app gjs`; `node`/`bun`/`deno` build the same `--app node` bundle. */
 type SiteRuntime = 'gjs' | 'node' | 'bun' | 'deno';
@@ -55,6 +57,23 @@ function resolveSitePackage(cwd: string): string | undefined {
         if (parent === dir) return undefined;
         dir = parent;
     }
+}
+
+function gjsOnPath(): boolean {
+    return spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
+}
+
+/**
+ * The runtime the page is built for. An explicit `--runtime` wins. Otherwise the host runtime —
+ * except that a non-gjs host without `@gjsify/node-gi` in the project cannot run the `--app node`
+ * bundle (GdkPixbuf is reached through it), so a consumer that only ran
+ * `npm i -D @gjsify/site` falls back to gjs when the system has one.
+ */
+function pickRuntime(requested: string | undefined, cwd: string): SiteRuntime {
+    if (requested) return requested as SiteRuntime;
+    const host = hostRuntime() as SiteRuntime;
+    if (host === 'gjs' || resolveNodeGi(cwd)) return host;
+    return gjsOnPath() ? 'gjs' : host;
 }
 
 /**
@@ -114,7 +133,8 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
             .option('runtime', {
                 description:
                     'Runtime to build for and run on: gjs | node | bun | deno (default: the host runtime). ' +
-                    'node/bun/deno build the same `--app node` bundle and require @gjsify/node-gi in the project.',
+                    'node/bun/deno build the same `--app node` bundle and require @gjsify/node-gi in the project; ' +
+                    'without it the default falls back to gjs.',
                 type: 'string',
                 choices: ['gjs', 'node', 'bun', 'deno'],
                 defaultDescription: 'host runtime (gjs on gjs, else node/bun/deno)',
@@ -140,7 +160,7 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
             return process.exit(1);
         }
 
-        const runtime = (args.runtime ?? hostRuntime()) as SiteRuntime;
+        const runtime = pickRuntime(args.runtime, cwd);
         const app = runtime === 'gjs' ? 'gjs' : 'node';
 
         const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify-site');
@@ -149,8 +169,21 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
         const outPath = join(cacheDir, `site.${app}.mjs`);
         writeFileSync(entryPath, generateEntry(app));
 
-        const { runCli } = await import('../cli-app.js');
-        await runCli(['build', entryPath, '--app', app, '--globals', args.globals ?? 'auto', '--outfile', outPath]);
+        const globals = args.globals ?? 'auto';
+        if (app === 'gjs') {
+            // The consumer installed `@gjsify/site`, not the polyfills `--globals auto` injects
+            // (URL, DOMException, streams, …), so those resolve from beside the running CLI.
+            const { BuildAction } = await import('../actions/build.js');
+            await BuildAction.bundleFileForGjs(entryPath, outPath, {
+                globals,
+                preserveDefaultExport: false,
+                toolchainAnchor: BuildAction.runningCliFile(),
+                logLevel: 'silent',
+            });
+        } else {
+            const { runCli } = await import('../cli-app.js');
+            await runCli(['build', entryPath, '--app', app, '--globals', globals, '--outfile', outPath]);
+        }
 
         // RESOLVED values, not the raw argv: the child parses its own flags and
         // cannot know where this CLI found the package.
