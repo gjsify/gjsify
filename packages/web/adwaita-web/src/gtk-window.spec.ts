@@ -262,6 +262,102 @@ export const GtkWindowTest = async () => {
     await driveWindowVectors(webSubject, { describe, it, expect }, WINDOW_VECTORS);
     dispose();
 
+    await describe('<gtk-window> GObject door', async () => {
+        await it('a close-request handler returning true is preventDefault', async () => {
+            const { el, host } = mount();
+            let later = 0;
+            el.connect('close-request', () => true);
+            el.addEventListener('close-request', () => void later++);
+            expect(el.close()).toBe(false);
+            expect(el.isConnected).toBe(true);
+            expect(later).toBe(0);
+            host.remove();
+        });
+
+        await it('a handler that returns nothing lets the default run', async () => {
+            const { el, host } = mount();
+            let seen = 0;
+            el.connect('close-request', () => void seen++);
+            expect(el.close()).toBe(true);
+            expect(seen).toBe(1);
+            expect(el.isConnected).toBe(false);
+            host.remove();
+        });
+
+        await it('connect hands the window to the handler and disconnect removes it', async () => {
+            const { el, host } = mount();
+            let seen: unknown[] = [];
+            const id = el.connect('notify::title', (emitter) => void seen.push(emitter));
+            el.title = 'a';
+            expect(seen).toStrictEqual([el]);
+            el.disconnect(id);
+            el.title = 'b';
+            expect(seen.length).toBe(1);
+            host.remove();
+        });
+
+        await it('notify::is-active and notify::maximized are connectable', async () => {
+            const { el, host } = mount();
+            let maximized = 0;
+            el.connect('notify::is-active', () => {});
+            el.connect('notify::maximized', () => void maximized++);
+            el.maximize();
+            expect(maximized).toBe(1);
+            host.remove();
+        });
+
+        await it('an undeclared signal is refused by name', async () => {
+            const { el, host } = mount();
+            let message = '';
+            try {
+                el.connect('map', () => {});
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes("'map'")).toBe(true);
+            host.remove();
+        });
+
+        await it("emit('close-request') is refused, close() is the way", async () => {
+            const { el, host } = mount();
+            let message = '';
+            try {
+                el.emit('close-request');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes('close()')).toBe(true);
+            host.remove();
+        });
+
+        await it('is_active and focus_widget are properties, as in GJS', async () => {
+            const { el, host } = mount();
+            const button = document.createElement('button');
+            el.append(button);
+            await Promise.resolve();
+            expect(typeof el.is_active).toBe('boolean');
+            expect(el.get_property('is-active')).toBe(el.is_active);
+            el.focus_widget = button;
+            expect(el.focus_widget).toBe(button);
+            expect(el.get_property('focus-widget')).toBe(button);
+            el.set_property('title', 'x');
+            expect(el.title).toBe('x');
+            host.remove();
+        });
+
+        await it('is-active is read-only through set_property', async () => {
+            const { el, host } = mount();
+            let message = '';
+            try {
+                el.set_property('is-active', true);
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes('read-only')).toBe(true);
+            host.remove();
+        });
+    });
+
     await describe('<gtk-window> state members', async () => {
         await it('a frame that was never connected is not realized: close() does nothing', async () => {
             const el = document.createElement('gtk-window') as GtkWindow;
@@ -278,7 +374,7 @@ export const GtkWindowTest = async () => {
             const before = el.isActive;
             expect(before).toBe(document.hasFocus());
             el.hidden = true;
-            expect(el.is_active()).toBe(false);
+            expect(el.is_active).toBe(false);
             el.present();
             expect(el.isActive).toBe(document.hasFocus());
             // Every transition above is one notification at most, and none repeats a value.

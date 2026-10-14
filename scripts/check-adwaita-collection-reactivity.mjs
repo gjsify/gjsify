@@ -229,9 +229,23 @@ function coreListAliases() {
     return aliases;
 }
 
+/**
+ * A list of `unknown` / `any` — an untyped argument bag, not a collection.
+ *
+ * MEASURED: `GObjectObject.emit(signal: string, ...args: unknown[]): void` matched
+ * {@link LIST_TYPE} through its rest parameter and passed the intake filter, so every widget
+ * on the GObject door (ADR 0096) "fed a collection" through a signal emission and the census
+ * demanded an entry for it. A model has an element type; `unknown[]` is what a variadic
+ * signal payload is called when nobody knows it. A typed rest (`...idLabelPairs: string[]`)
+ * stays a collection.
+ */
+const UNTYPED_LIST = /\b(?:unknown|any)\s*\[\s*\]|\b(?:ReadonlyArray|Array)\s*<\s*(?:unknown|any)\s*>/g;
+
 /** Whether a signature names a list, directly or through one of core's list aliases. */
-const namesAList = (signature, aliases) =>
-    LIST_TYPE.test(signature) || [...aliases].some((alias) => new RegExp(`\\b${alias}\\b`).test(signature));
+const namesAList = (signature, aliases) => {
+    const typed = signature.replace(UNTYPED_LIST, '');
+    return LIST_TYPE.test(typed) || [...aliases].some((alias) => new RegExp(`\\b${alias}\\b`).test(typed));
+};
 
 /**
  * Core's exported functions that turn a STRING into a list — `parseListModel`,
