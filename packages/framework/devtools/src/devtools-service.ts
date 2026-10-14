@@ -15,7 +15,7 @@ import { activateAction, changeActionState, describeActions } from './actions.js
 import { buildDevtoolsIfaceXml } from './devtools-iface.js';
 import type { DevtoolsExtension, InstallDevtoolsOptions } from './extension.js';
 import { type DevtoolsPeerServer, removeDevtoolsAddressFile } from './peer-transport.js';
-import { captureWidget, type CaptureBlocker } from './screenshot.js';
+import { captureWidget, type CaptureBlocker, type CaptureOptions } from './screenshot.js';
 import { dumpCss, swapCss } from './css.js';
 import { dumpGSettings } from './gsettings.js';
 import {
@@ -69,17 +69,18 @@ const SCREENSHOT_TRIES = 12;
 
 async function captureWidgetWhenRenderable(
     widget: Gtk.Widget,
+    options: CaptureOptions = {},
     tries = SCREENSHOT_TRIES,
     gapMs = 50,
 ): Promise<{ png: Uint8Array | null; blocker: CaptureBlocker | null }> {
     let blocker: CaptureBlocker | null = null;
     for (let i = 0; i < tries; i++) {
-        const result = captureWidget(widget);
+        const result = captureWidget(widget, options);
         if (result.png) return { png: result.png, blocker: null };
         blocker = result.blocker;
         await frameDelay(gapMs);
     }
-    const last = captureWidget(widget);
+    const last = captureWidget(widget, options);
     return { png: last.png, blocker: last.png ? null : (last.blocker ?? blocker) };
 }
 
@@ -230,6 +231,10 @@ export class DevtoolsService {
      * implementation returned an incorrect value type`), while a manual reply was
      * unaffected. That no longer reproduces on gjs 1.88.1 — a plain `async Screenshot()`
      * returning `ay` marshals correctly — so this can collapse back into one.
+     *
+     * The scale is the WIDGET's own `get_scale_factor()` and is not on this signature on
+     * purpose — see {@link ScreenshotScaledAsync} for why the override is a second method
+     * rather than a third argument here.
      */
     async ScreenshotAsync(params: unknown[], invocation: Gio.DBusMethodInvocation): Promise<void> {
         try {
@@ -249,13 +254,41 @@ export class DevtoolsService {
     }
 
     /**
+     * `ScreenshotScaled(scope, scale) -> ay` — the same capture at an EXPLICIT device-pixel
+     * scale. `scale <= 0` means "whatever the widget's own `get_scale_factor()` says", which
+     * is exactly what `Screenshot` does, so the two methods differ in one thing only.
+     *
+     * WHY A SECOND METHOD AND NOT A THIRD ARGUMENT ON `Screenshot`. The two ends of this
+     * wire are published separately — `@gjsify/devtools` is in the app, `@gjsify/devtools-mcp`
+     * and the `gjsify devtools` CLI are in the caller's toolchain — so every mixed-version
+     * pair is a pair that really occurs. Adding an in-arg makes a new CLI's `(sd)` call fail
+     * `InvalidArgs` against an app on an older devtools, for a request the old app could
+     * have served; a new NAME fails `UnknownMethod`, which is a thing a caller can test for
+     * and fall back from, and it leaves `Screenshot(s) -> ay` byte-identical for the
+     * `gdbus` lines in this package's README and in consumers' scripts.
+     */
+    async ScreenshotScaledAsync(params: unknown[], invocation: Gio.DBusMethodInvocation): Promise<void> {
+        try {
+            const scope = typeof params?.[0] === 'string' ? params[0] : '';
+            const requested = typeof params?.[1] === 'number' ? params[1] : 0;
+            const png = await this._captureScopePng(scope, requested > 0 ? { scale: requested } : {});
+            invocation.return_value(new GLib.Variant('(ay)', [png]));
+        } catch (error) {
+            invocation.return_dbus_error(
+                'org.gjsify.Devtools.Error.Screenshot',
+                error instanceof Error ? error.message : String(error),
+            );
+        }
+    }
+
+    /**
      * Capture `scope` to PNG, warming up across frames: a just-launched or mid-layout
      * window yields a zero-size GSK frame, so the first capture can be empty. Empty
      * bytes remain the genuine-failure signal, for a window that never realises at all
      * — and the reason now goes to the log beside them, because the wire cannot carry
      * it and a silent empty image gets a cause invented for it.
      */
-    private async _captureScopePng(scope: string): Promise<Uint8Array> {
+    private async _captureScopePng(scope: string, options: CaptureOptions = {}): Promise<Uint8Array> {
         const resolved = this._resolveRootWidget(scope);
         if (!resolved) {
             // Two different absences, reported differently on purpose. An explicit path
@@ -267,7 +300,7 @@ export class DevtoolsService {
             if (isActiveWindowScope(scope)) return new Uint8Array(0);
             throw new Error(formatDbusErrorMessage('not-found', `no widget at '${scope}'`));
         }
-        const first = captureWidget(resolved.widget);
+        const first = captureWidget(resolved.widget, options);
         if (first.png) return first.png;
 
         // Present the toplevel that OWNS the scope rather than `get_active_window()`:
@@ -275,7 +308,7 @@ export class DevtoolsService {
         // leaves the target unrealised for every one of the retries below.
         const root = resolved.widget.get_root();
         if (root instanceof Gtk.Window) root.present();
-        const warmed = await captureWidgetWhenRenderable(resolved.widget);
+        const warmed = await captureWidgetWhenRenderable(resolved.widget, options);
         if (warmed.png) return warmed.png;
 
         // SAY WHY, because the reply cannot. Empty bytes are the contract for "not up

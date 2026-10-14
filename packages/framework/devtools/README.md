@@ -41,6 +41,8 @@ gdbus call --session -d org.example.App -o /org/example/App/devtools \
   -m org.gjsify.Devtools.GetStatus
 gdbus call --session -d org.example.App -o /org/example/App/devtools \
   -m org.gjsify.Devtools.Screenshot 'window'   # PNG bytes as a GVariant `ay`
+gdbus call --session -d org.example.App -o /org/example/App/devtools \
+  -m org.gjsify.Devtools.ScreenshotScaled 'window' 2.0   # the same, at 2× device pixels
 ```
 
 ## No session bus? (macOS, Windows)
@@ -126,7 +128,8 @@ A peer call carries no destination bus name at all, so `nameHasOwner` / `listIns
 
 | method | signature | what it does |
 |---|---|---|
-| `Screenshot` | `(scope: s) -> ay` | PNG bytes. `scope` `''`/`window` shoots the active window; a widget path shoots ONE widget. |
+| `Screenshot` | `(scope: s) -> ay` | PNG bytes at the widget's OWN scale factor, so a HiDPI window captures at the resolution it is drawn at. `scope` `''`/`window` shoots the active window; a widget path shoots ONE widget. |
+| `ScreenshotScaled` | `(scope: s, scale: d) -> ay` | the same capture at an explicit device-pixel scale; `scale <= 0` means the widget's own factor. |
 | `DumpTree` | `-> s` | the widget tree as JSON, with stable `toplevel:N/child:M` paths. |
 | `GetProperty` | `(path, prop) -> s` | read one property off the widget at `path`. |
 | `GetFocused` / `ListToplevels` | `-> s` | the focused widget's path; the toplevel list. |
@@ -158,6 +161,7 @@ have — see above). So both halves live in this package instead of in every con
 
 ```bash
 gjsify devtools shot /tmp/app.png --bus-name org.example.App   # PNG on disk + its real size
+gjsify devtools shot /tmp/app@2x.png --scale 2 --bus-name org.example.App   # 2× device pixels
 gjsify devtools find Adw.StatusPage:error --bus-name org.example.App   # → a widget path
 gjsify devtools activate /toplevel:0/child:3 --bus-name org.example.App
 gjsify devtools help                                          # every operation and flag
@@ -191,6 +195,25 @@ shot.width; // 1100 — read out of the PNG, NOT the size asked for
 
 The `./shot` entry point is deliberately GTK-free: the client side of a screenshot needs Gio and
 GLib only, so a headless client does not drag this package's app-side GTK adapter in with it.
+
+For a 2× shot, the `source` lambda calls `ScreenshotScaled` instead — `captureShot` itself has
+nothing to say about the scale, because the scope is the only thing it passes on:
+
+```ts
+await captureShot(
+    async (scope) =>
+        client.control(instance, 'ScreenshotScaled', tupleSD(scope, 2), '(ay)'),
+    '/tmp/app@2x.png',
+);
+```
+
+**Keep the default on `Screenshot`.** The app and the caller are published separately, so a
+caller that reaches for `ScreenshotScaled` unconditionally fails with `UnknownMethod` against
+every app on `@gjsify/devtools < 0.64` — for a capture the old app could have served. That is
+also why the override is a second method rather than a third argument: an added in-arg fails
+`InvalidArgs`, which a caller cannot tell from a request it got wrong, whereas an unknown NAME is
+detectable and falls back cleanly. `gjsify devtools shot` and the MCP `screenshot` tool both
+switch methods only when a scale is actually asked for.
 
 Two invariants ride along, each paid for with a measured incident:
 
@@ -253,7 +276,7 @@ literals, it does not claim a rendered string is clean.
 - `DevtoolsService` — the exported service object `installDevtools` returns and `uninstallDevtools` accepts; `service.peerAddress` is the address clients dial in bus-less mode (`null` on a bus), `service.addressFile` is where that address is published (`null` when it is not).
 - `DevtoolsExtension`, `InstallDevtoolsOptions` — the extension + options types.
 - `startDevtoolsPeerServer(service, objectPath, address?)` → `DevtoolsPeerServer` — the bus-less transport by hand; it throws `DevtoolsPeerServerError` (with `address` + `reason`) when the address is unusable, which is what `installDevtools` catches. `chooseDevtoolsTransport(input)` — the precedence table above as a pure function; `writeDevtoolsAddressFile` / `removeDevtoolsAddressFile` — publish/retract a peer address.
-- `captureWidgetPng` (GSK screenshot), `buildVariant` / `variantKindFor` / `VariantKind` (GVariant), `activateAction` / `changeActionState` / `describeActions` (GAction bridge).
+- `captureWidget(widget, options?)` → `CaptureResult` and `captureWidgetPng(widget, options?)` → bytes-or-`null` (GSK screenshot); `CaptureOptions.scale` is device pixels per logical pixel and `defaultCaptureScale(widget)` is what it defaults to — the widget's own `get_scale_factor()`, clamped to a positive number. `buildVariant` / `variantKindFor` / `VariantKind` (GVariant), `activateAction` / `changeActionState` / `describeActions` (GAction bridge).
 - widget-tree helpers (`dumpTree`, `getWidgetProperty`, `listToplevels`, `resolveWidgetPath`, …), `dumpCss` / `swapCss` / `removeCss`, `dumpGSettings`, `buildDevtoolsIfaceXml`.
 - **client-side, from the GTK-free `./shot` entry point**: `captureShot(source, path, scope?, options?)` → `ShotResult` (with `width`/`height` read from the PNG) or `CaptureShotError`; `pngSize(bytes)` → `{ width, height }` or `null` for bytes that are not a PNG.
 - markup-trap helpers (root entry point): `hasRawPangoMarkup(text)`, `rawPangoMarkupIn(text)`, `isPangoMarkupSink(class, property)`, `PANGO_MARKUP_SINKS`.

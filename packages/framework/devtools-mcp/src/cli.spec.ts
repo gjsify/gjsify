@@ -213,6 +213,28 @@ export default async () => {
             expect(run.client.firstCall('Screenshot')?.params).toStrictEqual(['/0/1']);
         });
 
+        await it('stays on plain Screenshot when no --scale is given', async () => {
+            // The compatibility half of the two-method split, and the one worth a test: the
+            // CLI ships separately from the app it dials, so a default that reached for
+            // `ScreenshotScaled` would break every app on an older @gjsify/devtools for a
+            // capture the old app could serve.
+            const run = await runCli(['shot', tmpPath('default.png'), ...BUS], { Screenshot: fakePng(240, 160) });
+            expect(run.code).toBe(0);
+            expect(run.client.methodsCalled()).toStrictEqual(['Screenshot']);
+        });
+
+        await it('forwards --scale as the ScreenshotScaled double, with the scope beside it', async () => {
+            const run = await runCli(['shot', tmpPath('scale.png'), '--scale', '2', '--scope', '/0/1', ...BUS], {
+                ScreenshotScaled: fakePng(480, 320),
+            });
+            expect(run.code).toBe(0);
+            // A NUMBER on the wire, not the string the argv carried: `(sd)` is the one call in
+            // this CLI whose second argument is not text, and `Number('2')` is the whole of the
+            // conversion — an unconverted '2' would marshal-fail against a real app.
+            expect(run.client.firstCall('ScreenshotScaled')?.params).toStrictEqual(['/0/1', 2]);
+            expect(run.out).toContain('480×320');
+        });
+
         await it('retries an empty answer and keeps the first real picture', async () => {
             const run = await runCli(['shot', tmpPath('retry.png'), '--retries', '3', ...BUS], {
                 Screenshot: [new Uint8Array(0), new Uint8Array(0), fakePng(640, 480)],

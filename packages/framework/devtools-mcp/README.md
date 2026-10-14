@@ -63,6 +63,7 @@ client with an argv front end — `shot`, `find`, `activate`, `key`, `tree`, `pr
 
 ```bash
 gjsify devtools shot /tmp/app.png --bus-name org.example.App   # file + the size the PNG carries
+gjsify devtools shot /tmp/app@2x.png --scale 2 --bus-name org.example.App   # 2× device pixels
 gjsify devtools find Adw.StatusPage:error --bus-name org.example.App   # stdout = the widget path
 gjsify devtools help                                          # every operation and flag
 ```
