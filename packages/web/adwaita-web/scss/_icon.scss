@@ -96,3 +96,21 @@
 .adw-icon:not([class*='adw-icon--']) {
   background-color: transparent;
 }
+
+// A FULL-COLOUR icon — what `registerColorIcon()` registers and `<gtk-image>` resolves a
+// name to before (or, for `-symbolic` names, after) the symbolic glyph, in the order GTK's
+// theme tries them. It is drawn as-is, the way GTK draws `hicolor/…/apps/<app-id>.svg`: no
+// mask and no `currentColor` fill, only the image the element puts in `background-image`.
+//
+// The modifier is NOT `adw-icon--…`, so the rule above never sees it as a mask class.
+// Two classes beat both `:where(.adw-icon)` and the one-class sizing rules a context sets
+// (`.adw-about-dialog-icon`'s mask-size), so an icon box drawn in colour never picks up a
+// leftover mask from them.
+.adw-icon.adw-icon-color {
+  mask-image: none;
+  -webkit-mask-image: none;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}

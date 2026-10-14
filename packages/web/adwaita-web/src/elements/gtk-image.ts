@@ -1,14 +1,17 @@
-// <gtk-image> — the symbolic icon node as an element. Every icon in this package is a
-// CSS-masked box whose glyph comes from a generated `.adw-icon--<name>` class and
-// whose colour is `currentColor`, so it themes with whatever contains it. The name
-// derivation and its guard live once in `@gjsify/adwaita-core`'s
-// {@link normalizeIconName}, the markup once here.
+// <gtk-image> — the icon node as an element. A symbolic icon is a CSS-masked box whose
+// glyph comes from a generated `.adw-icon--<name>` class and whose colour is
+// `currentColor`, so it themes with whatever contains it. A full-colour icon registered
+// through `registerColorIcon` is the same box with the image as its background and no
+// mask. Which of the two a name reaches is decided once, in `../icon-theme.ts`, in the
+// order GTK's own theme tries them; the symbolic name derivation and its guard live once
+// in `@gjsify/adwaita-core`'s {@link normalizeIconName}, the markup once here.
 //
 // Attributes:
-//   icon-name — symbolic name, with or without the `-symbolic` suffix. A name that is
-//               not a single CSS token (a space, a quote, a reverse-DNS application
-//               id) never reaches a class — it draws {@link MISSING_ICON_NAME}, which
-//               is what GTK draws for it, rather than injecting markup.
+//   icon-name — icon name, `-symbolic` suffix optional. A name that is neither a
+//               registered colour icon nor a single CSS token (a space, a quote, an
+//               unregistered reverse-DNS application id) never reaches a class — it
+//               draws {@link MISSING_ICON_NAME}, which is what GTK draws for it, rather
+//               than injecting markup.
 //   size      — rendered edge length in px. Absent leaves the stylesheet's 16px in
 //               charge; a context that sizes its own icons through CSS
 //               (`.adw-about-dialog-icon`, the split button's 14px arrows) keeps doing
@@ -30,7 +33,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 //   name derivation composed from @gjsify/adwaita-core.
 
-import { normalizeIconName, stringIsNotEmpty } from '@gjsify/adwaita-core';
+import { normalizeIconName } from '@gjsify/adwaita-core';
+
+import { lookupIcon, onIconThemeChanged } from '../icon-theme.js';
 
 /**
  * The generated mask-class prefix — the one place the `--` spelling appears. `icon-registry`
@@ -45,6 +50,13 @@ export const MASK_CLASS_PREFIX = 'adw-icon--';
  * returns for a name it cannot find.
  */
 export const MISSING_ICON_NAME = 'image-missing';
+
+/**
+ * The modifier a colour icon carries. Deliberately NOT under {@link MASK_CLASS_PREFIX}: the
+ * stale-class sweep below and `.adw-icon:not([class*='adw-icon--'])` both read that prefix
+ * as "a mask is applied", and a colour icon has none.
+ */
+export const COLOR_ICON_CLASS = 'adw-icon-color';
 
 export class GtkImage extends HTMLElement {
     static get observedAttributes() {
@@ -62,9 +74,10 @@ export class GtkImage extends HTMLElement {
     }
 
     /**
-     * The name that actually reached the mask class — `''` when the icon-name is
-     * absent, empty, or not usable as one CSS token. Consumers that need to know
-     * whether the DECLARED name is drawable ask this, not the raw attribute.
+     * The name the SYMBOLIC lookup works with — `''` when the icon-name is absent, empty,
+     * or not usable as one CSS token. A registered colour icon can still draw for a name
+     * that answers `''` here (`org.gnome.Builder`); whether a name draws anything but
+     * `image-missing` is `isIconAvailable`'s question.
      *
      * `''` does NOT mean the box draws nothing: an unusable name that was given still
      * draws {@link MISSING_ICON_NAME}. Whether an icon was ASKED FOR is the raw
@@ -85,8 +98,16 @@ export class GtkImage extends HTMLElement {
         else this.setAttribute('size', String(value));
     }
 
+    private _unsubscribe: (() => void) | null = null;
+
     connectedCallback() {
+        this._unsubscribe ??= onIconThemeChanged(() => this._render());
         this._render();
+    }
+
+    disconnectedCallback() {
+        this._unsubscribe?.();
+        this._unsubscribe = null;
     }
 
     attributeChangedCallback() {
@@ -102,20 +123,30 @@ export class GtkImage extends HTMLElement {
         // would skip the entry after each hit.
         const stale = [...this.classList].filter((existing) => existing.startsWith(MASK_CLASS_PREFIX));
         this.classList.remove(...stale);
-        const name = this.resolvedIconName;
-        if (name !== '') {
-            this.classList.add(`${MASK_CLASS_PREFIX}${name}`);
-        } else if (stringIsNotEmpty(this.getAttribute('icon-name'))) {
-            // A name was GIVEN and cannot be one CSS token (a space, a quote, a reverse-DNS
-            // application id). GTK has no such state: `gtk_icon_theme_lookup_icon` never
-            // returns NULL, it returns the always-available `image-missing`
-            // (refs/gtk/gtk/gtkicontheme.c — `gtk_icon_paintable_get_icon_name`'s own docs
-            // say so). So the same glyph is drawn here rather than an invisible 16px hole,
-            // which is what `<adw-button-row start-icon-name="a b">` reserved and showed.
+        const found = lookupIcon(this.getAttribute('icon-name'));
+        this.classList.toggle(COLOR_ICON_CLASS, found?.kind === 'color');
+        if (found?.kind === 'color') {
+            // Drawn as-is: `_icon.scss` drops the mask and the `currentColor` fill for this
+            // modifier, so only the image paints. `url` is a data-URI or a resolved href;
+            // the quote and backslash escapes keep it one CSS string either way.
+            this.style.backgroundImage = `url("${found.url.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}")`;
+        } else {
+            this.style.removeProperty('background-image');
+        }
+        if (found?.kind === 'symbolic') {
+            this.classList.add(`${MASK_CLASS_PREFIX}${found.name}`);
+        } else if (found?.kind === 'missing') {
+            // A name was GIVEN and nothing answers it — not a colour icon, and not one CSS
+            // token (a space, a quote, an unregistered reverse-DNS application id). GTK has
+            // no such state: `gtk_icon_theme_lookup_icon` never returns NULL, it returns the
+            // always-available `image-missing` (refs/gtk/gtk/gtkicontheme.c —
+            // `gtk_icon_paintable_get_icon_name`'s own docs say so). So the same glyph is
+            // drawn here rather than an invisible 16px hole, which is what
+            // `<adw-button-row start-icon-name="a b">` reserved and showed.
             this.classList.add(`${MASK_CLASS_PREFIX}${MISSING_ICON_NAME}`);
         }
 
-        // A masked box has no text, so assistive tech has nothing to announce — the
+        // An icon box has no text, so assistive tech has nothing to announce — the
         // accessible name belongs to the control that HOSTS the icon.
         this.setAttribute('aria-hidden', 'true');
 

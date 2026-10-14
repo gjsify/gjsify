@@ -31,6 +31,7 @@ import { normalizeIconName } from '@gjsify/adwaita-core';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 import { MASK_CLASS_PREFIX } from './elements/gtk-image.js';
+import { iconResolves, notifyIconThemeChanged } from './icon-theme.js';
 
 /** Marks the one `<style>` element this module owns, so a reload reuses it. */
 const REGISTRY_STYLE_ID = 'adwaita-web-icon-registry';
@@ -130,13 +131,20 @@ export function registerIcon(name: string, svg: string): void {
     // BEFORE the `ruled` early return: taking the sheet is what detects a lost <style>,
     // and a name already in `ruled` is exactly the one the early return would skip.
     const sheet = registrySheet();
-    if (ruled.has(resolved)) return;
-    insertMaskRule(sheet, resolved);
-    ruled.add(resolved);
+    if (!ruled.has(resolved)) {
+        insertMaskRule(sheet, resolved);
+        ruled.add(resolved);
+    }
+    // The CSS above is live for every mask class, but a `name-symbolic` request that fell
+    // back to a registered COLOUR icon has no mask class to update — the symbolic glyph
+    // now wins that lookup, so the element has to run it again.
+    notifyIconThemeChanged();
 }
 
 /**
- * Whether `name` has a glyph — compiled into the stylesheet, or registered at runtime.
+ * Whether `name` draws something other than `image-missing` — a symbolic glyph compiled into
+ * the stylesheet or registered at runtime, or a colour icon from `registerColorIcon`. The
+ * name is looked up exactly as `<gtk-image icon-name>` looks it up (`icon-theme.ts`).
  *
  * Reads the live cascade rather than a generated list, so it answers for a glyph that
  * arrived by any route, including a consumer's own `--icon-<name>` declaration. It is
@@ -151,7 +159,5 @@ export function registerIcon(name: string, svg: string): void {
  * {@link registerIcon} are the two things that create the pair, and both create both.
  */
 export function isIconAvailable(name: string): boolean {
-    const resolved = normalizeIconName(name);
-    if (resolved === '') return false;
-    return getComputedStyle(document.documentElement).getPropertyValue(`--icon-${resolved}`).trim() !== '';
+    return iconResolves(name);
 }

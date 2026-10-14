@@ -19,8 +19,10 @@
 // Properties / attributes (all reflected, mirroring the AdwAboutDialog GObject
 // properties of the same name, hyphenated):
 //   application-name   the application's display name (shown as a title-1)
-//   application-icon   a symbolic icon name (with or without -symbolic); absent
-//                        one, no icon is drawn
+//   application-icon   an icon name, by convention the application ID; drawn in
+//                        colour once `registerColorIcon(id, …)` registered it, else
+//                        as a symbolic glyph or `image-missing` (`<gtk-image>`'s
+//                        lookup); absent one, no icon is drawn
 //   developer-name     the developer / vendor line below the name
 //   version            the version, shown as a clickable pill
 //   comments           a longer description (Details page)
