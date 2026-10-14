@@ -224,6 +224,35 @@ export const GtkWindowMembersNsTest = async () => {
             }
         });
 
+        await it('back closes a presented AdwAboutDialog like any other dialog', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = new Adw.Window();
+                Object.defineProperty(window, 'isLoaded', { value: true });
+                window.onLoaded();
+                let asked = 0;
+                window.connect('close-request', () => {
+                    asked++;
+                    return false;
+                });
+                const about = new Adw.AboutDialog();
+                let closed = 0;
+                about.connect('closed', () => closed++);
+                about.present(window as never);
+                expect(about.open).toBe(true);
+                host.pressBack();
+                expect(about.open).toBe(false);
+                expect(closed).toBe(1);
+                expect(asked).toBe(0);
+                expect(host.finished).toBe(0);
+                host.pressBack();
+                expect(asked).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
         await it('a window inside another window does not watch back', () => {
             const host = fakeHost(true);
             useWindowHost(host);
