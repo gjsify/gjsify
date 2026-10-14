@@ -82,8 +82,8 @@ export async function runNodeBundle(
     const cwd = process.cwd();
     if (!resolveNodeGiForBundle(bundlePath, cwd)) {
         throw new Error(
-            'Cannot run the storybook on Node: `@gjsify/node-gi` is not installed.\n' +
-                'Add @gjsify/node-gi as a dependency to run the storybook on Node, e.g.:\n' +
+            'Cannot run this bundle on Node: `@gjsify/node-gi` is not installed.\n' +
+                'Add @gjsify/node-gi as a dependency to run it on Node, e.g.:\n' +
                 '  "devDependencies": { "@gjsify/node-gi": "^0.13.0" }',
         );
     }
