@@ -27,6 +27,7 @@ import { ActionRowState } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import type { DispatchedSignals } from '../signals.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
@@ -44,6 +45,9 @@ function isSensitive(widget: HTMLElement): boolean {
 }
 
 export class AdwActionRow extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { activated: 'activated' };
+
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     private _suffixEl!: HTMLDivElement;

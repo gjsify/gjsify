@@ -222,6 +222,10 @@ export class AdwAlertDialog extends HTMLElement {
         this._responseAreaEl = document.createElement('div');
         this._responseAreaEl.className = 'adw-alert-dialog-responses';
 
+        // Responses added before the first connect already own a button (`addResponse` is
+        // callable at any point in the dialog's life); only the area to hang them in was missing.
+        this._responseAreaEl.append(...this._buttons.values());
+
         this._dialogEl.append(messageArea, this._responseAreaEl);
 
         // Two slots, both LIVE. An `<adw-alert-response>` is DATA — read for its id, label
@@ -463,6 +467,8 @@ export class AdwAlertDialog extends HTMLElement {
     }
 
     private _render(): void {
+        // Before the first connect there is no DOM to render into; `connectedCallback` renders.
+        if (!this._initialized) return;
         this.classList.toggle('open', this.open);
 
         const heading = this.heading;

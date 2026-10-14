@@ -13,9 +13,15 @@
 import { AdwBreakpoint } from '@gjsify/adwaita-core';
 import { addBreakpoints } from '../breakpoints.js';
 
-/** The default minimum size of an AdwWindow, from adw_window_init (C:344). */
+/** `adw_window_init`'s size request: a MINIMUM, overridable by `width-request`/`height-request`. */
 const DEFAULT_WIDTH = 360;
 const DEFAULT_HEIGHT = 200;
+
+/** A `width-request`/`height-request` attribute as px; absent, unparsable or -1 means unset. */
+function requested(host: HTMLElement, name: string, fallback: number): number {
+    const value = Number.parseFloat(host.getAttribute(name) ?? '');
+    return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
 
 export class AdwWindowFeatures {
     private _contentEl: HTMLDivElement | null = null;
@@ -117,12 +123,21 @@ export class AdwWindowFeatures {
         this._disposeBreakpoints = null;
     }
 
-    /** The window's size request — GTK's, not CSS's, so an absent attribute means the default. */
+    /**
+     * The window's size. `Adw.Window` defaults to a 360×200 MINIMUM (a size request, not the
+     * size; `width-request`/`height-request` override it). `default-width/height` is only
+     * a default: an authored size is the box, and an absent one leaves the box to the
+     * stylesheet, which fills the viewport — a page has no window manager to pick a size.
+     */
     applySizeRequest(): void {
         const host = this._host;
+        host.style.minWidth = `${requested(host, 'width-request', DEFAULT_WIDTH)}px`;
+        host.style.minHeight = `${requested(host, 'height-request', DEFAULT_HEIGHT)}px`;
         const width = host.getAttribute('default-width') ?? host.getAttribute('width');
         const height = host.getAttribute('default-height') ?? host.getAttribute('height');
-        host.style.width = width ? `${width}px` : `${DEFAULT_WIDTH}px`;
-        host.style.height = height ? `${height}px` : `${DEFAULT_HEIGHT}px`;
+        if (width) host.style.width = `${width}px`;
+        else host.style.removeProperty('width');
+        if (height) host.style.height = `${height}px`;
+        else host.style.removeProperty('height');
     }
 }

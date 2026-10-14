@@ -48,7 +48,7 @@ export class AdwWindow extends GtkWindow {
     private readonly _features = new AdwWindowFeatures(this);
 
     static get observedAttributes() {
-        return [...GtkWindow.observedAttributes, 'width', 'height'];
+        return [...GtkWindow.observedAttributes, 'width', 'height', 'width-request', 'height-request'];
     }
 
     /** The content area — the Adw.Window:content property. */
@@ -105,7 +105,7 @@ export class AdwWindow extends GtkWindow {
     attributeChangedCallback(name: string) {
         // The size request is read from the ATTRIBUTE, so it is applied on every change —
         // including one that arrived before the element was connected.
-        if (name === 'width' || name === 'height') {
+        if (name === 'width' || name === 'height' || name === 'width-request' || name === 'height-request') {
             this.renderFrameSize();
             return;
         }
