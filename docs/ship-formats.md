@@ -401,7 +401,8 @@ layout-derived — the launcher, rendered before the plan is built — and the s
 DIFFERS between layouts, which is what keeps "one payload" from being a claim about nothing.
 
 `Contents/MacOS` is the first layout that is not a `prefix` substitution. The carried GI files
-(`gjsify.ship.bundledTypelibs`) sit inside `lib/<name>/` on Linux and leave the bundle directory
+(`gjsify.ship.bundledTypelibs`, a flat list or a `{linux,darwin,win32}` table resolved by the layout
+like `gjsify.ship.bundle` — a prebuild is per-OS, so a linux-x64 `.so` must not reach a `.app`) sit inside `lib/<name>/` on Linux and leave the bundle directory
 entirely on macOS for `Contents/Resources/native` — deliberately NOT Apple's
 `Contents/Frameworks`, whose nested-code scan reads a version-named directory as a versioned bundle
 and refuses the bundle seal, and which the relocated GTK closure fills with three — and the

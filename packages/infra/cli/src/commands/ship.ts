@@ -440,6 +440,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         ship,
         flatpakIcon: flatpak.icon,
         declaredBundle: resolvedBundle.declared,
+        layoutOs: layout.os,
         foreignBundles: resolvedBundle.foreign,
     });
     const { settings, metadata, warnings } = resolveShipSettings({

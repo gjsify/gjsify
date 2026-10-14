@@ -8,13 +8,14 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 
-import type { ConfigDataShip } from '../../types/config-data.js';
+import type { ConfigDataShip, ShipBundledTypelibsOptions } from '../../types/config-data.js';
 import {
     CHANGELOG_FILE_NAMES,
     LICENSE_FILE_NAMES,
     type DiscoveredPayload,
     type ShipPackageManifest,
 } from './settings.js';
+import type { HostOs } from './types.js';
 
 const ICON_EXTENSIONS = ['.svg', '.png'];
 
@@ -53,6 +54,11 @@ export interface DiscoverInput {
     /** The bundle path the project declares FOR THIS TARGET. */
     declaredBundle?: string;
     /**
+     * The OS whose layout is being assembled. Only a `bundledTypelibs` TABLE needs it; a flat
+     * list is the same for every target.
+     */
+    layoutOs?: HostOs;
+    /**
      * The entries other targets declare, which this one must not carry.
      *
      * See {@link withoutForeignEntries} — same class as the locale tree below,
@@ -90,12 +96,39 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
         ),
         iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
-        typelibFiles: discoverTypelibs(projectDir, ship.bundledTypelibs),
+        typelibFiles: discoverTypelibs(projectDir, resolveBundledTypelibs(ship.bundledTypelibs, input.layoutOs)),
         localeFiles,
         fontFiles: discoverFonts(projectDir, ship.fonts),
         licenseFile: discoverLicense(projectDir, ship.licenseFile),
         changelogFile: discoverChangelog(projectDir, ship.changelogFile),
     };
+}
+
+/**
+ * The directories `gjsify.ship.bundledTypelibs` names for ONE layout.
+ *
+ * Resolved by the layout, never by the host assembling it — the same rule `resolveShipBundle`
+ * follows. A table key nothing reads is refused rather than ignored: a prebuild declared under
+ * `windows` would otherwise leave that target without its typelib and print nothing.
+ */
+export function resolveBundledTypelibs(
+    declared: string[] | ShipBundledTypelibsOptions | undefined,
+    layoutOs: HostOs | undefined,
+): string[] {
+    if (declared === undefined || Array.isArray(declared)) return declared ?? [];
+    const known = ['linux', 'darwin', 'win32'];
+    for (const os of Object.keys(declared)) {
+        if (known.includes(os)) continue;
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.bundledTypelibs.${os}\` is not an OS this command assembles for. ` +
+                `Known: ${known.join(', ')} — the \`process.platform\` spelling, not the ` +
+                "`gjsify ship <os>` positional's.",
+        );
+    }
+    if (layoutOs === undefined) {
+        throw new Error('gjsify ship: `gjsify.ship.bundledTypelibs` is a per-OS table but no layout OS was given.');
+    }
+    return declared[layoutOs] ?? [];
 }
 
 /**
