@@ -16,7 +16,8 @@
         }
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./lib/esm/webgl-bridge.js"
     ],
     "files": [
         "lib"

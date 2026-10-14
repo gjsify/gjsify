@@ -10,8 +10,8 @@ import { HTMLCanvasElement } from '@gjsify/dom-elements';
 // granular register these tests need. `@gjsify/canvas2d/register` (which also
 // installs globalThis.ImageData / Path2D) is exercised in register.spec.ts.
 import '@gjsify/dom-elements/register/canvas';
-import type { CanvasRenderingContext2D } from '@gjsify/canvas2d';
-import { Path2D, ImageData, parseColor } from '@gjsify/canvas2d';
+import type { CanvasRenderingContext2D } from './index.js';
+import { Path2D, ImageData, parseColor } from './index.js';
 
 /** Helper: create a canvas with a 2D context. */
 function createCanvas(width = 100, height = 100) {
