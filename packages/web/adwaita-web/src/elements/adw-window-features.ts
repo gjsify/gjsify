@@ -117,12 +117,20 @@ export class AdwWindowFeatures {
         this._disposeBreakpoints = null;
     }
 
-    /** The window's size request — GTK's, not CSS's, so an absent attribute means the default. */
+    /**
+     * The window's size request. 360×200 is a MINIMUM (`gtk_widget_set_size_request`), so it is
+     * the min-size; an authored size is the box, and an absent one leaves the box to the
+     * stylesheet, which fills the viewport — a page has no window manager to pick a size.
+     */
     applySizeRequest(): void {
         const host = this._host;
+        host.style.minWidth = `${DEFAULT_WIDTH}px`;
+        host.style.minHeight = `${DEFAULT_HEIGHT}px`;
         const width = host.getAttribute('default-width') ?? host.getAttribute('width');
         const height = host.getAttribute('default-height') ?? host.getAttribute('height');
-        host.style.width = width ? `${width}px` : `${DEFAULT_WIDTH}px`;
-        host.style.height = height ? `${height}px` : `${DEFAULT_HEIGHT}px`;
+        if (width) host.style.width = `${width}px`;
+        else host.style.removeProperty('width');
+        if (height) host.style.height = `${height}px`;
+        else host.style.removeProperty('height');
     }
 }

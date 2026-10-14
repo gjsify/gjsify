@@ -53,10 +53,14 @@ export const AdwWindowTest = async () => {
             win.remove();
         });
 
-        await it('applies the default 360×200 size', async () => {
+        await it('keeps 360×200 as a MINIMUM and fills the viewport without an authored size', async () => {
             const win = makeWindow();
-            expect(win.style.width).toBe('360px');
-            expect(win.style.height).toBe('200px');
+            expect(win.style.minWidth).toBe('360px');
+            expect(win.style.minHeight).toBe('200px');
+            expect(win.style.width).toBe('');
+            expect(win.style.height).toBe('');
+            expect(Math.round(win.getBoundingClientRect().width)).toBe(document.documentElement.clientWidth);
+            expect(Math.round(win.getBoundingClientRect().height)).toBe(window.innerHeight);
             win.remove();
         });
 
