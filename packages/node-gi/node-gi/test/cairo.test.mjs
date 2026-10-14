@@ -207,3 +207,46 @@ test(
         s.$dispose();
     },
 );
+
+// The toy text API (GJS-compatible Context text ops): drawing text changes pixels and
+// the extents objects carry the shape gjs's cairo-context.cpp returns.
+test('text ops: selectFontFace/setFontSize/showText/textExtents/fontExtents', () => {
+    const s = new cairo.ImageSurface(cairo.Format.ARGB32, 96, 32);
+    const cr = new cairo.Context(s);
+    cr.selectFontFace('sans-serif', cairo.FontSlant.NORMAL, cairo.FontWeight.BOLD);
+    cr.setFontSize(20);
+
+    const ext = cr.textExtents('Hello');
+    for (const key of ['xBearing', 'yBearing', 'width', 'height', 'xAdvance', 'yAdvance']) {
+        assert.equal(typeof ext[key], 'number', `textExtents.${key} is a number`);
+    }
+    assert.ok(ext.width > 0 && ext.height > 0, 'text has an ink box');
+    assert.ok(ext.xAdvance > 0, 'text advances the pen');
+    assert.ok(cr.textExtents('Hello Hello').xAdvance > ext.xAdvance, 'longer text advances further');
+
+    const font = cr.fontExtents();
+    assert.ok(font.ascent > 0 && font.height > 0, 'fontExtents has ascent + height');
+    for (const key of ['descent', 'maxXAdvance', 'maxYAdvance']) assert.equal(typeof font[key], 'number');
+
+    s.flush();
+    assert.ok(
+        s.getData().every((b) => b === 0),
+        'nothing is drawn before showText',
+    );
+    cr.setSourceRGB(1, 1, 1);
+    cr.moveTo(4, 24);
+    cr.showText('Hello');
+    s.flush();
+    assert.ok(
+        s.getData().some((b) => b !== 0),
+        'showText painted pixels',
+    );
+
+    cr.newPath();
+    cr.moveTo(4, 24);
+    cr.textPath('Hi');
+    const [x1, , x2] = cr.pathExtents();
+    assert.ok(x2 > x1, 'textPath appended an outline');
+    cr.$dispose();
+    s.$dispose();
+});

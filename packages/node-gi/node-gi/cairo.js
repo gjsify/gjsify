@@ -332,6 +332,29 @@ export class Context {
     fillExtents() {
         return c.fillExtents(this[H]);
     }
+    /** Select the toy-API font: `family` with a {@link FontSlant} and {@link FontWeight}. */
+    selectFontFace(family, slant, weight) {
+        c.selectFontFace(this[H], family, slant, weight);
+    }
+    setFontSize(size) {
+        c.setFontSize(this[H], size);
+    }
+    /** Draw `utf8` at the current point with the current source. */
+    showText(utf8) {
+        c.showText(this[H], utf8);
+    }
+    /** Append the outline of `utf8` to the current path. */
+    textPath(utf8) {
+        c.textPath(this[H], utf8);
+    }
+    /** `{ xBearing, yBearing, width, height, xAdvance, yAdvance }` of `utf8` in the current font. */
+    textExtents(utf8) {
+        return c.textExtents(this[H], utf8);
+    }
+    /** `{ ascent, descent, height, maxXAdvance, maxYAdvance }` of the current font. */
+    fontExtents() {
+        return c.fontExtents(this[H]);
+    }
     /** Stroke bounding box as `[x1, y1, x2, y2]`. */
     strokeExtents() {
         return c.strokeExtents(this[H]);

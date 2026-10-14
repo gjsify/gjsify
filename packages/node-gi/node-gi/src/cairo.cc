@@ -17,7 +17,8 @@
 // WrapBoxed; cairo_path_t is NOT ref-counted, so a borrowed path is COPIED via
 // the gjs CairoPath::copy_ptr dummy-context trick instead of ref'd). Slice:
 // Context (drawing ops, path copy/append, dash, matrix point transforms,
-// in-fill/in-stroke, getSource), Surface + ImageSurface (headless pixels),
+// in-fill/in-stroke, getSource, the toy-text API: selectFontFace/setFontSize/
+// showText/textPath/textExtents/fontExtents), Surface + ImageSurface (headless pixels),
 // SolidPattern, LinearGradient/RadialGradient (color stops), SurfacePattern
 // (extend/filter), Path handles. Deferred: region, PDF/SVG/PS surfaces,
 // text/font ops (showText/selectFontFace — canvas2d text rides PangoCairo).
@@ -733,6 +734,70 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
   CTX_EXTENTS("fillExtents", cairo_fill_extents)
   CTX_EXTENTS("strokeExtents", cairo_stroke_extents)
   CTX_EXTENTS("clipExtents", cairo_clip_extents)
+  // Toy text API (cairo_select_font_face & co), the GJS-compatible Context text ops.
+  // textExtents/fontExtents return the object shape gjs's cairo-context.cpp builds.
+  c.Set("selectFontFace", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          std::string family = info[1].ToString().Utf8Value();
+          cairo_select_font_face(cr, family.c_str(),
+                                 static_cast<cairo_font_slant_t>(info[2].ToNumber().Int32Value()),
+                                 static_cast<cairo_font_weight_t>(info[3].ToNumber().Int32Value()));
+          CheckStatus(env, cairo_status(cr), "selectFontFace");
+          return env.Undefined();
+        }));
+  c.Set("setFontSize", Napi::Function::New(env, CTX_1D(cairo_set_font_size)));
+  c.Set("showText", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          std::string text = info[1].ToString().Utf8Value();
+          cairo_show_text(cr, text.c_str());
+          CheckStatus(env, cairo_status(cr), "showText");
+          return env.Undefined();
+        }));
+  c.Set("textPath", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          std::string text = info[1].ToString().Utf8Value();
+          cairo_text_path(cr, text.c_str());
+          CheckStatus(env, cairo_status(cr), "textPath");
+          return env.Undefined();
+        }));
+  c.Set("textExtents", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          std::string text = info[1].ToString().Utf8Value();
+          cairo_text_extents_t e;
+          cairo_text_extents(cr, text.c_str(), &e);
+          if (!CheckStatus(env, cairo_status(cr), "textExtents")) return env.Undefined();
+          Napi::Object o = Napi::Object::New(env);
+          o.Set("xBearing", Napi::Number::New(env, e.x_bearing));
+          o.Set("yBearing", Napi::Number::New(env, e.y_bearing));
+          o.Set("width", Napi::Number::New(env, e.width));
+          o.Set("height", Napi::Number::New(env, e.height));
+          o.Set("xAdvance", Napi::Number::New(env, e.x_advance));
+          o.Set("yAdvance", Napi::Number::New(env, e.y_advance));
+          return o;
+        }));
+  c.Set("fontExtents", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_font_extents_t e;
+          cairo_font_extents(cr, &e);
+          if (!CheckStatus(env, cairo_status(cr), "fontExtents")) return env.Undefined();
+          Napi::Object o = Napi::Object::New(env);
+          o.Set("ascent", Napi::Number::New(env, e.ascent));
+          o.Set("descent", Napi::Number::New(env, e.descent));
+          o.Set("height", Napi::Number::New(env, e.height));
+          o.Set("maxXAdvance", Napi::Number::New(env, e.max_x_advance));
+          o.Set("maxYAdvance", Napi::Number::New(env, e.max_y_advance));
+          return o;
+        }));
   c.Set("status", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
           Napi::Env env = info.Env();
           cairo_t* cr = CtxArg(env, info);
