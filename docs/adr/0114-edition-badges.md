@@ -1,6 +1,6 @@
 # 114. Edition badges: open source for every build, purchased on top for store builds
 
-- Status: **Proposed** (UI placement) · **Accepted** (the `@gjsify/distribution` API)
+- Status: **Accepted** (the `@gjsify/distribution` API; UI placement stays open, see Decision 5)
 - Date: 2026-10-14
 - Deciders: Pascal Garber
 - Related: [ADR 0113](0113-distribution-channel-gates-donation-ui.md) (channel, capability table);

@@ -133,7 +133,7 @@ the TODO records the *what's left*.
 | [0111](0111-next-prerelease-channel.md) | A `next` prerelease channel publishes main nightly | Accepted |
 | [0112](0112-gtk-properties-never-take-a-platform-member-name.md) | A GTK property never takes a platform member's name as a JS accessor | Proposed |
 | [0113](0113-distribution-channel-gates-donation-ui.md) | A build-time distribution channel gates the donation UI | Proposed |
-| [0114](0114-edition-badges.md) | Edition badges: open source for every build, purchased on top for store builds | Accepted (API) |
+| [0114](0114-edition-badges.md) | Edition badges: open source for every build, purchased on top for store builds | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
