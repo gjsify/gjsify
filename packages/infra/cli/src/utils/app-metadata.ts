@@ -15,6 +15,7 @@
 // template-based — it is flat `key=value`.
 
 import type { AppMetadata, DescriptionBlock } from '../types/config-data.js';
+import { channelAllowsDonations } from './channel.js';
 
 /**
  * The `.desktop` skeleton, as source rather than as a file to find at runtime.
@@ -60,6 +61,8 @@ export interface AppMetadataInputs {
     /** `'app'` renders a desktop-application component, `'cli'` a console one. */
     kind: 'app' | 'cli';
     metadata: AppMetadata;
+    /** Distribution channel (ADR 0113). `<url type="donation">` is emitted only where it allows donations. */
+    channel?: string;
     /**
      * Config path the validator names in its hints, e.g. `gjsify.flatpak` or
      * `gjsify.ship`. Both read the same fields, so the hint has to say which
@@ -235,7 +238,8 @@ function renderMetainfo(inputs: AppMetadataInputs, kind: 'desktop-application' |
     if (m.homepageUrl) lines.push(`  <url type="homepage">${escapeXml(m.homepageUrl)}</url>`);
     if (m.bugtrackerUrl) lines.push(`  <url type="bugtracker">${escapeXml(m.bugtrackerUrl)}</url>`);
     if (m.vcsBrowserUrl) lines.push(`  <url type="vcs-browser">${escapeXml(m.vcsBrowserUrl)}</url>`);
-    if (m.donationUrl) lines.push(`  <url type="donation">${escapeXml(m.donationUrl)}</url>`);
+    if (m.donationUrl && channelAllowsDonations(inputs.channel))
+        lines.push(`  <url type="donation">${escapeXml(m.donationUrl)}</url>`);
     if (m.translateUrl) lines.push(`  <url type="translate">${escapeXml(m.translateUrl)}</url>`);
 
     // <content_rating>

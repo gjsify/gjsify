@@ -37,6 +37,8 @@ export interface CliBuildOptions {
      * whatever was typed, and the narrowing happens once, where the value is read.
      */
     dialect?: string;
+    /** Distribution channel (ADR 0113), becomes the `__GJSIFY_CHANNEL__` define. */
+    channel?: string;
     /**
      * Resolve `gi://Ns?version=X` to the target's widget renderer instead of an empty
      * module — `--gi-renderer` (ADR 0034 stage 9). `browser` and `nativescript` targets.

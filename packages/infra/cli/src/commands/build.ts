@@ -116,6 +116,12 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 choices: ['silent', 'error', 'warning', 'info', 'debug', 'verbose'],
                 default: 'warning',
             })
+            .option('channel', {
+                description:
+                    'Distribution channel this build is for (ADR 0113): flathub, web, microsoft-store or apple-app-store. Sets the __GJSIFY_CHANNEL__ define that @gjsify/distribution reads; overrides gjsify.ship.channel. Unset builds report no donation UI.',
+                type: 'string',
+                choices: ['flathub', 'web', 'microsoft-store', 'apple-app-store'],
+            })
             .option('dialect', {
                 description:
                     "The dialect the SOURCE is written in. 'react-native' aliases 'react-native' onto '@gjsify/react-native' and fails the build on an import whose ADR 0032 support-table status is not supported/partial. GJS and Node app builds. This is NOT gjsify.runtimes['react-native'], which declares the runtime a package RUNS on — the two answer opposite questions.",

@@ -47,6 +47,7 @@ function toMetadataInputs(inputs: ScaffoldInputs): AppMetadataInputs {
         command: inputs.command,
         kind: inputs.kind,
         metadata: inputs.flatpak,
+        channel: 'flathub',
         configKey: 'gjsify.flatpak',
     };
 }

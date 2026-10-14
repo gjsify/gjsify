@@ -24,6 +24,7 @@ import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
+    applyAboutLinks,
     buildAboutDialogFromAppdata,
     createAboutDialog,
     hasAppdataConstructor,
@@ -274,6 +275,26 @@ export default async () => {
             expect(dialog.applicationIcon).toBe('org.example.Notes-Devel');
             // Everything else still comes from the document.
             expect(dialog.applicationName).toBe('Notes');
+        });
+    });
+
+    await describe('applyAboutLinks', async () => {
+        await it('adds each link via add_link and skips entries missing a title or url', async () => {
+            const dialog = new Adw.AboutDialog();
+            const seen: string[] = [];
+            const original = dialog.add_link.bind(dialog);
+            dialog.add_link = (title: string, url: string) => {
+                seen.push(`${title}|${url}`);
+                original(title, url);
+            };
+            applyAboutLinks(dialog, [
+                { title: 'Support', url: 'https://example.org/support' },
+                { title: '', url: 'https://example.org/x' },
+                { title: 'No url', url: '' },
+            ]);
+            applyAboutLinks(dialog, undefined);
+            expect(seen.length).toBe(1);
+            expect(seen[0]).toBe('Support|https://example.org/support');
         });
     });
 };

@@ -303,3 +303,13 @@ export function createAboutDialog(options: CreateAboutDialogOptions = {}): Adw.A
     if (options.version !== undefined) dialog.version = options.version;
     return dialog;
 }
+
+/** Add each of `links` to `dialog` via `Adw.AboutDialog.add_link`, skipping entries with no title or url. */
+export function applyAboutLinks(
+    dialog: Adw.AboutDialog,
+    links: readonly { title: string; url: string }[] | undefined,
+): void {
+    for (const link of links ?? []) {
+        if (link.title && link.url) dialog.add_link(link.title, link.url);
+    }
+}

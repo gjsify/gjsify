@@ -71,4 +71,4 @@ export { readAppDevHooks } from './dev-hooks.js';
 export type { AppDevHooks, ReadAppDevHooksOptions } from './dev-hooks.js';
 
 export { findNavItem, resolveInitialNavIndex } from './nav-model.js';
-export type { AboutInfo, ConfirmResponse, NavItem } from './types.js';
+export type { AboutInfo, AboutLink, ConfirmResponse, NavItem } from './types.js';

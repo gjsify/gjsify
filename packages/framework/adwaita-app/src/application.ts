@@ -16,7 +16,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 // bridge (AGENTS.md § The legacy imports.* object is NOT an API).
 import system from 'system';
 import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
-import { type CreateAboutDialogOptions, createAboutDialog } from './about-dialog.js';
+import { type CreateAboutDialogOptions, applyAboutLinks, createAboutDialog } from './about-dialog.js';
 import { type BundledIconThemeOptions, installBundledIconTheme } from './icon-theme.js';
 import type { AboutInfo } from './types.js';
 
@@ -168,6 +168,7 @@ export class AdwaitaApp extends Adw.Application {
         if (info.comments) dialog.comments = info.comments;
         if (info.copyright) dialog.copyright = info.copyright;
         if (info.developers?.length) dialog.set_developers(info.developers);
+        applyAboutLinks(dialog, info.links);
         dialog.present(this.get_active_window());
     }
 }
