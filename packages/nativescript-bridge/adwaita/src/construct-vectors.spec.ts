@@ -211,6 +211,16 @@ export const AdwConstructVectorsNsTest = async () => {
             expect(emitted('GtkDropDown')).toBe('notify::selected,notify::selected-item');
             expect(emitted('GtkStack')).toBe('notify::visible-child,notify::visible-child-name');
         });
+        await it('declares notify::active on a SwitchRow, so a bidirectional bind can be built', () => {
+            const row = build({ tag: 'AdwSwitchRow' }) as unknown as {
+                constructor: { emittedSignals: readonly string[] };
+            };
+            expect(row.constructor.emittedSignals.join()).toBe('notify::active');
+        });
+        await it('answers get_visible_page_tag on a NavigationView', () => {
+            const view = build({ tag: 'AdwNavigationView' }) as unknown as { get_visible_page_tag(): string | null };
+            expect(view.get_visible_page_tag()).toBe(null);
+        });
         await it('refuses a bind to an id nothing has, to a source that emits no notify, and the flags', () => {
             const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
                 ({

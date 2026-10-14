@@ -231,6 +231,11 @@ export class AdwNavigationView extends withSignals(GridLayout) {
         return this._nav.visiblePageTag;
     }
 
+    /** `adw_navigation_view_get_visible_page_tag`. */
+    get_visible_page_tag(): string | null {
+        return this._nav.visiblePageTag;
+    }
+
     /** The current navigation stack depth. */
     get depth(): number {
         return this._nav.depth;
