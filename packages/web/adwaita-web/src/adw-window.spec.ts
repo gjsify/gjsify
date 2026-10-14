@@ -53,15 +53,30 @@ export const AdwWindowTest = async () => {
             win.remove();
         });
 
-        await it('sets no minimum (so layers stay collapsible) and fills the viewport without an authored size', async () => {
+        await it('keeps 360×200 as a minimum and fills the viewport without an authored size', async () => {
             const win = makeWindow();
-            expect(win.style.minWidth).toBe('');
-            expect(win.style.minHeight).toBe('');
+            expect(win.style.minWidth).toBe('360px');
+            expect(win.style.minHeight).toBe('200px');
             expect(win.style.width).toBe('');
             expect(win.style.height).toBe('');
             expect(Math.round(win.getBoundingClientRect().width)).toBe(document.documentElement.clientWidth);
             expect(Math.round(win.getBoundingClientRect().height)).toBe(window.innerHeight);
             win.remove();
+        });
+
+        await it('width-request/height-request override the minimum; gtk-window has none', async () => {
+            const win = document.createElement('adw-window') as AdwWindow;
+            win.setAttribute('width-request', '100');
+            win.setAttribute('height-request', '50');
+            document.body.appendChild(win);
+            expect(win.style.minWidth).toBe('100px');
+            expect(win.style.minHeight).toBe('50px');
+            win.remove();
+            const plain = document.createElement('gtk-window');
+            document.body.appendChild(plain);
+            expect(plain.style.minWidth).toBe('');
+            expect(plain.style.minHeight).toBe('');
+            plain.remove();
         });
 
         await it('width/height attributes override the default size', async () => {

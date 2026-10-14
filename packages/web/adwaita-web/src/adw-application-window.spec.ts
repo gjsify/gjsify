@@ -47,7 +47,7 @@ export const AdwApplicationWindowTest = async () => {
 
         await it('keeps the inherited size request', async () => {
             const win = makeWindow();
-            expect(win.style.minWidth).toBe('');
+            expect(win.style.minWidth).toBe('360px');
             expect(win.style.width).toBe('');
             win.setAttribute('width', '520');
             expect(win.style.width).toBe('520px');
