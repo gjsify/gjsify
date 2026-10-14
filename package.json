@@ -41,6 +41,7 @@
         "test:e2e:create-app": "node --test tests/e2e/create-app/run.mjs",
         "test:e2e:cli-only": "node --test tests/e2e/cli-only/run.mjs",
         "test:e2e:cli-only-pnp": "node --test tests/e2e/cli-only-pnp/run.mjs",
+        "test:e2e:site-standalone": "node --test tests/e2e/site-standalone/run.mjs",
         "test:e2e:pnp-zip-static-reads": "node --test tests/e2e/pnp-zip-static-reads/run.mjs",
         "test:e2e:release-window-skip": "node --test tests/e2e/release-window-skip/run.mjs",
         "test:e2e:standalone-plugin": "node --test tests/e2e/standalone-plugin/run.mjs",
