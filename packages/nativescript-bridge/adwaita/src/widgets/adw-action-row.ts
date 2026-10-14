@@ -24,6 +24,7 @@ import { xmlBoolean } from './xml-values.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import { GtkImage } from './gtk-image.js';
 
 /** Event name emitted when the row is activated. Mirrors `Adw.ActionRow::activated`. */
 export const ACTIVATED = 'activated';
@@ -55,6 +56,7 @@ export class AdwActionRow extends withSignals(GridLayout) {
     /** The headless labels + activatable-widget coupling (ADR 0004). */
     protected readonly _rowState = new ActionRowState<View>();
     private _prefix: View | null = null;
+    private _iconImage: GtkImage | null = null;
     private _suffix: View | null = null;
 
     constructor(props?: ConstructProps<AdwActionRow>) {
@@ -121,6 +123,37 @@ export class AdwActionRow extends withSignals(GridLayout) {
         GridLayout.setColumn(view, 0);
         this.insertChild(view, 0);
         this._prefix = view;
+    }
+
+    /**
+     * `AdwActionRow:icon-name` — an icon in the prefix slot, before the title. It takes that slot,
+     * so a row whose prefix was set with {@link add_prefix} refuses it rather than replace it.
+     */
+    get iconName(): string {
+        return this._iconImage !== null && this._prefix === this._iconImage ? this._iconImage.iconName : '';
+    }
+
+    set iconName(value: string | null) {
+        const name = value ?? '';
+        // add_prefix() or remove() may have replaced the icon since it was set.
+        if (this._iconImage !== null && this._prefix !== this._iconImage) this._iconImage = null;
+        if (name === '') {
+            if (this._iconImage !== null) {
+                this.remove(this._iconImage);
+                this._iconImage = null;
+            }
+            return;
+        }
+        if (this._iconImage === null) {
+            if (this._prefix) {
+                throw new TypeError(
+                    `${this.constructor.name}.iconName needs the prefix slot, which add_prefix() already filled.`,
+                );
+            }
+            this._iconImage = new GtkImage();
+            this.add_prefix(this._iconImage);
+        }
+        this._iconImage.iconName = name;
     }
 
     get prefix(): View | null {

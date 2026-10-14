@@ -6,6 +6,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { templateClassFor } from '../builder/template-classes.js';
 import { Canvas2DBridge } from './canvas2d-bridge.js';
+import { createNativeCanvasDriver } from './native-canvas.js';
 
 const allocate = (bridge: Canvas2DBridge, w: number, h: number) =>
     (bridge as unknown as { allocated(w: number, h: number): void }).allocated(w, h);
@@ -67,6 +68,20 @@ export const Canvas2DBridgeNsTest = async () => {
             bridge.content_height = 32;
             expect(bridge.content_width).toBe(64);
             expect(bridge.contentHeight).toBe(32);
+        });
+
+        await it('takes its driver from native-canvas, the file a platform variant replaces', () => {
+            // Declared there, not re-exported: the library build would resolve a re-export past it.
+            expect(typeof createNativeCanvasDriver).toBe('function');
+            expect(createNativeCanvasDriver.length).toBe(0);
+        });
+
+        await it('has the GtkWidget focus members', () => {
+            const bridge = new Canvas2DBridge();
+            expect(bridge.focusable).toBe(false);
+            bridge.focusable = true;
+            expect(bridge.focusable).toBe(true);
+            expect(typeof bridge.grab_focus).toBe('function');
         });
 
         await it('refuses to create a native view off Android', () => {

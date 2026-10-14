@@ -38,6 +38,9 @@ export interface NotifyActiveEventData extends EventData {
 export class AdwSwitchRow extends AdwActionRow {
     static readonly GTypeName: string = 'AdwSwitchRow';
 
+    /** What the builder checks before it binds to `active`, one way or both. */
+    static readonly emittedSignals: readonly string[] = [NOTIFY_ACTIVE];
+
     /** The suffix Switch control. */
     protected readonly _switch: Switch;
     /** The headless active flag + its notify rule (ADR 0004). */

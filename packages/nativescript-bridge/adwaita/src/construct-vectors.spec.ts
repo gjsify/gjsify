@@ -211,6 +211,34 @@ export const AdwConstructVectorsNsTest = async () => {
             expect(emitted('GtkDropDown')).toBe('notify::selected,notify::selected-item');
             expect(emitted('GtkStack')).toBe('notify::visible-child,notify::visible-child-name');
         });
+        await it('declares notify::active on a SwitchRow, so a bidirectional bind can be built', () => {
+            const row = build({ tag: 'AdwSwitchRow' }) as unknown as {
+                constructor: { emittedSignals: readonly string[] };
+            };
+            expect(row.constructor.emittedSignals.join()).toBe('notify::active');
+        });
+        await it('answers get_visible_page_tag on a NavigationView', () => {
+            const view = build({ tag: 'AdwNavigationView' }) as unknown as { get_visible_page_tag(): string | null };
+            expect(view.get_visible_page_tag()).toBe(null);
+        });
+        await it('holds GtkMenuButton primary, takes an ActionRow icon-name, and refuses a Label justify but left', () => {
+            const button = build({ tag: 'GtkMenuButton' }) as unknown as { primary: boolean };
+            expect(button.primary).toBe(false);
+            button.primary = true;
+            expect(button.primary).toBe(true);
+            const row = build({ tag: 'AdwActionRow' }) as unknown as { iconName: string; prefix: unknown };
+            expect(row.iconName).toBe('');
+            row.iconName = 'list-add-symbolic';
+            expect(row.iconName).toBe('list-add-symbolic');
+            expect(row.prefix).not.toBe(null);
+            row.iconName = '';
+            expect(row.prefix).toBe(null);
+            const label = build({ tag: 'GtkLabel' }) as unknown as { justify: number | string };
+            label.justify = 'left';
+            expect(() => {
+                label.justify = 'center';
+            }).toThrow('justify');
+        });
         await it('refuses a bind to an id nothing has, to a source that emits no notify, and the flags', () => {
             const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
                 ({

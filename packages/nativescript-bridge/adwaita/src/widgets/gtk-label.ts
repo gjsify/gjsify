@@ -238,6 +238,23 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     /**
+     * `Gtk.Label:justify`. Only `left` (`0`, GTK's default) is accepted: `textAlignment` is where
+     * `xalign` already paints the whole text, so a second alignment for the lines inside the block
+     * has no platform member to land on and is refused instead of silently dropped.
+     */
+    get justify(): number {
+        return 0;
+    }
+
+    set justify(value: number | string) {
+        if (value === 'left' || xmlNumber(value, -1) === 0) return;
+        throw new TypeError(
+            `Gtk.Label justify ${String(value)} has no NativeScript counterpart: textAlignment is already ` +
+                'the label xalign, and only the default left justification can be honoured beside it.',
+        );
+    }
+
+    /**
      * `Gtk.Label:xalign` — where the text sits in the label's box, `0` the start and `1` the
      * end. Clamped to that range as `gtk_label_set_xalign` clamps it, and painted only at the
      * three points `textAlignment` can say exactly; any other value throws (see the header).
