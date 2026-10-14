@@ -341,7 +341,8 @@ interface BadgeSpec {
     /** Drawn in the pill; `pill` wins when a badge needs more than one glyph. */
     glyph?: IconName;
     pill?: string;
-    value: string;
+    /** Left out when the pill already carries the fact, like the platform glyphs. */
+    value?: string;
     label: string;
     /** The unabbreviated fact, when the badge shows a short form of it. */
     title?: string;
@@ -350,9 +351,12 @@ interface BadgeSpec {
 }
 
 function badge(spec: BadgeSpec): string {
+    // An absent value is not an empty element: the row reserves the line, the DOM stays clean.
+    const value = spec.value
+        ? `\n<span${attrs({ class: 'badge-value', title: spec.title })}>${esc(spec.value)}</span>`
+        : '';
     return `<li${attrs({ class: spec.class ? `badge ${spec.class}` : 'badge', hidden: spec.hidden })}>
-<span class="badge-pill">${spec.pill ?? icon(spec.glyph!)}</span>
-<span${attrs({ class: 'badge-value', title: spec.title })}>${esc(spec.value)}</span>
+<span class="badge-pill">${spec.pill ?? icon(spec.glyph!)}</span>${value}
 <span class="badge-label">${esc(spec.label)}</span>
 </li>`;
 }
@@ -366,7 +370,7 @@ function shortLicense(id: string): string {
  * The facts row under the hero. A badge whose fact is missing is left out, not faked, and the row
  * tells CSS how many it ended up with so the columns divide the width evenly.
  */
-function badges(ctx: RenderContext): string {
+export function badges(ctx: Pick<RenderContext, 'data' | 't' | 'lang'>): string {
     const { data, t, lang } = ctx;
     const number = new Intl.NumberFormat(lang, { notation: 'compact', maximumFractionDigits: 1 });
     const targets = data.downloads.targets;
@@ -394,7 +398,7 @@ function badges(ctx: RenderContext): string {
             .map((os) => icon(PLATFORM_ICONS[os], { title: osName(os, t), class: `platform platform-${os}` }))
             .join('');
         const label = oses.every(isBrowserPlatform) ? t('Browsers') : t('Platforms');
-        specs.push({ pill: `<span class="badge-platforms">${glyphs}</span>`, value: '', label });
+        specs.push({ pill: `<span class="badge-platforms">${glyphs}</span>`, label });
     }
     if (data.app.ageRating) {
         const { minAge } = data.app.ageRating;

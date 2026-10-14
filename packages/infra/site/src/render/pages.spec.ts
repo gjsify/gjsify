@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 
-import type { DownloadTarget, Screenshot } from '../site-data/index.js';
+import type { DownloadTarget, Screenshot, SiteData } from '../site-data/index.js';
 import type { ProcessedImage } from './images.js';
-import { ctaLabel, frameAttribute, sepaCard } from './pages.js';
+import { badges, ctaLabel, frameAttribute, sepaCard } from './pages.js';
 
 const t = (msgid: string) => msgid;
 const target = (os: DownloadTarget['os'], format: DownloadTarget['format']): DownloadTarget => ({
@@ -59,6 +59,18 @@ export default async () => {
             expect(sepaCard({ kind: 'sepa', name: 'X', iban: 'DE89370400440532013000' }, t)).not.toMatch(
                 /BIC|Reference/,
             );
+        });
+
+        await it('omits the badge value where the pill already carries the fact', async () => {
+            const data = {
+                downloads: { targets: [target('linux', 'appimage'), target('win32', 'source')] },
+                app: { license: 'GPL-3.0-or-later' },
+                stats: {},
+            } as unknown as SiteData;
+            const html = badges({ data, t, lang: 'en' });
+            expect(html).toMatch(/badge-platforms/);
+            expect(html).toMatch(/<span class="badge-value"[^>]*>GPL-3.0\+<\/span>/);
+            expect(html).not.toMatch(/<span class="badge-value"[^>]*>\s*<\/span>/);
         });
     });
 };
