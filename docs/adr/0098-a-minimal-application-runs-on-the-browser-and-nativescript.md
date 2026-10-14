@@ -238,3 +238,24 @@ back would `finish()` without asking handlers. iOS has no back button. The hook 
 Not covered, because nothing here can say: split-screen or multi-window as un-maximized, and
 `hide-on-close` on NativeScript. The Android and iOS calls are
 unverified on a device.
+
+## Amendment 3: `<gtk-window>` speaks the GObject door
+
+GJS code written for `Gtk.Window` calls `window.connect('close-request', …)` and reads
+`window.is_active`. `<gtk-window>` (and `<adw-window>`, `<adw-application-window>` through
+inheritance) now installs the ADR 0096 § 3 element API, the one template children already use:
+`connect`, `disconnect`, `emit`, `notify`, `get_property`, `set_property`, over the events its
+`static signals` declares (`close-request` and `notify::<property>`). Anything else throws by name.
+
+- A handler that returns `true` on a cancelable event is `preventDefault()` and stops the handlers
+  after it, as the handled accumulator does. This applies to every element on the door.
+- `emit('close-request')` throws and points to `close()`: a bare emission would skip the default
+  handler (hide or destroy).
+- `is_active` is a getter, not a method, and `focus_widget` a read/write accessor over
+  `get_focus` / `set_focus`. This follows `@girs/gtk-4.0` and GJS; the earlier `is_active()` method
+  had no GTK counterpart. NativeScript's `is_active()` is left as is.
+- `set_property('is-active', …)` throws: the property is read-only.
+
+Not decided here: `Adw.Application` and `<gtk-window>` are not assignable to `Gtk.Application` /
+`Gtk.Window` from `@girs/gtk-4.0` (138 and 398 members missing). Closing that is a typing
+decision for the whole subset, so it is left open.
