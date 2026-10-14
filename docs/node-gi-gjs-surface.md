@@ -902,8 +902,9 @@ the full surface `@gjsify/canvas2d-core` draws through (headless Canvas 2D).
 The native binding paints **byte-for-byte identically to GJS** (verified
 pixel-for-pixel against `gjs -m`, incl. gradients / repeating surface patterns /
 dashed strokes / path round-trips — `test/cairo-canvas2d.test.mjs`). Deferred:
-region objects, the PDF/SVG/PS surfaces, and the text/font ops
-(`showText`/`selectFontFace` — canvas2d text rides PangoCairo instead).
+region objects, the PDF/SVG/PS surfaces and font matrices/options. The toy text API
+(`selectFontFace`/`setFontSize`/`showText`/`textPath`/`textExtents`/`fontExtents`) is bound as GJS
+shapes it; canvas2d text still rides PangoCairo.
 
 Building on that seam, the **LIVE `@gjsify/canvas2d` `Canvas2DBridge`** — a
 `Gtk.DrawingArea` that wraps an `HTMLCanvasElement` 2D context and blits its Cairo

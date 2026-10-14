@@ -17,6 +17,25 @@ export const Operator: CairoEnum;
 export const PatternType: CairoEnum;
 export const SurfaceType: CairoEnum;
 
+/** `cairo_text_extents_t`, in the shape GJS returns. */
+export interface TextExtents {
+    xBearing: number;
+    yBearing: number;
+    width: number;
+    height: number;
+    xAdvance: number;
+    yAdvance: number;
+}
+
+/** `cairo_font_extents_t`, in the shape GJS returns. */
+export interface FontExtents {
+    ascent: number;
+    descent: number;
+    height: number;
+    maxXAdvance: number;
+    maxYAdvance: number;
+}
+
 /** cairo drawing context (`cairo_t`). */
 export class Context {
     constructor(surface: Surface);
@@ -28,6 +47,12 @@ export class Context {
     lineTo(x: number, y: number): void;
     relMoveTo(dx: number, dy: number): void;
     relLineTo(dx: number, dy: number): void;
+    selectFontFace(family: string, slant: number, weight: number): void;
+    setFontSize(size: number): void;
+    showText(utf8: string): void;
+    textPath(utf8: string): void;
+    textExtents(utf8: string): TextExtents;
+    fontExtents(): FontExtents;
     rectangle(x: number, y: number, width: number, height: number): void;
     arc(xc: number, yc: number, radius: number, angle1: number, angle2: number): void;
     arcNegative(xc: number, yc: number, radius: number, angle1: number, angle2: number): void;
