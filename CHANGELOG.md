@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.64.0](https://github.com/gjsify/gjsify/compare/v0.63.0...v0.64.0) (2026-10-14)
+
+### Features
+
+* **adwaita-web:** extend GtkWindow in Adw windows ([#2193](https://github.com/gjsify/gjsify/issues/2193)) ([a415556](https://github.com/gjsify/gjsify/commit/a415556559373d5f6aa818cda7fb7bf2a368ed99))
+* **devtools:** `HiDPI-aware` screenshot capture ([#2203](https://github.com/gjsify/gjsify/issues/2203)) ([998b9aa](https://github.com/gjsify/gjsify/commit/998b9aa365998b05cb25a40647726329c8f30523))
+* **distribution:** channel gates donation UI (ADR 0113) ([#2204](https://github.com/gjsify/gjsify/issues/2204)) ([26489de](https://github.com/gjsify/gjsify/commit/26489decf5c75f7bbd13fa1a4d4c13f878c1e38c))
+* **nativescript:** map Android back to close-request ([#2194](https://github.com/gjsify/gjsify/issues/2194)) ([2ffcbfb](https://github.com/gjsify/gjsify/commit/2ffcbfb13c3a58b14dd43dc7a50e8dba5a5aec17))
+* **node-gi:** one shape for every GLib.Error ([#2199](https://github.com/gjsify/gjsify/issues/2199)) ([196d585](https://github.com/gjsify/gjsify/commit/196d585d9b55a17d0374af56fdc0de78db0d79f3))
+* **site:** a static site generator that reads an app from its metainfo ([#2188](https://github.com/gjsify/gjsify/issues/2188)) ([7df4408](https://github.com/gjsify/gjsify/commit/7df440873123828c3bd0dc66e0965e351ed141a2)), closes [#1817](https://github.com/gjsify/gjsify/issues/1817)
+* **site:** one brand-coloured masthead, screenshots from metainfo ([#2202](https://github.com/gjsify/gjsify/issues/2202)) ([d4ae412](https://github.com/gjsify/gjsify/commit/d4ae412daabae9cb89f4fa11ee7279a308c9e4be))
+* **site:** support pages, overview and SEO ([#2205](https://github.com/gjsify/gjsify/issues/2205)) ([979fe4b](https://github.com/gjsify/gjsify/commit/979fe4bdbfafb79c77c6313a806e9fedc3936913))
+
+### Bug Fixes
+
+* **adwaita:** clean shipped typings under skipLibCheck false ([#2192](https://github.com/gjsify/gjsify/issues/2192)) ([9cc540b](https://github.com/gjsify/gjsify/commit/9cc540bb412f000dcf0ed45402817f5e8db2fec2))
+* **adwaita:** route GTK props shadowed by NS members ([#2198](https://github.com/gjsify/gjsify/issues/2198)) ([0301509](https://github.com/gjsify/gjsify/commit/03015092f97de59fbbfa4b4739243b85b122bf71))
+* **cli:** build gjsify site outside the workspace ([#2206](https://github.com/gjsify/gjsify/issues/2206)) ([8c4aab0](https://github.com/gjsify/gjsify/commit/8c4aab05ff7c1c4107cb3b394fd386589577d539))
+* **framework:** list GType-registering bridges in sideEffects ([#2210](https://github.com/gjsify/gjsify/issues/2210)) ([483e1da](https://github.com/gjsify/gjsify/commit/483e1dab71cb763405e080dd0b69d2b8cf474a58))
+* **gi-runtime-android:** fail loud on dangling licence link ([#2196](https://github.com/gjsify/gjsify/issues/2196)) ([5faecf6](https://github.com/gjsify/gjsify/commit/5faecf6ef25deacb28958a1ca5b4e950e51a4e56))
+* **release:** make only= reach the dedicated jobs ([#2191](https://github.com/gjsify/gjsify/issues/2191)) ([0964fd1](https://github.com/gjsify/gjsify/commit/0964fd1241bb09ecdd34333c9a0d73a9db19d38a))
+* **site:** drop the empty badge value ([#2208](https://github.com/gjsify/gjsify/issues/2208)) ([e76bd81](https://github.com/gjsify/gjsify/commit/e76bd816eda01b2b871cb4093442c54c44064ed4))
+* **site:** keep portrait screenshots in proportion ([#2207](https://github.com/gjsify/gjsify/issues/2207)) ([a349db4](https://github.com/gjsify/gjsify/commit/a349db400a7e68befc11ba6381ddb0e4caff09b6))
+
+### Documentation
+
+* **adr:** accept 0104 and 0105 ([#2195](https://github.com/gjsify/gjsify/issues/2195)) ([2961dde](https://github.com/gjsify/gjsify/commit/2961dde3f51f431c95c4647832d0dda9c9b70641)), closes [#2187](https://github.com/gjsify/gjsify/issues/2187)
+* **adr:** distribution channel gates donation UI ([#2201](https://github.com/gjsify/gjsify/issues/2201)) ([5a0c1ef](https://github.com/gjsify/gjsify/commit/5a0c1ef4e389cd9031267974de058bd66291324a))
+* **adr:** make real GObject the Android default ([#2197](https://github.com/gjsify/gjsify/issues/2197)) ([a2c40fa](https://github.com/gjsify/gjsify/commit/a2c40fa7c8fe6c0d4f1c2f65262a056ab1b200cb))
+
+### Continuous Integration
+
+* **gi-runtime-android:** build and publish the AAR ([#2187](https://github.com/gjsify/gjsify/issues/2187)) ([68511c6](https://github.com/gjsify/gjsify/commit/68511c6e918690cb80110e038be5a103a6e7e4a6))
+* **next:** publish a next prerelease channel nightly ([#2200](https://github.com/gjsify/gjsify/issues/2200)) ([9d2cca5](https://github.com/gjsify/gjsify/commit/9d2cca56170a0215b3e0792e98421ed1f83e7f72)), closes [#1407](https://github.com/gjsify/gjsify/issues/1407)
+
+### Maintenance
+
+* drop @gjsify/distribution from bootstrap ([#2209](https://github.com/gjsify/gjsify/issues/2209)) ([59c4ec7](https://github.com/gjsify/gjsify/commit/59c4ec7bf88c39bf9cafde2bf9d9956d2a159ea8)), closes [#2208](https://github.com/gjsify/gjsify/issues/2208)
+* **release:** drop published xeddsa from ledger ([#2189](https://github.com/gjsify/gjsify/issues/2189)) ([9ba1092](https://github.com/gjsify/gjsify/commit/9ba10923f0f4d7a467f626541fc4db39b48c4c19))
+* sponsor gjsify through its own profile ([#2211](https://github.com/gjsify/gjsify/issues/2211)) ([896bce9](https://github.com/gjsify/gjsify/commit/896bce97149a986df87aadd0b036f070e034d9eb))
+* **status:** xeddsa is bootstrapped on npm ([#2190](https://github.com/gjsify/gjsify/issues/2190)) ([737aeb2](https://github.com/gjsify/gjsify/commit/737aeb244964aa32d7371d9209bd9b51305a5326))
+* update native prebuilds [skip ci] ([105f8c4](https://github.com/gjsify/gjsify/commit/105f8c4013b5d554fe409f440ce115bdfe009ee2))
+
 ## [0.63.0](https://github.com/gjsify/gjsify/compare/v0.62.0...v0.63.0) (2026-10-13)
 
 ### Features

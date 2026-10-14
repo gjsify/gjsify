@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-gobject-native",
-    "version": "0.63.0",
+    "version": "0.64.0",
     "description": "Real GObject behind @gjsify/adwaita-core's GObject subset — a GObjectEngine whose property store and signal bus are a live GObject reached through node-gi (ADR 0105)",
     "type": "module",
     "module": "lib/esm/index.js",
