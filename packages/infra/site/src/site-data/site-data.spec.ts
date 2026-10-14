@@ -6,7 +6,7 @@
 // AppStream parsing must not depend on. A generated fixture also keeps the expectations readable:
 // "six screenshots" means something when the six are three lines above.
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
@@ -20,7 +20,7 @@ import { parseMetainfo } from './metainfo.js';
 import { fetchJson } from './network.js';
 import { minimumAge } from './oars.js';
 import { completeLocalized, parseCatalog, resolveLocalized } from './po.js';
-import { resolveVariant, validateVariants } from './screenshots.js';
+import { imageSlug, repositoryPath, resolveScreenshots } from './screenshots.js';
 import { epcPayload, formatIban, isValidBic, isValidIban } from './sepa.js';
 import type { ReleaseAsset } from './types.js';
 
@@ -48,12 +48,12 @@ const METAINFO = `<?xml version="1.0" encoding="UTF-8"?>
   <url type="homepage">https://example.org/notes</url>
   <screenshots>
     <screenshot type="default">
-      <image>https://example.org/1.png</image>
+      <image>https://raw.githubusercontent.com/example/notes/refs/tags/v1.2.0/data/list.png</image>
       <caption>The note list</caption>
       <caption xml:lang="de">Die Notizliste</caption>
     </screenshot>
     <screenshot>
-      <image>https://example.org/2.png</image>
+      <image>https://raw.githubusercontent.com/example/notes/main/data/editor.png</image>
       <caption>Editing a note</caption>
     </screenshot>
   </screenshots>
@@ -65,7 +65,8 @@ const METAINFO = `<?xml version="1.0" encoding="UTF-8"?>
 </component>
 `;
 
-const SCREENSHOT_FILES = ['list.png', 'list-dark.png', 'phone.png'];
+/** What the metainfo's `<image>` URLs point at, inside the fixture repository. */
+const SCREENSHOT_FILES = ['list.png', 'editor.png'];
 
 /** The `gjsify.site` block of the fixture repository; a case may override any key. */
 const fixtureSite = (overrides: Record<string, unknown> = {}) => ({
@@ -74,14 +75,6 @@ const fixtureSite = (overrides: Record<string, unknown> = {}) => ({
     url: 'https://example.org/notes',
     repository: 'example/notes',
     languages: ['en', 'de'],
-    screenshots: {
-        source: 'merge',
-        items: [
-            { from: 0, variants: { 'desktop-light': 'data/list.png', 'desktop-dark': 'data/list-dark.png' } },
-            { from: 1, variants: { 'desktop-light': 'data/list.png' } },
-            { caption: 'Runs on a phone', variants: { 'mobile-light': 'data/phone.png' } },
-        ],
-    },
     ...overrides,
 });
 
@@ -121,30 +114,92 @@ const manifest = (site: Record<string, unknown>) => ({
 
 export default async () => {
     await describe('screenshots', async () => {
-        await it('falls back between variants in the documented order', async () => {
-            const all = {
-                'desktop-light': 'dl',
-                'desktop-dark': 'dd',
-                'mobile-light': 'ml',
-                'mobile-dark': 'md',
-            };
-            expect(resolveVariant(all, 'mobile-dark')).toBe('md');
-            expect(resolveVariant({ 'desktop-light': 'dl', 'mobile-light': 'ml' }, 'mobile-dark')).toBe('ml');
-            expect(resolveVariant({ 'desktop-light': 'dl', 'desktop-dark': 'dd' }, 'mobile-dark')).toBe('dd');
-            expect(resolveVariant({ 'desktop-light': 'dl' }, 'mobile-dark')).toBe('dl');
-            expect(resolveVariant({ 'mobile-dark': 'md', 'desktop-dark': 'dd' }, 'mobile-light')).toBe('md');
-            expect(resolveVariant({ 'mobile-light': 'ml', 'desktop-dark': 'dd' }, 'desktop-light')).toBe('dd');
-            expect(resolveVariant({ 'mobile-light': 'ml', 'mobile-dark': 'md' }, 'desktop-dark')).toBe('md');
-            expect(resolveVariant({ 'mobile-light': 'ml' }, 'desktop-dark')).toBe('ml');
-            expect(resolveVariant({}, 'desktop-dark')).toBeUndefined();
+        await it('reads an <image> of this repository from the checkout, whichever ref it pins', async () => {
+            const raw = 'https://raw.githubusercontent.com/';
+            expect(repositoryPath(`${raw}example/notes/refs/tags/v1.2.0/data/list.png`, 'example/notes')).toBe(
+                'data/list.png',
+            );
+            expect(repositoryPath(`${raw}example/notes/main/data/list.png`, 'example/notes')).toBe('data/list.png');
+            expect(repositoryPath(`${raw}Example/Notes/main/data/a%20b.png`, 'example/notes')).toBe('data/a b.png');
+            // Another repository, another host, and a URL with no path left are all "not ours".
+            expect(repositoryPath(`${raw}other/app/main/a.png`, 'example/notes')).toBeUndefined();
+            expect(repositoryPath('https://example.org/1.png', 'example/notes')).toBeUndefined();
+            expect(repositoryPath(`${raw}example/notes/main/`, 'example/notes')).toBeUndefined();
         });
 
-        await it('fails with a clear message on a missing file', async () => {
-            await withFixture((root) => {
-                expect(() => validateVariants({ 'desktop-light': 'nope.png' }, root, '#1')).toThrow(
-                    /"nope.png", which does not exist/,
-                );
-                expect(() => validateVariants({}, root, '#2')).toThrow(/no variants/);
+        await it('flattens a path into one filename stem', async () => {
+            expect(imageSlug('misc/screenshots/Editor 1.png')).toBe('misc-screenshots-editor-1');
+            expect(imageSlug('/1.png')).toBe('1');
+        });
+
+        await it('takes the metainfo list in order, with its captions', async () => {
+            await withFixture(async (root) => {
+                const metainfo = parseMetainfo(METAINFO);
+                const shots = await resolveScreenshots(metainfo, { root, repository: 'example/notes' });
+                expect(shots.length).toBe(2);
+                expect(shots.map((shot) => shot.slug)).toStrictEqual(['data-list', 'data-editor']);
+                expect(shots[0]!.file).toBe(join(root, 'data/list.png'));
+                expect(shots[0]!.caption?.byLanguage.de).toBe('Die Notizliste');
+            });
+        });
+
+        await it('skips a screenshot it cannot find and says which', async () => {
+            await withFixture(async (root) => {
+                rmSync(join(root, 'data/editor.png'));
+                const warnings: string[] = [];
+                const metainfo = parseMetainfo(METAINFO);
+                const shots = await resolveScreenshots(metainfo, {
+                    root,
+                    repository: 'example/notes',
+                    warn: (message) => warnings.push(message),
+                });
+                expect(shots.length).toBe(1);
+                expect(warnings.some((message) => message.includes('data/editor.png'))).toBe(true);
+            });
+        });
+
+        await it('skips artwork hosted elsewhere when the build is offline', async () => {
+            await withFixture(async (root) => {
+                const warnings: string[] = [];
+                const metainfo = parseMetainfo(METAINFO);
+                metainfo.screenshots = [{ url: 'https://example.org/promo.png', caption: null }];
+                const shots = await resolveScreenshots(metainfo, {
+                    root,
+                    repository: 'example/notes',
+                    cacheDir: join(root, 'cache'),
+                    offline: true,
+                    warn: (message) => warnings.push(message),
+                });
+                expect(shots.length).toBe(0);
+                expect(warnings.some((message) => message.includes('offline'))).toBe(true);
+            });
+        });
+
+        await it('downloads artwork hosted elsewhere into the cache, so the next offline build finds it', async () => {
+            await withFixture(async (root) => {
+                const metainfo = parseMetainfo(METAINFO);
+                metainfo.screenshots = [{ url: 'https://example.org/promo.png', caption: null }];
+                const options = {
+                    root,
+                    repository: 'example/notes',
+                    cacheDir: join(root, 'cache'),
+                    network: {
+                        fetch: async () => ({
+                            ok: true,
+                            status: 200,
+                            json: async () => ({}),
+                            arrayBuffer: async () => PIXEL_PNG.buffer.slice(0) as ArrayBuffer,
+                        }),
+                    },
+                };
+                const shots = await resolveScreenshots(metainfo, options);
+                expect(shots.length).toBe(1);
+                expect(shots[0]!.slug).toBe('promo');
+                expect(existsSync(shots[0]!.file)).toBe(true);
+
+                // The second pass finds the cached file and needs no network at all.
+                const offline = await resolveScreenshots(metainfo, { ...options, network: {}, offline: true });
+                expect(offline.length).toBe(1);
             });
         });
     });
@@ -402,10 +457,10 @@ export default async () => {
                     expect(data.stats.githubDownloads).toBeUndefined();
                     // One per endpoint: the GitHub release, the Flathub statistics and the Flathub summary.
                     expect(warnings.filter((message) => message.startsWith('Could not fetch')).length).toBe(3);
-                    expect(data.screenshots.length).toBe(3);
+                    expect(data.screenshots.length).toBe(2);
                     expect(data.screenshots[0]!.caption?.source).toBe('The note list');
                     expect(data.screenshots[0]!.caption?.byLanguage.de).toBe('Die Notizliste');
-                    expect(data.screenshots[2]!.caption?.source).toBe('Runs on a phone');
+                    expect(data.screenshots[1]!.caption?.source).toBe('Editing a note');
                     expect(data.version).toBe('1.2.0');
                 },
                 fixtureSite({ flathub: 'org.example.Notes' }),

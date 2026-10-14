@@ -4,18 +4,17 @@ import {
     isBrowserPlatform,
     PLATFORM_ORDER,
     pickByLanguage,
-    resolveVariant,
     type DescriptionBlock,
     type DownloadTarget,
     type Localized,
     type Release,
     type Screenshot,
-    type ScreenshotVariantKey,
     type SiteData,
     type SiteSupportEntry,
     type SiteSupportSepa,
     type TargetPlatform,
 } from '../site-data/index.js';
+import { readableText } from './color.js';
 import { attrs, esc, fmt, plain } from './html.js';
 import { icon, type IconName } from './icons.js';
 import { qrSvg } from './qr.js';
@@ -31,7 +30,7 @@ export interface RenderContext {
     lang: string;
     t: (msgid: string) => string;
     assets: ClientAssets;
-    /** Processed renditions keyed by the repo-relative path of the source file. */
+    /** Processed renditions keyed by a screenshot's slug. */
     images: ReadonlyMap<string, ProcessedImage>;
     /** Published URL of the app icon, when there is one. */
     iconUrl?: string;
@@ -39,10 +38,7 @@ export interface RenderContext {
 
 type Translate = (msgid: string) => string;
 
-const MOBILE = '(max-width: 600px)';
-const DARK = '(prefers-color-scheme: dark)';
 const FORMAT_TYPES: Record<ImageFormat, string> = { avif: 'image/avif', webp: 'image/webp', png: 'image/png' };
-const SIZES = '(max-width: 600px) 92vw, (max-width: 1000px) 86vw, 860px';
 
 type LinkKey =
     | 'homepage'
@@ -150,84 +146,49 @@ export function ctaLabel(target: DownloadTarget, t: Translate): string {
     return plain(t('Download for {os}'), { os: osName(target.os, t) });
 }
 
-/** The variant files a screenshot needs, deduplicated: the `<picture>` only carries `<source>`s that differ. */
-export function pictureVariants(
-    screenshot: Screenshot,
-): Array<{ media?: string; path: string; key: ScreenshotVariantKey }> {
-    const path = (key: ScreenshotVariantKey) => resolveVariant(screenshot.variants, key) as string;
-    const fallback = path('desktop-light');
-    const sources: Array<{ media?: string; path: string; key: ScreenshotVariantKey }> = [];
-    if (path('mobile-dark') !== path('mobile-light'))
-        sources.push({ media: `${MOBILE} and ${DARK}`, path: path('mobile-dark'), key: 'mobile-dark' });
-    if (path('mobile-light') !== fallback || path('mobile-light') !== path('desktop-dark')) {
-        sources.push({ media: MOBILE, path: path('mobile-light'), key: 'mobile-light' });
-    }
-    if (path('desktop-dark') !== fallback)
-        sources.push({ media: DARK, path: path('desktop-dark'), key: 'desktop-dark' });
-    sources.push({ path: fallback, key: 'desktop-light' });
-    return sources;
-}
-
 function srcset(files: Array<{ url: string; width: number }>): string {
     return files.map((file) => `${file.url} ${file.width}w`).join(', ');
 }
 
+/**
+ * What the browser is told the screenshot will occupy. Capped at the display width the renditions
+ * were cut for, so a wide viewport asks for the 1× file and a HiDPI one for the 2× — never more.
+ */
+function sizes(image: ProcessedImage): string {
+    return `(max-width: 600px) 92vw, min(86vw, ${image.displayWidth}px)`;
+}
+
 /** What a phone shows for this screenshot: portrait artwork needs a taller track than a landscape window. */
 function portraitOnPhone(ctx: RenderContext, screenshot: Screenshot): boolean {
-    return (['mobile-light', 'mobile-dark'] as const).some((key) => {
-        const image = ctx.images.get(resolveVariant(screenshot.variants, key) as string);
-        return image !== undefined && image.height > image.width * 1.1;
-    });
+    const image = ctx.images.get(screenshot.slug);
+    return image !== undefined && image.height > image.width * 1.1;
 }
 
 function picture(ctx: RenderContext, screenshot: Screenshot, alt: string, eager: boolean): string {
-    const variants = pictureVariants(screenshot);
-    const fallback = variants[variants.length - 1]!;
-    const sources = variants.slice(0, -1).flatMap((variant) => {
-        const image = ctx.images.get(variant.path)!;
-        return (['avif', 'webp', 'png'] as const).map(
-            (format) =>
-                `<source${attrs({ media: variant.media, type: FORMAT_TYPES[format], srcset: srcset(image.formats[format]), sizes: SIZES, width: image.width, height: image.height })}>`,
-        );
-    });
-    const base = ctx.images.get(fallback.path)!;
-    const formats = (['avif', 'webp'] as const).map(
+    const image = ctx.images.get(screenshot.slug)!;
+    const shared = { sizes: sizes(image), width: image.width, height: image.height };
+    const sources = (['avif', 'webp'] as const).map(
         (format) =>
-            `<source${attrs({ type: FORMAT_TYPES[format], srcset: srcset(base.formats[format]), sizes: SIZES, width: base.width, height: base.height })}>`,
+            `<source${attrs({ type: FORMAT_TYPES[format], srcset: srcset(image.formats[format]), ...shared })}>`,
     );
-    const png = base.formats.png;
+    const png = image.formats.png;
     const img = `<img${attrs({
         src: png[png.length - 1]!.url,
         srcset: srcset(png),
-        sizes: SIZES,
-        width: base.width,
-        height: base.height,
+        ...shared,
         alt,
         loading: eager ? undefined : 'lazy',
         decoding: 'async',
     })}>`;
-    return `<picture${attrs({ 'data-frame': frameAttribute(ctx, screenshot) })}>${[...sources, ...formats, img].join('')}</picture>`;
+    return `<picture${attrs({ 'data-frame': frameAttribute(ctx, screenshot), style: `--shot-w:${image.displayWidth}px` })}>${[...sources, img].join('')}</picture>`;
 }
 
-/**
- * A window shot brings its own margin and shadow; ours would draw a second frame around it. Decided
- * per viewport, because one slide can pair a desktop window shot with an opaque phone shot.
- */
-export function frameAttribute(
-    ctx: Pick<RenderContext, 'images'>,
-    screenshot: Screenshot,
-): 'none' | 'none-desktop' | 'none-mobile' | undefined {
-    const frameless = (keys: ScreenshotVariantKey[]) =>
-        keys.every((key) => ctx.images.get(resolveVariant(screenshot.variants, key) as string)?.frameless === true);
-    const desktop = frameless(['desktop-light', 'desktop-dark']);
-    const mobile = frameless(['mobile-light', 'mobile-dark']);
-    if (desktop && mobile) return 'none';
-    if (desktop) return 'none-desktop';
-    if (mobile) return 'none-mobile';
-    return undefined;
+/** A window shot brings its own shadow; ours would draw a second one around it. */
+export function frameAttribute(ctx: Pick<RenderContext, 'images'>, screenshot: Screenshot): 'none' | undefined {
+    return ctx.images.get(screenshot.slug)?.frameless === true ? 'none' : undefined;
 }
 
-/** The brand-coloured band around the screenshots, the one place the app's own colours take over. */
+/** The screenshots, at the bottom of the brand-coloured masthead. */
 function screenshotBand(ctx: RenderContext): string {
     if (ctx.data.screenshots.length === 0) return '';
     const { t, lang } = ctx;
@@ -413,7 +374,10 @@ function badges(ctx: RenderContext): string {
     }
     const oses = PLATFORM_ORDER.filter((os) => targets.some((target) => target.available && target.os === os));
     if (oses.length > 0) {
-        const glyphs = oses.map((os) => icon(PLATFORM_ICONS[os], { title: osName(os, t) })).join('');
+        // The class is the hook for the platform's own colour, which the stylesheet reveals on hover.
+        const glyphs = oses
+            .map((os) => icon(PLATFORM_ICONS[os], { title: osName(os, t), class: `platform platform-${os}` }))
+            .join('');
         const label = oses.every(isBrowserPlatform) ? t('Browsers') : t('Platforms');
         specs.push({ pill: `<span class="badge-platforms">${glyphs}</span>`, value: '', label });
     }
@@ -624,10 +588,17 @@ ${repo ? `<a class="bar-link" href="${esc(repo)}">${icon('code')}<span>${onGitHu
 </div>`;
 }
 
-function hero(ctx: RenderContext): string {
+/**
+ * Everything above the text: the icon and name, the install button, the facts row and the
+ * screenshots. One element, so the app's brand colour is behind all of it rather than behind the
+ * screenshots alone. The bar is its sibling and not its child — a `position: sticky` element
+ * cannot outlive its own containing block — but it is painted in the same colour, so it reads as
+ * the top of this header and needs no script to tell whether it has detached.
+ */
+function masthead(ctx: RenderContext): string {
     const { data, lang, t } = ctx;
     const developer = data.app.developer.name;
-    return `<header class="hero">
+    return `<header class="masthead">
 <div class="hero-inner">
 ${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
 <div class="hero-text">
@@ -637,6 +608,7 @@ ${developer ? `<p class="hero-by">${fmt(t('by {developer}'), { developer })}</p>
 ${downloadWidget(ctx)}
 </div>
 ${badges(ctx)}
+${screenshotBand(ctx)}
 </header>`;
 }
 
@@ -671,9 +643,17 @@ function head(ctx: RenderContext): string {
     const title = `${name} – ${summary}`;
     const url = absolute(data, pageUrl(data, lang));
     const first = data.screenshots[0];
-    const og = first ? ctx.images.get(pictureVariants(first).at(-1)!.path) : undefined;
+    const og = first ? ctx.images.get(first.slug) : undefined;
     const ogImage = og ? absolute(data, og.formats.png.at(-1)!.url) : undefined;
-    const { light = '#ffffff', dark = '#1e1e1e' } = data.app.branding;
+    const { light, dark } = data.app.branding;
+    // An app without `<branding>` keeps the stylesheet's own palette: the custom property is left
+    // unset so its `var()` fallback wins, rather than being set to a stand-in colour here.
+    const brandVars = [
+        light ? `--brand-light:${light};--band-fg-light:${readableText(light)}` : '',
+        dark ? `--brand-dark:${dark};--band-fg-dark:${readableText(dark)}` : '',
+    ]
+        .filter(Boolean)
+        .join(';');
     const alternates = data.config.languages.map(
         (code) => `<link rel="alternate" hreflang="${esc(code)}" href="${esc(absolute(data, pageUrl(data, code)))}">`,
     );
@@ -695,10 +675,10 @@ ${alternates.join('\n')}
 <link rel="alternate" hreflang="x-default" href="${esc(absolute(data, data.config.base))}">
 ${meta.map(([property, content]) => `<meta property="${property}" content="${esc(content)}">`).join('\n')}
 <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
-<meta name="theme-color" content="${esc(light)}" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="${esc(dark)}" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="${esc(light ?? '#ffffff')}" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="${esc(dark ?? '#1e1e1e')}" media="(prefers-color-scheme: dark)">
 ${ctx.iconUrl ? `<link rel="icon" type="image/svg+xml" href="${esc(ctx.iconUrl)}">` : ''}
-<style>:root{--brand-light:${esc(light)};--brand-dark:${esc(dark)}}</style>
+${brandVars ? `<style>:root{${brandVars}}</style>` : ''}
 ${ctx.assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
 <script type="module" src="${esc(ctx.assets.js)}"></script>`;
 }
@@ -712,9 +692,8 @@ ${head(ctx)}
 </head>
 <body>
 ${topBar(ctx)}
-${hero(ctx)}
+${masthead(ctx)}
 <main>
-${screenshotBand(ctx)}
 <div class="column">
 <section class="about">
 <h2>${esc(localized(data.app.summary, lang))}</h2>

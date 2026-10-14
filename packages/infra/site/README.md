@@ -76,7 +76,6 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `downloads` | `[{platform, format, url?, label?, available?}]`: targets the release assets do not cover, e.g. browser stores or a source install. `platform` is an OS or `firefox` / `chromium`; `format` adds `store`, `xpi`, `source`. `url` is required unless `available` is `false`, which lists the target as "Not yet available" and never recommends it. |
 | `releaseAssets` | `false` ignores the GitHub release assets, so `downloads` is the whole list. Default `true`. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
-| `screenshots` | `{source, items}`, see below. |
 
 A `sepa` entry carries no amount, and its IBAN is checked when the config loads — length per
 country, alphabet, and the mod-97 checksum — so a typo fails the build instead of printing a QR
@@ -84,22 +83,37 @@ code that moves money nowhere.
 
 ### Screenshots
 
-`screenshots.source` is `metainfo` (only the metainfo list), `site` (only `items`) or `merge`
-(`items`, where `from` borrows the caption of that metainfo screenshot and `caption` is a msgid of
-the page catalogue). Each item has `variants`: files for `desktop-light`, `desktop-dark`,
-`mobile-light`, `mobile-dark`, at least one. A missing file fails the build.
+Nothing to configure: the page shows the metainfo `<screenshots>`, in document order, with their
+captions — the same artwork Flathub shows, so the page doubles as a preview of the store listing.
 
-A missing variant falls back to the nearest one:
+Each `<image>` is located before it is processed. A `raw.githubusercontent.com` URL into
+`repository` is read from the checkout being built, so a metainfo pinned to a tag still shows the
+artwork of the working tree. Anything else is downloaded once into the build cache, which is what
+makes a later `--offline` build find it again. A screenshot whose file cannot be found or fetched
+is skipped with a warning naming it — one image missing beats no page.
 
-| Wanted | Order tried |
-| --- | --- |
-| `mobile-dark` | mobile-dark, mobile-light, desktop-dark, desktop-light |
-| `mobile-light` | mobile-light, mobile-dark, desktop-light, desktop-dark |
-| `desktop-dark` | desktop-dark, desktop-light, mobile-dark, mobile-light |
-| `desktop-light` | desktop-light, desktop-dark, mobile-light, mobile-dark |
+Two things happen to the artwork:
 
-The `<picture>` carries one `<source>` per differing variant (`max-width: 600px` and
-`prefers-color-scheme`), each as AVIF, WebP and PNG at up to three widths.
+- **Fully transparent rows and columns are cropped away.** A window shot is saved on a canvas
+  large enough for the window's own shadow, and how much empty space is left around it is up to
+  whoever took the shot; the page would otherwise frame that emptiness. The threshold is "not one
+  pixel painted at all", so the shadow itself survives.
+- **Renditions go up to 2560px and the display width is capped at 1280.** That settles what a "2×"
+  source is without asking the metainfo: a 2560px screenshot fills a 1280 CSS px box at
+  device-pixel-ratio 2 and stays crisp, a narrower one is shown at its natural width. Nothing is
+  ever upscaled.
+
+The `<picture>` carries AVIF, WebP and PNG, each with a `srcset` of 640px, 1280px and 2560px
+renditions up to the source's own width.
+
+### Colour
+
+Also nothing to configure: the metainfo's `<branding>` colour for the page's scheme paints the
+masthead — the bar, the icon and title, the install button, the facts row and the screenshots, all
+one surface. The text on it is not assumed to be white; the build measures the brand colour's
+relative luminance and writes near-black or white into `--band-fg`, whichever the eye can read.
+Everything below the masthead keeps the site's own neutral palette, so a pale brand colour cannot
+make the description unreadable. An app without `<branding>` gets the default blue.
 
 ## Translations
 
@@ -110,8 +124,8 @@ Two catalogue sets meet on the page, and they have different owners.
 - **App text** — name, summary, description, release notes — is looked up per language: the
   metainfo's own `xml:lang` element, then `translations/<lang>.po` (msgid = the source text), then
   the source text.
-- **Consumer page strings** — the captions configured under `screenshots.items`, and any page
-  string a consumer wants to word differently — live in `pageTranslations`. That directory
+- **Consumer page strings** — any page string a consumer wants to word differently — live in
+  `pageTranslations`. That directory
   overlays `po/`: an entry there wins, everything else falls back. `gjsify site i18n` regenerates
   it from the strings the build can emit and warns about each one still untranslated; `--check`
   turns that into a failure for CI.

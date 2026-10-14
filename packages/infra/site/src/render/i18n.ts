@@ -53,12 +53,12 @@ export async function rendererMsgids(renderDir: string): Promise<string[]> {
 }
 
 /**
- * The msgids a configuration introduces: the captions and download labels its author wrote. They
- * belong to the consumer and are translated in the consumer's `pageTranslations`.
+ * The msgids a configuration introduces: the download labels its author wrote. They belong to the
+ * consumer and are translated in the consumer's `pageTranslations`. Screenshot captions are not
+ * among them — they live in the metainfo and are translated there.
  */
 export function configMsgids(config: SiteConfig): string[] {
     const msgids = new Set<string>();
-    for (const item of config.screenshots.items) if (item.caption) msgids.add(item.caption);
     for (const download of config.downloads) if (download.label) msgids.add(download.label);
     return [...msgids];
 }

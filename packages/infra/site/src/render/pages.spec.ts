@@ -27,21 +27,16 @@ export default async () => {
             expect(ctaLabel(target('firefox', 'xpi'), t)).toBe('Install for Firefox');
         });
 
-        await it('drops our frame only where the chosen source is a window shot', async () => {
+        await it('drops our frame only where the screenshot is a window shot', async () => {
             const image = (frameless: boolean) => ({ frameless }) as ProcessedImage;
             const images = new Map([
-                ['window.png', image(true)],
-                ['phone.png', image(false)],
+                ['window', image(true)],
+                ['phone', image(false)],
             ]);
-            const shot = (variants: Screenshot['variants']): Screenshot => ({ caption: null, variants });
-            expect(frameAttribute({ images }, shot({ 'desktop-light': 'window.png' }))).toBe('none');
-            expect(frameAttribute({ images }, shot({ 'desktop-light': 'phone.png' }))).toBeUndefined();
-            expect(
-                frameAttribute({ images }, shot({ 'desktop-light': 'window.png', 'mobile-light': 'phone.png' })),
-            ).toBe('none-desktop');
-            expect(
-                frameAttribute({ images }, shot({ 'desktop-light': 'phone.png', 'mobile-light': 'window.png' })),
-            ).toBe('none-mobile');
+            const shot = (slug: string): Screenshot => ({ caption: null, url: '', file: '', slug });
+            expect(frameAttribute({ images }, shot('window'))).toBe('none');
+            expect(frameAttribute({ images }, shot('phone'))).toBeUndefined();
+            expect(frameAttribute({ images }, shot('missing'))).toBeUndefined();
         });
 
         await it('shows the grouped IBAN, the details and an inline QR code', async () => {

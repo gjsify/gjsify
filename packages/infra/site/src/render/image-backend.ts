@@ -28,12 +28,26 @@ const ENCODER: Record<ImageFormat, { keys: string[]; values: string[] }> = {
     png: { keys: ['compression'], values: ['9'] },
 };
 
-/** A decoded raster, immutable: `resizedToWidth` answers a new one. */
+/** A rectangle in pixels, as `opaqueBounds` reports it and `cropped` takes it. */
+export interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/** A decoded raster, immutable: `resizedToWidth` and `cropped` answer a new one. */
 export interface RasterImage {
     readonly width: number;
     readonly height: number;
     /** 0–255; an image without an alpha channel answers 255 everywhere. */
     alphaAt(x: number, y: number): number;
+    /**
+     * The smallest rectangle holding every pixel whose alpha reaches `threshold`, or `null` when no
+     * pixel does. An image without an alpha channel answers its whole area.
+     */
+    opaqueBounds(threshold: number): Rect | null;
+    cropped(rect: Rect): RasterImage;
     /** Keeps the aspect ratio. Never enlarges: a width at or above this one answers the same image. */
     resizedToWidth(width: number): RasterImage;
     encode(format: ImageFormat): Uint8Array;
@@ -66,6 +80,40 @@ function wrap(pixbuf: GdkPixbuf.Pixbuf): RasterImage {
             if (!pixbuf.get_has_alpha()) return 255;
             const pixels = pixbuf.get_pixels();
             return pixels[y * pixbuf.get_rowstride() + x * pixbuf.get_n_channels() + 3] ?? 255;
+        },
+        opaqueBounds(threshold) {
+            if (!pixbuf.get_has_alpha()) return { x: 0, y: 0, width, height };
+            // The whole buffer once, not a call per pixel: a 2560px screenshot is seven million
+            // samples, and `get_pixels` copies the buffer out of GI on every call.
+            const pixels = pixbuf.get_pixels();
+            const stride = pixbuf.get_rowstride();
+            const channels = pixbuf.get_n_channels();
+            let top = -1;
+            let bottom = -1;
+            let left = width;
+            let right = -1;
+            for (let y = 0; y < height; y++) {
+                const row = y * stride;
+                let first = -1;
+                let last = -1;
+                for (let x = 0; x < width; x++) {
+                    if ((pixels[row + x * channels + 3] ?? 255) < threshold) continue;
+                    if (first === -1) first = x;
+                    last = x;
+                }
+                if (first === -1) continue;
+                if (top === -1) top = y;
+                bottom = y;
+                if (first < left) left = first;
+                if (last > right) right = last;
+            }
+            if (top === -1) return null;
+            return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
+        },
+        cropped(rect) {
+            const sub = pixbuf.new_subpixbuf(rect.x, rect.y, rect.width, rect.height);
+            if (!sub) throw new Error(`Could not crop an image to ${rect.width}x${rect.height}`);
+            return wrap(sub);
         },
         resizedToWidth(target) {
             if (target >= width) return wrap(pixbuf);

@@ -8,8 +8,8 @@ import { fetchLatestRelease } from './github.js';
 import { parseMetainfo } from './metainfo.js';
 import type { NetworkOptions } from './network.js';
 import { minimumAge } from './oars.js';
-import { UI_SOURCE_LANGUAGE, completeLocalized, languageCandidates, parseCatalog, type Catalog } from './po.js';
-import { buildScreenshots } from './screenshots.js';
+import { completeLocalized, languageCandidates, parseCatalog, type Catalog } from './po.js';
+import { resolveScreenshots } from './screenshots.js';
 import type {
     DescriptionBlock,
     LatestRelease,
@@ -24,9 +24,9 @@ import type {
 export interface LoadOptions {
     /** Repository root: where the root package.json lives and the config's paths start. */
     root: string;
-    /** Website catalogues by language, used to translate screenshot captions configured in `gjsify.site`. */
-    uiCatalogs?: Readonly<Record<string, Catalog>>;
-    /** Skip every network call (release assets and stats). */
+    /** Where screenshots hosted outside this repository are kept, so a later offline build finds them again. */
+    screenshotCacheDir?: string;
+    /** Skip every network call (release assets, stats, screenshots hosted elsewhere). */
     offline?: boolean;
     githubToken?: string;
     network?: NetworkOptions;
@@ -105,18 +105,18 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
                 : { type: 'list', items: block.items.map(complete) },
         );
 
-    const captionFor = (msgid: string): Localized => {
-        const byLanguage: Record<string, string> = {};
-        for (const language of config.languages) {
-            const translated = options.uiCatalogs?.[language]?.get(msgid);
-            if (translated !== undefined && language !== UI_SOURCE_LANGUAGE) byLanguage[language] = translated;
-        }
-        return { source: msgid, byLanguage };
-    };
-
     warnMissingTranslations(config, metainfo, complete, warn);
 
-    const screenshots = buildScreenshots(config, metainfo, options.root, captionFor).map((screenshot) => ({
+    const screenshots = (
+        await resolveScreenshots(metainfo, {
+            root: options.root,
+            repository: config.repository,
+            cacheDir: options.screenshotCacheDir,
+            offline: options.offline,
+            network: options.network,
+            warn,
+        })
+    ).map((screenshot) => ({
         ...screenshot,
         caption: screenshot.caption ? complete(screenshot.caption) : null,
     }));

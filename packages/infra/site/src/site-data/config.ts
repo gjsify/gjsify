@@ -1,8 +1,5 @@
 import { isValidBic, isValidIban, normalizeIban } from './sepa.js';
 import type {
-    ScreenshotItemConfig,
-    ScreenshotSource,
-    ScreenshotVariants,
     TargetFormat,
     TargetPlatform,
     SiteConfig,
@@ -73,44 +70,6 @@ function parseSupport(entry: Raw, where: string): SiteSupportEntry {
         throw new Error(`${where}.reference is longer than the 140 characters an EPC QR code allows`);
     }
     return { kind: 'sepa', name, iban, bic, reference };
-}
-
-const VARIANT_NAMES = ['desktop-light', 'desktop-dark', 'mobile-light', 'mobile-dark'] as const;
-
-function parseVariants(value: unknown, where: string): ScreenshotVariants {
-    if (value === undefined) return {};
-    if (!isRecord(value)) throw new Error(`${where}.variants must be an object`);
-    const variants: ScreenshotVariants = {};
-    for (const [key, path] of Object.entries(value)) {
-        if (!(VARIANT_NAMES as readonly string[]).includes(key)) {
-            throw new Error(`${where}.variants has unknown key "${key}"; use ${VARIANT_NAMES.join(', ')}`);
-        }
-        if (typeof path !== 'string' || path === '') throw new Error(`${where}.variants.${key} must be a file path`);
-        variants[key as (typeof VARIANT_NAMES)[number]] = path;
-    }
-    return variants;
-}
-
-function parseScreenshots(raw: unknown): SiteConfig['screenshots'] {
-    if (raw === undefined) return { source: 'metainfo', items: [] };
-    if (!isRecord(raw)) throw new Error('gjsify.site.screenshots must be an object');
-    const source = (raw.source ?? 'metainfo') as ScreenshotSource;
-    if (!['metainfo', 'site', 'merge'].includes(source)) {
-        throw new Error(
-            `gjsify.site.screenshots.source must be "metainfo", "site" or "merge", got "${String(raw.source)}"`,
-        );
-    }
-    const items: ScreenshotItemConfig[] = objectList(raw, 'items').map((item, index) => {
-        const where = `gjsify.site.screenshots.items[${index}]`;
-        const from = item.from;
-        if (from !== undefined && (typeof from !== 'number' || !Number.isInteger(from) || from < 0)) {
-            throw new Error(`${where}.from must be a non-negative integer`);
-        }
-        const caption = item.caption;
-        if (caption !== undefined && typeof caption !== 'string') throw new Error(`${where}.caption must be a string`);
-        return { from, caption, variants: parseVariants(item.variants, where) };
-    });
-    return { source, items };
 }
 
 const PLATFORMS: readonly TargetPlatform[] = ['linux', 'darwin', 'win32', 'android', 'web', 'firefox', 'chromium'];
@@ -201,6 +160,5 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
                 url: stringField(entry, 'url', `gjsify.site.legal[${index}]`),
             }),
         ),
-        screenshots: parseScreenshots(raw.screenshots),
     };
 }
