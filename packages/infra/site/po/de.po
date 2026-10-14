@@ -6,6 +6,15 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Support"
+msgstr "Unterstützen"
+
+msgid "These apps are free software. Pick one to see how to support its development."
+msgstr "Diese Apps sind freie Software. Wähle eine aus, um zu sehen, wie du ihre Entwicklung unterstützen kannst."
+
+msgid "Language"
+msgstr "Sprache"
+
 msgid "Website"
 msgstr "Webseite"
 
@@ -29,9 +38,6 @@ msgstr "Beim Übersetzen helfen"
 
 msgid "Contact"
 msgstr "Kontakt"
-
-msgid "Donate"
-msgstr "Spenden"
 
 msgid "Linux"
 msgstr "Linux"
@@ -192,9 +198,6 @@ msgstr "Stichwörter"
 msgid "Architectures"
 msgstr "Architekturen"
 
-msgid "Language"
-msgstr "Sprache"
-
 msgid "by {developer}"
 msgstr "von {developer}"
 
@@ -206,6 +209,12 @@ msgstr "Diese Seite gibt Texte unter der Lizenz {license} wieder."
 
 msgid "Made with {project}"
 msgstr "Gemacht mit {project}"
+
+msgid "{app} is free software. Support its development with a transfer or a service."
+msgstr "{app} ist freie Software. Unterstütze die Entwicklung per Überweisung oder über einen Dienst."
+
+msgid "Back to {app}"
+msgstr "Zurück zu {app}"
 
 msgid "Flathub"
 msgstr "Flathub"
@@ -263,3 +272,12 @@ msgstr "Store"
 
 msgid "Firefox add-on"
 msgstr "Firefox-Add-on"
+
+msgid "GitHub Sponsors"
+msgstr "GitHub Sponsors"
+
+msgid "Liberapay"
+msgstr "Liberapay"
+
+msgid "PayPal"
+msgstr "PayPal"

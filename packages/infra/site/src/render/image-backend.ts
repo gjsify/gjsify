@@ -152,3 +152,8 @@ export function decodeImageBytes(bytes: Uint8Array): RasterImage {
     if (!pixbuf) throw new Error('Could not decode an image from memory');
     return wrap(pixbuf);
 }
+
+/** Rasterises an SVG document at its own size, through the same loader set as the screenshots. */
+export function svgToPng(svg: string): Uint8Array {
+    return decodeImageBytes(new TextEncoder().encode(svg)).encode('png');
+}

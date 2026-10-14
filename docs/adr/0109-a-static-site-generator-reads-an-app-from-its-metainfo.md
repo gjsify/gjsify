@@ -172,3 +172,20 @@ An app with no `<branding>` keeps the stylesheet's own palette; nothing is hardc
 **Migration:** delete `gjsify.site.screenshots`. It is no longer read, so a leftover block is dead
 config rather than an error, and the screenshots come from the metainfo either way. An app that
 wants its own colour on the page adds `<branding>` to its metainfo, which Flathub reads too.
+
+## Amendment (2026-10-14) — a support page per app, and one overview
+
+**Support pages are generated, not a dialog.** `gjsify.site.support` now renders
+`/<lang>/support/` next to the landing page: plain markup that works without JavaScript, titled
+"Support" (never "Donate", because the income is business income and implies no tax deduction).
+The landing page keeps its section and links to it. The bank-transfer reference defaults to
+`Support <app>` so each app is told apart on the statement.
+
+**The overview takes the smallest input that fits this ADR.** `gjsify site build --overview
+<file>` reads a small JSON file (`url`, `base`, `languages`, `apps`), where each app is a
+repository root whose own `gjsify.site` already holds its address, languages and metainfo. No
+app's data is duplicated into a central list and the apps stay the source of truth.
+
+**SEO output belongs to the build.** Open Graph cards (SVG rasterised by GdkPixbuf, no extra
+dependency), `SoftwareApplication` JSON-LD, a sitemap with `hreflang` alternates and a
+`robots.txt` only where the site owns the host root.

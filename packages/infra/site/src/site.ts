@@ -4,18 +4,35 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { catalogMsgids, configMsgids, rendererMsgids, syncCatalogs, type I18nResult } from './render/i18n.js';
+import { readableText } from './render/color.js';
+import { svgToPng } from './render/image-backend.js';
 import { processImage, type ProcessedImage } from './render/images.js';
-import { renderPage, renderRoot, type ClientAssets } from './render/pages.js';
+import { ogCardSvg } from './render/og-card.js';
+import {
+    absolute,
+    localized,
+    pageMeta,
+    pageUrl,
+    renderPage,
+    renderRoot,
+    renderSupportPage,
+    supportUrl,
+    type ClientAssets,
+} from './render/pages.js';
+import { renderOverview } from './render/overview.js';
+import { robotsTxt, seoWarnings, sitemapXml, type SitemapPage } from './render/seo.js';
 import {
     UI_SOURCE_LANGUAGE,
     loadCatalogs,
     loadSiteData,
     mergeCatalogs,
+    parseMetainfo,
     parseSiteConfig,
+    pickByLanguage,
     translator,
     type Catalog,
     type RootManifest,
@@ -123,6 +140,17 @@ async function processScreenshots(
     return new Map(entries);
 }
 
+const ICON_TYPES: Record<string, string> = { '.svg': 'image/svg+xml', '.png': 'image/png' };
+
+/** The icon inlined, so the card's SVG is self-contained when the pixbuf loader rasterises it. */
+async function iconDataUri(data: SiteData, { root }: SiteTarget): Promise<string | undefined> {
+    if (!data.app.icon) return undefined;
+    const type = ICON_TYPES[extname(data.app.icon).toLowerCase()];
+    if (!type) return undefined;
+    const bytes = await readFile(resolve(root, data.app.icon));
+    return `data:${type};base64,${bytes.toString('base64')}`;
+}
+
 async function publishIcon(data: SiteData, { root, out }: SiteTarget): Promise<string | undefined> {
     if (!data.app.icon) return undefined;
     const name = basename(data.app.icon);
@@ -183,12 +211,38 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
     const images = await processScreenshots(data, target, cacheDir ?? defaultCacheDir(target.root));
     const iconUrl = await publishIcon(data, target);
 
+    const iconHref = await iconDataUri(data, target);
+    const { light = '#84bbfd' } = data.app.branding;
+    const hasSupport = data.config.support.length > 0;
     for (const lang of data.config.languages) {
-        const html = renderPage({ data, lang, t: translator(catalogs[lang]), assets, images, iconUrl });
+        const t = translator(catalogs[lang]);
+        const ctx = { data, lang, t, assets, images, iconUrl, ogImage: `${data.config.base}og-${lang}.png` };
+        const meta = pageMeta(ctx);
+        for (const warning of seoWarnings({ lang, ...meta })) options.warn?.(warning);
+        const card = ogCardSvg({
+            name: meta.name,
+            summary: localized(data.app.summary, lang),
+            background: light,
+            foreground: readableText(light),
+            iconHref,
+        });
+        await writeFile(join(target.out, `og-${lang}.png`), svgToPng(card));
         await mkdir(join(target.out, lang), { recursive: true });
-        await writeFile(join(target.out, lang, 'index.html'), html);
+        await writeFile(join(target.out, lang, 'index.html'), renderPage(ctx));
+        if (hasSupport) {
+            await mkdir(join(target.out, lang, 'support'), { recursive: true });
+            await writeFile(join(target.out, lang, 'support', 'index.html'), renderSupportPage(ctx));
+        }
     }
     await writeFile(join(target.out, 'index.html'), renderRoot(data, assets, iconUrl));
+    const address = (build: (data: SiteData, lang: string) => string) =>
+        Object.fromEntries(data.config.languages.map((lang) => [lang, absolute(data, build(data, lang))]));
+    const pages: SitemapPage[] = [address(pageUrl), ...(hasSupport ? [address(supportUrl)] : [])];
+    await writeFile(join(target.out, 'sitemap.xml'), sitemapXml(pages, data.config.defaultLanguage));
+    // Only a site served from the host root can own `/robots.txt`; below a path the host does.
+    if (data.config.base === '/') {
+        await writeFile(join(target.out, 'robots.txt'), robotsTxt(absolute(data, `${data.config.base}sitemap.xml`)));
+    }
     return { languages: [...data.config.languages], screenshots: images.size };
 }
 
@@ -247,4 +301,81 @@ export async function syncSiteI18n(options: SiteI18nOptions = {}): Promise<I18nR
     const dir = resolve(root, config.pageTranslations);
     if (!check) await mkdir(dir, { recursive: true });
     return syncCatalogs({ dir, languages: config.languages, msgids, check, base: root });
+}
+
+/**
+ * The `--overview` input: one JSON file naming the host and the apps whose support pages it lists.
+ * Each app is a repository root (relative to the file) with its own `gjsify.site` block, which is
+ * where its published address, languages and metainfo already live.
+ */
+export interface OverviewConfig {
+    /** Origin the overview is published on, e.g. `https://jumplink.eu/`. */
+    url: string;
+    /** Path the overview lives under; default `/support/`. */
+    base?: string;
+    languages: string[];
+    defaultLanguage?: string;
+    apps: string[];
+}
+
+export interface OverviewBuildOptions {
+    /** The overview JSON file. */
+    config: string;
+    out: string;
+    log?: (message: string) => void;
+    warn?: (message: string) => void;
+    packageDir?: string;
+}
+
+export async function buildOverview(options: OverviewBuildOptions): Promise<{ languages: string[]; apps: number }> {
+    const file = resolve(options.config);
+    const overview = JSON.parse(await readFile(file, 'utf8')) as OverviewConfig;
+    if (!overview.url || !Array.isArray(overview.apps) || !Array.isArray(overview.languages))
+        throw new Error(`${file} needs "url", "languages" and "apps"`);
+    const out = resolve(options.out);
+    const base = overview.base ?? '/support/';
+    const defaultLanguage = overview.defaultLanguage ?? overview.languages[0]!;
+    const self = selfDir(options.packageDir);
+    await rm(out, { recursive: true, force: true });
+    await mkdir(out, { recursive: true });
+    const assets = await stageClientAssets(base, out, self);
+    const catalogs = await loadCatalogs(poDir(self), overview.languages);
+
+    const apps = await Promise.all(
+        overview.apps.map(async (entry) => {
+            const root = resolve(dirname(file), entry);
+            const config = await readConfig(root);
+            const metainfo = parseMetainfo(await readFile(resolve(root, config.metainfo), 'utf8'));
+            return { config, metainfo };
+        }),
+    );
+    const origin = new URL(overview.url).origin;
+    const pathFor = (lang: string) => `${base}${lang}/`;
+    const urls = Object.fromEntries(overview.languages.map((lang) => [lang, `${origin}${pathFor(lang)}`]));
+    const paths = Object.fromEntries(overview.languages.map((lang) => [lang, pathFor(lang)]));
+    for (const lang of overview.languages) {
+        const html = renderOverview({
+            lang,
+            languages: overview.languages,
+            defaultLanguage,
+            urls,
+            paths,
+            assets,
+            t: translator(catalogs[lang]),
+            apps: apps.map(({ config, metainfo }) => ({
+                name: pickByLanguage(metainfo.name.byLanguage, lang) ?? metainfo.name.source,
+                url: `${new URL(config.url).origin}${config.base}${config.languages.includes(lang) ? lang : config.defaultLanguage}/support/`,
+            })),
+        });
+        await mkdir(join(out, lang), { recursive: true });
+        await writeFile(join(out, lang, 'index.html'), html);
+    }
+    const root = `<!doctype html>
+<html lang="${defaultLanguage}"><head><meta charset="utf-8"><title>Support</title>
+<link rel="canonical" href="${urls[defaultLanguage]}"><meta http-equiv="refresh" content="0; url=${pathFor(defaultLanguage)}"></head>
+<body><a href="${pathFor(defaultLanguage)}">Support</a></body></html>
+`;
+    await writeFile(join(out, 'index.html'), root);
+    await writeFile(join(out, 'sitemap.xml'), sitemapXml([urls], defaultLanguage));
+    return { languages: overview.languages, apps: apps.length };
 }

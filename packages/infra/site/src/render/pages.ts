@@ -17,7 +17,9 @@ import {
 import { readableText } from './color.js';
 import { attrs, esc, fmt, plain } from './html.js';
 import { icon, type IconName } from './icons.js';
+import { OG_HEIGHT, OG_WIDTH } from './og-card.js';
 import { qrSvg } from './qr.js';
+import { metaDescription, ogLocale, pageTitle, softwareApplicationJsonLd } from './seo.js';
 import type { ImageFormat, ProcessedImage } from './images.js';
 
 export interface ClientAssets {
@@ -34,6 +36,10 @@ export interface RenderContext {
     images: ReadonlyMap<string, ProcessedImage>;
     /** Published URL of the app icon, when there is one. */
     iconUrl?: string;
+    /** Which page of the app this renders; the language switch and the head follow it. Default `app`. */
+    view?: 'app' | 'support';
+    /** Root-relative URL of the link-preview card for this language. */
+    ogImage?: string;
 }
 
 type Translate = (msgid: string) => string;
@@ -60,7 +66,7 @@ const LINKS: Array<[key: LinkKey, label: (t: Translate) => string, glyph: IconNa
     ['contribute', (t) => t('Contribute'), 'people'],
     ['translate', (t) => t('Help translate'), 'translate'],
     ['contact', (t) => t('Contact'), 'mail'],
-    ['donation', (t) => t('Donate'), 'heart'],
+    ['donation', (t) => t('Support'), 'heart'],
 ];
 
 const PLATFORM_ICONS: Record<TargetPlatform, IconName> = {
@@ -81,11 +87,20 @@ export function pageUrl(data: SiteData, lang: string): string {
     return `${data.config.base}${lang}/`;
 }
 
-function absolute(data: SiteData, rootRelative: string): string {
+export function absolute(data: SiteData, rootRelative: string): string {
     return new URL(rootRelative.replace(/^\//, ''), `${new URL(data.config.url).origin}/`).href;
 }
 
-function languageName(code: string): string {
+export function supportUrl(data: SiteData, lang: string): string {
+    return `${pageUrl(data, lang)}support/`;
+}
+
+/** The transfer reference when the config sets none: one per app, so the bank statement says what it was for. */
+export function supportReference(data: SiteData): string {
+    return `Support ${data.app.name.source}`;
+}
+
+export function languageName(code: string): string {
     return new Intl.DisplayNames([code], { type: 'language' }).of(code) ?? code;
 }
 
@@ -451,7 +466,7 @@ ${blocks(release.description, lang)}
 </section>`;
 }
 
-function linkCard(href: string, title: string, glyph: IconName): string {
+export function linkCard(href: string, title: string, glyph: IconName): string {
     return `<li>
 <a href="${esc(href)}">
 <span class="link-icon">${icon(glyph)}</span>
@@ -508,32 +523,18 @@ ${qrSvg(epcPayload(entry), t('QR code for a bank transfer'))}
 </li>`;
 }
 
-function supportItem(entry: SiteSupportEntry, t: Translate): string {
+function supportItem(entry: SiteSupportEntry, t: Translate, reference: string): string {
     return entry.kind === 'sepa'
-        ? sepaCard(entry as SiteSupportSepa, t)
+        ? sepaCard({ ...(entry as SiteSupportSepa), reference: (entry as SiteSupportSepa).reference ?? reference }, t)
         : linkCard((entry as { url: string }).url, t(entry.kind), 'heart');
 }
 
-/**
- * Ways to support the project, if the site configures any. Same no-JavaScript shape as the
- * download dialog: an anchor to a dialog that stays an open panel until the component takes over.
- */
+/** The landing page only points at the support page: the details live there, readable without a dialog. */
 function support(ctx: RenderContext): string {
-    const { data, t } = ctx;
+    const { data, lang, t } = ctx;
     if (data.config.support.length === 0) return '';
     return `<section class="support">
-<app-support class="support-widget">
-<a class="button support-cta" href="#support-ways">${icon('heart')}<span>${esc(t('Support this project'))}</span></a>
-<dialog id="support-ways" class="support-dialog" aria-labelledby="support-ways-title">
-<div class="dialog-head">
-<h2 id="support-ways-title">${esc(t('Support this project'))}</h2>
-<button class="dialog-close" type="button" aria-label="${esc(t('Close'))}" hidden>${icon('close')}</button>
-</div>
-<ul class="card-list">
-${data.config.support.map((entry) => supportItem(entry, t)).join('\n')}
-</ul>
-</dialog>
-</app-support>
+<a class="button support-cta" href="${esc(supportUrl(data, lang))}">${icon('heart')}<span>${esc(t('Support this project'))}</span></a>
 </section>`;
 }
 
@@ -561,7 +562,7 @@ function languageSwitch(ctx: RenderContext, className: string, style: 'code' | '
         const label = style === 'code' ? code.toUpperCase() : languageName(code);
         return code === lang
             ? `<li><span aria-current="true">${esc(label)}</span></li>`
-            : `<li><a href="${esc(pageUrl(data, code))}" hreflang="${esc(code)}" lang="${esc(code)}">${esc(label)}</a></li>`;
+            : `<li><a href="${esc(ctx.view === 'support' ? supportUrl(data, code) : pageUrl(data, code))}" hreflang="${esc(code)}" lang="${esc(code)}">${esc(label)}</a></li>`;
     });
     return `<nav class="${className}" aria-label="${esc(t('Language'))}"><ul>${items.join('')}</ul></nav>`;
 }
@@ -636,15 +637,64 @@ ${legal ? `<ul class="footer-legal">${legal}</ul>` : ''}
 </footer>`;
 }
 
+/** The title and description of one page; also what the build checks for weak ones. */
+export function pageMeta(
+    ctx: Pick<RenderContext, 'data' | 'lang' | 't'>,
+    view: 'app' | 'support' = 'app',
+): { name: string; title: string; description: string } {
+    const { data, lang, t } = ctx;
+    const name = localized(data.app.name, lang);
+    if (view === 'support') {
+        return {
+            name,
+            title: `${t('Support')} – ${name}`,
+            description: plain(t('{app} is free software. Support its development with a transfer or a service.'), {
+                app: name,
+            }),
+        };
+    }
+    const summary = localized(data.app.summary, lang);
+    const first = data.app.description.find((block) => block.type === 'paragraph');
+    const paragraph = first?.type === 'paragraph' ? localized(first.text, lang) : undefined;
+    return { name, title: pageTitle(name, summary), description: metaDescription(summary, paragraph) };
+}
+
+const SCHEMA_OS: Record<TargetPlatform, string> = {
+    linux: 'Linux',
+    darwin: 'macOS',
+    win32: 'Windows',
+    android: 'Android',
+    web: 'Web browser',
+    firefox: 'Web browser',
+    chromium: 'Web browser',
+};
+
+function structuredData(ctx: RenderContext, title: string, description: string): string {
+    const { data, lang } = ctx;
+    const systems = [
+        ...new Set(data.downloads.targets.filter((target) => target.available).map((target) => SCHEMA_OS[target.os])),
+    ];
+    return softwareApplicationJsonLd({
+        name: localized(data.app.name, lang),
+        description,
+        url: absolute(data, pageUrl(data, lang)),
+        image: ctx.iconUrl ? absolute(data, ctx.iconUrl) : undefined,
+        version: data.version,
+        operatingSystems: systems,
+        license: data.app.license,
+        downloadUrl: data.downloads.releasesUrl,
+        repository: repositoryUrl(data),
+        languages: data.config.languages,
+    });
+}
+
 function head(ctx: RenderContext): string {
     const { data, lang } = ctx;
-    const name = localized(data.app.name, lang);
-    const summary = localized(data.app.summary, lang);
-    const title = `${name} – ${summary}`;
-    const url = absolute(data, pageUrl(data, lang));
-    const first = data.screenshots[0];
-    const og = first ? ctx.images.get(first.slug) : undefined;
-    const ogImage = og ? absolute(data, og.formats.png.at(-1)!.url) : undefined;
+    const view = ctx.view ?? 'app';
+    const viewPath = (code: string) => (view === 'support' ? supportUrl(data, code) : pageUrl(data, code));
+    const { name, title, description } = pageMeta(ctx, view);
+    const url = absolute(data, viewPath(lang));
+    const ogImage = ctx.ogImage ? absolute(data, ctx.ogImage) : undefined;
     const { light, dark } = data.app.branding;
     // An app without `<branding>` keeps the stylesheet's own palette: the custom property is left
     // unset so its `var()` fallback wins, rather than being set to a stand-in colour here.
@@ -655,29 +705,43 @@ function head(ctx: RenderContext): string {
         .filter(Boolean)
         .join(';');
     const alternates = data.config.languages.map(
-        (code) => `<link rel="alternate" hreflang="${esc(code)}" href="${esc(absolute(data, pageUrl(data, code)))}">`,
+        (code) => `<link rel="alternate" hreflang="${esc(code)}" href="${esc(absolute(data, viewPath(code)))}">`,
     );
     const meta: Array<[string, string]> = [
         ['og:type', 'website'],
         ['og:title', title],
-        ['og:description', summary],
+        ['og:description', description],
         ['og:url', url],
         ['og:site_name', name],
-        ['og:locale', lang.replace(/-/g, '_')],
+        ['og:locale', ogLocale(lang)],
+        ...data.config.languages
+            .filter((code) => code !== lang)
+            .map((code): [string, string] => ['og:locale:alternate', ogLocale(code)]),
     ];
-    if (ogImage) meta.push(['og:image', ogImage]);
+    if (ogImage) {
+        meta.push(
+            ['og:image', ogImage],
+            ['og:image:width', String(OG_WIDTH)],
+            ['og:image:height', String(OG_HEIGHT)],
+            ['og:image:alt', name],
+        );
+    }
     return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<meta name="description" content="${esc(summary)}">
+<meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${esc(url)}">
 ${alternates.join('\n')}
-<link rel="alternate" hreflang="x-default" href="${esc(absolute(data, data.config.base))}">
+<link rel="alternate" hreflang="x-default" href="${esc(absolute(data, viewPath(data.config.defaultLanguage)))}">
 ${meta.map(([property, content]) => `<meta property="${property}" content="${esc(content)}">`).join('\n')}
 <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(description)}">
+${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ''}
 <meta name="theme-color" content="${esc(light ?? '#ffffff')}" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="${esc(dark ?? '#1e1e1e')}" media="(prefers-color-scheme: dark)">
 ${ctx.iconUrl ? `<link rel="icon" type="image/svg+xml" href="${esc(ctx.iconUrl)}">` : ''}
+${view === 'app' ? structuredData(ctx, title, description) : ''}
 ${brandVars ? `<style>:root{${brandVars}}</style>` : ''}
 ${ctx.assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
 <script type="module" src="${esc(ctx.assets.js)}"></script>`;
@@ -711,6 +775,45 @@ ${footer(ctx)}
 `;
 }
 
+/** `/<lang>/support/`: the ways to support the app, as plain markup that needs no script. */
+export function renderSupportPage(page: RenderContext): string {
+    const ctx: RenderContext = { ...page, view: 'support' };
+    const { data, lang, t } = ctx;
+    const meta = pageMeta(ctx, 'support');
+    const reference = supportReference(data);
+    return `<!doctype html>
+<html lang="${esc(lang)}">
+<head>
+${head(ctx)}
+</head>
+<body>
+${topBar(ctx)}
+<header class="masthead">
+<div class="hero-inner">
+${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
+<div class="hero-text">
+<h1>${esc(t('Support'))}</h1>
+<p class="hero-by">${esc(meta.name)}</p>
+</div>
+</div>
+</header>
+<main>
+<div class="column">
+<p class="support-intro">${esc(meta.description)}</p>
+<app-support>
+<ul class="card-list">
+${data.config.support.map((entry) => supportItem(entry, t, reference)).join('\n')}
+</ul>
+</app-support>
+<p class="support-back"><a href="${esc(pageUrl(data, lang))}">${fmt(t('Back to {app}'), { app: meta.name })}</a></p>
+</div>
+</main>
+${footer(ctx)}
+</body>
+</html>
+`;
+}
+
 /** The root page: a script picks the visitor's language, the link list is what everyone else (and every crawler) sees. */
 export function renderRoot(data: SiteData, assets: ClientAssets, iconUrl: string | undefined): string {
     const { config } = data;
@@ -728,7 +831,7 @@ export function renderRoot(data: SiteData, assets: ClientAssets, iconUrl: string
 <title>${esc(name)}</title>
 <link rel="canonical" href="${esc(absolute(data, pageUrl(data, config.defaultLanguage)))}">
 ${alternates.join('\n')}
-<link rel="alternate" hreflang="x-default" href="${esc(absolute(data, config.base))}">
+<link rel="alternate" hreflang="x-default" href="${esc(absolute(data, pageUrl(data, config.defaultLanguage)))}">
 ${iconUrl ? `<link rel="icon" type="image/svg+xml" href="${esc(iconUrl)}">` : ''}
 ${assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
 <script>${choose}</script>

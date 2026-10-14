@@ -162,3 +162,6 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
         ),
     };
 }
+
+/** The `kind` labels the support page knows by name; the page catalogues translate them. */
+export const SUPPORT_KIND_LABELS = ['GitHub Sponsors', 'Liberapay', 'PayPal'] as const;

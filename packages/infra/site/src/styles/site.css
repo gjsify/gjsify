@@ -1045,6 +1045,18 @@ app-download:not([data-enhanced]) .download-toggle {
   margin-block: 2rem;
 }
 
+app-support {
+  display: block;
+}
+
+.support-intro {
+  margin-block: 0 1.5rem;
+}
+
+.support-back {
+  margin-block: 1.5rem 0;
+}
+
 /* Footer */
 
 .footer {

@@ -36,6 +36,7 @@ interface SiteCliOptions {
     operation: string;
     root?: string;
     out?: string;
+    overview?: string;
     offline: boolean;
     cache: boolean;
     cacheDir?: string;
@@ -87,6 +88,10 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
             })
             .option('root', {
                 description: 'Repository to read from (default: the working directory)',
+                type: 'string',
+            })
+            .option('overview', {
+                description: 'build: render the support overview listed in this JSON file instead of one app',
                 type: 'string',
             })
             .option('out', { description: 'Output directory, emptied first (default: <root>/dist)', type: 'string' })
@@ -157,6 +162,7 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
         const forwarded: string[] = [args.operation, '--package-dir', packageDir];
         if (args.root) forwarded.push('--root', resolve(cwd, args.root));
         if (args.out) forwarded.push('--out', resolve(cwd, args.out));
+        if (args.overview) forwarded.push('--overview', resolve(cwd, args.overview));
         if (args.offline) forwarded.push('--offline');
         if (!args.cache) forwarded.push('--no-cache');
         else if (args.cacheDir) forwarded.push('--cache-dir', resolve(cwd, args.cacheDir));

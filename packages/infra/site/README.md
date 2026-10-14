@@ -39,6 +39,7 @@ gjsify site build --runtime node        # build and run on a specific runtime
 
 | Option | Meaning |
 | --- | --- |
+| `--overview <file>` | `build`: render the support overview listed in this JSON file instead of one app (see below). |
 | `--root <path>` | Repository to work on — a checkout whose root `package.json` has `gjsify.site`. Default: the working directory. |
 | `--out <dir>` | Output directory, emptied first. Default: `<root>/dist`. |
 | `--offline` | Skip every network call. The page then links to the releases page and omits the counts. |
@@ -46,6 +47,36 @@ gjsify site build --runtime node        # build and run on a specific runtime
 | `--cache-dir <dir>` | Where the response cache and the image renditions live. Default: `<root>/node_modules/.cache/gjsify-site`. |
 | `--check` | `i18n`: report what is out of date instead of writing it. |
 | `--runtime <r>` | `gjs` \| `node` \| `bun` \| `deno`. Default: the runtime the CLI itself is on. |
+
+## Support pages and SEO
+
+With `gjsify.site.support` set, a build also writes `/<base><lang>/support/index.html` (title
+"Support" / "Unterstützen"; the landing page's support section links to it). It needs no script:
+the GiroCode, the bank details and the link cards (GitHub Sponsors, Liberapay, PayPal) are plain
+markup. The transfer reference defaults to `Support <app name>`, so every app's income is
+recognisable on the statement; `reference` in the `sepa` entry overrides it.
+
+Every build also writes a 1200×630 link-preview card per language (`og-<lang>.png`, drawn as SVG
+and rasterised by GdkPixbuf), `SoftwareApplication` JSON-LD, `hreflang` alternates with an
+`x-default` that points at the default-language page, a valid `og:locale` (`de_DE`), and a
+`sitemap.xml`. `robots.txt` is written only when `gjsify.site.base` is `/`; below a path the host
+root owns it and must list this sitemap. A page title or meta description that is too short
+(or only the app name) is reported as a build warning.
+
+`gjsify site build --overview <file> --out <dir>` renders one page that lists several apps, each
+linking to its own support page, for a host such as `jumplink.eu/support/`:
+
+```json
+{
+  "url": "https://jumplink.eu/",
+  "base": "/support/",
+  "languages": ["en", "de"],
+  "apps": ["../learn6502", "../beifahrer"]
+}
+```
+
+Each `apps` entry is a repository root (relative to the file) with its own `gjsify.site` block;
+its name and published address are read from there.
 
 `GITHUB_TOKEN` is optional and only raises the API rate limit. When a lookup fails the build
 warns rather than failing: a release API outage is not a reason to have no page.
