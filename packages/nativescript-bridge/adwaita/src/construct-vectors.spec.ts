@@ -221,6 +221,24 @@ export const AdwConstructVectorsNsTest = async () => {
             const view = build({ tag: 'AdwNavigationView' }) as unknown as { get_visible_page_tag(): string | null };
             expect(view.get_visible_page_tag()).toBe(null);
         });
+        await it('holds GtkMenuButton primary, takes an ActionRow icon-name, and refuses a Label justify but left', () => {
+            const button = build({ tag: 'GtkMenuButton' }) as unknown as { primary: boolean };
+            expect(button.primary).toBe(false);
+            button.primary = true;
+            expect(button.primary).toBe(true);
+            const row = build({ tag: 'AdwActionRow' }) as unknown as { iconName: string; prefix: unknown };
+            expect(row.iconName).toBe('');
+            row.iconName = 'list-add-symbolic';
+            expect(row.iconName).toBe('list-add-symbolic');
+            expect(row.prefix).not.toBe(null);
+            row.iconName = '';
+            expect(row.prefix).toBe(null);
+            const label = build({ tag: 'GtkLabel' }) as unknown as { justify: number | string };
+            label.justify = 'left';
+            expect(() => {
+                label.justify = 'center';
+            }).toThrow('justify');
+        });
         await it('refuses a bind to an id nothing has, to a source that emits no notify, and the flags', () => {
             const bound = (binding: NonNullable<SharedTreeNode['bindings']>[string], sourceTag = 'GtkToggleButton') =>
                 ({

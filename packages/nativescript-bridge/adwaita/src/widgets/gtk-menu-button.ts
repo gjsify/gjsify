@@ -28,6 +28,7 @@ import type { EventData } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
 import { assertPopupMenuAssignable, refuseMenuString } from './popup-menu.js';
 import { showMenuPopup } from './popup-menu-view.js';
+import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 
@@ -55,6 +56,7 @@ export class GtkMenuButton extends AdwImageButton {
     private _model: AdwMenuModel = [];
     private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';
+    private _primary = false;
     /** The image button's own classes, which every `styleClasses` write keeps. */
     private readonly _baseClassName: string;
     private _styleClasses: string[] = [];
@@ -122,6 +124,18 @@ export class GtkMenuButton extends AdwImageButton {
 
     set styleClasses(value: string | null | undefined) {
         this._setClasses(normalizeStyleClasses(value));
+    }
+
+    /**
+     * `GtkMenuButton:primary` — held and read back. What GTK adds on top is the F10 shortcut, and
+     * this port has no hardware-key route to a button, so the flag changes nothing on screen.
+     */
+    get primary(): boolean {
+        return this._primary;
+    }
+
+    set primary(value: boolean | string) {
+        this._primary = xmlBoolean(value, this._primary);
     }
 
     /** `gtk_widget_add_css_class`. A class the button already carries is a no-op. */
