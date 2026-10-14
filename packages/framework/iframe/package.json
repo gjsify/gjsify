@@ -17,7 +17,8 @@
     },
     "sideEffects": [
         "./lib/esm/register.js",
-        "./lib/esm/promisify.js"
+        "./lib/esm/promisify.js",
+        "./lib/esm/iframe-bridge.js"
     ],
     "files": [
         "lib"

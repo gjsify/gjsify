@@ -28,7 +28,8 @@
         }
     },
     "sideEffects": [
-        "./lib/esm/register.js"
+        "./lib/esm/register.js",
+        "./lib/esm/canvas2d-bridge.js"
     ],
     "files": [
         "lib",
