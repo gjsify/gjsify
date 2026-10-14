@@ -1,4 +1,4 @@
-// @gjsify/distribution — where this build is distributed, and what that allows (ADR 0113).
+// @gjsify/distribution — where this build is distributed, and what that allows (ADR 0113, 0114).
 // Pure TS, no platform imports: runs identically on GJS, Node and in a browser.
 
 /** Compile-time define the CLI sets from `--channel` / `gjsify.ship.channel`. Absent in a plain `tsc` or test run. */
@@ -11,6 +11,8 @@ export type Channel = 'flathub' | 'web' | 'microsoft-store' | 'apple-app-store' 
 export interface ChannelCapabilities {
     /** May the app show a donation / "support the project" link or prompt. */
     donations: boolean;
+    /** Was this build bought. Only a store channel claims it; an unset channel never does (ADR 0114). */
+    purchased: boolean;
 }
 
 /**
@@ -19,11 +21,11 @@ export interface ChannelCapabilities {
  * rejection, a missing one in a free build costs a link the maintainer notices (ADR 0113 § 4).
  */
 export const CHANNEL_CAPABILITIES: Readonly<Record<Channel, ChannelCapabilities>> = {
-    flathub: { donations: true },
-    web: { donations: true },
-    'microsoft-store': { donations: false },
-    'apple-app-store': { donations: false },
-    unknown: { donations: false },
+    flathub: { donations: true, purchased: false },
+    web: { donations: true, purchased: false },
+    'microsoft-store': { donations: false, purchased: true },
+    'apple-app-store': { donations: false, purchased: true },
+    unknown: { donations: false, purchased: false },
 };
 
 /** Every channel a user may declare (everything but `unknown`). */
@@ -52,4 +54,14 @@ export const channel: Channel =
 /** Whether this build may show donation UI. Ask this, never compare {@link channel} by name. */
 export function donationsAllowed(): boolean {
     return donationsAllowedFor(channel);
+}
+
+/** Whether `candidate` is a channel where the app is bought. Pure; mirrors {@link donationsAllowedFor}. */
+export function purchasedFor(candidate: Channel): boolean {
+    return CHANNEL_CAPABILITIES[candidate].purchased;
+}
+
+/** Whether this build was bought, so the UI may thank the buyer. Ask this, never compare {@link channel} by name. */
+export function purchased(): boolean {
+    return purchasedFor(channel);
 }

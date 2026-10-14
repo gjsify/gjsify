@@ -9,6 +9,8 @@ import {
     donationsAllowed,
     donationsAllowedFor,
     parseChannel,
+    purchased,
+    purchasedFor,
 } from './index.js';
 
 export default async () => {
@@ -24,8 +26,21 @@ export default async () => {
             expect(donationsAllowedFor('apple-app-store')).toBe(false);
             expect(donationsAllowedFor('unknown')).toBe(false);
         });
+        await it('claims a purchase only on the store channels', async () => {
+            expect(purchasedFor('microsoft-store')).toBe(true);
+            expect(purchasedFor('apple-app-store')).toBe(true);
+            expect(purchasedFor('flathub')).toBe(false);
+            expect(purchasedFor('web')).toBe(false);
+        });
+        await it('never claims a purchase for an unset channel', async () => {
+            expect(purchasedFor('unknown')).toBe(false);
+            expect(purchased()).toBe(false);
+        });
         await it('has a capability row for every declarable channel', async () => {
-            for (const id of DECLARABLE_CHANNELS) expect(typeof CHANNEL_CAPABILITIES[id].donations).toBe('boolean');
+            for (const id of DECLARABLE_CHANNELS) {
+                expect(typeof CHANNEL_CAPABILITIES[id].donations).toBe('boolean');
+                expect(typeof CHANNEL_CAPABILITIES[id].purchased).toBe('boolean');
+            }
         });
         await it('parses only declarable channels', async () => {
             expect(parseChannel('flathub')).toBe('flathub');

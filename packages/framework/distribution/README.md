@@ -4,20 +4,24 @@ Where this build is distributed, and what that allows. Pure TypeScript, identica
 the browser. The decision record is [ADR 0113](../../../docs/adr/0113-distribution-channel-gates-donation-ui.md).
 
 ```ts
-import { channel, donationsAllowed } from '@gjsify/distribution';
+import { channel, donationsAllowed, purchased } from '@gjsify/distribution';
 
 if (donationsAllowed()) aboutDialog.add_link(_('Support the project'), SUPPORT_URL);
+if (purchased()) showPurchasedBadge();
 ```
 
 ## Channels
 
-| `channel` | Meaning | `donationsAllowed()` |
-|---|---|---|
-| `flathub` | free, Flathub | yes |
-| `web` | free download from the project's own site | yes |
-| `microsoft-store` | sold or listed in the Microsoft Store | no |
-| `apple-app-store` | sold or listed in the Apple App Store | no |
-| `unknown` | no channel declared (a development build) | no |
+| `channel` | Meaning | `donationsAllowed()` | `purchased()` |
+|---|---|---|---|
+| `flathub` | free, Flathub | yes | no |
+| `web` | free download from the project's own site | yes | no |
+| `microsoft-store` | sold or listed in the Microsoft Store | no | yes |
+| `apple-app-store` | sold or listed in the Apple App Store | no | yes |
+| `unknown` | no channel declared (a development build) | no | no |
+
+Edition badges ([ADR 0114](../../../docs/adr/0114-edition-badges.md)): every build shows "Open Source";
+`purchased()` adds the "you supported this project by buying the app" badge. `unknown` never claims a purchase.
 
 Ask the capability, never compare the channel name: a new channel is one row in
 `CHANNEL_CAPABILITIES`, and no app changes. `donationsAllowed()` is a policy answer, not legal advice.
