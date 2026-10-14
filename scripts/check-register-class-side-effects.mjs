@@ -43,9 +43,9 @@ function globToRegExp(glob) {
     const body = glob
         .replace(/^\.\//, '')
         .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*\*/g, '\0')
+        .replace(/\*\*/g, '@@GLOBSTAR@@')
         .replace(/\*/g, '[^/]*')
-        .replace(/\0/g, '.*');
+        .replace(/@@GLOBSTAR@@/g, '.*');
     return new RegExp(`^${body}$`);
 }
 
