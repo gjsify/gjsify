@@ -13,10 +13,6 @@
 import { AdwBreakpoint } from '@gjsify/adwaita-core';
 import { addBreakpoints } from '../breakpoints.js';
 
-/** The default minimum size of an AdwWindow, from adw_window_init (C:344). */
-const DEFAULT_WIDTH = 360;
-const DEFAULT_HEIGHT = 200;
-
 export class AdwWindowFeatures {
     private _contentEl: HTMLDivElement | null = null;
     private _breakpoints: AdwBreakpoint[] = [];
@@ -118,14 +114,15 @@ export class AdwWindowFeatures {
     }
 
     /**
-     * The window's size request. 360×200 is a MINIMUM (`gtk_widget_set_size_request`), so it is
-     * the min-size; an authored size is the box, and an absent one leaves the box to the
+     * The window's size. A GtkWindow has no implicit minimum and `default-width/height` is only
+     * a default, so nothing here sets a min-size (it would stop every layer below from
+     * collapsing): an authored size is the box, and an absent one leaves the box to the
      * stylesheet, which fills the viewport — a page has no window manager to pick a size.
      */
     applySizeRequest(): void {
         const host = this._host;
-        host.style.minWidth = `${DEFAULT_WIDTH}px`;
-        host.style.minHeight = `${DEFAULT_HEIGHT}px`;
+        host.style.removeProperty('min-width');
+        host.style.removeProperty('min-height');
         const width = host.getAttribute('default-width') ?? host.getAttribute('width');
         const height = host.getAttribute('default-height') ?? host.getAttribute('height');
         if (width) host.style.width = `${width}px`;

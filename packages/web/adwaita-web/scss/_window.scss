@@ -27,8 +27,8 @@ adw-application-window {
   outline-offset: -1px;
 
   // No authored size (the element sets an inline one from `width`/`default-width`): a page
-  // has no window manager to size a toplevel, so it fills the viewport. The 360×200 request is
-  // the inline min-size.
+  // has no window manager to size a toplevel, so it fills the viewport. A GtkWindow has no
+  // implicit minimum, so none is set (a min-height would stop nested layers collapsing).
   width: 100%;
   height: 100dvh;
   box-sizing: border-box;
