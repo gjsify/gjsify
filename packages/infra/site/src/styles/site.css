@@ -517,11 +517,15 @@ h1 {
 /* `--shot-w` is the CSS width this screenshot's renditions were cut for: at that width a 2560px
  * source is a 2× image, and above it the browser would be upscaling. Width and max-height
  * together shrink-wrap the artwork — `object-fit: contain` would letterbox it instead, and the
- * shadow would then be drawn around the empty strip. */
+ * shadow would then be drawn around the empty strip. Both are maxima on an `auto` box, and the
+ * height cap is `--shot-h`, not `100%`: the figure is `fit-content`, and in that intrinsic pass a
+ * percentage max-height counts as none, so the figure took the full width while the image was
+ * capped in height — a portrait shot (a browser popup) came out squashed. */
 .slide img {
-  width: min(100%, var(--shot-w, 100%));
+  width: auto;
+  max-width: min(100%, var(--shot-w, 100%));
   height: auto;
-  max-height: 100%;
+  max-height: var(--shot-h);
   border-radius: var(--radius-lg);
   box-shadow: var(--shot-shadow);
 }
