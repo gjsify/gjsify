@@ -143,4 +143,19 @@ export const AdwAlertDialogTest = async () => {
             host.remove();
         });
     });
+
+    await describe('adw-alert-dialog responses before the first connect', async () => {
+        await it('buttons added while detached appear once connected', () => {
+            const el = document.createElement('adw-alert-dialog') as AdwAlertDialog;
+            el.addResponse('cancel', 'Cancel');
+            el.addResponse('ok', 'OK');
+            expect(el.getResponseLabel('ok')).toBe('OK');
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            host.appendChild(el);
+            const labels = [...el.querySelectorAll('.adw-alert-dialog-response')].map((b) => b.textContent);
+            expect(labels.join(',')).toBe('Cancel,OK');
+            host.remove();
+        });
+    });
 };
