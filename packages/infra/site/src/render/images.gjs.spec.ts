@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 
-import { decodeImageBytes } from './image-backend.js';
+import { decodeImageBytes, svgToPng } from './image-backend.js';
+import { ogCardSvg } from './og-card.js';
 import { displayWidth, hasTransparentBorder, processImage, renditionWidths, trimTransparentMargin } from './images.js';
 
 /** `0xRRGGBBAA`, filled flat; `alpha: false` drops the channel entirely. */
@@ -26,6 +27,17 @@ const png = (pixbuf: GdkPixbuf.Pixbuf): Uint8Array => {
 };
 
 export default async () => {
+    await describe('OG card', async () => {
+        await it('rasterises to a 1200x630 PNG', async () => {
+            const bytes = svgToPng(
+                ogCardSvg({ name: 'App', summary: 'A summary', background: '#336699', foreground: '#fff' }),
+            );
+            const image = decodeImageBytes(bytes);
+            expect(image.width).toBe(1200);
+            expect(image.height).toBe(630);
+        });
+    });
+
     await describe('hasTransparentBorder', async () => {
         await it('sees a window shot with transparent corners as bringing its own frame', async () => {
             expect(hasTransparentBorder(solid(0xc8643200))).toBe(true);

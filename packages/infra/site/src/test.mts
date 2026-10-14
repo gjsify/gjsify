@@ -6,6 +6,7 @@ import colorSuite from './render/color.spec.js';
 import i18nSuite from './render/i18n.spec.js';
 import pagesSuite from './render/pages.spec.js';
 import platformSuite from './client/platform.spec.js';
+import seoSuite from './render/seo.spec.js';
 import siteDataSuite from './site-data/site-data.spec.js';
 
-run({ siteDataSuite, pagesSuite, colorSuite, platformSuite, i18nSuite });
+run({ seoSuite, siteDataSuite, pagesSuite, colorSuite, platformSuite, i18nSuite });
