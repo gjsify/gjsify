@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { discoverPayload } from './discover.js';
+import type { HostOs } from './types.js';
 import type { ConfigDataShip } from '../../types/config-data.js';
 
 /** A project with a built bundle and one `gi/` directory holding `files`. */
@@ -40,6 +41,31 @@ function staged(files: readonly string[]): string[] {
             pkg: { name: 'hello', version: '1.0.0' },
             ship: { bundledTypelibs: ['gi'] } as ConfigDataShip,
             declaredBundle: 'dist/app.gjs.mjs',
+        })
+            .typelibFiles.map((path) => basename(path))
+            .sort();
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+}
+
+/** Two directories, `gi-linux/` and `gi-darwin/`, each holding the one file that OS would carry. */
+function stagedForLayout(bundledTypelibs: ConfigDataShip['bundledTypelibs'], layoutOs: HostOs | undefined): string[] {
+    const root = project([]);
+    try {
+        for (const [dir, file] of [
+            ['gi-linux', 'libbridge.so'],
+            ['gi-darwin', 'libbridge.dylib'],
+        ]) {
+            mkdirSync(join(root, dir), { recursive: true });
+            writeFileSync(join(root, dir, file), 'x');
+        }
+        return discoverPayload({
+            projectDir: root,
+            pkg: { name: 'hello', version: '1.0.0' },
+            ship: { bundledTypelibs } as ConfigDataShip,
+            declaredBundle: 'dist/app.gjs.mjs',
+            layoutOs,
         })
             .typelibFiles.map((path) => basename(path))
             .sort();
@@ -113,6 +139,31 @@ export default async () => {
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }
+        });
+    });
+
+    await describe('bundled typelibs keyed per OS', async () => {
+        const table = { linux: ['gi-linux'], darwin: ['gi-darwin'] };
+
+        await it('stages only the directories of the layout being assembled', () => {
+            expect(stagedForLayout(table, 'linux')).toStrictEqual(['libbridge.so']);
+            expect(stagedForLayout(table, 'darwin')).toStrictEqual(['libbridge.dylib']);
+        });
+
+        await it('stages nothing for a target with no key', () => {
+            expect(stagedForLayout(table, 'win32')).toStrictEqual([]);
+        });
+
+        await it('keeps a flat list for every target', () => {
+            expect(stagedForLayout(['gi-linux'], 'darwin')).toStrictEqual(['libbridge.so']);
+        });
+
+        await it('refuses a key nothing reads, such as the positional spelling', () => {
+            expect(() => stagedForLayout({ macos: ['gi-darwin'] } as never, 'darwin')).toThrow('bundledTypelibs.macos');
+        });
+
+        await it('refuses a table without a layout OS', () => {
+            expect(() => stagedForLayout(table, undefined)).toThrow('per-OS table');
         });
     });
 };

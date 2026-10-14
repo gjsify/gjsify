@@ -552,8 +552,13 @@ export interface ConfigDataShip extends AppMetadata {
      * The namespaces this covers are read back off the STAGED FILES, not from a separate list:
      * a declaration that a namespace is bundled, without the file being there, is exactly the lie
      * the dependency check exists to prevent.
+     *
+     * A flat list is staged for EVERY target. A TABLE names one list per OS, keyed like
+     * {@link ShipBundleOptions} and resolved the same way — by the LAYOUT being assembled. It exists
+     * because a prebuild is per-OS: a linux-x64 bridge `.so` staged into a `.app` is an ELF the
+     * bundle seal and `dlopen` both refuse. A target with no key stages nothing.
      */
-    bundledTypelibs?: string[];
+    bundledTypelibs?: string[] | ShipBundledTypelibsOptions;
     /**
      * Directory holding COMPILED gettext catalogues in the layout `bindtextdomain` reads —
      * `<lang>/LC_MESSAGES/<domain>.mo` — e.g. `"dist/locale"`, which is what
@@ -657,6 +662,19 @@ export interface ShipBundleOptions {
     darwin?: string;
     /** The entry the Windows program directory carries. */
     win32?: string;
+}
+
+/**
+ * `gjsify.ship.bundledTypelibs` as a table — the directories per OS, the twin of
+ * {@link ShipBundleOptions}.
+ */
+export interface ShipBundledTypelibsOptions {
+    /** Directories staged into `lib/<name>/gi` of a `.deb`/`.rpm`/Flatpak. */
+    linux?: string[];
+    /** Directories staged into `<App>.app` by `gjsify ship darwin`. */
+    darwin?: string[];
+    /** Directories staged into the Windows program directory. */
+    win32?: string[];
 }
 
 /**

@@ -219,6 +219,31 @@ export function auditShip(ctx) {
             }
         }
 
+        // `bundledTypelibs` as a TABLE: same silent-key failure as `bundle`, and here the cost is a
+        // target that ships without the typelib it needs.
+        const typelibs = block.bundledTypelibs;
+        if (typelibs !== undefined && !Array.isArray(typelibs)) {
+            if (typelibs === null || typeof typelibs !== 'object') {
+                failures.push(
+                    `${pkg.rel}/package.json: \`gjsify.ship.bundledTypelibs\` must be a list of directories or an ` +
+                        `object keyed by OS.`,
+                );
+            } else {
+                for (const [os, dirs] of Object.entries(typelibs)) {
+                    if (!APP_OSES.has(os)) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.bundledTypelibs.${os}\` is not an OS \`gjsify ship\` ` +
+                                `assembles for. Known: ${[...APP_OSES].join(', ')} — the \`process.platform\` spelling.`,
+                        );
+                    } else if (!Array.isArray(dirs) || dirs.some((dir) => typeof dir !== 'string')) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.bundledTypelibs.${os}\` must be a list of directories.`,
+                        );
+                    }
+                }
+            }
+        }
+
         const app = block.app;
         if (app !== undefined) {
             if (app === null || typeof app !== 'object' || Array.isArray(app)) {
