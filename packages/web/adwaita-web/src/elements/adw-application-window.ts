@@ -57,7 +57,14 @@ export class AdwApplicationWindow extends GtkApplicationWindow {
     // resolves a `[...Base.observedAttributes]` spread across files, and reports a
     // `super` one as unreadable rather than as empty).
     static get observedAttributes(): string[] {
-        return [...GtkApplicationWindow.observedAttributes, 'width', 'height', 'width-request', 'height-request', 'menu-model'];
+        return [
+            ...GtkApplicationWindow.observedAttributes,
+            'width',
+            'height',
+            'width-request',
+            'height-request',
+            'menu-model',
+        ];
     }
 
     /** The content area — the Adw.Window:content property. */
