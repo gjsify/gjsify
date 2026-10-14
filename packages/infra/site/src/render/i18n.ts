@@ -5,6 +5,7 @@ import { join, relative } from 'node:path';
 import {
     DOWNLOAD_LABELS,
     FORMAT_LABELS,
+    SUPPORT_KIND_LABELS,
     UI_SOURCE_LANGUAGE,
     languageCandidates,
     parseCatalog,
@@ -48,7 +49,8 @@ export async function rendererMsgids(renderDir: string): Promise<string[]> {
             `${renderDir}: no translator call found in any renderer — the extractor is broken, not the sources`,
         );
     }
-    for (const label of [...Object.values(DOWNLOAD_LABELS), ...Object.values(FORMAT_LABELS)]) msgids.add(label);
+    for (const label of [...Object.values(DOWNLOAD_LABELS), ...Object.values(FORMAT_LABELS), ...SUPPORT_KIND_LABELS])
+        msgids.add(label);
     return [...msgids];
 }
 

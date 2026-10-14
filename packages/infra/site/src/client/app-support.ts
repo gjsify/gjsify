@@ -20,15 +20,14 @@ function enhanceCopy(button: HTMLButtonElement): void {
 }
 
 /**
- * The ways to support the project, behind a dialog. The section only exists when the site
- * configures support links, so this element is often absent from the page.
+ * The ways to support the project. On the support page the list is plain markup and only the copy
+ * buttons need the script; a dialog is enhanced when a page still has one.
  */
 class AppSupport extends HTMLElement {
     connectedCallback(): void {
-        const dialog = this.querySelector('dialog');
-        if (!dialog) return;
         this.dataset.enhanced = 'true';
-        enhanceDialog(dialog, this.querySelector('.support-cta'));
+        const dialog = this.querySelector('dialog');
+        if (dialog) enhanceDialog(dialog, this.querySelector('.support-cta'));
         for (const button of this.querySelectorAll<HTMLButtonElement>('.sepa-copy')) enhanceCopy(button);
     }
 }

@@ -7,7 +7,7 @@
 
 import { join, resolve } from 'node:path';
 
-import { buildSite, syncSiteI18n } from './site.js';
+import { buildOverview, buildSite, syncSiteI18n } from './site.js';
 
 const USAGE = `Usage: gjsify site <command> [options]
 
@@ -15,6 +15,8 @@ const USAGE = `Usage: gjsify site <command> [options]
   i18n [options]     Update the page catalogues from the strings the build can emit
 
 Options:
+  --overview <file>  build: render the support overview listed in this JSON file
+                     instead of one app (url, languages, apps)
   --root <path>      Repository to work on (default: the working directory)
   --out <dir>        Output directory, emptied first (default: <root>/dist)
   --offline          Skip every network call
@@ -45,6 +47,16 @@ function cacheOption(flags: readonly string[]): string | false | undefined {
 }
 
 async function build(flags: readonly string[]): Promise<number> {
+    const overview = flagValue(flags, '--overview');
+    if (overview) {
+        const result = await buildOverview({
+            config: overview,
+            out: resolve(flagValue(flags, '--out') ?? join(process.cwd(), 'dist')),
+            packageDir: flagValue(flags, '--package-dir'),
+        });
+        console.log(`Built ${result.languages.length} overview pages for ${result.apps} apps`);
+        return 0;
+    }
     const root = resolve(flagValue(flags, '--root') ?? process.cwd());
     const result = await buildSite({
         root,
