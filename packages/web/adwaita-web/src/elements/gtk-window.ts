@@ -73,6 +73,13 @@
 //                    maximize its browser window. `is_maximized()` reads it.
 //   `present()`    — un-hides the frame; a page cannot raise or focus a window it does not own.
 //
+// THE GOBJECT DOOR (ADR 0096 § 3, ADR 0098 Amendment 3): `connect` / `disconnect` / `emit` /
+// `notify` / `get_property` / `set_property` come from `installElementApi`, over the events in
+// `static signals`; an undeclared signal throws. A `close-request` handler that returns true is
+// `preventDefault()` and stops later listeners. `emit('close-request')` throws: the signal is
+// `close()`'s, which also runs the default handler. `is_active` and `focus_widget` are PROPERTIES,
+// as in GJS and `@girs/gtk-4.0` (GTK 4 has no `gtk_window_is_active()`); `is_active()` is gone.
+//
 // Events: `notify::<prop>` (CustomEvent, bubbles, detail `{ <prop>: value }`) on every real
 // change, and `close-request` (CustomEvent, bubbles, CANCELLABLE, no detail), which is
 // `Gtk.Window::close-request`: a listener that calls `preventDefault()` is a GTK handler that
@@ -85,6 +92,8 @@
 
 import { CloseRequestState, WindowMemberState, type WindowMemberProperty } from '@gjsify/adwaita-core';
 
+import { installElementApi } from '../gobject-elements.js';
+import type { DispatchedSignals } from '../signals.js';
 import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
 
 // Registers <gtk-window-controls>: a frame with no titlebar of its own draws the two of them
@@ -119,6 +128,64 @@ export class GtkWindow extends HTMLElement {
         if (next === null && !document.hasFocus()) return;
         this._members.reportFocus(null);
     };
+
+    /**
+     * The GObject door (ADR 0096 § 3): `connect` / `disconnect` / `emit` / `notify` / `get_property` /
+     * `set_property` over these events, the same ones every element declares in `static signals`.
+     * A `close-request` handler that returns true is `preventDefault()`.
+     */
+    static readonly signals: DispatchedSignals = {
+        'close-request': 'close-request',
+        ...Object.fromEntries(
+            [
+                'decorated',
+                'default-height',
+                'default-width',
+                'deletable',
+                'focus-widget',
+                'fullscreened',
+                'hide-on-close',
+                'icon-name',
+                'is-active',
+                'maximized',
+                'modal',
+                'resizable',
+                'title',
+                'transient-for',
+            ].map((name) => [`notify::${name}`, `notify::${name}`]),
+        ),
+    };
+
+    /** `GObject.Object.connect`: installed per instance by `installElementApi`; refuses an undeclared signal. */
+    declare connect: (signal: string, handler: (emitter: this, ...args: any[]) => unknown) => number;
+    /** `GObject.Object.disconnect`: throws for an id that is not connected. */
+    declare disconnect: (id: number) => void;
+    /** `GObject.Object.emit`; `close-request` is refused, call `close()`. */
+    declare emit: (signal: string, ...args: unknown[]) => void;
+    /** `GObject.Object.notify`. */
+    declare notify: (name: string) => void;
+    /** `GObject.Object.get_property`, by GTK's dashed name. */
+    declare get_property: (name: string) => unknown;
+    /** `GObject.Object.set_property`; a read-only property throws. */
+    declare set_property: (name: string, value: unknown) => void;
+
+    constructor() {
+        super();
+        installElementApi(this);
+        // `Gtk.Window::close-request` is emitted by `close()`, which also runs the default handler
+        // (hide or destroy). Emitting it bare would be a different thing under the same name.
+        const emit = (this as unknown as { emit: (signal: string, ...args: unknown[]) => void }).emit;
+        Object.defineProperty(this, 'emit', {
+            configurable: true,
+            writable: true,
+            value: (signal: string, ...args: unknown[]): void => {
+                if (signal === 'close-request') {
+                    throw new Error("<gtk-window>.emit('close-request') is not supported; call close()");
+                }
+                emit(signal, ...args);
+            },
+        });
+    }
 
     static get observedAttributes() {
         return [
@@ -460,19 +527,31 @@ export class GtkWindow extends HTMLElement {
         this.hidden = false;
     }
 
-    /** `Gtk.Window:is-active` — see the header: the document's focus, while this frame is shown. */
+    /**
+     * `Gtk.Window:is-active` — see the header: the document's focus, while this frame is shown.
+     * A PROPERTY, as in GJS and `@girs/gtk-4.0`: GTK 4 has no `gtk_window_is_active`, so
+     * `window.is_active` is the value and `window.is_active()` does not exist.
+     */
     get isActive(): boolean {
         return this._members.active;
     }
 
-    /** `gtk_window_is_active`. */
-    is_active(): boolean {
+    get is_active(): boolean {
         return this._members.active;
     }
 
     /** `Gtk.Window:focus-widget`, read live from the document. */
     get focusWidget(): Element | null {
         return this.get_focus();
+    }
+
+    /** `Gtk.Window:focus-widget` under its GJS spelling; writing it is `set_focus`. */
+    get focus_widget(): Element | null {
+        return this.get_focus();
+    }
+
+    set focus_widget(widget: Element | null) {
+        this.set_focus(widget);
     }
 
     /** `gtk_window_get_focus`: the element inside the frame that has focus, or `null`. */

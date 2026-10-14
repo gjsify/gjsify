@@ -113,7 +113,13 @@ export function listenElement(el: HTMLElement, signal: string, handler: Handler)
     const listener = (domEvent: Event) => {
         // A notification bubbles, and a parent must not hear its child's property as its own.
         if (notification && domEvent.target !== el) return;
-        handler(el, ...(EMITTED.has(domEvent) ? ((domEvent as CustomEvent).detail as unknown[]) : []));
+        const handled = handler(el, ...(EMITTED.has(domEvent) ? ((domEvent as CustomEvent).detail as unknown[]) : []));
+        // A GTK handler of a boolean-handled signal (`close-request`) returns true to take it over,
+        // which on a cancelable DOM event is `preventDefault()`; the handlers after it do not run.
+        if (handled === true && domEvent.cancelable) {
+            domEvent.preventDefault();
+            domEvent.stopImmediatePropagation();
+        }
     };
     el.addEventListener(event, listener);
     return () => el.removeEventListener(event, listener);
@@ -148,13 +154,26 @@ export function installElementApi(el: HTMLElement): void {
     });
     define('emit', (signal: string, ...args: unknown[]): void => dispatchElement(el, signal, args));
     define('notify', (name: string): void => notifyElement(el, name));
+    define('get_property', (name: string): unknown => {
+        eventOf(el, `notify::${name}`);
+        return (el as unknown as Record<string, unknown>)[propertyOf(name)];
+    });
+    define('set_property', (name: string, value: unknown): void => {
+        eventOf(el, `notify::${name}`);
+        const member = propertyOf(name);
+        const descriptor = inheritedDescriptor(el, member);
+        if (descriptor !== undefined && descriptor.get !== undefined && descriptor.set === undefined) {
+            throw new Error(`Property '${name}' of <${el.localName}> is read-only`);
+        }
+        (el as unknown as Record<string, unknown>)[member] = value;
+    });
     // The `Gtk.Widget` CSS-class calls a template's TypeScript makes on its children.
     define('add_css_class', (name: string): void => el.classList.add(name));
     define('remove_css_class', (name: string): void => el.classList.remove(name));
     define('has_css_class', (name: string): boolean => el.classList.contains(name));
 }
 
-const API_MEMBERS = new Set(['connect', 'disconnect', 'emit', 'notify']);
+const API_MEMBERS = new Set(['connect', 'disconnect', 'emit', 'notify', 'get_property', 'set_property']);
 
 /**
  * The end of a bind the core's engine drives. An element speaks camelCase members where a `.blp`

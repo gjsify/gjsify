@@ -28,6 +28,7 @@
 
 import type { ActionLike } from '@gjsify/adwaita-core';
 import type { GtkApplication } from '../application.js';
+import type { DispatchedSignals } from '../signals.js';
 import type { AdwSlot } from '../slotted-children.js';
 import { GtkWindow } from './gtk-window.js';
 import { defineWindowApplication } from '../application.js';
@@ -44,6 +45,11 @@ export class GtkApplicationWindow extends GtkWindow {
     declare remove_action: (name: string) => void;
     private _menubar: HTMLDivElement | null = null;
     private _menubarObserver: MutationObserver | null = null;
+
+    static override readonly signals: DispatchedSignals = {
+        ...GtkWindow.signals,
+        'notify::show-menubar': 'notify::show-menubar',
+    };
 
     static get observedAttributes(): string[] {
         return [...GtkWindow.observedAttributes, 'show-menubar'];
