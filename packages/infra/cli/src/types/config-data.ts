@@ -425,6 +425,13 @@ export interface AppMetadata {
  * `gjsify.flatpak` block usually needs no `gjsify.ship` block at all.
  */
 export interface ConfigDataShip extends AppMetadata {
+    /**
+     * Distribution channel (ADR 0113): `flathub | web | microsoft-store | apple-app-store`.
+     * Becomes the `__GJSIFY_CHANNEL__` define that `@gjsify/distribution` reads, and gates the
+     * metainfo `<url type="donation">`. `--channel` overrides it; `ship --target flatpak` implies
+     * `flathub` when nothing states one. Unset means no donation UI.
+     */
+    channel?: string;
     /** Reverse-DNS app id. Falls back to `gjsify.flatpak.appId`, then `package.json#name`. */
     appId?: string;
     /**

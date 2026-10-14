@@ -23,6 +23,7 @@
 // HFS+/APFS volume that no Linux host in this tree can write (§ A1), and a
 // signature is made where the identity lives (§ A14).
 
+import { CHANNELS, CHANNEL_ENV, parseDeclaredChannel } from '../utils/channel.js';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import type { Argv } from 'yargs';
@@ -143,6 +144,7 @@ interface ShipOptions {
     'from-stage'?: string;
     'expect-target'?: string;
     'skip-build': boolean;
+    channel?: string;
     arch?: string;
     sign?: string;
     notarize?: string;
@@ -204,6 +206,13 @@ export const shipCommand: Command<unknown, ShipOptions> = {
                 description:
                     'With --from-stage: refuse unless the stage was assembled for this `<os>-<arch>`, e.g. ' +
                     '`linux-arm64`.',
+            })
+            .option('channel', {
+                type: 'string',
+                choices: [...CHANNELS],
+                description:
+                    'Distribution channel (ADR 0113). Overrides gjsify.ship.channel; `--target flatpak` implies flathub. ' +
+                    'Passed to the project build, and gates the metainfo donation URL.',
             })
             .option('skip-build', {
                 type: 'boolean',
@@ -406,7 +415,13 @@ async function assemble(args: ShipOptions): Promise<void> {
     if (!args.stage) assertKindCanPack(formats, resolveShipKind(ship, flatpak));
     if (!args.stage) for (const format of formats) assertCanPack(format);
 
-    if (!args['skip-build']) await runProjectBuild(projectDir);
+    // flag > `gjsify.ship.channel` > what the target implies. Only flatpak implies one: an MSIX or a
+    // `.app` can as well be sideloaded (ADR 0113 § 2).
+    const channel =
+        parseDeclaredChannel(args.channel, '--channel') ??
+        parseDeclaredChannel(ship.channel, 'gjsify.ship.channel') ??
+        (formats.some((format) => format.id === 'flatpak') ? 'flathub' : undefined);
+    if (!args['skip-build']) await runProjectBuild(projectDir, channel);
 
     // THE OTHER HALF of the resolution above, and they are one decision: the
     // runtime a target execs and the entry it hands that runtime (#1545). Two
@@ -470,6 +485,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         command: settings.binaryName,
         kind: settings.kind,
         metadata,
+        channel,
         configKey: 'gjsify.ship',
         copyrightYear: new Date(mtime * 1000).getUTCFullYear(),
     };
@@ -1651,7 +1667,7 @@ function assertFormatCanRunInterpreter(format: FormatDescriptor, app: 'gjs' | 'n
  * `completion: 'return'` because this handler returns afterwards; on GJS that
  * selects the blocking path rather than arming a main loop only an exit quits.
  */
-async function runProjectBuild(projectDir: string): Promise<void> {
+async function runProjectBuild(projectDir: string, channel: string | undefined): Promise<void> {
     const pkg = readPackageJson(join(projectDir, 'package.json')) as { scripts?: Record<string, string> } | null;
     if (typeof pkg?.scripts?.build !== 'string') {
         throw new Error(
@@ -1664,6 +1680,7 @@ async function runProjectBuild(projectDir: string): Promise<void> {
         completion: 'return',
         cwd: projectDir,
         stdio: 'inherit',
+        env: channel === undefined ? undefined : { ...process.env, [CHANNEL_ENV]: channel },
         notFound: () =>
             new Error(
                 'gjsify ship: `gjsify` is not on PATH, so the project build cannot be run. Build the project ' +
