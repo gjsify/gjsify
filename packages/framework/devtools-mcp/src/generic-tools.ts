@@ -50,7 +50,8 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
             {
                 description:
                     'Capture a PNG screenshot via the GTK GSK pipeline. `scope` chooses WHAT is captured: the ' +
-                    'active window by default, or a single widget inside it by path. Needs a visible window ' +
+                    'active window by default, or a single widget inside it by path. `scale` chooses at what ' +
+                    'resolution. Needs a visible window ' +
                     '(auto-raises + retries once when the capture comes back empty).',
                 inputSchema: z.object({
                     scope: z
@@ -61,18 +62,39 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
                                 '`toplevel:N/child:M` path from dump_tree for one widget. An explicit path ' +
                                 'matching no live widget is an error, not a silent whole-window shot.',
                         ),
+                    scale: z
+                        .number()
+                        .optional()
+                        .describe(
+                            "Device pixels per logical pixel. Omitted: the window's own scale factor, so a " +
+                                'HiDPI window captures at the resolution it is drawn at. 2 re-renders text and ' +
+                                'symbolic icons at twice the resolution — it does not magnify. Needs an app on ' +
+                                '@gjsify/devtools >= 0.64.',
+                        ),
                     ...instanceArg,
                 }),
             },
-            async ({ scope, instance }) => {
+            async ({ scope, scale, instance }) => {
                 try {
                     const grab = async (): Promise<Uint8Array | null> => {
-                        const reply = await client.control(
-                            instance,
-                            'Screenshot',
-                            GLib.Variant.new_tuple([strv(scope ?? 'window')]),
-                            '(ay)',
-                        );
+                        // Two methods, chosen by whether a scale was asked for: `Screenshot` is the
+                        // one every published app answers, and `ScreenshotScaled` only exists on
+                        // newer ones. The bridge and the app ship separately, so the default must
+                        // stay on the method that cannot be missing.
+                        const reply =
+                            scale === undefined
+                                ? await client.control(
+                                      instance,
+                                      'Screenshot',
+                                      GLib.Variant.new_tuple([strv(scope ?? 'window')]),
+                                      '(ay)',
+                                  )
+                                : await client.control(
+                                      instance,
+                                      'ScreenshotScaled',
+                                      GLib.Variant.new_tuple([strv(scope ?? 'window'), GLib.Variant.new_double(scale)]),
+                                      '(ay)',
+                                  );
                         return reply.get_child_value(0).deepUnpack() as Uint8Array | null;
                     };
                     let data = await grab();

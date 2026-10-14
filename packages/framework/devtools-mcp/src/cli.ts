@@ -83,6 +83,7 @@ function usage(): string {
         '  --instance <label>    instance label of a multi-instance app',
         '  --timeout <seconds>   poll GetStatus until the app answers (default 30; 0 = do not wait)',
         '  --scope <s>           shot: what to capture — "window" (default) or a widget path',
+        "  --scale <n>           shot: device pixels per logical pixel (default: the window's own factor)",
         '  --settle <ms>         shot: pause before the first capture',
         '  --retries <n>         shot: attempts after an empty answer (default 8)',
     ].join('\n');
@@ -121,6 +122,19 @@ function flagInt(flags: Map<string, string>, name: string, fallback: number): nu
     if (raw === undefined) return fallback;
     const value = Number(raw);
     return Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * A flag read as a number, or `undefined` when it was not given — distinct from
+ * {@link flagInt}'s fallback because ABSENCE is the signal here: no `--scale` means the CLI
+ * calls plain `Screenshot`, and only a named scale switches it to `ScreenshotScaled`.
+ * An unparseable value is absence too, so `--scale abc` captures rather than failing.
+ */
+function flagNumber(flags: Map<string, string>, name: string): number | undefined {
+    const raw = flags.get(name);
+    if (raw === undefined) return undefined;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : undefined;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -202,14 +216,22 @@ async function runOperation(
         case 'shot': {
             const path = operands[0] ?? 'screenshot.png';
             const scope = flags.get('scope') ?? 'window';
+            // No `--scale` means `Screenshot`, the method every published app answers; a scale
+            // means `ScreenshotScaled`, which an app on an older @gjsify/devtools does not have.
+            // Choosing by flag keeps the default path working against every version — see
+            // `ScreenshotScaledAsync` for why the override is a second method at all.
+            const scale = flagNumber(flags, 'scale');
             const result = await captureShot(
                 async (what) => {
-                    const reply = await client.control(
-                        instance,
-                        'Screenshot',
-                        GLib.Variant.new_tuple([strv(what)]),
-                        '(ay)',
-                    );
+                    const reply =
+                        scale === undefined
+                            ? await client.control(instance, 'Screenshot', GLib.Variant.new_tuple([strv(what)]), '(ay)')
+                            : await client.control(
+                                  instance,
+                                  'ScreenshotScaled',
+                                  GLib.Variant.new_tuple([strv(what), GLib.Variant.new_double(scale)]),
+                                  '(ay)',
+                              );
                     return reply.get_child_value(0).deepUnpack() as Uint8Array;
                 },
                 path,
