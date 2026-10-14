@@ -362,16 +362,20 @@ h1 {
   border-block-start: 1px solid var(--band-line);
 }
 
+/* Three fixed rows — pill, value, label — so a badge whose pill is taller (the platform glyphs) or
+ * that carries no value at all still lands its label on the neighbours' line. */
 .badge {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 2.75rem minmax(1.5rem, auto) auto;
   align-items: center;
+  justify-items: center;
   gap: 0.3rem;
   min-width: 0;
   text-align: center;
 }
 
 .badge-pill {
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -451,10 +455,10 @@ h1 {
   --platform-color: #4285f4;
 }
 
-/* Kept in the flow even when a badge has no value, so every label sits on the same line. */
+/* The row is reserved even when a badge has no value, so every label sits on the same line. */
 .badge-value {
+  grid-row: 2;
   line-height: 1.5;
-  min-height: 1.5em;
   font-weight: 700;
   font-size: 0.95rem;
   /* A long licence id must wrap inside the badge instead of widening the row. */
@@ -462,6 +466,7 @@ h1 {
 }
 
 .badge-label {
+  grid-row: 3;
   color: var(--muted);
   font-size: 0.78rem;
 }
