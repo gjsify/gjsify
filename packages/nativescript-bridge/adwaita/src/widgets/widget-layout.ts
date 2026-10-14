@@ -85,6 +85,7 @@ import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
 import { xmlBoolean } from './xml-values.js';
 import { insertActionGroup } from './actions.js';
+import { focusView, isViewFocused } from '../window-source.js';
 import { applyNativeTooltip } from './native-tooltip.js';
 import type { ActionGroupLike } from '@gjsify/adwaita-core';
 
@@ -251,6 +252,7 @@ function readSizeRequest(length: NsLength): number {
 /** Per-instance `name`s, held beside the view because `id` may belong to a `.blp`. */
 const NAMES = new WeakMap<object, string>();
 const TOOLTIPS = new WeakMap<object, string>();
+const FOCUSABLE = new WeakMap<object, boolean>();
 
 /** The per-instance expand flags, kept off the instance so the mixin adds no own property. */
 const EXPAND = new WeakMap<object, { h: boolean; v: boolean }>();
@@ -337,6 +339,10 @@ export declare abstract class GtkWidgetLayoutMembers {
     get_parent(): object | null;
     /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
     insert_action_group(prefix: string, group: ActionGroupLike | null): void;
+    get focusable(): boolean;
+    set focusable(value: boolean | string);
+    /** `gtk_widget_grab_focus`: asks the platform to move focus here; answers whether it now holds it. */
+    grab_focus(): boolean;
 }
 
 /**
@@ -498,6 +504,25 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
         /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
         insert_action_group(prefix: string, group: ActionGroupLike | null): void {
             insertActionGroup(this as unknown as Parameters<typeof insertActionGroup>[0], prefix, group);
+        }
+
+        get focusable(): boolean {
+            return FOCUSABLE.get(this) ?? false;
+        }
+
+        set focusable(value: boolean | string) {
+            const view = laidOut(this, 'focusable');
+            const next = xmlBoolean(value, FOCUSABLE.get(this) ?? false);
+            FOCUSABLE.set(this, next);
+            (
+                view as unknown as { nativeViewProtected?: { setFocusable?(on: boolean): void } }
+            ).nativeViewProtected?.setFocusable?.(next);
+        }
+
+        grab_focus(): boolean {
+            const view = laidOut(this, 'grab_focus') as unknown as Parameters<typeof focusView>[0];
+            focusView(view);
+            return isViewFocused(view);
         }
 
         get tooltipText(): string {

@@ -76,6 +76,14 @@ export const Canvas2DBridgeNsTest = async () => {
             expect(createNativeCanvasDriver.length).toBe(0);
         });
 
+        await it('has the GtkWidget focus members', () => {
+            const bridge = new Canvas2DBridge();
+            expect(bridge.focusable).toBe(false);
+            bridge.focusable = true;
+            expect(bridge.focusable).toBe(true);
+            expect(typeof bridge.grab_focus).toBe('function');
+        });
+
         await it('refuses to create a native view off Android', () => {
             expect(() => new Canvas2DBridge().createNativeView()).toThrow('Platform not supported');
         });
