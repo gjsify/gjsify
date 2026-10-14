@@ -64,6 +64,7 @@ import type {
 } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
+import type { DispatchedSignals } from '../signals.js';
 
 /** The persistent content. Child of <adw-bottom-sheet>; consumed at connect time. */
 export class AdwBottomSheetContent extends HTMLElement {}
@@ -75,6 +76,9 @@ export class AdwBottomSheetSheet extends HTMLElement {}
 export class AdwBottomSheetBottomBar extends HTMLElement {}
 
 export class AdwBottomSheet extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { 'notify::open': 'notify::open' };
+
     private _initialized = false;
     private _contentEl!: HTMLDivElement;
     private _dimmingEl!: HTMLDivElement;

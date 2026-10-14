@@ -55,6 +55,7 @@ import { BACK_BUTTON_FALLBACK_TOOLTIP, NavigationViewState, describeNavigationDi
 import type { AdwNavigationPageProps, NavigationDiagnostic, NavigationStackChange } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import type { DispatchedSignals } from '../signals.js';
 
 /** The page properties the core owns, read off the element's attributes. */
 function readPageProps(page: AdwNavigationPage): AdwNavigationPageProps {
@@ -135,6 +136,14 @@ export class AdwNavigationPage extends HTMLElement {
 }
 
 export class AdwNavigationView extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = {
+        pushed: 'pushed',
+        popped: 'popped',
+        replaced: 'replaced',
+        'notify::visible-page': 'notify::visible-page',
+    };
+
     private _pagesEl!: HTMLDivElement;
     // The back button injected into each visible page (so we can remove it).
     private readonly _backButtons = new WeakMap<AdwNavigationPage, HTMLElement>();
@@ -176,6 +185,11 @@ export class AdwNavigationView extends HTMLElement {
 
     get visiblePageTag(): string | null {
         return this._state.visiblePageTag;
+    }
+
+    /** `adw_navigation_view_get_visible_page_tag`. */
+    get_visible_page_tag(): string | null {
+        return this.visiblePageTag;
     }
 
     get depth(): number {
@@ -301,6 +315,11 @@ export class AdwNavigationView extends HTMLElement {
         const pushed = this._state.push(pageOrTag, readPageProps(pageOrTag));
         this._render();
         return pushed;
+    }
+
+    /** `adw_navigation_view_push_by_tag`, under the name a GJS caller uses. */
+    push_by_tag(tag: string): boolean {
+        return this.pushByTag(tag);
     }
 
     /** Push the page carrying `tag` (mirrors AdwNavigationView.push_by_tag). */

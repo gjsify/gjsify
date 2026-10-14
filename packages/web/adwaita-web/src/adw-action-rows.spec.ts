@@ -674,4 +674,24 @@ export const AdwActionRowsTest = async () => {
             host.remove();
         });
     });
+
+    await describe('declared GTK signals reach connect()', async () => {
+        await it('<adw-action-row> connects `activated`', () => {
+            const { el, host } = mount<AdwActionRow>('adw-action-row');
+            let seen = 0;
+            (el as unknown as { connect(s: string, h: () => void): number }).connect('activated', () => seen++);
+            el.dispatchEvent(new CustomEvent('activated'));
+            expect(seen).toBe(1);
+            host.remove();
+        });
+
+        await it('<adw-switch-row> connects `notify::active`', () => {
+            const { el, host } = mount<AdwSwitchRow>('adw-switch-row');
+            let seen = 0;
+            (el as unknown as { connect(s: string, h: () => void): number }).connect('notify::active', () => seen++);
+            el.setAttribute('active', '');
+            expect(seen).toBe(1);
+            host.remove();
+        });
+    });
 };

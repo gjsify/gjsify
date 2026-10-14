@@ -429,4 +429,30 @@ export const AdwNavigationViewTest = async () => {
             host.remove();
         });
     });
+
+    await describe('<adw-navigation-view> GJS-spelled API and declared signals', async () => {
+        await it('push_by_tag and get_visible_page_tag follow the camelCase members', () => {
+            const { adapter, view, host, page } = mountView();
+            adapter.add(page('root'));
+            adapter.add(page('detail'));
+            expect(view.push_by_tag('detail')).toBe(true);
+            expect(view.get_visible_page_tag()).toBe('detail');
+            host.remove();
+        });
+
+        await it('connects `pushed` and `notify::visible-page`', () => {
+            const { adapter, view, host, page } = mountView();
+            adapter.add(page('root'));
+            adapter.add(page('detail'));
+            const api = view as unknown as { connect(s: string, h: () => void): number };
+            let pushed = 0;
+            let visible = 0;
+            api.connect('pushed', () => pushed++);
+            api.connect('notify::visible-page', () => visible++);
+            view.push_by_tag('detail');
+            expect(pushed).toBe(1);
+            expect(visible).toBeGreaterThan(0);
+            host.remove();
+        });
+    });
 };

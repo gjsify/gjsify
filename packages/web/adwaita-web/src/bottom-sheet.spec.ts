@@ -577,4 +577,15 @@ export const AdwBottomSheetTest = async () => {
             sheet.remove();
         });
     });
+
+    await describe('<adw-bottom-sheet> declared signals', async () => {
+        await it('connects `notify::open`', () => {
+            const sheet = mountSheet();
+            let seen = 0;
+            (sheet as unknown as { connect(s: string, h: () => void): number }).connect('notify::open', () => seen++);
+            sheet.open = true;
+            expect(seen).toBe(1);
+            sheet.remove();
+        });
+    });
 };

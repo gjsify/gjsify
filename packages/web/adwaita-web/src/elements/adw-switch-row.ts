@@ -29,6 +29,7 @@ import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import type { DispatchedSignals } from '../signals.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
@@ -42,6 +43,9 @@ import { attachRowActivation } from './row-activation.js';
 import type { GtkSwitch } from './gtk-switch.js';
 
 export class AdwSwitchRow extends HTMLElement {
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { 'notify::active': 'notify::active' };
+
     private _switchEl!: GtkSwitch;
     private _prefixEl!: HTMLDivElement;
     /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */
