@@ -768,7 +768,7 @@ function scopeOf(instance: object): TemplateScope {
 
 /**
  * Runs ADR 0096 § 3 steps 4–5 for a registered instance, in GJS's order: every template of the
- * class chain is built first (base first), then the construct properties are set, and only then
+ * class chain is built first (base first), then the properties are set, and only then
  * is each `InternalChildren` id installed as `this._<id>`. So `this._x` is `undefined` inside a
  * property setter that runs during construction and defined once `super(params)` returns.
  *
@@ -801,8 +801,22 @@ export function constructRegistered(
             }
         }
     }
+    // `g_object_new_internal` sets EVERY construct property — the given value, else the ParamSpec
+    // default — base class first, in declaration order, so a class's own setter runs once even
+    // when nothing was passed. The other given properties follow, in the order they were passed.
+    for (const info of [...chain].reverse()) {
+        for (const spec of info.properties) {
+            if (spec.flags & ParamFlags.CONSTRUCT && !(spec.flags & ParamFlags.CONSTRUCT_ONLY)) {
+                (instance as Record<string, unknown>)[spec.name] = given.has(spec)
+                    ? given.get(spec)
+                    : spec.get_default_value();
+            }
+        }
+    }
     for (const [spec, value] of given) {
-        if (!(spec.flags & ParamFlags.CONSTRUCT_ONLY)) (instance as Record<string, unknown>)[spec.name] = value;
+        if (!(spec.flags & (ParamFlags.CONSTRUCT | ParamFlags.CONSTRUCT_ONLY))) {
+            (instance as Record<string, unknown>)[spec.name] = value;
+        }
     }
 
     for (const [info, template] of built) {

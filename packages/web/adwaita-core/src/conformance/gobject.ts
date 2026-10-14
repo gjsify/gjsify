@@ -238,6 +238,65 @@ export const GOBJECT_VECTORS: readonly GObjectVector[] = [
         shows: { given: 7, dflt: 3, onPrototype: false },
     },
     {
+        row: 'ParamSpec',
+        rule: 'a CONSTRUCT property runs its own setter once at construction: with the default, or the given value',
+        holds: 'oracle',
+        observe(s) {
+            const { GObject: G } = s;
+            const { ParamSpec: P, ParamFlags: F } = G;
+            const calls: number[] = [];
+            const K = G.registerClass(
+                {
+                    GTypeName: 'GoVecConstructSetter',
+                    Properties: { size: P.int('size', '', '', F.READWRITE | F.CONSTRUCT, 0, 100, 32) },
+                },
+                // No field declaration: an initializer would run after `super()` and wipe the value.
+                class extends G.Object {
+                    get size(): number {
+                        return this._size as number;
+                    }
+                    set size(value: number) {
+                        calls.push(value);
+                        this._size = value;
+                        this.notify('size');
+                    }
+                },
+            );
+            const dflt = new K();
+            const dfltCalls = calls.splice(0);
+            const given = new K({ size: 5 });
+            return { dfltCalls, givenCalls: calls, read: [dflt.size, given.size] };
+        },
+        shows: { dfltCalls: [32], givenCalls: [5], read: [32, 5] },
+    },
+    {
+        row: 'ParamSpec',
+        rule: 'construction sets a CONSTRUCT property, so writing its default afterwards is no change and notifies nothing',
+        holds: 'oracle',
+        observe(s) {
+            const { GObject: G } = s;
+            const { ParamSpec: P, ParamFlags: F } = G;
+            const K = G.registerClass(
+                {
+                    GTypeName: 'GoVecConstructDefault',
+                    Properties: {
+                        c: P.int('c', '', '', F.READWRITE | F.CONSTRUCT, 0, 10, 7),
+                        p: P.int('p', '', '', F.READWRITE, 0, 10, 4),
+                    },
+                },
+                class extends G.Object {},
+            );
+            const o = new K();
+            const notified: string[] = [];
+            o.connect('notify::c', () => notified.push('c'));
+            o.connect('notify::p', () => notified.push('p'));
+            o.c = 7;
+            o.p = 4;
+            return { read: [o.c, new K({ c: 3 }).c], notified };
+        },
+        shows: { read: [7, 3], notified: ['p'] },
+    },
+    {
         row: 'Signals',
         rule: 'emit reaches a handler as (emitter, ...params); disconnect stops it; an undeclared name or wrong arity throws',
         holds: 'oracle',
