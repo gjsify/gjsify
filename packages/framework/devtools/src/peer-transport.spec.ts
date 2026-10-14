@@ -261,6 +261,58 @@ export default async () => {
             }
         });
 
+        await it('READS the ScreenshotScaled `scale` argument instead of ignoring it', async () => {
+            // Same trap as `scope` above, one argument later: a declared-but-unread `scale`
+            // is invisible, because a 1× PNG is as valid a PNG as a 2× one and nothing on
+            // this wire says which it got. The size math is asserted in `screenshot.spec.ts`;
+            // what is asserted HERE is that the double survives the trip — the method is
+            // `(sd)`, and `scale` is the one in-arg in this interface that is not a string.
+            const app = new Gtk.Application({ application_id: 'org.gjsify.PeerSpecShotScale' });
+            const service = new DevtoolsService(app, {});
+            const objectPath = '/org/gjsify/PeerSpecShotScale/devtools';
+            const peer = startDevtoolsPeerServer(service, objectPath);
+            try {
+                const connection = await connectPeer(peer.address);
+
+                // The scope still routes, so the second argument did not displace the first.
+                let message = '';
+                try {
+                    await peerCall(
+                        connection,
+                        objectPath,
+                        'ScreenshotScaled',
+                        GLib.Variant.new_tuple([
+                            GLib.Variant.new_string('toplevel:99/child:0'),
+                            GLib.Variant.new_double(2),
+                        ]),
+                        '(ay)',
+                    );
+                } catch (error) {
+                    message = error instanceof Error ? error.message : String(error);
+                }
+                expect(message).toContain('toplevel:99/child:0');
+                expect(message).toContain('not-found');
+
+                // An explicit scale and the "use the widget's own factor" sentinel both
+                // marshal to `(ay)` — with no realised window that is empty bytes, which is
+                // the same contract `Screenshot` has.
+                for (const scale of [2, 1, 0, -1]) {
+                    const reply = await peerCall(
+                        connection,
+                        objectPath,
+                        'ScreenshotScaled',
+                        GLib.Variant.new_tuple([GLib.Variant.new_string('window'), GLib.Variant.new_double(scale)]),
+                        '(ay)',
+                    );
+                    const [png] = reply.recursiveUnpack() as [Uint8Array];
+                    expect(png instanceof Uint8Array).toBe(true);
+                }
+                connection.close_sync(null);
+            } finally {
+                peer.stop();
+            }
+        });
+
         await it('keeps nonce-tcp access control on the nonce FILE, readable only by us', async () => {
             // `nonce-tcp:` must be served with `DBusServerFlags.NONE`, because
             // AUTHENTICATION_REQUIRE_SAME_USER rejects every TCP client (no peer

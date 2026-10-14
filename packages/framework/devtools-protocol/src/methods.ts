@@ -23,6 +23,7 @@ export type MethodKind = 'read-only' | 'presence' | 'mutating';
 export const GENERIC_METHODS = {
     GetStatus: 'read-only',
     Screenshot: 'read-only',
+    ScreenshotScaled: 'read-only',
     ListActions: 'read-only',
     ActivateAction: 'mutating',
     ChangeActionState: 'mutating',

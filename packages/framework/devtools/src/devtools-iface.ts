@@ -11,6 +11,11 @@ const GENERIC_METHODS_XML = `    <method name="GetStatus">
       <arg type="s" direction="in" name="scope"/>
       <arg type="ay" direction="out" name="png_bytes"/>
     </method>
+    <method name="ScreenshotScaled">
+      <arg type="s" direction="in" name="scope"/>
+      <arg type="d" direction="in" name="scale"/>
+      <arg type="ay" direction="out" name="png_bytes"/>
+    </method>
     <method name="ListActions">
       <arg type="s" direction="out" name="actions_json"/>
     </method>

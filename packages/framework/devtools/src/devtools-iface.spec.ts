@@ -81,17 +81,19 @@ export default async () => {
             // its arity is 2 for zero declared args and for five — the check above is blind
             // to exactly the method the bug was in.
             //
-            // So this pins WHICH methods that blindness covers. `Screenshot` is the only
-            // one today, and its arguments are proven the only way they can be: by calling
-            // it over a real connection and observing that the value changes the answer
-            // (`peer-transport.spec.ts` → "READS the Screenshot `scope` argument"). A
-            // second manual-reply method appearing without that treatment fails here, with
-            // the reason attached, instead of quietly inheriting the blind spot.
+            // So this pins WHICH methods that blindness covers. Both captures are on the
+            // list, and the arguments of both are proven the only way they can be: by
+            // calling them over a real connection and observing that each value changes
+            // the answer (`peer-transport.spec.ts` → "READS the Screenshot `scope`
+            // argument" and "READS the ScreenshotScaled `scale` argument"). A third
+            // manual-reply method appearing without that treatment fails here, with the
+            // reason attached, instead of quietly inheriting the blind spot.
             const manualReply = declaredMethods()
                 .filter(({ name }) => implementationOf(name)?.manualReply)
                 .map(({ name }) => name);
-            expect(manualReply).toStrictEqual(['Screenshot']);
+            expect(manualReply).toStrictEqual(['Screenshot', 'ScreenshotScaled']);
             expect(implementationOf('Screenshot')?.fn.length).toBe(2);
+            expect(implementationOf('ScreenshotScaled')?.fn.length).toBe(2);
         });
     });
 };
