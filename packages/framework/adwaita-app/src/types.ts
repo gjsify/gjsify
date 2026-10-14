@@ -21,6 +21,12 @@ export interface NavItem {
  * Fields for the standard `app.about` dialog. All optional except the name;
  * omitted fields are simply not set on the `Adw.AboutDialog`.
  */
+/** One extra link in the About dialog. */
+export interface AboutLink {
+    title: string;
+    url: string;
+}
+
 export interface AboutInfo {
     /** Application name shown at the top of the dialog. */
     applicationName: string;
@@ -42,4 +48,6 @@ export interface AboutInfo {
     copyright?: string;
     /** Extra description shown under the header. */
     comments?: string;
+    /** Extra links shown in the dialog (`Adw.AboutDialog.add_link`), e.g. a support page. */
+    links?: AboutLink[];
 }
