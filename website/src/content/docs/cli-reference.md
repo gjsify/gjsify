@@ -1978,6 +1978,7 @@ gjsify site i18n --check                # fail instead of writing
 | Option | Default | Description |
 |---|---|---|
 | `<operation>` | required | `build` renders the pages, `i18n` syncs the page catalogues. |
+| `--overview <file>` | none | `build`: render the support overview listed in this JSON file (`url`, `languages`, `apps`) instead of one app. |
 | `--root <path>` | cwd | Repository to work on — a checkout whose root `package.json` has `gjsify.site`. |
 | `--out <dir>` | `<root>/dist` | Output directory, emptied first. |
 | `--offline` | `false` | Skip every network call. |
