@@ -1242,6 +1242,57 @@ static GIFunctionInfo* ResolveInstanceMethod(GIRepository* repo, GType gtype, GI
   return func;
 }
 
+// Resolved instance methods, keyed by the instance's concrete GType and the name
+// as JS spelled it. The resolution above is the expensive half of a GI call —
+// dup the default repository, walk the GType parents for the nearest
+// GIObjectInfo, then search own + interface + inherited method tables twice (the
+// literal name, then the snake_case alias) — and it repeats IDENTICALLY on every
+// call, because a typelib's method tables do not change at runtime. MEASURED on
+// this machine (gjs 1.88.1 / GLib 2.88.3): `set_property` on a registerClass
+// subclass cost 8224 ns through callMethod against 2815 ns for the same
+// g_object_set_property through setProperty — 5.4 µs of pure re-resolution per
+// call, which is most of what a property write on the real-GObject engine spends.
+//
+// Only a HIT is cached. A miss must stay uncached: namespaces load lazily, so a
+// name that resolves to nothing now can resolve after the typelib that declares
+// it is required — caching the miss would make load order change behaviour.
+//
+// The cache OWNS the ref it holds (GIFunctionInfos live as long as the process
+// anyway, and the entry count is bounded by the methods a program actually
+// calls); callers get a borrowed pointer and must not unref it. Written only
+// from the JS thread, like every other entry point here.
+static std::map<std::pair<GType, std::string>, GIFunctionInfo*> g_instanceMethodCache;
+
+// The resolution of ResolveInstanceMethod, memoized. Returns a BORROWED pointer
+// (never unref) or nullptr.
+static GIFunctionInfo* ResolveInstanceMethodCached(GType gtype, const std::string& method) {
+  const std::pair<GType, std::string> key(gtype, method);
+  auto it = g_instanceMethodCache.find(key);
+  if (it != g_instanceMethodCache.end()) return it->second;
+
+  GIRepository* repo = DupDefaultRepository();
+  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
+  GIFunctionInfo* func = nullptr;
+  if (objInfo != nullptr) {
+    func = ResolveInstanceMethod(repo, gtype, objInfo, method);
+    gi_base_info_unref(objInfo);
+  }
+  g_object_unref(repo);
+  if (func != nullptr) g_instanceMethodCache.emplace(key, func);
+  return func;
+}
+
+// Whether `gtype` has introspection info at all — the distinction callMethod
+// reports as "no introspection info for X" before it even looks for a method.
+static bool HasObjectInfo(GType gtype) {
+  GIRepository* repo = DupDefaultRepository();
+  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
+  const bool found = objInfo != nullptr;
+  if (objInfo != nullptr) gi_base_info_unref(objInfo);
+  g_object_unref(repo);
+  return found;
+}
+
 // callMethod(handle, methodName, args?: unknown[]) -> unknown
 // Resolve an instance method by walking the instance's GIObjectInfo (own +
 // implemented-interface methods at each level, then up the parent chain), then
@@ -1262,19 +1313,13 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
                                                               : Napi::Array::New(env, 0);
 
   GType gtype = G_OBJECT_TYPE(obj);
-  GIRepository* repo = DupDefaultRepository();
+  GIFunctionInfo* func = ResolveInstanceMethodCached(gtype, method);
 
-  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
-  if (objInfo == nullptr) {
-    g_object_unref(repo);
+  if (func == nullptr && !HasObjectInfo(gtype)) {
     Napi::Error::New(env, std::string("no introspection info for ") + G_OBJECT_TYPE_NAME(obj))
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-
-  GIFunctionInfo* func = ResolveInstanceMethod(repo, gtype, objInfo, method);
-  gi_base_info_unref(objInfo);
-  g_object_unref(repo);
 
   if (func == nullptr) {
     // On a terminating env the method-name read (info[1].Utf8Value) degrades to
@@ -1290,15 +1335,13 @@ Napi::Value CallMethod(const Napi::CallbackInfo& info) {
     return env.Null();
   }
   if (!gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func))) {
-    gi_base_info_unref(func);
     Napi::TypeError::New(env, method + " is not an instance method").ThrowAsJavaScriptException();
     return env.Null();
   }
 
-  Napi::Value result =
-      InvokeFunctionInfo(env, func, obj, args, std::string(G_OBJECT_TYPE_NAME(obj)) + "." + method);
-  gi_base_info_unref(func);
-  return result;
+  // The cache owns `func`; this is a borrowed pointer.
+  return InvokeFunctionInfo(env, func, obj, args,
+                            std::string(G_OBJECT_TYPE_NAME(obj)) + "." + method);
 }
 
 // hasMethod(handle, methodName) -> boolean
@@ -1321,20 +1364,10 @@ Napi::Value HasMethod(const Napi::CallbackInfo& info) {
   if (obj == nullptr) return env.Null();
   std::string method = info[1].As<Napi::String>().Utf8Value();
 
-  GType gtype = G_OBJECT_TYPE(obj);
-  GIRepository* repo = DupDefaultRepository();
-  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
-  if (objInfo == nullptr) {
-    g_object_unref(repo);
-    return Napi::Boolean::New(env, false);
-  }
-  GIFunctionInfo* func = ResolveInstanceMethod(repo, gtype, objInfo, method);
-  gi_base_info_unref(objInfo);
-  g_object_unref(repo);
+  GIFunctionInfo* func = ResolveInstanceMethodCached(G_OBJECT_TYPE(obj), method);
   if (func == nullptr) return Napi::Boolean::New(env, false);
-  const bool invocable = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));
-  gi_base_info_unref(func);
-  return Napi::Boolean::New(env, invocable);
+  return Napi::Boolean::New(env,
+                            gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func)));
 }
 
 // hasClassMethod(namespace, typeName, methodName) -> boolean
