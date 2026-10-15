@@ -233,7 +233,7 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
         }
         if (/\s[-–—:]\s|:\s|\(.+\)/.test(name) || /\b(web browser|editor|client|viewer|player)$/i.test(name) && name.includes(' ')) {
             add('name-extra-info', 'warning', 'just-the-name', where, `"${name}" carries a description; keep just the name and put the rest in the summary`);
-        } else if (/[.\-]/.test(name)) {
+        } else if (/[.-]/.test(name)) {
             add('name-formatting', 'warning', 'no-weird-formatting', where, `"${name}" contains a dot or dash; avoid punctuation in names`);
         } else if (/\p{L}/u.test(name)) {
             const letters = name.replace(/[^\p{L}]/gu, '');
