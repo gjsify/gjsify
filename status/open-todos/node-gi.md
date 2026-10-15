@@ -196,10 +196,13 @@ silently decided the count the callee read both by. gjs does not check it — me
 1.88.1, `update_property([LABEL, DESCRIPTION], ['one'])` is accepted and reads out of
 bounds.
 
-**Read the suite number as "this run".** node-gi is 612 tests, 597 passing, 13 skipped,
-2 failing; the two are `Canvas2DBridge` and `Excalibur.js`, both golden-image, and their
-`actual` strings are BYTE-IDENTICAL with the change reverted — same cause, not merely
-the same count, which is the check a bare `2 failed` on both sides does not make.
+**Read the suite number as "this run".** An earlier run read 2 failing, `Canvas2DBridge`
+and `Excalibur.js`, identical with the change reverted. Both tests need a BUILT workspace
+and self-skip without one, so on a tree that has one they run against whatever is there:
+a stale `packages/infra/*/lib` fails the bundle step (measured: `Cannot find module
+.../rolldown-plugin-gjsify/lib/plugins/gschema.js`). On a fresh worktree after `gjsify
+install --immutable` + `gjsify run build` both pass, and `npm test` is 882 tests, 848 pass,
+34 skipped, 0 fail, three runs in a row. Not a node-gi defect: rebuild before trusting them.
 
 
 ### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
@@ -407,14 +410,16 @@ measured, not assumed — with the disarm deleted the "libuv alive" case fails
 and the "libuv idle" case still passes, which is exactly the boundary.
 
 
-### `@gjsify/node-gi` — `idle_add_once fires exactly once` is flaky at roughly 2 runs in 3
+### `@gjsify/node-gi` — `idle_add_once fires exactly once` failed on a stale local build
 
-`test/glib-overrides.test.mjs:98` fails `0 !== 1` — the idle never fired within its
-8 `iterateMainContext(true)` calls. Measured on an unmodified `main` working tree
-(the only change present was an untracked new test file), standalone: 2 failures in
-3 consecutive runs, and once inside a full `npm test` (762 tests, 729 pass, 1 fail,
-32 skipped) — it passed in the next full run (764/732/0). Pre-existing, recorded
-because a 2-in-3 flake in the suite's own gate reads as a red run from any cause.
+`test/glib-overrides.test.mjs` `0 !== 1` — the idle never fired within its 8
+`iterateMainContext(true)` calls. Every `test*` script pins `NODE_GI_NATIVE=build`, so the
+test runs the addon in `build/Release`: on a checkout whose build predated the source
+(10 Oct build against 15 Oct sources) it failed 5 runs in 6 standalone, while the staged
+prebuild passed 8 in 8. On a fresh `npm install` build of current main it passed 14 of 14
+standalone (also under 20 busy loops) and in six full `npm test` runs. Rebuild first
+(`npm run build`); not bisected to the commit that changed it, so a recurrence on a FRESH
+build is a real defect.
 
 ## Storybook probe: node-gi stays alive after `quit()` since #2011
 
