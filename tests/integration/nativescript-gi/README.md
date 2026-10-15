@@ -23,6 +23,23 @@ npm run size:android                        # what the plugin costs the APK, fro
 variable). `node scripts/run-on-device.mjs --keep` leaves the app installed; by
 default it is uninstalled again, because a device this runs on is usually shared.
 
+Two more defines turn this suite into the ADR 0110 gate-2 ladder. `GJSIFY_GI_PLUGIN=0`
+aliases `@gjsify/node-gi/gi` to `app/no-gi-stub.ts`, so node-gi is not in the bundle at
+all — needed because importing the bridge `dlopen`s `libnode_gi.so` from its module
+body, so the opt-in define alone cannot describe an app that pays nothing.
+`GJSIFY_GI_BENCH=1` adds the per-instance benchmark, off by default so it lands in
+neither the cold-start nor the APK-size numbers. Together:
+
+```sh
+npm run release:android -- c                # signed release, per-ABI splits → release-apks/c/
+npm run release:android -- b                #   … node-gi imported, opt-in off
+npm run release:android -- b0               #   … node-gi not in the bundle
+node scripts/apk-size.mjs release-apks/c/app-arm64-v8a-release.apk \
+  --against release-apks/b0/app-arm64-v8a-release.apk
+```
+
+Numbers from that ladder: `docs/reports/2026-10-15-adr-0110-gates.md`.
+
 The two runs differ in **one value**: the build-time define `__GJSIFY_GI_OPT_IN__`
 (`vite.config.ts`). Same sources, same plugin dependency, same `lib/<abi>/*.so` and
 same `assets/app/girepository-1.0/*.typelib` in the APK. So what they compare is the

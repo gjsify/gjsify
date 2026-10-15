@@ -229,8 +229,15 @@ no run has gone through a real `startActivityForResult` on a device or emulator 
 amends ADR 0105: the real engine becomes the NativeScript Android default, the pure-JS subset stays
 (browser, iOS) and stays tested on Android. Until the flip, ADR 0105 § 1/§ 2 hold. Open, in order:
 
-1. Finish ADR 0105 stage 2 (twins for registered classes) and time per-instance construction cost.
-2. Measure a RELEASE APK: compressed delta per ABI and cold start (stage 4 only has a universal
-   debug APK, ~15.5 MB per ABI, +~83 ms / 6.5 % on arm64).
+1. ~~Finish ADR 0105 stage 2 and time per-instance construction cost.~~ **Measured**
+   ([report](../../docs/reports/2026-10-15-adr-0110-gates.md)): construction is free (lazy twin,
+   plain `READWRITE` properties), use is not — first read ~5x/~8x, `set`/`notify` ~45x/~99x, emit
+   ~24x/~20–45x (host/emulator).
+2. ~~Measure a RELEASE APK: compressed delta per ABI and cold start.~~ **Measured** (same report):
+   15.77 MB (arm64-v8a) and 16.93 MB (x86_64) compressed per split, +80 ms / 17.8 % cold start.
+   Left over: **arm64 cold start from a release APK** — the only cold-start numbers are from the
+   x86_64 emulator; stage 4's ~83 ms / 6.5 % on arm64 is from a universal debug APK. Also not
+   measured: an APK without the payload packaged, and R8 (NativeScript leaves its hooks off, and
+   R8 cannot change a `.so`/typelib delta).
 3. Wire the dual emulator run: app and storybook tests once per engine, beside the vectors.
 4. Flip the default in a small PR citing steps 1 and 2; if the size is too large, amend ADR 0110.

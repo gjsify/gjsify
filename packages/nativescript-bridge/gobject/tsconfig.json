@@ -29,6 +29,7 @@
         "src"
     ],
     "exclude": [
-        "src/test.node-gi.mts"
+        "src/test.node-gi.mts",
+        "src/bench.node-gi.mts"
     ]
 }

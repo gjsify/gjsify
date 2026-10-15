@@ -25,7 +25,9 @@
         "build:test": "gjsify run build:test:node-gi",
         "build:test:node-gi": "gjsify build src/test.node-gi.mts --app node --outfile dist/test.node-gi.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test",
-        "test:gjs-on-node": "gjsify run build:test:node-gi && node dist/test.node-gi.mjs"
+        "test:gjs-on-node": "gjsify run build:test:node-gi && node dist/test.node-gi.mjs",
+        "build:bench:node-gi": "gjsify build src/bench.node-gi.mts --app node --outfile dist/bench.node-gi.mjs",
+        "bench:node-gi": "gjsify run build:bench:node-gi && node dist/bench.node-gi.mjs"
     },
     "keywords": [
         "gjs",

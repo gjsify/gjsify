@@ -8,4 +8,5 @@ dist/
 tsconfig.tsbuildinfo
 package-lock.json
 apk-size.json
+release-apks/
 app/specs/gschemas.generated.ts

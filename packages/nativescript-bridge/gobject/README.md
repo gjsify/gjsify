@@ -85,6 +85,27 @@ drives the same `GOBJECT_VECTORS` against node-gi directly. The pair is the poin
 what the right answer is on this binding, this package says the subset still gives it with a real
 store underneath.
 
+## Per-instance cost
+
+`src/bench.ts` times four rows against a registered class with two properties and one signal:
+`construct`, `construct+first-read`, `set+notify` and `emit`. It is exported from `index.ts` and
+takes its engine as an argument, so ONE process times both engines and the pure-JS leg cannot be a
+different build of anything. `src/bench.node-gi.mts` is the host entry:
+
+```sh
+gjsify workspace @gjsify/adwaita-gobject-native run bench:node-gi
+```
+
+`GJSIFY_BENCH_ITERATIONS`, `GJSIFY_BENCH_REPEATS` and `GJSIFY_BENCH_WARMUPS` tune it. The device
+leg (`tests/integration/nativescript-gi/app/specs/bench.ts`, behind `GJSIFY_GI_BENCH=1`) calls the
+same body, so host and device cannot drift. A script on demand, not a CI gate: a timing threshold
+in CI fails on whatever the runner was doing that minute.
+
+`construct+first-read` exists because the engine builds its GObject twin LAZILY, in `twinOf` on
+first use. `construct` alone touches no engine for plain `READWRITE` properties, so timing only
+that reports a cost of zero and is wrong. Numbers for both hosts:
+`docs/reports/2026-10-15-adr-0110-gates.md`.
+
 ## What is NOT measured
 
 Nothing here has run on Android. `@gjsify/adwaita-nativescript`'s `createGObject(door)` does not
