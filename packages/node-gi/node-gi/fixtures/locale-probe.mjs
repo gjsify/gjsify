@@ -20,6 +20,9 @@ const startupMessages = Gettext.setlocale(Gettext.LocaleCategory.MESSAGES, null)
 const startupAll = Gettext.setlocale(Gettext.LocaleCategory.ALL, null);
 
 Gettext.bindtextdomain(domain, localeDir);
+// The query form reads the binding back, so a path that was mangled on the way in
+// or out shows up even where the lookup itself happens to fall back to the msgid.
+const boundDir = Gettext.bindtextdomain(domain, null);
 Gettext.textdomain(domain);
 
 // Discriminator for the category constants: with LC_MESSAGES forced back to C the
@@ -33,6 +36,7 @@ process.stdout.write(
     JSON.stringify({
         startupMessages,
         startupAll,
+        boundDir,
         languageNames: GLib.get_language_names(),
         // The C function, reached through introspection — the path that has nothing
         // to do with the JS shim, so a green here means the PROCESS is translating.

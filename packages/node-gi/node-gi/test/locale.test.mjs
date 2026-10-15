@@ -59,6 +59,14 @@ writeMoCatalog(join(localeRoot, FIXTURE_LANGUAGE, 'LC_MESSAGES', `${DOMAIN}.mo`)
 ]);
 process.on('exit', () => rmSync(localeRoot, { recursive: true, force: true }));
 
+// The SAME catalog under a directory with a non-ASCII name. On win32 libintl's
+// bindtextdomain() reads its path in the ANSI code page, so this binds a directory
+// that does not exist and the lookup answers the msgid (found via the
+// Steuererklärung Windows test); the addon goes through wbindtextdomain there.
+const nonAsciiRoot = join(mkdtempSync(join(tmpdir(), 'node-gi-locale-')), 'locale-ä');
+writeMoCatalog(join(nonAsciiRoot, FIXTURE_LANGUAGE, 'LC_MESSAGES', `${DOMAIN}.mo`), [{ msgid: MSGID, msgstr: MSGSTR }]);
+process.on('exit', () => rmSync(dirname(nonAsciiRoot), { recursive: true, force: true }));
+
 const locale = findTranslatableLocale();
 if (locale === null) console.error(`# locale.test.mjs: ${NO_LOCALE_DIAGNOSTIC}`);
 
@@ -83,8 +91,8 @@ const launcher = probeLauncher();
 const PROBE_TIMEOUT_MS = 60_000;
 
 /** Run the probe in a fresh process under `env` and parse its report. */
-function runProbe(env) {
-    const out = execFileSync(launcher.command, [...launcher.args, probe, localeRoot, DOMAIN, MSGID], {
+function runProbe(env, dir = localeRoot) {
+    const out = execFileSync(launcher.command, [...launcher.args, probe, dir, DOMAIN, MSGID], {
         encoding: 'utf8',
         timeout: PROBE_TIMEOUT_MS,
         env: { ...process.env, NODE_GI_NATIVE: process.env.NODE_GI_NATIVE ?? 'build', ...env },
@@ -191,6 +199,17 @@ test(
         // textdomain() made it the default domain, so the undecorated call resolves too.
         assert.equal(report.gettext, MSGSTR);
         assert.equal(report.domainGettext, MSGSTR);
+    },
+);
+
+test(
+    'a catalog under a non-ASCII directory translates, and the binding reads back as given',
+    { skip: locale === null && NO_LOCALE_DIAGNOSTIC },
+    () => {
+        const report = runProbe({ LC_ALL: locale, LANGUAGE: FIXTURE_LANGUAGE }, nonAsciiRoot);
+        assert.equal(report.boundDir, nonAsciiRoot);
+        assert.equal(report.glibDgettext, MSGSTR);
+        assert.equal(report.dgettext, MSGSTR);
     },
 );
 
