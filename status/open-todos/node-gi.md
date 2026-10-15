@@ -438,3 +438,19 @@ rule there differs and is not yet pinned: `new Cls({ prop })` and `JsToGValue` (
 `int`/`uint` there but checks `char`/`uchar`/`int64`/`uint64`, with a different text), and the
 elements of an IN array (`ElementToGIArgument`, GJS behaviour unprobed). Probe each against
 `gjs`, extend the conformance program, then route them through the same helper.
+
+### `findProtoDescriptor` still walks a prototype chain per property GET
+
+The property/method hot paths were profiled and their resolution work cached on 2026-10-15
+([report](../../docs/reports/2026-10-15-node-gi-set-emit-perf.md)): a (GType, name) instance-method
+cache in `src/calls.cc`, memoized `toKebab` and `findPropertySetter`, per-wrapper signal-API and
+GI-method thunks, and a shared `paramSpecProto`. Together they took the real-Gio engine's
+`set`+`notify` from 21 237 to 6 540 ns/op and emit from 3 153 to 2 505.
+
+`findProtoDescriptor` was left out and is still ~9 % of both rows. It walks a JS prototype chain on
+every GET that reaches the user prototype, and the answer is cacheable per (prototype, name) like
+the others — except that a JS prototype is MUTABLE in a way a GType is not, so this one needs an
+invalidation story the other six do not: a class gaining a method after its first instance is
+observed is legal JS, and gjs does not forbid it either. Decide whether node-gi pins the
+registerClass-time shape (as gjs effectively does for accessors, `_checkAccessors`) or carries a
+version counter, then cache it.

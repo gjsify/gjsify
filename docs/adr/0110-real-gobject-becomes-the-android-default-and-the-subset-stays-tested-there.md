@@ -84,6 +84,10 @@ the GObject engine under it, not about GTK rendering.
    — first property read ~5x on the host and ~8x on the emulator, a `set`/`notify` round trip ~45x
    and ~99x, an emission ~24x and ~20–45x. `packages/nativescript-bridge/gobject/src/bench.ts` is
    one body run from both hosts, on demand, not in CI.
+   **Then optimized:** [report](../reports/2026-10-15-node-gi-set-emit-perf.md). The gap was
+   node-gi re-resolving per call what is a pure function of (GType, name), not the N-API crossing;
+   caching it took the host `set`/`notify` from ~45x to **14.4x** and the emission from ~24x to
+   **19.3x**. The emulator leg is not re-measured — it rides along with step 3.
 2. Build a release APK and measure the compressed size delta per ABI and the cold-start delta
    against an app without the plugin, on an arm64 device.
    **Measured:** [report](../reports/2026-10-15-adr-0110-gates.md). Signed release APKs, per-ABI
