@@ -102,7 +102,7 @@ GJSIFY_DEVTOOLS=1 gjsify storybook        # exposes org.gjsify.Devtools
 gjsify debug --profile storybook          # MCP bridge: list_stories / get_current_story / open_story / set_story_arg (+ generic screenshot)
 ```
 
-See the [Debugging & remote control guide](https://gjsify.github.io/gjsify/guides/devtools/).
+See the [Debugging & remote control guide](https://gjsify.org/gjsify/guides/devtools/).
 
 ## Self-verify (the node-gi capstone)
 

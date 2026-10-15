@@ -2,7 +2,7 @@
 
 **The JavaScript ecosystem you already know — running natively on GNOME.**
 
-**[Documentation](https://gjsify.github.io/gjsify/)** · [Project status](status/) · [Architecture & contributor guide](AGENTS.md)
+**[Documentation](https://gjsify.org/gjsify/)** · [Project status](status/) · [Architecture & contributor guide](AGENTS.md)
 
 ---
 
@@ -147,13 +147,13 @@ Node.js 24+ is **optional** — needed only to run the cross-validation test tra
   stages one payload and wraps it per format — no packaging manifest in your repo,
   and no `dpkg-deb` / `rpmbuild` on the machine. The package depends on the
   distribution's own `gjs`, GTK and typelibs, worked out by reading your bundle.
-  Linux and `--app gjs` today; see [Ship your app](https://gjsify.github.io/gjsify/ship/).
+  Linux and `--app gjs` today; see [Ship your app](https://gjsify.org/gjsify/ship/).
 - **A Flatpak:** `gjsify flatpak init` generates the full Flathub asset set
   (manifest + MetaInfo + `.desktop` + `flathub.json`) from one `package.json`
   block; `gjsify flatpak check` runs `appstreamcli` + `flatpak-builder-lint`
   locally; `gjsify flatpak build` wraps `flatpak-builder`. See the
-  [Flatpak app](https://gjsify.github.io/gjsify/guides/flatpak-app/) and
-  [Flatpak CLI](https://gjsify.github.io/gjsify/guides/flatpak-cli-tool/) guides.
+  [Flatpak app](https://gjsify.org/gjsify/guides/flatpak-app/) and
+  [Flatpak CLI](https://gjsify.org/gjsify/guides/flatpak-cli-tool/) guides.
 - **A one-line installer:** `gjsify generate-installer` scaffolds an `install.mjs`
   parameterised to your package, so your users install with a single
   `curl … | gjs -m -` — no npm / Node on their machine.

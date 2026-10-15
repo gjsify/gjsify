@@ -23,7 +23,7 @@
     <name translate="no">gjsify contributors</name>
     <email>pascal@artandcode.studio</email>
   </developer>
-  <url type="homepage">https://gjsify.github.io/gjsify/</url>
+  <url type="homepage">https://gjsify.org/gjsify/</url>
   <url type="vcs-browser">https://github.com/gjsify/gjsify</url>
   <content_rating type="oars-1.1" />
   <categories>

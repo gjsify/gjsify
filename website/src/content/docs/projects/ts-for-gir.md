@@ -166,6 +166,6 @@ GNOME Shell extensions: [gTile](https://github.com/gTile/gTile), [Copyous](https
 ## Further reading
 
 - [ts-for-gir on GitHub](https://github.com/gjsify/ts-for-gir) for the source and the issue tracker
-- [TypeScript API documentation](https://gjsify.github.io/docs), the generated typedoc covering GLib, GTK, GStreamer and the rest
+- [TypeScript API documentation](https://gjsify.org/docs), the generated typedoc covering GLib, GTK, GStreamer and the rest
 - [gjsify/types](https://github.com/gjsify/types) for the pre-generated `@girs/*` npm packages
 - [gjsify/gnome-shell](https://github.com/gjsify/gnome-shell) for hand-written Shell Extension types

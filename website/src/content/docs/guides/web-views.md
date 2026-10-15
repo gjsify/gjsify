@@ -47,7 +47,7 @@ app.connect('activate', () => {
     view.loadHtml(`<!doctype html>
         <title>Web view demo</title>
         <h1>Hello from the web view</h1>
-        <p><a href="https://gjsify.github.io/gjsify/">Documentation</a></p>`);
+        <p><a href="https://gjsify.org/gjsify/">Documentation</a></p>`);
 
     const win = new Adw.ApplicationWindow({
         application: app,
@@ -77,7 +77,7 @@ A window opens with the page in it, and the terminal shows:
 ```
 url: about:srcdoc
 h1: Hello from the web view
-links: https://gjsify.github.io/gjsify/
+links: https://gjsify.org/gjsify/
 snapshot: 11819 bytes of PNG
 ```
 

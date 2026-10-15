@@ -42,7 +42,7 @@ On top of the generic devtools tools (`get_status`, `screenshot`, …), the brow
 - **Inspector data (Tier B):** `inspect_element` (tag/id/class + attributes + bounding rect + box model + curated computed styles), `dom_tree`, `get_network` (Resource Timing API), `get_accessibility`
 - **Inspector panel:** `open_inspector`, `close_inspector` (toggle the WebKit Web Inspector)
 
-Because the apps you debug are themselves gjsify-built, you can render one here and assert against its real output in-page — no separate browser-automation stack. See the [Debugging & remote control guide](https://gjsify.github.io/gjsify/guides/devtools/).
+Because the apps you debug are themselves gjsify-built, you can render one here and assert against its real output in-page — no separate browser-automation stack. See the [Debugging & remote control guide](https://gjsify.org/gjsify/guides/devtools/).
 
 ## Inspector-data builders (Tier B)
 

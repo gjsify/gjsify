@@ -4,8 +4,8 @@
 > router. Detail for [ADR 0032](adr/0032-react-native-on-the-gtk-host.md).
 >
 > Nobody has to read this to build an app. The website's
-> [React](https://gjsify.github.io/gjsify/frameworks/react/) and
-> [React Native](https://gjsify.github.io/gjsify/frameworks/react-native/) pages carry every
+> [React](https://gjsify.org/gjsify/frameworks/react/) and
+> [React Native](https://gjsify.org/gjsify/frameworks/react-native/) pages carry every
 > rule an app author follows; this file carries the number behind each rule, for whoever
 > changes this part of gjsify. Each section stands alone.
 
@@ -231,5 +231,5 @@ the file, so an author's fork cannot become dead code with nothing saying so.
 
 - [ADR 0032](adr/0032-react-native-on-the-gtk-host.md)
   for the decision record this page reports the measurements of
-- [How gjsify works](https://gjsify.github.io/gjsify/how-it-works/) for the global scanner and the build in general
-- [Contributing](https://gjsify.github.io/gjsify/contributing/development-setup/) if you want to change any of it
+- [How gjsify works](https://gjsify.org/gjsify/how-it-works/) for the global scanner and the build in general
+- [Contributing](https://gjsify.org/gjsify/contributing/development-setup/) if you want to change any of it
