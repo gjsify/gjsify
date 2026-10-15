@@ -394,6 +394,36 @@ export class GtkScrolledWindow extends HTMLElement {
         return this._bars?.vertical ?? null;
     }
 
+    /** `Gtk.ScrolledWindow:child` — the widget inside the viewport, or the one waiting to be adopted. */
+    get child(): Element | null {
+        return this._built ? this._viewport.firstElementChild : this.firstElementChild;
+    }
+
+    set child(value: Element | null) {
+        this.set_child(value);
+    }
+
+    get_child(): Element | null {
+        return this.child;
+    }
+
+    /**
+     * `gtk_scrolled_window_set_child`: replace the child, which sits in the viewport. Before the
+     * first connect there is no viewport yet, so the child waits in the light DOM where
+     * `connectedCallback` adopts it the way it adopts a declared one.
+     */
+    set_child(child: Element | null): void {
+        const current = this.child;
+        if (child === current) return;
+        if (this._built) {
+            this._viewport.replaceChildren(...(child === null ? [] : [child]));
+        } else {
+            current?.remove();
+            if (child !== null) this.appendChild(child);
+        }
+        this.dispatchEvent(new CustomEvent('notify::child', { bubbles: true, detail: { child } }));
+    }
+
     /** The `<gtk-viewport>` the child sits in — the one GTK's `set_child` builds for itself. */
     get viewport(): GtkViewport {
         return this._viewport;
@@ -408,7 +438,13 @@ export class GtkScrolledWindow extends HTMLElement {
             horizontal.setAttribute('orientation', 'horizontal');
             vertical.setAttribute('orientation', 'vertical');
             this._bars = { horizontal, vertical };
-            bindSlottedChildren(this, [{ into: this._viewport }]).install(this._viewport, vertical, horizontal);
+            // `Gtk.ScrolledWindow:child` is a widget PROPERTY, so an authored `child: …` names the
+            // slot by that name; the bare child is the default. Both land in the viewport.
+            bindSlottedChildren(this, [{ name: 'child', into: this._viewport }, { into: this._viewport }]).install(
+                this._viewport,
+                vertical,
+                horizontal,
+            );
             this.setAttribute('role', 'generic');
             // A bar is a VIEW of the viewport's adjustment, so the viewport's
             // `value-changed` is what moves the content and a bar's is what moves the

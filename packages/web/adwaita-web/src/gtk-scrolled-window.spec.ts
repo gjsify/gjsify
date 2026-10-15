@@ -91,6 +91,80 @@ export const GtkScrolledWindowTest = async () => {
         });
     });
 
+    await describe('<gtk-scrolled-window> its child, before and after connect', async () => {
+        const detached = (): { el: GtkScrolledWindow; host: HTMLElement } => {
+            const host = document.createElement('div');
+            host.style.height = '100px';
+            const el = document.createElement('gtk-scrolled-window') as GtkScrolledWindow;
+            host.appendChild(el);
+            return { el, host };
+        };
+        const label = (slot?: string): HTMLElement => {
+            const child = document.createElement('gtk-label');
+            if (slot !== undefined) child.setAttribute('slot', slot);
+            return child;
+        };
+
+        await it('adopts a slot="child" child appended BEFORE the element connects', async () => {
+            const host = document.createElement('div');
+            const el = document.createElement('gtk-scrolled-window') as GtkScrolledWindow;
+            const child = label('child');
+            el.appendChild(child);
+            host.appendChild(el);
+            document.body.appendChild(host);
+            await settle();
+            expect(el.viewport.contains(child)).toBe(true);
+            host.remove();
+        });
+
+        await it('adopts a slot="child" child appended AFTER the element connects', async () => {
+            const { el, host } = mount();
+            const child = label('child');
+            el.appendChild(child);
+            await settle();
+            expect(el.viewport.contains(child)).toBe(true);
+            host.remove();
+        });
+
+        await it('adopts a default-slot child appended before connect', async () => {
+            const host = document.createElement('div');
+            const el = document.createElement('gtk-scrolled-window') as GtkScrolledWindow;
+            const child = label();
+            el.appendChild(child);
+            host.appendChild(el);
+            document.body.appendChild(host);
+            await settle();
+            expect(el.viewport.contains(child)).toBe(true);
+            host.remove();
+        });
+
+        await it('set_child before connect is adopted on connect', async () => {
+            const { el, host } = detached();
+            const child = label();
+            el.set_child(child);
+            expect(el.get_child()).toBe(child);
+            document.body.appendChild(host);
+            await settle();
+            expect(el.viewport.contains(child)).toBe(true);
+            expect(el.child).toBe(child);
+            host.remove();
+        });
+
+        await it('set_child after connect replaces the child inside the viewport', async () => {
+            const { el, host } = mount();
+            const first = label();
+            const second = label();
+            el.set_child(first);
+            expect(el.viewport.contains(first)).toBe(true);
+            el.set_child(second);
+            expect(el.viewport.contains(first)).toBe(false);
+            expect(el.viewport.contains(second)).toBe(true);
+            el.set_child(null);
+            expect(el.child).toBe(null);
+            host.remove();
+        });
+    });
+
     await describe('<gtk-scrolled-window> the policies', async () => {
         await it('shows an automatic bar only while the content is longer than the window', async () => {
             const { el, host } = mount();
