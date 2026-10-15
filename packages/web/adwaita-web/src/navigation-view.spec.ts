@@ -433,8 +433,8 @@ export const AdwNavigationViewTest = async () => {
     await describe('<adw-navigation-view> GJS-spelled API and declared signals', async () => {
         await it('push_by_tag and get_visible_page_tag follow the camelCase members', () => {
             const { adapter, view, host, page } = mountView();
-            adapter.add(page('root'));
-            adapter.add(page('detail'));
+            adapter.add(page('root'), { tag: 'root' });
+            adapter.add(page('detail'), { tag: 'detail' });
             expect(view.push_by_tag('detail')).toBe(true);
             expect(view.get_visible_page_tag()).toBe('detail');
             host.remove();
@@ -442,8 +442,8 @@ export const AdwNavigationViewTest = async () => {
 
         await it('connects `pushed` and `notify::visible-page`', () => {
             const { adapter, view, host, page } = mountView();
-            adapter.add(page('root'));
-            adapter.add(page('detail'));
+            adapter.add(page('root'), { tag: 'root' });
+            adapter.add(page('detail'), { tag: 'detail' });
             const api = view as unknown as { connect(s: string, h: () => void): number };
             let pushed = 0;
             let visible = 0;
