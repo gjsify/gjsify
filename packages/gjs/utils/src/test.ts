@@ -8,6 +8,7 @@ import nextTickSuite from './next-tick.spec.js';
 import pathShapeSuite from './path-shape.spec.js';
 import platformNamesSuite from './platform-names.spec.js';
 import systemGiDirsSuite from './system-gi-dirs.spec.js';
+import xmlScanSuite from './xml-scan.spec.js';
 
 run({
     fontMapSuite,
@@ -19,4 +20,5 @@ run({
     pathShapeSuite,
     platformNamesSuite,
     systemGiDirsSuite,
+    xmlScanSuite,
 });

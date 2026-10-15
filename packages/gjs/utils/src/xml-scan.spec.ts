@@ -2,7 +2,7 @@
 // Runs on GJS + Node (pure string work, no platform imports).
 
 import { describe, expect, it } from '@gjsify/unit';
-import { decodeXmlEntities, scanXml, type XmlOpenTag, type XmlToken } from './appdata-xml.js';
+import { decodeXmlEntities, scanXml, type XmlOpenTag, type XmlToken } from './xml-scan.js';
 
 const names = (tokens: XmlToken[]): string[] =>
     tokens.filter((token) => token.kind === 'open').map((token) => (token as XmlOpenTag).name);

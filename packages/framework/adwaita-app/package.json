@@ -58,7 +58,8 @@
         "@girs/gobject-2.0": "5.4.0",
         "@girs/gtk-4.0": "5.4.0",
         "@gjsify/adwaita-core": "workspace:^",
-        "@gjsify/devtools": "workspace:^"
+        "@gjsify/devtools": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
