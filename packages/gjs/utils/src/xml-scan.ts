@@ -1,12 +1,15 @@
 // A pull tokeniser over the XML subset an AppStream metainfo file is.
 //
-// NO GI imports, deliberately. `appdata.ts` above it is the AppStream field reader that
-// `about-dialog.ts` uses when `Adw.AboutDialog.new_from_appdata()` is missing, and that
-// fallback runs ONLY on Windows (see `about-dialog.ts` for the `#ifndef G_OS_WIN32` patch
-// that removes the constructor there). A parser reachable only from a platform CI never
-// opens a window on is a parser nothing tests — so the whole reading half is plain
-// TypeScript, runs in the `--app node` suite as well as the GJS one, and is held against
-// real metainfo XML there.
+// NO GI imports, deliberately. It lives in `@gjsify/utils/core` because two consumers
+// need it:
+//   - `adwaita-app`'s `appdata.ts`, the AppStream field reader that `about-dialog.ts`
+//     falls back to when `Adw.AboutDialog.new_from_appdata()` is missing. That happens
+//     ONLY on Windows (see `about-dialog.ts` for the `#ifndef G_OS_WIN32` patch that
+//     removes the constructor there).
+//   - the CLI's `metainfo-quality.ts` (`gjsify flatpak check`).
+// A parser reachable only from a platform CI never opens a window on is a parser nothing
+// tests, so it is plain TypeScript, runs in the `--app node` suite as well as the GJS
+// one, and is held against real metainfo XML there.
 //
 // NOT a general XML parser and not meant to become one. It covers what a metainfo
 // document contains: elements, attributes, text, CDATA, comments, the XML declaration and

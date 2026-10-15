@@ -58,6 +58,7 @@ import publishHeadersSuite from './utils/publish-headers.spec.js';
 import cliRuntimeClosureSuite from './utils/cli-runtime-closure.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
+import metainfoQualitySuite from './utils/metainfo-quality.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
 import installPackumentCacheSuite from './utils/install-packument-cache.spec.js';
 import dirLinkSuite from './utils/dir-link.spec.js';
@@ -413,6 +414,7 @@ run(
         doubleDashArgsSuite,
         reactNativeAliasSuite,
         reactNativeGateSuite,
+        metainfoQualitySuite,
     },
     { skip },
 );

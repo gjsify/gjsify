@@ -5,7 +5,6 @@
 import { run } from '@gjsify/unit';
 
 import appearanceMappingSuite from './appearance/mapping.spec.js';
-import appdataXmlSuite from './appdata-xml.spec.js';
 import appdataSuite from './appdata.spec.js';
 import devHooksSuite from './dev-hooks.spec.js';
 import dialogModelSuite from './dialog-model.spec.js';
@@ -18,7 +17,6 @@ import windowCommonSuite from './window-common.spec.js';
 run({
     appearanceMappingSuite,
     appdataSuite,
-    appdataXmlSuite,
     devHooksSuite,
     dialogModelSuite,
     localeDirSuite,

@@ -19,7 +19,7 @@
 // NO GI imports: plain TypeScript, so the `--app node` suite exercises the reading half that
 // no Linux or macOS run would otherwise reach.
 
-import { scanXml, type XmlOpenTag, type XmlToken } from './appdata-xml.js';
+import { scanXml, type XmlOpenTag, type XmlToken } from '@gjsify/utils/core';
 
 /** Fields {@link parseAppdata} reads. `null` means the document does not carry the field. */
 export interface AppdataFields {
