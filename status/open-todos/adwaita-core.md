@@ -232,7 +232,12 @@ amends ADR 0105: the real engine becomes the NativeScript Android default, the p
 1. ~~Finish ADR 0105 stage 2 and time per-instance construction cost.~~ **Measured**
    ([report](../../docs/reports/2026-10-15-adr-0110-gates.md)): construction is free (lazy twin,
    plain `READWRITE` properties), use is not — first read ~5x/~8x, `set`/`notify` ~45x/~99x, emit
-   ~24x/~20–45x (host/emulator).
+   ~24x/~20–45x (host/emulator). **Then optimized**
+   ([report](../../docs/reports/2026-10-15-node-gi-set-emit-perf.md)): the cost was node-gi
+   re-resolving per call what is a pure function of (GType, name), not the N-API crossing. On the
+   host `set`/`notify` is now 46.4x → **14.4x** (21 237 → 6 540 ns/op) and emit 23.9x → **19.3x**
+   (3 153 → 2 505). Not re-measured on the emulator — fold that into step 3, which builds a
+   `libnode_gi.so` anyway.
 2. ~~Measure a RELEASE APK: compressed delta per ABI and cold start.~~ **Measured** (same report):
    15.77 MB (arm64-v8a) and 16.93 MB (x86_64) compressed per split, +80 ms / 17.8 % cold start.
    Left over: **arm64 cold start from a release APK** — the only cold-start numbers are from the

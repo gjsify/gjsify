@@ -48,11 +48,21 @@ function camelToSnake(name) {
     return name.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
+// Memoized: the wrapper's get/set/has traps convert on EVERY property access, the
+// answer depends on nothing but the name, and the set of names a program uses is
+// bounded by its source text — three regex passes per access buy nothing.
+const kebabNames = new Map();
+
 function toKebab(name) {
-    return name
-        .replace(/([A-Z])/g, '-$1')
-        .replace(/_/g, '-')
-        .toLowerCase();
+    let kebab = kebabNames.get(name);
+    if (kebab === undefined) {
+        kebab = name
+            .replace(/([A-Z])/g, '-$1')
+            .replace(/_/g, '-')
+            .toLowerCase();
+        kebabNames.set(name, kebab);
+    }
+    return kebab;
 }
 
 // Repeated passes of the same callback must marshal to the SAME native-facing function:
@@ -380,6 +390,13 @@ const promisifiedWrappers = new WeakSet();
 const nativeThunks = new WeakSet();
 
 function wrapReturn(value) {
+    // EVERY engine value comes through here — each return, each OUT tuple element and
+    // each signal argument (wrapSignalCallback) — and the five tag probes below are
+    // five N-API crossings. A handle is always an OBJECT (a tagged napi External), so a
+    // primitive can answer for itself: a `notify::label` handler's `(emitter, pspec)`
+    // then costs two probes for the emitter instead of ten for the pair, and the string
+    // argument of an ordinary `emit('changed', 'x')` costs none.
+    if (value === null || typeof value !== 'object') return value;
     if (native.isGObjectHandle(value)) return wrapInstance(value);
     // A GLib.Variant is ALSO a boxed handle by tag, so it must be checked first to get
     // the Variant ergonomics rather than a plain method-routing proxy.
@@ -527,36 +544,51 @@ function wrapBoxed(handle) {
 // GParamSpec-typed value surface as. Carries [HANDLE] so it round-trips back into the
 // engine and `instanceof GObject.ParamSpec` recognises it. value_type/owner_type are
 // native GType handles, like gjs's GType objects.
+// The accessors live HERE, on one shared prototype, and read the handle off `this`.
+// Built per instance they were eleven fresh closures plus a twelve-slot object on
+// EVERY notify emission — the engine hands the pspec to the handler whether or not
+// the handler looks at it, so that allocation landed on every property write of the
+// real-GObject engine. On gjs these same members live on GObject.ParamSpec.prototype,
+// so prototype-held is also the closer shape.
+const paramSpecProto = {
+    get name() {
+        return native.paramSpecProp(this[HANDLE], 'name');
+    },
+    get nick() {
+        return native.paramSpecProp(this[HANDLE], 'nick');
+    },
+    get blurb() {
+        return native.paramSpecProp(this[HANDLE], 'blurb');
+    },
+    get flags() {
+        return native.paramSpecProp(this[HANDLE], 'flags');
+    },
+    get value_type() {
+        return native.paramSpecProp(this[HANDLE], 'valueType');
+    },
+    get owner_type() {
+        return native.paramSpecProp(this[HANDLE], 'ownerType');
+    },
+    get default_value() {
+        return wrapReturn(native.paramSpecProp(this[HANDLE], 'defaultValue'));
+    },
+    get_name() {
+        return native.paramSpecProp(this[HANDLE], 'name');
+    },
+    get_nick() {
+        return native.paramSpecProp(this[HANDLE], 'nick');
+    },
+    get_blurb() {
+        return native.paramSpecProp(this[HANDLE], 'blurb');
+    },
+    get_default_value() {
+        return wrapReturn(native.paramSpecProp(this[HANDLE], 'defaultValue'));
+    },
+};
+
 function wrapParamSpec(handle) {
-    const prop = (which) => native.paramSpecProp(handle, which);
-    const pspec = {
-        [HANDLE]: handle,
-        get name() {
-            return prop('name');
-        },
-        get nick() {
-            return prop('nick');
-        },
-        get blurb() {
-            return prop('blurb');
-        },
-        get flags() {
-            return prop('flags');
-        },
-        get value_type() {
-            return prop('valueType');
-        },
-        get owner_type() {
-            return prop('ownerType');
-        },
-        get default_value() {
-            return wrapReturn(prop('defaultValue'));
-        },
-        get_name: () => prop('name'),
-        get_nick: () => prop('nick'),
-        get_blurb: () => prop('blurb'),
-        get_default_value: () => wrapReturn(prop('defaultValue')),
-    };
+    const pspec = Object.create(paramSpecProto);
+    pspec[HANDLE] = handle;
     return pspec;
 }
 
@@ -1047,7 +1079,27 @@ function assignTemplateChildren(instance, handle, reg) {
 // resolves the same three spellings at the point of use instead — same reachability,
 // no accessor synthesis. Learn6502's SourceView is exactly why this matters: its
 // property is `line-numbers` and its accessor is `lineNumbers`.
+// Resolved per prototype, INCLUDING the "this class declares none" answer (null).
+// The native store calls runJsPropertySetter on every write of a custom property, so
+// without this a class with no accessor at all — the common case — paid three
+// prototype-chain walks and two regex rewrites per assignment to learn nothing. GJS
+// settles the same question once, at registerClass time (`_checkAccessors` mirrors
+// the declared spelling onto the other two); a prototype gaining an accessor later is
+// outside what either runtime honours.
+const propertySettersByProto = new WeakMap();
+
 function findPropertySetter(userProto, propertyName) {
+    let perProto = propertySettersByProto.get(userProto);
+    if (perProto === undefined) propertySettersByProto.set(userProto, (perProto = new Map()));
+    let setter = perProto.get(propertyName);
+    if (setter === undefined) {
+        setter = resolvePropertySetter(userProto, propertyName) ?? null;
+        perProto.set(propertyName, setter);
+    }
+    return setter ?? undefined;
+}
+
+function resolvePropertySetter(userProto, propertyName) {
     const underscored = propertyName.replace(/-/g, '_');
     const camel = propertyName.replace(/-([a-z])/g, (m) => m[1].toUpperCase());
     for (const spelling of [propertyName, underscored, camel]) {
@@ -1532,6 +1584,30 @@ function wrapInstance(handle, userProto) {
         materialised.add(name);
         return had;
     };
+    // The `connect`/`connect_after`/`emit`/`disconnect` thunks of this wrapper, each
+    // built on its first use (see the `get` trap). A null prototype so an unrelated
+    // name — `constructor`, `toString` — cannot be mistaken for a built shortcut.
+    const signalShortcuts = Object.create(null);
+    // The GI-method thunks of this wrapper, built on first use, `null` for a name
+    // that resolves to no introspected method. A thunk is a pure function of
+    // (handle, name) and presence is already memoized per GType (instanceHasMethod),
+    // so the only thing that changes by keeping it is IDENTITY — and a STABLE one is
+    // the GJS shape: there the method lives on the prototype, so `obj.m === obj.m`
+    // (the reason a user prototype's own function is handed back unbound, #1175).
+    // Built fresh, every `obj.m(…)` in a loop allocated a closure and re-asked for
+    // the type name across the N-API boundary. Null prototype: `constructor` and
+    // friends must not read as a cached thunk.
+    const giMethodThunks = Object.create(null);
+    const giMethodThunk = (prop) => {
+        let thunk = giMethodThunks[prop];
+        if (thunk === undefined) {
+            thunk = instanceHasMethod(handle, prop)
+                ? (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)))
+                : null;
+            giMethodThunks[prop] = thunk;
+        }
+        return thunk ?? undefined;
+    };
     const proxy = new Proxy(target, {
         get(t, prop) {
             if (prop === HANDLE) return handle;
@@ -1545,10 +1621,16 @@ function wrapInstance(handle, userProto) {
                 // introspectable ancestor (GObject.Object), yet on gjs 1.88.1
                 // `socks5.connect` IS g_proxy_connect (Gio.Proxy, 3 IN args) — measured.
                 // The same native walk the GI-method fallback below uses sees it.
-                if (instanceHasMethod(handle, prop)) {
-                    return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
-                }
+                const method = giMethodThunk(prop);
+                if (method !== undefined) return method;
             }
+            // The four signal shortcuts below close over nothing but `handle`, so they
+            // are per-wrapper constants — yet the switch rebuilt one on EVERY access,
+            // i.e. one throwaway closure per `obj.emit(…)` in a loop. Built once here
+            // and reused; on gjs these live on GObject.Object.prototype and have stable
+            // identity too. Lazy, because most wrappers never reach for one.
+            const shortcut = signalShortcuts[prop];
+            if (shortcut !== undefined) return shortcut;
             switch (prop) {
                 case '$typeName':
                     // The instance's concrete RUNTIME GType name —
@@ -1565,24 +1647,25 @@ function wrapInstance(handle, userProto) {
                 case 'connect':
                     // Record the (user fn → id) mapping so signal_handlers_*_by_func can
                     // resolve the private-closure handler back to its ids (see the registry).
-                    return (signal, cb) => {
+                    return (signalShortcuts.connect = (signal, cb) => {
                         const id = native.connectSignal(handle, signal, wrapSignalCallback(cb), false);
                         recordSignalHandler(handle, cb, id);
                         return id;
-                    };
+                    });
                 case 'connect_after':
-                    return (signal, cb) => {
+                    return (signalShortcuts.connect_after = (signal, cb) => {
                         const id = native.connectSignal(handle, signal, wrapSignalCallback(cb), true);
                         recordSignalHandler(handle, cb, id);
                         return id;
-                    };
+                    });
                 case 'emit':
-                    return (signal, ...args) => wrapReturn(native.emitSignal(handle, signal, unwrapArgs(args)));
+                    return (signalShortcuts.emit = (signal, ...args) =>
+                        wrapReturn(native.emitSignal(handle, signal, unwrapArgs(args))));
                 case 'disconnect':
-                    return (id) => {
+                    return (signalShortcuts.disconnect = (id) => {
                         forgetSignalHandlerId(handle, id);
                         return native.disconnectSignal(handle, id);
-                    };
+                    });
                 default:
                     break;
             }
@@ -1658,10 +1741,7 @@ function wrapInstance(handle, userProto) {
             // camelCase like Gwebgl's `getString`) and only falls back to the
             // snake_case alias. Converting here would destroy a literal camelCase
             // GI name.
-            if (instanceHasMethod(handle, prop)) {
-                return (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
-            }
-            return undefined;
+            return giMethodThunk(prop);
         },
         set(t, prop, value) {
             if (typeof prop === 'string') {
