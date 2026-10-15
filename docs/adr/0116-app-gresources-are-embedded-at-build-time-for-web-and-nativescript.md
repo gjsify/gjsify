@@ -1,6 +1,6 @@
 # 116. An app's GResources are embedded at build time, and a Gio subset answers them on the web and NativeScript
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-15)
 - Date: 2026-10-15
 - Deciders: Pascal Garber
 - Related: [ADR 0115](0115-web-full-colour-icons.md) (amended by this ADR),
@@ -110,7 +110,7 @@ signal, and every mounted image looks up again.
 
 ADR 0115 § 1 stays: one lookup in GThemedIcon order. The compiled Adwaita subset plays the host
 theme's role and wins for a name it has; resource icons are the fallback, as on GTK. A `-symbolic`
-file from a resource draws as a mask, like a glyph `registerIcon` adds. Any other file draws in
+file from a resource draws as a mask, as Adwaita's symbolic glyphs do. Any other file draws in
 colour as ADR 0115 § 3 describes. On the web the image URL is an object URL made synchronously from
 the bytes. `add_search_path` stays a record: there is still no file system to enumerate.
 

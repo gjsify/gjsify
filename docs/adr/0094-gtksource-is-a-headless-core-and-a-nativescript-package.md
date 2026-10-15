@@ -195,14 +195,14 @@ unstopped, not applied natively. Drag-extend of a selection handle is not a `Gtk
 gesture on Android and is not emitted. The package stays `partial`; the specs for the tap counter run
 on the NativeScript door without a device (`multi-tap.spec.ts`).
 
-## Amendment (2026-10-15, Proposed with ADR 0116): search paths replace the XML doors
+## Amendment (2026-10-15, accepted with ADR 0116): search paths replace the XML doors
 
 `LanguageManager.addLanguageFromXml` and `StyleSchemeManager.addSchemeFromXml` have no GtkSourceView
 counterpart. They exist because the web and NativeScript ports had no file system and no GResource
 for `set_search_path` to walk (the Context of `style-scheme.ts`). ADR 0116 embeds the app's GResource
 at build time and answers it synchronously, so that reason goes away.
 
-If ADR 0116 is accepted:
+ADR 0116 is accepted, so:
 
 - `get_search_path`, `set_search_path`, `append_search_path` and `prepend_search_path` work on both
   managers for `resource://` entries, and the managers scan them as `gtksourcelanguagemanager.c` and
@@ -215,4 +215,4 @@ If ADR 0116 is accepted:
   puts it in its own GResource and lists the path, as on GNOME. The fallback schemes stay the
   answer when no path supplies `Adwaita`.
 
-The status of this ADR stays Accepted; this amendment is Proposed until ADR 0116 is.
+Accepted with ADR 0116 on 2026-10-15.

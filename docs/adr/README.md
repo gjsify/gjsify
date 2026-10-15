@@ -135,7 +135,7 @@ the TODO records the *what's left*.
 | [0113](0113-distribution-channel-gates-donation-ui.md) | A build-time distribution channel gates the donation UI | Proposed |
 | [0114](0114-edition-badges.md) | Edition badges: open source for every build, purchased on top for store builds | Accepted |
 | [0115](0115-web-full-colour-icons.md) | Full-colour icons on the web: one lookup in GThemedIcon order, a separate door (amended) | Proposed |
-| [0116](0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md) | An app's GResources are embedded at build time, and a Gio subset answers them on the web and NativeScript | Proposed |
+| [0116](0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md) | An app's GResources are embedded at build time, and a Gio subset answers them on the web and NativeScript | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
