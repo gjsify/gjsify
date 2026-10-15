@@ -100,10 +100,39 @@ median ns/op (min–max over repeats):
 `set`+`notify` is **3.25x faster** and `emit` **1.26x faster**. The pure-JS leg is unchanged
 within noise, as it must be — nothing here touches it.
 
-Not measured on a device. The host gain is large enough to be worth confirming on the `x86_64`
-emulator against the gate report's 59 729 ns there, but that leg needs a locally built
-`libnode_gi.so` (the published AAR is a release behind) and is left to the ADR 0110 step-3 dual
-emulator run, which has to build one anyway.
+## Confirmed on the emulator
+
+Measured 2026-10-15 on the `x86_64` AVD `NsGi_API_36` (API 36), inside the NativeScript probe APK,
+with a `libnode_gi.so` **cross-compiled from this tree** for both ABIs and packed into a locally
+built `gi-runtime-android.aar`. That is the point of the leg: the gate report's emulator numbers
+came from the published `@gjsify/node-gi` 0.64.0 AAR, which predates #2220 and #2226, so "before"
+and "after" here are the same emulator and the same bench body with a different native library.
+
+Device options are `{ iterations: 4000, repeats: 7, warmups: 2 }` — smaller than the host run
+because the runner allows 180 s to reach the END marker. Two independent runs, median ns/op:
+
+| row | pure-JS | real-Gio before (0.64.0 AAR) | real-Gio after (run 1 / run 2) | ratio after |
+| --- | --- | --- | --- | --- |
+| `construct` | 653 / 490 | ~equal | 310 / 281 | 0.48x / 0.57x |
+| `construct+first-read` | 3 521 / 2 810 | 16 225 | 16 394 / 15 032 | 4.66x / 5.35x |
+| `set+notify` | 535 / 510 | **59 729** | **13 924 / 12 714** | **26.1x / 24.9x** |
+| `emit` | 255 / 191 | 9 782 | **4 384 / 4 134** | 17.2x / 21.7x |
+
+`set`+`notify` on the emulator is **4.3–4.7x faster** than with the published AAR, and the ratio
+against the pure-JS engine fell from 99.4x to ~25x. `emit` is **2.2–2.4x faster** (9 782 → ~4.3 µs).
+The host gain therefore carries to the device, and somewhat more strongly than on the host — the
+crossings the seven changes removed are relatively more expensive on an emulated CPU.
+
+`construct+first-read` is unchanged in absolute terms (~15–16 µs, against 16 225 before); its ratio
+moved only because the pure-JS leg is slower in these shorter runs. `construct` comes out BELOW 1x,
+i.e. the real engine looks faster: the row does not reach the engine at all (the subset's properties
+are plain READWRITE, so the twin is built on first use), and with 4 000 ops the pure-JS leg — which
+runs first — still carries warm-up the second leg does not. The two are near-identical, which is
+what the bench header predicts; the ordering inside one process is noise at this iteration count.
+
+Absolute numbers are an emulated `x86_64` CPU on a loaded workstation and are not comparable to the
+host table above. Spreads were wide on the pure-JS rows (`construct+first-read` min 825, max 4 422)
+and tight on the real-Gio rows. An arm64 device is still unmeasured.
 
 ## What is left, and why
 

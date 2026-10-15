@@ -14,10 +14,21 @@ is what this suite is here to find out.
 
 ```sh
 npm install                                 # the @gjsify/* deps are file: paths — see .npmrc
-npm run test:android                        # SUBJECT: the app opts in → engine 'real-gio'
-npm run test:android:pure-js                # CONTROL: same APK payload, opt-in define off
+npm run test:android:dual                   # BOTH legs in turn — the ADR 0110 § 3 dual run
+npm run test:android                        # SUBJECT: --engine real-gio
+npm run test:android:pure-js                # CONTROL: --engine pure-js, same APK payload
 npm run size:android                        # what the plugin costs the APK, from one build
 ```
+
+Each leg **names its engine** (`--engine real-gio|pure-js`) rather than leaving it to
+be inferred from an absent environment variable. `GJSIFY_GI_OPT_IN` still works and
+still means the same thing — the release rungs below use it — but a `--engine` that
+contradicts it is refused rather than resolved.
+
+`npm run test:android:dual` runs both legs **even after the first one fails**: the point
+of a dual run is the comparison, and stopping early answers "real-gio broke" while
+leaving "and does pure-js still work?" — the question that says whether the defect is in
+the engine or in the door above it — for someone to ask by hand.
 
 `ANDROID_SERIAL=<serial>` picks the device when several are attached (adb's own
 variable). `node scripts/run-on-device.mjs --keep` leaves the app installed; by
@@ -28,7 +39,10 @@ aliases `@gjsify/node-gi/gi` to `app/no-gi-stub.ts`, so node-gi is not in the bu
 all — needed because importing the bridge `dlopen`s `libnode_gi.so` from its module
 body, so the opt-in define alone cannot describe an app that pays nothing.
 `GJSIFY_GI_BENCH=1` adds the per-instance benchmark, off by default so it lands in
-neither the cold-start nor the APK-size numbers. Together:
+neither the cold-start nor the APK-size numbers. `GJSIFY_GI_UI=0` drops the two § 3 UI
+specs, which are on by default and which every release rung sets off — they pull
+`@gjsify/storybook-nativescript` and a pile of real widgets into the bundle, and the
+ladder's numbers were measured without them. Together:
 
 ```sh
 npm run release:android -- c                # signed release, per-ABI splits → release-apks/c/
@@ -56,6 +70,30 @@ explicit opt-in: pure JS stays the default even when the bytes are right there.
 | `app/specs/list-store.ts` | `LIST_ITEMS_CHANGED_VECTORS` through a real `Gio.ListStore`, with item identity counted off the live model |
 | `app/specs/settings.ts` | `SETTINGS_VECTORS` through real `Gio.Settings` (memory backend); the schema is compiled on the host by `scripts/compile-schemas.mjs` and travels as base64 |
 | `app/specs/file-chooser.ts` | `FILE_CHOOSER_VECTORS` through real `Gio.File` with a Gtk stand-in (the payload has no Gtk typelib) |
+| `app/specs/views.ts` | **both legs** — a `GObject.registerClass`ed `Adw.Bin` subclass: construct bag beside the port's own construct door, `notify::` on a real change only, NativeScript's own object-`notify` still reaching `addEventListener`, a declared signal's argument, the child slot in the NS tree, `bindProperties` between two live widgets |
+| `app/specs/storybook.ts` | **both legs** — a story authored like a `*.ns.ts` file: real NS chrome, `StoryRegistry` decorators + `initialize`, `setArg` → `updateArgs` → a declared property → `notify::`, and `createControlRow` round-tripping text / boolean / select rows read back off the built widget |
+
+### The two specs that run on both engines
+
+`specs/gobject.vectors.ts` drives GObject logic over a plain door — it never constructs
+a NativeScript widget. The seam it therefore cannot see is the layer
+`@gjsify/adwaita-nativescript/gobject`'s `registerClass` splices **between** the
+application class and the port widget, where the engine's property/signal registry
+meets `@nativescript/core`'s `Observable` and the port's construct-props bag. The two
+specs above assert that seam, and they assert it **twice** — once per engine — because
+every case there is a statement about the *door*, not about an engine, so a difference
+between the two runs is a defect in whichever engine disagrees. Once Android ships the
+real engine by default (ADR 0110 § 4), this is the only place the pure-JS subset is
+exercised against a real widget at all.
+
+`specs/storybook.ts` is also the only coverage `@gjsify/storybook-nativescript`'s view
+layer has anywhere: `story-view.ts`, `controls.ts`, `app.ts` and `devtools.ts` import
+`@nativescript/core`, so they run on a device and nowhere else. What it does **not**
+reach: `StorybookNativeApp` / `runStorybook` (they mount a `Frame` and navigate a
+`Page`, which this headless suite has no main page for), the devtools surface, and a
+*user* pick in a `ComboRow` (the row only emits `notify::selected` for an interactive
+change, so a programmatic write cannot stand in for it). Those stay manual checks in
+the showcase apps.
 
 The GObject subject is **imported, not re-made**: `createSubsetSubject` ships from
 `@gjsify/adwaita-gobject-native`, and `engine.node-gi.spec.ts` drives the same door
@@ -65,7 +103,8 @@ how the claim would quietly stop being true.
 
 The payload specs run **only in the opted-in run**: calling `requireGi` in the
 control run would load `libnode_gi.so` anyway and the comparison would stop being
-a pure-JS one.
+a pure-JS one. `specs/views.ts` and `specs/storybook.ts` run in both, and reach no
+payload API to make that true.
 
 ## A failed opt-in is a failed case, not a crash
 
@@ -108,7 +147,16 @@ It needs the NS CLI, an adb device, and a payload that can only be built on a ma
 with an Android GI prefix (`packages/node-gi/gi-runtime-android/scripts/build-gi-runtime-android.mjs`;
 `status/pending-npm-bootstrap.json` records that step). So, like
 `tests/integration/autobahn/`, it is excluded from the root `workspaces` array and run by
-hand. `npm install` here is a separate install tree, and the `@gjsify/*` dependencies are
+hand.
+
+**CI covers none of this**, and ADR 0110 § 3 is satisfied by a local harness rather than
+a CI job for that reason: there is no emulator runner in this repo's workflows, so
+nothing here — not the vectors, not the dual UI legs, not the bench — is measured on a
+pull request. What CI does assert is the off-device half: `storybook-core`'s own unit
+specs, `adwaita-core`'s conformance vectors on the host, and
+`packages/nativescript-bridge/adwaita/src/gobject-door.spec.ts`. The two **showcase
+APKs** are a further gap: they are not run per engine at all, by this harness or any
+other, and the flip in § 4 does not change that. `npm install` here is a separate install tree, and the `@gjsify/*` dependencies are
 `file:` paths into this checkout with `install-links=false` so they stay **symlinks**: the
 suite exists to measure *this worktree*, and a copy taken at install time would keep
 reporting results for bytes nobody can point at any more.

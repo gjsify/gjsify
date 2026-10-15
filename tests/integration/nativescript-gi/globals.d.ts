@@ -9,6 +9,14 @@ declare const __GJSIFY_GI_OPT_IN__: boolean;
 // the startup number ADR 0110 gate 2 compares.
 declare const __GJSIFY_GI_BENCH__: boolean;
 
+// Whether this build carries the two UI specs of ADR 0110 § 3 (`app/specs/views.ts`,
+// `app/specs/storybook.ts`) — the ones that run in BOTH legs. ON by default, because they are the
+// dual run's subject; a define, and off in the gate-2 release rungs, because they pull
+// `@gjsify/storybook-nativescript` and a pile of real widgets into the bundle, and the APK-size
+// and cold-start ladder recorded in docs/reports/2026-10-15-adr-0110-gates.md was measured
+// without them. Comparable numbers mean the same bundle.
+declare const __GJSIFY_GI_UI__: boolean;
+
 // webpack's escape hatch for "do not touch this require", declared so `app/specs/loader.probe.ts`
 // can `typeof` it exactly as `@gjsify/node-gi`'s NativeScript host does. It is NOT a global and
 // nothing defines it here: under Vite the identifier survives undeclared, `typeof` on an
