@@ -424,27 +424,12 @@ the process after a 5 s grace, which hides the symptom. Open: which source or ha
 gallery stories leave alive after `Adw.Application.quit()` on node-gi. Look for it by bisecting
 the stories added in #2011 with `GJSIFY_STORYBOOK_PROBE_STORY`, then drop the grace exit.
 
-### node-gi's marshaller wraps an out-of-range `guint`/`gint` argument; GJS throws
+### Out-of-range integers still wrap in constructor properties, GValues and array elements
 
-Found running the ADR 0099 vectors on real Gio (stage 3). `Gio.Settings.set_uint('k', -1)`
-reaches `g_settings_set_uint` as 4294967295 on node-gi; GJS throws `Argument value: value is out
-of range for uint32`. The `Gio.Settings` override (`overrides/gio-settings.js`) now guards the
-two calls the vectors use, so that call matches — the general rule does not: every other
-`guint32`/`gint32` IN argument still wraps modulo 2^32. Fix in `marshal.cc`'s number-to-int path,
-with a `gimarshalling` row, then drop the two range checks from the override.
-
-`GLib.Error.matches`'s `domain` is a second such guard, in L1 (`toDomainQuark`, `gi.js`): GJS
-refuses a NaN or out-of-range domain with `Argument domain: value is out of range for uint32`,
-where node-gi's `NodeGiToUint32` converted it to 0 and matched nothing. It carries GJS's whole
-rule (`undefined` and a non-finite NUMBER are 0 silently, anything else goes through `ToNumber`
-and is range-checked), so it is the reference for the native fix — and drops out of L1 once
-`marshal.cc` does the same.
-
-### `@gjsify/gi-runtime-android@0.60.0` ships the `calls.cc` use-after-free
-
-The stage-3 Settings/`Gio.File` work fixed an async call freeing its IN arrays before the callback
-(`replace_contents_async` wrote freed memory). The published AAR predates the fix: its
-`libnode_gi.so` for both ABIs still has it, and the emulator run passed only with a locally
-rebuilt library swapped in. Rebuild the payload per the package README for `arm64-v8a` and
-`x86_64`, release it on the next train version, and rerun the device suite against the
-registry tarball.
+The IN-argument, struct-field, return-value and property-setter paths now refuse an
+out-of-range integer like GJS (`NodeGiJsToInteger`, `src/common.h`; oracle
+`conformance/programs/integer-in-range.conf.mjs`). Three paths still wrap, because GJS's own
+rule there differs and is not yet pinned: `new Cls({ prop })` and `JsToGValue` (GJS wraps
+`int`/`uint` there but checks `char`/`uchar`/`int64`/`uint64`, with a different text), and the
+elements of an IN array (`ElementToGIArgument`, GJS behaviour unprobed). Probe each against
+`gjs`, extend the conformance program, then route them through the same helper.

@@ -10,16 +10,8 @@
 // throws; this is the same wrapper, so `try { … } catch` means the same on either runtime
 // (ADR 0099 conformance row `errors`).
 //
-// Two deliberate differences from the GJS override:
-//   • the constructor check is a Proxy `construct` trap — a node-gi class has no `_init` to wrap;
-//   • `set_int` / `set_uint` range-check their value, which in GJS is the argument marshaller's
-//     job. node-gi's marshaller wraps modulo 2^32 (`set_uint('k', -1)` stores 4294967295), a
-//     general divergence recorded in status/open-todos/node-gi.md; this keeps the settings
-//     surface honest without touching the addon, so it also holds in an already-built payload.
-
-const INT32_MIN = -(2 ** 31);
-const INT32_MAX = 2 ** 31 - 1;
-const UINT32_MAX = 2 ** 32 - 1;
+// One deliberate difference from the GJS override: the constructor check is a Proxy `construct`
+// trap — a node-gi class has no `_init` to wrap.
 
 const CHECKED = [
     'get_boolean',
@@ -53,12 +45,6 @@ const CHECKED = [
     'reset',
 ];
 
-/** The range a setter's JS number must be in; GJS's marshaller throws this exact message. */
-const RANGES = {
-    set_int: [INT32_MIN, INT32_MAX, 'int32'],
-    set_uint: [0, UINT32_MAX, 'uint32'],
-};
-
 /**
  * Patch `Gio.Settings` / `Gio.SettingsSchema` like GJS does, once, and return the class to hand
  * out (a Proxy whose `new` refuses a schema that is not installed instead of aborting).
@@ -87,16 +73,8 @@ export function createGioSettings(Gio) {
     for (const name of CHECKED) {
         const real = proto[name];
         if (typeof real !== 'function') continue;
-        const range = RANGES[name];
         proto[name] = function (key, ...args) {
             checkKey(this, key);
-            if (range !== undefined) {
-                const [min, max, type] = range;
-                const value = args[0];
-                if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
-                    throw new Error(`Argument value: value is out of range for ${type}`);
-                }
-            }
             return real.call(this, key, ...args);
         };
     }

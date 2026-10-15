@@ -47,7 +47,6 @@ test('Gio.Settings throws instead of aborting on an unknown key or schema', (t) 
     assert.throws(() => settings.get_int('nope'), /GSettings key nope not found in schema test\.stage3/);
     assert.throws(() => new Gio.Settings({ schema_id: 'no.such' }), /GSettings schema no\.such not found/);
     assert.throws(() => settings.set_uint('count', -1), /out of range for uint32/);
-    assert.throws(() => settings.set_int('size', 2 ** 31), /out of range for int32/);
     settings.set_uint('count', 5);
     assert.equal(settings.get_uint('count'), 5);
 });

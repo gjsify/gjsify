@@ -35,6 +35,7 @@
 #endif
 
 #ifndef _WIN32
+#include <cmath>
 #include <dlfcn.h>  // dlopen/dlsym the GtkWidgetClass template API (no GTK link)
 #endif
 #include <napi.h>
@@ -280,6 +281,117 @@ inline uint64_t JsValueToUint64(Napi::Value v) {
   return n.IsEmpty() ? 0 : static_cast<uint64_t>(n.Int64Value());
 }
 
+// IN integers, GJS-exact (refs/gjs/gi/js-value-inl.h, arg-inl.h): an integer tag
+// REFUSES an out-of-range value instead of wrapping it. The rule is not uniform and is
+// copied as is, never made stricter: 8/16-bit run ToInt32 first (so it wraps mod 2^32)
+// and then compare against the tag range; int32 is not checked at all; uint32 and the
+// 64-bit tags refuse what falls outside their range. undefined and a non-finite Number
+// become 0. `shown` receives the text GJS prints for the offending value.
+// kPending: a BigInt/Symbol hit ToNumber, the TypeError is already pending — the caller
+// must stop without throwing a second error.
+enum class NodeGiIntResult { kOk, kOutOfRange, kPending };
+inline NodeGiIntResult NodeGiJsToInteger(Napi::Value v, GITypeTag tag, GIArgument* out,
+                                         std::string* shown) {
+  const bool is64 = tag == GI_TYPE_TAG_INT64 || tag == GI_TYPE_TAG_UINT64;
+  if (is64 && v.IsBigInt()) {
+    bool lossless = false;
+    if (tag == GI_TYPE_TAG_INT64) {
+      out->v_int64 = v.As<Napi::BigInt>().Int64Value(&lossless);
+    } else {
+      out->v_uint64 = v.As<Napi::BigInt>().Uint64Value(&lossless);
+    }
+    if (!lossless && shown != nullptr) *shown = "0";
+    return lossless ? NodeGiIntResult::kOk : NodeGiIntResult::kOutOfRange;
+  }
+  Napi::Number n = v.ToNumber();
+  if (n.IsEmpty()) return NodeGiIntResult::kPending;
+  double d = n.DoubleValue();
+  switch (tag) {
+    case GI_TYPE_TAG_INT8:
+    case GI_TYPE_TAG_UINT8:
+    case GI_TYPE_TAG_INT16:
+    case GI_TYPE_TAG_UINT16: {
+      int32_t i = n.Int32Value();
+      int32_t lo = tag == GI_TYPE_TAG_INT8 ? INT8_MIN : tag == GI_TYPE_TAG_INT16 ? INT16_MIN : 0;
+      int32_t hi = tag == GI_TYPE_TAG_INT8 ? INT8_MAX : tag == GI_TYPE_TAG_UINT8 ? UINT8_MAX
+                   : tag == GI_TYPE_TAG_INT16 ? INT16_MAX : UINT16_MAX;
+      if (shown != nullptr) *shown = std::to_string(i);
+      if (i < lo || i > hi) return NodeGiIntResult::kOutOfRange;
+      if (tag == GI_TYPE_TAG_INT8) out->v_int8 = static_cast<int8_t>(i);
+      else if (tag == GI_TYPE_TAG_UINT8) out->v_uint8 = static_cast<uint8_t>(i);
+      else if (tag == GI_TYPE_TAG_INT16) out->v_int16 = static_cast<int16_t>(i);
+      else out->v_uint16 = static_cast<uint16_t>(i);
+      return NodeGiIntResult::kOk;
+    }
+    case GI_TYPE_TAG_INT32:
+      out->v_int32 = n.Int32Value();
+      return NodeGiIntResult::kOk;
+    case GI_TYPE_TAG_UINT32: {
+      bool zero = v.IsUndefined() || (v.IsNumber() && !std::isfinite(d));
+      if (zero) {
+        out->v_uint32 = 0;
+        return NodeGiIntResult::kOk;
+      }
+      if (shown != nullptr) *shown = std::to_string(d);
+      if (std::isnan(d) || d < 0 || d > static_cast<double>(UINT32_MAX))
+        return NodeGiIntResult::kOutOfRange;
+      out->v_uint32 = static_cast<uint32_t>(d);
+      return NodeGiIntResult::kOk;
+    }
+    case GI_TYPE_TAG_INT64: {
+      double t = std::isfinite(d) ? std::trunc(d) : 0;
+      if (t < -9223372036854775808.0 || t >= 9223372036854775808.0) {
+        if (shown != nullptr)
+          *shown = std::to_string(t < 0 ? INT64_MIN : INT64_MAX);
+        return NodeGiIntResult::kOutOfRange;
+      }
+      out->v_int64 = static_cast<int64_t>(t);
+      return NodeGiIntResult::kOk;
+    }
+    case GI_TYPE_TAG_UINT64: {
+      double t = std::isfinite(d) ? std::trunc(d) : 0;
+      if (t < 0 || t >= 18446744073709551616.0) {
+        if (shown != nullptr)
+          *shown = std::to_string(t < 0 ? uint64_t{0} : UINT64_MAX);
+        return NodeGiIntResult::kOutOfRange;
+      }
+      out->v_uint64 = static_cast<uint64_t>(t);
+      return NodeGiIntResult::kOk;
+    }
+    default:
+      return NodeGiIntResult::kOk;
+  }
+}
+
+enum class NodeGiIntContext { kArgument, kField, kReturnValue };
+inline const char* NodeGiIntTagName(GITypeTag tag) {
+  switch (tag) {
+    case GI_TYPE_TAG_INT8: return "int8";
+    case GI_TYPE_TAG_UINT8: return "uint8";
+    case GI_TYPE_TAG_INT16: return "int16";
+    case GI_TYPE_TAG_UINT16: return "uint16";
+    case GI_TYPE_TAG_INT32: return "int32";
+    case GI_TYPE_TAG_UINT32: return "uint32";
+    case GI_TYPE_TAG_INT64: return "int64";
+    default: return "uint64";
+  }
+}
+// GJS's three texts (arg-cache.cpp / arg.cpp), plain Error.
+inline void NodeGiThrowIntOutOfRange(Napi::Env env, GITypeTag tag, NodeGiIntContext ctx,
+                                     const char* name, const std::string& shown) {
+  std::string t = NodeGiIntTagName(tag);
+  std::string msg;
+  if (ctx == NodeGiIntContext::kArgument) {
+    msg = std::string("Argument ") + (name != nullptr ? name : "") + ": value is out of range for " + t;
+  } else {
+    msg = "value " + shown + " is out of range for " +
+          (ctx == NodeGiIntContext::kField ? std::string("Field '") + (name ? name : "") + "'"
+                                           : std::string("Return value")) +
+          " (type " + t + ")";
+  }
+  Napi::Error::New(env, msg).ThrowAsJavaScriptException();
+}
+
 // OUT (WarnIfUnsafe{Int,Uint}64): GJS ALWAYS returns a JS Number for a 64-bit int
 // (never a BigInt) and emits this g_warning when the value falls outside the range
 // a double represents exactly (|v| > 2^53 - 1 == Number.MAX_SAFE_INTEGER), because
@@ -391,7 +503,8 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     CreatedClosures* closures = nullptr,
                     CreatedBytes* bytes = nullptr,
                     CreatedValues* values = nullptr,
-                    const char* argName = nullptr);
+                    const char* argName = nullptr,
+                    NodeGiIntContext intContext = NodeGiIntContext::kArgument);
 
 // ---- IN container building -----------------------------------------
 //

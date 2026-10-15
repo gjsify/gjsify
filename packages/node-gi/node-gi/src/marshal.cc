@@ -516,7 +516,8 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     CreatedClosures* closures,
                     CreatedBytes* bytes,
                     CreatedValues* values,
-                    const char* argName) {
+                    const char* argName,
+                    NodeGiIntContext intContext) {
   if (v.IsEmpty()) {
     // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
     // failed on a terminating env, or a throwing getter left the exception
@@ -536,16 +537,24 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
   GITypeTag tag = gi_type_info_get_tag(type);
   switch (tag) {
     case GI_TYPE_TAG_BOOLEAN: out->v_boolean = NodeGiToBool(v); return true;
-    case GI_TYPE_TAG_INT8: out->v_int8 = static_cast<int8_t>(NodeGiToInt32(v)); return true;
-    case GI_TYPE_TAG_UINT8: out->v_uint8 = static_cast<uint8_t>(NodeGiToUint32(v)); return true;
-    case GI_TYPE_TAG_INT16: out->v_int16 = static_cast<int16_t>(NodeGiToInt32(v)); return true;
-    case GI_TYPE_TAG_UINT16: out->v_uint16 = static_cast<uint16_t>(NodeGiToUint32(v)); return true;
-    case GI_TYPE_TAG_INT32: out->v_int32 = NodeGiToInt32(v); return true;
-    case GI_TYPE_TAG_UINT32: out->v_uint32 = NodeGiToUint32(v); return true;
-    // 64-bit: accept a BigInt losslessly (else a Number, truncated) — never let a
-    // BigInt reach ToNumber() (fatal abort). See JsValueTo{Int,Uint}64 in common.h.
-    case GI_TYPE_TAG_INT64: out->v_int64 = JsValueToInt64(v); return true;
-    case GI_TYPE_TAG_UINT64: out->v_uint64 = JsValueToUint64(v); return true;
+    case GI_TYPE_TAG_INT8:
+    case GI_TYPE_TAG_UINT8:
+    case GI_TYPE_TAG_INT16:
+    case GI_TYPE_TAG_UINT16:
+    case GI_TYPE_TAG_INT32:
+    case GI_TYPE_TAG_UINT32:
+    case GI_TYPE_TAG_INT64:
+    case GI_TYPE_TAG_UINT64: {
+      std::string shown;
+      switch (NodeGiJsToInteger(v, tag, out, &shown)) {
+        case NodeGiIntResult::kOk: return true;
+        case NodeGiIntResult::kPending: return false;
+        case NodeGiIntResult::kOutOfRange:
+          NodeGiThrowIntOutOfRange(env, tag, intContext, argName, shown);
+          return false;
+      }
+      return false;
+    }
     case GI_TYPE_TAG_FLOAT: out->v_float = static_cast<float>(NodeGiToDouble(v)); return true;
     case GI_TYPE_TAG_DOUBLE: out->v_double = NodeGiToDouble(v); return true;
     case GI_TYPE_TAG_UTF8:
@@ -1814,7 +1823,10 @@ bool JsToAnswerArgument(Napi::Env env, Napi::Value v, GITypeInfo* ti, GITransfer
   }
   std::string held;
   return JsToGIArgument(env, v, ti, out, &held, transfer, nullptr, nullptr, nullptr, nullptr,
-                        argName);
+                        argName,
+                        argName != nullptr && strcmp(argName, "return value") == 0
+                            ? NodeGiIntContext::kReturnValue
+                            : NodeGiIntContext::kArgument);
 }
 
 }  // namespace
@@ -2973,7 +2985,8 @@ Napi::Value SetBoxedField(const Napi::CallbackInfo& info) {
   GIArgument arg;
   memset(&arg, 0, sizeof(arg));
   std::string heldString;
-  if (JsToGIArgument(env, value, ftype, &arg, &heldString, GI_TRANSFER_NOTHING, nullptr)) {
+  if (JsToGIArgument(env, value, ftype, &arg, &heldString, GI_TRANSFER_NOTHING, nullptr,
+                     nullptr, nullptr, nullptr, name.c_str(), NodeGiIntContext::kField)) {
     if (!gi_field_info_set_field(field, bh->ptr, &arg)) {
       Napi::Error::New(env, std::string("Writing field ") + typeName + "." + name + " is not supported")
           .ThrowAsJavaScriptException();
