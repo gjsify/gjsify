@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/gjsify/fixture">
+    <file>hello.txt</file>
+    <file>extra.txt</file>
+  </gresource>
+</gresources>

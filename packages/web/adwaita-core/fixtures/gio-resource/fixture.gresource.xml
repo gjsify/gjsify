@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/gjsify/fixture">
+    <file>hello.txt</file>
+    <file alias="aliased/greeting.txt">hello.txt</file>
+    <file>empty.txt</file>
+    <file>blob.bin</file>
+    <file>umlaut/größe.txt</file>
+    <file preprocess="xml-stripblanks">icons/scalable/apps/demo.svg</file>
+    <file preprocess="json-stripblanks">sub/conf.json</file>
+    <file compressed="true">big.txt</file>
+  </gresource>
+  <gresource prefix="/org/gjsify/other">
+    <file alias="hello.txt">hello.txt</file>
+  </gresource>
+</gresources>
