@@ -13,6 +13,7 @@ import localeDirSuite from './locale-dir.spec.js';
 import localeEnvSuite from './locale-env.spec.js';
 import navModelSuite from './nav-model.spec.js';
 import viewLoaderSuite from './view-loader.spec.js';
+import windowCommonSuite from './window-common.spec.js';
 
 run({
     appearanceMappingSuite,
@@ -24,4 +25,5 @@ run({
     localeEnvSuite,
     navModelSuite,
     viewLoaderSuite,
+    windowCommonSuite,
 });

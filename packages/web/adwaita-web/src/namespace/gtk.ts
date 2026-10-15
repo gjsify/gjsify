@@ -96,6 +96,8 @@ export { GtkToggleButton as ToggleButton } from '../elements/gtk-toggle-button.j
 export { GtkTreeExpander as TreeExpander } from '../elements/gtk-tree-expander.js';
 export { GtkVideo as Video } from '../elements/gtk-video.js';
 export { GtkWindow as Window } from '../elements/gtk-window.js';
+// ADR 0098 Amendment 4: the `Gtk.Window` subset both ports and GJS share, for code that runs on all three.
+export type { WindowCommon } from '@gjsify/adwaita-core';
 export { GtkWindowControls as WindowControls } from '../elements/gtk-window-controls.js';
 export { GtkViewport as Viewport } from '../elements/gtk-viewport.js';
 export { GtkWindowHandle as WindowHandle } from '../elements/gtk-window-handle.js';
