@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { driveGioResourceVectors, gioResourceFixtures } from './conformance/gio-resource.js';
+import { GIO_RESOURCE_VECTORS, driveGioResourceVectors, gioResourceFixtures } from './conformance/gio-resource.js';
 import {
     Resource,
     ResourceLookupFlags,
@@ -43,6 +43,7 @@ export default async () => {
             bytes: (data) => new Bytes(data),
         },
         { describe, it, expect },
+        GIO_RESOURCE_VECTORS,
     );
 
     await describe('adwaita-core: Gio resources, outside the subset (ADR 0116 § 3)', async () => {

@@ -100,6 +100,11 @@ function registered<T>(subject: GioResourceSubject, resources: GioResourceLike[]
     }
 }
 
+/**
+ * CORE-ONLY: GAP (#2239) — neither port exposes the subset yet; ADR 0116 step 3 wires it into
+ * `Gtk.IconTheme` and `GtkApplication` on the web, then NativeScript. Until then the core suite
+ * drives it here and real `gi://Gio` under GJS is the oracle (`gio-resource.gjs.spec.ts`).
+ */
 export const GIO_RESOURCE_VECTORS: readonly GioResourceVector[] = [
     {
         row: 'create',

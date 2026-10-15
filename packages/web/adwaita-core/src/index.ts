@@ -4,7 +4,8 @@
 // (`@gjsify/adwaita-web`, `@gjsify/adwaita-nativescript`; GTK stays native
 // Libadwaita). Pure TS: NO platform imports (no `gi://`, no `@girs/*`, no
 // `@nativescript/core`, no DOM assumptions), no `/register` subpath, no
-// `globalThis` writes — pure named exports only. Follows the
+// `globalThis` writes but one (the Gio resource registry's non-enumerable
+// singleton mark, ADR 0116 § 3) — pure named exports only. Follows the
 // `@gjsify/storybook-core` seam pattern: behavior lives here once, renderers
 // stay thin adapters.
 //

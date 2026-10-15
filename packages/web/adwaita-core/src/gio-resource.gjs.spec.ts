@@ -4,7 +4,11 @@
 
 import { describe, expect, it, on } from '@gjsify/unit';
 
-import { driveGioResourceVectors, type GioResourceNamespace } from './conformance/gio-resource.js';
+import {
+    GIO_RESOURCE_VECTORS,
+    driveGioResourceVectors,
+    type GioResourceNamespace,
+} from './conformance/gio-resource.js';
 
 export default async () => {
     await on('Gjs', async () => {
@@ -18,6 +22,7 @@ export default async () => {
                 bytes: (data) => new GLib.Bytes(data),
             },
             { describe, it, expect },
+            GIO_RESOURCE_VECTORS,
         );
     });
 };
