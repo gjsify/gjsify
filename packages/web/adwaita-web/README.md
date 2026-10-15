@@ -238,7 +238,7 @@ times the stylesheet it would sit in.
 
 A name outside that subset draws **`image-missing`**, the broken-image glyph libadwaita
 itself substitutes when it has no icon to draw. So does a name that could never be a mask
-class at all — a space, a quote, a reverse-DNS application id — because
+class at all — a space, a quote, an unregistered reverse-DNS application id — because
 `gtk_icon_theme_lookup_icon` has no "found nothing" answer either. It is deliberately
 visible: the icon has not silently disappeared, and nothing throws — an icon is decorative,
 and neither of the other two Adwaita renderers takes an application down over a glyph. Only
@@ -297,6 +297,45 @@ Notes worth having:
 - `isIconAvailable(name)` reads the live cascade, not a generated list, so it also answers
   `true` for a glyph you supplied through your own stylesheet's `--icon-<name>`.
 
+### Full-colour icons — an application icon
+
+A symbolic icon is recoloured; an application icon is not. On GNOME,
+`AdwAboutDialog`'s `application-icon` is the application ID, and GTK finds
+`hicolor/scalable/apps/<app-id>.svg` and draws it as it is. The web stand-in for that file is
+`registerColorIcon`:
+
+```typescript
+import { registerColorIcon } from '@gjsify/adwaita-web';
+import appIcon from './icons/org.example.App.svg?raw';
+
+registerColorIcon('org.example.App', appIcon);         // SVG source…
+registerColorIcon('org.example.Other', '/icons/other.png'); // …or an image URL
+```
+
+```html
+<adw-about-dialog application-icon="org.example.App" application-name="Example"></adw-about-dialog>
+```
+
+Every `<gtk-image>` asking for a registered name draws the image unmasked and unrecoloured,
+which covers every widget that draws its icons through it, `<adw-about-dialog>` and
+`<gtk-about-dialog logo-icon-name>` among them. A name is looked up in the order GTK's own
+theme tries it (`g_themed_icon_update_names`):
+
+| Asked for | Tried, in order | Neither found |
+| --- | --- | --- |
+| `X` | colour `X`, then symbolic `X-symbolic` | `image-missing` |
+| `X-symbolic` | symbolic `X-symbolic`, then colour `X` | `image-missing` |
+
+So nothing changes for a name with no colour registration. `registerColorIcon` keys on the
+**exact** name, reverse-DNS IDs included, and *throws* on an empty or spaced name, on a
+`-symbolic` (`-ltr`/`-rtl`) name — that is `registerIcon`'s half — and on a source that is
+neither SVG source nor an `http(s):`, `blob:`, `file:` or `data:image/` URL. A registration
+redraws every mounted `<gtk-image>`, and `isIconAvailable` answers `true` for the name.
+
+`Gtk.IconTheme.add_resource_path` and `add_search_path` stay records only on the web: there
+is no GResource and no file system to search, so a registration is the one way a colour
+icon gets in.
+
 ### Why this is a web-only concern
 
 The three Adwaita renderers resolve an icon name three different ways, and it is worth
@@ -306,12 +345,11 @@ knowing which one you are on:
 | --- | --- | --- |
 | GTK (`@gjsify/adwaita-app`) | `GtkIconTheme` looks it up in the **system** icon theme at runtime | draws the theme's `image-missing` |
 | NativeScript (`@gjsify/adwaita-nativescript`) | `GtkImage` is handed the **SVG source**, not a name | cannot happen — a missing icon is a missing import |
-| Web (this package) | a **compile-time** subset, plus `registerIcon` | draws `image-missing` |
+| Web (this package) | a **compile-time** subset, plus `registerIcon` / `registerColorIcon` | draws `image-missing` |
 
 All three therefore end on ONE glyph for a name they cannot draw. The web reaches it by two
 routes — no mask class for a known-shaped name, or no usable class for a name like
-`org.gnome.Builder` — and a dotted name has no registration path, so that second route is
-where it stays.
+`org.gnome.Builder` that no `registerColorIcon` call has answered either.
 
 Only the web renderer has a set that can be missing something at runtime, which is why only
 it needs a registration path. `scripts/check-adwaita-icon-masks.mjs` holds the compiled

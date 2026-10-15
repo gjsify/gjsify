@@ -149,10 +149,10 @@ adw-about-dialog {
     height: 96px;
     margin-top: var(--spacing-s);
     margin-bottom: var(--spacing-m);
-    // Mask-driven .adw-icon skin scaled up to the about-dialog app-icon size.
+    // A symbolic glyph scales with the box; the fill stays `.adw-icon`'s `currentColor`,
+    // which `.adw-icon-color` turns off for a registered colour application icon.
     -webkit-mask-size: contain;
     mask-size: contain;
-    background-color: currentColor;
   }
 
   // --- App name (title-1) ---

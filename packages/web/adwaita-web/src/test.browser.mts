@@ -64,6 +64,7 @@ import { CopyGlyphTest } from './source-view/copy-glyph.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { GtkImageTest } from './gtk-image.spec.js';
 import { AdwIconRegistryTest } from './icon-registry.spec.js';
+import { AdwIconThemeTest } from './icon-theme.spec.js';
 import { GtkSwitchTest } from './gtk-switch.spec.js';
 import { AdwChecksTest } from './checks.spec.js';
 import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
@@ -198,6 +199,7 @@ run({
     AdwButtonContentTest,
     GtkImageTest,
     AdwIconRegistryTest,
+    AdwIconThemeTest,
     GtkSwitchTest,
     AdwChecksTest,
     GtkProgressBarTest,

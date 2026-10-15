@@ -89,6 +89,9 @@ export { registerTemplateClass } from './template-classes.js';
 // the way in for an app that needs a glyph this package does not ship — see
 // `icon-registry.ts` for the full recipe.
 export { isIconAvailable, registerIcon } from './icon-registry.js';
+// The full-colour half of the icon theme — an application icon drawn as-is, the web stand-in
+// for an app's `hicolor/…/apps/<app-id>.svg`. See `icon-theme.ts` for the lookup order.
+export { registerColorIcon } from './icon-theme.js';
 
 // THE WIDGET CLASSES ARE REACHABLE ONLY AS `Adw.<Name>` / `Gtk.<Name>` (ADR 0034
 // clause 2 + § Amendment 6). The namespace used to be the LAST line in the file, under a
