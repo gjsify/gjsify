@@ -18,7 +18,17 @@ import gobjectVectors from './specs/gobject.vectors.js';
 import listStoreVectors from './specs/list-store.js';
 import settingsVectors from './specs/settings.js';
 import fileChooserVectors from './specs/file-chooser.js';
+import { viewsSpec } from './specs/views.js';
+import { storybookSpec } from './specs/storybook.js';
 import benchSpec from './specs/bench.js';
+
+/**
+ * The engine THIS leg claims to run on, derived from the opt-in define alone — the two legs are
+ * one APK built twice, and the define is the only thing that differs. `specs/engine.ts` then
+ * asserts the claim against what the core and the port actually report, so a wrong name here
+ * fails the run rather than relabelling it.
+ */
+const engine: 'real-gio' | 'pure-js' = optedIn ? 'real-gio' : 'pure-js';
 
 // Module-level result the page binds to (set when the async run lands).
 export const result: { summary: Summary | null; runId: string } = {
@@ -53,12 +63,21 @@ async function runSuite(): Promise<void> {
             // `requireGi` would load `libnode_gi.so` anyway and the run would stop being the
             // pure-JS comparison it exists to be.
             if (optedIn) await loaderProbe();
-            await engineSpec(optedIn ? 'real-gio' : 'pure-js')();
+            await engineSpec(engine)();
             await gobjectVectors();
             if (optedIn) await listStoreVectors();
             // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
             if (optedIn) await settingsVectors();
             if (optedIn) await fileChooserVectors();
+            // THE DUAL LEG (ADR 0110 § 3). Unlike the four above, these run in BOTH legs and on
+            // purpose: they are statements about the DOOR between a NativeScript widget and
+            // whichever engine backs the subset, so a difference between the two runs is a defect
+            // in whichever engine disagrees. Gating them on `optedIn` would leave the subset
+            // untested at exactly the moment Android stops shipping it by default.
+            if (__GJSIFY_GI_UI__) {
+                await viewsSpec(engine)();
+                await storybookSpec(engine)();
+            }
             // LAST, and only when the build asked for it: it is seconds long and the runs that
             // measure cold start must not carry it. `specs/bench.ts` says why it is a define.
             if (__GJSIFY_GI_BENCH__) await benchSpec();

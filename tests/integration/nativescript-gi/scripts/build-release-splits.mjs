@@ -32,11 +32,21 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const nsBin = join(root, 'node_modules', '.bin', 'nativescript');
 const ABIS = ['arm64-v8a', 'x86_64'];
 
-/** Each rung is the same sources and the same gradle invocation — only these defines differ. */
+/**
+ * Each rung is the same sources and the same gradle invocation — only these defines differ.
+ *
+ * `GJSIFY_GI_UI=0` IS IN EVERY RUNG, which is what keeps them comparable. The two ADR 0110 § 3 UI
+ * specs are on by default (they are the dual run's subject) and they pull
+ * `@gjsify/storybook-nativescript` plus a pile of real widgets into the bundle. The ladder in
+ * docs/reports/2026-10-15-adr-0110-gates.md was measured before they existed, and it measures the
+ * GI PAYLOAD's cost — a few hundred KB of test JS in all three rungs would cancel out of the
+ * deltas but not out of the absolute sizes and cold starts the report states.
+ */
+const UI_OFF = { GJSIFY_GI_UI: '0' };
 const RUNGS = {
-    b0: { GJSIFY_GI_PLUGIN: '0' },
-    b: { GJSIFY_GI_OPT_IN: '0' },
-    c: {},
+    b0: { ...UI_OFF, GJSIFY_GI_PLUGIN: '0' },
+    b: { ...UI_OFF, GJSIFY_GI_OPT_IN: '0' },
+    c: { ...UI_OFF },
 };
 
 const rung = process.argv[2];

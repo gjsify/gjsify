@@ -11,10 +11,16 @@
 // never calls `copyViteBundleToNative`, so the APK's `assets/app/` would be empty and the Static
 // Binding Generator would find no JS. This duplicates the copy and then drives gradle directly.
 //
-// THE TWO RUNS. `node scripts/run-on-device.mjs` is the subject: the app opts the real-Gio engine
-// in. `GJSIFY_GI_OPT_IN=0 node scripts/run-on-device.mjs` is the control: the same sources, the
-// same plugin dependency, the same payload in the APK, and only the build-time define flipped —
-// so what the two runs compare is the app's DECISION, not the presence of the plugin.
+// THE TWO RUNS. `--engine real-gio` is the subject: the app opts the real-Gio engine in.
+// `--engine pure-js` is the control: the same sources, the same plugin dependency, the same
+// payload in the APK, and only the build-time define flipped — so what the two runs compare is
+// the app's DECISION, not the presence of the plugin. `scripts/run-dual.mjs` drives both in turn,
+// which is what ADR 0110 § 3 asks for.
+//
+// THE ENGINE IS NAMED, not inferred. `GJSIFY_GI_OPT_IN` still works and still means the same
+// thing — the release rungs and the report's commands use it — but a leg that says which engine
+// it wants cannot be read as the other one by someone counting runs in a log, and a `--engine`
+// that disagreed with the environment is a mistake this refuses rather than resolves.
 //
 // Pick a device with `ANDROID_SERIAL=<serial>` (adb's own variable; required when more than one is
 // attached). `--keep` leaves the app installed; by default it is uninstalled again, because a
@@ -28,9 +34,25 @@ import { parseLogcat } from './parse-logcat.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const keep = process.argv.includes('--keep');
-const optIn = process.env.GJSIFY_GI_OPT_IN !== '0';
-const label = optIn ? 'opt-in' : 'control';
+
+const ENGINES = { 'real-gio': true, 'pure-js': false };
+const engineArg = process.argv.find((a) => a.startsWith('--engine'));
+const engine = engineArg?.includes('=') ? engineArg.split('=')[1] : process.argv[process.argv.indexOf('--engine') + 1];
+if (engineArg && !Object.hasOwn(ENGINES, engine ?? '')) {
+    console.error(`[ns-gi] --engine must be one of: ${Object.keys(ENGINES).join(', ')}`);
+    process.exit(1);
+}
+const envOptIn = process.env.GJSIFY_GI_OPT_IN === undefined ? null : process.env.GJSIFY_GI_OPT_IN !== '0';
+if (engineArg && envOptIn !== null && envOptIn !== ENGINES[engine]) {
+    console.error(`[ns-gi] --engine ${engine} contradicts GJSIFY_GI_OPT_IN=${process.env.GJSIFY_GI_OPT_IN}.`);
+    process.exit(1);
+}
+const optIn = engineArg ? ENGINES[engine] : (envOptIn ?? true);
+const label = optIn ? 'real-gio' : 'pure-js';
 const nsBin = join(root, 'node_modules', '.bin', 'nativescript');
+// `optin`/`control`, not the engine name: docs/reports/2026-10-11-node-gi-nativescript-plugin.md
+// cites these two filenames, and a report that points at a file nobody can find is worse than a
+// filename one generation behind its label.
 const logFile = join(root, `logcat.${optIn ? 'optin' : 'control'}.log`);
 const APP_ID = 'org.gjsify.NsGiTest';
 const TIMEOUT_MS = 180_000;

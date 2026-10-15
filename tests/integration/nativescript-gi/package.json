@@ -9,11 +9,12 @@
         "check": "tsc --noEmit",
         "prepare:android": "nativescript prepare android --no-hmr --disable-npm-install",
         "build:android": "nativescript build android --no-hmr --disable-npm-install",
-        "test:android": "node scripts/run-on-device.mjs android",
-        "test:android:pure-js": "GJSIFY_GI_OPT_IN=0 node scripts/run-on-device.mjs android",
+        "test:android": "node scripts/run-on-device.mjs android --engine real-gio",
+        "test:android:pure-js": "node scripts/run-on-device.mjs android --engine pure-js",
+        "test:android:dual": "node scripts/run-dual.mjs",
         "size:android": "node scripts/apk-size.mjs",
         "release:android": "node scripts/build-release-splits.mjs",
-        "test": "node scripts/run-on-device.mjs android"
+        "test": "node scripts/run-dual.mjs"
     },
     "repository": {
         "type": "git",
@@ -29,6 +30,7 @@
         "@gjsify/gi-runtime-android": "file:../../../packages/node-gi/gi-runtime-android",
         "@gjsify/nativescript-vite": "file:../../../packages/infra/nativescript-vite",
         "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
+        "@gjsify/storybook-nativescript": "file:../../../packages/nativescript-bridge/storybook",
         "@nativescript/core": "~9.1.3"
     },
     "devDependencies": {

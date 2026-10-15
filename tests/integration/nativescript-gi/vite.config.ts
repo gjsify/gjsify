@@ -23,6 +23,10 @@ const optIn = plugin && process.env.GJSIFY_GI_OPT_IN !== '0';
 // `GJSIFY_GI_BENCH=1` adds the per-instance benchmark (ADR 0105 stage 2). Off by default so the
 // cold-start and APK-size runs carry neither its seconds nor its bytes.
 const bench = process.env.GJSIFY_GI_BENCH === '1';
+// `GJSIFY_GI_UI=0` drops the two ADR 0110 § 3 UI specs. ON by default: they are what makes the
+// run a DUAL run, and they are the only coverage the NativeScript storybook view layer has
+// anywhere. Off in the gate-2 release rungs — see globals.d.ts for why.
+const ui = process.env.GJSIFY_GI_UI !== '0';
 
 export default defineNativescriptConfig(
     {},
@@ -30,6 +34,7 @@ export default defineNativescriptConfig(
         define: {
             __GJSIFY_GI_OPT_IN__: JSON.stringify(optIn),
             __GJSIFY_GI_BENCH__: JSON.stringify(bench),
+            __GJSIFY_GI_UI__: JSON.stringify(ui),
         },
         resolve: {
             alias: plugin ? [] : [{ find: /^@gjsify\/node-gi\/gi$/, replacement: resolve('app/no-gi-stub.ts') }],
