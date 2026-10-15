@@ -104,13 +104,41 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `translations` | Directory of the app's `<lang>.po` catalogues, used when the metainfo lacks a translation. Optional. |
 | `pageTranslations` | Directory of `<lang>.po` catalogues for the *page's own* strings, overlaying this package's `po/`. Optional, see below. |
 | `icon` | Icon (SVG or PNG) for the header, hero and favicon; overrides the Flatpak/ship icon. Optional. |
-| `downloads` | `[{platform, format, url?, label?, available?}]`: targets the release assets do not cover, e.g. browser stores or a source install. `platform` is an OS or `firefox` / `chromium`; `format` adds `store`, `xpi`, `source`. `url` is required unless `available` is `false`, which lists the target as "Not yet available" and never recommends it. |
+| `components` | `[{id, name, summary?, match?}]`: the separately installed parts of the product, in install order, see below. Optional — without it the dialog is one undivided list. |
+| `downloads` | `[{platform, format, url?, label?, available?, component?}]`: targets the release assets do not cover, e.g. browser stores or a source install. `platform` is an OS or `firefox` / `chromium`; `format` adds `store`, `xpi`, `source`. `url` is required unless `available` is `false`, which lists the target as "Not yet available" and never recommends it. `component` is a `components[].id`. |
 | `releaseAssets` | `false` ignores the GitHub release assets, so `downloads` is the whole list. Default `true`. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
 
 A `sepa` entry carries no amount, and its IBAN is checked when the config loads — length per
 country, alphabet, and the mod-97 checksum — so a typo fails the build instead of printing a QR
 code that moves money nowhere.
+
+### Components
+
+Some products are not one download. A desktop app plus the browser extension that talks to it are
+two things a person installs one after the other, and a single flat list of files does not say
+which goes first. `components` names those parts:
+
+```json
+"components": [
+  { "id": "app", "name": "App", "summary": "Install and start it once.", "match": "^beifahrer[-_]" },
+  { "id": "extension", "name": "Browser extension", "summary": "Then add it to your browser." }
+]
+```
+
+Each part becomes its own block in the download dialog, in declared order, with its own operating
+system tabs — numbered "Step 1", "Step 2", … as soon as there is more than one. The tab strip is
+labelled `Browser` when every target in that block is a browser, otherwise `Operating system`.
+
+`match` is a regular expression on the asset's file name, matched case-insensitively; the first
+component whose `match` hits owns the asset. A component without `match` is the catch-all and
+takes everything left over, which is what a release without a naming scheme for every file needs.
+Entries in `downloads` pick their block by `component` instead, naming a `components[].id` — an
+unknown id fails the build with the known ids listed.
+
+The recommendation ("Recommended for your system") is made once per part, so each block
+highlights its own best match, and the big button at the top of the dialog offers the first
+declared component: the thing to install first.
 
 ### Screenshots
 

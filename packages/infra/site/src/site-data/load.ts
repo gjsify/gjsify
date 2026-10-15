@@ -196,6 +196,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             targets: buildDownloadTargets({
                 assets: config.releaseAssets ? (latestRelease?.assets ?? []) : [],
                 configured: config.downloads,
+                components: config.components,
                 flathub: config.flathub,
                 flathubSize,
                 webAppUrl: config.webApp ? `${config.base}${config.webApp.replace(/^\//, '')}` : undefined,

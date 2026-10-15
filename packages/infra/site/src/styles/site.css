@@ -953,6 +953,45 @@ h1 {
   color: var(--fg);
 }
 
+/* One block per part of the product, in the order the parts have to be installed in. */
+.component + .component {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.component-head {
+  padding: 1rem 1.25rem 0;
+}
+
+.component-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.component-step {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.component-summary {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .os-tabs {
   display: flex;
   gap: 0.35rem;
@@ -989,7 +1028,7 @@ h1 {
   padding: 0 1.25rem;
 }
 
-.os-group h3 {
+.os-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -998,7 +1037,7 @@ h1 {
 }
 
 /* With tabs visible the group heading only repeats the selected tab. */
-.os-tabs:not([hidden]) ~ .os-groups h3 {
+.os-tabs:not([hidden]) ~ .os-groups .os-title {
   display: none;
 }
 

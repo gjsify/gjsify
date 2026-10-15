@@ -44,6 +44,9 @@ export interface RenderContext {
 
 type Translate = (msgid: string) => string;
 
+/** What the download dialog reads: the targets, the catalogue and the locale it formats sizes in. */
+export type DownloadContext = Pick<RenderContext, 'data' | 't' | 'lang'>;
+
 const FORMAT_TYPES: Record<ImageFormat, string> = { avif: 'image/avif', webp: 'image/webp', png: 'image/png' };
 
 type LinkKey =
@@ -251,10 +254,49 @@ function defaultTarget(targets: readonly DownloadTarget[]): DownloadTarget | und
 }
 
 /**
+ * The targets of the part a person installs FIRST, which is the one the primary button offers. A
+ * product declaring no components has exactly one part, so the whole list is that part.
+ */
+function primaryTargets(data: SiteData): readonly DownloadTarget[] {
+    const first = data.config.components[0];
+    if (!first) return data.downloads.targets;
+    const own = data.downloads.targets.filter((target) => target.component === first.id);
+    return own.length > 0 ? own : data.downloads.targets;
+}
+
+/**
+ * One block of the download dialog: a part of the product with the targets that install it. `id`
+ * is empty for a product that declared no components, and for release assets no component claimed —
+ * such a block carries no heading, which is what a single-part product has always looked like.
+ */
+interface ComponentBlock {
+    id: string;
+    name?: string;
+    summary?: string;
+    targets: readonly DownloadTarget[];
+}
+
+/**
+ * The dialog's blocks, in install order. A component nobody built a file for is left out rather
+ * than shown empty, so a release that is missing an artefact says so by absence.
+ */
+function componentBlocks(data: SiteData): ComponentBlock[] {
+    const targets = data.downloads.targets;
+    const declared = data.config.components;
+    if (declared.length === 0) return [{ id: '', targets }];
+    const blocks = declared.flatMap((part): ComponentBlock[] => {
+        const own = targets.filter((target) => target.component === part.id);
+        return own.length > 0 ? [{ id: part.id, name: part.name, summary: part.summary, targets: own }] : [];
+    });
+    const rest = targets.filter((target) => !declared.some((part) => part.id === target.component));
+    return rest.length > 0 ? [...blocks, { id: '', targets: rest }] : blocks;
+}
+
+/**
  * One row of the download dialog. The data attributes carry everything the client needs to put a
  * row on the primary button, so it never has to build a translated string itself.
  */
-function targetItem(target: DownloadTarget, ctx: RenderContext): string {
+function targetItem(target: DownloadTarget, ctx: DownloadContext): string {
     const { t, lang } = ctx;
     const size = sizeLabel(target.size, lang);
     const meta = [
@@ -280,15 +322,76 @@ ${target.available ? `<a href="${esc(target.url)}">\n${inner}\n</a>` : `<span cl
 </li>`;
 }
 
+/** A component id as an HTML id fragment; a configuration's own ids are not guaranteed to be safe. */
+function blockSlug(block: ComponentBlock, index: number): string {
+    const slug = block.id
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    return slug || `part-${index + 1}`;
+}
+
+/**
+ * One part of the product in the dialog: its heading, then one tab per platform it is built for.
+ * The tabs live inside the block, so the extension's tabs are browsers while the app's are
+ * operating systems — the two parts are picked by different facts about the visitor.
+ *
+ * `step` numbers the part when there is more than one, because the order they are listed in is the
+ * order they have to be installed in.
+ */
+function componentSection(block: ComponentBlock, slug: string, step: number | undefined, ctx: DownloadContext): string {
+    const { t } = ctx;
+    const selected = defaultTarget(block.targets)?.os;
+    const groups = PLATFORM_ORDER.flatMap((os) => {
+        const own = block.targets.filter((target) => target.os === os);
+        return own.length > 0 ? [[os, own] as const] : [];
+    });
+    // A nested block already has a heading of its own, so its platforms are one level deeper.
+    const level = block.name ? 'h4' : 'h3';
+    const tabs = groups.map(
+        ([os]) =>
+            `<button class="os-tab" type="button" role="tab" id="os-tab-${esc(slug)}-${esc(os)}" aria-controls="os-group-${esc(slug)}-${esc(os)}" data-os="${esc(os)}" aria-selected="${os === selected}">${icon(PLATFORM_ICONS[os])}<span>${esc(osName(os, t))}</span></button>`,
+    );
+    const sections = groups.map(
+        ([
+            os,
+            own,
+        ]) => `<section class="os-group" id="os-group-${esc(slug)}-${esc(os)}" role="tabpanel" aria-labelledby="os-tab-${esc(slug)}-${esc(os)}" data-os="${esc(os)}">
+<${level} class="os-title">${icon(PLATFORM_ICONS[os])}<span>${esc(osName(os, t))}</span></${level}>
+<ul>
+${own.map((target) => targetItem(target, ctx)).join('\n')}
+</ul>
+${os === 'darwin' ? `<p class="os-note">${esc(t('Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor.'))}</p>` : ''}
+</section>`,
+    );
+    const head = block.name
+        ? `<div class="component-head">
+<h3 class="component-title">${step === undefined ? '' : `<span class="component-step">${esc(String(step))}</span>`}<span>${esc(t(block.name))}</span></h3>
+${block.summary ? `<p class="component-summary">${esc(t(block.summary))}</p>` : ''}
+</div>`
+        : '';
+    // An extension's tabs are browsers; naming them "Operating system" would mislead a screen reader.
+    const tabsLabel = groups.every(([os]) => isBrowserPlatform(os)) ? t('Browser') : t('Operating system');
+    return `<section class="component"${attrs({ 'data-component': block.id || undefined })}>
+${head}
+<div class="os-tabs" role="tablist" aria-label="${esc(tabsLabel)}" hidden>${tabs.join('')}</div>
+<div class="os-groups">
+${sections.join('\n')}
+</div>
+</section>`;
+}
+
 /**
  * The split button plus the dialog holding every target. Both are server-rendered: without
  * JavaScript the dialog stays an open panel below the button (see `site.css`), with it the
  * component turns the same markup into a modal and swaps the button for the detected platform.
+ *
+ * The button offers the part that is installed first; the dialog lists every part in that order,
+ * so a product made of an app and the extension it pairs with reads as the two steps it is.
  */
-function downloadWidget(ctx: RenderContext): string {
+export function downloadWidget(ctx: DownloadContext): string {
     const { data, t } = ctx;
-    const targets = data.downloads.targets;
-    const primary = defaultTarget(targets);
+    const primary = defaultTarget(primaryTargets(data));
     if (!primary) {
         // Nothing downloadable yet: point at the releases, or at the source when there are none.
         const [href, label] = data.downloads.hasReleases
@@ -298,25 +401,11 @@ function downloadWidget(ctx: RenderContext): string {
 <a class="button download-cta" href="${esc(href)}">${icon('download')}<span class="download-label">${esc(label)}</span></a>
 </div>`;
     }
-    const groups = PLATFORM_ORDER.flatMap((os) => {
-        const own = targets.filter((target) => target.os === os);
-        return own.length > 0 ? [[os, own] as const] : [];
-    });
-    const tabs = groups.map(
-        ([os]) =>
-            `<button class="os-tab" type="button" role="tab" id="os-tab-${esc(os)}" aria-controls="os-group-${esc(os)}" data-os="${esc(os)}" aria-selected="${os === primary.os}">${icon(PLATFORM_ICONS[os])}<span>${esc(osName(os, t))}</span></button>`,
-    );
-    const sections = groups.map(
-        ([
-            os,
-            own,
-        ]) => `<section class="os-group" id="os-group-${esc(os)}" role="tabpanel" aria-labelledby="os-tab-${esc(os)}" data-os="${esc(os)}">
-<h3>${icon(PLATFORM_ICONS[os])}<span>${esc(osName(os, t))}</span></h3>
-<ul>
-${own.map((target) => targetItem(target, ctx)).join('\n')}
-</ul>
-${os === 'darwin' ? `<p class="os-note">${esc(t('Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor.'))}</p>` : ''}
-</section>`,
+    const blocks = componentBlocks(data);
+    const named = blocks.filter((block) => block.name).length;
+    let step = 0;
+    const sections = blocks.map((block, index) =>
+        componentSection(block, blockSlug(block, index), block.name && named > 1 ? ++step : undefined, ctx),
     );
     return `<app-download class="download">
 <div class="download-split">
@@ -328,8 +417,7 @@ ${os === 'darwin' ? `<p class="os-note">${esc(t('Apple Silicon is assumed. Pick 
 <h2 id="all-downloads-title">${esc(t('All download options'))}</h2>
 <button class="dialog-close" type="button" aria-label="${esc(t('Close'))}" hidden>${icon('close')}</button>
 </div>
-<div class="os-tabs" role="tablist" aria-label="${esc(t('Operating system'))}" hidden>${tabs.join('')}</div>
-<div class="os-groups">
+<div class="components">
 ${sections.join('\n')}
 </div>
 ${data.downloads.hasReleases ? `<p class="dialog-foot"><a href="${esc(data.downloads.releasesUrl)}">${esc(t('All releases on GitHub'))}${icon('external', { class: 'link-external' })}</a></p>` : ''}
@@ -376,7 +464,8 @@ export function badges(ctx: Pick<RenderContext, 'data' | 't' | 'lang'>): string 
     const targets = data.downloads.targets;
     const specs: BadgeSpec[] = [];
 
-    const primary = defaultTarget(targets);
+    // The badge belongs to the primary button, so it reports the part that button offers.
+    const primary = defaultTarget(primaryTargets(data));
     if (primary) {
         // Not every target reports a size; the client swaps this one as the reader picks another.
         const size = sizeLabel(primary.size, lang);
