@@ -62,6 +62,34 @@ GObject.registerClass(
     GoWebHexdump as never,
 );
 
+const SensitiveTemplate = tree(`template $GoWebSensitive : Adw.Bin {
+    child: Gtk.Box {
+        Gtk.Button btn { sensitive: bind template.enabled; }
+        Gtk.Switch sw { sensitive: bind template.enabled inverted; }
+        Gtk.Label lbl { sensitive: bind template.enabled; }
+    };
+}`);
+
+class GoWebSensitive extends Adw.Bin {
+    declare _btn: HTMLButtonElement;
+    declare _sw: HTMLElement & { disabled: boolean };
+    declare _lbl: HTMLElement;
+    declare enabled: boolean;
+    constructor(params?: Record<string, unknown>) {
+        // @ts-expect-error the element's own constructor takes none; the registered class's takes the params
+        super(params);
+    }
+}
+GObject.registerClass(
+    {
+        GTypeName: 'GoWebSensitive',
+        Template: SensitiveTemplate,
+        InternalChildren: ['btn', 'sw', 'lbl'],
+        Properties: { enabled: GObject.ParamSpec.boolean('enabled', '', '', GObject.ParamFlags.READWRITE, true) },
+    },
+    GoWebSensitive as never,
+);
+
 export const GObjectDoorTest = async () => {
     await driveGObjectVectors(subject, { describe, it, expect }, GOBJECT_VECTORS);
     await describe('adwaita-web: GObject.registerClass end to end (ADR 0096)', async () => {
@@ -115,5 +143,21 @@ export const GObjectDoorTest = async () => {
                 }
             });
         }
+    });
+    await describe('adwaita-web: Gtk.Widget:sensitive in a template bind', async () => {
+        await it('binds sensitive to a template property, following it both ways of the flag', () => {
+            const el = new GoWebSensitive();
+            expect(el._btn.hasAttribute('disabled')).toBe(false);
+            expect(el._lbl.getAttribute('aria-disabled')).toBe(null);
+            el.enabled = false;
+            expect(el._btn.hasAttribute('disabled')).toBe(true);
+            expect((el._btn as unknown as { sensitive: boolean }).sensitive).toBe(false);
+            expect(el._lbl.getAttribute('aria-disabled')).toBe('true');
+            expect(el._sw.hasAttribute('disabled')).toBe(false);
+            el.enabled = true;
+            expect(el._btn.hasAttribute('disabled')).toBe(false);
+            expect(el._lbl.getAttribute('aria-disabled')).toBe(null);
+            expect(el._sw.hasAttribute('disabled')).toBe(true);
+        });
     });
 };

@@ -132,6 +132,28 @@ export function dispatchElement(el: HTMLElement, signal: string, args: readonly 
     el.dispatchEvent(domEvent);
 }
 
+/**
+ * `Gtk.Widget:sensitive` for an element that has no member of that name. The DOM spells it
+ * `disabled` on a form control and `aria-disabled` on anything else (`adw-action-row.ts` reads
+ * both), so the accessor writes the spelling the element understands. An element that already
+ * declares `sensitive` (`<adw-toggle-group>`) keeps its own.
+ */
+export function installSensitive(el: HTMLElement): void {
+    if ('sensitive' in el) return;
+    const observed = (el.constructor as { observedAttributes?: string[] }).observedAttributes ?? [];
+    const form = 'disabled' in el || observed.includes('disabled');
+    Object.defineProperty(el, 'sensitive', {
+        configurable: true,
+        enumerable: false,
+        get: () => (form ? !el.hasAttribute('disabled') : el.getAttribute('aria-disabled') !== 'true'),
+        set: (value: boolean) => {
+            if (form) el.toggleAttribute('disabled', !value);
+            else if (value) el.removeAttribute('aria-disabled');
+            else el.setAttribute('aria-disabled', 'true');
+        },
+    });
+}
+
 /** Gives `el` the instance API of a registered class, over the events it declares. */
 export function installElementApi(el: HTMLElement): void {
     // A registered class already has the core's four methods on its prototype.
