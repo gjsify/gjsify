@@ -481,7 +481,7 @@ export const FILE_CHOOSER_VECTORS: readonly FileChooserVector[] = [
             const dialog = new Gtk.FileDialog();
             const filter = Gtk.FileFilter.new();
             const call = (target: unknown, name: string) => () => (target as Record<string, () => unknown>)[name]();
-            return {
+            const observed = {
                 modalFalse: throws(() => new Gtk.FileDialog({ modal: false })),
                 initialFolder: throws(() => new Gtk.FileDialog({ initial_folder: null })),
                 acceptLabel: throws(() => new Gtk.FileDialog({ accept_label: 'Go' })),
@@ -502,6 +502,9 @@ export const FILE_CHOOSER_VECTORS: readonly FileChooserVector[] = [
                 streamFlush: throws(call(stream, 'flush')),
                 newLiteral: throws(call(GLib.Error, 'new_literal')),
             };
+            // An open stream holds the file's write lock (an OPFS writable) until it is closed.
+            await stream.close_async(PRIORITY, null);
+            return observed;
         },
         shows: {
             modalFalse: true,
