@@ -28,6 +28,7 @@ const OWN_PROBE = 'gjsify-unresolved-workspace-import/probe';
 
 /** Bare `@gjsify/*` package specifier — the workspace edge this guard protects. */
 const WORKSPACE_SCOPE = '@gjsify/';
+const NODE_POLYFILLS = '@gjsify/node-polyfills';
 
 /**
  * How many reverse-looked-up source specifiers the error may name before the
@@ -84,6 +85,19 @@ export interface WorkspaceImportGuardOptions {
      * picked. The precedent is `commands/tsc.ts`, which resolves
      * `@gjsify/tsc/bundle` from the project first and the running CLI second for
      * exactly this reason; `tests/e2e/node-free-bootstrap` states that invariant.
+     *
+     * TWO PROBES, in order. First the anchor itself. If that returns null, the
+     * `@gjsify/node-polyfills` package.json as seen from the anchor, used as the
+     * importer of a third resolve. The CLI does not depend on `@gjsify/module`,
+     * `fs`, `path`… directly: `@gjsify/node-polyfills` is the dependency that
+     * declares every Node substitution. A full install hoists them to the root,
+     * where the CLI file sees them by accident; a focused or partial install
+     * (`gjsify install --focus`, version conflicts) leaves them nested under
+     * `node_modules/@gjsify/node-polyfills/node_modules`, invisible from the CLI
+     * file. Measured: Learn6502's Flatpak build could not bundle `@mdx-js/rollup`
+     * (`cannot resolve @gjsify/module`, the substitution for `node:module`).
+     * `@gjsify/web-polyfills` is not a probe: the CLI depends on it directly, so
+     * the browser target's substitutions already resolve from the anchor.
      *
      * PROJECT FIRST, ALWAYS: consulted only after normal resolution returns
      * null, so a workspace that HAS the package keeps using it and nothing about
@@ -384,11 +398,19 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
         // package, and rescuing there would turn "project first, always" into
         // "project first unless the project errors".
         if (resolverFailure === undefined && toolchainAnchor !== undefined) {
-            const fromToolchain = await this.resolve(verdict.candidate, toolchainAnchor, {
-                skipSelf: true,
-                kind,
-                custom: { [OWN_PROBE]: true },
-            });
+            const probe = { skipSelf: true, kind, custom: { [OWN_PROBE]: true } };
+            let fromToolchain = await this.resolve(verdict.candidate, toolchainAnchor, probe);
+            let foundVia = toolchainAnchor;
+            if (!fromToolchain) {
+                // Second probe, from `@gjsify/node-polyfills` — see `toolchainAnchor`.
+                // `package.json` is the one subpath it always exports, so it names the
+                // package's real install directory whatever the layout.
+                const polyfills = await this.resolve(`${NODE_POLYFILLS}/package.json`, toolchainAnchor, probe);
+                if (polyfills) {
+                    fromToolchain = await this.resolve(verdict.candidate, polyfills.id, probe);
+                    foundVia = polyfills.id;
+                }
+            }
             if (fromToolchain) {
                 // The one visible trace that this artifact is MIXED — some of its
                 // `@gjsify/*` from the project, this one from the CLI's own
@@ -399,7 +421,7 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                 this.warn(
                     `gjsify: \`${verdict.candidate}\` did not resolve from the project ` +
                         `(imported by ${importer ?? '<entry>'}) — using the copy installed beside the ` +
-                        `running CLI (${toolchainAnchor}). Build the workspace package to use the ` +
+                        `running CLI (${foundVia}). Build the workspace package to use the ` +
                         `project's own copy.`,
                 );
                 resolvedCache.set(key, fromToolchain);

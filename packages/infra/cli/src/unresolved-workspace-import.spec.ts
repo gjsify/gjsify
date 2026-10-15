@@ -387,6 +387,8 @@ export default async () => {
         const ANCHOR = '/opt/cli/dist/cli.gjs.mjs';
         const PROJECT_FS = '/proj/node_modules/@gjsify/fs/lib/esm/index.js';
         const TOOLCHAIN_FS = '/opt/cli/node_modules/@gjsify/fs/lib/esm/index.js';
+        const POLYFILLS_PKG = '/opt/cli/node_modules/@gjsify/node-polyfills/package.json';
+        const POLYFILLS_FS = '/opt/cli/node_modules/@gjsify/node-polyfills/node_modules/@gjsify/fs/lib/esm/index.js';
 
         /**
          * Importer-aware context: the SAME specifier answers differently from the
@@ -397,6 +399,8 @@ export default async () => {
         function twoAnchorCtx(opts: {
             project?: Record<string, string>;
             toolchain?: Record<string, string>;
+            /** What `@gjsify/node-polyfills` can see; omit to model it as not installed. */
+            polyfills?: Record<string, string>;
             projectThrows?: Error;
         }) {
             const calls: Array<{ id: string; importer: string | undefined }> = [];
@@ -406,10 +410,20 @@ export default async () => {
                 warnings,
                 /** Every consult of the anchor, however it was reached. */
                 anchorConsults: () => calls.filter((c) => c.importer === ANCHOR),
+                /** Every consult of the node-polyfills package, however it was reached. */
+                polyfillsConsults: () =>
+                    calls.filter((c) => c.importer === POLYFILLS_PKG || c.id === '@gjsify/node-polyfills/package.json'),
                 async resolve(id: string, importer: string | undefined) {
                     calls.push({ id, importer });
                     if (importer === ANCHOR) {
+                        if (id === '@gjsify/node-polyfills/package.json') {
+                            return opts.polyfills ? { id: POLYFILLS_PKG } : null;
+                        }
                         const hit = opts.toolchain?.[id];
+                        return hit ? { id: hit } : null;
+                    }
+                    if (importer === POLYFILLS_PKG) {
+                        const hit = opts.polyfills?.[id];
                         return hit ? { id: hit } : null;
                     }
                     if (opts.projectThrows) throw opts.projectThrows;
@@ -441,6 +455,30 @@ export default async () => {
             const out = await guard(ANCHOR).call(ctx, 'node:fs', IMPORTER);
             expect((out as { id: string }).id).toBe(PROJECT_FS);
             expect(ctx.anchorConsults()).toStrictEqual([]);
+            expect(ctx.polyfillsConsults()).toStrictEqual([]);
+        });
+
+        // Focused install (`gjsify install --focus`): the CLI file cannot see the
+        // copy nested under its node-polyfills dependency. Measured on Learn6502's
+        // Flatpak build (`@gjsify/module`, the substitution for `node:module`).
+        await it('rescues via node-polyfills when the CLI anchor lacks it', async () => {
+            const ctx = twoAnchorCtx({ polyfills: { '@gjsify/fs': POLYFILLS_FS } });
+            const out = await guard(ANCHOR).call(ctx, 'node:fs', IMPORTER);
+            expect((out as { id: string }).id).toBe(POLYFILLS_FS);
+            expect(ctx.warnings.length).toBe(1);
+            expect(ctx.warnings[0]).toContain('@gjsify/fs');
+            expect(ctx.warnings[0]).toContain(POLYFILLS_PKG);
+        });
+
+        await it('prefers the CLI anchor over node-polyfills', async () => {
+            const ctx = twoAnchorCtx({
+                toolchain: { '@gjsify/fs': TOOLCHAIN_FS },
+                polyfills: { '@gjsify/fs': POLYFILLS_FS },
+            });
+            const out = await guard(ANCHOR).call(ctx, 'node:fs', IMPORTER);
+            expect((out as { id: string }).id).toBe(TOOLCHAIN_FS);
+            expect(ctx.polyfillsConsults()).toStrictEqual([]);
+            expect(ctx.warnings[0]).toContain(ANCHOR);
         });
 
         await it('rescues from the anchor when the project has nothing', async () => {
@@ -475,7 +513,13 @@ export default async () => {
         await it('throws when neither the project nor the anchor has it', async () => {
             const ctx = twoAnchorCtx({});
             await expect(guard(ANCHOR).call(ctx, 'node:fs', IMPORTER)).rejects.toThrow(UnresolvedWorkspaceImportError);
-            expect(ctx.anchorConsults().length).toBe(1);
+            expect(ctx.anchorConsults().length).toBe(2);
+        });
+
+        await it('throws when node-polyfills is found but lacks it too', async () => {
+            const ctx = twoAnchorCtx({ polyfills: {} });
+            await expect(guard(ANCHOR).call(ctx, 'node:fs', IMPORTER)).rejects.toThrow(UnresolvedWorkspaceImportError);
+            expect(ctx.calls.some((c) => c.importer === POLYFILLS_PKG)).toBe(true);
         });
 
         // A REJECTING `this.resolve` is not a miss. It re-runs the whole `pre`-order
