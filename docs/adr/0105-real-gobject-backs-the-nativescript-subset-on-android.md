@@ -194,19 +194,22 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    `src/index.ts`, so "no change" above should read "~0.2 KiB gzipped".
 2. The node-gi engine with GObject twins for registered classes. Measurement: the vectors pass on
    device; per-instance construction cost against the pure-JS engine.
-   **Partly done:** [report](../reports/2026-10-10-real-gio-stage3.md).
+   **Done:** [report](../reports/2026-10-10-real-gio-stage3.md) for the engine,
+   [report](../reports/2026-10-15-adr-0110-gates.md) for the cost.
    `@gjsify/adwaita-gobject-native` holds `createRealGioEngine`; the subset on real GObject passes
    **24 of 24** rows on Linux under Node in CI, refusals and widget rows included, with no vector
    weakened and no node-gi fix needed. Finding: the "no notify on an equal write" rule lives in
    the GENERATED ACCESSOR, not in GObject — `g_object_set_property` notifies unconditionally — so
-   the engine owns the comparison. (Since stage 4 this engine HAS run on Android — 24 of 24 on an
-   arm64 phone and an x86_64 emulator; the per-instance construction cost is still untimed.)
-   Not done at the time: this engine ran on no Android host. Stage 0's arm64
-   leg shows a device harness now exists (an APK plus an adb driver, outside the repo), but it
-   drives the ORACLE's subjects, not this engine, and no device was free for this work; no
-   per-instance construction cost was timed either. Deviation: the real-ENGINE
-   subject lives in the new tier-3 package, the stage-0 ORACLE subject stays in adwaita-core,
-   because tier 2 may not depend on tier 3.
+   the engine owns the comparison. Since stage 4 the engine runs on Android: 24 of 24 on an arm64
+   phone and an x86_64 emulator.
+   **Per-instance cost, host and emulator, both engines in one process:** construction itself
+   costs no measurably more — the properties are plain `READWRITE`, so `constructRegistered`
+   touches no engine and the twin is built lazily on first use. The cost is in USE: first property
+   read ~5x (host) / ~8x (emulator), a `set`/`notify` round trip ~45x / ~99x, an emission ~24x /
+   ~20–45x. The benchmark is `packages/nativescript-bridge/gobject/src/bench.ts`, one body for both
+   hosts, a script rather than a CI gate.
+   Deviation: the real-ENGINE subject lives in the new tier-3 package, the stage-0 ORACLE subject
+   stays in adwaita-core, because tier 2 may not depend on tier 3.
 3. Settings and `Gio.File` on real Gio. Measurement: the ADR 0099 and 0100 vectors on device.
    **The `GListModel` half is done:** [report](../reports/2026-10-10-real-gio-stage3.md).
    `createRealGioListStore` puts a real `Gio.ListStore` behind the portable list model and holds
@@ -233,5 +236,7 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    **~83 ms (~6.5 %)** from no plugin to plugin with the opt-in — carrying the payload ~0–20 ms,
    importing node-gi ~20 ms (its module body loads the native library, opt-in or not), the
    opt-in ~45 ms. **x86_64** ran on an API 36 emulator, 41 of 41 and 27 of 27. The **published
-   npm** tarball, in place of the `file:` link, ran 41 of 41. Not measured: a per-ABI or release
-   APK.
+   npm** tarball, in place of the `file:` link, ran 41 of 41. **Per-ABI RELEASE APKs are measured
+   too now:** [report](../reports/2026-10-15-adr-0110-gates.md) — 15.77 MB (arm64-v8a) and
+   16.93 MB (x86_64) compressed per split, +80 ms cold start on the x86_64 emulator. Not measured:
+   arm64 cold start from a release APK.

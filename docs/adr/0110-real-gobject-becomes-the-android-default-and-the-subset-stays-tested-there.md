@@ -79,8 +79,20 @@ the GObject engine under it, not about GTK rendering.
 
 1. Finish ADR 0105 stage 2. Measurement: vectors pass on device; per-instance construction cost,
    real engine against pure JS.
+   **Measured:** [report](../reports/2026-10-15-adr-0110-gates.md). Construction costs no
+   measurably more (plain `READWRITE` properties touch no engine, and the twin is lazy); use does
+   — first property read ~5x on the host and ~8x on the emulator, a `set`/`notify` round trip ~45x
+   and ~99x, an emission ~24x and ~20–45x. `packages/nativescript-bridge/gobject/src/bench.ts` is
+   one body run from both hosts, on demand, not in CI.
 2. Build a release APK and measure the compressed size delta per ABI and the cold-start delta
    against an app without the plugin, on an arm64 device.
+   **Measured:** [report](../reports/2026-10-15-adr-0110-gates.md). Signed release APKs, per-ABI
+   splits, minified JS: **15,773,293 B (15.77 MB) arm64-v8a** and **16,934,181 B (16.93 MB)
+   x86_64** compressed, of which 26,697 B is JavaScript. Cold start on the x86_64 emulator,
+   median of twenty launches per rung: **+80 ms (+17.8 %)** from plugin-not-imported to opt-in
+   (450 → 457 → 530 ms), matching stage 4's ~83 ms on arm64 against a much slower baseline.
+   Deviations: cold start is the `x86_64` emulator, **not** an arm64 device; R8 is not enabled
+   (NativeScript leaves its hooks commented out, and R8 cannot change a `.so`/typelib delta).
 3. Wire the dual emulator run: the app and storybook tests execute once per engine, next to the
    vectors that already run on both subjects.
 4. Flip the default in a small PR that cites steps 1 and 2. Keep the pure-JS opt-out and update
