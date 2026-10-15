@@ -64,9 +64,7 @@ process.on('exit', () => rmSync(localeRoot, { recursive: true, force: true }));
 // that does not exist and the lookup answers the msgid (found via the
 // Steuererklärung Windows test); the addon goes through wbindtextdomain there.
 const nonAsciiRoot = join(mkdtempSync(join(tmpdir(), 'node-gi-locale-')), 'locale-ä');
-writeMoCatalog(join(nonAsciiRoot, FIXTURE_LANGUAGE, 'LC_MESSAGES', `${DOMAIN}.mo`), [
-    { msgid: MSGID, msgstr: MSGSTR },
-]);
+writeMoCatalog(join(nonAsciiRoot, FIXTURE_LANGUAGE, 'LC_MESSAGES', `${DOMAIN}.mo`), [{ msgid: MSGID, msgstr: MSGSTR }]);
 process.on('exit', () => rmSync(dirname(nonAsciiRoot), { recursive: true, force: true }));
 
 const locale = findTranslatableLocale();
