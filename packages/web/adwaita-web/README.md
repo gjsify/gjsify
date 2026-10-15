@@ -332,9 +332,28 @@ So nothing changes for a name with no colour registration. `registerColorIcon` k
 neither SVG source nor an `http(s):`, `blob:`, `file:` or `data:image/` URL. A registration
 redraws every mounted `<gtk-image>`, and `isIconAvailable` answers `true` for the name.
 
-`Gtk.IconTheme.add_resource_path` and `add_search_path` stay records only on the web: there
-is no GResource and no file system to search, so a registration is the one way a colour
-icon gets in.
+### Icons from the app's GResource (ADR 0116)
+
+The way GNOME takes: the app's compiled `.gresource`, registered with the GIO calls it already
+makes on GJS. `Gtk.Application` adds `<resource-base-path>/icons/` to the icon theme at startup
+(`resource-base-path` defaults to `/` + the application ID with `.` as `/`), so an app that
+registers before `run()` needs nothing else:
+
+```typescript
+import { Gio } from '@gjsify/adwaita-web';
+
+Gio.resources_register(Gio.Resource.new_from_data(bytes)); // bytes: the embedded .gresource
+```
+
+`Gtk.IconTheme.get_for_display(null).add_resource_path(path)` adds a path by hand. Under a path
+the lookup follows `gtkicontheme.c`: hicolor subdirectories (`16x16/apps/`, `scalable/apps/`,
+`symbolic/apps/`, …, without a `hicolor/` component) by size and scale, then files directly
+under the path. A compiled symbolic glyph still answers a `-symbolic` name first. A `-symbolic`
+file draws as a mask in `currentColor`, any other SVG or PNG as it is; an XPM or a compressed
+entry draws `image-missing` with a warning. After a colour registration, a resource is the next
+answer, so `registerColorIcon` still wins for its name. If the resource holds `gtk/menus.ui`
+or `gtk/help-overlay.ui` under the base path, startup throws: no builder here reads them yet.
+`add_search_path` stays a record, since there is no file system to search.
 
 ### Why this is a web-only concern
 
@@ -345,7 +364,7 @@ knowing which one you are on:
 | --- | --- | --- |
 | GTK (`@gjsify/adwaita-app`) | `GtkIconTheme` looks it up in the **system** icon theme at runtime | draws the theme's `image-missing` |
 | NativeScript (`@gjsify/adwaita-nativescript`) | `GtkImage` is handed the **SVG source**, not a name | cannot happen — a missing icon is a missing import |
-| Web (this package) | a **compile-time** subset, plus `registerIcon` / `registerColorIcon` | draws `image-missing` |
+| Web (this package) | a **compile-time** subset, the `Gtk.IconTheme` resource paths, plus `registerIcon` / `registerColorIcon` | draws `image-missing` |
 
 All three therefore end on ONE glyph for a name they cannot draw. The web reaches it by two
 routes — no mask class for a known-shaped name, or no usable class for a name like
