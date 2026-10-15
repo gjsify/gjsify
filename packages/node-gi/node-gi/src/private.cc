@@ -25,6 +25,10 @@
 
 #include "common.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace nodegi {
 
 // ---- GLib.log_set_writer_func ----------------------------------------------
@@ -557,10 +561,39 @@ Napi::Value Bindtextdomain(const Napi::CallbackInfo& info) {
     }
     location = info[1].As<Napi::String>().Utf8Value();
   }
+#ifdef _WIN32
+  // bindtextdomain() reads its path in the ANSI code page, so a UTF-8 JS string with
+  // a non-ASCII directory (".../Steuererklärung/share/locale") binds a path that
+  // does not exist and every lookup silently answers the msgid (measured in a Windows
+  // 11 VM: the same catalog under an ASCII path translated). GNU gettext >= 0.21
+  // ships wbindtextdomain() for exactly this; both directions go through UTF-16.
+  std::wstring wlocation;
+  if (!query) {
+    int n = MultiByteToWideChar(CP_UTF8, 0, location.c_str(), -1, nullptr, 0);
+    if (n <= 0) {
+      Napi::TypeError::New(env, "bindtextdomain: location is not valid UTF-8")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    wlocation.resize(n);
+    MultiByteToWideChar(CP_UTF8, 0, location.c_str(), -1, wlocation.data(), n);
+    wlocation.resize(n - 1);
+  }
+  const wchar_t* wresult = wbindtextdomain(domain.c_str(), query ? nullptr : wlocation.c_str());
+  if (!query) bind_textdomain_codeset(domain.c_str(), "UTF-8");
+  if (wresult == nullptr) return env.Null();
+  int len = WideCharToMultiByte(CP_UTF8, 0, wresult, -1, nullptr, 0, nullptr, nullptr);
+  if (len <= 0) return env.Null();
+  std::string utf8(len, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, wresult, -1, utf8.data(), len, nullptr, nullptr);
+  utf8.resize(len - 1);
+  return Napi::String::New(env, utf8);
+#else
   const char* result = bindtextdomain(domain.c_str(), query ? nullptr : location.c_str());
   if (!query) bind_textdomain_codeset(domain.c_str(), "UTF-8");
   if (result == nullptr) return env.Null();
   return Napi::String::New(env, result);
+#endif
 }
 
 // localeCategories() -> { ALL, COLLATE, CTYPE, MESSAGES, MONETARY, NUMERIC, TIME }
