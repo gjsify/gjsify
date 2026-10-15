@@ -2,6 +2,7 @@ import { isValidBic, isValidIban, normalizeIban } from './sepa.js';
 import type {
     TargetFormat,
     TargetPlatform,
+    SiteComponent,
     SiteConfig,
     SiteDownloadConfig,
     SiteLegalLink,
@@ -89,7 +90,28 @@ const FORMATS: readonly TargetFormat[] = [
     'source',
 ];
 
-function parseDownloads(raw: Raw): SiteDownloadConfig[] {
+/**
+ * `gjsify.site.components`: the parts of the product a person installs one after another. `match`
+ * arrives as a string because this is JSON, and is compiled case-insensitively — release asset
+ * names differ in case between the formats that build them.
+ */
+function parseComponents(raw: Raw): SiteComponent[] {
+    return objectList(raw, 'components').map((entry, index) => {
+        const where = `gjsify.site.components[${index}]`;
+        const id = stringField(entry, 'id', where);
+        const name = stringField(entry, 'name', where);
+        const summary = entry.summary === undefined ? undefined : stringField(entry, 'summary', where);
+        if (entry.match === undefined) return { id, name, summary };
+        const pattern = stringField(entry, 'match', where);
+        try {
+            return { id, name, summary, match: new RegExp(pattern, 'i') };
+        } catch (cause) {
+            throw new Error(`${where}.match is not a valid regular expression: ${pattern}`, { cause });
+        }
+    });
+}
+
+function parseDownloads(raw: Raw, components: readonly SiteComponent[]): SiteDownloadConfig[] {
     return objectList(raw, 'downloads').map((entry, index) => {
         const where = `gjsify.site.downloads[${index}]`;
         const platform = stringField(entry, 'platform', where) as TargetPlatform;
@@ -108,7 +130,14 @@ function parseDownloads(raw: Raw): SiteDownloadConfig[] {
         const label = entry.label;
         if (label !== undefined && (typeof label !== 'string' || label === ''))
             throw new Error(`${where}.label must be a non-empty string`);
-        return { platform, format, url, label, available };
+        const component = entry.component === undefined ? undefined : stringField(entry, 'component', where);
+        // A typo here would silently drop the row into the unnamed rest of the dialog.
+        if (component !== undefined && !components.some((part) => part.id === component)) {
+            throw new Error(
+                `${where}.component "${component}" is not one of gjsify.site.components: ${components.map((part) => part.id).join(', ') || '(none declared)'}`,
+            );
+        }
+        return { platform, format, url, label, available, component };
     });
 }
 
@@ -137,6 +166,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
         throw new Error(`gjsify.site.defaultLanguage "${defaultLanguage}" is not in languages`);
 
     const url = requireString(raw, 'url');
+    const components = parseComponents(raw);
 
     return {
         metainfo: requireString(raw, 'metainfo'),
@@ -151,7 +181,8 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
         translations: optionalString(raw, 'translations'),
         pageTranslations: optionalString(raw, 'pageTranslations'),
         icon: optionalString(raw, 'icon'),
-        downloads: parseDownloads(raw),
+        components,
+        downloads: parseDownloads(raw, components),
         releaseAssets: parseReleaseAssets(raw),
         support: objectList(raw, 'support').map((entry, index) => parseSupport(entry, `gjsify.site.support[${index}]`)),
         legal: objectList(raw, 'legal').map(

@@ -12,7 +12,14 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { parseSiteConfig } from './config.js';
-import { DOWNLOAD_LABELS, FORMAT_LABELS, buildDownloadTargets, classifyAsset, defaultLabel } from './downloads.js';
+import {
+    DOWNLOAD_LABELS,
+    FORMAT_LABELS,
+    buildDownloadTargets,
+    classifyAsset,
+    componentOf,
+    defaultLabel,
+} from './downloads.js';
 import { parseFlathubStats, parseFlathubSummary } from './flathub.js';
 import { fetchLatestRelease, parseLatestRelease } from './github.js';
 import { loadSiteData } from './load.js';
@@ -302,6 +309,64 @@ export default async () => {
             expect(() =>
                 parseSiteConfig(manifest({ downloads: [{ platform: 'beos', format: 'zip', url: 'https://x' }] })),
             ).toThrow(/downloads\[0\].platform/);
+        });
+
+        await it('assigns a release asset to the first component whose match accepts it', async () => {
+            const components = [
+                { id: 'app', name: 'Desktop app', match: /^notes[-_]/i },
+                { id: 'extension', name: 'Browser extension' },
+            ];
+            expect(componentOf('notes_1.2.0-1_all.deb', components)).toBe('app');
+            // A signed add-on is named by the store, without the product prefix: the catch-all takes it.
+            expect(componentOf('1bcb7e59df60-1.2.0.xpi', components)).toBe('extension');
+            // With no catch-all declared, an unclaimed file belongs to no part of the product.
+            expect(componentOf('1bcb7e59df60-1.2.0.xpi', components.slice(0, 1))).toBeUndefined();
+            expect(componentOf('notes_1.2.0-1_all.deb', [])).toBeUndefined();
+        });
+
+        await it('orders the dialog by component and recommends once per component and platform', async () => {
+            const config = parseSiteConfig(
+                manifest({
+                    components: [
+                        { id: 'app', name: 'Desktop app', summary: 'Runs on your machine', match: '^notes[-_]' },
+                        { id: 'extension', name: 'Browser extension' },
+                    ],
+                    downloads: [{ platform: 'chromium', format: 'store', available: false, component: 'extension' }],
+                }),
+            );
+            // The match is compiled case-insensitively: release artefacts differ in case per format.
+            expect(config.components[0]!.match!.test('NOTES-1.2.0-1.x86_64.rpm')).toBe(true);
+            const targets = buildDownloadTargets({
+                // Extension first, to prove the component order decides rather than the asset order.
+                assets: [
+                    asset('a-1.2.0-firefox-mv2.zip'),
+                    asset('notes-1.2.0-1.macos.arm64.zip'),
+                    asset('notes_1.2.0-1_all.deb'),
+                ],
+                configured: config.downloads,
+                components: config.components,
+            });
+            expect(targets.map((entry) => [entry.component, entry.os, entry.recommended])).toStrictEqual([
+                ['app', 'linux', true],
+                ['app', 'darwin', true],
+                ['extension', 'firefox', true],
+                ['extension', 'chromium', false],
+            ]);
+        });
+
+        await it('rejects a download pointing at a component nobody declared', async () => {
+            expect(() =>
+                parseSiteConfig(
+                    manifest({
+                        components: [{ id: 'app', name: 'Desktop app' }],
+                        downloads: [{ platform: 'firefox', format: 'store', available: false, component: 'extension' }],
+                    }),
+                ),
+            ).toThrow(/components: app/);
+            expect(() => parseSiteConfig(manifest({ components: [{ id: 'a', name: 'A', match: '[' }] }))).toThrow(
+                /components\[0\].match/,
+            );
+            expect(() => parseSiteConfig(manifest({ components: [{ name: 'A' }] }))).toThrow(/components\[0\].id/);
         });
     });
 

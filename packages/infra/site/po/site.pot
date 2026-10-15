@@ -110,16 +110,19 @@ msgstr ""
 msgid "Not yet available"
 msgstr ""
 
-msgid "All releases"
-msgstr ""
-
 msgid "Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor."
 msgstr ""
 
-msgid "All download options"
+msgid "Browser"
 msgstr ""
 
 msgid "Operating system"
+msgstr ""
+
+msgid "All releases"
+msgstr ""
+
+msgid "All download options"
 msgstr ""
 
 msgid "All releases on GitHub"

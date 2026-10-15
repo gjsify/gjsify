@@ -2,18 +2,26 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { DownloadTarget, Screenshot, SiteData } from '../site-data/index.js';
 import type { ProcessedImage } from './images.js';
-import { badges, ctaLabel, frameAttribute, sepaCard } from './pages.js';
+import { badges, ctaLabel, downloadWidget, frameAttribute, sepaCard } from './pages.js';
 
 const t = (msgid: string) => msgid;
-const target = (os: DownloadTarget['os'], format: DownloadTarget['format']): DownloadTarget => ({
+const target = (os: DownloadTarget['os'], format: DownloadTarget['format'], component?: string): DownloadTarget => ({
     os,
     arch: 'noarch',
     format,
+    component,
     label: '',
     url: 'https://example.org/',
     available: true,
     recommended: true,
 });
+
+/** A `SiteData` with only what the download dialog reads. */
+const downloadData = (components: Array<Record<string, string>>, targets: DownloadTarget[]): SiteData =>
+    ({
+        config: { components },
+        downloads: { targets, hasReleases: true, releasesUrl: 'https://example.org/releases' },
+    }) as unknown as SiteData;
 
 export default async () => {
     await describe('page fragments', async () => {
@@ -63,6 +71,7 @@ export default async () => {
 
         await it('omits the badge value where the pill already carries the fact', async () => {
             const data = {
+                config: { components: [] },
                 downloads: { targets: [target('linux', 'appimage'), target('win32', 'source')] },
                 app: { license: 'GPL-3.0-or-later' },
                 stats: {},
@@ -71,6 +80,41 @@ export default async () => {
             expect(html).toMatch(/badge-platforms/);
             expect(html).toMatch(/<span class="badge-value"[^>]*>GPL-3.0\+<\/span>/);
             expect(html).not.toMatch(/<span class="badge-value"[^>]*>\s*<\/span>/);
+        });
+
+        await it('gives every part of the product its own numbered heading and tab strip', async () => {
+            const data = downloadData(
+                [
+                    { id: 'app', name: 'Desktop app', summary: 'Runs on your machine' },
+                    { id: 'extension', name: 'Browser extension' },
+                ],
+                [target('linux', 'deb', 'app'), target('darwin', 'zip', 'app'), target('firefox', 'xpi', 'extension')],
+            );
+            const html = downloadWidget({ data, t, lang: 'en' });
+            expect(html).toMatch(/<span class="component-step">1<\/span><span>Desktop app<\/span>/);
+            expect(html).toMatch(/<span class="component-step">2<\/span><span>Browser extension<\/span>/);
+            expect(html).toMatch(/class="component-summary">Runs on your machine</);
+            // One strip per part: the app is picked by operating system, the extension by browser.
+            expect([...html.matchAll(/class="os-tabs"/g)].length).toBe(2);
+            expect(html).toMatch(/id="os-tab-app-linux"/);
+            expect(html).toMatch(/id="os-tab-extension-firefox"/);
+            // The button offers the part installed first, not whatever ranked first overall.
+            expect(html).toMatch(/download-cta[^>]*data-os="linux"/);
+        });
+
+        await it('numbers nothing when there is only one part to install', async () => {
+            const single = downloadWidget({ data: downloadData([], [target('linux', 'deb')]), t, lang: 'en' });
+            expect(single).not.toMatch(/component-head|component-step/);
+            expect(single).toMatch(/<h3 class="os-title">/);
+
+            // A product that names its one part keeps the heading; a step number would count to one.
+            const named = downloadWidget({
+                data: downloadData([{ id: 'app', name: 'Desktop app' }], [target('linux', 'deb', 'app')]),
+                t,
+                lang: 'en',
+            });
+            expect(named).toMatch(/<h3 class="component-title"><span>Desktop app<\/span>/);
+            expect(named).not.toMatch(/component-step/);
         });
     });
 };

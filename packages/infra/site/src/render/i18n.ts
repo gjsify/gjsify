@@ -62,6 +62,10 @@ export async function rendererMsgids(renderDir: string): Promise<string[]> {
 export function configMsgids(config: SiteConfig): string[] {
     const msgids = new Set<string>();
     for (const download of config.downloads) if (download.label) msgids.add(download.label);
+    for (const component of config.components) {
+        msgids.add(component.name);
+        if (component.summary) msgids.add(component.summary);
+    }
     return [...msgids];
 }
 

@@ -1,6 +1,7 @@
 import type {
     DownloadTarget,
     ReleaseAsset,
+    SiteComponent,
     SiteDownloadConfig,
     TargetArch,
     TargetFormat,
@@ -124,6 +125,16 @@ function rank<T>(order: readonly T[], value: T): number {
     return index === -1 ? order.length : index;
 }
 
+/**
+ * Which part of the product a release asset installs. The first component whose `match` accepts
+ * the file name wins, so declaration order is the tie-breaker; a component without a `match` is
+ * the catch-all for everything the earlier ones left. Undefined when no component claims the file,
+ * which is also the single-component case where the dialog shows no headings at all.
+ */
+export function componentOf(name: string, components: readonly SiteComponent[]): string | undefined {
+    return components.find((part) => part.match === undefined || part.match.test(name))?.id;
+}
+
 export interface DownloadSources {
     assets: readonly ReleaseAsset[];
     /** Flathub application id, when the app is published there. */
@@ -134,6 +145,8 @@ export interface DownloadSources {
     webAppUrl?: string;
     /** `gjsify.site.downloads`: targets no release asset supplies, e.g. a store page. */
     configured?: readonly SiteDownloadConfig[];
+    /** `gjsify.site.components`, in install order; empty when the product is one thing to download. */
+    components?: readonly SiteComponent[];
 }
 
 /**
@@ -146,15 +159,25 @@ function storeSize(sources: DownloadSources): number | undefined {
     return bundle?.size;
 }
 
-/** Builds the sorted target list and marks the first available target of every platform as recommended. */
+/**
+ * Builds the sorted target list and marks the first available target of every platform as
+ * recommended — once per component, because a person installs each part of the product in turn and
+ * every part needs its own first choice.
+ */
 export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[] {
     const targets: DownloadTarget[] = [];
+    const components = sources.components ?? [];
+    const order = components.map((part) => part.id);
+    // A store install and the live web build have no file name to match on; they are the product
+    // itself, which is the first component in install order.
+    const primaryComponent = components[0]?.id;
 
     if (sources.flathub) {
         targets.push({
             os: 'linux',
             arch: 'noarch',
             format: 'flathub',
+            component: primaryComponent,
             label: defaultLabel('linux', 'flathub'),
             url: `https://flathub.org/apps/${sources.flathub}`,
             available: true,
@@ -168,6 +191,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
         if (!kind) continue;
         targets.push({
             ...kind,
+            component: componentOf(asset.name, components),
             label: defaultLabel(kind.os, kind.format),
             url: asset.downloadUrl,
             available: true,
@@ -182,6 +206,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
             os: 'web',
             arch: 'noarch',
             format: 'web',
+            component: primaryComponent,
             label: defaultLabel('web', 'web'),
             url: sources.webAppUrl,
             available: true,
@@ -194,6 +219,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
             os: entry.platform,
             arch: 'noarch',
             format: entry.format,
+            component: entry.component,
             label: entry.label ?? defaultLabel(entry.platform, entry.format),
             url: entry.available ? (entry.url ?? '') : '',
             available: entry.available,
@@ -203,15 +229,17 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
 
     targets.sort(
         (a, b) =>
+            rank(order, a.component ?? '') - rank(order, b.component ?? '') ||
             rank(PLATFORM_ORDER, a.os) - rank(PLATFORM_ORDER, b.os) ||
             rank(FORMAT_RANK[a.os], a.format) - rank(FORMAT_RANK[b.os], b.format) ||
             rank(ARCH_RANK[a.os], a.arch) - rank(ARCH_RANK[b.os], b.arch),
     );
 
-    const seen = new Set<TargetPlatform>();
+    const seen = new Set<string>();
     for (const target of targets) {
-        if (!target.available || seen.has(target.os)) continue;
-        seen.add(target.os);
+        const key = `${target.component ?? ''}:${target.os}`;
+        if (!target.available || seen.has(key)) continue;
+        seen.add(key);
         target.recommended = true;
     }
     return targets;

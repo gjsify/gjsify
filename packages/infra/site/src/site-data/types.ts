@@ -59,6 +59,26 @@ export interface SiteLegalLink {
     url: string;
 }
 
+/**
+ * One part of the product a person installs separately — a desktop app, the browser extension it
+ * pairs with, a command line build. Declared in `gjsify.site.components`, in the order they are
+ * installed, which is the order the download dialog explains them in.
+ */
+export interface SiteComponent {
+    /** Referenced by `gjsify.site.downloads[].component`; also the `data-component` attribute. */
+    id: string;
+    /** English heading, translated through the website catalogue. */
+    name: string;
+    /** One sentence saying what this part is for and why it is needed. */
+    summary?: string;
+    /**
+     * Release assets whose file name matches belong to this component. Anchor it, because the
+     * first matching component in declaration order wins; a component without one takes whatever
+     * is left, so the catch-all goes last.
+     */
+    match?: RegExp;
+}
+
 /** One entry of `gjsify.site.downloads`: a target the release assets cannot supply (a store page, the install docs). */
 export interface SiteDownloadConfig {
     platform: TargetPlatform;
@@ -69,6 +89,8 @@ export interface SiteDownloadConfig {
     label?: string;
     /** False lists the target as "not yet available" without a link. Default true. */
     available: boolean;
+    /** Id of the `gjsify.site.components` entry this target installs. */
+    component?: string;
 }
 
 /** The `gjsify.site` block of the root package.json, with defaults applied. */
@@ -94,6 +116,11 @@ export interface SiteConfig {
     pageTranslations?: string;
     /** Repo-relative app icon; defaults to the Flatpak or `ship` icon of the root package.json. */
     icon?: string;
+    /**
+     * The separately installed parts of the product, in install order. Empty for the common case of
+     * one thing to download, which the dialog then lists without any component heading.
+     */
+    components: SiteComponent[];
     /** Extra download targets, added to the ones derived from the latest release. */
     downloads: SiteDownloadConfig[];
     /** False ignores the latest release's assets, so `downloads` is the whole list. Default true. */
@@ -129,6 +156,8 @@ export interface DownloadTarget {
     os: TargetPlatform;
     arch: TargetArch;
     format: TargetFormat;
+    /** Id of the `SiteComponent` this target installs; empty when the product has only one part. */
+    component?: string;
     /** English label; the page translates it through the website catalogue. */
     label: string;
     /** Empty when the target is not available yet. */
