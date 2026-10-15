@@ -111,8 +111,10 @@ the GObject engine under it, not about GTK rendering.
    x86_64** compressed, of which 26,697 B is JavaScript. Cold start on the x86_64 emulator,
    median of twenty launches per rung: **+80 ms (+17.8 %)** from plugin-not-imported to opt-in
    (450 → 457 → 530 ms), matching stage 4's ~83 ms on arm64 against a much slower baseline.
-   Deviations: cold start is the `x86_64` emulator, **not** an arm64 device; R8 is not enabled
-   (NativeScript leaves its hooks commented out, and R8 cannot change a `.so`/typelib delta).
+   On the arm64 device (Galaxy S9, release split, twenty launches per rung): **+105.5 ms
+   (+13.0 %)** from plugin-not-imported to real engine on (813.5 → 828.5 → 919 ms).
+   Deviations: R8 is not enabled (NativeScript leaves its hooks commented out, and R8 cannot
+   change a `.so`/typelib delta).
 3. Wire the dual emulator run: the app and storybook tests execute once per engine, next to the
    vectors that already run on both subjects.
    **Done** (#2234): two specs, `app/specs/views.ts` and `app/specs/storybook.ts`, in the existing
