@@ -7,15 +7,32 @@
 // the app-level opt-in of ADR 0105 stage 4 is a decision the APP makes, and the control run
 // (`GJSIFY_GI_OPT_IN=0`) has to be the same app with the same payload in the APK and nothing
 // but that decision different. Default ON — the opted-in run is the subject.
+import { resolve } from 'node:path';
+
 import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
 
-const optIn = process.env.GJSIFY_GI_OPT_IN !== '0';
+// `GJSIFY_GI_PLUGIN=0` keeps `@gjsify/node-gi` OUT OF THE BUNDLE, by aliasing it to
+// `app/no-gi-stub.ts`. It is a third variant beside the opt-in flag, not a synonym for it, and
+// stage 4's own finding is why: importing the bridge loads `libnode_gi.so` from its module body,
+// so `GJSIFY_GI_OPT_IN=0` alone still pays for the native library. The two flags therefore measure
+// two different costs — the DECISION (opt-in) and the IMPORT (plugin) — which is exactly the
+// A0/B0/B/C ladder ADR 0110 gate 2 asks for. It forces the opt-in off: an opt-in that reached the
+// stub would throw, and a variant whose point is "this app pays nothing" must not.
+const plugin = process.env.GJSIFY_GI_PLUGIN !== '0';
+const optIn = plugin && process.env.GJSIFY_GI_OPT_IN !== '0';
+// `GJSIFY_GI_BENCH=1` adds the per-instance benchmark (ADR 0105 stage 2). Off by default so the
+// cold-start and APK-size runs carry neither its seconds nor its bytes.
+const bench = process.env.GJSIFY_GI_BENCH === '1';
 
 export default defineNativescriptConfig(
     {},
     {
         define: {
             __GJSIFY_GI_OPT_IN__: JSON.stringify(optIn),
+            __GJSIFY_GI_BENCH__: JSON.stringify(bench),
+        },
+        resolve: {
+            alias: plugin ? [] : [{ find: /^@gjsify\/node-gi\/gi$/, replacement: resolve('app/no-gi-stub.ts') }],
         },
         build: {
             rollupOptions: {

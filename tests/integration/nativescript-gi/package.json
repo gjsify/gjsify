@@ -5,13 +5,14 @@
     "private": true,
     "main": "app/app.ts",
     "scripts": {
-        "clear": "gjsify clear platforms hooks dist .ns-vite-build *.log tsconfig.tsbuildinfo",
+        "clear": "gjsify clear platforms hooks dist .ns-vite-build release-apks *.log tsconfig.tsbuildinfo",
         "check": "tsc --noEmit",
         "prepare:android": "nativescript prepare android --no-hmr --disable-npm-install",
         "build:android": "nativescript build android --no-hmr --disable-npm-install",
         "test:android": "node scripts/run-on-device.mjs android",
         "test:android:pure-js": "GJSIFY_GI_OPT_IN=0 node scripts/run-on-device.mjs android",
         "size:android": "node scripts/apk-size.mjs",
+        "release:android": "node scripts/build-release-splits.mjs",
         "test": "node scripts/run-on-device.mjs android"
     },
     "repository": {

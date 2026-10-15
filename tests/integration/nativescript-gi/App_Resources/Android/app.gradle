@@ -35,6 +35,36 @@ android {
     }
   }
 
+  // PER-ABI APKs, on request only: `-PgjsifyAbiSplits`.
+  //
+  // ADR 0110 gate 2 asks what the payload costs a SHIPPING download, and a universal APK cannot
+  // answer that — it carries both ABIs, so its total is about 15 MB larger than anything a device
+  // ever downloads. A split names the cost per ABI, which is the number the gate is about.
+  //
+  // Not enabled unconditionally, because `scripts/run-on-device.mjs` installs
+  // `outputs/apk/debug/app-debug.apk` by path and a split build writes
+  // `app-<abi>-debug.apk` instead. The property keeps the suite's everyday flow intact and makes
+  // the measurement build an explicit one.
+  if (project.hasProperty("gjsifyAbiSplits")) {
+    // AGP refuses `ndk.abiFilters` and `splits.abi` together ("Conflicting configuration … cannot
+    // be present when splits abi filters are set"), even when both name the same ABIs — and the
+    // filters above are not only ours: NativeScript's generated build.gradle adds all four it
+    // knows, so the merged set is a union we do not control. Clearing it leaves the `include`
+    // below as the single source of which ABIs get built, which is what a split build means.
+    defaultConfig.ndk.abiFilters.clear()
+    splits {
+      abi {
+        enable true
+        // `reset()` first: the default include list is every ABI AGP knows, and the two the
+        // payload has are the only two that can work (see `abiFilters` above).
+        reset()
+        include "arm64-v8a", "x86_64"
+        // No universal APK: it would be the thing this build exists to stop measuring.
+        universalApk false
+      }
+    }
+  }
+
   aaptOptions {
     additionalParameters "--no-version-vectors"
   }
