@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Browser test entry — re-exports the standard spec so it also runs under `--app browser`.
-export * from './test.mjs';
-import './test.mjs';
+// Browser test entry. Not `./test.mjs`: that registers the AbortController polyfill, which a
+// browser has natively and whose bare specifier it cannot resolve.
+import { run } from '@gjsify/unit';
+
+import eventEmitterTestSuite from './event-emitter.spec.js';
+import callableTestSuite from './callable.spec.js';
+
+run({ eventEmitterTestSuite, callableTestSuite });

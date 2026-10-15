@@ -3,7 +3,6 @@
 // Original: MIT license, Node.js contributors
 
 import { describe, it, expect } from '@gjsify/unit';
-import 'abort-controller/register'; // Registers AbortController/AbortSignal globals on GJS; no-op on Node.js
 
 import { EventEmitter } from 'node:events';
 
