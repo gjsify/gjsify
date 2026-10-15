@@ -1713,7 +1713,7 @@ The Flatpak toolchain, for shipping GJS apps and CLIs to Flathub.
 | Subcommand | What it does |
 |---|---|
 | [`flatpak init`](#gjsify-flatpak-init) | Scaffold the Flathub asset set: manifest JSON, MetaInfo XML, `.desktop` (apps only), `flathub.json`. |
-| [`flatpak check`](#gjsify-flatpak-check) | Run `appstreamcli validate --strict` and `flatpak-builder-lint` locally. |
+| [`flatpak check`](#gjsify-flatpak-check) | Run `appstreamcli validate --strict`, `flatpak-builder-lint` and Flathub's quality guidelines locally. |
 | [`flatpak build`](#gjsify-flatpak-build) | Wrap `flatpak-builder`, with `--force-clean`, `--sandbox` and `--delete-build-dirs` on. |
 | [`flatpak deps`](#gjsify-flatpak-deps) | Wrap `flatpak-node-generator` to produce the offline npm cache. |
 | [`flatpak sources`](#gjsify-flatpak-sources) | Generate an offline `sources` array from any lockfile. |
@@ -1815,7 +1815,13 @@ gjsify flatpak check --repo repo                  # also lint a built repo
 | `--repo <path>` | none | Also run `flatpak-builder-lint repo <path>`, after a build. |
 | `--appstream` | `true` | Run `appstreamcli validate --strict`. `--no-appstream` skips it. |
 | `--builder-lint` | `true` | Run `flatpak-builder-lint manifest`. `--no-builder-lint` skips it. |
+| `--quality` | `true` | Run Flathub's [quality guidelines](https://docs.flathub.org/docs/for-app-authors/metainfo-guidelines/quality-guidelines) on the MetaInfo. `--no-quality` skips it. |
+| `--strict` | `false` | Treat quality warnings as errors. |
+| `--json` | `false` | Print only the quality findings, as JSON, and skip the manifest lint. For CI. |
+| `--quality-network` | `false` | Fetch `http(s)` screenshot URLs to measure their size. Off by default. |
 | `--verbose` | `false` | Stream linter output through. |
+
+**Quality check.** `appstreamcli` answers "is the file valid"; the quality check answers "is the listing good". It is pure TypeScript (no extra tool, same result under Node and GJS) and reads every `xml:lang` variant. Each finding carries a rule id, a severity, the location (`summary[de]`, `screenshot[2]/caption`, `release 1.0`) and a link to the guideline anchor. Limits the page words as "must" (name ≥ 20 characters, summary > 35, icon not square or under 256 px) are errors; everything phrased as "should" is a warning. Exit code is non-zero on errors only, or on any finding with `--strict`. Screenshot and icon sizes are measured from local files only; an image it cannot read is skipped, not failed.
 
 Needs `appstreamcli` and `flatpak-builder-lint` on `PATH`. Both ship inside the `org.flatpak.Builder` Flatpak: `flatpak install -y flathub org.flatpak.Builder`. The command prints that hint when a binary is missing. Exit code is non-zero if any linter fails or any binary is absent.
 

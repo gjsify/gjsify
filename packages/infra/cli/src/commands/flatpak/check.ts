@@ -10,18 +10,30 @@
 // the host PATH; if missing, print an install hint pointing at
 // `flatpak install -y flathub org.flatpak.Builder`.
 
-import { existsSync, readdirSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
 import { type SpawnCompletion, spawnToCompletion } from '../../utils/spawn.js';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
 import { readPackageJson, looksLikeAppId } from './utils.js';
 import { Config } from '../../config.js';
+import {
+    type ImageProbe,
+    type QualityFinding,
+    formatFinding,
+    lintMetainfo,
+    readImageInfo,
+    summarizeFindings,
+} from '../../utils/metainfo-quality.js';
 
 interface FlatpakCheckOptions {
     manifest?: string;
     repo?: string;
     metainfo?: string;
     appstream?: boolean;
+    quality?: boolean;
+    strict?: boolean;
+    json?: boolean;
+    qualityNetwork?: boolean;
     builderLint?: boolean;
     verbose?: boolean;
 }
@@ -50,6 +62,27 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
                 description: 'Run `appstreamcli validate --strict` (default: true).',
                 type: 'boolean',
                 default: true,
+            })
+            .option('quality', {
+                description:
+                    "Run Flathub's quality guidelines (name, summary, branding, screenshots, release notes) on the MetaInfo (default: true).",
+                type: 'boolean',
+                default: true,
+            })
+            .option('strict', {
+                description: 'Treat quality warnings as errors.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('json', {
+                description: 'Print the quality findings as JSON (and nothing else on stdout).',
+                type: 'boolean',
+                default: false,
+            })
+            .option('quality-network', {
+                description: 'Let the quality check fetch http(s) screenshot/icon URLs to measure their size.',
+                type: 'boolean',
+                default: false,
             })
             .option('builder-lint', {
                 description: 'Run `flatpak-builder-lint manifest` (default: true).',
@@ -88,7 +121,15 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
             }
         }
 
-        if (args.builderLint !== false) {
+        if (args.quality !== false) {
+            if (!existsSync(metainfoAbs)) {
+                console.warn(`[gjsify flatpak check] skipping quality check — ${metainfoAbs} not found`);
+            } else if (!(await runQuality(metainfoAbs, appId, args))) {
+                failures++;
+            }
+        }
+
+        if (args.builderLint !== false && !args.json) {
             if (!existsSync(manifestPath)) {
                 console.error(`[gjsify flatpak check] manifest not found: ${manifestPath}`);
                 return process.exit(1);
@@ -112,6 +153,56 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
         console.log('[gjsify flatpak check] all checks passed.');
     },
 };
+
+async function runQuality(metainfoAbs: string, appId: string | undefined, args: FlatpakCheckOptions): Promise<boolean> {
+    const base = dirname(metainfoAbs);
+    const probeImage: ImageProbe = async (ref) => {
+        if (/^https?:\/\//.test(ref)) {
+            if (!args.qualityNetwork) return null;
+            try {
+                const res = await fetch(ref);
+                return res.ok ? readImageInfo(new Uint8Array(await res.arrayBuffer())) : null;
+            } catch {
+                return null;
+            }
+        }
+        const file = resolve(base, ref);
+        return existsSync(file) ? readImageInfo(new Uint8Array(readFileSync(file))) : null;
+    };
+    const id = appId ?? '';
+    const iconRefs = id
+        ? [
+              `icons/hicolor/scalable/apps/${id}.svg`,
+              `icons/${id}.svg`,
+              `${id}.svg`,
+              `${id}.png`,
+              `../data/icons/hicolor/scalable/apps/${id}.svg`,
+          ]
+        : [];
+    const findings: QualityFinding[] = await lintMetainfo(readFileSync(metainfoAbs, 'utf-8'), { probeImage, iconRefs });
+    const strict = args.strict === true;
+    const { errors, warnings } = summarizeFindings(findings, strict);
+    if (args.json) {
+        console.log(
+            JSON.stringify(
+                {
+                    file: metainfoAbs,
+                    errors,
+                    warnings,
+                    findings: findings.map((f) => ({ ...f, severity: strict ? 'error' : f.severity })),
+                },
+                null,
+                2,
+            ),
+        );
+    } else {
+        for (const f of findings) console.log(formatFinding(f, strict));
+        console.log(
+            `[gjsify flatpak check] ${errors === 0 ? 'OK' : 'FAIL'}: quality ${metainfoAbs} — ${errors} error(s), ${warnings} warning(s)`,
+        );
+    }
+    return errors === 0;
+}
 
 function resolveAppId(explicit: string | undefined, flatpak: ConfigDataFlatpak, cwd: string): string | undefined {
     if (flatpak.appId) return flatpak.appId;

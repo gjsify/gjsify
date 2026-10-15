@@ -70,6 +70,13 @@ with no manifest to maintain — see [Ship your app](https://gjsify.github.io/gj
 Every command and flag is in the
 [CLI Reference](https://gjsify.github.io/gjsify/cli-reference/).
 
+`flatpak check` also holds the app's metainfo against Flathub's
+[quality guidelines](https://docs.flathub.org/docs/for-app-authors/metainfo-guidelines/quality-guidelines)
+(name, summary, description, branding, icon, screenshots, releases). Each finding names its
+rule, severity, location and the guideline anchor; the exit code is non-zero only on errors.
+`--strict` turns warnings into errors, `--json` prints machine-readable output for CI, and
+`--no-quality` skips the step. It is plain TypeScript, so it runs the same locally and in CI.
+
 Without a global install, reach the CLI through your runtime's package runner instead:
 `npx @gjsify/cli@latest …`, `bunx @gjsify/cli@latest …` or
 `deno run -A --reload --min-dep-age=0 npm:@gjsify/cli@latest …`. Keep the `@latest` tag,
