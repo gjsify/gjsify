@@ -44,7 +44,7 @@ Whichever route you pick you get the same `gjsify` command, and the runtime you 
 with becomes the one it builds for by default. To pin the CLI per project instead of
 globally, add it as a dev dependency (`npm install -D @gjsify/cli`) — that is how every
 scaffolded template is wired. PATH notes and the update command for each route:
-[Install & Update](https://gjsify.github.io/gjsify/guides/install/).
+[Install & Update](https://gjsify.org/gjsify/guides/install/).
 
 ## Usage
 
@@ -66,9 +66,9 @@ gjsify ship                     # package the built app as a .deb and an .rpm
 ```
 
 `ship` runs the project's own `build` script, stages one payload and wraps it per format,
-with no manifest to maintain — see [Ship your app](https://gjsify.github.io/gjsify/ship/).
+with no manifest to maintain — see [Ship your app](https://gjsify.org/gjsify/ship/).
 Every command and flag is in the
-[CLI Reference](https://gjsify.github.io/gjsify/cli-reference/).
+[CLI Reference](https://gjsify.org/gjsify/cli-reference/).
 
 Without a global install, reach the CLI through your runtime's package runner instead:
 `npx @gjsify/cli@latest …`, `bunx @gjsify/cli@latest …` or
@@ -76,7 +76,7 @@ Without a global install, reach the CLI through your runtime's package runner in
 and on Deno those two extra flags: all three runners reuse a cached copy of an unpinned
 bin, and Deno adds a second rule that refuses anything published in the last 24 hours.
 Neither one tells you it happened — the
-[measurement](https://gjsify.github.io/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you)
+[measurement](https://gjsify.org/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you)
 is in the install guide.
 
 ## Native prebuilds
@@ -96,9 +96,9 @@ resolver still probes a package's own declared spelling first and the retired un
 with no artifact for your host is skipped — every native bridge is optional at runtime.
 
 - How the lookup works, and how to set the same environment by hand:
-  [How It Works](https://gjsify.github.io/gjsify/how-it-works/#native-prebuilds-and-gjsify-run)
+  [How It Works](https://gjsify.org/gjsify/how-it-works/#native-prebuilds-and-gjsify-run)
 - Which artifacts exist per package:
-  [Platform Support](https://gjsify.github.io/gjsify/platform-support/)
+  [Platform Support](https://gjsify.org/gjsify/platform-support/)
 
 ## License
 

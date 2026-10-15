@@ -44,7 +44,7 @@ gjsify targets Linux, macOS and Windows. What this project can actually do on
 each depends on the GNOME libraries you have installed, not on gjsify — GTK and
 libadwaita are packaged for all three, but Linux is where they are best
 supported and best tested. See
-[Platform support](https://gjsify.github.io/gjsify/platform-support/).
+[Platform support](https://gjsify.org/gjsify/platform-support/).
 
 ## Versioning & compatibility
 
@@ -58,5 +58,5 @@ gjsify upgrade --align                     # repair drift back onto one train
 gjsify upgrade --check                     # fail if the deps straddle two trains
 ```
 
-See [Versioning & Compatibility](https://gjsify.github.io/gjsify/versioning/)
+See [Versioning & Compatibility](https://gjsify.org/gjsify/versioning/)
 for details.

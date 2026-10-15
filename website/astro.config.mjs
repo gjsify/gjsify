@@ -9,7 +9,7 @@ const blueprintGrammar = JSON.parse(
 );
 
 export default defineConfig({
-    site: 'https://gjsify.github.io',
+    site: 'https://gjsify.org',
     base: '/gjsify',
     trailingSlash: 'always',
     // Old URLs of pages that moved or were merged away. Destinations must spell out the `/gjsify`
