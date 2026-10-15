@@ -163,13 +163,7 @@ function parseHex(value: string): Hsl | null {
 
 /** Dimensions or SVG-ness from the first bytes of an image file. `null` = unknown format. */
 export function readImageInfo(bytes: Uint8Array): ImageInfo | null {
-    if (
-        bytes.length >= 24 &&
-        bytes[0] === 0x89 &&
-        bytes[1] === 0x50 &&
-        bytes[2] === 0x4e &&
-        bytes[3] === 0x47
-    ) {
+    if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
         const u32 = (o: number): number =>
             ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
         return { kind: 'raster', width: u32(16), height: u32(20) };
@@ -187,7 +181,11 @@ export function readImageInfo(bytes: Uint8Array): ImageInfo | null {
                 continue;
             }
             if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-                return { kind: 'raster', height: (bytes[o + 5] << 8) | bytes[o + 6], width: (bytes[o + 7] << 8) | bytes[o + 8] };
+                return {
+                    kind: 'raster',
+                    height: (bytes[o + 5] << 8) | bytes[o + 6],
+                    width: (bytes[o + 7] << 8) | bytes[o + 8],
+                };
             }
             o += 2 + ((bytes[o + 2] << 8) | bytes[o + 3]);
         }
@@ -227,20 +225,47 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
         const where = loc('name', code);
         const length = [...name].length;
         if (length >= 20) {
-            add('name-too-long', 'error', 'not-too-long', where, `"${name}" is ${length} characters; a name must be shorter than 20`);
+            add(
+                'name-too-long',
+                'error',
+                'not-too-long',
+                where,
+                `"${name}" is ${length} characters; a name must be shorter than 20`,
+            );
         } else if (length > 15) {
             add('name-long', 'warning', 'not-too-long', where, `"${name}" is ${length} characters; ideally at most 15`);
         }
-        if (/\s[-–—:]\s|:\s|\(.+\)/.test(name) || /\b(web browser|editor|client|viewer|player)$/i.test(name) && name.includes(' ')) {
-            add('name-extra-info', 'warning', 'just-the-name', where, `"${name}" carries a description; keep just the name and put the rest in the summary`);
+        if (
+            /\s[-–—:]\s|:\s|\(.+\)/.test(name) ||
+            (/\b(web browser|editor|client|viewer|player)$/i.test(name) && name.includes(' '))
+        ) {
+            add(
+                'name-extra-info',
+                'warning',
+                'just-the-name',
+                where,
+                `"${name}" carries a description; keep just the name and put the rest in the summary`,
+            );
         } else if (/[.-]/.test(name)) {
-            add('name-formatting', 'warning', 'no-weird-formatting', where, `"${name}" contains a dot or dash; avoid punctuation in names`);
+            add(
+                'name-formatting',
+                'warning',
+                'no-weird-formatting',
+                where,
+                `"${name}" contains a dot or dash; avoid punctuation in names`,
+            );
         } else if (/\p{L}/u.test(name)) {
             const letters = name.replace(/[^\p{L}]/gu, '');
             if (name === name.toLowerCase()) {
                 add('name-formatting', 'warning', 'no-weird-formatting', where, `"${name}" is all lowercase`);
             } else if (letters.length > 1 && name === name.toUpperCase()) {
-                add('name-formatting', 'warning', 'no-weird-formatting', where, `"${name}" is all uppercase (exempt only for an established brand such as VLC)`);
+                add(
+                    'name-formatting',
+                    'warning',
+                    'no-weird-formatting',
+                    where,
+                    `"${name}" is all uppercase (exempt only for an established brand such as VLC)`,
+                );
             } else if (!/\s/.test(name) && /\p{Ll}\p{Lu}/u.test(name)) {
                 add('name-formatting', 'warning', 'no-weird-formatting', where, `"${name}" is camel/pascal case`);
             }
@@ -248,17 +273,38 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
     }
 
     // Summary ----------------------------------------------------------------
-    const terms = (options.technicalTerms ?? [...DEFAULT_TECHNICAL_TERMS]).map((term) => ({ term, re: termPattern(term) }));
+    const terms = (options.technicalTerms ?? [...DEFAULT_TECHNICAL_TERMS]).map((term) => ({
+        term,
+        re: termPattern(term),
+    }));
     for (const [code, summary] of summaries) {
         const where = loc('summary', code);
         const length = [...summary].length;
         if (length > 35) {
-            add('summary-too-long', 'error', 'not-too-long-1', where, `"${summary}" is ${length} characters; at most 35 allowed`);
+            add(
+                'summary-too-long',
+                'error',
+                'not-too-long-1',
+                where,
+                `"${summary}" is ${length} characters; at most 35 allowed`,
+            );
         } else if (length > 25 || length < 10) {
-            add('summary-length', 'warning', 'not-too-long-1', where, `"${summary}" is ${length} characters; ideal is 10 to 25`);
+            add(
+                'summary-length',
+                'warning',
+                'not-too-long-1',
+                where,
+                `"${summary}" is ${length} characters; ideal is 10 to 25`,
+            );
         }
         if (/[.。]$/.test(summary)) {
-            add('summary-full-stop', 'warning', 'no-weird-formatting-1', where, 'a summary does not end with a full stop');
+            add(
+                'summary-full-stop',
+                'warning',
+                'no-weird-formatting-1',
+                where,
+                'a summary does not end with a full stop',
+            );
         }
         const words = summary.split(/\s+/).filter((w) => /^\p{L}/u.test(w));
         const capitalised = words.filter((w) => /^\p{Lu}/u.test(w)).length;
@@ -268,7 +314,13 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
         const articles = ARTICLES[langBase(code === '' ? 'en' : code)];
         const first = summary.split(/\s+/)[0]?.toLowerCase();
         if (articles?.includes(first)) {
-            add('summary-article', 'warning', 'dont-start-with-an-article', where, `starts with the article "${first}"; omit it or phrase it with a verb`);
+            add(
+                'summary-article',
+                'warning',
+                'dont-start-with-an-article',
+                where,
+                `starts with the article "${first}"; omit it or phrase it with a verb`,
+            );
         }
         const name = names.get(code) ?? names.get('');
         if (name !== undefined && [...name].length >= 3 && termPattern(name, 'u').test(summary)) {
@@ -276,7 +328,13 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
         }
         const hit = terms.find(({ re }) => re.test(summary));
         if (hit !== undefined) {
-            add('summary-technical', 'warning', 'not-technical', where, `mentions "${hit.term}"; say what the app does for people, not how it is built`);
+            add(
+                'summary-technical',
+                'warning',
+                'not-technical',
+                where,
+                `mentions "${hit.term}"; say what the app does for people, not how it is built`,
+            );
         }
     }
 
@@ -284,18 +342,42 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
     const description = kids(component, 'description').find((d) => lang(d) === '') ?? child(component, 'description');
     if (description !== undefined) {
         const summary = summaries.get('') ?? '';
-        const paragraphs = kids(description, 'p').filter((p) => lang(p) === '').map((p) => clean(p.text));
+        const paragraphs = kids(description, 'p')
+            .filter((p) => lang(p) === '')
+            .map((p) => clean(p.text));
         const body = paragraphs.join(' ');
-        if (summary !== '' && paragraphs.length > 0 && paragraphs[0].replace(/[.!]$/, '').toLowerCase() === summary.toLowerCase()) {
-            add('description-repeats-summary', 'warning', 'dont-repeat-the-summary', 'description', 'the first paragraph repeats the summary');
+        if (
+            summary !== '' &&
+            paragraphs.length > 0 &&
+            paragraphs[0].replace(/[.!]$/, '').toLowerCase() === summary.toLowerCase()
+        ) {
+            add(
+                'description-repeats-summary',
+                'warning',
+                'dont-repeat-the-summary',
+                'description',
+                'the first paragraph repeats the summary',
+            );
         }
         if (summary !== '' && [...body].length < Math.max(80, 3 * [...summary].length)) {
-            add('description-short', 'warning', 'not-too-short', 'description', `${[...body].length} characters; it should be substantially longer than the summary`);
+            add(
+                'description-short',
+                'warning',
+                'not-too-short',
+                'description',
+                `${[...body].length} characters; it should be substantially longer than the summary`,
+            );
         }
         for (const list of [...kids(description, 'ul'), ...kids(description, 'ol')]) {
             const items = kids(list, 'li').filter((li) => lang(li) === '').length;
             if (items > 10) {
-                add('description-long-list', 'warning', 'no-super-long-lists', 'description', `a list with ${items} items; group them or use paragraphs (max 10)`);
+                add(
+                    'description-long-list',
+                    'warning',
+                    'no-super-long-lists',
+                    'description',
+                    `a list with ${items} items; group them or use paragraphs (max 10)`,
+                );
             }
         }
     }
@@ -305,22 +387,49 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
     const light = colors.find((c) => c.attrs.scheme_preference === 'light');
     const dark = colors.find((c) => c.attrs.scheme_preference === 'dark');
     if (light === undefined || dark === undefined) {
-        add('branding-missing', 'warning', 'has-primary-brand-colors', 'branding', 'set two primary brand colors, scheme_preference="light" and "dark"');
+        add(
+            'branding-missing',
+            'warning',
+            'has-primary-brand-colors',
+            'branding',
+            'set two primary brand colors, scheme_preference="light" and "dark"',
+        );
     } else {
         const lightText = clean(light.text).toLowerCase();
         const darkText = clean(dark.text).toLowerCase();
         if (lightText === darkText) {
-            add('branding-identical', 'warning', 'good-brand-colors', 'branding', 'light and dark primary colors are the same');
+            add(
+                'branding-identical',
+                'warning',
+                'good-brand-colors',
+                'branding',
+                'light and dark primary colors are the same',
+            );
         }
         const l = parseHex(lightText);
         const d = parseHex(darkText);
-        for (const [scheme, hsl, text] of [['light', l, lightText], ['dark', d, darkText]] as const) {
+        for (const [scheme, hsl, text] of [
+            ['light', l, lightText],
+            ['dark', d, darkText],
+        ] as const) {
             if (hsl !== null && (hsl.s < 0.15 || hsl.l > 0.93 || hsl.l < 0.07)) {
-                add('branding-dull', 'warning', 'good-brand-colors', `branding/${scheme}`, `${text} is near white, black or gray; brand colors should be colorful`);
+                add(
+                    'branding-dull',
+                    'warning',
+                    'good-brand-colors',
+                    `branding/${scheme}`,
+                    `${text} is near white, black or gray; brand colors should be colorful`,
+                );
             }
         }
         if (l !== null && d !== null && lightText !== darkText && d.l >= l.l) {
-            add('branding-dark-not-darker', 'warning', 'good-brand-colors', 'branding/dark', 'the dark variant should be darker than the light one');
+            add(
+                'branding-dark-not-darker',
+                'warning',
+                'good-brand-colors',
+                'branding/dark',
+                'the dark variant should be darker than the light one',
+            );
         }
     }
 
@@ -331,9 +440,21 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
             if (info === null) continue;
             if (info.kind === 'raster') {
                 if (info.width !== info.height) {
-                    add('icon-not-square', 'error', 'icon-size', 'icon', `${ref} is ${info.width}×${info.height}; the icon has to be square`);
+                    add(
+                        'icon-not-square',
+                        'error',
+                        'icon-size',
+                        'icon',
+                        `${ref} is ${info.width}×${info.height}; the icon has to be square`,
+                    );
                 } else if (info.width < 256) {
-                    add('icon-too-small', 'error', 'icon-size', 'icon', `${ref} is ${info.width}×${info.height}; use SVG or at least 256×256`);
+                    add(
+                        'icon-too-small',
+                        'error',
+                        'icon-size',
+                        'icon',
+                        `${ref} is ${info.width}×${info.height}; use SVG or at least 256×256`,
+                    );
                 }
             }
             break;
@@ -343,17 +464,35 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
     // Screenshots ------------------------------------------------------------
     const shots = kids(child(component, 'screenshots'), 'screenshot');
     if (shots.length === 0) {
-        add('screenshot-missing', 'warning', 'at-least-one-screenshot', 'screenshots', 'at least one screenshot is expected');
+        add(
+            'screenshot-missing',
+            'warning',
+            'at-least-one-screenshot',
+            'screenshots',
+            'at least one screenshot is expected',
+        );
     } else {
         const isEnglish = (s: Node): boolean => {
             const tags = [lang(s), ...kids(s, 'image').map(lang)];
             return tags.every((t) => t === '' || langBase(t) === 'en');
         };
         if (!shots.some(isEnglish)) {
-            add('screenshot-no-english', 'warning', 'at-least-one-screenshot', 'screenshots', 'no screenshot without xml:lang (or in English)');
+            add(
+                'screenshot-no-english',
+                'warning',
+                'at-least-one-screenshot',
+                'screenshots',
+                'no screenshot without xml:lang (or in English)',
+            );
         }
         if (shots[0].attrs.type !== 'default') {
-            add('screenshot-default-not-first', 'warning', 'at-least-one-screenshot', 'screenshot[1]', 'the first screenshot should be type="default" — it is the one users see first');
+            add(
+                'screenshot-default-not-first',
+                'warning',
+                'at-least-one-screenshot',
+                'screenshot[1]',
+                'the first screenshot should be type="default" — it is the one users see first',
+            );
         }
         for (let i = 0; i < shots.length; i++) {
             const shot = shots[i];
@@ -365,16 +504,37 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
             for (const caption of captions) {
                 const text = clean(caption.text);
                 const at = `${where}/${loc('caption', lang(caption))}`;
-                if (/[.。]$/.test(text)) add('caption-full-stop', 'warning', 'image-captions', at, 'a caption does not end with a full stop');
-                if (/^\d/.test(text)) add('caption-starts-with-number', 'warning', 'image-captions', at, 'a caption does not start with a number');
-                if (/[.!?]\s+\p{Lu}/u.test(text)) add('caption-multiple-sentences', 'warning', 'image-captions', at, 'a caption is one sentence');
+                if (/[.。]$/.test(text))
+                    add(
+                        'caption-full-stop',
+                        'warning',
+                        'image-captions',
+                        at,
+                        'a caption does not end with a full stop',
+                    );
+                if (/^\d/.test(text))
+                    add(
+                        'caption-starts-with-number',
+                        'warning',
+                        'image-captions',
+                        at,
+                        'a caption does not start with a number',
+                    );
+                if (/[.!?]\s+\p{Lu}/u.test(text))
+                    add('caption-multiple-sentences', 'warning', 'image-captions', at, 'a caption is one sentence');
             }
             if (options.probeImage !== undefined) {
                 const source = kids(shot, 'image').find((img) => (img.attrs.type ?? 'source') === 'source');
                 const ref = source === undefined ? '' : clean(source.text);
                 const info = ref === '' ? null : await options.probeImage(ref);
                 if (info?.kind === 'raster' && (info.width > 2000 || info.height > 1400)) {
-                    add('screenshot-too-large', 'warning', 'reasonable-window-size', where, `${info.width}×${info.height}; keep the window at most 1000×700 (2000×1400 on HiDPI)`);
+                    add(
+                        'screenshot-too-large',
+                        'warning',
+                        'reasonable-window-size',
+                        where,
+                        `${info.width}×${info.height}; keep the window at most 1000×700 (2000×1400 on HiDPI)`,
+                    );
                 }
             }
         }
@@ -390,9 +550,21 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
             continue;
         }
         if (GENERIC_RELEASE_NOTES.some((re) => re.test(text.replace(/[.!]+$/, '')))) {
-            add('release-notes-generic', 'warning', 'no-bug-fixes-and-performance-improvements', where, `"${text}" says nothing about what changed`);
+            add(
+                'release-notes-generic',
+                'warning',
+                'no-bug-fixes-and-performance-improvements',
+                where,
+                `"${text}" says nothing about what changed`,
+            );
         } else if ([...text].length > 600 || kids(child(notes, 'ul'), 'li').length > 10) {
-            add('release-notes-long', 'warning', 'short-but-informative', where, 'release notes are long; summarise what changed for users');
+            add(
+                'release-notes-long',
+                'warning',
+                'short-but-informative',
+                where,
+                'release notes are long; summarise what changed for users',
+            );
         }
     }
 

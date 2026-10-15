@@ -61,13 +61,19 @@ export default async () => {
 
     await describe('lintMetainfo: name', async () => {
         await it('errors at 20 characters, warns above 15', async () => {
-            expect(await rules(patch('<name>Notes</name>', '<name>Minimal Markdown Editor</name>'))).toContain('name-too-long');
+            expect(await rules(patch('<name>Notes</name>', '<name>Minimal Markdown Editor</name>'))).toContain(
+                'name-too-long',
+            );
             const sixteen = await lintMetainfo(patch('<name>Notes</name>', '<name>Notes Collection</name>'));
             expect(sixteen.find((f) => f.rule === 'name-long')?.severity).toBe('warning');
         });
         await it('flags appended information', async () => {
-            expect(await rules(patch('<name>Notes</name>', '<name>Notes - Take Notes</name>'))).toContain('name-extra-info');
-            expect(await rules(patch('<name>Notes</name>', '<name>Fractal (Matrix)</name>'))).toContain('name-extra-info');
+            expect(await rules(patch('<name>Notes</name>', '<name>Notes - Take Notes</name>'))).toContain(
+                'name-extra-info',
+            );
+            expect(await rules(patch('<name>Notes</name>', '<name>Fractal (Matrix)</name>'))).toContain(
+                'name-extra-info',
+            );
         });
         await it('flags lowercase, uppercase, camel case and dots', async () => {
             expect(await rules(patch('<name>Notes</name>', '<name>notes</name>'))).toContain('name-formatting');
@@ -76,15 +82,20 @@ export default async () => {
             expect(await rules(patch('<name>Notes</name>', '<name>Notes.org</name>'))).toContain('name-formatting');
         });
         await it('reports the locale in the location', async () => {
-            const found = await lintMetainfo(patch('<name xml:lang="de">Notizen</name>', '<name xml:lang="de">notizen</name>'));
+            const found = await lintMetainfo(
+                patch('<name xml:lang="de">Notizen</name>', '<name xml:lang="de">notizen</name>'),
+            );
             expect(found[0].location).toBe('name[de]');
         });
     });
 
     await describe('lintMetainfo: summary', async () => {
-        const withSummary = (s: string): string => patch('<summary>Write notes in style</summary>', `<summary>${s}</summary>`);
+        const withSummary = (s: string): string =>
+            patch('<summary>Write notes in style</summary>', `<summary>${s}</summary>`);
         await it('errors above 35, warns outside 10..25', async () => {
-            expect(await rules(withSummary('Simple, easy-to-use, distraction-free markdown editor'))).toContain('summary-too-long');
+            expect(await rules(withSummary('Simple, easy-to-use, distraction-free markdown editor'))).toContain(
+                'summary-too-long',
+            );
             expect(await rules(withSummary('Write your notes quickly'))).not.toContain('summary-length');
             expect(await rules(withSummary('Write plain text notes quick'))).toContain('summary-length');
             expect(await rules(withSummary('Notes'))).toContain('summary-length');
@@ -96,7 +107,12 @@ export default async () => {
         await it('flags articles per language', async () => {
             expect(await rules(withSummary('An image viewer'))).toContain('summary-article');
             expect(
-                await rules(patch('<summary xml:lang="de">Gedanken festhalten</summary>', '<summary xml:lang="de">Der Notizblock</summary>')),
+                await rules(
+                    patch(
+                        '<summary xml:lang="de">Gedanken festhalten</summary>',
+                        '<summary xml:lang="de">Der Notizblock</summary>',
+                    ),
+                ),
             ).toContain('summary-article');
         });
         await it('flags a repeated name', async () => {
@@ -108,14 +124,21 @@ export default async () => {
             expect(await rules(withSummary('Rusty gadgets for everyone'))).not.toContain('summary-technical');
         });
         await it('takes a configurable term list', async () => {
-            expect(await rules(withSummary('Write with Vala'), { technicalTerms: ['Vala'] })).toContain('summary-technical');
-            expect(await rules(withSummary('GTK4 chat for friends'), { technicalTerms: ['Vala'] })).not.toContain('summary-technical');
+            expect(await rules(withSummary('Write with Vala'), { technicalTerms: ['Vala'] })).toContain(
+                'summary-technical',
+            );
+            expect(await rules(withSummary('GTK4 chat for friends'), { technicalTerms: ['Vala'] })).not.toContain(
+                'summary-technical',
+            );
         });
     });
 
     await describe('lintMetainfo: description', async () => {
         await it('flags a short description and a repeated summary', async () => {
-            const short = patch(/<description>[\s\S]*?<\/description>/.exec(GOOD)![0], '<description><p>Write notes in style</p></description>');
+            const short = patch(
+                /<description>[\s\S]*?<\/description>/.exec(GOOD)![0],
+                '<description><p>Write notes in style</p></description>',
+            );
             const found = await rules(short);
             expect(found).toContain('description-short');
             expect(found).toContain('description-repeats-summary');
@@ -128,7 +151,9 @@ export default async () => {
 
     await describe('lintMetainfo: branding', async () => {
         await it('warns when a scheme is missing', async () => {
-            expect(await rules(patch('<color type="primary" scheme_preference="dark">#7f2c22</color>', ''))).toContain('branding-missing');
+            expect(await rules(patch('<color type="primary" scheme_preference="dark">#7f2c22</color>', ''))).toContain(
+                'branding-missing',
+            );
         });
         await it('flags identical, dull and inverted colours', async () => {
             const same = patch('#7f2c22', '#faa298');
@@ -149,15 +174,30 @@ export default async () => {
                 table[ref] ?? null;
         await it('errors on a small or non-square PNG icon, accepts SVG', async () => {
             const iconRefs = ['icon.png'];
-            expect(await rules(GOOD, { iconRefs, probeImage: probe({ 'icon.png': { kind: 'raster', width: 128, height: 128 } }) })).toContain('icon-too-small');
-            expect(await rules(GOOD, { iconRefs, probeImage: probe({ 'icon.png': { kind: 'raster', width: 512, height: 256 } }) })).toContain('icon-not-square');
-            expect(await rules(GOOD, { iconRefs, probeImage: probe({ 'icon.png': { kind: 'svg' } }) })).toStrictEqual([]);
+            expect(
+                await rules(GOOD, {
+                    iconRefs,
+                    probeImage: probe({ 'icon.png': { kind: 'raster', width: 128, height: 128 } }),
+                }),
+            ).toContain('icon-too-small');
+            expect(
+                await rules(GOOD, {
+                    iconRefs,
+                    probeImage: probe({ 'icon.png': { kind: 'raster', width: 512, height: 256 } }),
+                }),
+            ).toContain('icon-not-square');
+            expect(await rules(GOOD, { iconRefs, probeImage: probe({ 'icon.png': { kind: 'svg' } }) })).toStrictEqual(
+                [],
+            );
         });
         await it('skips what the probe cannot answer', async () => {
             expect(await rules(GOOD, { iconRefs: ['gone.png'], probeImage: probe({}) })).toStrictEqual([]);
         });
         await it('warns on oversized screenshots', async () => {
-            const big = probe({ 'shot.png': { kind: 'raster', width: 2400, height: 1500 }, 'shot2.png': { kind: 'raster', width: 1000, height: 700 } });
+            const big = probe({
+                'shot.png': { kind: 'raster', width: 2400, height: 1500 },
+                'shot2.png': { kind: 'raster', width: 1000, height: 700 },
+            });
             const found = await lintMetainfo(GOOD, { probeImage: big });
             expect(found.map((f) => f.rule)).toStrictEqual(['screenshot-too-large']);
             expect(found[0].location).toBe('screenshot[1]');
@@ -166,33 +206,52 @@ export default async () => {
 
     await describe('lintMetainfo: screenshots', async () => {
         await it('warns when there are none', async () => {
-            expect(await rules(patch(/<screenshots>[\s\S]*<\/screenshots>/.exec(GOOD)![0], ''))).toContain('screenshot-missing');
+            expect(await rules(patch(/<screenshots>[\s\S]*<\/screenshots>/.exec(GOOD)![0], ''))).toContain(
+                'screenshot-missing',
+            );
         });
         await it('requires an English screenshot and default first', async () => {
-            const onlyGerman = patch('<screenshot type="default">', '<screenshot type="default" xml:lang="de">').replace(
-                /<screenshot>\n/,
-                '<screenshot xml:lang="de">\n',
-            );
+            const onlyGerman = patch(
+                '<screenshot type="default">',
+                '<screenshot type="default" xml:lang="de">',
+            ).replace(/<screenshot>\n/, '<screenshot xml:lang="de">\n');
             expect(await rules(onlyGerman)).toContain('screenshot-no-english');
-            expect(await rules(patch('<screenshot type="default">', '<screenshot>'))).toContain('screenshot-default-not-first');
+            expect(await rules(patch('<screenshot type="default">', '<screenshot>'))).toContain(
+                'screenshot-default-not-first',
+            );
         });
         await it('checks captions', async () => {
-            expect(await rules(patch('<caption>The notebook overview</caption>', ''))).toContain('screenshot-caption-missing');
-            expect(await rules(patch('The notebook overview', 'The notebook overview.'))).toContain('caption-full-stop');
-            expect(await rules(patch('The notebook overview', '3 notebooks in a list'))).toContain('caption-starts-with-number');
-            expect(await rules(patch('The notebook overview', 'The overview. It is nice'))).toContain('caption-multiple-sentences');
+            expect(await rules(patch('<caption>The notebook overview</caption>', ''))).toContain(
+                'screenshot-caption-missing',
+            );
+            expect(await rules(patch('The notebook overview', 'The notebook overview.'))).toContain(
+                'caption-full-stop',
+            );
+            expect(await rules(patch('The notebook overview', '3 notebooks in a list'))).toContain(
+                'caption-starts-with-number',
+            );
+            expect(await rules(patch('The notebook overview', 'The overview. It is nice'))).toContain(
+                'caption-multiple-sentences',
+            );
         });
     });
 
     await describe('lintMetainfo: releases', async () => {
         const release = (inner: string): string =>
-            patch(/<release [\s\S]*<\/release>/.exec(GOOD)![0], `<release version="1.1" date="2026-01-02">${inner}</release>`);
+            patch(
+                /<release [\s\S]*<\/release>/.exec(GOOD)![0],
+                `<release version="1.1" date="2026-01-02">${inner}</release>`,
+            );
         await it('flags a release without notes', async () => {
             expect(await rules(release(''))).toContain('release-notes-missing');
         });
         await it('flags generic notes', async () => {
-            expect(await rules(release('<description><p>Bug fixes and performance improvements.</p></description>'))).toContain('release-notes-generic');
-            expect(await rules(release('<description><p>Fehlerbehebungen und Verbesserungen</p></description>'))).toContain('release-notes-generic');
+            expect(
+                await rules(release('<description><p>Bug fixes and performance improvements.</p></description>')),
+            ).toContain('release-notes-generic');
+            expect(
+                await rules(release('<description><p>Fehlerbehebungen und Verbesserungen</p></description>')),
+            ).toContain('release-notes-generic');
         });
         await it('flags overlong notes', async () => {
             const long = `<description><p>${'Changed something visible. '.repeat(40)}</p></description>`;
@@ -203,7 +262,10 @@ export default async () => {
     await describe('summarizeFindings', async () => {
         await it('promotes warnings only under --strict', async () => {
             const findings = await lintMetainfo(
-                patch('<name>Notes</name>', '<name>zettel</name>').replace('<summary>Write notes in style</summary>', '<summary>Write down your ideas</summary>'),
+                patch('<name>Notes</name>', '<name>zettel</name>').replace(
+                    '<summary>Write notes in style</summary>',
+                    '<summary>Write down your ideas</summary>',
+                ),
             );
             expect(summarizeFindings(findings, false)).toStrictEqual({ errors: 0, warnings: 1 });
             expect(summarizeFindings(findings, true)).toStrictEqual({ errors: 1, warnings: 0 });
