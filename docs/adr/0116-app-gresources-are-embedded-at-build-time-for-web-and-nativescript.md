@@ -151,10 +151,13 @@ be a second path on one target only.
   channel: `latest` is 0.64.0, and #2219 came after it. Nothing outside `@gjsify/adwaita-web`
   calls it (`git grep` in this repository and in Learn6502). The colour lookup and the colour
   rendering of ADR 0115 stay; only their entry point changes.
-- `registerIcon` and `unregisterIcon` stay for now. Both are published in `@gjsify/adwaita-web` and
-  `@gjsify/adwaita-nativescript`, and Learn6502's web entry depends on them. Once § 4 and § 5 work
-  on both ports, the docs name `add_resource_path` as the way. Deprecation and removal are a
-  separate decision under the release policy (ADR 0008).
+- `registerIcon` and `unregisterIcon` are removed once § 4 and § 5 work on both ports. Both are
+  published in `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript`, but gjsify is still 0.x,
+  and a breaking change in a minor release is allowed there. The removal lands in the same release
+  as the resource path, together with the migration of Learn6502's web entry, so no consumer is
+  left without a way in.
+- The GtkSource methods `addLanguageFromXml` and `addSchemeFromXml` go the same way, through the
+  GtkSource search paths. ADR 0094's amendment of 2026-10-15 records how.
 
 ## Consequences
 
@@ -168,8 +171,9 @@ be a second path on one target only.
   the gresource; the build reports the embed size per target.
 - The build host needs `glib-compile-resources` for web and Android builds too, not only for
   GNOME builds. `gjsify gresource` already reports a missing tool with a distro hint.
-- The GtkSource methods `addLanguageFromXml` and `addSchemeFromXml` can be replaced the same way as
-  `registerColorIcon`, through `resource://` search paths (§ 6). ADR 0094 owns that decision.
+- The GtkSource managers read `resource://` search paths (§ 6), and `addLanguageFromXml` and
+  `addSchemeFromXml` are removed (ADR 0094, amendment of 2026-10-15). Learn6502's shared UI then
+  configures GtkSource with the same calls as its GNOME app.
 - ADR 0115 gets Amendment 1. Its lookup order and colour rendering stay; its door is replaced.
 
 ## Alternatives rejected
