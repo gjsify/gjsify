@@ -280,7 +280,7 @@ export class GtkWindowControls extends HTMLElement {
         if (token === 'maximize') {
             if (!sovereign || !this._windowFlag(window, 'resizable')) return null;
             // :347-350 — the glyph and the label follow the window's state, not the token.
-            const maximized = window.hasAttribute('maximized');
+            const maximized = window.hasAttribute('maximized') && window.getAttribute('maximized') !== 'false';
             return this._controlButton(
                 maximized
                     ? { ...TOKEN_BUTTONS.maximize, icon: RESTORE_ICON_NAME, label: RESTORE_LABEL }
