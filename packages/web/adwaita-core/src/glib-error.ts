@@ -45,6 +45,9 @@ export const IOErrorEnum = errorDomain('Gio.IOErrorEnum', 1002, {
     PENDING: 20,
 });
 
+/** `Gio.ResourceError`: what the `Gio.Resource` subset raises. */
+export const ResourceError = errorDomain('Gio.ResourceError', 1003, { NOT_FOUND: 0, INTERNAL: 1 });
+
 function domainOf(domain: unknown): Domain {
     const info =
         typeof domain === 'number'

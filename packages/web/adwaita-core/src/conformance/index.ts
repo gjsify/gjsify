@@ -779,3 +779,18 @@ export type {
 // --- Gtk.Window close / maximize / focus members, held on real GJS and on each port ---
 export { WINDOW_ROWS, WINDOW_VECTORS, driveWindowVectors } from './window-members.js';
 export type { WindowCapabilities, WindowRow, WindowSubject, WindowVector } from './window-members.js';
+
+// --- Gio.Resource / Gio.resources_* over bytes glib-compile-resources wrote (ADR 0116 § 3) ---
+export {
+    GIO_RESOURCE_ROWS,
+    GIO_RESOURCE_VECTORS,
+    driveGioResourceVectors,
+    gioResourceFixtures,
+} from './gio-resource.js';
+export type {
+    GioResourceLike,
+    GioResourceNamespace,
+    GioResourceRow,
+    GioResourceSubject,
+    GioResourceVector,
+} from './gio-resource.js';

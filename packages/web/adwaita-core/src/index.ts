@@ -4,7 +4,8 @@
 // (`@gjsify/adwaita-web`, `@gjsify/adwaita-nativescript`; GTK stays native
 // Libadwaita). Pure TS: NO platform imports (no `gi://`, no `@girs/*`, no
 // `@nativescript/core`, no DOM assumptions), no `/register` subpath, no
-// `globalThis` writes — pure named exports only. Follows the
+// `globalThis` writes but one (the Gio resource registry's non-enumerable
+// singleton mark, ADR 0116 § 3) — pure named exports only. Follows the
 // `@gjsify/storybook-core` seam pattern: behavior lives here once, renderers
 // stay thin adapters.
 //
@@ -448,7 +449,16 @@ export { createGLibTimers } from './glib-timers.js';
 export type { GLibTimers, SourceFunc, TimerHost } from './glib-timers.js';
 
 // --- Gtk.FileDialog, Gio.File and the GLib values they need (ADR 0100) ---
-export { GLibError, DialogError, IOErrorEnum, asGLibError } from './glib-error.js';
+export { GLibError, DialogError, IOErrorEnum, ResourceError, asGLibError } from './glib-error.js';
+export {
+    Resource as GioResource,
+    ResourceLookupFlags,
+    resources_register,
+    resources_unregister,
+    resources_lookup_data,
+    resources_enumerate_children,
+    resources_get_info,
+} from './gio-resource.js';
 export { Bytes as GLibBytes } from './glib-bytes.js';
 export {
     FileDialog as GtkFileDialog,

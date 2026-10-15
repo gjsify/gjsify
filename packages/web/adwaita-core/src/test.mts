@@ -80,6 +80,8 @@ import simpleActionGroupTestSuite from './simple-action-group.spec.js';
 import simpleActionGroupOracleTestSuite from './simple-action-group.gjs.spec.js';
 import fileChooserTestSuite from './file-chooser.spec.js';
 import fileChooserOracleTestSuite from './file-chooser.gjs.spec.js';
+import gioResourceTestSuite from './gio-resource.spec.js';
+import gioResourceOracleTestSuite from './gio-resource.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -162,4 +164,6 @@ run({
     simpleActionGroupOracleTestSuite,
     fileChooserTestSuite,
     fileChooserOracleTestSuite,
+    gioResourceTestSuite,
+    gioResourceOracleTestSuite,
 });
