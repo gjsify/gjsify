@@ -15,6 +15,9 @@ import {
     linkWindow,
 } from './gio-actions.js';
 import { createGObject } from './gobject.js';
+import { IconTheme } from './gtk-platform.js';
+
+const iconTheme = new IconTheme();
 
 const host: ApplicationHost = {
     name: 'test host',
@@ -22,6 +25,7 @@ const host: ApplicationHost = {
     start: (body) => void body(),
     detach() {},
     exit() {},
+    iconTheme: () => iconTheme,
 };
 
 class TestApplication extends GtkApplicationBase {
@@ -81,6 +85,7 @@ const subject: ApplicationSubject = {
     SimpleAction: SimpleAction as unknown as ApplicationSubject['SimpleAction'],
     handlesOpen: ApplicationFlags.HANDLES_OPEN,
     scene,
+    iconTheme: () => iconTheme,
 };
 
 export default async () => {

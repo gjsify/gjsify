@@ -20,6 +20,11 @@ interface GtkModule {
     Box: Ctor;
     MenuButton: Ctor;
     Popover: Ctor;
+    IconTheme: {
+        get_for_display(
+            display: unknown,
+        ): NonNullable<ApplicationSubject['iconTheme']> extends () => infer T ? T : never;
+    };
 }
 
 export default async () => {
@@ -28,6 +33,8 @@ export default async () => {
         const Gio = (await import('gi://Gio?version=2.0' as string)).default as GioModule;
         const Gtk = (await import('gi://Gtk?version=4.0' as string)).default as GtkModule;
         const hasDisplay = Gtk.init_check();
+        const Gdk = (await import('gi://Gdk?version=4.0' as string)).default;
+        const iconTheme = hasDisplay ? () => Gtk.IconTheme.get_for_display(Gdk.Display.get_default()) : undefined;
 
         const call = (o: unknown, m: string, ...a: unknown[]) =>
             (o as Record<string, (...args: unknown[]) => unknown>)[m]!(...a);
@@ -72,6 +79,7 @@ export default async () => {
                 SimpleAction: Gio.SimpleAction,
                 handlesOpen: Gio.ApplicationFlags.HANDLES_OPEN,
                 scene,
+                iconTheme,
                 // The runner's own main loop is running, so `runAsync` refuses; register + activate
                 // is the same startup-then-activate order. `runAsync` itself is measured standalone.
                 ready: (app) => void call(app, 'register', null),

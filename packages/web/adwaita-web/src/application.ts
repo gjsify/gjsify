@@ -19,6 +19,7 @@ import {
     type AdwMenuModel,
     type ApplicationHost,
 } from '@gjsify/adwaita-core';
+import { IconTheme } from './namespace/gtk-platform.js';
 import { webPlatformHost } from './platform-host.js';
 
 export const webHost: ApplicationHost = {
@@ -38,6 +39,7 @@ export const webHost: ApplicationHost = {
         (window as Element).remove();
     },
     exit() {},
+    iconTheme: () => IconTheme.get_for_display(null),
 };
 
 /** An element's parent for action resolution; a popover is rooted at the widget that owns it. */

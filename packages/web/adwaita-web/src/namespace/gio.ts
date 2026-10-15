@@ -35,5 +35,15 @@ export {
     promisify as _promisify,
 } from '@gjsify/adwaita-core';
 export { SimpleAction, SimpleActionGroup, ApplicationFlags } from '@gjsify/adwaita-core';
+export {
+    GioResource as Resource,
+    ResourceError,
+    ResourceLookupFlags,
+    resources_enumerate_children,
+    resources_get_info,
+    resources_lookup_data,
+    resources_register,
+    resources_unregister,
+} from '@gjsify/adwaita-core';
 export { GioApplication as Application } from '../application.js';
 export { Settings } from '@gjsify/app-settings/browser';

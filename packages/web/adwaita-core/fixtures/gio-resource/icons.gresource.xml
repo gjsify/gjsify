@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/gjsify/icons/icons">
+    <file>flat.png</file>
+    <file>flat.svg</file>
+    <file>16x16/apps/arrow-rtl.png</file>
+    <file>16x16/apps/arrow.png</file>
+    <file>16x16/apps/size.png</file>
+    <file>16x16/apps/sym.png</file>
+    <file>16x16@2/apps/size.png</file>
+    <file compressed="true">22x22/apps/packed.png</file>
+    <file>24x24/apps/suffix.png</file>
+    <file>24x24/apps/suffix.svg</file>
+    <file>48x48/apps/size.png</file>
+    <file>scalable/actions/go-next-symbolic.svg</file>
+    <file>scalable/apps/size.svg</file>
+    <file>scalable/apps/sym-symbolic.svg</file>
+    <file>symbolic/apps/only-symbolic.svg</file>
+    <file>loose.svg</file>
+    <file>loose.xpm</file>
+    <file>old.xpm</file>
+  </gresource>
+  <gresource prefix="/org/gjsify/menus">
+    <file alias="gtk/menus.ui">../menus/gtk/menus.ui</file>
+  </gresource>
+</gresources>

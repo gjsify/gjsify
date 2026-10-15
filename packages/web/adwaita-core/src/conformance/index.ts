@@ -794,3 +794,19 @@ export type {
     GioResourceSubject,
     GioResourceVector,
 } from './gio-resource.js';
+
+// --- Gtk.IconTheme resource paths: which file answers a name (ADR 0116 § 4) ---
+export {
+    ICON_FIXTURE_PATH,
+    ICON_THEME_RESOURCE_ROWS,
+    ICON_THEME_RESOURCE_VECTORS,
+    driveIconThemeResourceVectors,
+} from './icon-theme-resources.js';
+export type {
+    IconLookupDirection,
+    IconThemeLike,
+    IconThemeResourceAnswer,
+    IconThemeResourceRow,
+    IconThemeResourceSubject,
+    IconThemeResourceVector,
+} from './icon-theme-resources.js';

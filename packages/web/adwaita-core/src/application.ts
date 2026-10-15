@@ -9,7 +9,8 @@
 // properties (`application-id`) from inside `super()`, before a subclass field initializer could run
 // and overwrite what that wrote.
 //
-// Reference: GLib gio/gapplication.c (signal order), GTK gtk/gtkapplication.c (windows)
+// Reference: GLib gio/gapplication.c (signal order, resource-base-path), GTK gtk/gtkapplication.c
+// (windows, gtk_application_load_resources)
 
 import {
     GIR_TYPE,
@@ -22,6 +23,7 @@ import {
 } from './gobject.js';
 import { AcceleratorMap } from './accelerators.js';
 import { applicationOfWindow, findActionGroup, installActionMap, linkWindow } from './gio-actions.js';
+import { resources_get_info } from './gio-resource.js';
 import { keyvalOfKey } from './gtk-platform.js';
 import { parseDetailedAction } from './menu.js';
 
@@ -55,6 +57,11 @@ export interface ApplicationHost {
     detach(window: object): void;
     /** The application ended: a platform that has a process to end ends it. */
     exit(): void;
+    /**
+     * The `Gtk.IconTheme` of the default display, which startup adds `<resource-base-path>/icons/`
+     * to (ADR 0116 § 4). A platform without one draws no resource icons, and startup skips it.
+     */
+    iconTheme?(): { add_resource_path(path: string): void };
 }
 
 /** `g_application_id_is_valid`: dotted, two or more non-empty elements, none starting with a digit. */
@@ -88,8 +95,6 @@ const REFUSED_METHODS = [
     'add_main_option',
     'add_main_option_entries',
     'add_option_group',
-    'set_resource_base_path',
-    'get_resource_base_path',
     'set_flags',
     'get_is_remote',
     'get_is_registered',
@@ -100,14 +105,7 @@ const REFUSED_METHODS = [
     'set_default',
 ] as const;
 
-const REFUSED_PROPERTIES = [
-    'is_remote',
-    'is_registered',
-    'is_busy',
-    'resource_base_path',
-    'inactivity_timeout',
-    'action_group',
-] as const;
+const REFUSED_PROPERTIES = ['is_remote', 'is_registered', 'is_busy', 'inactivity_timeout', 'action_group'] as const;
 
 const REFUSED_SIGNALS = ['open', 'command-line', 'handle-local-options', 'shutdown', 'name-lost'] as const;
 
@@ -124,6 +122,8 @@ const GTK_REFUSED_METHODS = [
 
 interface AppState {
     id: string | null;
+    /** `undefined` until construction ends, which derives it from the id unless one was given. */
+    resourceBasePath: string | null | undefined;
     windows: object[];
     running: boolean;
     resolve: (code: number) => void;
@@ -139,7 +139,7 @@ function rememberDefault(app: object): void {
 function stateOf(app: object): AppState {
     let state = STATE.get(app);
     if (state === undefined) {
-        state = { id: null, windows: [], running: false, resolve: () => {} };
+        state = { id: null, resourceBasePath: undefined, windows: [], running: false, resolve: () => {} };
         STATE.set(app, state);
     }
     return state;
@@ -207,6 +207,12 @@ export class GioApplicationBase extends GObjectObject {
     constructor(params?: Record<string, unknown>) {
         super(params);
         rememberDefault(this);
+        // `g_application_constructed`: the default comes from the id once, at construction; a
+        // `resource-base-path` passed to the constructor is set after it and wins.
+        const state = stateOf(this);
+        if (state.resourceBasePath === undefined) {
+            state.resourceBasePath = state.id === null ? null : `/${state.id.split('.').join('/')}`;
+        }
     }
 
     get application_id(): string | null {
@@ -248,6 +254,29 @@ export class GioApplicationBase extends GObjectObject {
 
     get_flags(): number {
         return 0;
+    }
+
+    get resource_base_path(): string | null {
+        return stateOf(this).resourceBasePath ?? null;
+    }
+
+    set resource_base_path(path: string | null | undefined) {
+        const value = path ?? null;
+        if (value !== null && !value.startsWith('/')) {
+            throw new Error(`Gio.Application: resource base path '${value}' does not start with '/'`);
+        }
+        const state = stateOf(this);
+        if (state.resourceBasePath === value) return;
+        state.resourceBasePath = value;
+        this.notify('resource-base-path');
+    }
+
+    get_resource_base_path(): string | null {
+        return this.resource_base_path;
+    }
+
+    set_resource_base_path(resource_path: string | null): void {
+        this.resource_base_path = resource_path;
     }
 
     /** `startup`: `RUN_FIRST`, so the class closure runs before the handlers. */
@@ -339,6 +368,7 @@ export class GioApplicationBase extends GObjectObject {
 registerBaseClass(GioApplicationBase as never, 'GApplication', { startup: [], activate: [] }, [
     ParamSpec.string('application-id', '', '', ParamFlags.READWRITE | ParamFlags.CONSTRUCT, null),
     ParamSpec.uint('flags', '', '', ParamFlags.READWRITE | ParamFlags.CONSTRUCT, 0, 0xffffffff, 0),
+    ParamSpec.string('resource-base-path', '', '', ParamFlags.READWRITE, null),
 ]);
 installActionMap(GioApplicationBase.prototype, true);
 
@@ -394,6 +424,12 @@ export type GtkApplicationConstructor = new (...args: any[]) => GtkApplicationMe
 // every accessor as `set x(v): any`, which TypeScript rejects (TS1095) in a consumer without `skipLibCheck`.
 export function withGtkApplication<T extends GioApplicationConstructor>(Base: T): T & GtkApplicationConstructor {
     class GtkApplication extends Base {
+        /** `gtk_application_startup`: the parent's startup, then `gtk_application_load_resources`. */
+        override vfunc_startup(): void {
+            super.vfunc_startup();
+            loadResources(this);
+        }
+
         get active_window(): object | null {
             return stateOf(this).windows[0] ?? null;
         }
@@ -442,6 +478,34 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
     }
     refuseMembers(GtkApplication.prototype, GTK_REFUSED_METHODS, []);
     return GtkApplication;
+}
+
+function hasResource(path: string): boolean {
+    try {
+        return resources_get_info(path, 0)[0];
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * `gtk_application_load_resources`: `<base>/icons/` joins the icon theme's resource path. The menus
+ * and the help overlay it would also load are refused while present (ADR 0116 § 5), never ignored.
+ */
+function loadResources(app: GioApplicationBase): void {
+    const base = app.resource_base_path;
+    if (base === null) return;
+    const slash = base.endsWith('/') ? '' : '/';
+    hostOf(app).iconTheme?.().add_resource_path(`${base}${slash}icons/`);
+    for (const file of ['gtk/menus.ui', 'gtk/help-overlay.ui']) {
+        const path = `${base}${slash}${file}`;
+        if (hasResource(path)) {
+            throw new UnsupportedGObjectError(
+                `Gtk.Application resource ${file}`,
+                `Gtk.Application: GTK loads ${path} at startup, and this port does not yet (ADR 0116 § 5).`,
+            );
+        }
+    }
 }
 
 /** The core's own `Gtk.Application`, over the core's `Gio.Application`. */
