@@ -67,3 +67,21 @@ never returns NULL (`refs/gtk/gtk/gtkicontheme.c`, `choose_icon`).
 - NativeScript has the same gap: its `Adw.AboutDialog.applicationIcon` paints a text glyph
   (ADR 0034 § Amendment 18), and its icon theme resolves symbolic names only. Closing it is
   separate work.
+
+## Amendment 1 (2026-10-15): the door is replaced by GTK's resource path
+
+[ADR 0116](0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md) (accepted
+2026-10-15) embeds the app's GResource at build time and answers it synchronously with a Gio subset.
+That removes the premise of Decision 4: the web then has a GResource, and the lookup needs no URL probe.
+So:
+
+- Decision 2 is replaced. A full-colour icon enters through `Gtk.IconTheme.add_resource_path`, or
+  through the `<resource-base-path>/icons/` path `GtkApplication` adds at startup.
+  `registerColorIcon` is removed before the next stable release; it reached only the `next`
+  channel. `registerIcon` and `unregisterIcon` follow once resource paths work on both ports
+  (ADR 0116 § 8).
+- Decision 4 is replaced for resource paths; `add_search_path` stays a record.
+- Decision 1 (one lookup in GThemedIcon order) and Decision 3 (colour rendering in the same box)
+  stay unchanged.
+
+The status stays Proposed.

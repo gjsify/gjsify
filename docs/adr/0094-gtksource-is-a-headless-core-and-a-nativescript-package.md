@@ -194,3 +194,25 @@ Named gaps: a triple tap has no platform selection below API 28, so on API 24 it
 unstopped, not applied natively. Drag-extend of a selection handle is not a `Gtk.TextExtendSelection`
 gesture on Android and is not emitted. The package stays `partial`; the specs for the tap counter run
 on the NativeScript door without a device (`multi-tap.spec.ts`).
+
+## Amendment (2026-10-15, accepted with ADR 0116): search paths replace the XML doors
+
+`LanguageManager.addLanguageFromXml` and `StyleSchemeManager.addSchemeFromXml` have no GtkSourceView
+counterpart. They exist because the web and NativeScript ports had no file system and no GResource
+for `set_search_path` to walk (the Context of `style-scheme.ts`). ADR 0116 embeds the app's GResource
+at build time and answers it synchronously, so that reason goes away.
+
+ADR 0116 is accepted, so:
+
+- `get_search_path`, `set_search_path`, `append_search_path` and `prepend_search_path` work on both
+  managers for `resource://` entries, and the managers scan them as `gtksourcelanguagemanager.c` and
+  `gtksourcestyleschememanager.c` do (`*.lang`, `*.xml`). A plain file-system entry stays a record
+  on the web, as `Gtk.IconTheme.add_search_path` does (ADR 0116 § 4).
+- `addLanguageFromXml` and `addSchemeFromXml` are removed in the same release. gjsify is 0.x, where
+  a minor release may break. Learn6502's shared UI moves to the `set_search_path` calls its GNOME
+  app already makes (`packages/app-gnome/src/resources.ts`).
+- The deliberate gap "LGPL data is not bundled" stays. An app that wants the real `Adwaita` scheme
+  puts it in its own GResource and lists the path, as on GNOME. The fallback schemes stay the
+  answer when no path supplies `Adwaita`.
+
+Accepted with ADR 0116 on 2026-10-15.
