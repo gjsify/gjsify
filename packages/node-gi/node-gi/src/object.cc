@@ -734,6 +734,30 @@ Napi::Value SetProperty(const Napi::CallbackInfo& info) {
     Napi::TypeError::New(env, "no such property '" + name + "'").ThrowAsJavaScriptException();
     return env.Undefined();
   }
+  // gjs refuses an out-of-range value for these property types on assignment
+  // (object.cpp, with its own text); JsToGValue below keeps wrapping them, as gjs's
+  // constructor-property path does.
+  GITypeTag intTag = GI_TYPE_TAG_VOID;
+  switch (G_TYPE_FUNDAMENTAL(pspec->value_type)) {
+    case G_TYPE_CHAR: intTag = GI_TYPE_TAG_INT8; break;
+    case G_TYPE_UCHAR: intTag = GI_TYPE_TAG_UINT8; break;
+    case G_TYPE_UINT: intTag = GI_TYPE_TAG_UINT32; break;
+    case G_TYPE_INT64: intTag = GI_TYPE_TAG_INT64; break;
+    case G_TYPE_UINT64: intTag = GI_TYPE_TAG_UINT64; break;
+    default: break;
+  }
+  if (intTag != GI_TYPE_TAG_VOID) {
+    GIArgument probe;
+    std::string shown;
+    NodeGiIntResult r = NodeGiJsToInteger(info[2], intTag, &probe, &shown);
+    if (r == NodeGiIntResult::kPending) return env.Undefined();
+    if (r == NodeGiIntResult::kOutOfRange) {
+      Napi::Error::New(env, "value " + shown + " is out of range for " + pspec->name +
+                                " (type " + NodeGiIntTagName(intTag) + ")")
+          .ThrowAsJavaScriptException();
+      return env.Undefined();
+    }
+  }
   GValue v = G_VALUE_INIT;
   g_value_init(&v, pspec->value_type);
   if (JsToGValue(env, info[2], &v)) {

@@ -221,26 +221,10 @@ function wrapGError(handle, withPosition = false, hideAbove = wrapGError) {
 // domain must already name something, so `new GLib.Error()` is refused here rather
 // than producing a GError no `matches()` can ever hit.
 function newErrorLiteral(domain, code, message) {
-    const quark = toDomainQuark(domain);
-    if (native.callFunction('GLib', 'quark_to_string', [quark]) === null) {
+    if (native.callFunction('GLib', 'quark_to_string', [domain]) === null) {
         throw new TypeError(`Error.new_literal: ${domain} is not a valid domain`);
     }
-    return native.callStaticMethod('GLib', 'Error', 'new_literal', [quark, code, message]);
-}
-
-// GJS's uint32 conversion for a `domain` argument (gi/js-value-inl.h,
-// js_value_to_c_checked): `undefined` and a non-finite NUMBER become 0 silently,
-// anything else goes through ToNumber and is REFUSED when it misses uint32 range.
-// node-gi's own NodeGiToUint32 has no range check, so the node-gi-only spelling
-// `err.matches('g-io-error-quark', code)` converted to NaN→0 and quietly matched
-// nothing; GJS cannot run that line at all, so neither can this.
-function toDomainQuark(domain) {
-    if (domain === undefined || (typeof domain === 'number' && !Number.isFinite(domain))) return 0;
-    const quark = Number(domain);
-    if (Number.isNaN(quark) || quark < 0 || quark > 0xffffffff) {
-        throw new Error('Argument domain: value is out of range for uint32');
-    }
-    return quark >>> 0;
+    return native.callStaticMethod('GLib', 'Error', 'new_literal', [domain, code, message]);
 }
 
 // `GLib.Error`: a plain FUNCTION, not a `class … extends Error` — GJS's
@@ -303,7 +287,7 @@ Object.defineProperties(GLibError.prototype, {
                 `method GLib.Error.matches: At least 2 arguments required, but only ${arguments.length} passed`,
             );
         }
-        return native.callBoxedMethod(this[HANDLE], 'matches', [toDomainQuark(domain), code]);
+        return native.callBoxedMethod(this[HANDLE], 'matches', [domain, code]);
     }),
 });
 defineErrorFields(GLibError.prototype, 'GLib.Error', undefined);
