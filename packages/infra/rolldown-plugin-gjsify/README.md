@@ -51,6 +51,10 @@ For a GJS build the bundle records the addon's **package identity**, not a path 
 - A cross-build works when the target's binary is installed on the builder: a multi-platform npm package, or `gjsify install`, which materialises every platform package.
 - `runtimeResolve` (set from `format === 'esm'` by `gjsify build`) gates the whole mechanism: without the bundle-URL banner there is nothing to anchor on, so the rewrite is declined with a warning rather than emitting a path that would only be right on the build machine.
 
+## `.gresource.xml` imports
+
+`import bytes from './data/app.data.gresource.xml'` yields the compiled GResource as a `Uint8Array` ([ADR 0116](../../../docs/adr/0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md)). To type it, add `"@gjsify/rolldown-plugin-gjsify/types"` to your `tsconfig.json` `compilerOptions.types`.
+
 ## License
 
 MIT
