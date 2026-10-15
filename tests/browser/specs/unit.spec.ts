@@ -8,6 +8,8 @@ const BUNDLE_TIMEOUT = 110_000;
 interface GjsifyTestResults {
     passed: number;
     failed: number;
+    /** A suite body threw and every later suite was skipped. */
+    incomplete: boolean;
     /** Tests that ran. Was ASSERTIONS until #1557 renamed the two apart. */
     total: number;
     /** Assertions executed — the floor below is over this one, deliberately. */
@@ -55,6 +57,12 @@ for (const bundle of bundles) {
         ).toBeGreaterThan(0);
 
         const errorSummary = results.errors.map((e) => `  [${e.suite}] ${e.test}: ${e.message}`).join('\n');
+
+        expect(
+            results.incomplete,
+            `${bundle.url} is INCOMPLETE — a suite body threw and every later suite was skipped ` +
+                `(${results.total} tests ran before it):\n${errorSummary}`,
+        ).toBe(false);
 
         expect(results.failed, `${results.failed} of ${results.total} tests failed:\n${errorSummary}`).toBe(0);
     });

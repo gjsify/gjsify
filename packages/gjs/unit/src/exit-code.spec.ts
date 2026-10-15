@@ -14,7 +14,7 @@
 // The tally alone cannot answer this, and that is the point of the second argument:
 // a suite body that threw says nothing about the tests that never started, so it
 // must not be counted as a test failure — but it must still fail the process.
-import { describe, expect, exitCodeFor, type FlushableStream, flushed, it } from '@gjsify/unit';
+import { browserResultsFor, describe, expect, exitCodeFor, type FlushableStream, flushed, it } from '@gjsify/unit';
 
 /** A stream whose writes complete only when the spec says so — a pipe nobody has read yet. */
 function heldStream(): { stream: FlushableStream; release: (error?: Error) => void; writes: string[] } {
@@ -52,6 +52,25 @@ export default async () => {
 
         await it('fails on both at once without double-deciding', async () => {
             expect(exitCodeFor(2, true)).toBe(1);
+        });
+    });
+
+    await describe('browser results — a browser has no exit code', async () => {
+        const clean = { run: 5, failed: 0, outside: 0, assertions: 9, errors: [], bodyThrew: false, bodyMessage: '' };
+
+        await it('reports a clean run as complete with nothing failed', async () => {
+            const r = browserResultsFor(clean);
+            expect(r.incomplete).toBe(false);
+            expect(r.failed).toBe(0);
+            expect(r.passed).toBe(5);
+        });
+
+        await it('counts an incomplete run as a failure and names the throw', async () => {
+            const r = browserResultsFor({ ...clean, bodyThrew: true, bodyMessage: 'boom' });
+            expect(r.incomplete).toBe(true);
+            expect(r.failed).toBe(1);
+            expect(r.passed).toBe(5);
+            expect(r.errors[r.errors.length - 1].message).toBe('boom');
         });
     });
 
