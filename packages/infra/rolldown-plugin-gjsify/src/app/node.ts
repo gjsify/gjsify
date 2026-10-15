@@ -18,6 +18,7 @@ import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
 import { giOptionalPlugin } from '../plugins/gi-optional.js';
 import { gschemaPlugin } from '../plugins/gschema.js';
+import { gresourcePlugin } from '../plugins/gresource.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { nodeNativeExternalPlugin } from '../plugins/node-native-external.js';
@@ -392,6 +393,7 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // `globalThis.window = {…}` is the same statement, the guard is untouched, and
         // nothing defines `window`.
         gschemaPlugin({ mode: 'ignore' }),
+        gresourcePlugin({ compressed: 'keep' }),
         implicitGlobalAssignPlugin(),
         // Decides the fate of `@girs/*` before `aliasPlugin` and the default
         // resolver (same composition order as `app/browser.ts`). `emptyGirs` is
