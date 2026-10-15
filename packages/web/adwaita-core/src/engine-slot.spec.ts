@@ -13,9 +13,15 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
-import { createGObject, gobjectEngineName, PURE_JS_ENGINE, type GObjectDoor } from './gobject.js';
-import type { GObjectEngine } from './engine.js';
+import { engineForTarget, registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
+import {
+    createGObject,
+    gobjectEngineName,
+    PURE_JS_ENGINE,
+    usePureJsGObjectEngine,
+    type GObjectDoor,
+} from './gobject.js';
+import type { EngineTarget, GObjectEngine } from './engine.js';
 
 /** A door that is never reached: nothing here registers a class or builds a tree. */
 const door: GObjectDoor = {
@@ -113,6 +119,90 @@ export default async () => {
         await it('counts a gobjectEngineName query as a read', () => {
             resetRegisteredEngine();
             expect(gobjectEngineName()).toBe('pure-js');
+            let threw = false;
+            try {
+                registerGObjectEngine(namedEngine('real-gio'));
+            } catch {
+                threw = true;
+            }
+            expect(threw).toBe(true);
+            resetRegisteredEngine();
+        });
+    });
+
+    await describe('the engine a TARGET defaults to', async () => {
+        // `engineForTarget` is the whole of ADR 0110 § 1 in the core: the slot still decides when
+        // the app filled it, and what an empty one means is now the target's answer. The two
+        // targets below are the shapes the port's `engine-target.ts` and `.android.ts` ship.
+        const android: EngineTarget = { name: 'NativeScript Android', realGObjectIsDefault: true };
+        const elsewhere: EngineTarget = { name: 'somewhere else', realGObjectIsDefault: false };
+
+        await it('is the pure-JS default where real GObject is not the default', () => {
+            resetRegisteredEngine();
+            expect(engineForTarget(elsewhere)).toBe(undefined);
+            resetRegisteredEngine();
+            expect(createGObject(door, engineForTarget(elsewhere)).engineName).toBe('pure-js');
+        });
+
+        await it('refuses an empty slot where real GObject IS the default, and names both calls', () => {
+            // The loud failure of ADR 0105 § 4, one level up: an Android build that registered
+            // nothing has not chosen the subset, it has forgotten to choose.
+            resetRegisteredEngine();
+            let message = '';
+            try {
+                engineForTarget(android);
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes('NativeScript Android')).toBe(true);
+            expect(message.includes('useRealGObjectEngine')).toBe(true);
+            expect(message.includes('usePureJsGObjectEngine')).toBe(true);
+            expect(message.includes('imported BEFORE')).toBe(true);
+            resetRegisteredEngine();
+        });
+
+        await it('hands a registered engine to EVERY target, default or not', () => {
+            resetRegisteredEngine();
+            const engine = namedEngine('real-gio');
+            registerGObjectEngine(engine);
+            expect(engineForTarget(android)).toBe(engine);
+            resetRegisteredEngine();
+            registerGObjectEngine(engine);
+            expect(engineForTarget(elsewhere)).toBe(engine);
+        });
+
+        await it('takes usePureJsGObjectEngine as the opt-out, on the target that needs one', () => {
+            resetRegisteredEngine();
+            expect(usePureJsGObjectEngine()).toBe(PURE_JS_ENGINE);
+            expect(engineForTarget(android)).toBe(PURE_JS_ENGINE);
+            expect(createGObject(door, engineForTarget(android)).engineName).toBe('pure-js');
+        });
+
+        await it('lets the opt-out freeze the slot against a later opt-in', () => {
+            // Same guarantee the opt-in has: whichever call came first is the one the app runs on,
+            // and the second one is a build mistake rather than a silent no-op.
+            resetRegisteredEngine();
+            usePureJsGObjectEngine();
+            let message = '';
+            try {
+                registerGObjectEngine(namedEngine('real-gio'));
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes("'pure-js'")).toBe(true);
+            expect(message.includes("'real-gio'")).toBe(true);
+            resetRegisteredEngine();
+        });
+
+        await it('counts even a REFUSED query as a read of the slot', () => {
+            // Otherwise the port would throw, an app would catch it and opt in afterwards, and the
+            // namespace it already built would stay on an engine nobody chose.
+            resetRegisteredEngine();
+            try {
+                engineForTarget(android);
+            } catch {
+                // expected — the assertion is what the slot does next
+            }
             let threw = false;
             try {
                 registerGObjectEngine(namedEngine('real-gio'));

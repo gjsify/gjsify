@@ -270,6 +270,12 @@ export * as Gdk from './namespace/gdk.js';
 // GLib's timers (`idle_add`, `timeout_add`, `source_remove`): `./namespace/glib.ts` says what is absent.
 export * as GLib from './namespace/glib.js';
 
+// WHICH ENGINE THIS BUILD DEFAULTS TO when the app registered none (ADR 0110 § 1). Exported
+// because it is a fact about the BUILD and not about the machine reading it: the NativeScript
+// platform resolution picked `engine-target.android.ts` or the base file at bundle time, and an
+// app, a test or a bug report has no other way to ask which one it got.
+export { ENGINE_TARGET } from './engine-target.js';
+
 // Fonts
 export {
     ADWAITA_SANS_FONT_FAMILY,

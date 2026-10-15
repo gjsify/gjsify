@@ -106,13 +106,22 @@ first use. `construct` alone touches no engine for plain `READWRITE` properties,
 that reports a cost of zero and is wrong. Numbers for both hosts:
 `docs/reports/2026-10-15-adr-0110-gates.md`.
 
+## This engine is the Android DEFAULT, and still the app's call
+
+Since 2026-10-15 (ADR 0110 § 1) a NativeScript Android build runs on this engine unless the app
+says otherwise with `usePureJsGObjectEngine()` from `@gjsify/adwaita-core`. What did NOT change is
+who builds it: `@gjsify/adwaita-nativescript`'s `createGObject(door, …)` still does not reach for
+`requireGi` itself, and the reason is in a comment at that call — the line is evaluated at module
+load, so a `requireGi` that throws would take the app down at startup, and this package is
+Android-only tier 3 while the port is tier 2 and installable in a browser. So `useRealGObjectEngine`
+stays an app-code call; the default only decides what happens when the app made NO call, and on
+Android that is a loud refusal rather than a quiet pure-JS fallback.
+
 ## What is NOT measured
 
-Nothing here has run on Android. `@gjsify/adwaita-nativescript`'s `createGObject(door)` does not
-pass this engine yet, and the reason is in a comment at that call: the line is evaluated at module
-load, so a `requireGi` that throws on NativeScript's V8 would take an app down at startup, and
-whether node-gi loads there at all is ADR 0105's own open question. The evidence for everything
-above is node-gi on Linux.
+Everything above was measured with node-gi on Linux and on an `x86_64` Android emulator
+(`docs/reports/2026-10-15-node-gi-set-emit-perf.md` § "Confirmed on the emulator"). No arm64
+release build has been timed for cold start; that needs a device and is still open.
 
 ## Runtimes
 

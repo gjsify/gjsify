@@ -32,6 +32,7 @@ import bannerNsTestSuite from './banner.spec.js';
 import buttonContentNsTestSuite from './button-content.spec.js';
 import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
 import accentThemeNsTestSuite from './accent-theme.spec.js';
+import engineTargetTestSuite from './engine-target.spec.js';
 import windowInsetsTestSuite from './window-insets.spec.js';
 import systemBarsTestSuite from './system-bars.spec.js';
 import styleClassesTestSuite from './style-classes.spec.js';
@@ -78,6 +79,7 @@ run({
     buttonContentNsTestSuite,
     shortcutLabelNsTestSuite,
     accentThemeNsTestSuite,
+    engineTargetTestSuite,
     windowInsetsTestSuite,
     systemBarsTestSuite,
     colorSchemeClassesTestSuite,

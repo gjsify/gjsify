@@ -65,26 +65,45 @@ TS2307 off this leg, and a `gi://`-shaped dynamic load would set `dynamic_gi` in
 
 ## How an app opts in (ADR 0105 stage 4)
 
-The engine is **off by default on every target**, and turning it on is one call in APP code:
+On **NativeScript Android the real engine is the default** since 2026-10-15 (ADR 0110 § 1) — the
+subset is the opt-OUT there. Everywhere else (iOS, the browser) the subset is still what an app
+gets without saying anything. Either way the engine is the APP's call, in app code, and it is one
+line:
 
 ```ts
-// app/engine-opt-in.ts
+// app/engine-opt-in.ts — Android: this is the default, and saying it is still required
 import requireGi from '@gjsify/node-gi/gi';
 import { useRealGObjectEngine } from '@gjsify/adwaita-gobject-native';
 useRealGObjectEngine(requireGi);
+
+// app/engine-opt-out.ts — or, to run on the pure-JS subset on Android anyway
+import { usePureJsGObjectEngine } from '@gjsify/adwaita-core';
+usePureJsGObjectEngine();
 
 // app/app.ts
 import './engine-opt-in.js'; // FIRST import — it must be EVALUATED before the line below
 import { Application } from '@gjsify/adwaita-nativescript';
 ```
 
-Three things make that one call enough, and each is a refusal rather than a convenience:
+"Default" here does NOT mean the port builds the real engine when the app stayed silent — it
+cannot, for the tier reason below. It means an Android build with an empty slot is treated as a
+MISSING decision: `engineForTarget` throws at the port's module load and names both calls. That
+is the same no-silent-fallback rule, applied to an opt-in that was never made rather than one
+that failed.
+
+Four things make that one call enough, and each is a refusal rather than a convenience:
 
 - **The slot.** `useRealGObjectEngine` hands the engine to `registerGObjectEngine` in
   `@gjsify/adwaita-core`, and `namespace/gobject.ts` builds its namespace with
-  `createGObject(door, registeredEngine())`. The port cannot take the engine as an argument — by
-  the time an app imports `@gjsify/adwaita-nativescript/gobject` that module body has already run
-  — so the app leaves it somewhere the port reads. An empty slot is `PURE_JS_ENGINE`.
+  `createGObject(door, engineForTarget(ENGINE_TARGET))`. The port cannot take the engine as an
+  argument — by the time an app imports `@gjsify/adwaita-nativescript/gobject` that module body
+  has already run — so the app leaves it somewhere the port reads.
+- **The target, decided at BUILD time.** `ENGINE_TARGET` comes from `src/engine-target.android.ts`,
+  `src/engine-target.ios.ts` or the base `src/engine-target.ts`, picked by NativeScript's platform
+  file resolution the way `clipboard-source` and `platform-source` are. So an iOS bundle never
+  carries the Android answer,
+  and `ENGINE_TARGET` (exported from `@gjsify/adwaita-nativescript`) is how an app, a test or a
+  bug report asks which one it got.
 - **Why the app and not the port decides.** The engine needs `requireGi`, which needs
   `@gjsify/node-gi` plus `@gjsify/gi-runtime-android`'s payload: tier-3, Android-only. The port is
   tier 2 and installable in a browser. A port that reached for them itself would make every
@@ -94,11 +113,16 @@ Three things make that one call enough, and each is a refusal rather than a conv
   `@gjsify/gi-runtime-android` and keeping the dlopen message as `cause`. A try/catch that fell
   back to pure JS would turn a build problem into an app that works, differently, forever.
   Registering AFTER the port has read the slot throws too, with the import-order fix in the
-  message — otherwise an app would believe it had real GObject and not have it.
+  message — otherwise an app would believe it had real GObject and not have it. And on Android,
+  registering NOTHING throws as well, for the same reason in the other direction: an app that
+  forgot the call would otherwise silently run the implementation it was moved off.
 
 Which engine is actually behind the subset is a runtime QUESTION with an answer:
 `GObject.engineName` off `@gjsify/adwaita-nativescript/gobject` (or `gobjectEngineName()` from
-`@gjsify/adwaita-core`) is `'real-gio'` after a successful opt-in and `'pure-js'` without one.
-Asking freezes the slot, because an answer a later registration would invalidate is worse than
-none. The refusals are held in `src/opt-in.spec.ts` (no GI stack needed) and
-`adwaita-core/src/engine-slot.spec.ts`.
+`@gjsify/adwaita-core`) is `'real-gio'` after a successful opt-in and `'pure-js'` after the
+opt-out. Asking freezes the slot, because an answer a later registration would invalidate is
+worse than none. The refusals are held in `src/opt-in.spec.ts` (no GI stack needed),
+`adwaita-core/src/engine-slot.spec.ts` and `adwaita-nativescript/src/engine-target.spec.ts`; the
+device side — that an Android bundle really resolved the Android target, and that the refusal
+survives the bundler with its message intact — is `app/specs/engine.ts` in
+`tests/integration/nativescript-gi`, in both legs.

@@ -447,6 +447,11 @@ cache in `src/calls.cc`, memoized `toKebab` and `findPropertySetter`, per-wrappe
 GI-method thunks, and a shared `paramSpecProto`. Together they took the real-Gio engine's
 `set`+`notify` from 21 237 to 6 540 ns/op and emit from 3 153 to 2 505.
 
+This now matters on a device and not only in a bench: real GObject became the NativeScript Android
+DEFAULT on 2026-10-15 (ADR 0110 § 1), and the emulator rows the cache bought — `set`/`notify` ~25x
+and emit ~17–22x over the pure-JS subset, down from 99x/45x — are what every Android app pays from
+now on. The same report's "Confirmed on the emulator" section holds them.
+
 `findProtoDescriptor` was left out and is still ~9 % of both rows. It walks a JS prototype chain on
 every GET that reaches the user prototype, and the answer is cacheable per (prototype, name) like
 the others — except that a JS prototype is MUTABLE in a way a GType is not, so this one needs an

@@ -28,9 +28,9 @@ import {
     createGObject,
     disconnectInstance,
     emitInstance,
+    engineForTarget,
     notifyInstance,
     registeredClassOf,
-    registeredEngine,
     type BuiltTemplate,
     type ClassLike,
     type GObjectDoor,
@@ -45,6 +45,7 @@ import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import type { View } from '@nativescript/core';
 
 import { buildInto } from '../builder/index.js';
+import { ENGINE_TARGET } from '../engine-target.js';
 import { gdk } from './gdk.js';
 import { nativePlatformHost } from '../platform-host.js';
 import { registerTemplateClass, type TemplateClass } from '../builder/template-classes.js';
@@ -157,23 +158,28 @@ const door: GObjectDoor = {
     },
 };
 
-// THE REAL-GObject OPT-IN IS THIS ARGUMENT, AND IT IS THE APP'S TO MAKE (ADR 0105 § 4).
+// WHICH ENGINE BACKS THE SUBSET BELOW, AND WHO SAID SO (ADR 0110 § 1, ADR 0105 § 4).
 //
-// `registeredEngine()` is empty unless the app called `useRealGObjectEngine(requireGi)` from
-// `@gjsify/adwaita-gobject-native` in a module evaluated before this one, in which case the
-// subset below is backed by a real GObject reached through node-gi (ADR 0105 § 2). Empty slot →
-// `createGObject`'s default, the pure-JS engine, which is what every build that does not ask for
-// the Android payload gets.
+// `engineForTarget` reads the slot the app may have filled with `useRealGObjectEngine(requireGi)`
+// from `@gjsify/adwaita-gobject-native` or `usePureJsGObjectEngine()` from `@gjsify/adwaita-core`,
+// in a module evaluated before this one. A filled slot wins on every target. What an EMPTY slot
+// means is the platform's answer, and `../engine-target.ts` holds it per target:
 //
-// WHY THIS MODULE DOES NOT OPT IN ITSELF. It would have to import `@gjsify/node-gi/gi` to get a
-// `requireGi`, and this line is evaluated at MODULE LOAD: a `requireGi` that throws — no
-// `@gjsify/gi-runtime-android` in the APK, wrong ABI, no extracted typelibs — would take the app
-// down at startup, the failure mode this tree has already paid for once (`AGENTS.md` § "What the
-// slice PROMISES"). It would also make a browser-installable tier-2 package depend on an
-// Android-only tier-3 one. A try/catch here is not the answer either: it would make "the subset
-// is backed by real GObject" unknowable from inside the app. So the app decides, loudly, and
-// `engineName` below reports what it got.
-const created = createGObject(door, registeredEngine());
+//   • NativeScript Android — real GObject is the DEFAULT since 2026-10-15, so an empty slot is a
+//     build mistake and `engineForTarget` THROWS here, at module load, naming both calls. Loud,
+//     because the alternative is an app silently running the subset it was moved off.
+//   • iOS, browser, a bundle for neither — unchanged: empty → the pure-JS subset.
+//
+// WHY THIS MODULE DOES NOT OPT IN ITSELF, EVEN WHERE THE REAL ENGINE IS THE DEFAULT. It would
+// have to import `@gjsify/node-gi/gi` to get a `requireGi`, and this line is evaluated at MODULE
+// LOAD: a `requireGi` that throws — no `@gjsify/gi-runtime-android` in the APK, wrong ABI, no
+// extracted typelibs — would take the app down at startup, the failure mode this tree has already
+// paid for once (`AGENTS.md` § "What the slice PROMISES"). It would also make a
+// browser-installable tier-2 package depend on an Android-only tier-3 one. A try/catch here is
+// not the answer either: it would make "the subset is backed by real GObject" unknowable from
+// inside the app. So the app makes the call, the default decides what happens when it did not,
+// and `engineName` below reports what it got.
+const created = createGObject(door, engineForTarget(ENGINE_TARGET));
 
 const {
     engineName,

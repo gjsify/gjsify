@@ -36,6 +36,22 @@ The flip is a small follow-up PR that cites both measurements. If the size delta
 large, real GObject stays opt-in and this ADR is amended. Until the flip, ADR 0105 § 1 and § 2
 hold unchanged. The pure-JS subset stays available on Android as an explicit opt-out.
 
+**Both gates held and the flip is done** (2026-10-15, Pascal Garber, on
+[the gate report](../reports/2026-10-15-adr-0110-gates.md) and
+[the set/emit report](../reports/2026-10-15-node-gi-set-emit-perf.md)): ~16 MB per ABI and +80 ms
+cold start are acceptable for GJS-identical semantics. What that means in code, since the engine
+is still the APP's to build and not the port's (see `engine.ts` § "What an EMPTY slot means"):
+
+- A NativeScript **Android** build with an empty engine slot is a MISSING DECISION, not a
+  default. `engineForTarget` throws at the port's module load, naming both calls.
+- `useRealGObjectEngine(requireGi)` is the real engine, as before, and now the expected call.
+- `usePureJsGObjectEngine()` from `@gjsify/adwaita-core` is the OPT-OUT, and the subset on
+  Android is exactly that one line.
+- iOS, the browser and a bundle for neither are untouched: an empty slot is still the subset.
+
+ADR 0105 § 4's no-silent-fallback rule is what makes the refusal a refusal: it was written about
+an opt-in that FAILED, and this is the same rule about an opt-in that was never made.
+
 ### 2. The pure-JS subset stays
 
 The browser has no GObject, and the subset is the iOS path (ADR 0105 § 6). It keeps growing only
@@ -99,5 +115,18 @@ the GObject engine under it, not about GTK rendering.
    (NativeScript leaves its hooks commented out, and R8 cannot change a `.so`/typelib delta).
 3. Wire the dual emulator run: the app and storybook tests execute once per engine, next to the
    vectors that already run on both subjects.
+   **Done** (#2234): two specs, `app/specs/views.ts` and `app/specs/storybook.ts`, in the existing
+   dual-leg harness `tests/integration/nativescript-gi`, both legs green on the `x86_64` emulator
+   (real-gio 80/80, pure-js 46/46). The legs are `scripts/run-dual.mjs --engine real-gio|pure-js`,
+   run by hand: **CI covers none of it**, as that README says. The emulator leg of step 1 was
+   re-measured there with a locally built `libnode_gi.so` carrying the cache — `set`/`notify`
+   **24.9x**, an emission **21.7x**, construct+first-read **5.4x**, bare construction **0.57x**
+   (the real engine is FASTER), medians of 4000 iterations × 7 repeats
+   ([report](../reports/2026-10-15-node-gi-set-emit-perf.md) § "Confirmed on the emulator").
 4. Flip the default in a small PR that cites steps 1 and 2. Keep the pure-JS opt-out and update
    ADR 0105 § 2 if the wording needs it.
+   **Done.** The per-target default is one build-time file in the port
+   (`src/engine-target.ts` and its `.android.ts` variant, picked by NativeScript's platform file
+   resolution), read by `engineForTarget` in `@gjsify/adwaita-core`'s slot. The opt-out is
+   `usePureJsGObjectEngine()`. ADR 0105 § 1 and § 4 keep their wording and gain a pointer here;
+   § 2's twin route is unchanged and still open.

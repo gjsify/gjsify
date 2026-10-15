@@ -11,7 +11,14 @@
 // whether `app/opt-in.ts` was evaluated first. That ordering is the app's duty under this design,
 // unverifiable by any unit test, and this is where it is verified — the port reporting 'real-gio'
 // is stage 4's actual claim.
-import { gobjectEngineName, registeredEngine } from '@gjsify/adwaita-core';
+import {
+    engineForTarget,
+    gobjectEngineName,
+    registerGObjectEngine,
+    registeredEngine,
+    resetRegisteredEngine,
+} from '@gjsify/adwaita-core';
+import { ENGINE_TARGET } from '@gjsify/adwaita-nativescript';
 import * as GObject from '@gjsify/adwaita-nativescript/gobject';
 import { useRealGObjectEngine } from '@gjsify/adwaita-gobject-native';
 
@@ -39,11 +46,46 @@ export const engineSpec = (expected: 'real-gio' | 'pure-js') => async (): Promis
         await it(
             optedIn
                 ? 'the slot holds the engine the opt-in registered'
-                : 'the slot is empty, so the port fell back to the default',
+                : 'the slot holds the subset the opt-OUT registered',
             () => {
-                expect(registeredEngine()?.name ?? '<none>').toBe(optedIn ? 'real-gio' : '<none>');
+                // Since ADR 0110 § 1 the control leg is not an empty slot any more. It cannot be:
+                // on Android an empty slot is a refusal, so "run on the subset" has to be said.
+                expect(registeredEngine()?.name ?? '<none>').toBe(expected);
             },
         );
+
+        await it('this build defaults to real GObject, because it is an Android build', () => {
+            // The bundle-time half of the decision, and the only place it can be checked: the
+            // unit suite sees both `engine-target` files, a device sees the ONE that NativeScript's
+            // platform resolution put in the APK. If this is ever false here, the port on Android
+            // is back to silently defaulting to the subset.
+            info(`ENGINE_TARGET = ${ENGINE_TARGET.name} (real default: ${ENGINE_TARGET.realGObjectIsDefault})`);
+            expect(ENGINE_TARGET.realGObjectIsDefault).toBe(true);
+        });
+
+        await it('refuses an app that registered NOTHING, on the device, naming both calls', () => {
+            // ADR 0105's no-silent-fallback rule applied to the decision itself. Asserted on the
+            // device rather than only in the unit suite because the thing being refused is a
+            // REAL-WORLD build mistake — an APK that carries the payload and forgot the call —
+            // and the refusal has to survive the bundler, the minifier and the NS module loader
+            // with its message intact, since that message is all the author will ever see.
+            const held = registeredEngine();
+            resetRegisteredEngine();
+            let message = '';
+            try {
+                engineForTarget(ENGINE_TARGET);
+            } catch (error) {
+                message = error instanceof Error ? error.message : String(error);
+            }
+            // Put the leg's own engine back before asserting, so a failure here cannot leave the
+            // remaining specs on a different engine than the one this leg is measuring.
+            resetRegisteredEngine();
+            if (held !== undefined) registerGObjectEngine(held);
+            info(`empty slot said: ${message}`);
+            expect(message).toContain('useRealGObjectEngine');
+            expect(message).toContain('usePureJsGObjectEngine');
+            expect(gobjectEngineName()).toBe(expected);
+        });
 
         if (optedIn) {
             await it('a second opt-in is refused rather than swapping the engine', () => {
