@@ -63,7 +63,55 @@ export class Canvas2DBridgeElement extends HostElement {
     private _drawFrame: number | null = null;
 
     static get observedAttributes() {
-        return ['content-width', 'content-height'];
+        return ['content-width', 'content-height', 'focusable', 'can-focus'];
+    }
+
+    /**
+     * `Gtk.Widget:focusable`, whether the widget can hold the keyboard focus. `Gtk.DrawingArea`
+     * leaves it FALSE, so it is read by PRESENCE; a blueprint's `focusable: true` writes it.
+     */
+    get focusable(): boolean {
+        return this.hasAttribute('focusable');
+    }
+
+    set focusable(v: boolean) {
+        this.toggleAttribute('focusable', !!v);
+    }
+
+    /** `Gtk.Widget:can-focus`, TRUE by default, so it is read by VALUE. */
+    get canFocus(): boolean {
+        return this.getAttribute('can-focus') !== 'false';
+    }
+
+    set canFocus(v: boolean) {
+        this.setAttribute('can-focus', v ? 'true' : 'false');
+    }
+
+    get can_focus(): boolean {
+        return this.canFocus;
+    }
+
+    set can_focus(v: boolean) {
+        this.canFocus = v;
+    }
+
+    /**
+     * `gtk_widget_grab_focus`: moves the keyboard focus here and says whether it landed.
+     * FALSE when the widget is not focusable or cannot focus, as in GTK.
+     */
+    grab_focus(): boolean {
+        if (!this.focusable || !this.canFocus) return false;
+        this.focus();
+        return this.ownerDocument.activeElement === this;
+    }
+
+    grabFocus(): boolean {
+        return this.grab_focus();
+    }
+
+    private _syncFocus(): void {
+        if (this.focusable && this.canFocus) this.tabIndex = 0;
+        else this.removeAttribute('tabindex');
     }
 
     /** `Gtk.DrawingArea:content-width`, the minimum and natural width. Defaults to 0. */
@@ -161,6 +209,7 @@ export class Canvas2DBridgeElement extends HostElement {
         this.style.overflow = 'hidden';
         this.style.position = 'relative';
         this._publishSize();
+        this._syncFocus();
         this._observe();
     }
 
@@ -171,6 +220,7 @@ export class Canvas2DBridgeElement extends HostElement {
 
     attributeChangedCallback(name: string) {
         if (name === 'content-width' || name === 'content-height') this._publishSize();
+        else this._syncFocus();
     }
 
     private _publishSize(): void {

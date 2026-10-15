@@ -35,6 +35,8 @@ import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { GtkDropDownTest } from './gtk-drop-down.spec.js';
 import { GtkDragIconTest } from './gtk-drag-icon.spec.js';
 import { GtkDrawingAreaTest } from './gtk-drawing-area.spec.js';
+import { Canvas2DBridgeTest } from './canvas2d-bridge.spec.js';
+import './canvas2d/index.js';
 import { GtkGLAreaTest } from './gtk-gl-area.spec.js';
 import { GtkGraphicsOffloadTest } from './gtk-graphics-offload.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
@@ -223,6 +225,7 @@ run({
     GtkListBoxTest,
     GtkTreeExpanderTest,
     GtkDrawingAreaTest,
+    Canvas2DBridgeTest,
     GtkDragIconTest,
     GtkGLAreaTest,
     GtkGraphicsOffloadTest,

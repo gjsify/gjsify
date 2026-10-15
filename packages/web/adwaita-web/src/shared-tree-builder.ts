@@ -55,7 +55,7 @@ import {
 
 import { observeAdaptiveSize } from './breakpoints.js';
 import { capabilities } from './capabilities.mjs';
-import { endpointOf, hasElementApi, installElementApi } from './gobject-elements.js';
+import { endpointOf, hasElementApi, installElementApi, installSensitive } from './gobject-elements.js';
 import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
 import { isTemplateTag, templateTagFor } from './template-classes.js';
@@ -389,6 +389,7 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
 /** What a node asks to be wired once every id exists: its binds and its breakpoints. */
 function collectNode(el: HTMLElement, node: SharedTreeNode, record: BuildRecord): void {
     for (const [property, binding] of Object.entries(node.bindings ?? {})) {
+        if (property === 'sensitive') installSensitive(el);
         record.binds.push({
             el,
             property,
