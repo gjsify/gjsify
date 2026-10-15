@@ -53,8 +53,6 @@ const subject: ApplicationSubject = {
 
 export const ApplicationTest = async () => {
     await driveApplicationVectors(subject, { describe, it, expect });
-    // The page is shared with every other suite: a window left in it moves their layout.
-    for (const element of made.splice(0)) element.remove();
 
     await describe('adwaita-web: Application (ADR 0098 § 3)', async () => {
         await it('has a vector for every unlocked vfunc', () => {
@@ -102,7 +100,9 @@ export const ApplicationTest = async () => {
             app.connect('activate', () => app.quit());
             await app.runAsync([]);
             expect(window.isConnected).toBe(false);
-            made.length = 0;
+            made.splice(made.indexOf(window), 1);
         });
     });
+    // The page is shared with every other suite: a window left in it moves their layout.
+    for (const element of made.splice(0)) element.remove();
 };
