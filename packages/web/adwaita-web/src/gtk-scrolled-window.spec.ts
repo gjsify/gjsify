@@ -185,6 +185,9 @@ export const GtkScrolledWindowTest = async () => {
             // An unknown nick is the pspec's `automatic`, not a silent never.
             el.setAttribute('vscrollbar-policy', 'sideways');
             expect(el.vscrollbarPolicy).toBe('automatic');
+            // AUTOMATIC decides from the adjustment, and the viewport was just held at its
+            // minimum by NEVER: the re-measure that lifts it is a ResizeObserver delivery.
+            await settle();
             expect(bars(el).vertical.hidden).toBe(false);
             host.remove();
         });
