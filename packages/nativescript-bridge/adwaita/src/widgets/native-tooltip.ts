@@ -22,7 +22,7 @@ declare const android: { os?: { Build?: { VERSION?: { SDK_INT?: number } } } } |
 const TOOLTIP_API = 26;
 
 /** `Build.VERSION.SDK_INT`, or `Infinity` where there is no Android runtime (nothing to gate). */
-function androidApiLevel(): number {
+export function androidApiLevel(): number {
     return (typeof android !== 'undefined' && android?.os?.Build?.VERSION?.SDK_INT) || Infinity;
 }
 

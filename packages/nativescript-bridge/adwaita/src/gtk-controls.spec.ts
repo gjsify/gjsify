@@ -206,6 +206,137 @@ export const GtkControlsNsTest = async () => {
         });
     });
 
+    await describe('Gtk.Label justify beside xalign', async () => {
+        const rtl = (label: Gtk.Label): void => {
+            (label.style as { direction: string | null }).direction = 'rtl';
+        };
+        const nativeModes = (label: Gtk.Label): number[] => {
+            const modes: number[] = [];
+            (label as unknown as { nativeViewProtected: unknown }).nativeViewProtected = {
+                setJustificationMode: (mode: number) => modes.push(mode),
+            };
+            return modes;
+        };
+
+        await it('reads back left by default and leaves the platform alignment alone', () => {
+            const label = new Gtk.Label();
+            expect(label.justify).toBe('left');
+            expect(label.textAlignment).toBe('initial');
+        });
+
+        await it('takes the nick, the Gtk.Justification constant and its XML string, and reads the nick', () => {
+            const label = new Gtk.Label();
+            label.justify = 2;
+            expect(label.justify).toBe('center');
+            label.justify = '1';
+            expect(label.justify).toBe('right');
+            label.justify = 'fill';
+            expect(label.justify).toBe('fill');
+        });
+
+        await it('refuses what is not a Gtk.Justification and keeps the old value', () => {
+            const label = new Gtk.Label();
+            label.justify = 'center';
+            expect(() => {
+                label.justify = 4;
+            }).toThrow('is not a Gtk.Justification');
+            expect(() => {
+                label.justify = 'middle';
+            }).toThrow('is not a Gtk.Justification');
+            expect(label.justify).toBe('center');
+        });
+
+        await it('centres a wrapping label with justify center and the default xalign', () => {
+            const label = new Gtk.Label({ label: 'Learn 6502 assembly', wrap: true });
+            label.justify = 'center';
+            expect(label.textAlignment).toBe('center');
+        });
+
+        await it('renders justify center + wrap + xalign 0.5 in any write order', () => {
+            const first = new Gtk.Label();
+            first.justify = 'center';
+            first.wrap = true;
+            first.xalign = 0.5;
+            const second = new Gtk.Label();
+            second.xalign = 0.5;
+            second.wrap = true;
+            second.justify = 'center';
+            expect(first.textAlignment).toBe('center');
+            expect(second.textAlignment).toBe('center');
+        });
+
+        await it('lets xalign alone decide a single line, where justify has no effect in GTK', () => {
+            const label = new Gtk.Label({ label: 'one line' });
+            label.justify = 'right';
+            label.xalign = 0;
+            expect(label.textAlignment).toBe('left');
+            expect(label.justify).toBe('right');
+        });
+
+        await it('keeps the default justify off a several-line label, as before', () => {
+            const label = new Gtk.Label({ wrap: true });
+            label.xalign = 1;
+            expect(label.textAlignment).toBe('right');
+        });
+
+        await it('maps justify right and xalign 1 to the end edge, mirrored in RTL', () => {
+            const label = new Gtk.Label({ wrap: true });
+            label.justify = 'right';
+            label.xalign = 1;
+            expect(label.textAlignment).toBe('right');
+            const mirrored = new Gtk.Label({ wrap: true });
+            rtl(mirrored);
+            mirrored.justify = 'right';
+            mirrored.xalign = 1;
+            expect(mirrored.textAlignment).toBe('left');
+        });
+
+        await it('refuses a several-line label whose xalign and justify name different edges', () => {
+            const label = new Gtk.Label({ wrap: true });
+            label.xalign = 0;
+            expect(() => {
+                label.justify = 'center';
+            }).toThrow('textAlignment is one alignment for both');
+            expect(label.justify).toBe('left');
+            expect(label.textAlignment).toBe('left');
+        });
+
+        await it('refuses turning wrap on, or a newline, when that makes the edges disagree', () => {
+            const label = new Gtk.Label({ label: 'one line' });
+            label.justify = 'center';
+            label.xalign = 1;
+            expect(label.textAlignment).toBe('right');
+            expect(() => {
+                label.wrap = true;
+            }).toThrow('textAlignment is one alignment for both');
+            expect(label.wrap).toBe(false);
+            expect(() => {
+                label.label = 'two\nlines';
+            }).toThrow('textAlignment is one alignment for both');
+            expect(label.get_text()).toBe('one line');
+        });
+
+        await it('maps fill to the platform justify word in LTR', () => {
+            const label = new Gtk.Label({ wrap: true });
+            label.justify = 'fill';
+            expect(label.textAlignment).toBe('justify');
+            label.xalign = 0;
+            expect(label.textAlignment).toBe('justify');
+        });
+
+        await it('sets inter-word justification on the TextView for fill in RTL, and clears it after', () => {
+            const label = new Gtk.Label({ wrap: true });
+            rtl(label);
+            const modes = nativeModes(label);
+            label.justify = 'fill';
+            expect(label.textAlignment).toBe('right');
+            expect(modes.at(-1)).toBe(1);
+            label.justify = 'right';
+            expect(label.textAlignment).toBe('left');
+            expect(modes.at(-1)).toBe(0);
+        });
+    });
+
     await describe('Gtk.DropDown selected accessors', async () => {
         await it('reads and writes the selection through get_selected and set_selected', () => {
             const drop = new Gtk.DropDown({ model: ['a', 'b', 'c'] });

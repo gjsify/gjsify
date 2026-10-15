@@ -28,9 +28,22 @@
 // as `gtk_label_get_layout_location` mirrors them, and every other value is REFUSED rather than
 // snapped to the nearest: a label written at `0.25` that renders at `0` would report a snap as
 // agreement. The reading is `@gjsify/adwaita-core`'s (`normalizeLabelXalign`), so an out-of-range
-// `3` clamps to `1` on both before either renders it. Two edges stay: an UNWRITTEN label keeps
-// the platform's start-aligned text where GTK centres it, and a label of several lines aligns each
-// line where GTK aligns the block and leaves the lines to `justify`.
+// `3` clamps to `1` on both before either renders it.
+//
+// `justify` AND `xalign` ARE TWO ALIGNMENTS IN GTK AND ONE ON THE PLATFORM. `xalign` places the
+// text BLOCK in the allocation (`gtk_label_get_layout_location`); `justify` aligns the LINES
+// inside that block (`gtk_label_ensure_layout`: LEFT is the start, RIGHT the end, CENTER the
+// centre, FILL the start plus `pango_layout_set_justify`), so it does nothing to one line.
+// `textAlignment` aligns every line within the view, so it states BOTH exactly when they name
+// the same edge, and states `xalign` alone exactly when the label can only show one line (no
+// `wrap`, no newline). FILL is Android's `JUSTIFICATION_MODE_INTER_WORD` (API 26): word gaps
+// stretched, the last line left ragged — Pango's own rule. NativeScript's `'justify'` carries it
+// in LTR; in RTL its gravity is LEFT, so there the port writes `'right'` and sets the mode on
+// the `TextView` itself. A label that can show several lines, with a written `xalign` and a
+// non-default `justify` on different edges, has no exact rendering and is REFUSED. Two edges
+// stay, both older than `justify`: an UNWRITTEN `xalign` keeps the platform's start-aligned text
+// where GTK centres it (the lines follow `justify` when it was written), and under the default
+// `justify` a label of several lines aligns each line where GTK aligns the block.
 //
 // `ELLIPSIZE` AND `LINES` REACH REAL NATIVE MECHANISMS, MEASURED IN `@nativescript/core`'s OWN
 // SOURCE rather than assumed from its `.d.ts`: `textOverflow` ('clip' | 'ellipsis') and `maxLines`
@@ -52,7 +65,7 @@
 // it built: whether Android's OWN `setSingleLine`/`setMaxLines` precedence then renders the same
 // line count GTK does is unverified off a device.
 //
-// WHAT IT DOES NOT DO: `attributes`, `justify`, `natural-wrap-mode`, `wrap-mode`, `width-chars`,
+// WHAT IT DOES NOT DO: `attributes`, `natural-wrap-mode`, `wrap-mode`, `width-chars`,
 // `max-width-chars`, `tabs`, `yalign` and the mnemonic-widget link are declared gaps
 // in `check-nativescript-widget-coverage.mjs` — that gate holds the list, so it is not restated
 // here. `yalign` is a continuum on the view's OWN `verticalAlignment` (four positions), which
@@ -72,20 +85,46 @@ import {
     normalizeLabelEllipsize,
     normalizeLabelLines,
     normalizeLabelXalign,
+    LABEL_JUSTIFICATIONS,
     type LabelEllipsizeMode,
+    type LabelJustification,
 } from '@gjsify/adwaita-core';
 
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { androidApiLevel } from './native-tooltip.js';
 import { withSignals } from './signals.js';
 
+type Edge = 'start' | 'center' | 'end';
+
 /** The three `xalign` values `textAlignment` can state exactly, and the edge each one is. */
-const XALIGN_EDGES: ReadonlyMap<number, 'start' | 'center' | 'end'> = new Map([
+const XALIGN_EDGES: ReadonlyMap<number, Edge> = new Map([
     [0, 'start'],
     [0.5, 'center'],
     [1, 'end'],
 ]);
+
+/** The edge `gtk_label_ensure_layout` aligns the lines to, per `Gtk.Justification`. */
+const JUSTIFY_EDGES: Readonly<Record<LabelJustification, Edge>> = {
+    left: 'start',
+    right: 'end',
+    center: 'center',
+    fill: 'start',
+};
+
+/** `Build.VERSION_CODES.O`: the first level with `TextView.setJustificationMode`. */
+const JUSTIFICATION_API = 26;
+
+/** `Layout.JUSTIFICATION_MODE_NONE` / `JUSTIFICATION_MODE_INTER_WORD`. */
+const JUSTIFICATION_MODE_NONE = 0;
+const JUSTIFICATION_MODE_INTER_WORD = 1;
+
+/** An edge as the physical `textAlignment` word, mirrored in RTL. */
+function physical(edge: Edge, rtl: boolean): 'left' | 'center' | 'right' {
+    if (edge === 'center') return 'center';
+    return (edge === 'start') !== rtl ? 'left' : 'right';
+}
 
 export class GtkLabel extends withSignals(Label) {
     static readonly GTypeName: string = 'GtkLabel';
@@ -97,6 +136,8 @@ export class GtkLabel extends withSignals(Label) {
     private _lines = -1;
     private _styleClasses: string[] = [];
     private _xalign = DEFAULT_LABEL_XALIGN;
+    private _xalignWritten = false;
+    private _justify: LabelJustification = 'left';
     private _selectable = false;
 
     constructor(props?: ConstructProps<GtkLabel>) {
@@ -108,7 +149,10 @@ export class GtkLabel extends withSignals(Label) {
         // and holds exactly what a caller puts in it.
         // The native view does not exist when `selectable` is first written from XML, so the
         // held value is applied again once the view is loaded.
-        this.addEventListener('loaded', () => this._applySelectable());
+        this.addEventListener('loaded', () => {
+            this._applySelectable();
+            this._applyJustificationMode();
+        });
         applyConstructProps(this, props);
     }
 
@@ -174,7 +218,9 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     set wrap(raw: boolean | string) {
-        this.textWrap = xmlBoolean(raw, this.textWrap);
+        const wrap = xmlBoolean(raw, this.textWrap);
+        this._applyAlignment({ wrap });
+        this.textWrap = wrap;
     }
 
     /**
@@ -238,20 +284,26 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     /**
-     * `Gtk.Label:justify`. Only `left` (`0`, GTK's default) is accepted: `textAlignment` is where
-     * `xalign` already paints the whole text, so a second alignment for the lines inside the block
-     * has no platform member to land on and is refused instead of silently dropped.
+     * `Gtk.Label:justify` — how the lines align with one another; no effect on a single line.
+     * Takes a nick or the `Gtk.Justification` constant and reads back as the nick. How it shares
+     * `textAlignment` with {@link xalign}, and the one combination that throws, is in the header.
      */
-    get justify(): number {
-        return 0;
+    get justify(): LabelJustification {
+        return this._justify;
     }
 
-    set justify(value: number | string) {
-        if (value === 'left' || xmlNumber(value, -1) === 0) return;
-        throw new TypeError(
-            `Gtk.Label justify ${String(value)} has no NativeScript counterpart: textAlignment is already ` +
-                'the label xalign, and only the default left justification can be honoured beside it.',
-        );
+    set justify(raw: LabelJustification | number | string) {
+        // A nick, or the enum constant — which XML hands over as a string like "2".
+        const justify: LabelJustification | undefined = (LABEL_JUSTIFICATIONS as readonly unknown[]).includes(raw)
+            ? (raw as LabelJustification)
+            : LABEL_JUSTIFICATIONS[xmlNumber(raw, -1)];
+        if (justify === undefined) {
+            throw new TypeError(
+                `'${String(raw)}' is not a Gtk.Justification, so it cannot be 'justify'. The members are ` +
+                    `${LABEL_JUSTIFICATIONS.join(', ')}, or their values 0 to 3.`,
+            );
+        }
+        this._applyAlignment({ justify });
     }
 
     /**
@@ -265,18 +317,75 @@ export class GtkLabel extends withSignals(Label) {
 
     set xalign(raw: number | string) {
         const xalign = normalizeLabelXalign(xmlNumber(raw, DEFAULT_LABEL_XALIGN));
-        const edge = XALIGN_EDGES.get(xalign);
-        if (edge === undefined) {
+        if (!XALIGN_EDGES.has(xalign)) {
             throw new TypeError(
                 `Gtk.Label xalign ${xalign} has no NativeScript counterpart: textAlignment places text at the ` +
                     'start, the centre or the end, so only 0, 0.5 and 1 render as written. Snapping it would ' +
                     'show a different label than GTK does with no sign of the difference.',
             );
         }
-        this._xalign = xalign;
-        const rtl = this.style?.direction === 'rtl';
-        this.textAlignment =
-            edge === 'start' ? (rtl ? 'right' : 'left') : edge === 'end' ? (rtl ? 'left' : 'right') : 'center';
+        this._applyAlignment({ xalign });
+    }
+
+    /**
+     * Resolve `xalign` and `justify` onto `textAlignment` for the state `next` would leave, and
+     * commit it — or throw BEFORE anything changes, so a refused write leaves the label as it was.
+     */
+    private _applyAlignment(next: {
+        xalign?: number;
+        justify?: LabelJustification;
+        text?: string;
+        wrap?: boolean;
+    }): void {
+        const xalign = next.xalign ?? (this._xalignWritten ? this._xalign : null);
+        const justify = next.justify ?? this._justify;
+        const text = next.text ?? this.text ?? '';
+        const multiline = (next.wrap ?? this.textWrap) || text.includes('\n');
+        const lines = JUSTIFY_EDGES[justify];
+        const block = xalign === null ? null : XALIGN_EDGES.get(xalign);
+
+        let edge: Edge | null;
+        if (block === null) edge = justify === 'left' ? null : lines;
+        else if (block === lines || !multiline || justify === 'left') edge = block;
+        else {
+            throw new TypeError(
+                `Gtk.Label justify ${justify} beside xalign ${xalign} has no NativeScript counterpart on a label ` +
+                    `that can show several lines: GTK places the text block at its ${block} and aligns the ` +
+                    `lines inside it to their ${lines}, and textAlignment is one alignment for both. An xalign ` +
+                    'on the justify edge, or a label without wrap and newline, renders exactly.',
+            );
+        }
+
+        if (next.xalign !== undefined) {
+            this._xalign = next.xalign;
+            this._xalignWritten = true;
+        }
+        if (next.justify !== undefined) this._justify = next.justify;
+        if (edge === null) {
+            // Only a label whose alignment was never written keeps the platform's own.
+            if (next.xalign !== undefined || next.justify !== undefined) this.textAlignment = 'initial';
+            return;
+        }
+        const side = physical(edge, this.style?.direction === 'rtl');
+        this.textAlignment = justify === 'fill' && side === 'left' ? 'justify' : side;
+        this._applyJustificationMode();
+    }
+
+    /**
+     * FILL off NativeScript's `'justify'` word: that word also forces LEFT gravity, so an RTL
+     * FILL label sets the mode on the `TextView` itself, after the platform's `textAlignment`
+     * setter has reset it.
+     */
+    private _applyJustificationMode(): void {
+        if (this.textAlignment === 'justify') return;
+        if (androidApiLevel() < JUSTIFICATION_API) return;
+        const native = (this as unknown as { nativeViewProtected?: { setJustificationMode?: (mode: number) => void } })
+            .nativeViewProtected;
+        // An unchanged `textAlignment` does not reach the platform setter, so leaving FILL
+        // has to clear the mode here too.
+        native?.setJustificationMode?.(
+            this._justify === 'fill' ? JUSTIFICATION_MODE_INTER_WORD : JUSTIFICATION_MODE_NONE,
+        );
     }
 
     /**
@@ -351,6 +460,8 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     private _render(): void {
-        this.text = labelDisplayText(this._label, this._useMarkup, this._useUnderline);
+        const text = labelDisplayText(this._label, this._useMarkup, this._useUnderline);
+        this._applyAlignment({ text });
+        this.text = text;
     }
 }
