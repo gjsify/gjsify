@@ -223,11 +223,12 @@ is the counterpart and needs its own decision. The Android door (`file-chooser-s
 is covered by the intent-mapping specs and the `gi-renderer-arms` arm with a scripted driver, but
 no run has gone through a real `startActivityForResult` on a device or emulator yet.
 
-### Real GObject becomes the Android default — two gates, then the flip
+### Real GObject IS the Android default — the gates held, the flip shipped
 
 [ADR 0110](../../docs/adr/0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
-amends ADR 0105: the real engine becomes the NativeScript Android default, the pure-JS subset stays
-(browser, iOS) and stays tested on Android. Until the flip, ADR 0105 § 1/§ 2 hold. Open, in order:
+amends ADR 0105: the real engine is the NativeScript Android default since 2026-10-15, the pure-JS
+subset stays (browser, iOS) and stays tested on Android. All four steps are done; what is left is
+listed under step 4. The record, in order:
 
 1. ~~Finish ADR 0105 stage 2 and time per-instance construction cost.~~ **Measured**
    ([report](../../docs/reports/2026-10-15-adr-0110-gates.md)): construction is free (lazy twin,
@@ -253,4 +254,18 @@ amends ADR 0105: the real engine becomes the NativeScript Android default, the p
    `NsGi_API_36`: 80 cases real-Gio, 46 pure-JS. CI runs NONE of it — there is no emulator job; the
    two showcase APKs are still not run per engine. `GJSIFY_GI_UI=0` in every rung of
    `build-release-splits.mjs` keeps the gate-2 size ladder comparable.
-4. Flip the default in a small PR citing steps 1 and 2; if the size is too large, amend ADR 0110.
+4. ~~Flip the default in a small PR citing steps 1 and 2.~~ **Done**: the owner judged ~16 MB per
+   ABI and +80 ms acceptable for GJS-identical semantics. The per-target default is a build-time
+   file in the port (`src/engine-target.ts`, `src/engine-target.android.ts`, picked by NativeScript's
+   platform file resolution like `clipboard-source`), read by `engineForTarget` in adwaita-core's
+   slot: a registered engine wins everywhere, an empty slot is the subset off Android and a loud
+   refusal naming both calls on it. `usePureJsGObjectEngine()` is the opt-out, and the harness's
+   control leg is now exactly that one line. Tests: `engine-slot.spec.ts` (six cases on the
+   target rule), `engine-target.spec.ts` (which file says what), `app/specs/engine.ts` on the
+   device (the Android bundle really resolved the Android target; the refusal survives the
+   bundler with its message intact).
+   Still open after the flip:
+   - **arm64 cold start from a release APK** (step 2's leftover) — needs a device, not done here.
+   - ADR 0105 § 2's twin route: a real subclass instead of the hidden twin.
+   - The `findProtoDescriptor` cache in `status/open-todos/node-gi.md` — the emulator numbers above
+     are what it bought, and the remaining ~25x on `set`/`notify` is where to look next.

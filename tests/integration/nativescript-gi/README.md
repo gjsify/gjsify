@@ -57,15 +57,20 @@ Numbers from that ladder: `docs/reports/2026-10-15-adr-0110-gates.md`.
 The two runs differ in **one value**: the build-time define `__GJSIFY_GI_OPT_IN__`
 (`vite.config.ts`). Same sources, same plugin dependency, same `lib/<abi>/*.so` and
 same `assets/app/girepository-1.0/*.typelib` in the APK. So what they compare is the
-app's *decision*, not the presence of the payload — which is the point of an
-explicit opt-in: pure JS stays the default even when the bytes are right there.
+app's *decision*, not the presence of the payload.
+
+Since ADR 0110 § 1 flipped the Android default (2026-10-15), that define picks between
+two CALLS rather than between a call and silence: `useRealGObjectEngine(requireGi)` and
+`usePureJsGObjectEngine()`. It has to. On Android an empty slot is now a refusal, so a
+control leg that simply said nothing would not run the subset — it would not run at all.
+That makes the control leg the opt-OUT this suite exists to keep honest.
 
 ## What is asserted
 
 | spec | subject |
 |---|---|
 | `app/specs/loader.probe.ts` | which link of node-gi's native-require chain fires under Vite's ESM output, and that `requireGi('GLib','2.0')` reaches the addon |
-| `app/specs/engine.ts` | `gobjectEngineName()` **and** `@gjsify/adwaita-nativescript/gobject`'s `engineName` report the expected engine; a second opt-in is refused, not silently honoured |
+| `app/specs/engine.ts` | `gobjectEngineName()` **and** `@gjsify/adwaita-nativescript/gobject`'s `engineName` report the expected engine; this bundle resolved the Android `ENGINE_TARGET`; an empty slot is refused naming both calls; a second opt-in is refused, not silently honoured |
 | `app/specs/gobject.vectors.ts` | `GOBJECT_VECTORS` against `createSubsetSubject(registeredEngine())` — the engine the app really got |
 | `app/specs/list-store.ts` | `LIST_ITEMS_CHANGED_VECTORS` through a real `Gio.ListStore`, with item identity counted off the live model |
 | `app/specs/settings.ts` | `SETTINGS_VECTORS` through real `Gio.Settings` (memory backend); the schema is compiled on the host by `scripts/compile-schemas.mjs` and travels as base64 |

@@ -170,3 +170,50 @@ export function resetRegisteredEngine(): void {
     registered = undefined;
     wasRead = false;
 }
+
+// --- What an EMPTY slot means, which is no longer one answer (ADR 0110 § 1) --------------------
+//
+// It used to be: empty → the pure-JS engine, on every target. On NativeScript ANDROID it is not,
+// since the owner's decision of 2026-10-15 on the two gate reports — real GObject is what an
+// Android app gets, and the subset is an explicit opt-out there. The browser (no GObject at all)
+// and iOS (ADR 0105 § 6) are untouched: empty still means pure JS for them.
+//
+// WHY A PORT ON ANDROID DOES NOT SIMPLY BUILD THE REAL ENGINE ITSELF. The reason the opt-in is
+// app code has not changed with the default: the engine needs `requireGi`, which needs
+// `@gjsify/node-gi` plus `@gjsify/gi-runtime-android`'s payload — tier-3, Android-only — and the
+// port is tier 2 and installable in a browser. A port that reached for them would make every
+// consumer an Android consumer, and a port that reached for them in a try/catch would make
+// "which engine backs my subset" unanswerable from inside the app.
+//
+// So on such a target an empty slot is not a default any more: it is a MISSING DECISION, and
+// {@link engineForTarget} says so rather than quietly building the other engine. That is ADR
+// 0105's no-silent-fallback rule one level up — the rule was about an opt-in that FAILED, this is
+// the same rule about an opt-in that was never made.
+
+/** The target a port builds its namespace for, as {@link engineForTarget} needs to know it. */
+export interface EngineTarget {
+    /** Named in the refusal, so the message says which port and which target refused. */
+    readonly name: string;
+    /** True where real GObject is the default — NativeScript Android, and nothing else today. */
+    readonly realGObjectIsDefault: boolean;
+}
+
+/**
+ * The engine a port must build its namespace on. A registered engine wins everywhere. An empty
+ * slot is the pure-JS default (`undefined`, which is `createGObject`'s own default) on a target
+ * that has one, and an ERROR on a target whose default is real GObject. Freezes the slot.
+ */
+export function engineForTarget(target: EngineTarget): GObjectEngine | undefined {
+    const engine = registeredEngine();
+    if (engine !== undefined) return engine;
+    if (!target.realGObjectIsDefault) return undefined;
+    throw new Error(
+        `No GObject engine was registered, and on ${target.name} real GObject is the DEFAULT ` +
+            '(ADR 0110 § 1) — there is no implicit fallback to the pure-JS subset here. Either call ' +
+            "useRealGObjectEngine(requireGi) from '@gjsify/adwaita-gobject-native', with " +
+            "'@gjsify/gi-runtime-android' as a dependency of the app, or call " +
+            "usePureJsGObjectEngine() from '@gjsify/adwaita-core' to run on the subset deliberately. " +
+            "Either call belongs in a module that is imported BEFORE '@gjsify/adwaita-nativescript', " +
+            'as its own side-effect import listed first, so that it is evaluated first.',
+    );
+}

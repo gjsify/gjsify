@@ -1071,6 +1071,7 @@ export {
     registeredClassOf,
     registerBaseClass,
     STOP_EMISSION,
+    usePureJsGObjectEngine,
     type StoppableEmitter,
     UNLOCKED_VFUNCS,
     GIR_TYPE,
@@ -1126,8 +1127,8 @@ export type {
     SignalMeta,
     TemplateScope,
 } from './gobject.js';
-export { registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
-export type { GObjectEngine } from './engine.js';
+export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
+export type { EngineTarget, GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
 export { ColorScheme, StyleManagerBase } from './style-manager.js';
 export type { StyleSource } from './style-manager.js';

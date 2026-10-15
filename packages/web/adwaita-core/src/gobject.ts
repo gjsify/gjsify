@@ -18,7 +18,7 @@
 // what deliberately stays here rather than moving behind it: `engine.ts`.
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
-import { registeredEngine } from './engine.js';
+import { registerGObjectEngine, registeredEngine } from './engine.js';
 import type { GObjectEngine } from './engine.js';
 
 /** What `registerClass` accepts as `Template`: the projected tree of a `?template` import (ADR 0096 § 4). */
@@ -455,6 +455,23 @@ export const PURE_JS_ENGINE: GObjectEngine = {
         return bindProperties(source, sourceProperty, target, targetProperty, flags);
     },
 };
+
+/**
+ * THE OPT-OUT (ADR 0110 § 1): puts {@link PURE_JS_ENGINE} in the slot, deliberately and in app
+ * code, so a target whose default is real GObject runs on the subset instead. Returns it, so a
+ * caller that wants to assert on `engine.name` can.
+ *
+ * It exists because "registered nothing" and "chose the subset" have to be different states on
+ * Android, where the first one is a build mistake — see `engine.ts` § "What an EMPTY slot means".
+ * Everywhere else it is a no-op in effect and still worth calling: it makes the choice readable,
+ * and it freezes the slot against a later opt-in that would then silently not apply.
+ *
+ * Same placement rule as `useRealGObjectEngine`: a module imported BEFORE the port's.
+ */
+export function usePureJsGObjectEngine(): GObjectEngine {
+    registerGObjectEngine(PURE_JS_ENGINE);
+    return PURE_JS_ENGINE;
+}
 
 // --- Which engine an instance uses, and the core's own connection book ------------------------
 

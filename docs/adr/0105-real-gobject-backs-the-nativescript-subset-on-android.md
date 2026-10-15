@@ -63,9 +63,16 @@ only one in the browser. A feature enters the contract by ADR 0096 § 2's rule (
 a vector), never because the real backend happens to have it.
 
 [ADR 0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
-makes the real backend the Android default once two gates hold; until then this section stands.
+made the real backend the Android default — both gates held and the flip shipped on 2026-10-15,
+so "the default on every target" above now reads: on every target but NativeScript Android, where
+the subset is an explicit `usePureJsGObjectEngine()`. The contract itself is unchanged, which is
+the point: the same vectors define both. ADR 0110 § 1 is the live text.
 
 ### 2. An opt-in real backend on NativeScript Android
+
+Since 2026-10-15 the switch below is still the app's one call, but on Android it is no longer
+"off by default": ADR 0110 § 1 holds the current wording, and the only thing that changed is what
+happens when the app says NOTHING.
 
 Behind one switch (a build flag and a runtime import, both off by default) the contract is
 implemented on node-gi: properties and `notify`, signals, `bind_property`, `GListModel`, real
