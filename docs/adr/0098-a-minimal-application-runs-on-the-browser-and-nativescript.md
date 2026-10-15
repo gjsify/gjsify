@@ -259,3 +259,33 @@ inheritance) now installs the ADR 0096 § 3 element API, the one template childr
 Not decided here: `Adw.Application` and `<gtk-window>` are not assignable to `Gtk.Application` /
 `Gtk.Window` from `@girs/gtk-4.0` (138 and 398 members missing). Closing that is a typing
 decision for the whole subset, so it is left open.
+
+## Amendment 4: `Gtk.WindowCommon`
+
+- Status: **Proposed** (2026-10-15)
+
+Code shared across GJS, the browser and NativeScript types a window as `Gtk.WindowCommon`, not as
+`Gtk.Window` with a cast. Both ports export it from their `Gtk` namespace; it is defined once in
+`@gjsify/adwaita-core` (`window-members.ts`). It names only the members of Amendments 2 and 3 that
+both ports have with the `@girs/gtk-4.0` signature:
+
+- `is_active` / `isActive` (read-only), `focus_widget`, `get_focus` / `set_focus`
+- `maximized`, `is_maximized`, `maximize`, `unmaximize`, `present`, `close`
+- `connect` for `close-request` (a handler returning true keeps the window), `notify::is-active`
+  and `notify::maximized`; `disconnect`
+
+`WindowCommon<TWidget>` takes the focus type: `Gtk.Widget` on GJS, `Element` on the web, `View` on
+NativeScript. A handler receives the window; what follows it differs per port, so it is not typed.
+
+It is a true subset, and three type checks hold that: `@girs/gtk-4.0`'s `Gtk.Window` and
+`Gtk.ApplicationWindow` and `@girs/adw-1`'s two windows are assignable to it (adwaita-app), and so
+is every window class of each port (adwaita-web's `check:consumer`, adwaita-nativescript's `check`).
+A member GTK lacks, or types differently, fails the first.
+
+To make NativeScript match, `GtkWindow.is_active()` becomes the `is_active` getter, as on the web
+and in GJS, and the window gains the `focus_widget` accessor over `get_focus` / `set_focus`. This
+breaks callers of `is_active()`.
+
+Left out: `notify::focus-widget`, which NativeScript refuses; `emit`, `notify`, `get_property` and
+`set_property`, whose signatures differ between the ports and GObject. `Gtk.Application` stays open:
+its common subset needs a name of its own.
