@@ -33,12 +33,16 @@ export default async () => {
         });
 
         await it('counts an empty value as unset', () => {
-            expect(localeEnvToSet({ platform: 'win32', env: { LANG: '', LC_ALL: ' ' }, userLocales: ['de-DE'] })).toBe('de_DE');
+            expect(localeEnvToSet({ platform: 'win32', env: { LANG: '', LC_ALL: ' ' }, userLocales: ['de-DE'] })).toBe(
+                'de_DE',
+            );
         });
 
         await it('changes nothing when any of the four variables is set', () => {
             for (const name of ['LANGUAGE', 'LC_ALL', 'LC_MESSAGES', 'LANG']) {
-                expect(localeEnvToSet({ platform: 'win32', env: { [name]: 'en_US' }, userLocales: ['de-DE'] })).toBe(undefined);
+                expect(localeEnvToSet({ platform: 'win32', env: { [name]: 'en_US' }, userLocales: ['de-DE'] })).toBe(
+                    undefined,
+                );
             }
         });
 
@@ -49,7 +53,9 @@ export default async () => {
         });
 
         await it('takes the first usable candidate', () => {
-            expect(localeEnvToSet({ platform: 'win32', env: {}, userLocales: [undefined, 'C', 'fr-FR', 'de-DE'] })).toBe('fr_FR');
+            expect(
+                localeEnvToSet({ platform: 'win32', env: {}, userLocales: [undefined, 'C', 'fr-FR', 'de-DE'] }),
+            ).toBe('fr_FR');
             expect(localeEnvToSet({ platform: 'win32', env: {}, userLocales: [] })).toBe(undefined);
         });
     });

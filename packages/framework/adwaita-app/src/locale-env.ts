@@ -22,7 +22,10 @@ export const LOCALE_ENV_VARS: readonly string[] = ['LANGUAGE', 'LC_ALL', 'LC_MES
  */
 export function posixLocale(tag: string | undefined): string | undefined {
     if (tag === undefined) return undefined;
-    const base = tag.trim().split(/[.@]/)[0].split(/-u-|-x-/i)[0];
+    const base = tag
+        .trim()
+        .split(/[.@]/)[0]
+        .split(/-u-|-x-/i)[0];
     const [language, ...rest] = base.split(/[-_]/);
     if (!/^[A-Za-z]{2,3}$/.test(language ?? '')) return undefined;
     if (/^(c|posix)$/i.test(language)) return undefined;
