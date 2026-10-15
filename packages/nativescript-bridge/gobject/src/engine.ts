@@ -296,11 +296,23 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
             // GENERATED ACCESSOR, which this engine stands in for. Without it the subset notified
             // twice where GJS notifies once, on two of the vectors.
             if (!touch(instance, spec.name) && twin[spec.name] === value) return false;
-            // Otherwise the write IS the notification: `set_property` emits `notify::<name>` to
-            // the handlers already connected to this twin. So the emission is pushed around the
+            // Otherwise the write IS the notification: the store emits `notify::<name>` to the
+            // handlers already connected to this twin. So the emission is pushed around the
             // write — a handler of it may stop it — and the core is told it has nothing left to do.
+            //
+            // ASSIGNED, not `set_property`. Both end in g_object_set_property, but the
+            // introspected call is the expensive way to get there: resolve the method, box
+            // both arguments into GIArguments, guess a GValue type for `value` and let
+            // GObject transform it into the ParamSpec's. The assignment hands the binding
+            // the property name, which is all it needs to type the GValue from the ParamSpec
+            // directly. MEASURED (gjs 1.88.1, one notify handler connected): 9.9 µs through
+            // `set_property` against 4.8 µs assigned — half of what a write cost this engine.
+            // The guard above has already settled the equal-write question, and it asks the
+            // same of the same state as the binding's own guard behind the assignment (that
+            // one skips an equal write to a MATERIALISED property; TOUCHED is this engine's
+            // record of the same bit), so neither can swallow a notification the other owed.
             withEmission(instance, `notify::${spec.name}`, () => {
-                twin.set_property(spec.name, value);
+                twin[spec.name] = value;
             });
             return false;
         },
