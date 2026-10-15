@@ -578,6 +578,15 @@ export function formatValue(value: unknown): string {
     }
 }
 
+/** `JSON.stringify` for a failure message: a circular value (a DOM element) must not throw it. */
+function stringifyForMessage(value: unknown): string {
+    try {
+        return JSON.stringify(value) ?? String(value);
+    } catch {
+        return formatValue(value);
+    }
+}
+
 /** Deep partial match: every key/index in `expected` must be present and match in `actual`;
  * extra actual keys ignored. */
 function matchesObject(actual: unknown, expected: unknown): boolean {
@@ -736,8 +745,8 @@ class MatcherFactory {
         this.triggerResult(
             success,
             `      Expected values to be deeply strictly equal\n` +
-                `      Expected: ${JSON.stringify(expectedValue)}\n` +
-                `      Actual: ${JSON.stringify(this.actualValue)}` +
+                `      Expected: ${stringifyForMessage(expectedValue)}\n` +
+                `      Actual: ${stringifyForMessage(this.actualValue)}` +
                 (errorMessage ? `\n      ${errorMessage}` : ''),
         );
     }
