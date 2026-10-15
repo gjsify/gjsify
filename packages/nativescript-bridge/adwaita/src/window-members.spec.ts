@@ -107,7 +107,7 @@ export const GtkWindowMembersNsTest = async () => {
                 window.connect('notify::is-active', (self) => seen.push(self.isActive));
                 expect(window.isActive).toBe(false);
                 window.onLoaded();
-                expect(window.is_active()).toBe(true);
+                expect(window.is_active).toBe(true);
                 Application.emitLifecycle('suspend');
                 Application.emitLifecycle('suspend');
                 Application.emitLifecycle('resume');
@@ -447,6 +447,10 @@ export const GtkWindowMembersNsTest = async () => {
                 expect(throwsWith(() => window.set_focus(other as never), 'descendant')).toBe(true);
                 window.set_focus(null);
                 expect(window.get_focus()).toBe(null);
+                window.focus_widget = button as never;
+                expect(window.focus_widget === (button as unknown)).toBe(true);
+                window.focus_widget = null;
+                expect(window.focus_widget).toBe(null);
             } finally {
                 useWindowHost(null);
             }

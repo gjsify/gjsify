@@ -20,7 +20,7 @@
 //                  iOS has no back button: nothing is watched there.
 //   close()        Android `finish()` of the foreground activity. iOS has no public API to close the
 //                  root: `close()` throws there, BEFORE `close-request` is emitted.
-//   focus-widget   `get_focus()` / `set_focus()` read and move native focus. `connect
+//   focus-widget   `get_focus()` / `set_focus()` (or `focus_widget`) read and move native focus. `connect
 //                  ('notify::focus-widget')` is refused: focus the user moves is unobservable here.
 //   maximized      constant true — the window is the screen. `maximize()` is a no-op; `unmaximize()`
 //                  and `maximized = false` throw. Split-screen or multi-window is not detected.
@@ -90,8 +90,9 @@ export class GtkWindow extends AdwSingleChildBase {
         return this._members.active;
     }
 
-    is_active(): boolean {
-        return this.isActive;
+    /** The GJS spelling of {@link isActive}: a property, as in `@girs/gtk-4.0` (ADR 0098 Amendment 4). */
+    get is_active(): boolean {
+        return this._members.active;
     }
 
     /** `GtkWindow:maximized`: always true here. Writing false throws; writing true is a no-op. */
@@ -121,9 +122,18 @@ export class GtkWindow extends AdwSingleChildBase {
     /** The application's `activate` returns the root window, so it is presented already. */
     present(): void {}
 
-    /** `GtkWindow:focus-widget` (read-only): the view holding native focus, found live. */
+    /** `GtkWindow:focus-widget`: the view holding native focus, found live. */
     get focusWidget(): View | null {
         return this.get_focus();
+    }
+
+    /** `GtkWindow:focus-widget` under its GJS spelling; writing it is `set_focus`. */
+    get focus_widget(): View | null {
+        return this.get_focus();
+    }
+
+    set focus_widget(widget: View | null) {
+        this.set_focus(widget);
     }
 
     get_focus(): View | null {
