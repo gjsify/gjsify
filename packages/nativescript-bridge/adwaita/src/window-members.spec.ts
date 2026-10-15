@@ -12,6 +12,9 @@ import type { View } from '@nativescript/core';
 
 import { Application } from './testing/ns-core.mjs';
 
+/** ADR 0098 Amendment 4: every window class is a `Gtk.WindowCommon`, or `check` fails here. */
+const asWindowCommon = (window: Gtk.Window | Adw.Window | Adw.ApplicationWindow): Gtk.WindowCommon<View> => window;
+
 interface FakeHost extends WindowHost {
     finished: number;
     focused: View | null;
@@ -107,7 +110,7 @@ export const GtkWindowMembersNsTest = async () => {
                 window.connect('notify::is-active', (self) => seen.push(self.isActive));
                 expect(window.isActive).toBe(false);
                 window.onLoaded();
-                expect(window.is_active()).toBe(true);
+                expect(window.is_active).toBe(true);
                 Application.emitLifecycle('suspend');
                 Application.emitLifecycle('suspend');
                 Application.emitLifecycle('resume');
@@ -447,6 +450,10 @@ export const GtkWindowMembersNsTest = async () => {
                 expect(throwsWith(() => window.set_focus(other as never), 'descendant')).toBe(true);
                 window.set_focus(null);
                 expect(window.get_focus()).toBe(null);
+                window.focus_widget = button as never;
+                expect(window.focus_widget === (button as unknown)).toBe(true);
+                window.focus_widget = null;
+                expect(window.focus_widget).toBe(null);
             } finally {
                 useWindowHost(null);
             }
@@ -462,15 +469,16 @@ export const GtkWindowMembersNsTest = async () => {
                 expect(window instanceof Gtk.Window).toBe(true);
                 expect(window.maximized).toBe(true);
                 expect(window.isActive).toBe(false);
+                expect(asWindowCommon(window).is_active).toBe(false);
                 expect(window.get_focus()).toBe(null);
                 expect(throwsWith(() => window.connect('notify::focus-widget', () => {}), 'focus-widget')).toBe(true);
             }
         });
 
         await it('present() is a no-op', () => {
-            const window = new Gtk.Window();
+            const window = asWindowCommon(new Gtk.Window());
             window.present();
-            expect(window.isActive).toBe(false);
+            expect(window.is_active).toBe(false);
         });
     });
 };

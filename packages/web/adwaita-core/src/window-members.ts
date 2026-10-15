@@ -159,3 +159,34 @@ export class CloseRequestState {
         return outcome;
     }
 }
+
+/**
+ * `Gtk.WindowCommon` (ADR 0098 Amendment 4): the part of `Gtk.Window` that GJS, `<gtk-window>` and the
+ * NativeScript window all have, so code shared between them types a window without a cast. A TRUE
+ * subset: `Gtk.Window` from `@girs/gtk-4.0` is assignable to it, and so is every window class of
+ * both ports. `TWidget` is what focus holds — `Gtk.Widget`, `Element` or a NativeScript `View`.
+ *
+ * Handlers are typed by the emitter alone: what follows it differs (a `GParamSpec` in GJS, an event
+ * payload on NativeScript), so shared code reads the window, not the extra arguments.
+ * `notify::focus-widget` is left out: NativeScript cannot observe focus the user moves.
+ */
+export interface WindowCommon<TWidget = unknown> {
+    /** `Gtk.Window:is-active`, read-only. */
+    readonly is_active: boolean;
+    readonly isActive: boolean;
+    /** `Gtk.Window:focus-widget`; writing it is `set_focus`. */
+    focus_widget: TWidget | null;
+    get_focus(): TWidget | null;
+    set_focus(focus: TWidget | null): void;
+    /** `Gtk.Window:maximized`. */
+    maximized: boolean;
+    is_maximized(): boolean;
+    maximize(): void;
+    unmaximize(): void;
+    present(): void;
+    /** `gtk_window_close`: emits `close-request`, whose first handler to return true keeps the window. */
+    close(): void;
+    connect(signal: 'close-request', callback: (self: this) => boolean | void): number;
+    connect(signal: 'notify::is-active' | 'notify::maximized', callback: (self: this) => void): number;
+    disconnect(id: number): void;
+}

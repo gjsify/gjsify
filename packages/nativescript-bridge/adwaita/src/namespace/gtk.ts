@@ -53,6 +53,8 @@ export { GtkOverlay as Overlay } from '../widgets/gtk-overlay.js';
 export { GtkRevealer as Revealer } from '../widgets/gtk-revealer.js';
 export { GtkScrolledWindow as ScrolledWindow } from '../widgets/gtk-scrolled-window.js';
 export { GtkWindow as Window } from '../widgets/gtk-window.js';
+// ADR 0098 Amendment 4: the `Gtk.Window` subset both ports and GJS share, for code that runs on all three.
+export type { WindowCommon } from '@gjsify/adwaita-core';
 export { GtkSeparator as Separator } from '../widgets/gtk-separator.js';
 export { GtkStack as Stack } from '../widgets/gtk-stack.js';
 export { GtkStackPage as StackPage } from '../widgets/stack-page.js';

@@ -712,6 +712,10 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-toggle-group.options': {
         own: 'Toggles are `Adw.Toggle` objects added with `adw_toggle_group_add()`; AdwToggleGroupProps has no list key (`active`, `activeName`, `canShrink`, `homogeneous` are the writable ones). The port rebuilds the group from a label array instead (adw-toggle-group.ts:82-86).',
     },
+    'gtk-window.focus_widget': {
+        gir: 'focusWidget',
+        why: '`Gtk.WindowCommon` (ADR 0098 Amendment 4) needs the GJS snake_case accessor `@girs/gtk-4.0` declares beside `focusWidget`; both read the same live focus, and writing it is `set_focus`.',
+    },
 };
 
 /**
