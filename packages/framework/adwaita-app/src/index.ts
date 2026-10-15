@@ -56,6 +56,8 @@ export type { InitLocaleOptions, Translator } from './locale.js';
 
 export { SYSTEM_LOCALE_DIR, resolveLocaleDir, systemLocaleDir } from './locale-dir.js';
 export type { ResolveLocaleDirOptions } from './locale-dir.js';
+export { LOCALE_ENV_VARS, localeEnvToSet, posixLocale } from './locale-env.js';
+export type { LocaleEnvOptions } from './locale-env.js';
 
 // The macOS system accent, for what has no libadwaita to read it (web views, a headless
 // companion). Also the GTK-free `@gjsify/adwaita-app/system-accent` subpath.

@@ -27,6 +27,7 @@ import GLib from 'gi://GLib?version=2.0';
 import Gettext from 'gettext';
 
 import { resolveLocaleDir, type ResolveLocaleDirOptions } from './locale-dir.js';
+import { LOCALE_ENV_VARS, localeEnvToSet } from './locale-env.js';
 
 export type InitLocaleOptions = Omit<ResolveLocaleDirOptions, 'env'>;
 
@@ -48,20 +49,47 @@ export interface Translator {
 }
 
 /**
+ * Windows only: export the user's locale as `LANG` when the environment names none, so that
+ * gettext (which reads nothing but the environment there) translates a de-DE desktop. See
+ * `locale-env.ts` for why and for the macOS finding. Written to BOTH environments — `g_setenv`
+ * for GLib and the CRT, `process.env` for Node, whose Win32 environment is a separate copy.
+ */
+function adoptUserLocaleOnWindows(platform: string | undefined): void {
+    if (platform !== 'win32') return;
+    const env: Record<string, string | undefined> = {};
+    for (const name of LOCALE_ENV_VARS) env[name] = GLib.getenv(name) ?? process.env[name];
+
+    const lang = localeEnvToSet({
+        platform,
+        env,
+        userLocales: [
+            typeof Intl === 'undefined' ? undefined : Intl.DateTimeFormat().resolvedOptions().locale,
+            GLib.get_language_names()[0],
+        ],
+    });
+    if (lang === undefined) return;
+    GLib.setenv('LANG', lang, false);
+    process.env.LANG = lang;
+}
+
+/**
  * Bind `domain` and return its lookup function.
  *
  * Safe to call when no catalogue exists: gettext then returns each msgid unchanged, which is why
  * the msgids themselves must be the source language rather than keys.
  */
 export function initLocale(domain: string, options: InitLocaleOptions = {}): Translator {
+    // THIS is the impure side, so the `process` read belongs here rather than in
+    // `locale-dir.ts`. Guarded because a GJS bundle built with `--globals none` has no
+    // `process` at all, and `systemLocaleDir` reads an absent platform as "leave it alone".
+    const platform = typeof process === 'undefined' ? undefined : (process.platform as string | undefined);
     const localeDir = resolveLocaleDir({
         ...options,
         env: { GJSIFY_LOCALE_DIR: GLib.getenv('GJSIFY_LOCALE_DIR') ?? undefined },
-        // THIS is the impure side, so the `process` read belongs here rather than in
-        // `locale-dir.ts`. Guarded because a GJS bundle built with `--globals none` has no
-        // `process` at all, and `systemLocaleDir` reads an absent platform as "leave it alone".
-        platform: typeof process === 'undefined' ? undefined : (process.platform as string | undefined),
+        platform,
     });
+
+    adoptUserLocaleOnWindows(platform);
 
     // Adopt the environment's locale. `gtk_init()` does this too, but a CLI sharing the app's
     // kernel translates before any GTK call exists and would otherwise stay in the C locale.

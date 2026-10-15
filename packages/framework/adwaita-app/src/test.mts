@@ -10,6 +10,7 @@ import appdataSuite from './appdata.spec.js';
 import devHooksSuite from './dev-hooks.spec.js';
 import dialogModelSuite from './dialog-model.spec.js';
 import localeDirSuite from './locale-dir.spec.js';
+import localeEnvSuite from './locale-env.spec.js';
 import navModelSuite from './nav-model.spec.js';
 import viewLoaderSuite from './view-loader.spec.js';
 
@@ -20,6 +21,7 @@ run({
     devHooksSuite,
     dialogModelSuite,
     localeDirSuite,
+    localeEnvSuite,
     navModelSuite,
     viewLoaderSuite,
 });
