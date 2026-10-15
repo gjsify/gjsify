@@ -241,11 +241,10 @@ listed under step 4. The record, in order:
    (same report, "Confirmed on the emulator"): `set`/`notify` 99.4x → **~25x** (59 729 → ~13 µs) and
    emit → **~17–22x** (9 782 → ~4.3 µs), both 2–5x faster than with the published 0.64.0 AAR.
 2. ~~Measure a RELEASE APK: compressed delta per ABI and cold start.~~ **Measured** (same report):
-   15.77 MB (arm64-v8a) and 16.93 MB (x86_64) compressed per split, +80 ms / 17.8 % cold start.
-   Left over: **arm64 cold start from a release APK** — the only cold-start numbers are from the
-   x86_64 emulator; stage 4's ~83 ms / 6.5 % on arm64 is from a universal debug APK. Also not
-   measured: an APK without the payload packaged, and R8 (NativeScript leaves its hooks off, and
-   R8 cannot change a `.so`/typelib delta).
+   15.77 MB (arm64-v8a) and 16.93 MB (x86_64) compressed per split, +80 ms / 17.8 % cold start on
+   the emulator, **+105.5 ms / 13.0 % on an arm64 release APK** (Galaxy S9). Not measured: an APK
+   without the payload packaged, and R8 (NativeScript leaves its hooks off, and R8 cannot change a
+   `.so`/typelib delta).
 3. ~~Wire the dual emulator run: app and storybook tests once per engine, beside the vectors.~~
    **Done**: `tests/integration/nativescript-gi` gained `app/specs/views.ts` (the NativeScript View
    door over registered classes) and `app/specs/storybook.ts` (the NS storybook surface), both
@@ -265,7 +264,6 @@ listed under step 4. The record, in order:
    device (the Android bundle really resolved the Android target; the refusal survives the
    bundler with its message intact).
    Still open after the flip:
-   - **arm64 cold start from a release APK** (step 2's leftover) — needs a device, not done here.
    - ADR 0105 § 2's twin route: a real subclass instead of the hidden twin.
    - The `findProtoDescriptor` cache in `status/open-todos/node-gi.md` — the emulator numbers above
      are what it bought, and the remaining ~25x on `set`/`notify` is where to look next.
