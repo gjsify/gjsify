@@ -281,7 +281,7 @@ export class GtkWindow extends HTMLElement {
     }
 
     private _offByDefault(name: string): boolean {
-        return this.hasAttribute(name);
+        return this.hasAttribute(name) && this.getAttribute(name) !== 'false';
     }
 
     connectedCallback() {

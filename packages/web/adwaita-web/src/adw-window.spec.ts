@@ -54,6 +54,10 @@ export const AdwWindowTest = async () => {
         });
 
         await it('keeps 360×200 as a minimum and fills the viewport without an authored size', async () => {
+            // The window fills its containing block, which is the viewport only once the
+            // browser's default 8px body margin is gone (an app resets it, the test page does not).
+            const margin = document.body.style.margin;
+            document.body.style.margin = '0';
             const win = makeWindow();
             expect(win.style.minWidth).toBe('360px');
             expect(win.style.minHeight).toBe('200px');
@@ -62,6 +66,7 @@ export const AdwWindowTest = async () => {
             expect(Math.round(win.getBoundingClientRect().width)).toBe(document.documentElement.clientWidth);
             expect(Math.round(win.getBoundingClientRect().height)).toBe(window.innerHeight);
             win.remove();
+            document.body.style.margin = margin;
         });
 
         await it('width-request/height-request override the minimum; gtk-window has none', async () => {
@@ -117,6 +122,8 @@ export const AdwWindowTest = async () => {
 
             win.remove();
             document.body.appendChild(win);
+            // 360 is a MINIMUM, so a 200px box needs the request lowered as well.
+            win.setAttribute('width-request', '100');
             win.setAttribute('width', '200');
             await settle();
 

@@ -22,6 +22,7 @@ import {
     dialogFailedError,
     dismissedError,
     fileFilterAccepts,
+    GLibError,
     registerFileChooserDriver,
     type FileChooserDriver,
     type FileChooserHandle,
@@ -207,6 +208,7 @@ function isAbort(error: unknown): boolean {
 
 /** The `Gtk.DialogError` a platform rejection becomes: `AbortError` is the user closing the picker. */
 function dialogRejection(error: unknown) {
+    if (error instanceof GLibError) return error;
     if (isAbort(error)) return dismissedError();
     const e = error as { name?: string; message?: string } | null;
     if (e && typeof e.message === 'string') return dialogFailedError(`${e.name ?? 'Error'}: ${e.message}`);

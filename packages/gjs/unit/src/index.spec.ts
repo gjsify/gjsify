@@ -125,6 +125,12 @@ export default async () => {
             expect(() => expect([['real', '^2']]).toEqual([['real', '^2']])).toThrow('toStrictEqual');
         });
 
+        await it('toStrictEqual passes on a circular value instead of throwing from its message', async () => {
+            const node: { self?: unknown } = {};
+            node.self = node;
+            expect([node]).toStrictEqual([node]);
+        });
+
         await it('stays silent when the values genuinely differ', async () => {
             // The hint is appended LAST, so a message that still ends at the
             // type suffix carries none — asserting absence positively.

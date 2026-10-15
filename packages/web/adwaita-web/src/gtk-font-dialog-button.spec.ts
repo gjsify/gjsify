@@ -124,7 +124,9 @@ export const GtkFontDialogButtonTest = async () => {
             expect(label.style.fontFamily).toBe('');
             el.useFont = true;
             expect(label.style.fontWeight).toBe('700');
-            expect(label.style.fontFamily).toBe('"Cantarell"');
+            // Engines differ on serializing a quoted single-identifier family: Firefox keeps
+            // the quotes, Chromium drops them. The family name is what matters.
+            expect(label.style.fontFamily.replace(/"/g, '')).toBe('Cantarell');
             // `use-size` is false, so `PANGO_FONT_MASK_SIZE` was cleared and there is no size.
             expect(label.style.fontSize).toBe('');
             el.useSize = true;

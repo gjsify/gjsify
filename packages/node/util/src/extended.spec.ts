@@ -479,15 +479,17 @@ export default async () => {
             // `styleText` emit ANSI even on non-TTY streams (correctly mirroring
             // Node's own behaviour) — which contradicts what this test is asserting
             // about the validateStream-default-on path.
-            const prevForce = process.env.FORCE_COLOR;
-            const prevNo = process.env.NO_COLOR;
-            delete process.env.FORCE_COLOR;
-            delete process.env.NO_COLOR;
+            // A browser has no `process`, and so nothing to save or clear.
+            const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+            const prevForce = env.FORCE_COLOR;
+            const prevNo = env.NO_COLOR;
+            delete env.FORCE_COLOR;
+            delete env.NO_COLOR;
             try {
                 expect(util.styleText('red', 'hello')).toBe('hello');
             } finally {
-                if (prevForce !== undefined) process.env.FORCE_COLOR = prevForce;
-                if (prevNo !== undefined) process.env.NO_COLOR = prevNo;
+                if (prevForce !== undefined) env.FORCE_COLOR = prevForce;
+                if (prevNo !== undefined) env.NO_COLOR = prevNo;
             }
         });
 

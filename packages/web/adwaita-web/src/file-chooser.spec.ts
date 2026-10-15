@@ -316,11 +316,9 @@ export const FileChooserTest = async () => {
                 const { env, subject } = opfsSubject(dir);
                 subject.script({ basename: 'd.txt' });
                 await withEnv(env, async () => {
-                    const save = new Gtk.FileDialog({ initial_name: 'd.txt' }).save as unknown as (
-                        p: unknown,
-                        c: unknown,
-                    ) => Promise<{ replace_contents_async: unknown }>;
-                    await save(null, null);
+                    const dialog = new Gtk.FileDialog({ initial_name: 'd.txt' });
+                    // Called on the dialog: a detached `save` has no `this`, which is not what is under test.
+                    await (dialog.save as unknown as (p: unknown, c: unknown) => Promise<unknown>)(null, null);
                 });
             } finally {
                 document.createElement = original;

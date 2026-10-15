@@ -64,6 +64,7 @@ import type {
 } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
+import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
 
 /** The persistent content. Child of <adw-bottom-sheet>; consumed at connect time. */
@@ -207,6 +208,11 @@ export class AdwBottomSheet extends HTMLElement {
             this.dispatchEvent(new CustomEvent('sheet.close', { bubbles: true }));
         }
         return outcome;
+    }
+
+    constructor() {
+        super();
+        installElementApi(this);
     }
 
     connectedCallback() {

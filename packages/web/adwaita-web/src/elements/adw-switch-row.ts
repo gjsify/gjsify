@@ -29,6 +29,7 @@ import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
 
@@ -73,6 +74,11 @@ export class AdwSwitchRow extends HTMLElement {
         // Routed through the attribute so the declarative and imperative faces
         // stay one code path; `attributeChangedCallback` drives the state.
         this.toggleAttribute('active', !!value);
+    }
+
+    constructor() {
+        super();
+        installElementApi(this);
     }
 
     connectedCallback() {

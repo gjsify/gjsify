@@ -55,6 +55,7 @@ import { BACK_BUTTON_FALLBACK_TOOLTIP, NavigationViewState, describeNavigationDi
 import type { AdwNavigationPageProps, NavigationDiagnostic, NavigationStackChange } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
 
 /** The page properties the core owns, read off the element's attributes. */
@@ -213,6 +214,11 @@ export class AdwNavigationView extends HTMLElement {
     /** The back button's tooltip — the previous page's title, or null when there is no button. */
     get backButtonTooltip(): string | null {
         return this._state.backButtonTooltip();
+    }
+
+    constructor() {
+        super();
+        installElementApi(this);
     }
 
     connectedCallback() {

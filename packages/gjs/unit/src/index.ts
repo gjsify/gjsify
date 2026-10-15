@@ -37,7 +37,10 @@ interface _RuntimeGlobals {
     __gjsify_test_results?: {
         /** Tests that ran and did not fail. */
         passed: number;
+        /** Failed tests, failures outside tests, and one more when the run is {@link incomplete}. */
         failed: number;
+        /** A suite body threw, so later suites never started: `passed`/`total` describe a partial run. */
+        incomplete: boolean;
         /** Tests that ran — NOT assertions, which is what this field used to carry (#1557). */
         total: number;
         /** Assertions executed, kept beside the total rather than instead of it. */
@@ -109,6 +112,8 @@ let countTestsIgnored = 0;
  * and the summary must not read green — see the `.catch` in `run` for the incident.
  */
 let suiteBodyThrew = false;
+/** The throw behind {@link suiteBodyThrew}, for the browser results — which have no exit code. */
+let suiteBodyMessage = '';
 /** Tests marked `it.failing` that failed as expected (see `it.failing`). */
 let countTestsXfail = 0;
 
@@ -573,6 +578,15 @@ export function formatValue(value: unknown): string {
     }
 }
 
+/** `JSON.stringify` for a failure message: a circular value (a DOM element) must not throw it. */
+function stringifyForMessage(value: unknown): string {
+    try {
+        return JSON.stringify(value) ?? String(value);
+    } catch {
+        return formatValue(value);
+    }
+}
+
 /** Deep partial match: every key/index in `expected` must be present and match in `actual`;
  * extra actual keys ignored. */
 function matchesObject(actual: unknown, expected: unknown): boolean {
@@ -731,8 +745,8 @@ class MatcherFactory {
         this.triggerResult(
             success,
             `      Expected values to be deeply strictly equal\n` +
-                `      Expected: ${JSON.stringify(expectedValue)}\n` +
-                `      Actual: ${JSON.stringify(this.actualValue)}` +
+                `      Expected: ${stringifyForMessage(expectedValue)}\n` +
+                `      Actual: ${stringifyForMessage(this.actualValue)}` +
                 (errorMessage ? `\n      ${errorMessage}` : ''),
         );
     }
@@ -1581,17 +1595,44 @@ const runTests = async function (namespaces: Namespaces) {
     }
 };
 
+/**
+ * The object a browser harness reads from `window.__gjsify_test_results`, as a pure function of the
+ * tally. A browser has no exit code, so an INCOMPLETE run (a suite body threw) must be visible in
+ * the data itself: it counts as one failure and carries the throw, otherwise a harness asserting
+ * `failed === 0` passes a run that skipped most of its suites.
+ */
+export const browserResultsFor = (tally: {
+    run: number;
+    failed: number;
+    outside: number;
+    assertions: number;
+    errors: Array<{ suite: string; test: string; message: string }>;
+    bodyThrew: boolean;
+    bodyMessage: string;
+}): NonNullable<_RuntimeGlobals['__gjsify_test_results']> => ({
+    passed: tally.run - tally.failed,
+    failed: tally.failed + tally.outside + (tally.bodyThrew ? 1 : 0),
+    incomplete: tally.bodyThrew,
+    total: tally.run,
+    assertions: tally.assertions,
+    errors: tally.bodyThrew
+        ? [...tally.errors, { suite: '<suite body>', test: '<run incomplete>', message: tally.bodyMessage }]
+        : tally.errors,
+});
+
 const browserSignalDone = () => {
     const g = runtimeGlobals();
     const doc = g.document;
     if (!doc) return;
-    g.__gjsify_test_results = {
-        passed: countTestsRun - countTestsFailed,
-        failed: countTestsFailed + countFailuresOutsideTests,
-        total: countTestsRun,
+    g.__gjsify_test_results = browserResultsFor({
+        run: countTestsRun,
+        failed: countTestsFailed,
+        outside: countFailuresOutsideTests,
         assertions: countAssertions,
         errors: testErrors,
-    };
+        bodyThrew: suiteBodyThrew,
+        bodyMessage: suiteBodyMessage,
+    });
     doc.documentElement.dataset.testsDone = 'true';
 };
 
@@ -1948,6 +1989,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
     cwdReadable = probeCwd();
 
     suiteBodyThrew = false;
+    suiteBodyMessage = '';
     let requireAxes: readonly Runtime[] = [];
     if (options) {
         if (typeof options === 'number') {
@@ -2013,6 +2055,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             // CI reader is already looking.
             suiteBodyThrew = true;
             const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+            suiteBodyMessage = `a suite body threw${currentSuite ? ` (in "${currentSuite}")` : ''}: ${message}`;
             print(
                 `\n${RED}❌ a suite body threw, so the run is INCOMPLETE and every later suite was skipped` +
                     `${currentSuite ? ` (in "${currentSuite}")` : ''} — ${message}${RESET}`,

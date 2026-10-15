@@ -1,5 +1,16 @@
 import { run, describe, it, expect } from '@gjsify/unit';
 
+/** The text of a stream of STRING chunks: `new Response(stream)` only takes bytes, and a browser says so. */
+async function readText(stream: ReadableStream<string>): Promise<string> {
+    const reader = stream.getReader();
+    let text = '';
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return text;
+        text += value;
+    }
+}
+
 run({
     async StreamsTest() {
         await describe('ReadableStream', async () => {
@@ -100,7 +111,7 @@ run({
                 const writer = ts.writable.getWriter();
                 writer.write('hello');
                 writer.close();
-                expect(await new Response(ts.readable).text()).toBe('HELLO');
+                expect(await readText(ts.readable)).toBe('HELLO');
             });
 
             await it('passthrough when no transform defined', async () => {
@@ -108,7 +119,7 @@ run({
                 const writer = ts.writable.getWriter();
                 writer.write('pass');
                 writer.close();
-                expect(await new Response(ts.readable).text()).toBe('pass');
+                expect(await readText(ts.readable)).toBe('pass');
             });
         });
 
@@ -120,7 +131,7 @@ run({
                 const writer = enc.writable.getWriter();
                 writer.write('héllo wörld');
                 writer.close();
-                expect(await new Response(dec.readable).text()).toBe('héllo wörld');
+                expect(await readText(dec.readable)).toBe('héllo wörld');
             });
         });
 
