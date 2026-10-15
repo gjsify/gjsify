@@ -22,6 +22,12 @@ export { createRealGioListStore } from './list-store.js';
 export type { RealGioListStore } from './list-store.js';
 export { createSubsetSubject, SUBSET_SUBJECT_NAME } from './vector-subject.js';
 
+// What an instance COSTS — ADR 0105 stage 2's missing number, ADR 0110's first gate. Shipped for
+// the same reason the subject is: a host leg and a device leg drive it, and a benchmark assembled
+// twice is two benchmarks. `./bench.ts` says what the four rows are and how they are timed.
+export { benchRatios, formatBenchLines, runGObjectBench, runPureJsBench } from './bench.js';
+export type { BenchCase, BenchOptions, BenchResult } from './bench.js';
+
 // ADR 0105 stage 3: `Gio.Settings` and `Gio.File` on a real Gio, as conformance SUBJECTS for the
 // vectors of ADR 0099 and ADR 0100. Same reason they are shipped: the host leg and the device leg
 // drive one subject each, not two copies.

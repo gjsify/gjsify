@@ -18,6 +18,7 @@ import gobjectVectors from './specs/gobject.vectors.js';
 import listStoreVectors from './specs/list-store.js';
 import settingsVectors from './specs/settings.js';
 import fileChooserVectors from './specs/file-chooser.js';
+import benchSpec from './specs/bench.js';
 
 // Module-level result the page binds to (set when the async run lands).
 export const result: { summary: Summary | null; runId: string } = {
@@ -58,6 +59,9 @@ async function runSuite(): Promise<void> {
             // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
             if (optedIn) await settingsVectors();
             if (optedIn) await fileChooserVectors();
+            // LAST, and only when the build asked for it: it is seconds long and the runs that
+            // measure cold start must not carry it. `specs/bench.ts` says why it is a define.
+            if (__GJSIFY_GI_BENCH__) await benchSpec();
         }
     } catch (err) {
         // A throw OUTSIDE an it() — an import-time crash, a typelib missing a type the subject
