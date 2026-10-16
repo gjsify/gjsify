@@ -627,13 +627,13 @@ describe('C array with length', function () {
     });
 
     describe('of unichars', function () {
-        itSkip(SKIP_UNICHAR_ARRAY, 'marshals as an in parameter', function () {
+        it('marshals as an in parameter', function () {
             expect(() => GIMarshallingTests.array_unichar_in('const ♥ utf8')).not.toThrow();
         });
         itSkip(SKIP_UNICHAR_ARRAY, 'marshals as an out parameter', function () {
             expect(GIMarshallingTests.array_unichar_out()).toEqual('const ♥ utf8');
         });
-        itSkip(SKIP_UNICHAR_ARRAY, 'marshals from an array of codepoints', function () {
+        it('marshals from an array of codepoints', function () {
             const codepoints = [...'const ♥ utf8'].map((c) => c.codePointAt(0));
             expect(() => GIMarshallingTests.array_unichar_in(codepoints)).not.toThrow();
         });

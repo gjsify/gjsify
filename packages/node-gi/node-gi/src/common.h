@@ -363,7 +363,7 @@ inline NodeGiIntResult NodeGiJsToInteger(Napi::Value v, GITypeTag tag, GIArgumen
   }
 }
 
-enum class NodeGiIntContext { kArgument, kField, kReturnValue };
+enum class NodeGiIntContext { kArgument, kField, kReturnValue, kListElement, kHashElement };
 inline const char* NodeGiIntTagName(GITypeTag tag) {
   switch (tag) {
     case GI_TYPE_TAG_INT8: return "int8";
@@ -385,11 +385,29 @@ inline void NodeGiThrowIntOutOfRange(Napi::Env env, GITypeTag tag, NodeGiIntCont
     msg = std::string("Argument ") + (name != nullptr ? name : "") + ": value is out of range for " + t;
   } else {
     msg = "value " + shown + " is out of range for " +
-          (ctx == NodeGiIntContext::kField ? std::string("Field '") + (name ? name : "") + "'"
-                                           : std::string("Return value")) +
+          (ctx == NodeGiIntContext::kField
+               ? std::string("Field '") + (name ? name : "") + "'"
+               : ctx == NodeGiIntContext::kListElement   ? std::string("List element")
+               : ctx == NodeGiIntContext::kHashElement   ? std::string("Hash element")
+                                                         : std::string("Return value")) +
           " (type " + t + ")";
   }
   Napi::Error::New(env, msg).ThrowAsJavaScriptException();
+}
+
+// The text gjs_debug_value (refs/gjs/gi/../jsapi-util-string.cpp) prints for the offending
+// value in a list/hash element error: a Number goes through C++ ostream (%g, 6 digits), a
+// BigInt is shown as its signed 64-bit value with a "(modulo 2^64)" suffix.
+inline std::string NodeGiDebugValue(Napi::Value v) {
+  if (v.IsBigInt()) {
+    bool lossless = false;
+    return std::to_string(v.As<Napi::BigInt>().Int64Value(&lossless)) + "n (modulo 2^64)";
+  }
+  Napi::Number n = v.ToNumber();
+  if (n.IsEmpty()) return std::string();
+  char buf[G_ASCII_DTOSTR_BUF_SIZE];
+  g_ascii_formatd(buf, sizeof(buf), "%g", n.DoubleValue());  // locale-independent, like ostream
+  return buf;
 }
 
 // IN array elements and GValue int/uint, GJS-exact: these WRAP instead of refusing.

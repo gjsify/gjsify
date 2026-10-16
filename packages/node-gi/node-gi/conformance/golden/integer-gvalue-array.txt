@@ -1,3 +1,75 @@
+new char 0 -> ok 0
+new char 97 -> ok 97
+new char 127 -> ok 127
+new char 128 -> throws Wrong type number; char expected. But it's out of range: 128
+new char 255 -> throws Wrong type number; char expected. But it's out of range: 255
+new char 256 -> throws Wrong type number; char expected. But it's out of range: 256
+new char -1 -> ok -1
+new char -128 -> ok -128
+new char -129 -> throws Wrong type number; char expected. But it's out of range: -129
+new char 32768 -> throws Wrong type number; char expected. But it's out of range: 32768
+new char 65536 -> throws Wrong type number; char expected. But it's out of range: 65536
+new char 2147483647 -> throws Wrong type number; char expected. But it's out of range: 2147483647
+new char 2147483648 -> throws Wrong type number; char expected. But it's out of range: 2147483648
+new char 4294967295 -> ok -1
+new char 4294967296 -> ok 0
+new char 4294967393 -> ok 97
+new char 9007199254740992 -> ok 0
+new char 9223372036854776000 -> ok 0
+new char 18446744073709552000 -> ok 0
+new char 1.5 -> ok 1
+new char -0 -> ok 0
+new char NaN -> ok 0
+new char Infinity -> ok 0
+new char -Infinity -> ok 0
+new char undefined -> throws Invalid value 'undefined' for property char in object initializer.
+new char null -> ok 0
+new char true -> ok 1
+new char "5" -> ok 5
+new char "abc" -> ok 0
+new char {} -> ok 0
+new char 5n -> throws TypeError
+new char 9223372036854775807n -> throws TypeError
+new char 9223372036854775808n -> throws TypeError
+new char -9223372036854775809n -> throws TypeError
+new char 18446744073709551615n -> throws TypeError
+new char 18446744073709551616n -> throws TypeError
+new uchar 0 -> ok 0
+new uchar 97 -> ok 97
+new uchar 127 -> ok 127
+new uchar 128 -> ok 128
+new uchar 255 -> ok 255
+new uchar 256 -> throws Wrong type number; unsigned char expected. But it's out of range: 256
+new uchar -1 -> throws Wrong type number; unsigned char expected. But it's out of range: -1
+new uchar -128 -> throws Wrong type number; unsigned char expected. But it's out of range: -128
+new uchar -129 -> throws Wrong type number; unsigned char expected. But it's out of range: -129
+new uchar 32768 -> throws Wrong type number; unsigned char expected. But it's out of range: 32768
+new uchar 65536 -> throws Wrong type number; unsigned char expected. But it's out of range: 65536
+new uchar 2147483647 -> throws Wrong type number; unsigned char expected. But it's out of range: 2147483647
+new uchar 2147483648 -> throws Wrong type number; unsigned char expected. But it's out of range: 2147483648
+new uchar 4294967295 -> throws Wrong type number; unsigned char expected. But it's out of range: 4294967295
+new uchar 4294967296 -> ok 0
+new uchar 4294967393 -> ok 97
+new uchar 9007199254740992 -> ok 0
+new uchar 9223372036854776000 -> ok 0
+new uchar 18446744073709552000 -> ok 0
+new uchar 1.5 -> ok 1
+new uchar -0 -> ok 0
+new uchar NaN -> ok 0
+new uchar Infinity -> ok 0
+new uchar -Infinity -> ok 0
+new uchar undefined -> throws Invalid value 'undefined' for property uchar in object initializer.
+new uchar null -> ok 0
+new uchar true -> ok 1
+new uchar "5" -> ok 5
+new uchar "abc" -> ok 0
+new uchar {} -> ok 0
+new uchar 5n -> throws TypeError
+new uchar 9223372036854775807n -> throws TypeError
+new uchar 9223372036854775808n -> throws TypeError
+new uchar -9223372036854775809n -> throws TypeError
+new uchar 18446744073709551615n -> throws TypeError
+new uchar 18446744073709551616n -> throws TypeError
 new int 0 -> ok 0
 new int 97 -> ok 97
 new int 127 -> ok 127
@@ -420,6 +492,36 @@ array uint16 "5" -> ok "97,5"
 array uint16 "abc" -> ok "97"
 array uint16 {} -> ok "97"
 array uint16 5n -> throws TypeError
+array unichar 0 -> ok "97"
+array unichar 97 -> ok "97,97"
+array unichar 127 -> ok "97,127"
+array unichar 128 -> ok "97,128"
+array unichar 255 -> ok "97,255"
+array unichar 256 -> ok "97,256"
+array unichar -1 -> throws GLib.Error
+array unichar -128 -> throws GLib.Error
+array unichar -129 -> throws GLib.Error
+array unichar 32768 -> ok "97,32768"
+array unichar 65536 -> ok "97,65536"
+array unichar 2147483648 -> throws GLib.Error
+array unichar 4294967295 -> throws GLib.Error
+array unichar 4294967296 -> ok "97"
+array unichar 4294967393 -> ok "97,97"
+array unichar 9007199254740992 -> ok "97"
+array unichar 9223372036854776000 -> ok "97"
+array unichar 18446744073709552000 -> ok "97"
+array unichar 1.5 -> ok "97,1"
+array unichar -0 -> ok "97"
+array unichar NaN -> ok "97"
+array unichar Infinity -> ok "97"
+array unichar -Infinity -> ok "97"
+array unichar undefined -> ok "97"
+array unichar null -> ok "97"
+array unichar true -> ok "97,1"
+array unichar "5" -> ok "97,5"
+array unichar "abc" -> ok "97"
+array unichar {} -> ok "97"
+array unichar 5n -> throws TypeError
 array int32 0 -> ok "7,0"
 array int32 97 -> ok "7,97"
 array int32 127 -> ok "7,127"
@@ -451,3 +553,6 @@ array int32 "5" -> ok "7,5"
 array int32 "abc" -> ok "7,0"
 array int32 {} -> ok "7,0"
 array int32 5n -> throws TypeError
+array unichar string "ab" -> ok "ab"
+array unichar string "a♥😀" -> ok "a♥😀"
+array unichar string "" -> ok ""

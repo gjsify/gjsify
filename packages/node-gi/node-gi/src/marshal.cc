@@ -1060,6 +1060,8 @@ static bool IsSupportedElementType(GITypeInfo* elem, std::string* why, bool byVa
     case GI_TYPE_TAG_UTF8:
     case GI_TYPE_TAG_FILENAME:
       return true;
+    // A gunichar is a 4-byte cell; only a C array writes one (no list/hash node).
+    case GI_TYPE_TAG_UNICHAR: return cArrayCell;
     case GI_TYPE_TAG_INTERFACE: {
       GIBaseInfo* iface = gi_type_info_get_interface(elem);
       bool ok = iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface));
@@ -1178,7 +1180,8 @@ size_t CElementSize(GITypeInfo* elem) {
     case GI_TYPE_TAG_INT16:
     case GI_TYPE_TAG_UINT16: return 2;
     case GI_TYPE_TAG_INT32:
-    case GI_TYPE_TAG_UINT32: return 4;
+    case GI_TYPE_TAG_UINT32:
+    case GI_TYPE_TAG_UNICHAR: return 4;
     case GI_TYPE_TAG_INT64:
     case GI_TYPE_TAG_UINT64: return 8;
     case GI_TYPE_TAG_FLOAT: return sizeof(gfloat);
@@ -1601,16 +1604,16 @@ Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo*
 // the element, so it gets a ref (objects) or an independent copy (boxed) instead.
 // Throws + returns false on an unsupported element.
 static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, GIArgument* a,
-                                GITransfer elemTransfer, bool wrapIntegers = false) {
+                                GITransfer elemTransfer, NodeGiIntContext intContext = NodeGiIntContext::kListElement,
+                                bool wrapIntegers = false) {
   memset(a, 0, sizeof(*a));
   switch (gi_type_info_get_tag(elem)) {
     // Scalar coercions via the terminate-safe helpers (common.h): a swallowed
     // napi failure mid worker.terminate() must degrade to a zero, not cascade
     // into Error::New(nullptr)'s fatal sites.
     case GI_TYPE_TAG_BOOLEAN: a->v_boolean = NodeGiToBool(v); return true;
-    // Integers WRAP here, in an array (arg.cpp gjs_array_to_auto_array) — see
-    // NodeGiJsToIntegerWrap (common.h). A GList/GHashTable element keeps the older
-    // coercion: gjs's rule for those is not probed yet.
+    // Integers WRAP in an array (arg.cpp gjs_array_to_auto_array, NodeGiJsToIntegerWrap in
+    // common.h) and are REFUSED out of range in a GList/GHashTable node.
     case GI_TYPE_TAG_INT8:
     case GI_TYPE_TAG_UINT8:
     case GI_TYPE_TAG_INT16:
@@ -1621,16 +1624,20 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
     case GI_TYPE_TAG_UINT64:
       if (wrapIntegers)
         return NodeGiJsToIntegerWrap(v, gi_type_info_get_tag(elem), a) == NodeGiIntResult::kOk;
-      switch (gi_type_info_get_tag(elem)) {
-        case GI_TYPE_TAG_INT8: a->v_int8 = static_cast<gint8>(NodeGiToInt32(v)); return true;
-        case GI_TYPE_TAG_UINT8: a->v_uint8 = static_cast<guint8>(NodeGiToUint32(v)); return true;
-        case GI_TYPE_TAG_INT16: a->v_int16 = static_cast<gint16>(NodeGiToInt32(v)); return true;
-        case GI_TYPE_TAG_UINT16: a->v_uint16 = static_cast<guint16>(NodeGiToUint32(v)); return true;
-        case GI_TYPE_TAG_INT32: a->v_int32 = NodeGiToInt32(v); return true;
-        case GI_TYPE_TAG_UINT32: a->v_uint32 = NodeGiToUint32(v); return true;
-        case GI_TYPE_TAG_INT64: a->v_int64 = JsValueToInt64(v); return true;
-        default: a->v_uint64 = JsValueToUint64(v); return true;
+      // A list/hash node is checked, not wrapped (arg.cpp gjs_value_to_basic_gi_argument
+      // -> gjs_arg_set_from_js_value): out of range is a plain Error.
+      switch (NodeGiJsToInteger(v, gi_type_info_get_tag(elem), a, nullptr)) {
+        case NodeGiIntResult::kPending: return false;
+        case NodeGiIntResult::kOutOfRange:
+          NodeGiThrowIntOutOfRange(env, gi_type_info_get_tag(elem), intContext, nullptr,
+                                   NodeGiDebugValue(v));
+          return false;
+        case NodeGiIntResult::kOk: return true;
       }
+      return true;
+    // gjs_array_to_auto_array<char32_t> wraps like uint32 (arg.cpp js_value_to_c_strict).
+    case GI_TYPE_TAG_UNICHAR:
+      return NodeGiJsToIntegerWrap(v, GI_TYPE_TAG_UINT32, a) == NodeGiIntResult::kOk;
     case GI_TYPE_TAG_FLOAT: a->v_float = static_cast<gfloat>(NodeGiToDouble(v)); return true;
     case GI_TYPE_TAG_DOUBLE: a->v_double = NodeGiToDouble(v); return true;
     case GI_TYPE_TAG_GTYPE: {
@@ -2267,6 +2274,20 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
     return true;
   }
 
+  // A JS string as a gunichar C array → its code points (arg.cpp:584, gjs_string_to_ucs4).
+  if (at == GI_ARRAY_TYPE_C && etag == GI_TYPE_TAG_UNICHAR && v.IsString()) {
+    std::string s = v.As<Napi::String>().Utf8Value();
+    glong n = 0;
+    gunichar* ucs = g_utf8_to_ucs4_fast(s.c_str(), static_cast<glong>(s.size()), &n);
+    void* buf = g_malloc0(elemSize * (n + (zt ? 1 : 0)));
+    if (n > 0) memcpy(buf, ucs, elemSize * n);
+    g_free(ucs);
+    *outPtr = buf;
+    *outCount = static_cast<long>(n);
+    gi_base_info_unref(elem);
+    return true;
+  }
+
   if (!v.IsArray()) {
     gi_base_info_unref(elem);
     Napi::TypeError::New(env, "expected an array for the array argument")
@@ -2301,7 +2322,7 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
     }
     GIArgument a;
     ok = ElementToGIArgument(env, elem, arr.Get(static_cast<uint32_t>(i)), &a, elemTransfer,
-                             /*wrapIntegers=*/true);
+                             NodeGiIntContext::kListElement, /*wrapIntegers=*/true);
     if (!ok) break;
     // Copy the element's storage bytes (LE: the low elemSize bytes of the union
     // alias the active field — v_string/v_pointer for pointers, the scalar
@@ -2448,7 +2469,8 @@ static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransf
     } else {
       GIArgument ka;
       Napi::Value keyNum = Napi::Number::New(env, static_cast<double>(g_ascii_strtoll(ks.c_str(), nullptr, 10)));
-      ok = ElementToGIArgument(env, kt, keyNum, &ka, GI_TRANSFER_NOTHING);
+      ok = ElementToGIArgument(env, kt, keyNum, &ka, GI_TRANSFER_NOTHING,
+                               NodeGiIntContext::kHashElement, /*wrapIntegers=*/true);
       if (!ok) break;
       kp = gi_type_info_hash_pointer_from_argument(kt, &ka);
     }
@@ -2459,7 +2481,7 @@ static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransf
     Napi::Value val = obj.Get(key);
     gpointer vp = nullptr;
     GIArgument va;
-    ok = ElementToGIArgument(env, vt, val, &va, elemTransfer);
+    ok = ElementToGIArgument(env, vt, val, &va, elemTransfer, NodeGiIntContext::kHashElement);
     if (!ok) {
       g_free(kp);
       break;

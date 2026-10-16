@@ -2576,6 +2576,8 @@ function paramSpecGTyped(type) {
 const ParamSpec = Object.freeze({
     string: paramSpecPlain('string'),
     boolean: paramSpecPlain('boolean'),
+    char: paramSpecRanged('char'),
+    uchar: paramSpecRanged('uchar'),
     int: paramSpecRanged('int'),
     uint: paramSpecRanged('uint'),
     int64: paramSpecRanged('int64'),
