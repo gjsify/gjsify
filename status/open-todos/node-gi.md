@@ -465,5 +465,7 @@ Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or Gnu
 argument is that p11-kit's trust module sits behind a compiled-in path with no env override and
 Android has no system p11-kit) and the CA store route (`/system/etc/security/cacerts`, plus the
 user store or not, our own bundle, or JNI `X509TrustManagerExtensions`). A new sysroot release
-also needs his explicit OK before upload — g-ir-scanner has to run target binaries, so there is
-no CI path (#2179).
+also needs his explicit OK before upload. CI can rebuild the sysroot under qemu-user
+([android-sysroot build.yml](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml)), so the OK is a choice, not a constraint (ADR 0117
+§ Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
+in gjsify/android-sysroot.
