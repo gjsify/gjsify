@@ -8,7 +8,7 @@
 // boxed-HANDLE case and threw "expected a boxed handle for a GStrv property" on a
 // plain JS array. The new branch marshals a JS string[] → a freshly-allocated
 // GStrv (g_value_take_boxed; g_object_new copies it; g_value_unset frees the
-// copy). null/undefined clears it; a non-array throws a clean TypeError.
+// copy). null clears it, undefined throws like GJS; a non-array throws a clean TypeError.
 //
 // FIX 2 — a JS exception thrown inside a C-invoked GClosure (a signal handler /
 // notify:: / idle / timeout) was left pending, which WEDGED the GLib/libuv main
@@ -63,11 +63,11 @@ test('GStrv construct prop: an empty array yields an empty GStrv', { skip: gtkSk
     assert.equal(list.get_n_items(), 0);
 });
 
-test('GStrv construct prop: null/undefined clears it (empty list, no throw)', { skip: gtkSkip }, () => {
+test('GStrv construct prop: null clears it (empty list); undefined throws like GJS', { skip: gtkSkip }, () => {
     const fromNull = new Gtk.StringList({ strings: null });
     assert.equal(fromNull.get_n_items(), 0);
-    const fromUndefined = new Gtk.StringList({ strings: undefined });
-    assert.equal(fromUndefined.get_n_items(), 0);
+    // gjs refuses undefined for every construct property (object.cpp, "Invalid value 'undefined'")
+    assert.throws(() => new Gtk.StringList({ strings: undefined }), /Invalid value 'undefined' for property strings/);
 });
 
 test('GStrv construct prop: a non-array value throws a clean TypeError', { skip: gtkSkip }, () => {

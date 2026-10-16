@@ -1,0 +1,453 @@
+new int 0 -> ok 0
+new int 97 -> ok 97
+new int 127 -> ok 127
+new int 128 -> ok 128
+new int 255 -> ok 255
+new int 256 -> ok 256
+new int -1 -> ok -1
+new int -128 -> ok -128
+new int -129 -> ok -129
+new int 32768 -> ok 32768
+new int 65536 -> ok 65536
+new int 2147483647 -> ok 2147483647
+new int 2147483648 -> ok -2147483648
+new int 4294967295 -> ok -1
+new int 4294967296 -> ok 0
+new int 4294967393 -> ok 97
+new int 9007199254740992 -> ok 0
+new int 9223372036854776000 -> ok 0
+new int 18446744073709552000 -> ok 0
+new int 1.5 -> ok 1
+new int -0 -> ok 0
+new int NaN -> ok 0
+new int Infinity -> ok 0
+new int -Infinity -> ok 0
+new int undefined -> throws Invalid value 'undefined' for property int in object initializer.
+new int null -> ok 0
+new int true -> ok 1
+new int "5" -> ok 5
+new int "abc" -> ok 0
+new int {} -> ok 0
+new int 5n -> throws TypeError
+new int 9223372036854775807n -> throws TypeError
+new int 9223372036854775808n -> throws TypeError
+new int -9223372036854775809n -> throws TypeError
+new int 18446744073709551615n -> throws TypeError
+new int 18446744073709551616n -> throws TypeError
+new uint 0 -> ok 0
+new uint 97 -> ok 97
+new uint 127 -> ok 127
+new uint 128 -> ok 128
+new uint 255 -> ok 255
+new uint 256 -> ok 256
+new uint -1 -> ok 4294967295
+new uint -128 -> ok 4294967168
+new uint -129 -> ok 4294967167
+new uint 32768 -> ok 32768
+new uint 65536 -> ok 65536
+new uint 2147483647 -> ok 2147483647
+new uint 2147483648 -> ok 2147483648
+new uint 4294967295 -> ok 4294967295
+new uint 4294967296 -> ok 0
+new uint 4294967393 -> ok 97
+new uint 9007199254740992 -> ok 0
+new uint 9223372036854776000 -> ok 0
+new uint 18446744073709552000 -> ok 0
+new uint 1.5 -> ok 1
+new uint -0 -> ok 0
+new uint NaN -> ok 0
+new uint Infinity -> ok 0
+new uint -Infinity -> ok 0
+new uint undefined -> throws Invalid value 'undefined' for property uint in object initializer.
+new uint null -> ok 0
+new uint true -> ok 1
+new uint "5" -> ok 5
+new uint "abc" -> ok 0
+new uint {} -> ok 0
+new uint 5n -> throws TypeError
+new uint 9223372036854775807n -> throws TypeError
+new uint 9223372036854775808n -> throws TypeError
+new uint -9223372036854775809n -> throws TypeError
+new uint 18446744073709551615n -> throws TypeError
+new uint 18446744073709551616n -> throws TypeError
+new int64 0 -> ok 0
+new int64 97 -> ok 97
+new int64 127 -> ok 127
+new int64 128 -> ok 128
+new int64 255 -> ok 255
+new int64 256 -> ok 256
+new int64 -1 -> ok -1
+new int64 -128 -> ok -128
+new int64 -129 -> ok -129
+new int64 32768 -> ok 32768
+new int64 65536 -> ok 65536
+new int64 2147483647 -> ok 2147483647
+new int64 2147483648 -> ok 2147483648
+new int64 4294967295 -> ok 4294967295
+new int64 4294967296 -> ok 4294967296
+new int64 4294967393 -> ok 4294967393
+new int64 9007199254740992 -> ok 9007199254740992
+new int64 9223372036854776000 -> throws Wrong type number; 64-bit integer expected. But it's out of range: 9223372036854776000
+new int64 18446744073709552000 -> throws Wrong type number; 64-bit integer expected. But it's out of range: 18446744073709552000
+new int64 1.5 -> ok 1
+new int64 -0 -> ok 0
+new int64 NaN -> ok 0
+new int64 Infinity -> ok 0
+new int64 -Infinity -> ok 0
+new int64 undefined -> throws Invalid value 'undefined' for property int64 in object initializer.
+new int64 null -> ok 0
+new int64 true -> ok 1
+new int64 "5" -> ok 5
+new int64 "abc" -> ok 0
+new int64 {} -> ok 0
+new int64 5n -> ok 5
+new int64 9223372036854775807n -> ok 9223372036854776000
+new int64 9223372036854775808n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: 9223372036854775808
+new int64 -9223372036854775809n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: -9223372036854775809
+new int64 18446744073709551615n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: 18446744073709551615
+new int64 18446744073709551616n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: 18446744073709551616
+new uint64 0 -> ok 0
+new uint64 97 -> ok 97
+new uint64 127 -> ok 127
+new uint64 128 -> ok 128
+new uint64 255 -> ok 255
+new uint64 256 -> ok 256
+new uint64 -1 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: -1
+new uint64 -128 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: -128
+new uint64 -129 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: -129
+new uint64 32768 -> ok 32768
+new uint64 65536 -> ok 65536
+new uint64 2147483647 -> ok 2147483647
+new uint64 2147483648 -> ok 2147483648
+new uint64 4294967295 -> ok 4294967295
+new uint64 4294967296 -> ok 4294967296
+new uint64 4294967393 -> ok 4294967393
+new uint64 9007199254740992 -> ok 9007199254740992
+new uint64 9223372036854776000 -> ok 9223372036854776000
+new uint64 18446744073709552000 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: 18446744073709552000
+new uint64 1.5 -> ok 1
+new uint64 -0 -> ok 0
+new uint64 NaN -> ok 0
+new uint64 Infinity -> ok 0
+new uint64 -Infinity -> ok 0
+new uint64 undefined -> throws Invalid value 'undefined' for property uint64 in object initializer.
+new uint64 null -> ok 0
+new uint64 true -> ok 1
+new uint64 "5" -> ok 5
+new uint64 "abc" -> ok 0
+new uint64 {} -> ok 0
+new uint64 5n -> ok 5
+new uint64 9223372036854775807n -> ok 9223372036854776000
+new uint64 9223372036854775808n -> ok 9223372036854776000
+new uint64 -9223372036854775809n -> throws Wrong type bigint; unsigned 64-bit integer expected. But it's out of range: -9223372036854775809
+new uint64 18446744073709551615n -> ok 18446744073709552000
+new uint64 18446744073709551616n -> throws Wrong type bigint; unsigned 64-bit integer expected. But it's out of range: 18446744073709551616
+emit char 0 -> ok 0
+emit char 97 -> ok 97
+emit char 127 -> ok 127
+emit char 128 -> throws Wrong type number; char expected. But it's out of range: 128
+emit char 255 -> throws Wrong type number; char expected. But it's out of range: 255
+emit char 256 -> throws Wrong type number; char expected. But it's out of range: 256
+emit char -1 -> ok -1
+emit char -128 -> ok -128
+emit char -129 -> throws Wrong type number; char expected. But it's out of range: -129
+emit char 32768 -> throws Wrong type number; char expected. But it's out of range: 32768
+emit char 65536 -> throws Wrong type number; char expected. But it's out of range: 65536
+emit char 2147483647 -> throws Wrong type number; char expected. But it's out of range: 2147483647
+emit char 2147483648 -> throws Wrong type number; char expected. But it's out of range: 2147483648
+emit char 4294967295 -> ok -1
+emit char 4294967296 -> ok 0
+emit char 4294967393 -> ok 97
+emit char 9007199254740992 -> ok 0
+emit char 9223372036854776000 -> ok 0
+emit char 18446744073709552000 -> ok 0
+emit char 1.5 -> ok 1
+emit char -0 -> ok 0
+emit char NaN -> ok 0
+emit char Infinity -> ok 0
+emit char -Infinity -> ok 0
+emit char undefined -> ok 0
+emit char null -> ok 0
+emit char true -> ok 1
+emit char "5" -> ok 5
+emit char "abc" -> ok 0
+emit char {} -> ok 0
+emit char 5n -> throws TypeError
+emit char 9223372036854775807n -> throws TypeError
+emit char 9223372036854775808n -> throws TypeError
+emit char -9223372036854775809n -> throws TypeError
+emit char 18446744073709551615n -> throws TypeError
+emit char 18446744073709551616n -> throws TypeError
+emit uchar 0 -> ok 0
+emit uchar 97 -> ok 97
+emit uchar 127 -> ok 127
+emit uchar 128 -> ok 128
+emit uchar 255 -> ok 255
+emit uchar 256 -> throws Wrong type number; unsigned char expected. But it's out of range: 256
+emit uchar -1 -> throws Wrong type number; unsigned char expected. But it's out of range: -1
+emit uchar -128 -> throws Wrong type number; unsigned char expected. But it's out of range: -128
+emit uchar -129 -> throws Wrong type number; unsigned char expected. But it's out of range: -129
+emit uchar 32768 -> throws Wrong type number; unsigned char expected. But it's out of range: 32768
+emit uchar 65536 -> throws Wrong type number; unsigned char expected. But it's out of range: 65536
+emit uchar 2147483647 -> throws Wrong type number; unsigned char expected. But it's out of range: 2147483647
+emit uchar 2147483648 -> throws Wrong type number; unsigned char expected. But it's out of range: 2147483648
+emit uchar 4294967295 -> throws Wrong type number; unsigned char expected. But it's out of range: 4294967295
+emit uchar 4294967296 -> ok 0
+emit uchar 4294967393 -> ok 97
+emit uchar 9007199254740992 -> ok 0
+emit uchar 9223372036854776000 -> ok 0
+emit uchar 18446744073709552000 -> ok 0
+emit uchar 1.5 -> ok 1
+emit uchar -0 -> ok 0
+emit uchar NaN -> ok 0
+emit uchar Infinity -> ok 0
+emit uchar -Infinity -> ok 0
+emit uchar undefined -> ok 0
+emit uchar null -> ok 0
+emit uchar true -> ok 1
+emit uchar "5" -> ok 5
+emit uchar "abc" -> ok 0
+emit uchar {} -> ok 0
+emit uchar 5n -> throws TypeError
+emit uchar 9223372036854775807n -> throws TypeError
+emit uchar 9223372036854775808n -> throws TypeError
+emit uchar -9223372036854775809n -> throws TypeError
+emit uchar 18446744073709551615n -> throws TypeError
+emit uchar 18446744073709551616n -> throws TypeError
+emit int 0 -> ok 0
+emit int 97 -> ok 97
+emit int 127 -> ok 127
+emit int 128 -> ok 128
+emit int 255 -> ok 255
+emit int 256 -> ok 256
+emit int -1 -> ok -1
+emit int -128 -> ok -128
+emit int -129 -> ok -129
+emit int 32768 -> ok 32768
+emit int 65536 -> ok 65536
+emit int 2147483647 -> ok 2147483647
+emit int 2147483648 -> ok -2147483648
+emit int 4294967295 -> ok -1
+emit int 4294967296 -> ok 0
+emit int 4294967393 -> ok 97
+emit int 9007199254740992 -> ok 0
+emit int 9223372036854776000 -> ok 0
+emit int 18446744073709552000 -> ok 0
+emit int 1.5 -> ok 1
+emit int -0 -> ok 0
+emit int NaN -> ok 0
+emit int Infinity -> ok 0
+emit int -Infinity -> ok 0
+emit int undefined -> ok 0
+emit int null -> ok 0
+emit int true -> ok 1
+emit int "5" -> ok 5
+emit int "abc" -> ok 0
+emit int {} -> ok 0
+emit int 5n -> throws TypeError
+emit int 9223372036854775807n -> throws TypeError
+emit int 9223372036854775808n -> throws TypeError
+emit int -9223372036854775809n -> throws TypeError
+emit int 18446744073709551615n -> throws TypeError
+emit int 18446744073709551616n -> throws TypeError
+emit uint 0 -> ok 0
+emit uint 97 -> ok 97
+emit uint 127 -> ok 127
+emit uint 128 -> ok 128
+emit uint 255 -> ok 255
+emit uint 256 -> ok 256
+emit uint -1 -> ok 4294967295
+emit uint -128 -> ok 4294967168
+emit uint -129 -> ok 4294967167
+emit uint 32768 -> ok 32768
+emit uint 65536 -> ok 65536
+emit uint 2147483647 -> ok 2147483647
+emit uint 2147483648 -> ok 2147483648
+emit uint 4294967295 -> ok 4294967295
+emit uint 4294967296 -> ok 0
+emit uint 4294967393 -> ok 97
+emit uint 9007199254740992 -> ok 0
+emit uint 9223372036854776000 -> ok 0
+emit uint 18446744073709552000 -> ok 0
+emit uint 1.5 -> ok 1
+emit uint -0 -> ok 0
+emit uint NaN -> ok 0
+emit uint Infinity -> ok 0
+emit uint -Infinity -> ok 0
+emit uint undefined -> ok 0
+emit uint null -> ok 0
+emit uint true -> ok 1
+emit uint "5" -> ok 5
+emit uint "abc" -> ok 0
+emit uint {} -> ok 0
+emit uint 5n -> throws TypeError
+emit uint 9223372036854775807n -> throws TypeError
+emit uint 9223372036854775808n -> throws TypeError
+emit uint -9223372036854775809n -> throws TypeError
+emit uint 18446744073709551615n -> throws TypeError
+emit uint 18446744073709551616n -> throws TypeError
+emit int64 0 -> ok 0
+emit int64 97 -> ok 97
+emit int64 127 -> ok 127
+emit int64 128 -> ok 128
+emit int64 255 -> ok 255
+emit int64 256 -> ok 256
+emit int64 -1 -> ok -1
+emit int64 -128 -> ok -128
+emit int64 -129 -> ok -129
+emit int64 32768 -> ok 32768
+emit int64 65536 -> ok 65536
+emit int64 2147483647 -> ok 2147483647
+emit int64 2147483648 -> ok 2147483648
+emit int64 4294967295 -> ok 4294967295
+emit int64 4294967296 -> ok 4294967296
+emit int64 4294967393 -> ok 4294967393
+emit int64 9007199254740992 -> ok 9007199254740992
+emit int64 9223372036854776000 -> throws Wrong type number; 64-bit integer expected. But it's out of range: 9223372036854776000
+emit int64 18446744073709552000 -> throws Wrong type number; 64-bit integer expected. But it's out of range: 18446744073709552000
+emit int64 1.5 -> ok 1
+emit int64 -0 -> ok 0
+emit int64 NaN -> ok 0
+emit int64 Infinity -> ok 0
+emit int64 -Infinity -> ok 0
+emit int64 undefined -> ok 0
+emit int64 null -> ok 0
+emit int64 true -> ok 1
+emit int64 "5" -> ok 5
+emit int64 "abc" -> ok 0
+emit int64 {} -> ok 0
+emit int64 5n -> ok 5
+emit int64 9223372036854775807n -> ok 9223372036854776000
+emit int64 9223372036854775808n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: 9223372036854775808
+emit int64 -9223372036854775809n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: -9223372036854775809
+emit int64 18446744073709551615n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: 18446744073709551615
+emit int64 18446744073709551616n -> throws Wrong type bigint; 64-bit integer expected. But it's out of range: 18446744073709551616
+emit uint64 0 -> ok 0
+emit uint64 97 -> ok 97
+emit uint64 127 -> ok 127
+emit uint64 128 -> ok 128
+emit uint64 255 -> ok 255
+emit uint64 256 -> ok 256
+emit uint64 -1 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: -1
+emit uint64 -128 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: -128
+emit uint64 -129 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: -129
+emit uint64 32768 -> ok 32768
+emit uint64 65536 -> ok 65536
+emit uint64 2147483647 -> ok 2147483647
+emit uint64 2147483648 -> ok 2147483648
+emit uint64 4294967295 -> ok 4294967295
+emit uint64 4294967296 -> ok 4294967296
+emit uint64 4294967393 -> ok 4294967393
+emit uint64 9007199254740992 -> ok 9007199254740992
+emit uint64 9223372036854776000 -> ok 9223372036854776000
+emit uint64 18446744073709552000 -> throws Wrong type number; unsigned 64-bit integer expected. But it's out of range: 18446744073709552000
+emit uint64 1.5 -> ok 1
+emit uint64 -0 -> ok 0
+emit uint64 NaN -> ok 0
+emit uint64 Infinity -> ok 0
+emit uint64 -Infinity -> ok 0
+emit uint64 undefined -> ok 0
+emit uint64 null -> ok 0
+emit uint64 true -> ok 1
+emit uint64 "5" -> ok 5
+emit uint64 "abc" -> ok 0
+emit uint64 {} -> ok 0
+emit uint64 5n -> ok 5
+emit uint64 9223372036854775807n -> ok 9223372036854776000
+emit uint64 9223372036854775808n -> ok 9223372036854776000
+emit uint64 -9223372036854775809n -> throws Wrong type bigint; unsigned 64-bit integer expected. But it's out of range: -9223372036854775809
+emit uint64 18446744073709551615n -> ok 18446744073709552000
+emit uint64 18446744073709551616n -> throws Wrong type bigint; unsigned 64-bit integer expected. But it's out of range: 18446744073709551616
+array uint8 0 -> ok "97,0"
+array uint8 97 -> ok "97,97"
+array uint8 127 -> ok "97,127"
+array uint8 128 -> ok "97,128"
+array uint8 255 -> ok "97,255"
+array uint8 256 -> ok "97,0"
+array uint8 -1 -> ok "97,255"
+array uint8 -128 -> ok "97,128"
+array uint8 -129 -> ok "97,127"
+array uint8 32768 -> ok "97,0"
+array uint8 65536 -> ok "97,0"
+array uint8 2147483647 -> ok "97,255"
+array uint8 2147483648 -> ok "97,0"
+array uint8 4294967295 -> ok "97,255"
+array uint8 4294967296 -> ok "97,0"
+array uint8 4294967393 -> ok "97,97"
+array uint8 9007199254740992 -> ok "97,0"
+array uint8 9223372036854776000 -> ok "97,0"
+array uint8 18446744073709552000 -> ok "97,0"
+array uint8 1.5 -> ok "97,1"
+array uint8 -0 -> ok "97,0"
+array uint8 NaN -> ok "97,0"
+array uint8 Infinity -> ok "97,0"
+array uint8 -Infinity -> ok "97,0"
+array uint8 undefined -> ok "97,0"
+array uint8 null -> ok "97,0"
+array uint8 true -> ok "97,1"
+array uint8 "5" -> ok "97,5"
+array uint8 "abc" -> ok "97,0"
+array uint8 {} -> ok "97,0"
+array uint8 5n -> throws TypeError
+array uint16 0 -> ok "97"
+array uint16 97 -> ok "97,97"
+array uint16 127 -> ok "97,127"
+array uint16 128 -> ok "97,128"
+array uint16 255 -> ok "97,255"
+array uint16 256 -> ok "97,256"
+array uint16 -1 -> ok "97,65535"
+array uint16 -128 -> ok "97,65408"
+array uint16 -129 -> ok "97,65407"
+array uint16 32768 -> ok "97,32768"
+array uint16 65536 -> ok "97"
+array uint16 2147483647 -> ok "97,65535"
+array uint16 2147483648 -> ok "97"
+array uint16 4294967295 -> ok "97,65535"
+array uint16 4294967296 -> ok "97"
+array uint16 4294967393 -> ok "97,97"
+array uint16 9007199254740992 -> ok "97"
+array uint16 9223372036854776000 -> ok "97"
+array uint16 18446744073709552000 -> ok "97"
+array uint16 1.5 -> ok "97,1"
+array uint16 -0 -> ok "97"
+array uint16 NaN -> ok "97"
+array uint16 Infinity -> ok "97"
+array uint16 -Infinity -> ok "97"
+array uint16 undefined -> ok "97"
+array uint16 null -> ok "97"
+array uint16 true -> ok "97,1"
+array uint16 "5" -> ok "97,5"
+array uint16 "abc" -> ok "97"
+array uint16 {} -> ok "97"
+array uint16 5n -> throws TypeError
+array int32 0 -> ok "7,0"
+array int32 97 -> ok "7,97"
+array int32 127 -> ok "7,127"
+array int32 128 -> ok "7,128"
+array int32 255 -> ok "7,255"
+array int32 256 -> ok "7,256"
+array int32 -1 -> ok "7,-1"
+array int32 -128 -> ok "7,-128"
+array int32 -129 -> ok "7,-129"
+array int32 32768 -> ok "7,32768"
+array int32 65536 -> ok "7,65536"
+array int32 2147483647 -> ok "7,2147483647"
+array int32 2147483648 -> ok "7,-2147483648"
+array int32 4294967295 -> ok "7,-1"
+array int32 4294967296 -> ok "7,0"
+array int32 4294967393 -> ok "7,97"
+array int32 9007199254740992 -> ok "7,0"
+array int32 9223372036854776000 -> ok "7,0"
+array int32 18446744073709552000 -> ok "7,0"
+array int32 1.5 -> ok "7,1"
+array int32 -0 -> ok "7,0"
+array int32 NaN -> ok "7,0"
+array int32 Infinity -> ok "7,0"
+array int32 -Infinity -> ok "7,0"
+array int32 undefined -> ok "7,0"
+array int32 null -> ok "7,0"
+array int32 true -> ok "7,1"
+array int32 "5" -> ok "7,5"
+array int32 "abc" -> ok "7,0"
+array int32 {} -> ok "7,0"
+array int32 5n -> throws TypeError

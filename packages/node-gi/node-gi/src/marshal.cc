@@ -1601,21 +1601,36 @@ Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo*
 // the element, so it gets a ref (objects) or an independent copy (boxed) instead.
 // Throws + returns false on an unsupported element.
 static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, GIArgument* a,
-                                GITransfer elemTransfer) {
+                                GITransfer elemTransfer, bool wrapIntegers = false) {
   memset(a, 0, sizeof(*a));
   switch (gi_type_info_get_tag(elem)) {
     // Scalar coercions via the terminate-safe helpers (common.h): a swallowed
     // napi failure mid worker.terminate() must degrade to a zero, not cascade
     // into Error::New(nullptr)'s fatal sites.
     case GI_TYPE_TAG_BOOLEAN: a->v_boolean = NodeGiToBool(v); return true;
-    case GI_TYPE_TAG_INT8: a->v_int8 = static_cast<gint8>(NodeGiToInt32(v)); return true;
-    case GI_TYPE_TAG_UINT8: a->v_uint8 = static_cast<guint8>(NodeGiToUint32(v)); return true;
-    case GI_TYPE_TAG_INT16: a->v_int16 = static_cast<gint16>(NodeGiToInt32(v)); return true;
-    case GI_TYPE_TAG_UINT16: a->v_uint16 = static_cast<guint16>(NodeGiToUint32(v)); return true;
-    case GI_TYPE_TAG_INT32: a->v_int32 = NodeGiToInt32(v); return true;
-    case GI_TYPE_TAG_UINT32: a->v_uint32 = NodeGiToUint32(v); return true;
-    case GI_TYPE_TAG_INT64: a->v_int64 = JsValueToInt64(v); return true;
-    case GI_TYPE_TAG_UINT64: a->v_uint64 = JsValueToUint64(v); return true;
+    // Integers WRAP here, in an array (arg.cpp gjs_array_to_auto_array) — see
+    // NodeGiJsToIntegerWrap (common.h). A GList/GHashTable element keeps the older
+    // coercion: gjs's rule for those is not probed yet.
+    case GI_TYPE_TAG_INT8:
+    case GI_TYPE_TAG_UINT8:
+    case GI_TYPE_TAG_INT16:
+    case GI_TYPE_TAG_UINT16:
+    case GI_TYPE_TAG_INT32:
+    case GI_TYPE_TAG_UINT32:
+    case GI_TYPE_TAG_INT64:
+    case GI_TYPE_TAG_UINT64:
+      if (wrapIntegers)
+        return NodeGiJsToIntegerWrap(v, gi_type_info_get_tag(elem), a) == NodeGiIntResult::kOk;
+      switch (gi_type_info_get_tag(elem)) {
+        case GI_TYPE_TAG_INT8: a->v_int8 = static_cast<gint8>(NodeGiToInt32(v)); return true;
+        case GI_TYPE_TAG_UINT8: a->v_uint8 = static_cast<guint8>(NodeGiToUint32(v)); return true;
+        case GI_TYPE_TAG_INT16: a->v_int16 = static_cast<gint16>(NodeGiToInt32(v)); return true;
+        case GI_TYPE_TAG_UINT16: a->v_uint16 = static_cast<guint16>(NodeGiToUint32(v)); return true;
+        case GI_TYPE_TAG_INT32: a->v_int32 = NodeGiToInt32(v); return true;
+        case GI_TYPE_TAG_UINT32: a->v_uint32 = NodeGiToUint32(v); return true;
+        case GI_TYPE_TAG_INT64: a->v_int64 = JsValueToInt64(v); return true;
+        default: a->v_uint64 = JsValueToUint64(v); return true;
+      }
     case GI_TYPE_TAG_FLOAT: a->v_float = static_cast<gfloat>(NodeGiToDouble(v)); return true;
     case GI_TYPE_TAG_DOUBLE: a->v_double = NodeGiToDouble(v); return true;
     case GI_TYPE_TAG_GTYPE: {
@@ -2285,7 +2300,8 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
       continue;
     }
     GIArgument a;
-    ok = ElementToGIArgument(env, elem, arr.Get(static_cast<uint32_t>(i)), &a, elemTransfer);
+    ok = ElementToGIArgument(env, elem, arr.Get(static_cast<uint32_t>(i)), &a, elemTransfer,
+                             /*wrapIntegers=*/true);
     if (!ok) break;
     // Copy the element's storage bytes (LE: the low elemSize bytes of the union
     // alias the active field — v_string/v_pointer for pointers, the scalar

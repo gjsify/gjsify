@@ -392,6 +392,51 @@ inline void NodeGiThrowIntOutOfRange(Napi::Env env, GITypeTag tag, NodeGiIntCont
   Napi::Error::New(env, msg).ThrowAsJavaScriptException();
 }
 
+// IN array elements and GValue int/uint, GJS-exact: these WRAP instead of refusing.
+// An array element goes through js_value_to_c_strict (refs/gjs/gi/arg.cpp:543), which
+// is ToInt32/ToUint32 truncated to the tag for 8/16/32 bits and ToInt64/ToUint64 —
+// modulo 2^64 — for 64 bits; a BigInt takes ToBigInt64/ToBigUint64 (also modulo 2^64)
+// on a 64-bit tag and is a TypeError on a narrower one. kPending: that TypeError is
+// already pending, the caller must stop without throwing a second error.
+inline uint64_t NodeGiWrapToUint64(double d) {
+  if (!std::isfinite(d)) return 0;
+  double m = std::fmod(std::trunc(d), 18446744073709551616.0);
+  return m < 0 ? uint64_t{0} - static_cast<uint64_t>(-m) : static_cast<uint64_t>(m);
+}
+inline NodeGiIntResult NodeGiJsToIntegerWrap(Napi::Value v, GITypeTag tag, GIArgument* out) {
+  const bool is64 = tag == GI_TYPE_TAG_INT64 || tag == GI_TYPE_TAG_UINT64;
+  if (is64 && v.IsBigInt()) {
+    bool lossless = false;
+    out->v_uint64 = v.As<Napi::BigInt>().Uint64Value(&lossless);
+    return NodeGiIntResult::kOk;
+  }
+  Napi::Number n = v.ToNumber();
+  if (n.IsEmpty()) return NodeGiIntResult::kPending;
+  switch (tag) {
+    case GI_TYPE_TAG_INT8: out->v_int8 = static_cast<int8_t>(n.Int32Value()); break;
+    case GI_TYPE_TAG_UINT8: out->v_uint8 = static_cast<uint8_t>(n.Uint32Value()); break;
+    case GI_TYPE_TAG_INT16: out->v_int16 = static_cast<int16_t>(n.Int32Value()); break;
+    case GI_TYPE_TAG_UINT16: out->v_uint16 = static_cast<uint16_t>(n.Uint32Value()); break;
+    case GI_TYPE_TAG_INT32: out->v_int32 = n.Int32Value(); break;
+    case GI_TYPE_TAG_UINT32: out->v_uint32 = n.Uint32Value(); break;
+    case GI_TYPE_TAG_INT64:
+    case GI_TYPE_TAG_UINT64: out->v_uint64 = NodeGiWrapToUint64(n.DoubleValue()); break;
+    default: break;
+  }
+  return NodeGiIntResult::kOk;
+}
+
+// GValue char/uchar/int64/uint64: refused out of range with gjs_value_to_g_value's own
+// text (refs/gjs/gi/value.cpp:602-690, throw_expect_type), a plain Error. `what` is the
+// "expected" noun gjs prints; the offending value is its JS ToString.
+inline void NodeGiThrowGValueOutOfRange(Napi::Env env, Napi::Value v, const char* what) {
+  Napi::String s = v.ToString();
+  std::string shown = s.IsEmpty() ? std::string() : s.Utf8Value();
+  Napi::Error::New(env, std::string("Wrong type ") + (v.IsBigInt() ? "bigint" : "number") + "; " +
+                            what + " expected. But it's out of range: " + shown)
+      .ThrowAsJavaScriptException();
+}
+
 // OUT (WarnIfUnsafe{Int,Uint}64): GJS ALWAYS returns a JS Number for a 64-bit int
 // (never a BigInt) and emits this g_warning when the value falls outside the range
 // a double represents exactly (|v| > 2^53 - 1 == Number.MAX_SAFE_INTEGER), because
