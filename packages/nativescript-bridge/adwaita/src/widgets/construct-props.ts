@@ -33,7 +33,7 @@ import type { AdwAdjustmentInput, AdwListModelInput } from '@gjsify/adwaita-core
 
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { iconSizeNickOf } from './gtk-icon-size.js';
-import { gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
+import { camelProperty, gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
 
 /**
  * The keys a widget's construct-props bag accepts, derived from the widget itself.
@@ -56,14 +56,31 @@ import { gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
  * `ConstructProps<AdwSplitButton, { direction: number }>`. The applier routes it to that verb.
  */
 export type ConstructProps<T, Shadowed extends object = object> = Partial<
-    {
-        [K in keyof T as T[K] extends (...args: never[]) => unknown
-            ? never
-            : K extends ShadowedName | keyof Shadowed
-              ? never
-              : K]: K extends EnumProp ? T[K] | number : K extends ValueProp ? T[K] | ValueProps[K & ValueProp] : T[K];
-    } & Shadowed
+    WithSnakeCase<
+        {
+            [K in keyof T as T[K] extends (...args: never[]) => unknown
+                ? never
+                : K extends ShadowedName | keyof Shadowed
+                  ? never
+                  : K]: K extends EnumProp
+                ? T[K] | number
+                : K extends ValueProp
+                  ? T[K] | ValueProps[K & ValueProp]
+                  : T[K];
+        } & Shadowed
+    >
 >;
+
+/** `closeResponse` → `close_response`, the spelling {@link camelProperty} undoes. */
+export type SnakeCase<S extends string> = S extends `${infer Head}${infer Rest}`
+    ? `${Head extends Lowercase<Head> ? Head : `_${Lowercase<Head>}`}${SnakeCase<Rest>}`
+    : S;
+
+/**
+ * Every key of `Props` again under its snake_case twin, with the same value type — what a
+ * `@girs` `ConstructorProps` declares, and what {@link applyConstructProps} takes at runtime.
+ */
+export type WithSnakeCase<Props> = Props & { [K in keyof Props as K extends string ? SnakeCase<K> : K]: Props[K] };
 
 /**
  * The two properties whose SETTER takes a portable VALUE the getter does not hand back, and
@@ -233,7 +250,9 @@ export function nsAlignment(value: unknown, axis: 'horizontal' | 'vertical'): un
  */
 export function applyConstructProps(target: object, props?: Readonly<Record<string, unknown>>): void {
     if (props === undefined || props === null) return;
-    for (const [key, value] of Object.entries(props)) {
+    // GJS takes a property in either spelling (`close_response`, `closeResponse`); the members are camel case.
+    for (const [spelled, value] of Object.entries(props)) {
+        const key = camelProperty(spelled);
         const shadowed = gtkPropertyDoor(target, key);
         if (shadowed.kind === 'refused') throw new TypeError(`${target.constructor.name}: ${shadowed.why}`);
         if (shadowed.kind === 'verbs') {

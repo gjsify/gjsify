@@ -63,9 +63,9 @@ export const AdwValueListsTest = async () => {
                         const dialog = root as unknown as AdwAlertDialog;
                         const read = vector.responses.map(({ id }) => ({
                             id,
-                            label: dialog.getResponseLabel(id),
-                            appearance: dialog.getResponseAppearance(id),
-                            enabled: dialog.getResponseEnabled(id),
+                            label: dialog.get_response_label(id),
+                            appearance: dialog.get_response_appearance(id),
+                            enabled: dialog.get_response_enabled(id),
                         }));
                         expect(JSON.stringify(read)).toBe(JSON.stringify(vector.responses));
                         // The buttons the dialog paints, in the order the source wrote them.

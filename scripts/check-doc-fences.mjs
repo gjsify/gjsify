@@ -895,7 +895,9 @@ function checkNativescriptFence(fence, where, nsWidgets, coreProperties, coreMet
         if (keys === null) continue;
         for (const key of keys) {
             writes += 1;
-            if (writable(klass, key)) continue;
+            // `applyConstructProps` camel-cases a key first, as GJS takes `close_response` too.
+            const camel = key.replace(/[-_]([a-z0-9])/g, (_m, next) => next.toUpperCase());
+            if (writable(klass, key) || writable(klass, camel)) continue;
             fail(
                 `${where}:${fence.line}`,
                 `\`new ${match[1]}({ ${key}: … })\` — ${klass} has no settable \`${key}\`, and a ` +

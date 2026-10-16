@@ -112,9 +112,9 @@ function observe(vector: ConstructVector): unknown {
         const dialog = root as unknown as AdwAlertDialog;
         return (vector.tree.extensions?.responses ?? []).map(({ id }) => ({
             id,
-            label: dialog.getResponseLabel(id),
-            appearance: dialog.getResponseAppearance(id),
-            enabled: dialog.getResponseEnabled(id),
+            label: dialog.get_response_label(id),
+            appearance: dialog.get_response_appearance(id),
+            enabled: dialog.get_response_enabled(id),
         }));
     } finally {
         unmount();

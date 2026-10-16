@@ -314,8 +314,8 @@ export const AdwKeyboardOperableTest = async () => {
                 '<adw-alert-response id="ok">OK</adw-alert-response>' +
                     '<adw-alert-response id="cancel">Cancel</adw-alert-response>',
             );
-            el.setDefaultResponse('ok');
-            el.setResponseEnabled('ok', false);
+            el.set_default_response('ok');
+            el.set_response_enabled('ok', false);
             opener.focus();
             el.setAttribute('open', '');
 
@@ -344,7 +344,7 @@ export const AdwKeyboardOperableTest = async () => {
                     '<adw-alert-response id="ok">OK</adw-alert-response>' +
                     '<adw-alert-response id="cancel">Cancel</adw-alert-response>',
             );
-            el.setDefaultResponse('ok');
+            el.set_default_response('ok');
             el.setAttribute('open', '');
 
             // `adw_alert_dialog_grab_focus` tries the CONTENT first (adw-alert-dialog.c:397)

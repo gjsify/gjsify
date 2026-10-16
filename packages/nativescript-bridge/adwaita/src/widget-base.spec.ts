@@ -192,6 +192,52 @@ export const AdwWidgetBaseNsTest = async () => {
         });
     });
 
+    // The calls a GJS app makes (Learn6502's `notification.service.ts`), run as written. The
+    // native sheet itself cannot open off a device, so the signal is driven the way
+    // `present()` drives it once the user chose.
+    await describe('Adw.AlertDialog in the GJS construct-props form', async () => {
+        const confirmDialog = () => {
+            const dialog = new Adw.AlertDialog({
+                heading: 'Reset?',
+                body: 'This clears the memory.',
+                close_response: 'cancel',
+                default_response: 'confirm',
+            });
+            dialog.add_response('cancel', 'Cancel');
+            dialog.add_response('confirm', 'Confirm');
+            return dialog;
+        };
+
+        await it('takes the snake_case bag', () => {
+            const dialog = confirmDialog();
+            expect(dialog.heading).toBe('Reset?');
+            expect(dialog.body).toBe('This clears the memory.');
+            expect(dialog.get_close_response()).toBe('cancel');
+            expect(dialog.get_default_response()).toBe('confirm');
+            expect(dialog.has_response('confirm')).toBe(true);
+            expect(dialog.get_response_label('confirm')).toBe('Confirm');
+            expect(dialog.get_response_label('nope')).toBe(null);
+        });
+
+        await it('refuses a key that is no Adw.AlertDialog property', () => {
+            // @ts-expect-error -- the type refuses the key the runtime refuses, in either spelling.
+            expect(() => new Adw.AlertDialog({ no_such_prop: 1 })).toThrow("has no settable 'noSuchProp'");
+        });
+
+        await it('a response handler receives the dialog and the chosen id', () => {
+            const dialog = confirmDialog();
+            const seen: unknown[][] = [];
+            const id = dialog.connect('response', (self, response: string) => seen.push([self, response]));
+            dialog.emit('response', 'confirm');
+            expect(seen.length).toBe(1);
+            expect(seen[0]![0]).toBe(dialog);
+            expect(seen[0]![1]).toBe('confirm');
+            dialog.disconnect(id);
+            dialog.emit('response', 'cancel');
+            expect(seen.length).toBe(1);
+        });
+    });
+
     await describe('GtkWidget base properties: the shared-tree door', async () => {
         await it('a projected .blp spelling reaches every one of the five', () => {
             const button = build({

@@ -323,12 +323,11 @@ export type {
 } from './adw-toast-overlay.js';
 // AdwAlertDialog is the NS binding onto native confirm()/action(); the response
 // registry + ordering + resolution are headless (AdwAlertResponses), re-exported.
-export { AdwAlertDialog, AdwAlertResponses, NOTIFY_RESPONSE } from './adw-alert-dialog.js';
+export { AdwAlertDialog, AdwAlertResponses } from './adw-alert-dialog.js';
 export type {
     AdwAlertResponse,
     AdwResponseAppearance,
     AdwResponseOptions,
-    NotifyResponseEventData,
     OrderedConfirmResponses,
 } from './adw-alert-dialog.js';
 export { AdwAboutDialog, CLOSED as ABOUT_CLOSED } from './adw-about-dialog.js';
