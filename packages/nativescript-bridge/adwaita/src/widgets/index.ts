@@ -313,12 +313,7 @@ export type { NotifyOpenEventData } from './adw-bottom-sheet.js';
 // AdwToastOverlay is the NS View render; the AdwToast value object + the
 // AdwToastQueue one-at-a-time/auto-dismiss state machine are headless
 // (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
-export {
-    AdwToast,
-    AdwToastOverlay,
-    AdwToastQueue,
-    DEFAULT_TOAST_TIMEOUT,
-} from './adw-toast-overlay.js';
+export { AdwToast, AdwToastOverlay, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from './adw-toast-overlay.js';
 export type {
     AdwToastOptions,
     AdwToastQueueHandlers,

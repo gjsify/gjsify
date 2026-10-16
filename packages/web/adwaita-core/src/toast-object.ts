@@ -104,7 +104,15 @@ export class Toast extends GObjectObject {
 registerBaseClass(Toast as never, 'AdwToast', { 'button-clicked': [], dismissed: [] }, [
     ParamSpec.string('title', '', '', ParamFlags.READWRITE, ''),
     ParamSpec.uint('timeout', '', '', ParamFlags.READWRITE, 0, MAXUINT32, 5),
-    ParamSpec.int('priority', '', '', ParamFlags.READWRITE, ToastPriority.NORMAL, ToastPriority.HIGH, ToastPriority.NORMAL),
+    ParamSpec.int(
+        'priority',
+        '',
+        '',
+        ParamFlags.READWRITE,
+        ToastPriority.NORMAL,
+        ToastPriority.HIGH,
+        ToastPriority.NORMAL,
+    ),
     ParamSpec.string('button-label', '', '', ParamFlags.READWRITE, null),
     ParamSpec.string('action-name', '', '', ParamFlags.READWRITE, null),
     ParamSpec.boolean('use-markup', '', '', ParamFlags.READWRITE, true),
@@ -150,7 +158,9 @@ export class ToastOverlayQueue {
             return;
         }
         if (owner !== undefined) {
-            throw new Error(`Adding toast '${toast.title}', but it has already been added to a different AdwToastOverlay`);
+            throw new Error(
+                `Adding toast '${toast.title}', but it has already been added to a different AdwToastOverlay`,
+            );
         }
 
         OVERLAY.set(toast, this);
