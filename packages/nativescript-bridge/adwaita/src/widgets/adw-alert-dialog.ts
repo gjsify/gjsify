@@ -105,7 +105,7 @@ export class AdwAlertDialog extends withSignals(Observable) {
         );
     }
 
-    /** Register a response button — `adw_alert_dialog_add_response`; `id` is what `present()` resolves to. */
+    /** Register a response button — `adw_alert_dialog_add_response`; `id` is what the `response` signal carries. */
     add_response(id: string, label: string, options?: AdwResponseOptions): void {
         this._responses.addResponse(id, label, options);
     }
@@ -208,12 +208,15 @@ export class AdwAlertDialog extends withSignals(Observable) {
      * `adw_dialog_present(dialog, parent)`: show the dialog and emit `response` with the
      * chosen id (or {@link closeResponse} on dismissal). The native sheet is app-modal,
      * so `parent` places nothing. Uses a native `confirm()` for ≤3 responses, else an
-     * `action()` sheet. The returned promise settles after the signal ran.
+     * `action()` sheet. Returns nothing, as `adw_dialog_present` does; the choice arrives
+     * through `response` alone.
      */
-    async present(_parent?: unknown): Promise<string> {
-        const chosen = this._responses.usesActionSheet ? await this._presentAction() : await this._presentConfirm();
-        this.emit('response', chosen);
-        return chosen;
+    present(_parent?: unknown): void {
+        const choice = this._responses.usesActionSheet ? this._presentAction() : this._presentConfirm();
+        choice.then(
+            (chosen) => this.emit('response', chosen),
+            (error: unknown) => console.error('[AdwAlertDialog] the native dialog failed:', error),
+        );
     }
 
     private async _presentConfirm(): Promise<string> {

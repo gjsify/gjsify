@@ -30,19 +30,23 @@ export class AlertDialogNsStory extends StoryView {
         button.styleClasses = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';
-        button.addEventListener('tap', () => void this._present());
+        button.addEventListener('tap', () => this._present());
 
         this.addContent(button);
     }
 
     /** Build + present a fresh dialog, reading the latest args (as the GTK story does). */
-    private async _present(): Promise<void> {
-        const dialog = new Adw.AlertDialog(this.args.heading as string, this.args.body as string);
+    private _present(): void {
+        const dialog = new Adw.AlertDialog({
+            heading: this.args.heading as string,
+            body: this.args.body as string,
+            defaultResponse: 'cancel',
+            closeResponse: 'cancel',
+        });
         dialog.add_response('cancel', 'Cancel');
         dialog.add_response('delete', 'Delete');
-        dialog.defaultResponse = 'cancel';
-        dialog.closeResponse = 'cancel';
-        await dialog.present();
+        dialog.connect('response', (_dialog, response: string) => console.log(`AlertDialog response: ${response}`));
+        dialog.present(this);
     }
 
     updateArgs(_args: StoryArgs): void {
