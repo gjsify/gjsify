@@ -291,22 +291,23 @@ glance before the reader commits to it.
     ```ts
     import Adw from 'gi://Adw?version=1';
 
-    const dialog = new Adw.AlertDialog(
-        'Delete Project?',
-        'This will permanently remove the project and all of its files. This action cannot be undone.',
-    );
+    const dialog = new Adw.AlertDialog({
+        heading: 'Delete Project?',
+        body: 'This will permanently remove the project and all of its files. This action cannot be undone.',
+        default_response: 'cancel',
+        close_response: 'cancel',
+    });
 
     dialog.add_response('cancel', 'Cancel');
     dialog.add_response('delete', 'Delete');
     // The appearance is the nick, not a constant: `@gjsify/adwaita-core` spells it
     // 'default' | 'suggested' | 'destructive' on every surface.
     dialog.set_response_appearance('delete', 'destructive');
-    dialog.defaultResponse = 'cancel';
-    dialog.closeResponse = 'cancel';
 
-    // NS substitutes the platform's native confirm() chrome; present() resolves
-    // to the chosen response ID.
-    const response = await dialog.present();
+    // NS substitutes the platform's native confirm() chrome; `response` carries
+    // the chosen response ID.
+    dialog.connect('response', (_dialog, response) => console.log(response));
+    dialog.present(parent);
     ```
   </Fragment>
 </AdwWidget>

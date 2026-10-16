@@ -122,7 +122,6 @@ export {
     AdwToastQueue,
     DEFAULT_TOAST_TIMEOUT,
     AdwAlertResponses,
-    NOTIFY_RESPONSE,
     ABOUT_CLOSED,
     PREFERENCES_CLOSED,
     // Construct properties (ADR 0034 § 4)
@@ -223,7 +222,6 @@ export type {
     AdwToastQueueOptions,
     ToastScheduler,
     ToastTimerHandle,
-    NotifyResponseEventData,
     AdwAlertResponse,
     AdwResponseAppearance,
     AdwResponseOptions,

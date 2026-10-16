@@ -33,7 +33,7 @@ import type { AdwAdjustmentInput, AdwListModelInput } from '@gjsify/adwaita-core
 
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { iconSizeNickOf } from './gtk-icon-size.js';
-import { gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
+import { camelProperty, gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
 
 /**
  * The keys a widget's construct-props bag accepts, derived from the widget itself.
@@ -233,7 +233,9 @@ export function nsAlignment(value: unknown, axis: 'horizontal' | 'vertical'): un
  */
 export function applyConstructProps(target: object, props?: Readonly<Record<string, unknown>>): void {
     if (props === undefined || props === null) return;
-    for (const [key, value] of Object.entries(props)) {
+    // GJS takes a property in either spelling (`close_response`, `closeResponse`); the members are camel case.
+    for (const [spelled, value] of Object.entries(props)) {
+        const key = camelProperty(spelled);
         const shadowed = gtkPropertyDoor(target, key);
         if (shadowed.kind === 'refused') throw new TypeError(`${target.constructor.name}: ${shadowed.why}`);
         if (shadowed.kind === 'verbs') {

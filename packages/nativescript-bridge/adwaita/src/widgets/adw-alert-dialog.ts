@@ -6,8 +6,12 @@
 // and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link AdwAlertResponses};
 // this class composes it and keeps only the NativeScript binding: mapping to the
 // platform's native `confirm()` (≤3 responses) / `action()` (>3) and emitting the
-// `notify::response` GObject signal. Mirrors `Adw.AlertDialog`: `heading`, `body`,
-// `add_response(id, label)`, `present()` resolving to the chosen response id.
+// `response` signal. Mirrors `Adw.AlertDialog`: `heading`, `body`,
+// `add_response(id, label)`, `connect('response', (dialog, id) => …)`, `present(parent)`.
+//
+// THE GJS FORM RUNS AS WRITTEN: `new Adw.AlertDialog({ heading, close_response,
+// default_response })` — the bag takes GJS's snake_case spelling — and a `response` handler receives
+// the chosen id as its second argument, as `AdwAlertDialog::response` hands it over.
 //
 // FIDELITY: approximated by design. There is NO custom in-app modal here — the NS
 // platform alert/action sheet is used so the dialog looks like the user's OS
@@ -40,15 +44,6 @@ export type {
     AdwResponseOptions,
     OrderedConfirmResponses,
 } from '@gjsify/adwaita-core';
-
-/** Event name emitted when a response is chosen. Mirrors GObject `notify::response`. */
-export const NOTIFY_RESPONSE = 'notify::response';
-
-/** Payload of the `notify::response` event. */
-export interface NotifyResponseEventData extends EventData {
-    /** The chosen response id. */
-    response: string;
-}
 
 export class AdwAlertDialog extends withSignals(Observable) {
     static readonly GTypeName: string = 'AdwAlertDialog';
@@ -93,6 +88,23 @@ export class AdwAlertDialog extends withSignals(Observable) {
         this._responses.body = value;
     }
 
+    /**
+     * `AdwAlertDialog::response` hands its handler the chosen id, `(dialog, response)`; every other
+     * signal keeps the mixin's `(self, data)` shape.
+     */
+    override connect(eventName: string, callback: (self: this, data: EventData) => unknown): number;
+    override connect(eventName: 'response', callback: (self: this, response: string) => unknown): number;
+    override connect(eventName: string, callback: (self: this, data: never) => unknown): number {
+        if (eventName !== 'response')
+            return super.connect(eventName, callback as (self: this, data: EventData) => unknown);
+        return super.connect(eventName, (self, data) =>
+            (callback as (self: this, response: string) => unknown)(
+                self,
+                (data as { args?: unknown[] }).args?.[0] as string,
+            ),
+        );
+    }
+
     /** Register a response button — `adw_alert_dialog_add_response`; `id` is what `present()` resolves to. */
     add_response(id: string, label: string, options?: AdwResponseOptions): void {
         this._responses.addResponse(id, label, options);
@@ -106,6 +118,27 @@ export class AdwAlertDialog extends withSignals(Observable) {
      */
     addResponses(...idLabelPairs: string[]): void {
         this._responses.addResponses(...idLabelPairs);
+    }
+
+    /** `adw_alert_dialog_has_response`. */
+    has_response(id: string): boolean {
+        return this._responses.hasResponse(id);
+    }
+
+    /** `adw_alert_dialog_get_response_label`; `null` for an unknown id. */
+    get_response_label(id: string): string | null {
+        return this._responses.responses.find((r) => r.id === id)?.label ?? null;
+    }
+
+    /** `adw_alert_dialog_set_response_label`; an unknown id is warned about and ignored, as libadwaita does. */
+    set_response_label(id: string, label: string): void {
+        if (!this._responses.hasResponse(id)) {
+            console.warn(
+                `[AdwAlertDialog] Trying to set label on a response with id '${id}', but such a response does not exist`,
+            );
+            return;
+        }
+        this._responses.addResponse(id, label);
     }
 
     /** Set a registered response's emphasis — `adw_alert_dialog_set_response_appearance`. */
@@ -137,6 +170,16 @@ export class AdwAlertDialog extends withSignals(Observable) {
         this._responses.defaultResponse = id;
     }
 
+    /** `adw_alert_dialog_get_default_response`. */
+    get_default_response(): string | null {
+        return this._responses.defaultResponse;
+    }
+
+    /** `adw_alert_dialog_set_default_response`. */
+    set_default_response(id: string | null): void {
+        this._responses.defaultResponse = id;
+    }
+
     /** The response id used when the dialog is dismissed without a choice. */
     get closeResponse(): string {
         return this._responses.closeResponse;
@@ -146,19 +189,30 @@ export class AdwAlertDialog extends withSignals(Observable) {
         this._responses.closeResponse = id;
     }
 
+    /** `adw_alert_dialog_get_close_response`. */
+    get_close_response(): string {
+        return this._responses.closeResponse;
+    }
+
+    /** `adw_alert_dialog_set_close_response`. */
+    set_close_response(id: string): void {
+        this._responses.closeResponse = id;
+    }
+
     /** The registered responses. */
     get responses(): AdwAlertResponses['responses'] {
         return this._responses.responses;
     }
 
     /**
-     * Present the dialog. Resolves to the chosen response id (or {@link closeResponse}
-     * on dismissal). Uses a native `confirm()` for ≤3 responses, else an `action()`
-     * sheet.
+     * `adw_dialog_present(dialog, parent)`: show the dialog and emit `response` with the
+     * chosen id (or {@link closeResponse} on dismissal). The native sheet is app-modal,
+     * so `parent` places nothing. Uses a native `confirm()` for ≤3 responses, else an
+     * `action()` sheet. The returned promise settles after the signal ran.
      */
-    async present(): Promise<string> {
+    async present(_parent?: unknown): Promise<string> {
         const chosen = this._responses.usesActionSheet ? await this._presentAction() : await this._presentConfirm();
-        this.notify({ eventName: NOTIFY_RESPONSE, object: this, response: chosen } as NotifyResponseEventData);
+        this.emit('response', chosen);
         return chosen;
     }
 
