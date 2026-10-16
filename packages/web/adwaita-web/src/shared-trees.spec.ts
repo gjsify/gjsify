@@ -54,7 +54,7 @@ import { ADWAITA_GALLERY_SHARED_TREES } from '../../../../scripts/adwaita-galler
 
 import '@gjsify/adwaita-web';
 
-import { mountSharedTree } from './shared-tree-builder.js';
+import { buildWithSiblings, mountSharedTree } from './shared-tree-builder.js';
 
 /**
  * Connect the authored root — these elements build on connect — run, and take it down again.
@@ -362,6 +362,20 @@ export const AdwSharedTreesTest = async () => {
             expect(() =>
                 mountSharedTree({ tag: 'AdwToolbarView', children: [{ tag: 'AdwBanner', slot: 'middle' }] }),
             ).toThrow('has no slot "middle"');
+        });
+
+        // The detached door refuses it too: a root built and handed back is mounted by the
+        // caller, after the builder could still say anything.
+        await it('`buildWithSiblings` refuses the same placement, and hands a good tree back detached', () => {
+            const bad = { tag: 'AdwToolbarView', children: [{ tag: 'AdwBanner', slot: 'middle' }] };
+            expect(() => buildWithSiblings(bad)).toThrow('has no slot "middle"');
+            const { root, siblings } = buildWithSiblings({
+                tag: 'AdwToolbarView',
+                children: [{ tag: 'AdwBanner', slot: 'top' }],
+                siblings: [{ tag: 'GtkLabel', id: 'beside' }],
+            });
+            expect(root.isConnected || siblings.get('beside')!.isConnected).toBe(false);
+            expect(root.querySelector('adw-banner') !== null).toBe(true);
         });
 
         // ADR 0092's `layout { }`: a grid child's cell. GTK counts from 0, CSS Grid from 1.

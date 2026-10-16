@@ -113,6 +113,30 @@ export const AdwSlottedChildrenTest = async () => {
             expect(report).toBe('[1]');
         });
 
+        // The DECLARED twin of the case above. `install()` replaces the host's children with
+        // its structure, and a child no slot took used to go with them — gone without a word.
+        await it('keeps a declared child no slot takes, and warns that it was not placed', () => {
+            const host = document.createElement('div');
+            const typo = probe('sied', 'a');
+            host.append(document.createTextNode('\n  '), typo);
+            mounted(host);
+            const side = document.createElement('div');
+            side.className = 'side';
+
+            const warned: string[] = [];
+            const warn = console.warn;
+            console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
+            try {
+                bindSlottedChildren(host, [{ name: 'side', into: side }]).install(side);
+            } finally {
+                console.warn = warn;
+            }
+
+            const report = `${placement(host, typo)} | ${warned.join()}`;
+            host.remove();
+            expect(report).toBe("[1] | 'sied' is not a valid child type of 'div'");
+        });
+
         await it('re-adopts a child that was appended, removed and appended again', async () => {
             const host = mounted(document.createElement('div'));
             const side = document.createElement('div');
