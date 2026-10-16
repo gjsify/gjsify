@@ -220,3 +220,21 @@ Names are the maintainer's call. These are proposals only.
    NativeScript. Then `registerColorIcon` is removed and ADR 0115's specs move to a resource
    fixture.
 4. The other consumers in § 6, one PR each.
+
+## Amendment 1 (2026-10-16): `registerColorIcon` ships in 0.64.1 and goes with the other doors
+
+- Status of this amendment: **Proposed**
+
+§ 8 said `registerColorIcon` is removed before the next stable release. That release is 0.64.1,
+cut from `ef804d18bd` (#2245), and it still exports `registerColorIcon` from
+`@gjsify/adwaita-web`. The release was not held back for it. So:
+
+- `registerColorIcon` reaches `latest` in 0.64.1. Its lookup already follows ADR 0115 Amendment 2:
+  a registration stands in hicolor, behind the current theme's `X-symbolic`.
+- It is removed together with `registerIcon` and `unregisterIcon`, in the release where § 4 and § 5
+  work on NativeScript as well, along with the migration of Learn6502's web entry. gjsify is 0.x,
+  so a minor release may remove it.
+- Until then nothing new may call it. Nothing outside `@gjsify/adwaita-web` calls it today.
+
+Implementation step 3 changes to match: the removal of `registerColorIcon` moves from the end of the
+web half to the end of the NativeScript half.
