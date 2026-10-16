@@ -23,13 +23,15 @@
 // is named after its application ID (`org.gnome.Builder`, adw-about-dialog.c:1215), which is
 // not a CSS token and never could be a mask class, but is a perfectly good Map key.
 //
-// RESOURCE PATHS (ADR 0116 § 4). After the colour map, the names go through the
-// `Gtk.IconTheme` resource paths an application added (`GtkApplication` adds
-// `<resource-base-path>/icons/` at startup); `@gjsify/adwaita-core`'s `lookupResourceIcon`
-// decides which file answers, as gtkicontheme.c does, and asks this module only whether the
-// stylesheet holds a symbolic glyph. A file answers as a blob URL of its bytes: a symbolic one
-// is drawn as a mask in `currentColor`, the rest as-is. A browser draws SVG and PNG; an XPM or a
-// compressed entry draws `image-missing` with a warning.
+// RESOURCE PATHS (ADR 0116 § 4). The names go through the `Gtk.IconTheme` resource paths an
+// application added (`GtkApplication` adds `<resource-base-path>/icons/` at startup);
+// `@gjsify/adwaita-core`'s `lookupResourceIcon` decides which file answers, as gtkicontheme.c
+// does, and asks this module only whether the stylesheet holds a symbolic glyph. A colour
+// registration stands in hicolor there, as the file an app ships in `hicolor/scalable/apps/`
+// would: the stylesheet's `X-symbolic` answers `X` before it, as Adwaita's does on GNOME. A file
+// answers as a blob URL of its bytes: a symbolic one is drawn as a mask in `currentColor`, the
+// rest as-is. A browser draws SVG and PNG; an XPM or a compressed entry draws `image-missing`
+// with a warning.
 //
 // Original implementation.
 
@@ -57,9 +59,6 @@ export type IconLookup =
     | { kind: 'symbolic'; name: string }
     /** Nothing in the theme answers this name — draw `image-missing`. */
     | { kind: 'missing' };
-
-/** The suffix `g_themed_icon_update_names` swaps to build the other variant. */
-const SYMBOLIC_SUFFIX = /-symbolic$/;
 
 /**
  * Every name GTK's theme treats as a symbolic FILE (gtkicontheme.c `icon_name_is_symbolic`):
@@ -103,25 +102,17 @@ function hasSymbolic(normalized: string): boolean {
  * Resolve `iconName` as `gtk_icon_theme_lookup_by_gicon` would for a `GtkImage`. `null` when
  * no name was given — the state where GTK draws nothing, not `image-missing`.
  *
- * When no colour icon is registered for the name, a symbolic request is returned WITHOUT
- * checking the cascade: the mask class falls back to `image-missing` through CSS by itself
- * and corrects itself when a later `registerIcon` lands, which is how `<gtk-image>` behaved
- * before this module. The cascade is read only to choose between a colour entry and a
- * symbolic glyph.
+ * When neither a colour registration nor a resource holds a name, the request is returned as a
+ * symbolic one WITHOUT checking the cascade: the mask class falls back to `image-missing`
+ * through CSS by itself and corrects itself when a later `registerIcon` lands, which is how
+ * `<gtk-image>` behaved before this module. The cascade is read only to choose between a
+ * symbolic glyph and a colour entry or file.
  */
 export function lookupIcon(iconName: string | null | undefined, request: IconRequest = {}): IconLookup | null {
     if (iconName === null || iconName === undefined || iconName === '') return null;
-    const symbolicRequest = SYMBOLIC_SUFFIX.test(iconName);
-    const colorName = symbolicRequest ? iconName.replace(SYMBOLIC_SUFFIX, '') : iconName;
-    const color = colorIcons.get(colorName);
+    const found = resourceIcon(iconName, request);
+    if (found !== null) return found;
     const symbolic = normalizeIconName(iconName);
-
-    if (color !== undefined) {
-        if (symbolicRequest && hasSymbolic(symbolic)) return { kind: 'symbolic', name: symbolic };
-        return { kind: 'color', name: colorName, url: color };
-    }
-    const resource = resourceIcon(iconName, request);
-    if (resource !== null) return resource;
     return symbolic === '' ? { kind: 'missing' } : { kind: 'symbolic', name: symbolic };
 }
 
@@ -168,8 +159,8 @@ function resourceUrl(path: string): string | null {
 }
 
 /**
- * The lookup over the theme's resource paths; `null` when no resource answers any name, a
- * `symbolic` entry when the current theme's glyph comes first.
+ * The lookup over the colour registrations and the theme's resource paths; `null` when neither
+ * answers any name, a `symbolic` entry when the current theme's glyph comes first.
  */
 export function resourceIcon(iconName: string, request: IconRequest): IconLookup | null {
     const match = lookupResourceIcon(theme, {
@@ -179,9 +170,11 @@ export function resourceIcon(iconName: string, request: IconRequest): IconLookup
         },
         scale: request.scale ?? 1,
         themeHas: (name) => hasSymbolic(normalizeIconName(name)),
+        hicolorHas: (name) => colorIcons.has(name),
     });
     if (match === null) return null;
     if (match.kind === 'theme') return { kind: 'symbolic', name: normalizeIconName(match.name) };
+    if (match.kind === 'hicolor') return { kind: 'color', name: match.name, url: colorIcons.get(match.name)! };
     return {
         kind: 'resource',
         name: match.name,

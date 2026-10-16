@@ -4,7 +4,9 @@
 //
 // The order under test is GLib's (`g_themed_icon_update_names`, which `GtkImage`'s lookup
 // goes through): `X` tries [X, X-symbolic], `X-symbolic` tries [X-symbolic, X], and a name
-// neither answers draws `image-missing`. The registry is module-level and outlives a test,
+// neither answers draws `image-missing`. Over the names the order is gtkicontheme.c's: the
+// current theme (the stylesheet's glyphs) before hicolor, where a colour registration sits.
+// The registry is module-level and outlives a test,
 // so every case registers names of its own.
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -114,13 +116,16 @@ export const AdwIconThemeTest = async () => {
             host.remove();
         });
 
-        await it('X prefers the colour icon, X-symbolic prefers the symbolic one', () => {
+        await it("the theme's X-symbolic answers X and X-symbolic before the colour X, as on GTK", () => {
             const NAME = 'gjsify-theme-both-probe';
             registerColorIcon(NAME, COLOR_SVG);
             registerIcon(`${NAME}-symbolic`, SYMBOLIC_SVG);
 
+            // gtkicontheme.c `real_choose_icon`: theme outer, name inner, and the colour icon is
+            // hicolor's, so the current theme's `X-symbolic` comes first (ADR 0115 Amendment 2).
             const plain = mount(NAME);
-            expect(drawsInColor(plain.el)).toBe(true);
+            expect(plain.el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
+            expect(maskOf(plain.el).includes('m%203%203')).toBe(true);
             plain.host.remove();
 
             const symbolic = mount(`${NAME}-symbolic`);

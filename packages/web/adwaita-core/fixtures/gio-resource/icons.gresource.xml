@@ -3,6 +3,7 @@
   <gresource prefix="/org/gjsify/icons/icons">
     <file>flat.png</file>
     <file>flat.svg</file>
+    <file>16x16/actions/go-next.png</file>
     <file>16x16/apps/arrow-rtl.png</file>
     <file>16x16/apps/arrow.png</file>
     <file>16x16/apps/size.png</file>

@@ -319,14 +319,16 @@ registerColorIcon('org.example.Other', '/icons/other.png'); // …or an image UR
 Every `<gtk-image>` asking for a registered name draws the image unmasked and unrecoloured,
 which covers every widget that draws its icons through it, `<adw-about-dialog>` and
 `<gtk-about-dialog logo-icon-name>` among them. A name is looked up in the order GTK's own
-theme tries it (`g_themed_icon_update_names`):
+theme tries it (`g_themed_icon_update_names`, then gtkicontheme.c's theme order). A colour
+registration is hicolor's, so the current theme's symbolic glyph comes first either way:
 
 | Asked for | Tried, in order | Neither found |
 | --- | --- | --- |
-| `X` | colour `X`, then symbolic `X-symbolic` | `image-missing` |
+| `X` | symbolic `X-symbolic`, then colour `X` | `image-missing` |
 | `X-symbolic` | symbolic `X-symbolic`, then colour `X` | `image-missing` |
 
-So nothing changes for a name with no colour registration. `registerColorIcon` keys on the
+So nothing changes for a name with no colour registration, and a colour `X` shows only where the
+theme has no `X-symbolic` — the same as on GNOME. `registerColorIcon` keys on the
 **exact** name, reverse-DNS IDs included, and *throws* on an empty or spaced name, on a
 `-symbolic` (`-ltr`/`-rtl`) name — that is `registerIcon`'s half — and on a source that is
 neither SVG source nor an `http(s):`, `blob:`, `file:` or `data:image/` URL. A registration

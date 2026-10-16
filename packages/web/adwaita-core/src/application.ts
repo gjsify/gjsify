@@ -59,7 +59,9 @@ export interface ApplicationHost {
     exit(): void;
     /**
      * The `Gtk.IconTheme` of the default display, which startup adds `<resource-base-path>/icons/`
-     * to (ADR 0116 § 4). A platform without one draws no resource icons, and startup skips it.
+     * to (ADR 0116 § 4): `gtk_application_load_resources` asks
+     * `gtk_icon_theme_get_for_display (gdk_display_get_default ())`. A platform without one draws
+     * no resource icons, and startup skips it.
      */
     iconTheme?(): { add_resource_path(path: string): void };
 }

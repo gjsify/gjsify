@@ -4,6 +4,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { driveIconThemeResourceVectors, type IconThemeResourceSubject } from './conformance/icon-theme-resources.js';
+import { gioResourceFixtures } from './conformance/gio-resource.js';
 import { Resource, resources_register, resources_unregister } from './gio-resource.js';
 import { IconTheme } from './gtk-platform.js';
 import { iconLookupNames, lookupResourceIcon } from './icon-theme-resources.js';
@@ -28,7 +29,7 @@ const subject: IconThemeResourceSubject = {
             scale,
             themeHas: (glyph) => glyph === 'go-next-symbolic',
         });
-        if (match === null) return null;
+        if (match === null || match.kind === 'hicolor') return null;
         return match.kind === 'theme' ? 'theme' : { uri: `resource://${match.path}`, symbolic: match.symbolic };
     },
 };
@@ -53,6 +54,30 @@ export default async () => {
             });
             expect(match).toBe(null);
             expect(asked).toBe(0);
+        });
+
+        await it("puts the port's own hicolor entry after the theme's glyph and before a resource file", () => {
+            const resource = Resource.new_from_data(gioResourceFixtures().icons);
+            resources_register(resource);
+            try {
+                const theme = new IconTheme();
+                theme.set_resource_path(['/org/gjsify/icons/icons/']);
+                const lookup = (name: string, themeHas: (glyph: string) => boolean) =>
+                    lookupResourceIcon(theme, {
+                        names: iconLookupNames(name, null),
+                        size: 16,
+                        scale: 1,
+                        themeHas,
+                        hicolorHas: (own) => own === 'sym' || own === 'nowhere',
+                    });
+                expect(lookup('nowhere', () => true)).toStrictEqual({ kind: 'theme', name: 'nowhere-symbolic' });
+                expect(lookup('nowhere', () => false)).toStrictEqual({ kind: 'hicolor', name: 'nowhere' });
+                expect(lookup('sym', () => false)).toStrictEqual({ kind: 'hicolor', name: 'sym' });
+                expect(lookup('sym-symbolic', () => false)?.kind).toBe('resource');
+                expect(lookup('nowhere-symbolic', () => false)).toStrictEqual({ kind: 'hicolor', name: 'nowhere' });
+            } finally {
+                resources_unregister(resource);
+            }
         });
     });
 };

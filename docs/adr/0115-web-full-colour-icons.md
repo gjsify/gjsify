@@ -85,3 +85,16 @@ So:
   stay unchanged.
 
 The status stays Proposed.
+
+## Amendment 2 (2026-10-16): the theme order is gtkicontheme.c's
+
+Decision 1's `X` rule did not follow GTK. `real_choose_icon` tries every name in one theme
+before the next theme, and a registered colour icon is hicolor's, which comes after the current
+theme. So `X` draws the current theme's `X-symbolic` before a colour `X`, as GTK does with
+Adwaita. Decision 1 now reads:
+
+- `X` → symbolic `X-symbolic` if its glyph is in the cascade, else registered colour `X`.
+- `X-symbolic` → unchanged.
+
+The order lives in `adwaita-core`'s `lookupResourceIcon`, beside the resource paths of ADR 0116 § 4,
+and a vector run on real GTK pins it.

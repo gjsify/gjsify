@@ -6,7 +6,8 @@
 // `hicolor/` component, which is how `theme_subdir_load` joins a resource path and a subdir.
 //
 // `go-next-symbolic` is a glyph of the current theme (Adwaita on GTK, the compiled subset on a
-// port): the theme answers it before the resource that holds the same name.
+// port): the theme answers it before the resource that holds the same name, and answers `go-next`
+// before the resource's colour `16x16/actions/go-next.png`.
 
 import type { ConstructHarness } from './constructs.js';
 import { gioResourceFixtures } from './gio-resource.js';
@@ -122,9 +123,15 @@ export const ICON_THEME_RESOURCE_VECTORS: readonly IconThemeResourceVector[] = [
     {
         row: 'symbolic',
         rule: "a symbolic glyph of the current theme answers before the resource's file of the same name",
+        observe: lookups([['go-next-symbolic', 16, 1, null]]),
+        shows: ['theme'],
+    },
+    {
+        row: 'symbolic',
+        rule: "X takes the current theme's X-symbolic before hicolor's colour X (theme outer, name inner)",
         observe: lookups([
             ['go-next', 16, 1, null],
-            ['go-next-symbolic', 16, 1, null],
+            ['go-next', 16, 1, 'ltr'],
         ]),
         shows: ['theme', 'theme'],
     },
