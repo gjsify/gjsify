@@ -124,8 +124,8 @@ export const AdwAlertDialogTest = async () => {
             // directly would assert a contract this element does not have.
             const { el, host } = mount({ 'close-response': 'cancel', open: '' });
             let seen: string | null = null;
-            el.addEventListener('response', (event) => {
-                seen = (event as CustomEvent<{ response: string }>).detail.response;
+            el.connect('response', (_dialog, response: string) => {
+                seen = response;
             });
             (el.querySelector('.adw-alert-dialog-scrim') as HTMLElement).click();
             expect(seen).toBe('cancel');
@@ -147,15 +147,81 @@ export const AdwAlertDialogTest = async () => {
     await describe('adw-alert-dialog responses before the first connect', async () => {
         await it('buttons added while detached appear once connected', () => {
             const el = document.createElement('adw-alert-dialog') as AdwAlertDialog;
-            el.addResponse('cancel', 'Cancel');
-            el.addResponse('ok', 'OK');
-            expect(el.getResponseLabel('ok')).toBe('OK');
+            el.add_response('cancel', 'Cancel');
+            el.add_response('ok', 'OK');
+            expect(el.get_response_label('ok')).toBe('OK');
             const host = document.createElement('div');
             document.body.appendChild(host);
             host.appendChild(el);
             const labels = [...el.querySelectorAll('.adw-alert-dialog-response')].map((b) => b.textContent);
             expect(labels.join(',')).toBe('Cancel,OK');
             host.remove();
+        });
+    });
+
+    // The calls a GJS app makes (Learn6502's `notification.service.ts`), run as written.
+    await describe('adw-alert-dialog in the GJS construct-props form', async () => {
+        const Dialog = customElements.get('adw-alert-dialog') as unknown as new (
+            props?: Record<string, unknown>,
+        ) => AdwAlertDialog;
+
+        const confirmDialog = () => {
+            const dialog = new Dialog({
+                heading: 'Reset?',
+                body: 'This clears the memory.',
+                close_response: 'cancel',
+                default_response: 'confirm',
+            });
+            dialog.add_response('cancel', 'Cancel');
+            dialog.add_response('confirm', 'Confirm');
+            return dialog;
+        };
+
+        await it('takes the snake_case bag', () => {
+            const dialog = confirmDialog();
+            expect(dialog.heading).toBe('Reset?');
+            expect(dialog.body).toBe('This clears the memory.');
+            expect(dialog.get_close_response()).toBe('cancel');
+            expect(dialog.get_default_response()).toBe('confirm');
+        });
+
+        await it('refuses a key that is no Adw.AlertDialog property', () => {
+            expect(() => new Dialog({ no_such_prop: 1 })).toThrow();
+        });
+
+        await it('present() attaches it, a click emits response with the id, and closing detaches it', () => {
+            const dialog = confirmDialog();
+            const seen: unknown[][] = [];
+            dialog.connect('response', (emitter, response: string) => seen.push([emitter, response]));
+            dialog.present(null);
+            expect(dialog.isConnected).toBe(true);
+            expect(dialog.open).toBe(true);
+            const buttons = [...dialog.querySelectorAll('.adw-alert-dialog-response')] as HTMLButtonElement[];
+            buttons.find((b) => b.textContent === 'Confirm')!.click();
+            expect(seen.length).toBe(1);
+            expect(seen[0]![0]).toBe(dialog);
+            expect(seen[0]![1]).toBe('confirm');
+            expect(dialog.open).toBe(false);
+            expect(dialog.isConnected).toBe(false);
+        });
+
+        await it('a dismissal emits the close_response once, not the clicked one too', () => {
+            const dialog = confirmDialog();
+            const seen: string[] = [];
+            dialog.connect('response', (_dialog, response: string) => seen.push(response));
+            dialog.present(null);
+            (dialog.querySelector('.adw-alert-dialog-scrim') as HTMLElement).click();
+            expect(seen.join(',')).toBe('cancel');
+            expect(dialog.isConnected).toBe(false);
+        });
+
+        await it('remove_response drops the response and its button', () => {
+            const dialog = confirmDialog();
+            dialog.present(null);
+            dialog.remove_response('confirm');
+            expect(dialog.has_response('confirm')).toBe(false);
+            expect(dialog.querySelectorAll('.adw-alert-dialog-response').length).toBe(1);
+            dialog.remove();
         });
     });
 };

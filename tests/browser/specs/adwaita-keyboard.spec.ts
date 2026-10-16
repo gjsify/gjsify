@@ -114,8 +114,8 @@ async function driveKeys(page: Page, bundleUrl: string) {
             '<adw-alert-response id="ok">OK</adw-alert-response>' +
             '<adw-alert-response id="cancel">Cancel</adw-alert-response>';
         document.body.append(behind, dialog);
-        dialog.setDefaultResponse('ok');
-        dialog.setResponseEnabled('ok', false);
+        dialog.set_default_response('ok');
+        dialog.set_response_enabled('ok', false);
         behind.focus();
         dialog.setAttribute('open', '');
     });

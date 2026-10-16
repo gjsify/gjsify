@@ -38,10 +38,10 @@ export class AlertDialogWebStory extends StoryElement {
     /** Build + present a fresh dialog, reading the latest args (as the GTK story does). */
     private _present(): void {
         const dialog = document.createElement('adw-alert-dialog') as HTMLElement & {
-            addResponse(id: string, label: string): void;
-            setResponseAppearance(id: string, appearance: 'default' | 'suggested' | 'destructive'): void;
-            setDefaultResponse(id: string | null): void;
-            setCloseResponse(id: string): void;
+            add_response(id: string, label: string): void;
+            set_response_appearance(id: string, appearance: 'default' | 'suggested' | 'destructive'): void;
+            set_default_response(id: string | null): void;
+            set_close_response(id: string): void;
             present(): void;
         };
         dialog.setAttribute('heading', this.args.heading as string);
@@ -51,11 +51,11 @@ export class AlertDialogWebStory extends StoryElement {
         // it to the document before driving the imperative API.
         document.body.appendChild(dialog);
 
-        dialog.addResponse('cancel', 'Cancel');
-        dialog.addResponse('delete', 'Delete');
-        dialog.setResponseAppearance('delete', 'destructive');
-        dialog.setDefaultResponse('cancel');
-        dialog.setCloseResponse('cancel');
+        dialog.add_response('cancel', 'Cancel');
+        dialog.add_response('delete', 'Delete');
+        dialog.set_response_appearance('delete', 'destructive');
+        dialog.set_default_response('cancel');
+        dialog.set_close_response('cancel');
 
         // Remove the dialog from the DOM once the user responds — the GTK dialog
         // is likewise destroyed on response.

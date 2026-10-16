@@ -674,9 +674,9 @@ function writeExtensions(el: HTMLElement, node: SharedTreeNode): void {
 
 /** The response API an element answers to — `<adw-alert-dialog>`'s, named after libadwaita's. */
 interface ResponseReader {
-    getResponseLabel(id: string): string | null;
-    getResponseAppearance(id: string): string | null;
-    getResponseEnabled(id: string): boolean;
+    get_response_label(id: string): string | null;
+    get_response_appearance(id: string): string | null;
+    get_response_enabled(id: string): boolean;
 }
 
 /**
@@ -700,10 +700,10 @@ function refuseUnheldExtensions(extended: readonly ExtendedNode[]): void {
         const reader = el as unknown as Partial<ResponseReader>;
         for (const response of node.extensions?.responses ?? []) {
             const held =
-                typeof reader.getResponseLabel === 'function' &&
-                reader.getResponseLabel(response.id) === response.label &&
-                reader.getResponseAppearance?.(response.id) === (response.appearance ?? 'default') &&
-                reader.getResponseEnabled?.(response.id) === (response.enabled ?? true);
+                typeof reader.get_response_label === 'function' &&
+                reader.get_response_label(response.id) === response.label &&
+                reader.get_response_appearance?.(response.id) === (response.appearance ?? 'default') &&
+                reader.get_response_enabled?.(response.id) === (response.enabled ?? true);
             if (!held) {
                 throw new Error(
                     `<${el.localName}> did not register the response "${response.id}" as authored, so the ` +
