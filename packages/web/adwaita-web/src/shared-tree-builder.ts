@@ -55,7 +55,14 @@ import {
 
 import { observeAdaptiveSize } from './breakpoints.js';
 import { capabilities } from './capabilities.mjs';
-import { endpointOf, hasElementApi, installElementApi, installSensitive } from './gobject-elements.js';
+import {
+    endpointOf,
+    hasElementApi,
+    hasInstalledVisible,
+    installElementApi,
+    installSensitive,
+    installVisible,
+} from './gobject-elements.js';
 import { dispatchedSignalsOf } from './signals.js';
 import { slottedChildrenOf } from './slotted-children.js';
 import { isTemplateTag, templateTagFor } from './template-classes.js';
@@ -423,7 +430,9 @@ export function writeProp(el: HTMLElement, prop: string, value: string | number 
     const member = propertyOf(prop);
     const expand = GTK_WIDGET_EXPAND.find((name) => name === attr);
     if (expand !== undefined && typeof value === 'boolean') el.setAttribute(expand, value ? '' : 'false');
-    else if (isTemplateTag(el.localName) && member in el) {
+    else if (attr === 'visible' && typeof value === 'boolean' && hasInstalledVisible(el)) {
+        (el as unknown as Record<string, unknown>)[member] = value;
+    } else if (isTemplateTag(el.localName) && member in el) {
         // An application class has no attributeChangedCallback: its properties are GObject properties,
         // set the way `Gtk.Builder` sets them, after the constructor.
         (el as unknown as Record<string, unknown>)[member] = value;
@@ -451,6 +460,8 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     const el = document.createElement(node.extern === true ? templateTagFor(node.tag) : hostTagOf(node.tag));
     // A template's children talk GObject to the template: `connect`, `emit`, `notify` (ADR 0096).
     if (record.template !== undefined) installElementApi(el);
+    // `Gtk.Widget:visible`, which no element spells: a setter's target and an authored `false` need it.
+    installVisible(el);
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
     if (node.id !== undefined) {

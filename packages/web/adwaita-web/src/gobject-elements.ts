@@ -154,6 +154,34 @@ export function installSensitive(el: HTMLElement): void {
     });
 }
 
+const VISIBLE_INSTALLED = new WeakSet<Element>();
+
+/** Whether `installVisible` gave `el` its `visible` (an element with its own keeps its own). */
+export function hasInstalledVisible(el: Element): boolean {
+    return VISIBLE_INSTALLED.has(el);
+}
+
+/**
+ * `Gtk.Widget:visible` for an element that has no member of that name: `gtk_widget_get_visible`
+ * and `gtk_widget_set_visible` over the DOM's `hidden` attribute, TRUE until hidden as GtkWidget's
+ * default is. It notifies only where the element declares `notify::visible`. An element that already declares `visible` (`<gtk-stack-page>`, `<adw-sidebar>`)
+ * keeps its own, and so does a registered class whose prototype has the port's members.
+ */
+export function installVisible(el: HTMLElement): void {
+    if ('visible' in el) return;
+    VISIBLE_INSTALLED.add(el);
+    const define = (name: string, descriptor: PropertyDescriptor) =>
+        Object.defineProperty(el, name, { configurable: true, enumerable: false, ...descriptor });
+    const set = (value: unknown): void => {
+        const before = !el.hidden;
+        el.toggleAttribute('hidden', !value);
+        if (!el.hidden !== before && 'notify::visible' in dispatchedSignalsOf(el)) notifyElement(el, 'visible');
+    };
+    define('visible', { get: () => !el.hidden, set });
+    if (!('get_visible' in el)) define('get_visible', { value: () => !el.hidden, writable: true });
+    if (!('set_visible' in el)) define('set_visible', { value: set, writable: true });
+}
+
 /** Gives `el` the instance API of a registered class, over the events it declares. */
 export function installElementApi(el: HTMLElement): void {
     // A registered class already has the core's four methods on its prototype.

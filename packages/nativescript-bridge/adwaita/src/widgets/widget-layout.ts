@@ -328,6 +328,10 @@ export declare abstract class GtkWidgetLayoutMembers {
     set widthRequest(value: number | string);
     get heightRequest(): number;
     set heightRequest(value: number | string);
+    /** `gtk_widget_get_visible`: the `visible` property. */
+    get_visible(): boolean;
+    /** `gtk_widget_set_visible`: the `visible` property. */
+    set_visible(visible: boolean): void;
     /** `gtk_widget_set_direction`: written to the CSS `direction` a view resolves its margins by; NONE clears it. */
     set_direction(direction: number): void;
     /** `gtk_widget_get_direction`: LTR until set. */
@@ -463,6 +467,16 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
             // `id` follows the name only while it IS the name (or nothing): an id someone else
             // wrote is a different fact and stays.
             if (view.id === undefined || view.id === previous) view.id = next === '' ? undefined : next;
+        }
+
+        /** `gtk_widget_get_visible`. */
+        get_visible(): boolean {
+            return this.visible;
+        }
+
+        /** `gtk_widget_set_visible`. */
+        set_visible(visible: boolean): void {
+            this.visible = visible;
         }
 
         /** `gtk_widget_set_direction`: written to the CSS `direction` a view resolves its margins by; NONE clears it. */

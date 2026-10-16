@@ -1,4 +1,4 @@
-// The `Gtk.Widget` members a registered class reaches for on `this`: direction, the sibling links of
+// The `Gtk.Widget` members a registered class reaches for on `this`: direction, visibility, the sibling links of
 // the widget tree and `insert_action_group`. `gobject-door.ts` puts them on the prototype of every
 // registered class, next to `get_display()` / `get_clipboard()` (gdk.ts); a class's own member wins.
 //
@@ -19,6 +19,8 @@ interface WidgetNode {
     dir: string;
     readonly isConnected: boolean;
     removeAttribute(name: string): void;
+    hasAttribute(name: string): boolean;
+    toggleAttribute(name: string, force?: boolean): boolean;
     readonly firstElementChild: unknown;
     readonly lastElementChild: unknown;
     readonly nextElementSibling: unknown;
@@ -55,6 +57,14 @@ export function widgetTreeMembers(): Record<string, (this: WidgetNode, ...args: 
         /** `gtk_widget_get_direction`: LTR until set. */
         get_direction(this: WidgetNode) {
             return DIRECTION.get(this) ?? 1;
+        },
+        /** `gtk_widget_get_visible`: TRUE until hidden, which is the DOM's `hidden`. */
+        get_visible(this: WidgetNode) {
+            return !this.hasAttribute('hidden');
+        },
+        /** `gtk_widget_set_visible`. */
+        set_visible(this: WidgetNode, visible: boolean) {
+            this.toggleAttribute('hidden', !visible);
         },
         get_first_child(this: WidgetNode) {
             return this.firstElementChild;

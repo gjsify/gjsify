@@ -53,6 +53,16 @@ export const AdwWidgetBaseNsTest = async () => {
             expect(label.visible).toBe(true);
         });
 
+        await it('answers `get_visible()` and `set_visible()` over the same property', () => {
+            const label = new Gtk.Label();
+            expect(label.get_visible()).toBe(true);
+            label.set_visible(false);
+            expect((label as unknown as View).visibility).toBe('collapse');
+            expect(label.get_visible()).toBe(false);
+            label.set_visible(true);
+            expect(label.visible).toBe(true);
+        });
+
         await it('is not shadowed by the toast overlay, which reports its strip as `toastShowing`', () => {
             const overlay = new Adw.ToastOverlay();
             expect(overlay.toastShowing).toBe(false);
