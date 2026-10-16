@@ -8,6 +8,10 @@
 > typelibs as ONE gitignored AAR, built never committed; the app opts into the real engine, and
 > `@nativescript/vite`'s vendor chunk evaluates first so import order cannot win — disable
 > `manualChunks` ([report](../../docs/reports/2026-10-11-node-gi-nativescript-plugin.md)).
+> The native host loads LAZILY on NativeScript (`LAZY_NATIVE` from `#host`, `ensureNative()` in
+> `index.js`; `gi.js` registers its callbacks via `onNativeLoaded`), so the pure-JS opt-out never
+> maps `libnode_gi.so`; desktop hosts stay eager. A failed lazy load throws on every call
+> (ADR 0105 § 4). Importing `cairo`/`gettext` still loads it. Test: `lazy-native-load.test.mjs`.
 > The GJS-compatible surface (engine + L1 + cairo, with the measured divergences) is
 > [docs/node-gi-gjs-surface.md](../../docs/node-gi-gjs-surface.md); build/test, the
 > golden-diff conformance contract and the display capstones are

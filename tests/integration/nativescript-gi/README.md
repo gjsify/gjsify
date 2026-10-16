@@ -36,8 +36,9 @@ default it is uninstalled again, because a device this runs on is usually shared
 
 Two more defines turn this suite into the ADR 0110 gate-2 ladder. `GJSIFY_GI_PLUGIN=0`
 aliases `@gjsify/node-gi/gi` to `app/no-gi-stub.ts`, so node-gi is not in the bundle at
-all — needed because importing the bridge `dlopen`s `libnode_gi.so` from its module
-body, so the opt-in define alone cannot describe an app that pays nothing.
+all. It was needed while importing the bridge `dlopen`ed `libnode_gi.so` from its module
+body; the NativeScript host loads it lazily now, so it is the B0 rung rather than the only
+way to pay nothing.
 `GJSIFY_GI_BENCH=1` adds the per-instance benchmark, off by default so it lands in
 neither the cold-start nor the APK-size numbers. `GJSIFY_GI_UI=0` drops the two § 3 UI
 specs, which are on by default and which every release rung sets off — they pull

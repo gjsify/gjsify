@@ -23,6 +23,7 @@
 // default export. The gjsify `--app node` build aliases the bare `gettext`
 // specifier to this module (kept external — `ALIASES_GJS_FOR_NODE`).
 import * as native from './index.js';
+import { ensureNative } from './index.js';
 import { requireGi } from './gi.js';
 
 // GLib is resolved on first lookup, not at import: loading a namespace walks the
@@ -48,6 +49,7 @@ function GLib() {
 // lookups still work (they go through GLib, which every addon version has), and
 // the binders are the no-ops they used to be. It is announced once, because a
 // silently untranslated UI is the defect this file exists to close.
+ensureNative();
 const haveLocaleBinders = typeof native.localeCategories === 'function';
 
 let announcedStaleAddon = false;

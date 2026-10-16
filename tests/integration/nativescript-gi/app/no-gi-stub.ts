@@ -1,12 +1,11 @@
 // `@gjsify/node-gi/gi` REPLACED — the "no plugin in the bundle" variant of ADR 0110 gate 2.
 //
 // `GJSIFY_GI_PLUGIN=0` aliases the bridge to this file (see ../vite.config.ts). It exists because
-// of the finding stage 4 wrote down: importing `@gjsify/node-gi` loads the native library whether
-// or not the app opts in — its module body runs `loadNativeHost()`. So the control run that keeps
-// the import (`GJSIFY_GI_OPT_IN=0`) still `dlopen`s `libnode_gi.so` and its whole closure, and it
-// therefore cannot answer "what does an app that does NOT want real GObject pay". An app that
-// wants the pure-JS path to cost nothing must not import the bridge at all, and this stub is how
-// that build is produced without a second copy of `app/opt-in.ts`.
+// of the finding stage 4 wrote down: importing `@gjsify/node-gi` used to load the native library
+// whether or not the app opts in. The NativeScript host loads it lazily now, so the control run
+// that keeps the import (`GJSIFY_GI_OPT_IN=0`) maps nothing either; this stub stays as the rung
+// that leaves the bridge out of the bundle altogether (B0), so the two can be compared, and it
+// is produced without a second copy of `app/opt-in.ts`.
 //
 // It is a stub and not an empty module: `app/opt-in.ts` re-exports `requireGi`, and a specifier
 // that resolved to nothing would be a build error rather than a variant. Nothing calls it — every

@@ -462,3 +462,11 @@ invalidation story the other six do not: a class gaining a method after its firs
 observed is legal JS, and gjs does not forbid it either. Decide whether node-gi pins the
 registerClass-time shape (as gjs effectively does for accessors, `_checkAccessors`) or carries a
 version counter, then cache it.
+
+### `@gjsify/node-gi` — arm64 opt-out cold start (Galaxy S9) after the lazy native-host load
+
+The NativeScript host now loads `libnode_gi.so` on first use, so the pure-JS opt-out maps
+nothing (proved on the x86_64 API 36 emulator by the app's own `/proc/self/maps`, see
+[the gates report](../../docs/reports/2026-10-15-adr-0110-gates.md)). The arm64 opt-out cold
+start (rung B against B0) was not re-measured on the S9; the last figure there (+15 ms) predates
+the change. Also open: `cairo.js` and `gettext.js` still load the addon at import.
