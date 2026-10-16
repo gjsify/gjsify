@@ -444,17 +444,53 @@ bool JsToGValue(Napi::Env env, Napi::Value js, GValue* v) {
     // napi failure mid worker.terminate() must degrade to a zero, not cascade
     // into Error::New(nullptr)'s fatal sites (the terminate-mid-`newObject` path).
     case G_TYPE_BOOLEAN: g_value_set_boolean(v, NodeGiToBool(js)); return true;
-    case G_TYPE_CHAR: g_value_set_schar(v, static_cast<gint8>(NodeGiToInt32(js))); return true;
-    case G_TYPE_UCHAR: g_value_set_uchar(v, static_cast<guchar>(NodeGiToUint32(js))); return true;
-    case G_TYPE_INT: g_value_set_int(v, NodeGiToInt32(js)); return true;
-    case G_TYPE_UINT: g_value_set_uint(v, NodeGiToUint32(js)); return true;
-    // 64-bit (glong/gulong are 64-bit on LP64): accept a BigInt losslessly, else a
-    // truncated Number — never let a BigInt reach ToNumber(). Shared with the GI
-    // scalar marshaller via JsValueTo{Int,Uint}64 (common.h).
+    // char/uchar/int64/uint64 refuse an out-of-range value and int/uint wrap, as gjs's
+    // gjs_value_to_g_value does (value.cpp:602-690) — the same rule the constructor
+    // properties and signal arguments reach. A BigInt on a 32-bit tag is ToNumber's
+    // TypeError, left pending.
+    case G_TYPE_CHAR:
+    case G_TYPE_UCHAR:
+    case G_TYPE_INT64:
+    case G_TYPE_UINT64: {
+      GITypeTag tag = ft == G_TYPE_CHAR    ? GI_TYPE_TAG_INT8
+                      : ft == G_TYPE_UCHAR ? GI_TYPE_TAG_UINT8
+                      : ft == G_TYPE_INT64 ? GI_TYPE_TAG_INT64
+                                           : GI_TYPE_TAG_UINT64;
+      GIArgument a;
+      memset(&a, 0, sizeof(a));
+      switch (NodeGiJsToInteger(js, tag, &a, nullptr)) {
+        case NodeGiIntResult::kPending: return false;
+        case NodeGiIntResult::kOutOfRange:
+          NodeGiThrowGValueOutOfRange(env, js,
+                                      ft == G_TYPE_CHAR    ? "char"
+                                      : ft == G_TYPE_UCHAR ? "unsigned char"
+                                      : ft == G_TYPE_INT64 ? "64-bit integer"
+                                                           : "unsigned 64-bit integer");
+          return false;
+        case NodeGiIntResult::kOk: break;
+      }
+      if (ft == G_TYPE_CHAR) g_value_set_schar(v, a.v_int8);
+      else if (ft == G_TYPE_UCHAR) g_value_set_uchar(v, a.v_uint8);
+      else if (ft == G_TYPE_INT64) g_value_set_int64(v, a.v_int64);
+      else g_value_set_uint64(v, a.v_uint64);
+      return true;
+    }
+    case G_TYPE_INT:
+    case G_TYPE_UINT: {
+      GIArgument a;
+      memset(&a, 0, sizeof(a));
+      if (NodeGiJsToIntegerWrap(js, ft == G_TYPE_INT ? GI_TYPE_TAG_INT32 : GI_TYPE_TAG_UINT32,
+                                &a) == NodeGiIntResult::kPending)
+        return false;
+      if (ft == G_TYPE_INT) g_value_set_int(v, a.v_int32);
+      else g_value_set_uint(v, a.v_uint32);
+      return true;
+    }
+    // glong/gulong are 64-bit on LP64: accept a BigInt losslessly, else a truncated
+    // Number — never let a BigInt reach ToNumber(). Shared with the GI scalar marshaller
+    // via JsValueTo{Int,Uint}64 (common.h). gjs has no G_TYPE_LONG case here at all.
     case G_TYPE_LONG: g_value_set_long(v, static_cast<glong>(JsValueToInt64(js))); return true;
     case G_TYPE_ULONG: g_value_set_ulong(v, static_cast<gulong>(JsValueToUint64(js))); return true;
-    case G_TYPE_INT64: g_value_set_int64(v, JsValueToInt64(js)); return true;
-    case G_TYPE_UINT64: g_value_set_uint64(v, JsValueToUint64(js)); return true;
     case G_TYPE_FLOAT: g_value_set_float(v, static_cast<float>(NodeGiToDouble(js))); return true;
     case G_TYPE_DOUBLE: g_value_set_double(v, NodeGiToDouble(js)); return true;
     case G_TYPE_ENUM: g_value_set_enum(v, NodeGiToInt32(js)); return true;
@@ -611,7 +647,16 @@ Napi::Value ConstructGObject(Napi::Env env, GType gtype, Napi::Object props,
     }
     g_value_init(&values[i], pspec->value_type);
     initialised = i + 1;
-    if (!JsToGValue(env, props.Get(nameStorage[i]), &values[i])) {
+    Napi::Value propValue = props.Get(nameStorage[i]);
+    if (!propValue.IsEmpty() && propValue.IsUndefined()) {
+      // gjs refuses `undefined` for every property type (object.cpp:2090).
+      Napi::Error::New(env, "Invalid value 'undefined' for property " + std::string(pspec->name) +
+                                " in object initializer.")
+          .ThrowAsJavaScriptException();
+      ok = false;
+      break;
+    }
+    if (!JsToGValue(env, propValue, &values[i])) {
       ok = false;
       break;
     }
@@ -735,8 +780,8 @@ Napi::Value SetProperty(const Napi::CallbackInfo& info) {
     return env.Undefined();
   }
   // gjs refuses an out-of-range value for these property types on assignment
-  // (object.cpp, with its own text); JsToGValue below keeps wrapping them, as gjs's
-  // constructor-property path does.
+  // (object.cpp, with its own text); JsToGValue below now refuses them too, with the
+  // gjs_value_to_g_value text.
   GITypeTag intTag = GI_TYPE_TAG_VOID;
   switch (G_TYPE_FUNDAMENTAL(pspec->value_type)) {
     case G_TYPE_CHAR: intTag = GI_TYPE_TAG_INT8; break;

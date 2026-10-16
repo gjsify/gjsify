@@ -429,15 +429,18 @@ the process after a 5 s grace, which hides the symptom. Open: which source or ha
 gallery stories leave alive after `Adw.Application.quit()` on node-gi. Look for it by bisecting
 the stories added in #2011 with `GJSIFY_STORYBOOK_PROBE_STORY`, then drop the grace exit.
 
-### Out-of-range integers still wrap in constructor properties, GValues and array elements
+### Integer range: leftovers after the constructor, GValue and array paths
 
-The IN-argument, struct-field, return-value and property-setter paths now refuse an
-out-of-range integer like GJS (`NodeGiJsToInteger`, `src/common.h`; oracle
-`conformance/programs/integer-in-range.conf.mjs`). Three paths still wrap, because GJS's own
-rule there differs and is not yet pinned: `new Cls({ prop })` and `JsToGValue` (GJS wraps
-`int`/`uint` there but checks `char`/`uchar`/`int64`/`uint64`, with a different text), and the
-elements of an IN array (`ElementToGIArgument`, GJS behaviour unprobed). Probe each against
-`gjs`, extend the conformance program, then route them through the same helper.
+Constructor properties, `JsToGValue` and IN-array elements now follow GJS (refuse `char`/`uchar`/
+`int64`/`uint64`, wrap `int`/`uint`; arrays wrap on every tag; oracle
+`conformance/programs/integer-gvalue-array.conf.mjs`). Still open:
+
+- `GObject.ParamSpec.char`/`uchar` do not exist, so those tags are only covered through signal
+  emit, not through a constructor property.
+- `gunichar[]` arguments (`GLib.ucs4_to_utf8`) throw a TypeError, so uint32 array elements
+  have no GLib-only conformance row.
+- GList/GSList/GHashTable elements share `ElementToGIArgument` but keep the old coercion; GJS's
+  rule for them is unprobed.
 
 ### `findProtoDescriptor` still walks a prototype chain per property GET
 
