@@ -146,6 +146,66 @@ export const GtkStackTest = async () => {
             host.remove();
         });
 
+        await it('a descendant toggling hidden keeps the selection', async () => {
+            // gtkstack.c:1617-1633 listens to the PAGE's own visibility, never to what is
+            // nested inside it (an `adw-view-stack` showing and hiding its own pages).
+            const { el, host } = mount([
+                { name: 'single', title: 'Single' },
+                { name: 'three', title: 'Three' },
+            ]);
+            const nested = document.createElement('span');
+            el.children[0]!.appendChild(nested);
+            el.setVisibleChildName('three');
+            nested.setAttribute('hidden', '');
+            await settle();
+            nested.removeAttribute('hidden');
+            await settle();
+            expect(el.visibleChildName).toBe('three');
+            expect(marks(el)).toStrictEqual(['single', 'three:visible']);
+            host.remove();
+        });
+
+        await it('hiding a page that is not visible keeps the selection', async () => {
+            const { el, host } = mount([
+                { name: 'a', title: 'Alpha' },
+                { name: 'b', title: 'Beta' },
+                { name: 'c', title: 'Gamma' },
+            ]);
+            el.setVisibleChildName('c');
+            (el.children[1] as HTMLElement).setAttribute('hidden', '');
+            await settle();
+            expect(el.visibleChildName).toBe('c');
+            host.remove();
+        });
+
+        await it('hiding the visible page after a selection falls back to the first visible', async () => {
+            const { el, host } = mount([
+                { name: 'a', title: 'Alpha' },
+                { name: 'b', title: 'Beta' },
+                { name: 'c', title: 'Gamma' },
+            ]);
+            el.setVisibleChildName('c');
+            (el.children[0] as HTMLElement).setAttribute('hidden', '');
+            (el.children[2] as HTMLElement).setAttribute('hidden', '');
+            await settle();
+            expect(el.visibleChildName).toBe('b');
+            host.remove();
+        });
+
+        await it('a descendant name change dispatches no page-updated', async () => {
+            const { el, host } = mount([{ name: 'a', title: 'Alpha' }]);
+            const nested = document.createElement('span');
+            el.children[0]!.appendChild(nested);
+            await settle();
+            const events: string[] = [];
+            el.addEventListener('page-updated', () => events.push('updated'));
+            nested.setAttribute('name', 'inner');
+            await settle();
+            expect(events).toStrictEqual([]);
+            expect(el.visibleChildName).toBe('a');
+            host.remove();
+        });
+
         await it('re-selecting the visible page is not a change', () => {
             // gtkstack.c:1452-1453 — no notify, no transition.
             const { el, host } = mount([
