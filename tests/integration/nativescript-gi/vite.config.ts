@@ -13,8 +13,9 @@ import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
 
 // `GJSIFY_GI_PLUGIN=0` keeps `@gjsify/node-gi` OUT OF THE BUNDLE, by aliasing it to
 // `app/no-gi-stub.ts`. It is a third variant beside the opt-in flag, not a synonym for it, and
-// stage 4's own finding is why: importing the bridge loads `libnode_gi.so` from its module body,
-// so `GJSIFY_GI_OPT_IN=0` alone still pays for the native library. The two flags therefore measure
+// stage 4 found that importing the bridge loaded `libnode_gi.so` from its module body, so
+// `GJSIFY_GI_OPT_IN=0` alone still paid for the native library; the NativeScript host is lazy
+// now and the import costs only its JS. The two flags still measure
 // two different costs — the DECISION (opt-in) and the IMPORT (plugin) — which is exactly the
 // A0/B0/B/C ladder ADR 0110 gate 2 asks for. It forces the opt-in off: an opt-in that reached the
 // stub would throw, and a variant whose point is "this app pays nothing" must not.

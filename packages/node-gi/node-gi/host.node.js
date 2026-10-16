@@ -55,6 +55,12 @@ export const RUNTIME =
             ? 'deno'
             : 'node';
 
+/**
+ * Whether the addon may be loaded on first use instead of at import — see index.js.
+ * @type {boolean}
+ */
+export const LAZY_NATIVE = false;
+
 // GJS host mode: `GjsifyNapi.init()` installs the loader as
 // `globalThis.__gjsifyNapiLoadAddon` and re-installs it if another consumer (the
 // @gjsify/napi L1) already captured + deleted it. Needs the GjsifyNapi typelib

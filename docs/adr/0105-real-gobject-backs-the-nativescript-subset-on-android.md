@@ -241,7 +241,8 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    order can register the engine in time** — the app must disable `manualChunks`. Follow-up
    (2026-10-12, same report): **cold start** on the same arm64 phone, median of ten launches,
    **~83 ms (~6.5 %)** from no plugin to plugin with the opt-in — carrying the payload ~0–20 ms,
-   importing node-gi ~20 ms (its module body loads the native library, opt-in or not), the
+   importing node-gi ~20 ms (its module body then loaded the native library, opt-in or not; on
+   NativeScript it is lazy now, see the gates report), the
    opt-in ~45 ms. **x86_64** ran on an API 36 emulator, 41 of 41 and 27 of 27. The **published
    npm** tarball, in place of the `file:` link, ran 41 of 41. **Per-ABI RELEASE APKs are measured
    too now:** [report](../reports/2026-10-15-adr-0110-gates.md) — 15.77 MB (arm64-v8a) and

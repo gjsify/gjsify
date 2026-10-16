@@ -44,6 +44,12 @@
 /** @type {'nativescript'} */
 export const RUNTIME = 'nativescript';
 
+/**
+ * Whether the addon may be loaded on first use instead of at import — see index.js.
+ * @type {boolean}
+ */
+export const LAZY_NATIVE = true;
+
 // Timers from the global scope: NativeScript has no node:timers, and there is no
 // GLib-backed replacement to avoid here. setImmediate is not a V8 builtin.
 export const setImmediate =

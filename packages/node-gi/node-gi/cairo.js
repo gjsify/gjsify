@@ -23,7 +23,9 @@
 // (the `Object.assign({}, imports._cairo, cairoNative)` merge shape).
 // Copyright (c) 2010 litl, LLC / GJS contributors. MIT OR LGPL-2.0-or-later.
 
-import native from './index.js';
+import native, { ensureNative } from './index.js';
+
+ensureNative();
 
 const c = native.__cairo;
 if (c === undefined) {

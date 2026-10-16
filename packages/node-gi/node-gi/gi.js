@@ -7,6 +7,7 @@
 // Reference: gjs/modules/esm/gi.js for the require shape; node-gtk (romgrk, MIT) for the
 // binding lineage. Hand-authored JS — the package ships no build step.
 import * as native from './index.js';
+import { ensureNative, onNativeLoaded } from './index.js';
 // Timers, `process` and the windowing env record come from the host seam (host.node.js
 // explains why they are the runtime's own, not the globals; host.nativescript.js is the
 // NativeScript Android variant).
@@ -360,17 +361,19 @@ function makeErrorDomainClass(namespace, typeName, members, quark) {
 // Called by the engine on a failed GI invoke, with ownership of the GError* already
 // transferred to the boxed handle. Named, so the position properties report the
 // application frame rather than this one.
-native.setErrorBuilder(function buildThrownGError(handle, quark, code, message) {
-    // Same cross-version pairing: an addon older than this JS calls the builder with
-    // the GError's FIELDS (domainName, quark, code, message) rather than a handle, and
-    // there is no second `errorClass` argument to give it. Rebuilding the GError from
-    // the fields keeps the ONE shape on that pairing too — it costs only the original
-    // GError's address, which nothing can read.
-    if (typeof handle === 'string') {
-        return wrapGError(newErrorLiteral(quark, code, message), true, buildThrownGError);
-    }
-    return wrapGError(handle, true, buildThrownGError);
-});
+onNativeLoaded(() =>
+    native.setErrorBuilder(function buildThrownGError(handle, quark, code, message) {
+        // Same cross-version pairing: an addon older than this JS calls the builder with
+        // the GError's FIELDS (domainName, quark, code, message) rather than a handle, and
+        // there is no second `errorClass` argument to give it. Rebuilding the GError from
+        // the fields keeps the ONE shape on that pairing too — it costs only the original
+        // GError's address, which nothing can read.
+        if (typeof handle === 'string') {
+            return wrapGError(newErrorLiteral(quark, code, message), true, buildThrownGError);
+        }
+        return wrapGError(handle, true, buildThrownGError);
+    }),
+);
 
 // Stamps a makeClass prototype with its { namespace, typeName } so Gio._promisify can
 // record WHICH introspected class a registration belongs to — matched against the
@@ -443,7 +446,7 @@ function resolveTemplateCallback(handle, handlerName) {
         return desc.value.apply(proxy, args.map(wrapReturn));
     };
 }
-native.setTemplateCallbackResolver(resolveTemplateCallback);
+onNativeLoaded(() => native.setTemplateCallbackResolver(resolveTemplateCallback));
 
 // Run a registered class's JS constructor for a GObject the ENGINE instantiated from C
 // — typically a GtkBuilder composite-template InternalChild, which has no JS-`new` to
@@ -466,7 +469,7 @@ function runCtorForCObject(handle, gtypeName) {
         adoptHandle = prev;
     }
 }
-native.setConstructCallback(runCtorForCObject);
+onNativeLoaded(() => native.setConstructCallback(runCtorForCObject));
 
 // A non-GObject GObject-fundamental (GskRenderNode, GdkEvent) as an OPAQUE,
 // round-trippable handle: the native tagged External already carries the pointer and
@@ -1131,9 +1134,9 @@ function runJsPropertySetter(handle, propertyName) {
 // function` until the next release republishes the binary. Every native call added
 // here degrades instead; without the callback, a post-construction set simply does
 // not reach the JS setter, which is what 0.50.0 did.
-if (typeof native.setPropertySetCallback === 'function') {
-    native.setPropertySetCallback(runJsPropertySetter);
-}
+onNativeLoaded(() => {
+    if (typeof native.setPropertySetCallback === 'function') native.setPropertySetCallback(runJsPropertySetter);
+});
 
 // Which properties the construct-time replay must run.
 //
@@ -1342,6 +1345,7 @@ export function startMainContextPump() {
     // GLib's default main context — a JS-timer pump would only iterate the
     // context recursively from within its own dispatch.
     if (hostPumpsItself()) return () => {};
+    ensureNative();
     pumpRefCount++;
     if (pumpTimer === null) {
         if (pendingView === null) pendingView = native.makePumpPendingCount();
@@ -3190,6 +3194,7 @@ function mirrorWindowingEnvIntoCrt() {
  * @returns {Record<string, unknown>}
  */
 export function requireGi(namespace, version) {
+    ensureNative();
     native.requireNamespace(namespace, version);
     // The one moment the win32 CRT-environment mirror can run: the addon is loaded, so there
     // is a GLib to call, and nothing has built a font map or loaded a fontconfig

@@ -207,12 +207,13 @@ C against A0 is **~83 ms, ~6.5 %**. An earlier session gave B 1312 and C 1345, t
 
 Two things this measurement exposed:
 
-- **Importing `@gjsify/node-gi` loads the native library, opt-in or not.** Its module body runs
-  `loadNativeHost()`, so the control run B already `dlopen`s `libnode_gi.so` and its closure.
-  A build that removes the plugin but keeps the import crashes at startup. That is by design of
-  the suite (B and C differ in the decision only), but it means an app that wants the pure-JS
-  path to cost nothing must not import node-gi at all — a lazy or conditional import is the
-  app's job, not the opt-in's.
+- **Importing `@gjsify/node-gi` loaded the native library, opt-in or not** (measured here; no
+  longer true on NativeScript). Its module body ran `loadNativeHost()`, so the control run B
+  already `dlopen`ed `libnode_gi.so` and its closure. Since the lazy host load, the NativeScript
+  host loads it on first use (`requireGi` and the other entry points), so an opt-out app that
+  imports node-gi maps nothing; see
+  [the gates report](2026-10-15-adr-0110-gates.md#the-opt-out-after-lazy-loading-x86_64-emulator).
+  Desktop Node still loads at import.
 - **The APK file size is not the APK content size.** Gradle's incremental packaging reuses the
   previous APK and does not shrink it, so A0's file stayed at 152.2 MB with the 33 MB payload
   gone. Content sizes (`unzip -v` totals) carry the comparison; `stat` on an incrementally
