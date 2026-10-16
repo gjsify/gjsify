@@ -54,6 +54,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Gio.resources_unregister': { gtype: 'Gio.resources_unregister', widget: false },
     'Gtk.Adjustment': { gtype: 'GtkAdjustment', widget: false },
     'Gtk.Application': { gtype: 'GtkApplication', widget: false },
+    'Gtk.ApplicationInhibitFlags': { gtype: 'GtkApplicationInhibitFlags', widget: false },
     'Gtk.CssProvider': { gtype: 'GtkCssProvider', widget: false },
     'Gtk.DialogError': { gtype: 'GtkDialogError', widget: false },
     'Gtk.EventControllerKey': { gtype: 'GtkEventControllerKey', widget: false },

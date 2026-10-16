@@ -101,6 +101,7 @@ export type { WindowCommon } from '@gjsify/adwaita-core';
 export { GtkWindowControls as WindowControls } from '../elements/gtk-window-controls.js';
 export { GtkViewport as Viewport } from '../elements/gtk-viewport.js';
 export { GtkWindowHandle as WindowHandle } from '../elements/gtk-window-handle.js';
+export { ApplicationInhibitFlags } from '@gjsify/adwaita-core';
 export { GtkApplication as Application } from '../application.js';
 export {
     STYLE_PROVIDER_PRIORITY_APPLICATION,

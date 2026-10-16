@@ -5,7 +5,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { APPLICATION_VECTORS, driveApplicationVectors, unprovenVfuncs } from './conformance/application.js';
 import type { ApplicationLike, ApplicationScene, ApplicationSubject } from './conformance/application.js';
-import { GtkApplicationBase, ApplicationFlags, type ApplicationHost } from './application.js';
+import { GtkApplicationBase, ApplicationFlags, ApplicationInhibitFlags, type ApplicationHost } from './application.js';
 import {
     SimpleAction,
     actionRegistryOf,
@@ -123,6 +123,47 @@ export default async () => {
                 message = e.message;
             });
             expect(message).toBe('boom');
+        });
+
+        await it('inhibit(LOGOUT) guards the unload until the last cookie goes (gtk_application_inhibit)', () => {
+            const calls: boolean[] = [];
+            class Guarded extends GtkApplicationBase {
+                static override host = { ...host, guardUnload: (active: boolean) => void calls.push(active) };
+            }
+            const app = new Guarded({ application_id: 'org.gjsify.vec.Inhibit' });
+            const first = app.inhibit(null, ApplicationInhibitFlags.LOGOUT, 'unsaved');
+            const second = app.inhibit(null, ApplicationInhibitFlags.LOGOUT, null);
+            const idle = app.inhibit(null, ApplicationInhibitFlags.IDLE | ApplicationInhibitFlags.SUSPEND);
+            expect(first > 0 && second > first && idle > second).toBe(true);
+            expect(calls).toStrictEqual([true]);
+            app.uninhibit(first);
+            app.uninhibit(first);
+            app.uninhibit(idle);
+            app.uninhibit(9999);
+            expect(calls).toStrictEqual([true]);
+            app.uninhibit(second);
+            expect(calls).toStrictEqual([true, false]);
+        });
+
+        await it('inhibit without LOGOUT never guards the unload', () => {
+            const calls: boolean[] = [];
+            class Guarded extends GtkApplicationBase {
+                static override host = { ...host, guardUnload: (active: boolean) => void calls.push(active) };
+            }
+            const app = new Guarded({ application_id: 'org.gjsify.vec.InhibitOther' });
+            app.uninhibit(app.inhibit(null, ApplicationInhibitFlags.SWITCH));
+            expect(calls.length).toBe(0);
+        });
+
+        await it('inhibit is refused, naming itself, on a host that cannot guard', () => {
+            const app = new TestApplication({ application_id: 'org.gjsify.vec.NoInhibit' });
+            let message = '';
+            try {
+                app.inhibit(null, ApplicationInhibitFlags.LOGOUT, 'x');
+            } catch (e) {
+                message = (e as Error).message;
+            }
+            expect(message.includes('inhibit()')).toBe(true);
         });
 
         await it('keeps explicit groups and window links separate', () => {

@@ -1090,6 +1090,7 @@ export {
 } from './gobject.js';
 export {
     ApplicationFlags,
+    ApplicationInhibitFlags,
     GioApplicationBase,
     GtkApplicationBase,
     withGtkApplication,

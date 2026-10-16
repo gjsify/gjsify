@@ -95,6 +95,20 @@ export const ApplicationTest = async () => {
             (window as unknown as { application: object | null }).application = null;
             expect(press({ key: 's', ctrlKey: true })).toBe(false);
         });
+        await it('inhibit(LOGOUT) cancels beforeunload until uninhibit', () => {
+            const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebInhibit' });
+            const unload = (): boolean => {
+                const event = new Event('beforeunload', { cancelable: true });
+                window.dispatchEvent(event);
+                return event.defaultPrevented;
+            };
+            expect(unload()).toBe(false);
+            const cookie = app.inhibit(null, Gtk.ApplicationInhibitFlags.LOGOUT, 'unsaved changes');
+            expect(cookie > 0).toBe(true);
+            expect(unload()).toBe(true);
+            app.uninhibit(cookie);
+            expect(unload()).toBe(false);
+        });
         await it('quit() takes the windows it added off the page', async () => {
             const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebQuit' });
             const window = scene.window(app as never) as Element;

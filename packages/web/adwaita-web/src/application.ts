@@ -40,7 +40,17 @@ export const webHost: ApplicationHost = {
     },
     exit() {},
     iconTheme: () => IconTheme.get_for_display(null),
+    guardUnload(active) {
+        if (active) window.addEventListener('beforeunload', confirmUnload);
+        else window.removeEventListener('beforeunload', confirmUnload);
+    },
 };
+
+/** The only hook a page has on Ctrl+Q, closing the tab and reload; the browser words the prompt. */
+function confirmUnload(event: BeforeUnloadEvent): void {
+    event.preventDefault();
+    event.returnValue = '';
+}
 
 /** An element's parent for action resolution; a popover is rooted at the widget that owns it. */
 export function parentOfElement(node: object): object | null {

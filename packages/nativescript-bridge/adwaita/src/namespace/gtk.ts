@@ -61,6 +61,7 @@ export { GtkStackPage as StackPage } from '../widgets/stack-page.js';
 export { GtkStringList as StringList } from '@gjsify/adwaita-core';
 export { GtkTextView as TextView } from '../widgets/gtk-text-view.js';
 export { GtkToggleButton as ToggleButton } from '../widgets/gtk-toggle-button.js';
+export { ApplicationInhibitFlags } from '@gjsify/adwaita-core';
 export { GtkApplication as Application } from '../widgets/application.js';
 export {
     STYLE_PROVIDER_PRIORITY_APPLICATION,
