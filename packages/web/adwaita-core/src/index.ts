@@ -1096,6 +1096,7 @@ export {
     GioApplicationBase,
     GtkApplicationBase,
     withGtkApplication,
+    defineWindowApplicationMembers,
     dispatchAccelerator,
     isValidApplicationId,
 } from './application.js';

@@ -10,6 +10,8 @@
 // `gtk_window_maximize`, `gtk_window_close`, `gtk_window_emit_close_request`,
 // `gtk_window_close_request` (the class handler)
 
+import type { GtkApplicationMembers } from './application.js';
+
 /** The `Gtk.Window` properties this module notifies for. `is-active` is read-only in GTK. */
 export type WindowMemberProperty = 'is-active' | 'maximized' | 'focus-widget';
 
@@ -184,9 +186,20 @@ export interface WindowCommon<TWidget = unknown> {
     maximize(): void;
     unmaximize(): void;
     present(): void;
+    /**
+     * `Gtk.Window:application`; writing it is `set_application`, which adds the window to the
+     * application's windows (and removes it from the previous one's), so `inhibit` and
+     * `set_accels_for_action` are reachable from the window.
+     */
+    application: GtkApplicationMembers | null;
+    get_application(): GtkApplicationMembers | null;
+    set_application(application: GtkApplicationMembers | null): void;
     /** `gtk_window_close`: emits `close-request`, whose first handler to return true keeps the window. */
     close(): void;
     connect(signal: 'close-request', callback: (self: this) => boolean | void): number;
-    connect(signal: 'notify::is-active' | 'notify::maximized', callback: (self: this) => void): number;
+    connect(
+        signal: 'notify::is-active' | 'notify::maximized' | 'notify::application',
+        callback: (self: this) => void,
+    ): number;
     disconnect(id: number): void;
 }

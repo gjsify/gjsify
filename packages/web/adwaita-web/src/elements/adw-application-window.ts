@@ -45,7 +45,6 @@ import type { AdwBreakpoint } from '@gjsify/adwaita-core';
 import type { AdwSlot } from '../slotted-children.js';
 import { AdwWindowFeatures } from './adw-window-features.js';
 import { GtkApplicationWindow } from './gtk-application-window.js';
-import { defineWindowApplication } from '../application.js';
 
 export class AdwApplicationWindow extends GtkApplicationWindow {
     private readonly _features = new AdwWindowFeatures(this);
@@ -232,5 +231,3 @@ export class AdwApplicationWindow extends GtkApplicationWindow {
 }
 
 customElements.define('adw-application-window', AdwApplicationWindow);
-
-defineWindowApplication(AdwApplicationWindow.prototype);

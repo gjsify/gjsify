@@ -207,6 +207,48 @@ export function dispatchAccelerator(
     return false;
 }
 
+/**
+ * `Gtk.Window:application` with `get_application()` / `set_application()` on a window prototype.
+ * Setting it is `gtk_window_set_application`: the window leaves the old application's windows and
+ * joins the new one's (`gtk_application_remove_window` / `gtk_application_add_window`), and an
+ * equal write does nothing. `changed` runs after a real change, so a port can follow accelerators
+ * and notify in its own way.
+ */
+export function defineWindowApplicationMembers(
+    proto: object,
+    changed: (window: object, application: GtkApplicationMembers | null) => void,
+): void {
+    Object.defineProperty(proto, 'application', {
+        configurable: true,
+        enumerable: true,
+        get(this: object) {
+            return applicationOfWindow(this) as unknown as GtkApplicationMembers | null;
+        },
+        set(this: object, value: GtkApplicationMembers | null | undefined) {
+            const next = value ?? null;
+            const current = applicationOfWindow(this) as unknown as GtkApplicationMembers | null;
+            if (current === next) return;
+            current?.remove_window(this);
+            next?.add_window(this);
+            changed(this, next);
+        },
+    });
+    const methods = {
+        get_application(this: { application: GtkApplicationMembers | null }): GtkApplicationMembers | null {
+            return this.application;
+        },
+        set_application(
+            this: { application: GtkApplicationMembers | null },
+            application: GtkApplicationMembers | null,
+        ) {
+            this.application = application;
+        },
+    };
+    for (const [name, value] of Object.entries(methods)) {
+        Object.defineProperty(proto, name, { value, writable: true, configurable: true, enumerable: false });
+    }
+}
+
 function hostOf(app: object): ApplicationHost {
     const host = (app.constructor as { host?: ApplicationHost }).host;
     if (host === undefined) {

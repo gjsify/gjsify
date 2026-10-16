@@ -10,10 +10,9 @@ import {
     withGtkApplication,
     activateWidgetAction as activateIn,
     activateMenuItem,
-    applicationOfWindow,
+    defineWindowApplicationMembers,
     dispatchAccelerator,
     menuActionsFor,
-    installActionMap,
     type AdwMenuItem,
     type AdwMenuActions,
     type AdwMenuModel,
@@ -98,23 +97,9 @@ function followAccelerators(window: object, application: WindowApplication | nul
 }
 
 /**
- * `Gtk.Window:application` and the window's `Gio.ActionMap` (`win.` actions) on an element class.
+ * `Gtk.Window:application`, `get_application()` and `set_application()` on a window element class.
  * Setting the property is `add_window`, as on GTK; setting it to `null` is `remove_window`.
  */
 export function defineWindowApplication(proto: object): void {
-    installActionMap(proto);
-    Object.defineProperty(proto, 'application', {
-        configurable: true,
-        enumerable: true,
-        get(this: object) {
-            return applicationOfWindow(this);
-        },
-        set(this: object, value: WindowApplication | null) {
-            const current = applicationOfWindow(this) as unknown as WindowApplication | null;
-            if (current === value) return;
-            current?.remove_window(this);
-            value?.add_window(this);
-            followAccelerators(this, value);
-        },
-    });
+    defineWindowApplicationMembers(proto, followAccelerators);
 }

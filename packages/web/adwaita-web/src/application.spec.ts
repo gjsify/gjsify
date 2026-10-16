@@ -109,6 +109,36 @@ export const ApplicationTest = async () => {
             app.uninhibit(cookie);
             expect(unload()).toBe(false);
         });
+        await it('every window class has application, get_application and set_application', () => {
+            const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebWindowApp' });
+            const other = new Adw.Application({ application_id: 'org.gjsify.vec.WebWindowOther' });
+            for (const tag of ['gtk-window', 'gtk-application-window', 'adw-window', 'adw-application-window']) {
+                const window = document.createElement(tag) as unknown as Gtk.WindowCommon<Element>;
+                const notified: unknown[] = [];
+                window.connect('notify::application', () => notified.push(window.application));
+                expect(window.get_application()).toBe(null);
+                window.set_application(app as never);
+                expect(window.get_application()).toBe(app);
+                expect(window.application).toBe(app);
+                expect(app.get_windows().includes(window)).toBe(true);
+                window.set_application(other as never);
+                expect(app.get_windows().includes(window)).toBe(false);
+                expect(other.get_windows().includes(window)).toBe(true);
+                window.application = null;
+                expect(window.get_application()).toBe(null);
+                expect(other.get_windows().includes(window)).toBe(false);
+                expect(notified).toStrictEqual([app, other, null]);
+            }
+        });
+        await it('a window reaches inhibit through get_application()', () => {
+            const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebWindowInhibit' });
+            const window = document.createElement('gtk-window') as unknown as Gtk.WindowCommon<Element>;
+            window.set_application(app as never);
+            const cookie = window.get_application()?.inhibit(window, Gtk.ApplicationInhibitFlags.LOGOUT, 'unsaved');
+            expect((cookie ?? 0) > 0).toBe(true);
+            window.get_application()?.uninhibit(cookie ?? 0);
+            window.set_application(null);
+        });
         await it('quit() takes the windows it added off the page', async () => {
             const app = new Adw.Application({ application_id: 'org.gjsify.vec.WebQuit' });
             const window = scene.window(app as never) as Element;
