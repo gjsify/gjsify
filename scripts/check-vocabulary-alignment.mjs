@@ -385,6 +385,7 @@ const WEB_ELEMENT_ALIGNMENT = {
     // at all. So the discriminator is `set_child`, and the rule is keyed on GTK's
     // naming convention rather than on the shape.
     'adw-view-stack-page': { webOnly: 'AdwViewStackPage descends from GObject.Object, not GtkWidget' },
+    'gtk-stack-page': { webOnly: 'GtkStackPage descends from GObject.Object, not GtkWidget' },
     // Declarative children with no GObject of their own: on GTK these are method calls.
     'adw-alert-response': { webOnly: 'a declarative form of Adw.AlertDialog.add_response()' },
     'adw-bottom-sheet-bottom-bar': { webOnly: 'a slot wrapper; on GTK the slot is set_bottom_bar()' },

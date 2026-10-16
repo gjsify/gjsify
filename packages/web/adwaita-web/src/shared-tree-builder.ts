@@ -154,14 +154,73 @@ function isWritable(el: object, member: string): boolean {
  * upgraded has declared no slots yet, so the refusal below belongs to the mount.
  */
 export function buildSharedTree(node: SharedTreeNode, record: BuildRecord = newRecord()): HTMLElement {
+    refuseSiblings(node, 'buildSharedTree');
+    return buildTree(node, record).root;
+}
+
+/** What {@link buildWithSiblings} hands back: the root element and the objects built beside it. */
+export interface BuiltTree {
+    /** The element the tree roots at, as {@link buildSharedTree} returns it. */
+    root: HTMLElement;
+    /**
+     * The sibling objects by id — `Adw.AlertDialog unsavedChangesDialog { }` or `$Learn learn { }`
+     * written after the template. A sibling is built in the root's id scope (a setter or a bind
+     * may name it) but is no child of the root: the code beside the file decides where, or
+     * whether, it is placed.
+     */
+    siblings: ReadonlyMap<string, HTMLElement>;
+    /** Every element the tree names by id, siblings included: what `GtkBuilder.get_object` answers for. */
+    objects: ReadonlyMap<string, HTMLElement>;
+}
+
+/** What {@link buildWithSiblings} takes beside the tree. */
+export interface BuildOptions {
+    /** The object a handler NAME is looked up on (ADR 0093 § 3). */
+    scope?: Readonly<Record<string, unknown>>;
+    /** The size source a `breakpoints` node is driven from. */
+    observeSize?: SizeSource;
+}
+
+/**
+ * A tree with sibling roots (ADR 0093): the root element, and each sibling by id, all DETACHED
+ * like {@link buildSharedTree}'s result.
+ *
+ * {@link buildSharedTree}, {@link mountSharedTree} and {@link buildTemplateTree} refuse such a
+ * tree by name, because they return one element and the siblings would be built and then thrown
+ * away. A sibling with no id is refused too: nothing could ever ask for it, which is how a
+ * dropped object looks finished.
+ */
+export function buildWithSiblings(node: SharedTreeNode, options: BuildOptions = {}): BuiltTree {
+    return buildTree(node, newRecord(options.scope, options.observeSize));
+}
+
+function refuseSiblings(node: SharedTreeNode, door: string): void {
+    if ((node.siblings?.length ?? 0) === 0) return;
+    throw new Error(
+        `\`${node.tag}\` carries ${node.siblings!.length} sibling object(s), and \`${door}\` returns one object ` +
+            'so they would be built and lost. Use `buildWithSiblings`, which hands them back by id.',
+    );
+}
+
+/** Every node, its siblings in the same id scope, then the binds and breakpoints that name them. */
+function buildTree(node: SharedTreeNode, record: BuildRecord): BuiltTree {
     // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
     // created. A refused `layout` is named with its node and the reason the table gives.
     assertTreeConstructs('adwaita-web', capabilities, node);
     if (node.menus !== undefined) record.menus = node.menus;
     const root = buildNode(node, record);
+    const siblings = new Map<string, HTMLElement>();
+    for (const sibling of node.siblings ?? []) {
+        if (sibling.id === undefined) {
+            throw new Error(
+                `the sibling \`${sibling.tag}\` has no id, so nothing could ever ask for it: give it one in the .blp.`,
+            );
+        }
+        siblings.set(sibling.id, buildNode(sibling, record));
+    }
     for (const bind of record.binds) bindProperty(bind, record);
     for (const host of record.breakpointHosts) bindBreakpoints(host.el, host.node, record);
-    return root;
+    return { root, siblings, objects: new Map(record.ids) };
 }
 
 /** A fresh record, with the scope when the caller has one. */
@@ -375,6 +434,9 @@ function buildNode(node: SharedTreeNode, record: BuildRecord): HTMLElement {
     // The id is how the TypeScript beside a `.blp` reaches this element
     // (`root.querySelector('#…')`), the counterpart of `InternalChildren` on GTK.
     if (node.id !== undefined) {
+        if (record.ids.has(node.id)) {
+            throw new Error(`Two nodes of this tree carry the id '${node.id}'; GtkBuilder refuses a duplicate id.`);
+        }
         el.id = node.id;
         record.ids.set(node.id, el);
     }
@@ -492,6 +554,7 @@ export interface BuiltTemplateTree {
  * belong to the first `connectedCallback`.
  */
 export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, host: HTMLElement): BuiltTemplateTree {
+    refuseSiblings(tree, 'buildTemplateTree');
     assertTreeConstructs('adwaita-web', capabilities, tree);
     const record = newRecord(undefined, undefined, scope);
     record.menus = tree.menus;
@@ -696,6 +759,7 @@ export interface MountOptions {
  * `buildSharedTree` is for a caller that already has somewhere of its own to attach it.
  */
 export function mountSharedTree(node: SharedTreeNode, options: MountOptions = {}): MountedSharedTree {
+    refuseSiblings(node, 'mountSharedTree');
     const { into } = options;
     const host = into ?? document.createElement('div');
     const record = newRecord(options.scope, options.observeSize);

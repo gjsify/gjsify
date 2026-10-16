@@ -466,6 +466,11 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
+    'stack-page': {
+        only: 'web',
+        decision:
+            '`GtkStackPage` descends from GObject, not GtkWidget (gtkstack.c) — it is DATA. NativeScript carries the record as a constructible VALUE (`stack-page.ts`) only so its builder can construct the node a `.blp` authors — not a widget with a story of its own. The browser needs a tag to declare one in, which `<gtk-stack>` adopts.',
+    },
     'view-stack-page': {
         only: 'web',
         decision:
