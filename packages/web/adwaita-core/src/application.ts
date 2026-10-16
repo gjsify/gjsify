@@ -75,7 +75,7 @@ export interface ApplicationHost {
     /**
      * `gtk_application_inhibit` with `LOGOUT`: whether leaving the page must be confirmed. Called
      * with `true` when the first logout inhibitor arrives and `false` when the last one goes. A
-     * platform without it refuses `inhibit()` by name.
+     * platform without it answers `inhibit()` with cookie 0 and ignores `uninhibit()`.
      */
     guardUnload?(active: boolean): void;
 }
@@ -495,13 +495,12 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
         /**
          * `gtk_application_inhibit`: a `LOGOUT` inhibitor makes the page ask before it is left. The
          * browser shows its own text, so `reason` is accepted and never displayed. The other flags
-         * mean nothing on a page: they get a cookie and do nothing.
+         * mean nothing on a page: they get a cookie and do nothing. A host that cannot guard an
+         * unload returns 0, which GTK documents for a session that cannot inhibit.
          */
         inhibit(_window: object | null, flags: number, _reason?: string | null): number {
             const host = hostOf(this);
-            if (host.guardUnload === undefined) {
-                throw refuse('inhibit()', `has no meaning on ${host.name}`);
-            }
+            if (host.guardUnload === undefined) return 0;
             const state = stateOf(this);
             const before = guarded(state);
             const cookie = ++lastCookie;
@@ -513,9 +512,7 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
         /** `gtk_application_uninhibit`: an unknown cookie is ignored (GTK warns). */
         uninhibit(cookie: number): void {
             const host = hostOf(this);
-            if (host.guardUnload === undefined) {
-                throw refuse('uninhibit()', `has no meaning on ${host.name}`);
-            }
+            if (host.guardUnload === undefined) return;
             const state = stateOf(this);
             const before = guarded(state);
             if (!state.inhibitors.delete(cookie)) return;

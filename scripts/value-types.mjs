@@ -112,7 +112,7 @@ export const CONSTRUCTIBLE_VALUES = [
         member: 'Gtk.ApplicationInhibitFlags',
         gir: 'ApplicationInhibitFlags',
         flags: true,
-        why: 'GJS writes `app.inhibit(window, Gtk.ApplicationInhibitFlags.LOGOUT, reason)` to guard leaving with unsaved changes; on the browser `LOGOUT` guards `beforeunload`, the other flags are accepted and do nothing. A flags type, not a widget.',
+        why: 'GJS writes `app.inhibit(window, Gtk.ApplicationInhibitFlags.LOGOUT, reason)` to guard leaving with unsaved changes; on the browser `LOGOUT` guards `beforeunload`, the other flags are accepted and do nothing, and a host that cannot guard answers cookie 0. A flags type, not a widget.',
     },
     {
         member: 'Gio.SimpleActionGroup',
