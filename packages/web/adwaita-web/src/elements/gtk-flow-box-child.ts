@@ -38,7 +38,9 @@ export class GtkFlowBoxChild extends HTMLElement {
         this._contentsEl = document.createElement('div');
         this._contentsEl.className = 'adw-flow-box-child-contents';
 
-        bindSlottedChildren(this, [{ into: this._contentsEl }]).install(this._contentsEl);
+        bindSlottedChildren(this, [{ name: 'child', into: this._contentsEl }, { into: this._contentsEl }]).install(
+            this._contentsEl,
+        );
 
         this.setAttribute('role', 'gridcell');
         // `gtk_flow_box_child_init` makes the cell focusable (:578-580) — the box's cursor

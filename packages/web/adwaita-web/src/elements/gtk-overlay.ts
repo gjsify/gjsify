@@ -98,10 +98,11 @@ export class GtkOverlay extends HTMLElement {
         // bare `<child>` — the default — is the main child, which is the pairing
         // `packages/framework/gtk-host/src/descriptors/gtk.ts` curates for `GtkOverlay`
         // (`slots: { child, overlay }`, `defaultSlot: 'child'`).
-        bindSlottedChildren(this, [{ into: this._childEl }, { name: 'overlay', into: this._layerEl }]).install(
-            this._childEl,
-            this._layerEl,
-        );
+        bindSlottedChildren(this, [
+            { name: 'child', into: this._childEl },
+            { into: this._childEl },
+            { name: 'overlay', into: this._layerEl },
+        ]).install(this._childEl, this._layerEl);
 
         this._observe();
     }

@@ -59,6 +59,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { createGtkImage } from './gtk-image.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 /** `TIMEOUT_EXPAND` — how long a drag hovers before the row opens (gtktreeexpander.c:717). */
 const TIMEOUT_EXPAND = 500;
@@ -142,6 +143,8 @@ export class GtkTreeExpander extends HTMLElement {
             if (!this.hasAttribute('tabindex')) this.tabIndex = 0;
             this._wire();
         }
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
         this.setAttribute('role', 'button');
         this._render();
     }

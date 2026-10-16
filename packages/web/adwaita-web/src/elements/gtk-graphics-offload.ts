@@ -98,7 +98,9 @@ export class GtkGraphicsOffload extends HTMLElement {
         this._childEl.className = 'adw-graphics-offload-child';
         // `GTK_TYPE_BIN_LAYOUT` gives the child the whole allocation, and `child` is the one
         // GtkBuildable slot the widget has, so it is the default one here.
-        bindSlottedChildren(this, [{ into: this._childEl }]).install(this._childEl);
+        bindSlottedChildren(this, [{ name: 'child', into: this._childEl }, { into: this._childEl }]).install(
+            this._childEl,
+        );
         this.replaceChildren(this._childEl);
         this._render();
     }

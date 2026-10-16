@@ -300,7 +300,14 @@ export class GtkWindow extends HTMLElement {
         this._content.className = 'adw-gtk-window-content';
 
         bindSlottedChildren(this, [
-            ...(this.hasTitlebar() ? [{ name: 'titlebar', into: this._titlebar }] : []),
+            // `child` only beside a titlebar: AdwWindow and AdwApplicationWindow inherit
+            // `Gtk.Window:child` and abort on it (adw-window.c:180), `content` is theirs.
+            ...(this.hasTitlebar()
+                ? [
+                      { name: 'titlebar', into: this._titlebar },
+                      { name: 'child', into: this._content },
+                  ]
+                : []),
             ...this.extraSlots(),
             { into: this._content },
         ]).install(...this.strips());

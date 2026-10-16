@@ -196,7 +196,9 @@ export class AdwDialog extends HTMLElement {
         // Everything the author places inside is the dialog content — LIVE, because
         // `Adw.Dialog:child` is a property and a dialog whose body is filled in after it
         // was created is the ordinary case. `src/slotted-children.ts` has the incident.
-        bindSlottedChildren(this, [{ into: this._contentEl }]).install(this._scrimEl);
+        bindSlottedChildren(this, [{ name: 'child', into: this._contentEl }, { into: this._contentEl }]).install(
+            this._scrimEl,
+        );
 
         this._render();
     }

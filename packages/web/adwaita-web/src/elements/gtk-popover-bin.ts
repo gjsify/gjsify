@@ -75,6 +75,7 @@ import type { AdwMenuActions, AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita
 import './gtk-popover-menu.js';
 
 import type { GtkPopoverMenu } from './gtk-popover-menu.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 /** How long a press must last to count as a long press — GTK's own default. */
 const LONG_PRESS_MS = 500;
@@ -150,6 +151,8 @@ export class GtkPopoverBin extends HTMLElement {
         this._initialized = true;
         // `gtk_widget_class_set_css_name (widget_class, "popoverbin")` (gtkpopoverbin.c:382).
         this.classList.add('adw-popover-bin');
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
         this.addEventListener('contextmenu', (event) => this._onContextMenu(event));
         this.addEventListener('keydown', (event) => this._onKeyDown(event));
         this._wireGestures();

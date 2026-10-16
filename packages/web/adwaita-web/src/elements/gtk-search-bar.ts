@@ -37,6 +37,8 @@
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 export class GtkSearchBar extends HTMLElement {
     private _box!: HTMLDivElement;
     private _center!: HTMLDivElement;
@@ -93,10 +95,6 @@ export class GtkSearchBar extends HTMLElement {
 
         this._center = document.createElement('div');
         this._center.className = 'adw-search-bar-center';
-        // Whatever the author put inside the bar is the child, moved into the box's centre —
-        // the `GtkCenterBox` the C builds around it (gtksearchbar.c:378-386).
-        this._center.append(...this.childNodes);
-
         this._close = document.createElement('button');
         this._close.className = 'adw-search-bar-close';
         this._close.type = 'button';
@@ -106,7 +104,9 @@ export class GtkSearchBar extends HTMLElement {
         this._box = document.createElement('div');
         this._box.className = 'adw-search-bar-box';
         this._box.append(this._center, this._close);
-        this.replaceChildren(this._box);
+        // Whatever the author put inside the bar is the child, moved into the box's centre —
+        // the `GtkCenterBox` the C builds around it (gtksearchbar.c:378-386).
+        bindSlottedChildren(this, [{ name: 'child', into: this._center }, { into: this._center }]).install(this._box);
 
         // `input-intercepted`: typing into the connected editable reveals the bar
         // (gtksearchbar.c:210-218). Captured, because the editable may be nested two

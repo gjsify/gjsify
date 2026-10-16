@@ -53,6 +53,8 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 /** The `rgba()` string a `GdkRGBA` value paints, as the colour swatch shows it. */
 interface Rgba {
     readonly red: number;
@@ -166,6 +168,8 @@ export class GtkDragIcon extends HTMLElement {
         // `gtk_widget_set_can_target (self, FALSE)` (:386-390), in CSS: the icon is pointed
         // at, and takes no pointer event of any kind.
         this.style.pointerEvents = 'none';
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
         if (this._dragging) this._observe();
     }
 

@@ -110,7 +110,9 @@ export class GtkListBoxRow extends HTMLElement {
         // `child` is a WIDGET property, so it is a slot here (gtklistbox.c:3307-3331): the
         // authored child lands in the same node `gtk_list_box_row_set_child` would put it in,
         // and a child appended after connect lands there too.
-        bindSlottedChildren(this, [{ into: this._contentsEl }]).install(this._contentsEl);
+        bindSlottedChildren(this, [{ name: 'child', into: this._contentsEl }, { into: this._contentsEl }]).install(
+            this._contentsEl,
+        );
 
         // GTK declares the accessible role unconditionally (gtklistbox.c:3955), so there is
         // no `selection-mode` to condition it on here.

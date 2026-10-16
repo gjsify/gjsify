@@ -161,6 +161,11 @@ export class GtkPopoverMenu extends GtkPopover {
         this.openSubmenu(value);
     }
 
+    /** The menu's own stack is the child (gtkpopovermenu.c `gtk_popover_menu_init`). */
+    protected override takesChild(): boolean {
+        return false;
+    }
+
     connectedCallback() {
         super.connectedCallback();
         if (this._menuInitialized) return;
