@@ -113,6 +113,8 @@ the GObject engine under it, not about GTK rendering.
    (450 → 457 → 530 ms), matching stage 4's ~83 ms on arm64 against a much slower baseline.
    On the arm64 device (Galaxy S9, release split, twenty launches per rung): **+105.5 ms
    (+13.0 %)** from plugin-not-imported to real engine on (813.5 → 828.5 → 919 ms).
+   After the lazy native-host load (#2250) the same device gives B0 → opt-out → on of
+   1067 → 1076.5 → 1192 ms (+125 ms, +11.7 %); the opt-out maps no `libnode_gi.so`.
    Deviations: R8 is not enabled (NativeScript leaves its hooks commented out, and R8 cannot
    change a `.so`/typelib delta).
 3. Wire the dual emulator run: the app and storybook tests execute once per engine, next to the
