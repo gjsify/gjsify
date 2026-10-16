@@ -92,6 +92,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import type { DispatchedSignals } from '../signals.js';
+import { STACK_PAGE_ATTRIBUTES, pageChildOf } from './gtk-stack-page.js';
 
 /** `GtkStackTransitionType`, spelled as the GIR's enum nicks (gtkstack.c:95-121). */
 export type StackTransitionType =
@@ -416,7 +417,7 @@ export class GtkStack extends HTMLElement {
         }
         this._initialized = true;
         this.setAttribute('role', 'group');
-        for (const child of this._children()) this._initChild(child);
+        for (const child of this._children()) this._initChild(this._adopt(child));
         // `add_page` connects the stack to each page's `notify::visible`
         // (gtkstack.c:1771), which is the browser's mutation observer.
         this._observer = new MutationObserver((records) => this._onChildMutations(records));
@@ -531,6 +532,30 @@ export class GtkStack extends HTMLElement {
         return this._children().find((child) => this._page(child).visible) ?? null;
     }
 
+    /**
+     * A `<gtk-stack-page>` record, adopted: its child takes the record's place and its properties
+     * as the attributes this element reads, the way `<adw-view-stack>` adopts a declared page.
+     * Any other child is already the page and is handed back as it is.
+     */
+    private _adopt(child: HTMLElement): HTMLElement {
+        if (child.localName !== 'gtk-stack-page') return child;
+        const content = pageChildOf(child);
+        if (content === null) {
+            throw new Error(
+                `<gtk-stack-page name="${child.getAttribute('name') ?? ''}"> has no child, so the stack would ` +
+                    'hold a page with nothing to show.',
+            );
+        }
+        for (const name of STACK_PAGE_ATTRIBUTES) {
+            const value = child.getAttribute(name);
+            if (value !== null) content.setAttribute(name, value);
+        }
+        if (child.hasAttribute('hidden')) content.setAttribute('hidden', '');
+        content.removeAttribute('slot');
+        this.replaceChild(content, child);
+        return content;
+    }
+
     private _initChild(child: HTMLElement): void {
         if (this._initializedChildren.has(child)) return;
         this._initializedChildren.add(child);
@@ -544,13 +569,24 @@ export class GtkStack extends HTMLElement {
         let pageUpdated = false;
         for (const record of records) {
             if (record.type === 'childList') {
+                // The observer watches the subtree for page attributes; a child list changing
+                // below a page (an adopted record handing over its child) is not a page change.
+                if (record.target !== this) continue;
                 for (const node of Array.from(record.removedNodes)) {
+                    // A record leaving as its child takes its place was never a page here.
+                    if (node instanceof HTMLElement && node.localName === 'gtk-stack-page') continue;
                     if (node === this._visible) this._visible = null;
                     if (node === this._lastVisible) this._lastVisible = null;
                     removed += 1;
                 }
                 for (const node of Array.from(record.addedNodes)) {
                     if (!(node instanceof HTMLElement)) continue;
+                    // An adopted record is replaced by its child, and that replacement is the
+                    // childList record the page is counted in.
+                    if (node.localName === 'gtk-stack-page') {
+                        if (node.parentElement === this) this._adopt(node);
+                        continue;
+                    }
                     this._initChild(node);
                     added += 1;
                     if (position === -1) position = this._children().indexOf(node);

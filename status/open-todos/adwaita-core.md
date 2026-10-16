@@ -210,8 +210,8 @@ implementation on one port with no vector is how the two ports diverged before.
 Done on both ports: `Gio.Settings`, `Adw.ColorScheme`, `Gtk.CssProvider`/`StyleContext`/`Settings`/
 `IconTheme`/`EventControllerKey`, `Gtk.show_uri`, `Gdk.KEY_*`, web `Gtk.License`. Open:
 
-- Browser refuses `GtkStackPage` (a `StackPage { child: … }` node must fold into its child),
-  `sibling-object` (one root per mount) and `layout` (layout-manager placement).
+- Browser refuses `layout` (layout-manager placement). `GtkStackPage` (a `<gtk-stack-page>` record
+  the stack adopts) and `sibling-object` (`buildWithSiblings`) are done on both ports.
 - Conformance vectors for the platform slice do not yet run against real `gi://` under GJS.
 - `keyvalOfKey` ignores Shift, so an uppercase key reports the lower-case keysym.
 

@@ -13,7 +13,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwAlertDialog } from './elements/adw-alert-dialog.js';
 import { capabilities } from './capabilities.mjs';
-import { buildSharedTree, mountSharedTree } from './shared-tree-builder.js';
+import { buildSharedTree, buildWithSiblings, mountSharedTree } from './shared-tree-builder.js';
 import { registerTemplateClass } from './template-classes.js';
 
 const vector = (kind: string) => CONSTRUCT_VECTORS.find((each) => each.kind === kind)!.tree;
@@ -24,8 +24,21 @@ registerTemplateClass(EXTERN_VECTOR_CLASS, 'corpus-extern');
 
 function observe(vector: ConstructVector): unknown {
     if (vector.kind === 'sibling-object') {
-        buildSharedTree(vector.tree);
-        return undefined;
+        let feed: ((size: { width: number; height: number }) => void) | undefined;
+        const { root, siblings } = buildWithSiblings(vector.tree, {
+            observeSize: (_element, onSize) => {
+                feed = onSize;
+                return () => {};
+            },
+        });
+        const beside = siblings.get('beside')!;
+        return {
+            insideRoot: root.contains(beside) || beside.parentElement !== null,
+            label: BREAKPOINT_VECTOR_SIZES.map((size) => {
+                feed!(size);
+                return beside.getAttribute('label');
+            }),
+        };
     }
     if (vector.kind === 'layout') {
         // CSS Grid lines count from 1, GTK cells from 0: `2 / span 2` is column 1, columnSpan 2.
@@ -330,6 +343,38 @@ export const AdwConstructVectorsTest = async () => {
             expect(() => mountSharedTree(withBreakpoint('nobody'))).toThrow("id 'nobody'");
             expect(() => mountSharedTree(withBreakpoint('template'))).toThrow("id 'template'");
             expect(() => mountSharedTree(withBreakpoint('caption', 'wide please'))).toThrow('breakpoint condition');
+        });
+        await it('hands a sibling back by id, a dialog included, and builds none of them into the root', () => {
+            const tree: SharedTreeNode = {
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkLabel', id: 'inside' }],
+                siblings: [
+                    { tag: 'AdwAlertDialog', id: 'confirm', props: { heading: 'Save?' } },
+                    { tag: EXTERN_VECTOR_CLASS, extern: true, id: 'screen' },
+                ],
+            };
+            const { root, siblings, objects } = buildWithSiblings(tree);
+            expect([...siblings.keys()].join()).toBe('confirm,screen');
+            expect(siblings.get('screen') instanceof CorpusExtern).toBe(true);
+            expect(siblings.get('confirm')!.localName).toBe('adw-alert-dialog');
+            expect(siblings.get('confirm')!.getAttribute('heading')).toBe('Save?');
+            expect(root.querySelector('#screen')).toBe(null);
+            expect([...objects.keys()].sort().join()).toBe('confirm,inside,screen');
+        });
+        await it('refuses siblings through every one-root door, a sibling without an id, and a duplicate id', () => {
+            const withSiblings = (siblings: SharedTreeNode[]): SharedTreeNode => ({
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkLabel', id: 'taken' }],
+                siblings,
+            });
+            const labelled = withSiblings([{ tag: 'GtkLabel', id: 'beside' }]);
+            expect(() => buildSharedTree(labelled)).toThrow('buildWithSiblings');
+            expect(() => mountSharedTree(labelled)).toThrow('buildWithSiblings');
+            expect(() => buildWithSiblings(withSiblings([{ tag: 'GtkLabel' }]))).toThrow('has no id');
+            expect(() => buildWithSiblings(withSiblings([{ tag: 'GtkLabel', id: 'taken' }]))).toThrow("id 'taken'");
+        });
+        await it('refuses a breakpoint setter that names a sibling the tree does not carry', () => {
+            expect(() => buildWithSiblings({ ...vector('sibling-object'), siblings: [] })).toThrow("id 'beside'");
         });
         await it('does not read a registered name for a node that is not extern', () => {
             const el = buildSharedTree({ tag: 'GtkBox', children: [{ tag: 'GtkLabel' }] });

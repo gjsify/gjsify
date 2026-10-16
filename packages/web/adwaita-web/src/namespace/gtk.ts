@@ -86,6 +86,7 @@ export { GtkSeparator as Separator } from '../elements/gtk-separator.js';
 export { GtkSpinButton as SpinButton } from '../elements/gtk-spin-button.js';
 export { GtkSpinner as Spinner } from '../elements/gtk-spinner.js';
 export { GtkStack as Stack } from '../elements/gtk-stack.js';
+export { GtkStackPage as StackPage } from '../elements/gtk-stack-page.js';
 export { GtkStackSidebar as StackSidebar } from '../elements/gtk-stack-sidebar.js';
 export { GtkStackSwitcher as StackSwitcher } from '../elements/gtk-stack-switcher.js';
 export { GtkStringList as StringList } from '@gjsify/adwaita-core';

@@ -7,6 +7,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { GtkStack } from './elements/gtk-stack.js';
+import { pageChildOf } from './elements/gtk-stack-page.js';
+import { mountSharedTree } from './shared-tree-builder.js';
 
 interface Page {
     name: string;
@@ -427,6 +429,114 @@ export const GtkStackTest = async () => {
             expect((el.children[0] as HTMLElement).hasAttribute('aria-hidden')).toBe(false);
             expect((el.children[1] as HTMLElement).getAttribute('aria-hidden')).toBe('true');
             host.remove();
+        });
+    });
+
+    await describe('<gtk-stack> adopts a <gtk-stack-page> record', async () => {
+        const record = (attrs: Record<string, string>, body = 'page'): HTMLElement => {
+            const page = document.createElement('gtk-stack-page');
+            for (const [name, value] of Object.entries(attrs)) page.setAttribute(name, value);
+            const child = document.createElement('div');
+            child.setAttribute('slot', 'child');
+            child.textContent = body;
+            page.appendChild(child);
+            return page;
+        };
+
+        await it('puts the child where the record was, with its properties as attributes', () => {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const el = document.createElement('gtk-stack') as GtkStack;
+            el.appendChild(
+                record({
+                    name: 'a',
+                    title: 'Alpha',
+                    'icon-name': 'go-home',
+                    'needs-attention': '',
+                    'use-underline': '',
+                }),
+            );
+            el.appendChild(record({ name: 'b' }, 'beta'));
+            host.appendChild(el);
+            expect(el.querySelector('gtk-stack-page')).toBe(null);
+            expect(marks(el)).toStrictEqual(['a:visible', 'b']);
+            const [page] = el.pages;
+            expect(page!.title).toBe('Alpha');
+            expect(page!.iconName).toBe('go-home');
+            expect(page!.needsAttention).toBe(true);
+            expect(page!.useUnderline).toBe(true);
+            expect(page!.child.hasAttribute('slot')).toBe(false);
+            expect(el.getChildByName('b')!.textContent).toBe('beta');
+            host.remove();
+        });
+
+        await it('reads a hidden record as GtkStackPage:visible = FALSE', () => {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const el = document.createElement('gtk-stack') as GtkStack;
+            const hidden = record({ name: 'a' });
+            (hidden as unknown as { visible: boolean }).visible = false;
+            el.appendChild(hidden);
+            el.appendChild(record({ name: 'b' }));
+            host.appendChild(el);
+            expect(el.pages.map((page) => page.visible)).toStrictEqual([false, true]);
+            expect(el.visibleChildName).toBe('b');
+            host.remove();
+        });
+
+        await it('adopts a record appended after connect, counted once', async () => {
+            const { el, host } = mount([{ name: 'a' }]);
+            const events: unknown[] = [];
+            el.addEventListener('items-changed', (e) => events.push((e as CustomEvent).detail));
+            el.appendChild(record({ name: 'b' }));
+            await settle();
+            await settle();
+            expect(marks(el)).toStrictEqual(['a:visible', 'b']);
+            expect(events).toStrictEqual([{ position: 1, removed: 0, added: 1 }]);
+            host.remove();
+        });
+
+        await it('takes a bare child as the page, and refuses a record with two', () => {
+            const bare = document.createElement('gtk-stack-page');
+            const child = document.createElement('div');
+            bare.appendChild(child);
+            expect(pageChildOf(bare)).toBe(child);
+            bare.appendChild(document.createElement('div'));
+            expect(() => pageChildOf(bare)).toThrow('has one `child`');
+            expect(pageChildOf(document.createElement('gtk-stack-page'))).toBe(null);
+        });
+
+        await it('builds `Stack { StackPage { name; child: … } }` from a shared tree', () => {
+            const { root, unmount } = mountSharedTree({
+                tag: 'GtkStack',
+                id: 'layoutHost',
+                children: [
+                    {
+                        tag: 'GtkStackPage',
+                        id: 'singlePage',
+                        props: { name: 'single' },
+                        children: [{ tag: 'AdwBin', slot: 'child', id: 'singleBin' }],
+                    },
+                    {
+                        tag: 'GtkStackPage',
+                        id: 'threePage',
+                        props: { name: 'three', title: 'Three' },
+                        children: [{ tag: 'AdwBin', slot: 'child', id: 'threeBin' }],
+                    },
+                ],
+            });
+            try {
+                const stack = root as GtkStack;
+                expect(stack.pages.map((page) => page.child.id)).toStrictEqual(['singleBin', 'threeBin']);
+                // The first page added is the visible one (gtkstack.c:1773-1775); a breakpoint
+                // setter selects another by the name its record carried.
+                expect(stack.visibleChild!.id).toBe('singleBin');
+                expect(stack.setVisibleChildName('three')).toBe(true);
+                expect(stack.visibleChild!.id).toBe('threeBin');
+                expect(stack.getPage(stack.visibleChild!)!.title).toBe('Three');
+            } finally {
+                unmount();
+            }
         });
     });
 };
