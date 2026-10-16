@@ -930,13 +930,50 @@ function decorateGioNamespace(baseNs) {
     });
 }
 
+// The internals of the PROXY links on an introspected prototype chain: the Proxy
+// itself -> its target plus the materializer its getOwnPropertyDescriptor trap runs
+// (`null` for a Proxy that traps no descriptor read). Registered by
+// makeClassPrototype and vfuncChainProto; read only by findProtoDescriptor.
+//
+// Why: a descriptor read THROUGH a Proxy costs ~110 ns of V8 invariant machinery on
+// top of the handler, and an introspected chain is mostly Proxies. Measured on the
+// bench's depth-3 subject, a full MISS walk took 328 ns — 154 ns on the
+// makeClassPrototype link, 65 ns on vfuncChainProto, 12 ns on the one plain link.
+// With the target in hand the same answer costs 27 ns, because the trap body is
+// exactly `materialize(prop); return Reflect.getOwnPropertyDescriptor(target, prop)`
+// and running it directly skips only the machinery, never a step of the computation.
+//
+// This is NOT a cache of the ANSWER: nothing is remembered between calls. The target
+// is the object every mutation of the prototype lands on — none of the handlers trap
+// `set`, `defineProperty`, `deleteProperty` or `setPrototypeOf`, so
+// `Cls.prototype.m = f`, `Object.defineProperty(…)`, `delete` and a spliced chain
+// write through to it — and the descriptor still comes from a fresh read of it. That
+// has to hold, because GJS pins nothing: on gjs 1.88.1 every one of those mutations
+// is observable on an already-wrapped instance (measured), so an answer cache would
+// need an invalidation signal JS does not offer. test/proto-descriptor-liveness.test.mjs
+// is the proof obligation.
+const protoInternals = new WeakMap();
+
 // Walk a JS prototype chain (excluding Object.prototype) for an own property
 // descriptor of `prop` — used to surface a registerClass subclass's own methods
-// /getters/setters on the GObject wrapper.
+// /getters/setters on the GObject wrapper. One full walk runs per property GET, per
+// SET and per `emit`, so the Proxy bypass above is on the hottest path there is.
 function findProtoDescriptor(proto, prop) {
-    for (let p = proto; p !== null && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
-        const d = Object.getOwnPropertyDescriptor(p, prop);
+    for (let p = proto; p !== null && p !== Object.prototype;) {
+        const internals = protoInternals.get(p);
+        if (internals === undefined) {
+            const d = Object.getOwnPropertyDescriptor(p, prop);
+            if (d !== undefined) return d;
+            p = Object.getPrototypeOf(p);
+            continue;
+        }
+        const { target, materialize } = internals;
+        if (materialize !== null) materialize(prop);
+        const d = Object.getOwnPropertyDescriptor(target, prop);
         if (d !== undefined) return d;
+        // The target's prototype, not the Proxy's: neither handler traps
+        // getPrototypeOf, so these are the same link — one fewer trap to pay.
+        p = Object.getPrototypeOf(target);
     }
     return undefined;
 }
@@ -1816,7 +1853,8 @@ function wrapInstance(handle, userProto) {
 // the introspected parent's `vfunc_x` is a thunk into the actual C vtable entry.
 // Non-`vfunc_` lookups fall through to Object.prototype (so the base prototype
 // keeps its normal object behaviour).
-const vfuncChainProto = new Proxy(Object.create(Object.prototype), {
+const vfuncChainTarget = Object.create(Object.prototype);
+const vfuncChainProto = new Proxy(vfuncChainTarget, {
     get(target, prop, receiver) {
         if (typeof prop === 'string' && prop.startsWith('vfunc_')) {
             const vfuncName = prop.slice('vfunc_'.length);
@@ -1831,6 +1869,10 @@ const vfuncChainProto = new Proxy(Object.create(Object.prototype), {
         return Reflect.get(target, prop, receiver);
     },
 });
+// No descriptor trap here: a `vfunc_*` access is synthesized by `get` alone and was
+// never reported as a descriptor, so the walk's answer for this link always came from
+// the target. `null` materializer = "read the target, that is the whole trap".
+protoInternals.set(vfuncChainProto, { target: vfuncChainTarget, materialize: null });
 
 // Surface a lazy `$gtype` getter on an introspected class/struct ctor: the real
 // GObject GType (a node-gi GType handle), resolved on first read via the engine
@@ -1998,7 +2040,7 @@ function makeClassPrototype(namespace, typeName) {
         }
         return arity >= 0 && define(prop, makeGiMethod(where, prop, arity));
     };
-    return new Proxy(target, {
+    const proto = new Proxy(target, {
         get(t, prop, receiver) {
             materialize(prop);
             return Reflect.get(t, prop, receiver);
@@ -2011,6 +2053,10 @@ function makeClassPrototype(namespace, typeName) {
             return materialize(prop) || Reflect.has(t, prop);
         },
     });
+    // Let findProtoDescriptor run the descriptor trap's body directly on the target —
+    // same two steps, without V8's per-trap invariant checks (see protoInternals).
+    protoInternals.set(proto, { target, materialize });
+    return proto;
 }
 
 function makeClass(namespace, typeName) {

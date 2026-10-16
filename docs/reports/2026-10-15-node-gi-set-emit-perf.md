@@ -149,7 +149,8 @@ removable the same way:
   not an oversight.
 - **`findProtoDescriptor` is still ~9 % of both rows.** It walks a JS prototype chain per GET and
   could be memoized per (prototype, name), but a prototype is mutable in a way a GType is not, so
-  that cache needs an invalidation story the other six do not. Left alone deliberately.
+  that cache needs an invalidation story the other six do not. Left alone deliberately — settled
+  the next day, and not by caching it: see the addendum below.
 - **`emit` moved least** (1.26x) because it was already closest to its floor: `emitSignal` with a
   handler is 1 076 ns of the 2 505, and the rest is the proxy GET and the argument marshalling.
 
@@ -168,3 +169,68 @@ Unchanged, and checked rather than argued:
 - Nine new tests in `test/resolution-caches.test.mjs`, each driving two keys through one cache and
   asking the second to answer for itself — the failure mode every one of these caches shares is
   answering for the wrong key.
+
+## Addendum (2026-10-16): the eighth cache does not exist, and did not need to
+
+The item above left `findProtoDescriptor` for a later decision about invalidation. The decision is
+**no memo**, and the walk got faster anyway — because the cost was never the walking.
+
+**GJS pins nothing.** Probed on gjs 1.88.1, each mutation applied to a prototype an instance had
+already been read through: a method added late to a registered class IS seen; a redefined accessor
+takes effect immediately on read AND on write, and deleting it uncovers the GObject property again;
+`delete proto.m` goes back to `undefined`; an object spliced in with `setPrototypeOf` is walked; a
+late method or getter on an INTROSPECTED prototype is seen; a prototype `emit`/`connect` shadowing
+the signal API after the first emission WINS. A GObject prototype there is an ordinary mutable JS
+object whose `resolve` hook only fills in what is absent, and `_checkAccessors` runs at
+`registerClass` time without freezing anything afterwards. So a (prototype, name) memo would answer
+from a shape the program has since changed, and JS offers no signal to invalidate it on — not for
+assignment, not for `defineProperty`, not for `delete`, not for `setPrototypeOf`. node-gi matches
+gjs on every one of those cases today, so there is nothing to buy and a behaviour to lose.
+
+**The cost is the Proxy, not the chain.** Attributed per link on the bench's depth-3 subject, with
+the walk in isolation at 300 000 iterations (pinned to two cores): a full MISS walk 328 ns, of which
+**154 ns is the `makeClassPrototype` link, 65 ns the `vfuncChainProto` link and 12 ns the one plain
+object**. Both slow links are Proxies, and ~110 ns of each is V8's own `getOwnPropertyDescriptor`
+trap machinery — a forwarding trap that does nothing measures 113 ns against 17 ns for a plain
+object, while the same trap with `materialize`'s body costs 145 ns. The walk was not walking too
+much; it was crossing a membrane three times.
+
+So `findProtoDescriptor` now keeps a `protoInternals` WeakMap from each of those Proxies to its
+target plus the materializer its descriptor trap runs, and does on the target exactly what the trap
+would have done: `materialize(prop)`, then one `getOwnPropertyDescriptor` on the target, then on to
+the target's prototype (no handler traps `getPrototypeOf`, so that is the same link). Same two
+steps, same order, minus the invariant checks: 27 ns against 128 for one link. **Nothing is
+remembered between calls.** The target is where every mutation of the prototype lands — none of the
+handlers trap `set`, `defineProperty`, `deleteProperty` or `setPrototypeOf` — so the descriptor
+still comes from a fresh read of the live object.
+
+A/B in ONE process, all three variants in the same module behind a mode switch so machine drift hits
+every leg equally, mode order rotated per repeat, pinned with `taskset`. `stub` always misses and is
+the upper bound of deleting the walk outright:
+
+| run | row | base | bypass | stub | paired bypass−base | paired stub−base |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100k ops x 21 | `set+notify` | 5 381 | 4 859 | 4 523 | **−436** | −785 |
+| 100k ops x 21 | `emit` | 2 278 | 1 720 | 1 560 | **−478** | −656 |
+| 50k ops x 31 | `set+notify` | 5 501 | 4 964 | 4 690 | **−539** | −841 |
+| 50k ops x 31 | `emit` | 2 245 | 1 844 | 1 577 | **−363** | −659 |
+
+Medians in ns/op; paired columns are the per-repeat difference, median. The bypass takes **55–60 %
+of what removing the walk entirely could ever buy** — ~8–10 % off `set+notify` and ~16–21 % off
+`emit` — which is the number the per-link attribution predicts, since what is left is the one plain
+link plus the materializer body that has to run either way.
+
+Cross-process A/B could not resolve this and was abandoned: per-pair σ was ~700 ns and the pure-JS
+control leg alone swung 421 → 1 048 ns/op on this machine at load average ~10.8 of 20 cores. An
+earlier candidate — gating the walk behind `if (prop in proto)` — was implemented, measured and
+**dropped**: `'label' in K.prototype` costs 431 ns, i.e. more than the 328 ns walk it was meant to
+guard, because `has` is a trap too. Its paired diffs were ±100 ns, indistinguishable from zero. It
+is recorded here so the idea is not re-tried.
+
+Checked: eight new tests in `test/proto-descriptor-liveness.test.mjs`, one per mutation case above,
+each warming the instance first so a memo would be hot; node-gi's full suite at 900 tests / 862 pass
+/ 2 fail, the same two pre-existing failures as the unmodified tree (`excalibur-webgl` capstone on an
+unresolved workspace import, `glib-overrides` idle_add_once); `test:gc` 878 pass / 2 fail;
+`test:dbus` 8/8; the gjs-oracle conformance programs green on gjs, node, bun and deno; both
+`GOBJECT_VECTORS` legs green (oracle 19, engine 84 / 114 assertions). No device or emulator
+re-measure — this change is JS-only and its mechanism (V8 proxy traps) is the same engine there.
