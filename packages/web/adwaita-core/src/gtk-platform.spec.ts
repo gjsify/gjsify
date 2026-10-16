@@ -8,6 +8,7 @@ import { GTK_PLATFORM_VECTORS, driveGtkPlatformVectors, type GtkPlatformLike } f
 import {
     CssProvider,
     GDK_KEYS,
+    IconTheme,
     STYLE_PROVIDER_PRIORITY_APPLICATION,
     STYLE_PROVIDER_PRIORITY_FALLBACK,
     STYLE_PROVIDER_PRIORITY_SETTINGS,
@@ -108,7 +109,29 @@ export default async () => {
             const theme = gtk.IconTheme.get_for_display(null);
             theme.add_resource_path('/a');
             theme.add_resource_path('/a');
-            expect(theme.get_resource_path().length).toBe(1);
+            expect(theme.get_resource_path()).toStrictEqual(['/org/gtk/libgtk/icons/', '/a', '/a']);
+        });
+
+        // Measured on GTK 4 through gjs: no `changed` before a lookup, none synchronously, one
+        // per idle however many paths were added.
+        await it('emits changed later, once, and only after a lookup scanned the theme', async () => {
+            const theme = new IconTheme();
+            let changed = 0;
+            theme.connect('changed', () => void changed++);
+            const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+            theme.add_resource_path('/a');
+            await settle();
+            expect(changed).toBe(0);
+            IconTheme.scan(theme);
+            theme.add_resource_path('/b');
+            theme.add_resource_path('/c');
+            expect(changed).toBe(0);
+            await settle();
+            expect(changed).toBe(1);
+            theme.add_resource_path('/d');
+            await settle();
+            expect(changed).toBe(1);
+            expect(() => theme.connect('nope', () => {})).toThrow();
         });
 
         await it('translates DOM keys to keysyms', async () => {

@@ -82,6 +82,8 @@ import fileChooserTestSuite from './file-chooser.spec.js';
 import fileChooserOracleTestSuite from './file-chooser.gjs.spec.js';
 import gioResourceTestSuite from './gio-resource.spec.js';
 import gioResourceOracleTestSuite from './gio-resource.gjs.spec.js';
+import iconThemeResourcesTestSuite from './icon-theme-resources.spec.js';
+import iconThemeResourcesOracleTestSuite from './icon-theme-resources.gjs.spec.js';
 
 run({
     sharedTreesTestSuite,
@@ -166,4 +168,6 @@ run({
     fileChooserOracleTestSuite,
     gioResourceTestSuite,
     gioResourceOracleTestSuite,
+    iconThemeResourcesTestSuite,
+    iconThemeResourcesOracleTestSuite,
 });

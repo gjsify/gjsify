@@ -3,7 +3,11 @@
 // What the subset REFUSES (`open_stream`, `Resource.load`, a compressed `lookup_data`, a byte-swapped
 // file) is not here: GIO answers all four, so those are asserted in the core's own spec.
 
-import { FIXTURE_GRESOURCE_BASE64, OVERLAY_GRESOURCE_BASE64 } from '../gio-resource.fixtures.js';
+import {
+    FIXTURE_GRESOURCE_BASE64,
+    ICONS_GRESOURCE_BASE64,
+    OVERLAY_GRESOURCE_BASE64,
+} from '../gio-resource.fixtures.js';
 import type { ConstructHarness } from './constructs.js';
 
 export interface GioResourceLike {
@@ -58,9 +62,13 @@ function decodeBase64(text: string): Uint8Array {
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
-/** The bytes of `fixtures/gio-resource/{fixture,overlay}.gresource`. */
-export function gioResourceFixtures(): { fixture: Uint8Array; overlay: Uint8Array } {
-    return { fixture: decodeBase64(FIXTURE_GRESOURCE_BASE64), overlay: decodeBase64(OVERLAY_GRESOURCE_BASE64) };
+/** The bytes of `fixtures/gio-resource/{fixture,overlay,icons}.gresource`. */
+export function gioResourceFixtures(): { fixture: Uint8Array; overlay: Uint8Array; icons: Uint8Array } {
+    return {
+        fixture: decodeBase64(FIXTURE_GRESOURCE_BASE64),
+        overlay: decodeBase64(OVERLAY_GRESOURCE_BASE64),
+        icons: decodeBase64(ICONS_GRESOURCE_BASE64),
+    };
 }
 
 const ERROR_NAMES: Record<number, string> = { 0: 'NOT_FOUND', 1: 'INTERNAL' };
@@ -101,9 +109,9 @@ function registered<T>(subject: GioResourceSubject, resources: GioResourceLike[]
 }
 
 /**
- * CORE-ONLY: GAP (#2239) — neither port exposes the subset yet; ADR 0116 step 3 wires it into
- * `Gtk.IconTheme` and `GtkApplication` on the web, then NativeScript. Until then the core suite
- * drives it here and real `gi://Gio` under GJS is the oracle (`gio-resource.gjs.spec.ts`).
+ * The web port drives these through its `Gio` door (`adwaita-web/src/gio-resource.spec.ts`);
+ * real `gi://Gio` under GJS is the oracle (`gio-resource.gjs.spec.ts`). NativeScript does not
+ * expose the subset yet — the second half of ADR 0116 step 3 (#2239).
  */
 export const GIO_RESOURCE_VECTORS: readonly GioResourceVector[] = [
     {

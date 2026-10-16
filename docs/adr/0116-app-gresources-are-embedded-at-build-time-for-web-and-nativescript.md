@@ -174,7 +174,8 @@ be a second path on one target only.
 - The GtkSource managers read `resource://` search paths (§ 6), and `addLanguageFromXml` and
   `addSchemeFromXml` are removed (ADR 0094, amendment of 2026-10-15). Learn6502's shared UI then
   configures GtkSource with the same calls as its GNOME app.
-- ADR 0115 gets Amendment 1. Its lookup order and colour rendering stay; its door is replaced.
+- ADR 0115 gets Amendment 1: its door is replaced. Amendment 2 puts its lookup order on
+  gtkicontheme.c's theme order; its colour rendering stays.
 
 ## Alternatives rejected
 

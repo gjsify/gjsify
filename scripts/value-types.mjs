@@ -160,7 +160,7 @@ export const CONSTRUCTIBLE_VALUES = [
     {
         member: 'Gtk.IconTheme',
         gir: 'IconTheme',
-        why: "`Gtk.IconTheme.get_for_display(display).add_resource_path(path)` registers an application's icons; the ports remember the path and the icon registry is the lookup. A GObject, not a widget.",
+        why: "`Gtk.IconTheme.get_for_display(display).add_resource_path(path)` registers an application's icons; on the web the path is scanned as gtkicontheme.c does (ADR 0116 § 4); NativeScript still only remembers it. A GObject, not a widget.",
     },
     {
         member: 'Gtk.EventControllerKey',
@@ -251,6 +251,54 @@ export const CONSTRUCTIBLE_VALUES = [
         gir: 'IOErrorEnum',
         enum: true,
         why: 'The domain a refused or failed `Gio.File` call rejects with — `NOT_SUPPORTED`, `CANCELLED`, `CLOSED` (ADR 0100). An error-domain enum, not a widget.',
+    },
+    {
+        member: 'Gio.Resource',
+        gir: 'Resource',
+        struct: true,
+        why: 'An app embeds its compiled `.gresource` and writes `Gio.Resource.new_from_data(bytes)._register()`, as a GJS app does with `Gio.Resource.load(path)._register()`; the ports read the real GVDB bytes (ADR 0116 § 3). A boxed struct, not a widget.',
+    },
+    {
+        member: 'Gio.ResourceLookupFlags',
+        gir: 'ResourceLookupFlags',
+        flags: true,
+        why: 'Every `Gio.resources_*` call takes `Gio.ResourceLookupFlags.NONE`, the only flag GIO defines (ADR 0116 § 3). A flags type, not a widget.',
+    },
+    {
+        member: 'Gio.ResourceError',
+        gir: 'ResourceError',
+        enum: true,
+        why: 'The domain a missing resource path fails with — `NOT_FOUND`, `INTERNAL` (ADR 0116 § 3). An error-domain enum, not a widget.',
+    },
+    {
+        member: 'Gio.resources_register',
+        gir: 'resources_register',
+        kind: 'function',
+        why: 'Registers a `Gio.Resource` process-wide, the most recent answering first, as GIO prepends (ADR 0116 § 3). A function, not a widget.',
+    },
+    {
+        member: 'Gio.resources_unregister',
+        gir: 'resources_unregister',
+        kind: 'function',
+        why: 'Removes a registered `Gio.Resource` from the process-wide list (ADR 0116 § 3). A function, not a widget.',
+    },
+    {
+        member: 'Gio.resources_lookup_data',
+        gir: 'resources_lookup_data',
+        kind: 'function',
+        why: 'Reads a file out of the registered resources as `GLib.Bytes` — what the web `Gtk.IconTheme` draws an application icon from (ADR 0116 §§ 3–4). A function, not a widget.',
+    },
+    {
+        member: 'Gio.resources_get_info',
+        gir: 'resources_get_info',
+        kind: 'function',
+        why: 'Answers the size and flags of a resource path without reading it (ADR 0116 § 3). A function, not a widget.',
+    },
+    {
+        member: 'Gio.resources_enumerate_children',
+        gir: 'resources_enumerate_children',
+        kind: 'function',
+        why: 'Lists a resource directory — how `Gtk.IconTheme` scans `<resource-base-path>/icons/` (ADR 0116 §§ 3–4). A function, not a widget.',
     },
     {
         member: 'Gio._promisify',

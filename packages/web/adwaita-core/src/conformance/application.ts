@@ -21,6 +21,8 @@ export const APPLICATION_ROWS = [
     'resolution',
     'refusal',
     'accels',
+    /** ADR 0116 § 4: `resource-base-path`, and the icon path startup adds from it. */
+    'resources',
 ] as const;
 
 export type ApplicationRow = (typeof APPLICATION_ROWS)[number];
@@ -89,6 +91,16 @@ export interface ApplicationSubject {
     run?(app: ApplicationLike): Promise<number>;
     /** Makes the action API usable before a run (`g_application_register` on GJS); a port needs nothing. */
     ready?(app: ApplicationLike): void;
+    /** The default display's `Gtk.IconTheme`; absent where there is none (GJS without a display). */
+    iconTheme?(): { get_resource_path(): string[] | null; set_resource_path(path: string[] | null): void };
+}
+
+interface ResourceBasePath {
+    resource_base_path: string | null;
+    get_resource_base_path(): string | null;
+    set_resource_base_path(path: string | null): void;
+    set_application_id(id: string | null): void;
+    notify(name: string): void;
 }
 
 const runOf = (s: ApplicationSubject, app: ApplicationLike): Promise<number> => (s.run ? s.run(app) : app.runAsync([]));
@@ -99,6 +111,8 @@ export interface ApplicationVector {
     readonly holds: 'oracle' | 'subset';
     /** Needs `subject.scene`. */
     readonly windowed?: true;
+    /** Needs `subject.iconTheme`. */
+    readonly themed?: true;
     /** `Class.vfunc_name` entries of `UNLOCKED_VFUNCS` this vector proves against GJS. */
     readonly unlocks?: readonly string[];
     readonly observe: (subject: ApplicationSubject) => unknown;
@@ -483,6 +497,73 @@ export const APPLICATION_VECTORS: readonly ApplicationVector[] = [
         },
         shows: true,
     },
+    {
+        row: 'resources',
+        rule: "resource_base_path is '/' + the id with '.' as '/', fixed at construction; null without an id; a constructor value wins",
+        holds: 'oracle',
+        observe(s) {
+            const id = idOf();
+            const app = new s.Application({ application_id: id }) as unknown as ResourceBasePath;
+            const derived = app.get_resource_base_path() === `/${id.split('.').join('/')}`;
+            app.set_application_id(idOf());
+            const kept = app.resource_base_path === `/${id.split('.').join('/')}`;
+            const none = (new s.Application() as unknown as ResourceBasePath).get_resource_base_path();
+            const given = new s.Application({ application_id: idOf(), resource_base_path: '/given' });
+            return [derived, kept, none, (given as unknown as ResourceBasePath).resource_base_path];
+        },
+        shows: [true, true, null, '/given'],
+    },
+    {
+        row: 'resources',
+        rule: "set_resource_base_path notifies 'resource-base-path' on a change only, and takes null",
+        holds: 'oracle',
+        observe(s) {
+            const app = new s.Application({ application_id: idOf() });
+            let notified = 0;
+            app.connect('notify::resource-base-path', () => notified++);
+            const paths = app as unknown as ResourceBasePath;
+            paths.set_resource_base_path('/a/b');
+            paths.set_resource_base_path('/a/b');
+            paths.set_resource_base_path(null);
+            return [notified, paths.get_resource_base_path()];
+        },
+        shows: [2, null],
+    },
+    {
+        row: 'resources',
+        rule: "startup adds '<resource-base-path>/icons/' to the display's icon theme, one '/' between; none for null",
+        holds: 'oracle',
+        themed: true,
+        async observe(s) {
+            const theme = s.iconTheme!();
+            const before = theme.get_resource_path();
+            const added: string[][] = [];
+            try {
+                for (const base of ['/org/gjsify/vec/Icons', '/org/gjsify/vec/Slash/', null]) {
+                    const app = new s.Application({ application_id: idOf() }) as unknown as ResourceBasePath;
+                    app.set_resource_base_path(base);
+                    const start = theme.get_resource_path()?.length ?? 0;
+                    await runOf(s, app as unknown as ApplicationLike);
+                    added.push((theme.get_resource_path() ?? []).slice(start));
+                }
+            } finally {
+                theme.set_resource_path(before);
+            }
+            return added;
+        },
+        shows: [['/org/gjsify/vec/Icons/icons/'], ['/org/gjsify/vec/Slash/icons/'], []],
+    },
+    {
+        row: 'resources',
+        rule: "a resource base path without a leading '/' is refused",
+        holds: 'subset',
+        observe(s) {
+            const app = new s.Application({ application_id: idOf() }) as unknown as ResourceBasePath;
+            const message = attempt(() => app.set_resource_base_path('relative'));
+            return [(message ?? '').includes("'relative'"), app.get_resource_base_path() !== 'relative'];
+        },
+        shows: [true, true],
+    },
 ];
 
 interface AccelApplication {
@@ -520,6 +601,7 @@ export async function driveApplicationVectors(
         for (const vector of vectors) {
             if (vector.holds === 'subset' && subject.isOracle) continue;
             if (vector.windowed && subject.scene === undefined) continue;
+            if (vector.themed && subject.iconTheme === undefined) continue;
             await it(`${vector.row}: ${vector.rule}`, async () => {
                 const observed = await vector.observe(subject);
                 expect(JSON.stringify(observed)).toBe(JSON.stringify(vector.shows));

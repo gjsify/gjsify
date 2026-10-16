@@ -443,6 +443,8 @@ export {
     widgetControllerMembers,
 } from './gtk-platform.js';
 export type { GtkPlatform, HostKeyEvent, PlatformHost } from './gtk-platform.js';
+export { iconLookupNames, lookupResourceIcon } from './icon-theme-resources.js';
+export type { IconDirection, ResourceIconMatch, ResourceIconRequest } from './icon-theme-resources.js';
 export { syncDirection, widgetTreeMembers } from './widget-members.js';
 export type { ClipboardHost, GdkClipboard } from './gdk.js';
 export { createGLibTimers } from './glib-timers.js';

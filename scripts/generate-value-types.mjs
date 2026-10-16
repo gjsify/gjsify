@@ -97,9 +97,10 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
     }
     const info = repo.find_by_name(namespace, entry.gir);
     // A `flags: true` entry is a GLib flags type (`Gio.ApplicationFlags`), an `enum: true`
-    // entry an enum (`Gtk.DialogError`), an `interface: true` entry a GInterface (`Gio.File`):
-    // no GObject class, but values a namespace carries, and the typelib still has to declare
-    // each as exactly that. `FlagsInfo` IS an `EnumInfo` subclass, so an enum excludes it.
+    // entry an enum (`Gtk.DialogError`), an `interface: true` entry a GInterface (`Gio.File`),
+    // a `struct: true` entry a boxed struct (`Gio.Resource`, a GIR `<record>`): no GObject class,
+    // but values a namespace carries, and the typelib still has to declare each as exactly that.
+    // Each flag names the `GIRepository.*Info` it is checked against (`StructInfo` for `struct`). `FlagsInfo` IS an `EnumInfo` subclass, so an enum excludes it.
     // `kind: 'function' | 'constant'` is a namespace member that is neither type nor widget.
     const isKind = (i) =>
         entry.kind === 'function'
@@ -112,7 +113,9 @@ for (const entry of CONSTRUCTIBLE_VALUES) {
                   ? i instanceof GIRepository.EnumInfo && !(i instanceof GIRepository.FlagsInfo)
                   : entry.interface === true
                     ? i instanceof GIRepository.InterfaceInfo
-                    : i instanceof GIRepository.ObjectInfo;
+                    : entry.struct === true
+                      ? i instanceof GIRepository.StructInfo
+                      : i instanceof GIRepository.ObjectInfo;
     if (info === null || !isKind(info)) {
         // DECLARED, not skipped, and one row for both shapes: a name the namespace does not
         // carry and a name that is not a GObject are the same finding for a ledger whose

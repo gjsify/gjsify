@@ -1,6 +1,6 @@
 // The platform-facing slice of `Gtk` / `Gdk`, renderer-free: `Gtk.CssProvider`, `Gtk.StyleContext`
 // (`add_provider_for_display` / `remove_provider_for_display`), `Gtk.Settings` (`gtk_font_name`),
-// `Gtk.IconTheme` (`add_resource_path`), `Gtk.show_uri`, `Gtk.EventControllerKey` with
+// `Gtk.IconTheme` (its resource path and `changed`), `Gtk.show_uri`, `Gtk.EventControllerKey` with
 // `add_controller`, and the `Gdk.KEY_*` keysyms. A TRUE SUBSET of GTK 4: the names and semantics are
 // GTK's, and what is not defined here is absent.
 //
@@ -9,7 +9,8 @@
 // hands in a {@link PlatformHost} (a `<style>` element and `window.open` in a browser,
 // `Application` CSS and `Utils.openUrl` on NativeScript).
 //
-// Reference: gtk gtk/gtkcssprovider.c, gtk/gtkstylecontext.c, gtk/gtkeventcontrollerkey.c, gtk/gtkshow.c
+// Reference: gtk gtk/gtkcssprovider.c, gtk/gtkstylecontext.c, gtk/gtkeventcontrollerkey.c, gtk/gtkshow.c,
+// gtk/gtkicontheme.c
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
 /** What a key event carries into {@link EventControllerKey}. `key` is a DOM `KeyboardEvent.key`. */
@@ -160,16 +161,65 @@ export class GtkSettings {
     }
 }
 
-/** `Gtk.IconTheme`: the resource paths an application adds; the port's icon registry is the lookup. */
+/**
+ * `Gtk.IconTheme`: the resource paths and the `changed` signal; `icon-theme-resources.ts` is the
+ * lookup over them. As in gtkicontheme.c a path change drops the scan and queues `changed` only
+ * when a lookup has scanned since the last change, and `changed` runs on a later task (GTK: idle).
+ */
 export class IconTheme {
-    readonly #paths: string[] = [];
+    #paths: string[] | null = ['/org/gtk/libgtk/icons/'];
+    #scanned = false;
+    #serial = 0;
+    #queued = false;
+    readonly #handlers = new Map<number, (theme: IconTheme) => void>();
+    #next = 1;
 
-    add_resource_path(path: string): void {
-        if (!this.#paths.includes(path)) this.#paths.push(path);
+    set_resource_path(path: readonly string[] | null): void {
+        this.#paths = path === null ? null : [...path];
+        if (this.#scanned) {
+            this.#scanned = false;
+            this.#serial++;
+            this.#queueChanged();
+        }
     }
 
-    get_resource_path(): string[] {
-        return [...this.#paths];
+    /** Appends, as GTK does: a path added twice is scanned twice. */
+    add_resource_path(path: string): void {
+        if (typeof path !== 'string') throw new TypeError('Gtk.IconTheme.add_resource_path: path must not be null');
+        this.set_resource_path([...(this.#paths ?? []), path]);
+    }
+
+    get_resource_path(): string[] | null {
+        return this.#paths === null ? null : [...this.#paths];
+    }
+
+    connect(signal: string, handler: (theme: IconTheme) => void): number {
+        if (signal !== 'changed') throw new Error(`No signal '${signal}' on object 'GtkIconTheme'`);
+        const id = this.#next++;
+        this.#handlers.set(id, handler);
+        return id;
+    }
+
+    disconnect(id: number): void {
+        if (!this.#handlers.delete(id)) throw new Error(`No handler with id ${id} is connected to ${String(this)}`);
+    }
+
+    #queueChanged(): void {
+        if (this.#queued) return;
+        this.#queued = true;
+        setTimeout(() => {
+            this.#queued = false;
+            for (const handler of Array.from(this.#handlers.values())) handler(this);
+        }, 0);
+    }
+
+    /**
+     * @internal Marks the theme scanned and answers the scan generation: a cached scan is valid
+     * while the serial it was built at is still the current one.
+     */
+    static scan(theme: IconTheme): number {
+        theme.#scanned = true;
+        return theme.#serial;
     }
 }
 

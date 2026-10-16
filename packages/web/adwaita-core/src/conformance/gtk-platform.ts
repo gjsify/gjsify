@@ -14,7 +14,11 @@ export interface GtkPlatformLike {
     readonly CssProvider: new () => { load_from_string(css: string): void; to_string(): string };
     readonly Settings: { get_default(): { gtk_font_name: string | null } };
     readonly IconTheme: {
-        get_for_display(display: unknown): { add_resource_path(path: string): void; get_resource_path(): string[] };
+        get_for_display(display: unknown): {
+            add_resource_path(path: string): void;
+            set_resource_path(path: string[] | null): void;
+            get_resource_path(): string[] | null;
+        };
     };
     readonly EventControllerKey: new () => {
         connect(signal: string, handler: (...args: unknown[]) => boolean | void): number;
@@ -113,16 +117,37 @@ export const GTK_PLATFORM_VECTORS: readonly GtkPlatformVector[] = [
     },
     {
         row: 'icon-theme',
-        rule: 'an icon theme keeps each resource path once, in the order they were added',
+        rule: "a theme starts on GTK's own resource path (gtk_icon_theme_init)",
+        observe: ({ Gtk }) => Gtk.IconTheme.get_for_display(null).get_resource_path()?.[0],
+        shows: '/org/gtk/libgtk/icons/',
+    },
+    {
+        row: 'icon-theme',
+        rule: 'add_resource_path appends, and a path added twice is listed twice',
         observe({ Gtk }) {
             const theme = Gtk.IconTheme.get_for_display(null);
-            const before = theme.get_resource_path().length;
+            const before = theme.get_resource_path()?.length ?? 0;
             theme.add_resource_path('/vector/a');
             theme.add_resource_path('/vector/b');
             theme.add_resource_path('/vector/a');
-            return theme.get_resource_path().slice(before);
+            return theme.get_resource_path()?.slice(before);
         },
-        shows: ['/vector/a', '/vector/b'],
+        shows: ['/vector/a', '/vector/b', '/vector/a'],
+    },
+    {
+        row: 'icon-theme',
+        rule: 'set_resource_path replaces the list, and null leaves none',
+        observe({ Gtk }) {
+            const theme = Gtk.IconTheme.get_for_display(null);
+            const saved = theme.get_resource_path();
+            theme.set_resource_path(['/vector/only']);
+            const replaced = theme.get_resource_path();
+            theme.set_resource_path(null);
+            const cleared = theme.get_resource_path();
+            theme.set_resource_path(saved);
+            return [replaced, cleared];
+        },
+        shows: [['/vector/only'], null],
     },
     {
         row: 'controller',

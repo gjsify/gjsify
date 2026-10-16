@@ -35,7 +35,12 @@
 
 import { normalizeIconName } from '@gjsify/adwaita-core';
 
-import { lookupIcon, onIconThemeChanged } from '../icon-theme.js';
+import { lookupIcon, onIconThemeChanged, type IconRequest } from '../icon-theme.js';
+
+/** `url` as one CSS string token, whatever quotes or backslashes it holds. */
+function cssUrl(url: string): string {
+    return `url("${url.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}")`;
+}
 
 /**
  * The generated mask-class prefix — the one place the `--` spelling appears. `icon-registry`
@@ -114,6 +119,27 @@ export class GtkImage extends HTMLElement {
         this._render();
     }
 
+    /**
+     * What `GtkImage` hands `gtk_icon_theme_lookup_by_gicon` besides the name: the size (the
+     * attribute, else the box the stylesheet gave it), the integer scale and the direction.
+     * `size` is a getter: measuring flushes style, which would start the CSS transitions of
+     * every control around an icon, so only a lookup a resource answers pays for it.
+     */
+    private _request(): IconRequest {
+        const measure = (): number => {
+            if (this.size !== null) return this.size;
+            const measured = this.isConnected ? Number.parseFloat(getComputedStyle(this).width) : Number.NaN;
+            return Number.isFinite(measured) && measured > 0 ? Math.round(measured) : 16;
+        };
+        return {
+            get size() {
+                return measure();
+            },
+            scale: Math.max(1, Math.round(globalThis.devicePixelRatio ?? 1)),
+            direction: this.matches(':dir(rtl)') ? 'rtl' : 'ltr',
+        };
+    }
+
     private _render(): void {
         this.classList.add('adw-icon');
 
@@ -123,15 +149,30 @@ export class GtkImage extends HTMLElement {
         // would skip the entry after each hit.
         const stale = [...this.classList].filter((existing) => existing.startsWith(MASK_CLASS_PREFIX));
         this.classList.remove(...stale);
-        const found = lookupIcon(this.getAttribute('icon-name'));
-        this.classList.toggle(COLOR_ICON_CLASS, found?.kind === 'color');
-        if (found?.kind === 'color') {
+        const looked = lookupIcon(this.getAttribute('icon-name'), this._request());
+        // A resource file the browser cannot draw (XPM, compressed) is GTK's `image-missing`.
+        const found = looked?.kind === 'resource' && looked.url === null ? ({ kind: 'missing' } as const) : looked;
+        const asIs = found?.kind === 'color' || (found?.kind === 'resource' && !found.symbolic) ? found.url : null;
+        const mask = found?.kind === 'resource' && found.symbolic ? found.url : null;
+        this.classList.toggle(COLOR_ICON_CLASS, asIs !== null);
+        if (asIs !== null) {
             // Drawn as-is: `_icon.scss` drops the mask and the `currentColor` fill for this
-            // modifier, so only the image paints. `url` is a data-URI or a resolved href;
+            // modifier, so only the image paints. `url` is a data-URI, a blob or a resolved href;
             // the quote and backslash escapes keep it one CSS string either way.
-            this.style.backgroundImage = `url("${found.url.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}")`;
+            this.style.backgroundImage = cssUrl(asIs);
         } else {
             this.style.removeProperty('background-image');
+        }
+        if (mask !== null) {
+            // A symbolic file from a resource path: the mask is the file, the fill `currentColor`
+            // (inline, because the classless-box rule in `_icon.scss` makes it transparent).
+            this.style.setProperty('mask-image', cssUrl(mask));
+            this.style.setProperty('-webkit-mask-image', cssUrl(mask));
+            this.style.backgroundColor = 'currentColor';
+        } else {
+            this.style.removeProperty('mask-image');
+            this.style.removeProperty('-webkit-mask-image');
+            this.style.removeProperty('background-color');
         }
         if (found?.kind === 'symbolic') {
             this.classList.add(`${MASK_CLASS_PREFIX}${found.name}`);
