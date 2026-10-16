@@ -83,6 +83,7 @@ import { GtkListViewTest } from './gtk-list-view.spec.js';
 import { GtkHeaderBarTest } from './gtk-header-bar.spec.js';
 import { GtkWindowControlsTest } from './gtk-window-controls.spec.js';
 import { GtkWindowTest } from './gtk-window.spec.js';
+import { WindowMaximizeTest } from './window-maximize.spec.js';
 import { GtkApplicationWindowTest } from './gtk-application-window.spec.js';
 import { GtkActionBarTest } from './gtk-action-bar.spec.js';
 import { GtkSeparatorTest } from './gtk-separator.spec.js';
@@ -223,6 +224,7 @@ run({
     GtkHeaderBarTest,
     GtkWindowControlsTest,
     GtkWindowTest,
+    WindowMaximizeTest,
     GtkApplicationWindowTest,
     GtkActionBarTest,
     GtkSeparatorTest,

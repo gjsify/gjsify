@@ -69,8 +69,14 @@
 //                    `set_focus(el)` calls `el.focus()` and refuses an element outside the frame;
 //                    `set_focus(null)` blurs. `focusin`/`focusout` notify; focus that merely
 //                    leaves with the window (blur) keeps its widget, as GTK keeps it.
-//   `maximized`    — the FRAME's state (square corners), not the browser window's: a page cannot
-//                    maximize its browser window. `is_maximized()` reads it.
+//   `maximized`    — the FRAME's state, not the browser window's: a page cannot maximize its
+//                    browser window. Square corners, and — as in GTK, where a maximized or
+//                    fullscreen window ignores its default size and fills the work area — the frame
+//                    fills its CONTAINING BLOCK (the viewport for a frame in a full-height body)
+//                    until it is unmaximized, which restores `default-width`/`default-height`.
+//                    `fullscreened` does the same. `maximize()`, `unmaximize()`, `fullscreen()`,
+//                    `unfullscreen()` and `toggle-maximized` all write the attribute. `is_maximized()`
+//                    reads it.
 //   `present()`    — un-hides the frame; a page cannot raise or focus a window it does not own.
 //
 // THE GOBJECT DOOR (ADR 0096 § 3, ADR 0098 Amendment 3): `connect` / `disconnect` / `emit` /
@@ -99,6 +105,7 @@ import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
 // Registers <gtk-window-controls>: a frame with no titlebar of its own draws the two of them
 // a server-side decoration would have, so importing the window alone must define them.
 import './gtk-window-controls.js';
+import { fillsContainingBlock } from './adw-window-features.js';
 import type { WindowAction } from './gtk-window-controls.js';
 
 export class GtkWindow extends HTMLElement {
@@ -237,6 +244,15 @@ export class GtkWindow extends HTMLElement {
 
     set maximized(value: boolean) {
         this._write('maximized', String(value));
+    }
+
+    /** `Gtk.Window:fullscreened` — square corners, and the frame fills its containing block. */
+    get fullscreened(): boolean {
+        return this._offByDefault('fullscreened');
+    }
+
+    set fullscreened(value: boolean) {
+        this._write('fullscreened', String(value));
     }
 
     /** `Gtk.Window:resizable` — whether the maximize button may appear. */
@@ -438,16 +454,18 @@ export class GtkWindow extends HTMLElement {
 
     /**
      * The frame's box from `default-width` / `default-height`; an absent one clears it. A subclass
-     * with a size request of its own (`Adw.Window`'s 360×200) replaces this.
+     * with a size request of its own (`Adw.Window`'s 360×200) replaces this. A maximized or
+     * fullscreened frame carries no inline size: the skin fills its containing block.
      */
     protected renderFrameSize(): void {
+        const fills = fillsContainingBlock(this);
         const width = Number.parseFloat(this.getAttribute('default-width') ?? '');
         const height = Number.parseFloat(this.getAttribute('default-height') ?? '');
         for (const [axis, value] of [
             ['width', width],
             ['height', height],
         ] as const) {
-            if (Number.isFinite(value) && value > 0) this.style.setProperty(axis, `${value}px`);
+            if (!fills && Number.isFinite(value) && value > 0) this.style.setProperty(axis, `${value}px`);
             else this.style.removeProperty(axis);
         }
     }
@@ -604,6 +622,21 @@ export class GtkWindow extends HTMLElement {
     /** `gtk_window_unmaximize`, with the same caveat as {@link maximize}. */
     unmaximize(): void {
         this._write('maximized', 'false');
+    }
+
+    /** `gtk_window_is_fullscreen`: the FRAME's state, like {@link is_maximized}. */
+    is_fullscreen(): boolean {
+        return this.fullscreened;
+    }
+
+    /** `gtk_window_fullscreen`; asynchronous in GTK, so the property is written directly. */
+    fullscreen(): void {
+        this._write('fullscreened', 'true');
+    }
+
+    /** `gtk_window_unfullscreen`, with the same caveat as {@link fullscreen}. */
+    unfullscreen(): void {
+        this._write('fullscreened', 'false');
     }
 }
 

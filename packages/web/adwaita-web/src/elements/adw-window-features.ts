@@ -23,6 +23,15 @@ function requested(host: HTMLElement, name: string, fallback: number): number {
     return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
+/**
+ * A maximized or fullscreen `Gtk.Window` ignores its default size and fills the monitor's work
+ * area (gtkwindow.c: the default size is only the RESTORED size). The page's work area is the
+ * frame's containing block, which the skin sizes from these two attributes.
+ */
+export function fillsContainingBlock(host: HTMLElement): boolean {
+    return ['maximized', 'fullscreened'].some((name) => host.hasAttribute(name) && host.getAttribute(name) !== 'false');
+}
+
 export class AdwWindowFeatures {
     private _contentEl: HTMLDivElement | null = null;
     private _breakpoints: AdwBreakpoint[] = [];
@@ -128,13 +137,16 @@ export class AdwWindowFeatures {
      * size; `width-request`/`height-request` override it). `default-width/height` is only
      * a default: an authored size is the box, and an absent one leaves the box to the
      * stylesheet, which fills the viewport — a page has no window manager to pick a size.
+     * While maximized or fullscreened the default size is not applied at all: the stylesheet
+     * fills the containing block, and the minimum still holds.
      */
     applySizeRequest(): void {
         const host = this._host;
         host.style.minWidth = `${requested(host, 'width-request', DEFAULT_WIDTH)}px`;
         host.style.minHeight = `${requested(host, 'height-request', DEFAULT_HEIGHT)}px`;
-        const width = host.getAttribute('default-width') ?? host.getAttribute('width');
-        const height = host.getAttribute('default-height') ?? host.getAttribute('height');
+        const fills = fillsContainingBlock(host);
+        const width = fills ? null : (host.getAttribute('default-width') ?? host.getAttribute('width'));
+        const height = fills ? null : (host.getAttribute('default-height') ?? host.getAttribute('height'));
         if (width) host.style.width = `${width}px`;
         else host.style.removeProperty('width');
         if (height) host.style.height = `${height}px`;
