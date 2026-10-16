@@ -114,6 +114,40 @@ export function pickFlatpakBuildKeys(
 /** The branch a `ship` Flatpak is exported under when the project names none. */
 export const DEFAULT_SHIP_FLATPAK_BRANCH = 'stable';
 
+/**
+ * The scalable icon directory a `kind: 'app'` Flatpak drops before
+ * `appstreamcli compose` reads the tree.
+ *
+ * THE OTHER HALF OF `LAYOUTS.linux.icon`, and the half that cannot live in the
+ * layout: the stage is one payload for four Linux formats (ADR 0024 § 2) and the
+ * `.deb`, the `.rpm` and the AppImage all WANT the SVG — it is the icon GTK
+ * prefers, and `selectAppDirIcon` ranks it above every raster. Only the Flatpak
+ * has a build step that reads the theme, so only the Flatpak removes it, and it
+ * does so inside the sandbox rather than in the tree `ship` staged.
+ *
+ * WHY IT IS REMOVED AT ALL. `flatpak-builder` runs `appstreamcli compose` on the
+ * HOST to produce `/app/share/app-info`; AppStream 1.1.3 decodes icons through
+ * gdk-pixbuf, which reads SVG only through a loader module Fedora 44 no longer
+ * ships (`LAYOUTS.linux.icon` carries the measurement). Three probes: with the
+ * SVG present compose fails whether or not rasters are there, because it PREFERS
+ * the scalable icon and does not fall back; with the SVG gone and the rasters
+ * present it succeeds and emits 64×64 and 128×128 into the catalogue. So the
+ * rasters are necessary and this is what makes them sufficient.
+ *
+ * UNCONDITIONAL, not host-detected, and that is the point. `org.flatpak.Builder`
+ * on Flathub bundles a gdk-pixbuf that CAN read SVG, so probing the host would
+ * make the same source produce a different `.flatpak` depending on where it was
+ * built — the one property ADR 0024 § A2 asks a pack to keep. One tree, every
+ * host, at the cost of a scalable icon inside a sandbox whose only reader
+ * (`Icon=<appId>` in the exported desktop entry) resolves the 256 px raster.
+ *
+ * THE UPSTREAM FIX IS NOT OURS: `libappstream-compose.so.0` already links
+ * `librsvg-2.so.2` and uses it for fonts alone, so AppStream could render the
+ * icon without gdk-pixbuf at all. Reported as an `Upstream (AppStream, file by
+ * hand)` issue rather than filed there (root AGENTS.md).
+ */
+export const SCALABLE_ICONS_CLEANUP = '/share/icons/hicolor/scalable';
+
 export interface ShipFlatpakInput {
     ship: ConfigDataShip;
     flatpak: ConfigDataFlatpak;
@@ -156,7 +190,13 @@ export function resolveShipFlatpakSettings(input: ShipFlatpakInput): ResolvedShi
         // extension not being installed.
         appendPath: appendPath ?? (extensions.length > 0 ? deriveAppendPath(extensions) : []),
         finishArgs: finishArgs ?? (input.kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS),
-        cleanup: cleanup ?? [],
+        // APPENDED to what the project declared, not defaulted to — the one entry
+        // here that is not the author's choice. A project with its own `cleanup`
+        // list would otherwise lose the entry that keeps its own Flatpak buildable
+        // (see {@link SCALABLE_ICONS_CLEANUP}), and `??` cannot express "ours as
+        // well as theirs". Deduplicated so a project that already wrote the glob —
+        // the workaround this replaces — gets one, and in ITS position.
+        cleanup: [...new Set([...(cleanup ?? []), ...(input.kind === 'app' ? [SCALABLE_ICONS_CLEANUP] : [])])],
     };
 
     return { settings, warnings: fromLegacy.length === 0 ? [] : [deprecationWarning(fromLegacy)] };

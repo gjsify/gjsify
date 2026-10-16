@@ -105,15 +105,44 @@ export interface LayoutMetadataInput extends LayoutIdentity {
  * Declared on the row rather than computed from it because the orchestrator
  * renders the rasters BEFORE the row runs — `resolveAppIcon` is asynchronous (a
  * child GJS) and `Layout.metadata` is not — so the row states its needs up front
- * and receives exactly those sizes. Absent on Linux, deliberately: the hicolor
+ * and receives exactly those sizes.
+ *
+ * ON ALL THREE ROWS, and it was absent from the Linux one until a Flatpak build
+ * measured why that was wrong. The reasoning it was absent for — "the hicolor
  * theme carries the SVG the project declared and GTK renders it itself, so there
- * is nothing to convert and nothing to refuse.
+ * is nothing to convert" — is true of GTK and NOT of the tooling that reads the
+ * same theme at BUILD time: `appstreamcli compose` resolves an SVG through
+ * gdk-pixbuf, which needs an SVG LOADER MODULE, and a host without one fails the
+ * whole compose run rather than falling back to a raster. The same host-packaging
+ * fact `icons.ts` records for the rasterizer, one phase to the right — see
+ * {@link LAYOUTS.linux.icon}.
  */
 export interface LayoutIcon {
     /** Square edge lengths the writer embeds. */
     sizes: readonly number[];
     /** What is written, for the refusal: "the Windows launcher's icon". */
     writes: string;
+    /**
+     * Whether a `kind: 'app'` stage is REFUSED when the project declares no icon
+     * source, or assembled without one.
+     *
+     * REQUIRED on every row, like {@link Layout.metadata} and
+     * {@link Layout.arches}: `false` is an answer, and an optional field is one a
+     * fourth OS forgets and then silently inherits whichever default was typed
+     * first.
+     *
+     * The two answers are different FAILURE MODES, not different strictnesses.
+     * On macOS and Windows the icon lives inside a container — an `.icns` named by
+     * `CFBundleIconFile`, a `.rsrc` in the launcher — and an application that
+     * ships without it shows the generic icon with nothing anywhere saying so:
+     * measured on released artifacts, for a year (`icons.ts`). On Linux the icon
+     * is a FILE in a theme, the desktop entry's `Icon=` names it, and an
+     * icon-less app is visibly icon-less in the menu the first time it is
+     * installed — which `resolveShipSettings` already warns about. Turning that
+     * warning into a refusal would stop a project that has not drawn its icon yet
+     * from building a `.deb` at all, for a defect its own menu entry reports.
+     */
+    required: boolean;
 }
 
 /** The four places a payload file can belong, as stage-relative directories. */
@@ -302,6 +331,16 @@ export interface LayoutArches {
 const BUNDLE_NAME_FORBIDDEN = /[/:\\]/;
 
 /**
+ * The square sizes the Linux row writes into the hicolor theme.
+ *
+ * Here and not in a writer module like {@link ICO_SIZES} and {@link ICNS_SIZES},
+ * because there is no writer: the rasters ARE the artifact, one file per size,
+ * and the row below is the only thing that names them. See
+ * {@link LAYOUTS.linux.icon} for what asked for each of the three.
+ */
+export const HICOLOR_RASTER_SIZES = [64, 128, 256] as const;
+
+/**
  * The value `ATSApplicationFontsPath` takes for this bundle, or nothing when the
  * payload carries no face (ADR 0038).
  *
@@ -348,6 +387,9 @@ function appBundleDir(identity: LayoutIdentity): string {
 function iconFor(input: LayoutMetadataInput, layout: LayoutName): AppIconRasters | undefined {
     if (input.kind !== 'app') return undefined;
     if (input.icon === undefined) {
+        // The row's own answer, not a uniform one — {@link LayoutIcon.required}
+        // carries which failure mode this layout has.
+        if (LAYOUTS[layout].icon?.required !== true) return undefined;
         throw new Error(
             `gjsify ship: the ${layout} layout writes the application's icon and was given none. ` +
                 'A `kind: "app"` stage is rendered its icon by `resolveAppIcon` before the layout runs; ' +
@@ -375,10 +417,76 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             data: 'share',
             other: '',
         }),
+        // THE RASTERS THE BUILD-TIME READERS OF THE THEME NEED, and the one row
+        // whose icon is written as ordinary payload files rather than into a
+        // container. A GNOME app declares one scalable SVG, `planIcons` stages it
+        // at `share/icons/hicolor/scalable/apps/<appId>.svg`, and GTK renders it —
+        // so for three milestones this row wrote nothing.
+        //
+        // WHAT READS THE THEME BEFORE GTK DOES is `appstreamcli compose`, which
+        // `flatpak-builder` runs to produce `/app/share/app-info` — the catalogue
+        // every app store shows the app out of. AppStream 1.1.3 loads an icon
+        // through gdk-pixbuf, gdk-pixbuf reads SVG only through a LOADER MODULE,
+        // and that module is a property of the host's packaging rather than of
+        // this payload: on Fedora 44, workstation and `ghcr.io/gjsify/ci-fedora:44`
+        // alike, `/usr/lib64/gdk-pixbuf-2.0/2.10.0/loaders/` holds the xpm loader
+        // and nothing else, and `dnf provides '*/libpixbufloader-svg.so'` answers
+        // with no package at all — librsvg dropped it. So the compose run dies
+        // `file-read-error` ("image file format unknown") on the SVG and takes the
+        // whole `gjsify ship linux --target flatpak` with it. Exactly the fact
+        // `icons.ts` records for the rasterizer, one phase to the right, and the
+        // reason this is the SAME list of sizes rather than a flatpak-only patch:
+        // a `.deb` installing rasters beside its SVG is what every other GNOME app
+        // does, and the artifact stays one payload.
+        //
+        // IT IS NOT ENOUGH TO ADD THEM, measured in three probes: with the SVG
+        // present appstreamcli PREFERS it and does not fall back, so SVG + 128 and
+        // SVG + 64/128/256 both still fail and PNG-only succeeds. The SVG has to
+        // leave the tree the compose run sees — which is a Flatpak-only move,
+        // because only there is the tree built, and it is the generated manifest's
+        // `cleanup` that makes it (`flatpak-config.ts`).
+        //
+        // 64/128/256 is what a store needs and what the theme spec's own
+        // `index.theme` sizes cover: AppStream asks for 64 and 128 (it emitted
+        // exactly those two from the PNG-only probe), and 256 is the HiDPI entry
+        // Flathub's quality guidelines expect.
+        icon: {
+            sizes: HICOLOR_RASTER_SIZES,
+            writes: "the hicolor theme's raster icons (`share/icons/hicolor/<n>x<n>/apps/<appId>.png`)",
+            // The ONE row that assembles without an icon rather than refusing —
+            // `LayoutIcon.required` carries why.
+            required: false,
+        },
         // A `/usr` prefix has no manifest of its own — everything a Linux package
         // says about itself is in the `.deb`/`.rpm` header or in the freedesktop
-        // files the payload already carries.
-        metadata: () => [],
+        // files the payload already carries. What it owns is the rasters above.
+        //
+        // SKIPPING A SIZE THE PAYLOAD ALREADY STAGES is not an optimisation: a
+        // project shipping its own hand-tuned `data/icons/hicolor/128x128/apps/…`
+        // has it planned by `planIcons` at the identical path, and `placeStage`
+        // REFUSES two sources for one destination (`claim`). The project's file is
+        // the one to keep — it is drawn for that size, which is the whole point of
+        // the hicolor convention (`icons.ts`) — so the row yields rather than
+        // colliding. `resolveAppIcon` has already read that same PNG into the
+        // raster map, so the bytes agree either way; what differs is only which
+        // file the stage records as the source.
+        metadata: (input, payload) => {
+            const icon = iconFor(input, 'linux');
+            if (icon === undefined) return [];
+            const planned = new Set(payload.map((file) => file.path));
+            const out: StagedFile[] = [];
+            for (const size of [...icon.png.keys()].sort((a, b) => a - b)) {
+                const rel = `${SHARE.icons}/${size}x${size}/apps/${input.appId}.png`;
+                const data = icon.png.get(size);
+                if (data === undefined || planned.has(rel)) continue;
+                out.push({
+                    path: place(LAYOUTS.linux, input, rel),
+                    mode: 0o644,
+                    source: { kind: 'bytes', data },
+                });
+            }
+            return out;
+        },
         // Every architecture Debian and rpm have a name for, which is what
         // `DEBIAN_ARCH`/`RPM_ARCH` already enumerate — the layout adds nothing.
         arches: null,
@@ -485,7 +593,11 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // released 0.8.0 bundle of one app (macOS 15.7, 2026-09-13): no key, no
         // `.icns`, generic icon — the twin of the Windows defect `pe-launcher.ts`
         // records.
-        icon: { sizes: ICNS_SIZES, writes: 'the macOS bundle icon (`Contents/Resources/<binaryName>.icns`)' },
+        icon: {
+            sizes: ICNS_SIZES,
+            writes: 'the macOS bundle icon (`Contents/Resources/<binaryName>.icns`)',
+            required: true,
+        },
         metadata: (input, payload) => {
             const icon = iconFor(input, 'darwin');
             const iconFile = icon === undefined ? undefined : `${input.binaryName}.icns`;
@@ -634,7 +746,11 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // the target's out of its resource directory — so the `.exe` carries the
         // six sizes as `RT_ICON`/`RT_GROUP_ICON` (`ico.ts`, `pe-launcher.ts`) and
         // there is no `.ico` file in the program directory to fall out of sync.
-        icon: { sizes: ICO_SIZES, writes: 'the Windows launcher icon (`.rsrc` of `<binaryName>.exe`)' },
+        icon: {
+            sizes: ICO_SIZES,
+            writes: 'the Windows launcher icon (`.rsrc` of `<binaryName>.exe`)',
+            required: true,
+        },
         metadata: (input) => {
             const icon = iconFor(input, 'windows');
             return input.arch === 'x64'

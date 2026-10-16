@@ -287,9 +287,31 @@ describe('CLI ship --target flatpak E2E', { timeout: 20 * 60 * 1000 }, () => {
             if (m) listed.set(m[4], Number.parseInt(m[2], 8));
         }
 
+        // THE STAGE, MINUS WHAT THE MANIFEST'S `cleanup` TAKES BACK OUT — and the
+        // removal is asserted rather than tolerated, because it is the whole fix:
+        // flatpak-builder runs `appstreamcli compose` on the HOST, AppStream reads
+        // icons through gdk-pixbuf, and a host with no SVG loader module (Fedora 44,
+        // workstation and CI image alike) fails the compose run on the scalable file
+        // and takes the pack with it. The rasters the Linux layout renders are the
+        // other half and ARE in the loop below, because appstreamcli prefers the SVG
+        // wherever it can see one (`utils/ship/flatpak-config.ts`).
+        const cleaned = (path) => path.startsWith('share/icons/hicolor/scalable/');
         for (const entry of expectedInstall()) {
+            if (cleaned(entry.path)) {
+                assert.equal(listed.has(entry.path), false, `${entry.path} survived the manifest's cleanup`);
+                continue;
+            }
             assert.equal(listed.get(entry.path), entry.mode, `${entry.path} mode in the bundle`);
         }
+        assert.ok(
+            expectedInstall().some((entry) => cleaned(entry.path)),
+            'the fixture must stage a scalable icon — otherwise the cleanup assertion is vacuous',
+        );
+        assert.ok(listed.has(`share/icons/hicolor/128x128/apps/${APP_ID}.png`));
+        // The catalogue the compose run exists to produce, which is what makes the
+        // removal a REPAIR rather than a way of making the error go away.
+        assert.ok(listed.has(`share/app-info/xmls/${APP_ID}.xml.gz`), 'the compose run produced no catalogue');
+        assert.ok(listed.has(`share/app-info/icons/flatpak/128x128/${APP_ID}.png`));
         assert.equal(listed.has(STAGE_MANIFEST_FILE), false, 'the stage closure must not ship inside the app');
         // flatpak-builder's OWN addition, named here so nobody removes it as a
         // leak: it installs the dereferenced manifest at /app/manifest.json.

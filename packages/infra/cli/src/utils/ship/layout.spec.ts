@@ -14,7 +14,17 @@ import { describe, expect, it } from '@gjsify/unit';
 import { pngSize, rasters } from './icon-fixture.spec.js';
 import { ICNS_SIZES } from './icns.js';
 import { ICO_SIZES } from './ico.js';
-import { hostLayout, launcherPath, layoutForOs, place, placeStage, resolveLayout, LAYOUTS } from './layout.js';
+import {
+    hostLayout,
+    launcherPath,
+    layoutForOs,
+    place,
+    placeStage,
+    resolveLayout,
+    HICOLOR_RASTER_SIZES,
+    LAYOUTS,
+    LAYOUT_NAMES,
+} from './layout.js';
 import type { StagedFile } from './types.js';
 
 const IDENTITY = { binaryName: 'hello', name: 'Hello World' };
@@ -122,12 +132,16 @@ export default async () => {
             file?.source.kind === 'bytes' ? file.source.data : new Uint8Array();
         const text = (file: StagedFile | undefined): string => (file?.source.kind === 'text' ? file.source.text : '');
 
-        await it('declares sizes on exactly the rows that write an icon', () => {
-            // Linux carries the SVG in the theme and converts nothing; the other
-            // two say what they embed, and the orchestrator renders exactly that.
-            expect(LAYOUTS.linux.icon).toBeUndefined();
+        await it('declares sizes on every row, and says which of them REFUSE without one', () => {
+            // All three write an icon now — Linux got its rasters when a Flatpak
+            // build measured that `appstreamcli compose` cannot read the SVG the
+            // theme carries (`LAYOUTS.linux.icon`). What still differs is the
+            // failure mode, and that is the field worth pinning: the containers
+            // hide a missing icon, a theme directory does not.
+            expect(LAYOUTS.linux.icon?.sizes).toStrictEqual(HICOLOR_RASTER_SIZES);
             expect(LAYOUTS.windows.icon?.sizes).toStrictEqual(ICO_SIZES);
             expect(LAYOUTS.darwin.icon?.sizes).toStrictEqual(ICNS_SIZES);
+            expect(LAYOUT_NAMES.map((name) => LAYOUTS[name].icon?.required)).toStrictEqual([false, true, true]);
         });
 
         await it('darwin stages the .icns AND names it in Info.plist — both halves, from one raster set', () => {
@@ -154,8 +168,43 @@ export default async () => {
             // caller that skipped that step.
             expect(() => placeStage(LAYOUTS.darwin, { ...app, icon: undefined }, [])).toThrow('darwin layout writes');
             expect(() => placeStage(LAYOUTS.windows, { ...app, icon: undefined }, [])).toThrow('windows layout writes');
-            // Linux converts nothing and refuses nothing.
+            // Linux writes rasters now and STILL refuses nothing — the row's own
+            // `required: false`, not an absent `icon`. A project with no icon
+            // drawn yet keeps building a `.deb`, which is the distinction this
+            // asserts rather than the one the old `toBeUndefined` did.
             expect(placeStage(LAYOUTS.linux, { ...app, icon: undefined }, []).length).toBe(0);
+        });
+
+        await it('linux writes the theme rasters the compose step needs, one file per size', () => {
+            // The icon that is PAYLOAD rather than a container: three files under
+            // `share/icons/hicolor/<n>x<n>/apps/`, named after the app id because
+            // that is what `Icon=` and the MetaInfo `<id>` both point at.
+            const staged = placeStage(LAYOUTS.linux, { ...app, icon: rasters(HICOLOR_RASTER_SIZES) }, []);
+            expect(staged.map((file) => file.path)).toStrictEqual(
+                // `placeStage` returns the stage sorted by path, so the sizes come
+                // back in STRING order — 128, 256, 64 — rather than the row's.
+                HICOLOR_RASTER_SIZES.map(
+                    (size) => `share/icons/hicolor/${size}x${size}/apps/org.example.Hello.png`,
+                ).sort(),
+            );
+            // Keyed by size, not by order: a swapped slot is a different colour.
+            for (const size of HICOLOR_RASTER_SIZES) {
+                const file = staged.find((entry) => entry.path.includes(`/${size}x${size}/`));
+                expect(pngSize(bytes(file)).width).toBe(size);
+            }
+        });
+
+        await it('yields to a sized PNG the project itself ships, instead of colliding with it', () => {
+            // `planIcons` stages a hand-tuned `data/icons/hicolor/128x128/apps/…`
+            // at the IDENTICAL path, and `claim` refuses two sources for one
+            // destination — so this row would turn a project doing the right thing
+            // into a stage that will not assemble. The project's file wins; the
+            // bytes agree either way, because `resolveAppIcon` read that same PNG.
+            const own = file('share/icons/hicolor/128x128/apps/org.example.Hello.png');
+            const staged = placeStage(LAYOUTS.linux, { ...app, icon: rasters(HICOLOR_RASTER_SIZES) }, [own]);
+            expect(staged.filter((entry) => entry.path === own.path).length).toBe(1);
+            expect(staged.find((entry) => entry.path === own.path)?.source.kind).toBe('text');
+            expect(staged.length).toBe(HICOLOR_RASTER_SIZES.length);
         });
 
         await it('stages a CLI with no icon anywhere, and no key naming one', () => {

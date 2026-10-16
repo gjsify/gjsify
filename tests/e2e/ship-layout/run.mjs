@@ -170,6 +170,17 @@ const LAYOUT_MAP = {
  * omission.
  */
 const LAYOUT_ADDITIONS = {
+    // THE BASELINE OWNS FILES TOO, which is the half this list was blind to until
+    // the Linux row grew an icon of its own. Reading the invariant as "the Linux
+    // set, mapped, plus what the others add" made Linux the one layout that could
+    // not contribute anything — so the rasters `LAYOUTS.linux.icon` renders for
+    // `appstreamcli compose` would have read as three files missing from the other
+    // two stages. They are an ADDITION in exactly the sense the `.icns` is: a
+    // `Layout.metadata` file with no counterpart anywhere else. Subtracted before
+    // the map runs, and asserted absent from the other stages below.
+    // Written out, like the map above and for the same reason: importing
+    // `HICOLOR_RASTER_SIZES` would let a row that renders no size at all pass.
+    linux: [64, 128, 256].map((size) => `share/icons/hicolor/${size}x${size}/apps/${APP_ID}.png`),
     darwin: [
         `${APP_NAME}.app/Contents/Info.plist`,
         `${APP_NAME}.app/Contents/PkgInfo`,
@@ -224,6 +235,17 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
     /** `<os>` → absolute stage directory. */
     const stages = {};
 
+    /**
+     * The one payload, read off the Linux stage with that layout's OWN additions
+     * taken back out — the left-hand side of every comparison below.
+     *
+     * Not `listPayload(stages.linux)` directly any more: the Linux row renders
+     * icon rasters nothing maps to (`LAYOUT_ADDITIONS.linux`), and a baseline
+     * that includes them asks the other two stages for files their layouts never
+     * promised.
+     */
+    const sharedPayload = () => listPayload(stages.linux).filter((rel) => !LAYOUT_ADDITIONS.linux.includes(rel));
+
     before(() => {
         if (!existsSync(CLI_ENTRY)) throw new Error(`CLI entry not built: ${CLI_ENTRY}`);
         for (const file of DARWIN_PAYLOAD) {
@@ -275,7 +297,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
 
     // ── one payload, three layouts ────────────────────────────────────────
 
-    it('stages the Linux layout unchanged, native files included', () => {
+    it('stages the Linux layout as the payload plus its own rasters, native files included', () => {
         assert.deepEqual(listPayload(stages.linux), [
             'bin/ship-demo',
             'lib/ship-demo/gi/Gwebgl-0.1.typelib',
@@ -287,6 +309,10 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             // mime document carry it (ADR 0038).
             `share/fonts/${APP_ID}/${FONT_LEAF}`,
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
+            // The row's own rasters, in string order — `LAYOUT_ADDITIONS.linux`.
+            `share/icons/hicolor/128x128/apps/${APP_ID}.png`,
+            `share/icons/hicolor/256x256/apps/${APP_ID}.png`,
+            `share/icons/hicolor/64x64/apps/${APP_ID}.png`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
             `share/icons/hicolor/symbolic/apps/${APP_ID}-symbolic.svg`,
             `share/metainfo/${APP_ID}.metainfo.xml`,
@@ -318,7 +344,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             // asserted in BOTH directions: every mapped file is present, every
             // addition is present, and nothing else is. A third file appearing
             // from anywhere reds until somebody writes it down.
-            const expected = [...listPayload(stages.linux).map(LAYOUT_MAP[os]), ...LAYOUT_ADDITIONS[os]].sort();
+            const expected = [...sharedPayload().map(LAYOUT_MAP[os]), ...LAYOUT_ADDITIONS[os]].sort();
             assert.deepEqual(listPayload(stages[os]), expected);
         });
 
@@ -333,6 +359,14 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                 // check that catches `gschemas.compiled` leaking into a `.deb`.
                 assert.ok(!linux.some((rel) => rel.endsWith('gschemas.compiled')));
             }
+            // AND THE SAME IN THE OTHER DIRECTION, because the baseline has
+            // additions of its own now and `sharedPayload` subtracts them: if the
+            // rasters DID arrive in this stage, every comparison above would still
+            // pass while the stage carried three files nothing accounts for.
+            const other = listPayload(stages[os]);
+            for (const added of LAYOUT_ADDITIONS.linux) {
+                assert.ok(!other.includes(LAYOUT_MAP[os](added)), `${added} reached the ${os} stage`);
+            }
         });
 
         it(`every ${os} file is byte-identical to its Linux counterpart, except the launcher`, () => {
@@ -342,7 +376,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             // payload. Asserting the launchers DIFFER is what keeps this from
             // passing on a run where the map quietly did nothing.
             const launcher = `bin/${BINARY}`;
-            for (const rel of listPayload(stages.linux)) {
+            for (const rel of sharedPayload()) {
                 const from = join(stages.linux, rel);
                 const to = join(stages[os], LAYOUT_MAP[os](rel));
                 if (rel === launcher) {
@@ -697,10 +731,12 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             );
             // The classifier reads PREFIX-RELATIVE paths, which is what `assemble`
             // hands it — the layout map runs after. Reconstructed here as the
-            // Linux payload PLUS the cache #1354 M2a compiles into every
+            // shared payload PLUS the cache #1354 M2a compiles into every
             // non-Linux stage, because that is the set `assemble` actually
-            // classifies for these two layouts.
-            const prefixRelative = [...listPayload(stages.linux), 'share/glib-2.0/schemas/gschemas.compiled'];
+            // classifies for these two layouts. `sharedPayload`, so the rasters
+            // only the Linux row writes do not get counted against a stage that
+            // never receives them.
+            const prefixRelative = [...sharedPayload(), 'share/glib-2.0/schemas/gschemas.compiled'];
             const carried = linuxInstallDependent(prefixRelative.map((path) => ({ path })));
             assert.equal(carried.length, share.length, `${os}: ${share.length} share file(s), ${carried.length} named`);
             // ZERO aborting entries now, where M1 asserted exactly one. The schema
@@ -716,7 +752,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             // tree and deleting the check. Take the cache back out of the set and
             // the same classifier must say `aborts` again — otherwise M2a would
             // have bought a quiet warning rather than a working bundle.
-            const withoutCache = linuxInstallDependent(listPayload(stages.linux).map((path) => ({ path })));
+            const withoutCache = linuxInstallDependent(sharedPayload().map((path) => ({ path })));
             assert.equal(withoutCache.filter((entry) => entry.verdict === 'aborts').length, 1);
             assert.ok(withoutCache[0].path.includes('glib-2.0/schemas'), 'the aborting entry must come first');
             // NO entry may be `unknown` for this fixture — every directory it
