@@ -38,13 +38,23 @@
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
 gtk-overlay {
-  display: block;
+  // A column flex box rather than a block: `gtk_overlay_size_allocate` hands the main child
+  // the overlay's WHOLE allocation (gtkoverlay.c), and a block would give it only its content
+  // height. With an auto height the overlay still measures as its child (the child's
+  // `flex-basis: auto` is the content), with a definite one the child grows to fill it.
+  display: flex;
+  flex-direction: column;
   position: relative;
 }
 
 .adw-overlay-child {
   // The main child, in the host's own flow — see the header.
   display: contents;
+
+  // Fill the allocation on the main axis; the cross axis stretches by default.
+  > * {
+    flex: 1 1 auto;
+  }
 }
 
 .adw-overlay-layer {
