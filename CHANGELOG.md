@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.64.1](https://github.com/gjsify/gjsify/compare/v0.64.0...v0.64.1) (2026-10-16)
+
+### Features
+
+* **adwaita-core:** add Gio resource subset ([#2238](https://github.com/gjsify/gjsify/issues/2238)) ([8815877](https://github.com/gjsify/gjsify/commit/8815877c6db773d7f897a3296209062326803cbf))
+* **adwaita-core:** add Gtk.WindowCommon ([#2232](https://github.com/gjsify/gjsify/issues/2232)) ([3f9ad8e](https://github.com/gjsify/gjsify/commit/3f9ad8efb6dd944978376af81e7029698fd00fc4))
+* **adwaita-web:** add full-colour icon lookup ([#2219](https://github.com/gjsify/gjsify/issues/2219)) ([c8b464f](https://github.com/gjsify/gjsify/commit/c8b464f626358e3471a3a26647e5a366d6adf80c)), closes [#2169](https://github.com/gjsify/gjsify/issues/2169)
+* **adwaita-web:** load icons from gresources ([#2245](https://github.com/gjsify/gjsify/issues/2245)) ([ef804d1](https://github.com/gjsify/gjsify/commit/ef804d18bd525c08cb4495f7256a41b6913efc4e)), closes [#2239](https://github.com/gjsify/gjsify/issues/2239)
+* **adwaita-web:** put gtk-window on the GObject door ([#2215](https://github.com/gjsify/gjsify/issues/2215)) ([745bede](https://github.com/gjsify/gjsify/commit/745bedec1a9a8779cb9477d65a5d6e0b749b5512))
+* **adwaita:** make real GObject the Android default ([#2236](https://github.com/gjsify/gjsify/issues/2236)) ([a478121](https://github.com/gjsify/gjsify/commit/a4781213fa84367bdb8c4c55057c94758b33ca38))
+* **cli:** add flathub quality lint to flatpak check ([#2235](https://github.com/gjsify/gjsify/issues/2235)) ([9a6ca17](https://github.com/gjsify/gjsify/commit/9a6ca179c1a74477f23791c5b8f6d5a7bffaee61))
+* **distribution:** purchased capability (ADR 0114) ([#2212](https://github.com/gjsify/gjsify/issues/2212)) ([7d5da2a](https://github.com/gjsify/gjsify/commit/7d5da2aea279d7c43ae450fe6a5a0674e29bceba))
+* **node-gi:** bind cairo toy text ops ([#2214](https://github.com/gjsify/gjsify/issues/2214)) ([d978a8d](https://github.com/gjsify/gjsify/commit/d978a8d0c83081c2c985018ce3afc760fbf8f193))
+* **node-gi:** close the two ADR 0110 gates ([#2223](https://github.com/gjsify/gjsify/issues/2223)) ([190405c](https://github.com/gjsify/gjsify/commit/190405c215e8a8bd8f32fd82d0b108c4ca0cfe10))
+* **rolldown-plugin-gjsify:** embed gresource.xml imports ([#2240](https://github.com/gjsify/gjsify/issues/2240)) ([184cca2](https://github.com/gjsify/gjsify/commit/184cca2d553126094abf568fdc43b01bcb5875d1))
+* **rolldown-plugin-gjsify:** type .gresource.xml imports ([#2241](https://github.com/gjsify/gjsify/issues/2241)) ([e541949](https://github.com/gjsify/gjsify/commit/e54194976b1dad23a36bb17ee760785290dda9d9)), closes [#2240](https://github.com/gjsify/gjsify/issues/2240)
+* **site:** group downloads into components ([#2244](https://github.com/gjsify/gjsify/issues/2244)) ([4f1f2d4](https://github.com/gjsify/gjsify/commit/4f1f2d4d5330581f496a627fa33133d2769af1a2))
+
+### Bug Fixes
+
+* **adwaita-app:** derive LANG on Windows ([#2227](https://github.com/gjsify/gjsify/issues/2227)) ([d7cb00c](https://github.com/gjsify/gjsify/commit/d7cb00c5928bd4f9ff18a064832750aa924a56ee))
+* **adwaita-core:** set CONSTRUCT props to defaults ([#2216](https://github.com/gjsify/gjsify/issues/2216)) ([894e953](https://github.com/gjsify/gjsify/commit/894e9532da24397e3c4aff0b4fc057b794126be3))
+* **adwaita-nativescript:** close six Learn6502 gaps ([#2218](https://github.com/gjsify/gjsify/issues/2218)) ([9937e8d](https://github.com/gjsify/gjsify/commit/9937e8d27d18d159e35471b6669bdca6dff0cd05))
+* **adwaita-nativescript:** map gtk label justify ([#2225](https://github.com/gjsify/gjsify/issues/2225)) ([96ab14a](https://github.com/gjsify/gjsify/commit/96ab14a823ffbc69bc0d8d51541f2d1d53428f3e))
+* **adwaita-nativescript:** type window application ([#2243](https://github.com/gjsify/gjsify/issues/2243)) ([2e50113](https://github.com/gjsify/gjsify/commit/2e501133bfbe80e44506deef30e911e0c551502f))
+* **adwaita-web:** close Learn6502 E2E gaps 7-9 ([#2217](https://github.com/gjsify/gjsify/issues/2217)) ([a4464cd](https://github.com/gjsify/gjsify/commit/a4464cd61fdd2b4dd38a0eb3b2c64d9d36ebb665))
+* **adwaita-web:** close three Learn6502 web gaps ([#2224](https://github.com/gjsify/gjsify/issues/2224)) ([525c99d](https://github.com/gjsify/gjsify/commit/525c99dbde60a2b6b1b81f2c8fef99e0201a0929))
+* **cli:** key ship bundledTypelibs per OS ([#2213](https://github.com/gjsify/gjsify/issues/2213)) ([59d745f](https://github.com/gjsify/gjsify/commit/59d745fd105b2d782b05a16bc6fae660c54df940))
+* **node-gi:** bind gettext via wbindtextdomain on win32 ([#2237](https://github.com/gjsify/gjsify/issues/2237)) ([0865008](https://github.com/gjsify/gjsify/commit/0865008d02b3a10af8152061095378aabe6b9d5d))
+* **node-gi:** refuse out-of-range integers like GJS ([#2220](https://github.com/gjsify/gjsify/issues/2220)) ([1c80521](https://github.com/gjsify/gjsify/commit/1c80521cf8b1a299bf8dd86185d1f995ace249a3))
+* **node-gi:** wrap or refuse ints like GJS ([#2247](https://github.com/gjsify/gjsify/issues/2247)) ([0b9f570](https://github.com/gjsify/gjsify/commit/0b9f570455d32de8c48b58dfe8056bab7c840261)), closes [#2220](https://github.com/gjsify/gjsify/issues/2220)
+* **rolldown-plugin-gjsify:** rescue via node-polyfills ([#2230](https://github.com/gjsify/gjsify/issues/2230)) ([b40e281](https://github.com/gjsify/gjsify/commit/b40e2810248d4fafb190b59aa6cb549b4dc3b471))
+* **ship:** stage hicolor rasters for Linux apps ([#2246](https://github.com/gjsify/gjsify/issues/2246)) ([61b0210](https://github.com/gjsify/gjsify/commit/61b0210aad50c4f4c1f3480c5c8199a90bbe9399))
+* **unit:** fail browser runs with an incomplete suite ([#2231](https://github.com/gjsify/gjsify/issues/2231)) ([579e977](https://github.com/gjsify/gjsify/commit/579e97721f5b948558b4d2a95410b64a665446e2))
+
+### Performance Improvements
+
+* **node-gi:** cache method and property lookup ([#2226](https://github.com/gjsify/gjsify/issues/2226)) ([f88c7b1](https://github.com/gjsify/gjsify/commit/f88c7b1074d454e211094963a9f4dc7d0982bf32))
+
+### Documentation
+
+* **adr:** measure arm64 release cold start ([#2242](https://github.com/gjsify/gjsify/issues/2242)) ([704816b](https://github.com/gjsify/gjsify/commit/704816b8674f78a3ada2a08ebb315e38c4826de2))
+* **adr:** propose build-time embedded gresources ([#2222](https://github.com/gjsify/gjsify/issues/2222)) ([387eb36](https://github.com/gjsify/gjsify/commit/387eb3634fbba3e512e4c0eb2ce5e1b08757a868))
+* move site links to gjsify.org ([#2228](https://github.com/gjsify/gjsify/issues/2228)) ([8787946](https://github.com/gjsify/gjsify/commit/87879461ce5882f627c629af6fa73847e667258e))
+* **node-gi:** note stale builds fail local tests ([#2221](https://github.com/gjsify/gjsify/issues/2221)) ([03fcc4b](https://github.com/gjsify/gjsify/commit/03fcc4b595ee6c7bde66258624547d9b88f186ba))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([9cc6538](https://github.com/gjsify/gjsify/commit/9cc65385593e615e921d7c3b2ceb31fd03e98e4b))
+* update native prebuilds [skip ci] ([779d2f0](https://github.com/gjsify/gjsify/commit/779d2f0fe823a3801fa0a0126e32ad36da977f38))
+
+### Tests
+
+* **nativescript-gi:** run the UI on both engines ([#2234](https://github.com/gjsify/gjsify/issues/2234)) ([04b549d](https://github.com/gjsify/gjsify/commit/04b549d30a68d017dea7bb83ce0ded17ac0fcc04)), closes [#2226](https://github.com/gjsify/gjsify/issues/2226) [#2221](https://github.com/gjsify/gjsify/issues/2221) [#2226](https://github.com/gjsify/gjsify/issues/2226) [#2226](https://github.com/gjsify/gjsify/issues/2226) [#2220](https://github.com/gjsify/gjsify/issues/2220)
+
 ## [0.64.0](https://github.com/gjsify/gjsify/compare/v0.63.0...v0.64.0) (2026-10-14)
 
 ### Features
