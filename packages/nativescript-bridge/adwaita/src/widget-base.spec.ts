@@ -202,7 +202,7 @@ export const AdwWidgetBaseNsTest = async () => {
                 body: 'This clears the memory.',
                 close_response: 'cancel',
                 default_response: 'confirm',
-            } as never);
+            });
             dialog.add_response('cancel', 'Cancel');
             dialog.add_response('confirm', 'Confirm');
             return dialog;
@@ -220,7 +220,8 @@ export const AdwWidgetBaseNsTest = async () => {
         });
 
         await it('refuses a key that is no Adw.AlertDialog property', () => {
-            expect(() => new Adw.AlertDialog({ no_such_prop: 1 } as never)).toThrow("has no settable 'noSuchProp'");
+            // @ts-expect-error -- the type refuses the key the runtime refuses, in either spelling.
+            expect(() => new Adw.AlertDialog({ no_such_prop: 1 })).toThrow("has no settable 'noSuchProp'");
         });
 
         await it('a response handler receives the dialog and the chosen id', () => {

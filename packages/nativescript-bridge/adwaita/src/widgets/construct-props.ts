@@ -56,14 +56,31 @@ import { camelProperty, gtkPropertyDoor, type ShadowedName } from './shadowed-pr
  * `ConstructProps<AdwSplitButton, { direction: number }>`. The applier routes it to that verb.
  */
 export type ConstructProps<T, Shadowed extends object = object> = Partial<
-    {
-        [K in keyof T as T[K] extends (...args: never[]) => unknown
-            ? never
-            : K extends ShadowedName | keyof Shadowed
-              ? never
-              : K]: K extends EnumProp ? T[K] | number : K extends ValueProp ? T[K] | ValueProps[K & ValueProp] : T[K];
-    } & Shadowed
+    WithSnakeCase<
+        {
+            [K in keyof T as T[K] extends (...args: never[]) => unknown
+                ? never
+                : K extends ShadowedName | keyof Shadowed
+                  ? never
+                  : K]: K extends EnumProp
+                ? T[K] | number
+                : K extends ValueProp
+                  ? T[K] | ValueProps[K & ValueProp]
+                  : T[K];
+        } & Shadowed
+    >
 >;
+
+/** `closeResponse` → `close_response`, the spelling {@link camelProperty} undoes. */
+export type SnakeCase<S extends string> = S extends `${infer Head}${infer Rest}`
+    ? `${Head extends Lowercase<Head> ? Head : `_${Lowercase<Head>}`}${SnakeCase<Rest>}`
+    : S;
+
+/**
+ * Every key of `Props` again under its snake_case twin, with the same value type — what a
+ * `@girs` `ConstructorProps` declares, and what {@link applyConstructProps} takes at runtime.
+ */
+export type WithSnakeCase<Props> = Props & { [K in keyof Props as K extends string ? SnakeCase<K> : K]: Props[K] };
 
 /**
  * The two properties whose SETTER takes a portable VALUE the getter does not hand back, and
