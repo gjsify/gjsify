@@ -42,6 +42,7 @@ import gtkAdjustmentTestSuite from './gtk-adjustment.spec.js';
 import gtkStringListTestSuite from './gtk-string-list.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
+import toastObjectTestSuite from './toast-object.spec.js';
 import popoverTestSuite from './popover.spec.js';
 import bannerTestSuite from './banner.spec.js';
 import buttonContentTestSuite from './button-content.spec.js';
@@ -102,6 +103,7 @@ run({
     colorSchemeTestSuite,
     appearanceTestSuite,
     toastTestSuite,
+    toastObjectTestSuite,
     dialogTestSuite,
     listTestSuite,
     listViewTestSuite,

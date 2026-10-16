@@ -308,6 +308,9 @@ const MODULE_REASONS = {
     source: { gap: NO_TABLE_LEDGER },
     swipe: { gap: NO_TABLE_LEDGER },
     toast: { gap: NO_TABLE_LEDGER },
+    // `Adw.Toast` and the `adw-toast-overlay.c` queue. `toast-object.spec.ts` holds it in core and
+    // each port's overlay spec drives it through `add_toast`; a shared vector table is the open item.
+    'toast-object': { gap: NO_TABLE_LEDGER },
     // Generated data, not behaviour: the token names and values ARE the source of truth,
     // so a vector table would assert the generator against its own output. What is missing
     // is a renderer that reads them — nine registers of these values exist and none consults

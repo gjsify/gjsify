@@ -222,6 +222,8 @@ export type {
     ToastScheduler,
     ToastTimerHandle,
 } from './toast.js';
+export { Toast, ToastOverlayQueue, ToastPriority } from './toast-object.js';
+export type { ToastOverlayQueueOptions } from './toast-object.js';
 
 // --- Dialogs: alert responses + bottom-sheet dismissal (Adw.AlertDialog / Adw.BottomSheet) ---
 export {
