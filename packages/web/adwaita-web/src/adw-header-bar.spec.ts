@@ -233,6 +233,24 @@ export const AdwHeaderBarTest = async () => {
 
     // `windowtitle .title, .subtitle { padding: 0 12px }` (_header-bar.scss:214-227).
     // Measured beside a GTK render of the gallery's window-title `.blp`: 27px narrower here.
+    await describe('<adw-header-bar> packing', async () => {
+        await it('packs an untyped child from the start, declared or appended', async () => {
+            // adw-header-bar.c:1040-1041 — `type == NULL` is pack_start. A Blueprint `[start]`
+            // tags only the next child, so the buttons after it arrive untyped.
+            const tagged = document.createElement('button');
+            tagged.setAttribute('slot', 'start');
+            const declared = document.createElement('button');
+            const bar = mountHeaderBar({ title: 'T' }, [tagged, declared]);
+            const late = document.createElement('button');
+            bar.appendChild(late);
+            await Promise.resolve();
+            const start = bar.querySelector('.adw-header-bar-start');
+            const report = [tagged, declared, late].map((el) => el.parentElement === start);
+            unmountAll();
+            expect(report).toStrictEqual([true, true, true]);
+        });
+    });
+
     await describe('adw-window-title label sides', async () => {
         await it('pads its title and subtitle 12px on each side', () => {
             const title = document.createElement('adw-window-title');
