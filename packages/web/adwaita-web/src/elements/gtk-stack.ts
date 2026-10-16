@@ -562,6 +562,14 @@ export class GtkStack extends HTMLElement {
         child.classList.add('adw-stack-page');
     }
 
+    /**
+     * The observer watches the subtree, so an attribute record can come from anything below a
+     * page; only a direct child is a page of THIS stack (a nested stack's pages are its own).
+     */
+    private _isPage(node: Node): boolean {
+        return node.parentNode === this;
+    }
+
     private _onChildMutations(records: MutationRecord[]): void {
         let added = 0;
         let removed = 0;
@@ -594,13 +602,14 @@ export class GtkStack extends HTMLElement {
                 continue;
             }
             const name = record.attributeName;
-            if (!name) continue;
+            if (!name || !this._isPage(record.target)) continue;
             if (name === 'hidden') {
                 // `stack_child_visibility_notify_cb` (gtkstack.c:1617-1633) re-runs
                 // `update_child_visible`: hiding the visible page falls back to the first
                 // visible one (which is what the NULL means, :1437-1450), and showing one
-                // while none is visible picks it up (:3147-3149).
-                this._show(this._firstVisible());
+                // while none is visible picks it up (:3147-3149). Any other change leaves
+                // the selection where it is.
+                if (!this._visible || !this._page(this._visible).visible) this._show(this._firstVisible());
                 continue;
             }
             if (PAGE_ATTRIBUTES.includes(name)) pageUpdated = true;
@@ -615,7 +624,7 @@ export class GtkStack extends HTMLElement {
         }
         if (pageUpdated) {
             for (const record of records) {
-                if (record.type !== 'attributes') continue;
+                if (record.type !== 'attributes' || !this._isPage(record.target)) continue;
                 const target = record.target as HTMLElement;
                 this.dispatchEvent(new CustomEvent('page-updated', { bubbles: true, detail: { child: target } }));
                 // `gtk_stack_page_set_name` re-notifies `visible-child-name` when the
