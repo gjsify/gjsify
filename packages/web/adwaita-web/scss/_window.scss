@@ -43,6 +43,15 @@ adw-application-window {
     box-shadow: none;
   }
 
+  // A maximized or fullscreen window ignores its default size and fills the work area
+  // (gtkwindow.c); on a page that is the containing block. The element drops its inline
+  // `default-width`/`default-height` in these states so this can apply, and keeps the minimum.
+  &[maximized]:not([maximized="false"]),
+  &[fullscreened]:not([fullscreened="false"]) {
+    width: 100%;
+    height: 100%;
+  }
+
   // `present()` and `hide-on-close` toggle `hidden`, which `display: flex` would override.
   &[hidden] {
     display: none;
@@ -108,6 +117,13 @@ gtk-application-window {
     --window-radius: 0px;
     outline: none;
     box-shadow: none;
+  }
+
+  // The same fill as `adw-window` above: the default size is only the restored size.
+  &[maximized]:not([maximized="false"]),
+  &[fullscreened]:not([fullscreened="false"]) {
+    width: 100%;
+    height: 100%;
   }
 
   // The strip: an application's `titlebar` slot, or the two window-control groups and the
