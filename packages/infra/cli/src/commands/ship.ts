@@ -572,14 +572,22 @@ async function assemble(args: ShipOptions): Promise<void> {
               })),
     ];
     // THE APPLICATION ICON, rendered once for the sizes this layout's writers
-    // embed — six for the `.exe`'s resource directory, seven for the `.icns` —
-    // and nothing for a CLI or for Linux, where the theme carries the SVG the
-    // project declared. `resolveAppIcon` REFUSES an app that has no source for a
-    // size rather than staging without it: the released artifacts this closes
-    // shipped for a year with the generic icon on two platforms, and the only
-    // reason was that nothing said so (`utils/ship/icons.ts`).
+    // embed — six for the `.exe`'s resource directory, seven for the `.icns`,
+    // three for the hicolor theme — and nothing for a CLI. `resolveAppIcon`
+    // REFUSES an app that has no source for a size rather than staging without
+    // it: the released artifacts this closes shipped for a year with the generic
+    // icon on two platforms, and the only reason was that nothing said so
+    // (`utils/ship/icons.ts`).
+    //
+    // …EXCEPT WHERE THE ROW SAYS THE ICON IS NOT REQUIRED, which is Linux and is
+    // not a softening of that rule. An icon-less app there is reported by
+    // `resolveShipSettings`'s warning and then by its own menu entry, so refusing
+    // would stop a project that has not drawn its icon yet from building a `.deb`
+    // over a defect it can already see (`LayoutIcon.required`). The guard belongs
+    // HERE as well as in `iconFor`, because `resolveAppIcon` is the half that
+    // refuses an empty `iconFiles` — reaching it at all is what has to not happen.
     const icon =
-        settings.kind === 'app' && layout.icon !== undefined
+        settings.kind === 'app' && layout.icon !== undefined && (layout.icon.required || settings.iconFiles.length > 0)
             ? await resolveAppIcon({
                   iconFiles: settings.iconFiles,
                   appId: settings.appId,

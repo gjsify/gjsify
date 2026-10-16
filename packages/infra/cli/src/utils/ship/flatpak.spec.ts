@@ -26,6 +26,7 @@ import {
     MIGRATED_FLATPAK_KEYS,
     pickFlatpakBuildKeys,
     resolveShipFlatpakSettings,
+    SCALABLE_ICONS_CLEANUP,
 } from './flatpak-config.js';
 import { renderShipFlatpakManifest } from './flatpak.js';
 import { LAYOUTS } from './layout.js';
@@ -543,7 +544,10 @@ export default async () => {
             expect(settings.sdkExtensions).toStrictEqual(legacy.sdkExtensions);
             expect(settings.appendPath).toStrictEqual(legacy.appendPath);
             expect(settings.finishArgs).toStrictEqual(legacy.finishArgs);
-            expect(settings.cleanup).toStrictEqual(legacy.cleanup);
+            // The project's own glob, in its own position, with the one entry
+            // `ship` appends for a `kind: 'app'` behind it — the key is the only
+            // one of the six that is not purely the author's (`SCALABLE_ICONS_CLEANUP`).
+            expect(settings.cleanup).toStrictEqual([...legacy.cleanup, SCALABLE_ICONS_CLEANUP]);
         });
 
         await it('resolves both spellings for `gjsify flatpak init` too', async () => {
@@ -565,6 +569,34 @@ export default async () => {
             expect(both.values.runtimeVersion).toBe('50');
             expect(both.values.cleanup).toStrictEqual(['/include']);
             expect(both.fromLegacy).toStrictEqual(['cleanup']);
+        });
+
+        await it('drops the scalable icon for an app, and only for an app', async () => {
+            // WHY THE GLOB IS THERE AT ALL: flatpak-builder runs `appstreamcli
+            // compose` on the host, AppStream decodes icons through gdk-pixbuf,
+            // and Fedora 44 ships no SVG loader module for it — so the compose run
+            // dies `file-read-error` on the icon the theme carries and takes the
+            // whole pack with it. Measured on the workstation AND in
+            // `ghcr.io/gjsify/ci-fedora:44`; the rasters `LAYOUTS.linux.icon`
+            // stages are the other half, and are not enough on their own because
+            // appstreamcli PREFERS the scalable icon and does not fall back.
+            const app = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'app' });
+            expect(app.settings.cleanup).toStrictEqual([SCALABLE_ICONS_CLEANUP]);
+            // A CLI stages no icon at all, so there is nothing to remove and no
+            // reason to put a glob in somebody's manifest.
+            const cli = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli' });
+            expect(cli.settings.cleanup).toStrictEqual([]);
+        });
+
+        await it('does not give a project that already wrote the glob a second one', async () => {
+            // The workaround this replaces is exactly this line in a consumer's
+            // `package.json`; appending blindly would emit it twice.
+            const { settings } = resolveShipFlatpakSettings({
+                ship: { flatpak: { cleanup: [SCALABLE_ICONS_CLEANUP, '/include'] } },
+                flatpak: {},
+                kind: 'app',
+            });
+            expect(settings.cleanup).toStrictEqual([SCALABLE_ICONS_CLEANUP, '/include']);
         });
 
         await it('gives a CLI no display sockets and an app the GUI set', async () => {

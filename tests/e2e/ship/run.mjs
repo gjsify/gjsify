@@ -72,6 +72,14 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             'lib/ship-demo/gjs.js',
             `share/applications/${APP_ID}.desktop`,
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
+            // RENDERED FROM THE SVG BELOW, by the Linux layout rather than by the
+            // plan — `appstreamcli compose` reads this theme at BUILD time through
+            // gdk-pixbuf and a host without an SVG loader module cannot open the
+            // scalable file at all (`utils/ship/layout.ts`, `LAYOUTS.linux.icon`).
+            // String order, which is what the stage is sorted in.
+            `share/icons/hicolor/128x128/apps/${APP_ID}.png`,
+            `share/icons/hicolor/256x256/apps/${APP_ID}.png`,
+            `share/icons/hicolor/64x64/apps/${APP_ID}.png`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
             // The symbolic half of the pair, in its OWN context directory and
             // keeping the suffix GTK looks it up by. Both facts are what the
