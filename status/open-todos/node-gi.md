@@ -470,3 +470,30 @@ nothing (proved on the x86_64 API 36 emulator by the app's own `/proc/self/maps`
 [the gates report](../../docs/reports/2026-10-15-adr-0110-gates.md)). The arm64 opt-out cold
 start (rung B against B0) was not re-measured on the S9; the last figure there (+15 ms) predates
 the change. Also open: `cairo.js` and `gettext.js` still load the addon at import.
+
+### Android ships ONE payload, and ADR 0117 designs the build-time choice of more
+
+`@gjsify/gi-runtime-android`'s payload is a measurement, not a choice: the `DT_NEEDED` closure
+walked from `libnode_gi.so` (14 libraries) and the typelibs whose backers that closure happens to
+contain (7). The pinned 2026.10.12 sysroot offers 21 typelibs — GTK, Adw, Pango, HarfBuzz,
+Graphene, GdkPixbuf among them — and none of those ship. It carries no libsoup, no json-glib and
+no glib-networking at all.
+
+What that costs today, concretely: `@gjsify/fetch` is built on `gi://Soup?version=3.0` and its
+`gjsify.runtimes.nativescript` is `"none"` for exactly one reason, that the APK has no libsoup.
+`@gjsify/{tls,http2,ws}` are the same story one layer up, and ADR 0037 § 2 is how it was repaired
+on desktop.
+
+[ADR 0117](../../docs/adr/0117-android-gi-namespaces-are-selected-at-build-time.md) (**Proposed**)
+designs the way out: a core AAR plus per-group add-on packages as `optionalDependencies`, a
+`nativescript.giNamespaces` declaration the `gi://` scan is a lower bound for, resolution through
+the existing `planTypelibSet` gate, and the default staying today's bytes so ADR 0110's measured
+15.77 / 16.93 MB per ABI and +80 / +105.5 ms cold start do not regress. Three stages, each with an
+acceptance test; stage 1 needs no sysroot change.
+
+Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or GnuTLS — the Android
+argument is that p11-kit's trust module sits behind a compiled-in path with no env override and
+Android has no system p11-kit) and the CA store route (`/system/etc/security/cacerts`, plus the
+user store or not, our own bundle, or JNI `X509TrustManagerExtensions`). A new sysroot release
+also needs his explicit OK before upload — g-ir-scanner has to run target binaries, so there is
+no CI path (#2179).
