@@ -61,12 +61,13 @@ export const AdwBinTest = async () => {
             other.remove();
         });
 
-        await it('an empty bin is a block box, and its only child fills it', () => {
+        await it('a bin is a column flex box, and its only child fills it', () => {
             const { el, host } = mount([document.createElement('div')]);
             // A bin takes the size it is GIVEN and hands all of it to the child, which
-            // `GtkBinLayout` does on both axes (gtkbinlayout.c:81).
+            // `GtkBinLayout` does on both axes (gtkbinlayout.c:81). Flex stretch, not a
+            // percentage, so it also holds when the bin is itself a flex item.
             el.style.height = '120px';
-            expect(getComputedStyle(el).display).toBe('block');
+            expect(getComputedStyle(el).display).toBe('flex');
             const child = el.firstElementChild as HTMLElement;
             expect(child.getBoundingClientRect().height).toBe(120);
             host.remove();

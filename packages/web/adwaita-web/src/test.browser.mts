@@ -94,6 +94,7 @@ import { GtkTreeExpanderTest } from './gtk-tree-expander.spec.js';
 import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
 import { GtkExpanderTest } from './gtk-expander.spec.js';
 import { GtkOverlayTest } from './gtk-overlay.spec.js';
+import { ContainerFillTest } from './container-fill.spec.js';
 import { GtkPanedTest } from './gtk-paned.spec.js';
 import { GtkRevealerTest } from './gtk-revealer.spec.js';
 import { GtkScaleTest } from './gtk-scale.spec.js';
@@ -242,6 +243,7 @@ run({
     GtkToggleButtonTest,
     GtkExpanderTest,
     GtkOverlayTest,
+    ContainerFillTest,
     GtkPanedTest,
     GtkRevealerTest,
     GtkScaleTest,

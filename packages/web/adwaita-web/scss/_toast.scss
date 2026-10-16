@@ -12,12 +12,22 @@
 
 adw-toast-overlay {
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
 
-  // The wrapped content (Adw.ToastOverlay :child) occupies the overlay's box.
+  // The wrapped content (Adw.ToastOverlay :child) occupies the overlay's box: AdwToastOverlay
+  // allocates its child the full size (adw-toast-overlay.c size_allocate). A percentage height
+  // resolves against an indefinite one inside a block parent, so the fill is flex stretch.
   .adw-toast-overlay-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
     width: 100%;
-    height: 100%;
+
+    > * {
+      flex: 1 1 auto;
+    }
   }
 
   // The toast slot: layered over the bottom edge of the overlay and centered,

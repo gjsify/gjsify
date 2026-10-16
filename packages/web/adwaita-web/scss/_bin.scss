@@ -14,13 +14,16 @@
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
 adw-bin {
-  display: block;
+  display: flex;
+  flex-direction: column;
 
   // One child, and it fills — `gtk_bin_layout_allocate` allocates the whole widget to
   // its single child. `:only-child` rather than `> *` because a bin keeps ONE
   // (`adw_bin_set_child` unparents the one it replaces), so the case where the selector
-  // could match two is one the element has already refused.
+  // could match two is one the element has already refused. Flex stretch rather than
+  // `block-size: 100%`: a percentage needs a definite parent height, which a bin that is
+  // itself a flex item (a stack page) only has by the stretch algorithm.
   > :only-child {
-    block-size: 100%;
+    flex: 1 1 auto;
   }
 }

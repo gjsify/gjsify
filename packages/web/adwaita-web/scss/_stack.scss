@@ -60,13 +60,19 @@ gtk-stack {
     // looks at the VISIBLE child alone on that axis (gtkstack.c:2899-2905) — the stack is
     // as big as the current page. Turned off, the stack is as big as the LARGEST page,
     // which is `max-content` on the cross axis and `flex: 1 1 auto` along the main one.
-    &:not([hhomogeneous]) > .adw-stack-page {
+    //
+    // The element reflects the flag as an ABSENT attribute or `=""` for TRUE and
+    // `="false"` for FALSE (`_flag`: `raw !== 'false'`, absent → the default TRUE), so
+    // only the literal `'false'` is the non-homogeneous state. `:not([hhomogeneous])`
+    // read a missing attribute as false and gave every default stack's page
+    // `width: max-content`, a zero-width page for a child with no intrinsic width.
+    &[hhomogeneous='false'] > .adw-stack-page {
         flex: 0 1 auto;
         width: max-content;
         max-width: 100%;
     }
 
-    &:not([vhomogeneous]) > .adw-stack-page {
+    &[vhomogeneous='false'] > .adw-stack-page {
         height: max-content;
         max-height: 100%;
     }
