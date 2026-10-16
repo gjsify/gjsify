@@ -67,6 +67,7 @@ import { BreakpointBinState } from '@gjsify/adwaita-core';
 import type { BreakpointSetter } from '@gjsify/adwaita-core';
 
 import { observeAdaptiveSize } from '../breakpoints.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 /** One authored setter, as it reads in the `breakpoints` attribute. */
 interface AuthoredSetter {
@@ -157,6 +158,8 @@ export class AdwBreakpointBin extends HTMLElement {
     }
 
     connectedCallback() {
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
         this.setAttribute('role', 'group');
         // A GTK widget is a box and an unknown custom element is `inline`, which measures
         // zero — and a bin measuring zero matches every condition forever. libadwaita

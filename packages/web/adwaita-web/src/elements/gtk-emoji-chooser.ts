@@ -103,6 +103,11 @@ export class GtkEmojiChooser extends GtkPopover {
      */
     private _ctrl = false;
 
+    /** The chooser's template is the child (gtkemojichooser.ui). */
+    protected override takesChild(): boolean {
+        return false;
+    }
+
     connectedCallback(): void {
         super.connectedCallback();
         if (this._built) return;

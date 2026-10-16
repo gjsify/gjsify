@@ -191,7 +191,27 @@ export interface BuildOptions {
  * dropped object looks finished.
  */
 export function buildWithSiblings(node: SharedTreeNode, options: BuildOptions = {}): BuiltTree {
-    return buildTree(node, newRecord(options.scope, options.observeSize));
+    const record = newRecord(options.scope, options.observeSize);
+    const built = buildTree(node, record);
+    // An element declares its slots when it is connected, so a detached tree cannot be checked
+    // as it stands. It is connected for the length of the check and handed back detached, as
+    // documented: a placement the renderer could not honour is refused here, like
+    // `mountSharedTree` refuses it, instead of surfacing as a widget missing from the page.
+    const probe = document.createElement('div');
+    probe.hidden = true;
+    probe.append(built.root, ...built.siblings.values());
+    document.body.append(probe);
+    try {
+        refuseUnknownSlots(record.placed);
+        refuseUnheldExtensions(record.extended);
+    } catch (error) {
+        for (const dispose of record.disposers) dispose();
+        throw error;
+    } finally {
+        probe.remove();
+        for (const el of [built.root, ...built.siblings.values()]) el.remove();
+    }
+    return built;
 }
 
 function refuseSiblings(node: SharedTreeNode, door: string): void {

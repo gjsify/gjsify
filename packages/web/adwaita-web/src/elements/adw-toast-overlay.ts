@@ -85,7 +85,7 @@ export class AdwToastOverlay extends HTMLElement {
         this._toasts = document.createElement('div');
         this._toasts.className = 'adw-toast-overlay-toasts';
 
-        bindSlottedChildren(this, [{ into: content }]).install(content, this._toasts);
+        bindSlottedChildren(this, [{ name: 'child', into: content }, { into: content }]).install(content, this._toasts);
     }
 
     /**

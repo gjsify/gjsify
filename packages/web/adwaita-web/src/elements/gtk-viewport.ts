@@ -65,6 +65,8 @@
 
 import { clampAdjustmentValue, normalizeAdjustment, type AdwAdjustment } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 /** `viewport_set_adjustment_values`'s two fractions of the visible size. */
 const STEP_FRACTION = 0.1;
 const PAGE_FRACTION = 0.9;
@@ -130,6 +132,8 @@ export class GtkViewport extends HTMLElement {
     }
 
     connectedCallback() {
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
         this.setAttribute('role', 'generic');
         // `scroll` does not bubble, so the platform's own is heard here, on the node that
         // raised it, and re-announced as GTK's `GtkAdjustment::value-changed`.

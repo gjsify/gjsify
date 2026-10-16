@@ -278,7 +278,13 @@ export class GtkPaned extends HTMLElement {
         // (gtkpaned.c:816-826).
         bindSlottedChildren(
             this,
-            [{ into: this._startEl }, { name: 'start', into: this._startEl }, { name: 'end', into: this._endEl }],
+            [
+                { into: this._startEl },
+                { name: 'start', into: this._startEl },
+                { name: 'end', into: this._endEl },
+                { name: 'start-child', into: this._startEl },
+                { name: 'end-child', into: this._endEl },
+            ],
             () => this._observe(),
         ).install(this._startEl, this._handleEl, this._endEl);
 

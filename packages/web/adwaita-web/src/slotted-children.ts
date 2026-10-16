@@ -113,6 +113,12 @@ export interface AdwSlottedChildren {
 /** Where a bound host's slots can be read back from — see {@link slottedChildrenOf}. */
 const BOUND = new WeakMap<Element, AdwSlottedChildren>();
 
+/** An element or a text node with something in it — markup's indentation and comments are not. */
+function isContent(node: Node): boolean {
+    if (node instanceof Element) return true;
+    return node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== '';
+}
+
 /**
  * The slot binding `host` installed, if it has one.
  *
@@ -184,9 +190,19 @@ export function bindSlottedChildren(
         slots,
         slotFor,
         install(...nodes: readonly Node[]) {
-            for (const node of Array.from(host.childNodes)) route(node);
+            const unplaced: Node[] = [];
+            for (const node of Array.from(host.childNodes)) {
+                if (route(node) !== null || node.parentNode !== host || !isContent(node)) continue;
+                // `replaceChildren` below would delete it, and a child the author wrote that
+                // vanishes without a word is the silent drop this used to be. It stays beside
+                // the structure, as a late child with the same slot does, and says so the
+                // way GtkBuilder does (GTK_BUILDER_WARN_INVALID_CHILD_TYPE).
+                unplaced.push(node);
+                const type = node instanceof Element ? (node.getAttribute('slot') ?? '') : '';
+                console.warn(`'${type}' is not a valid child type of '${host.localName}'`);
+            }
             structure = new Set(nodes);
-            host.replaceChildren(...nodes);
+            host.replaceChildren(...nodes, ...unplaced);
             // Armed AFTER `replaceChildren`, so its own records are never delivered: an
             // observer armed first would see the whole of `structure` as added nodes and
             // spend a microtask rejecting them.

@@ -239,6 +239,7 @@ export class AdwAlertDialog extends HTMLElement {
                 claims: (node) => node instanceof Element && node.localName === 'adw-alert-response',
                 consume: (node) => this._adoptResponse(node as AdwAlertResponse),
             },
+            { name: 'extra-child', into: this._childEl },
             { into: this._childEl },
         ]).install(this._scrimEl, this._dialogEl);
 

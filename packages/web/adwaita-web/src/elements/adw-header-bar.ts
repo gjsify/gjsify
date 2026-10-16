@@ -119,6 +119,10 @@ export class AdwHeaderBar extends HTMLElement {
                 // gallery's own fences are written in.
                 { name: 'title-widget', into: this._centerEl },
                 { name: 'end', into: this._endEl },
+                // An untyped `<child>` packs from the start (adw-header-bar.c:1040-1041). A
+                // Blueprint `[start]` tags only the NEXT child, so every button after it
+                // arrives untyped and had no destination at all.
+                { into: this._startEl },
             ],
             (_node, slot) => {
                 if ('into' in slot && slot.into === this._centerEl) this._dropDerivedTitle();

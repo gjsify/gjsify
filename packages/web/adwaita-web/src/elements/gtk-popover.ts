@@ -82,6 +82,8 @@
 
 import { PopoverState, resolvePopoverKey } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 /** Which side of the anchor the surface sits on. */
 export type GtkPopoverPosition = 'bottom' | 'top' | 'start' | 'end';
 
@@ -257,10 +259,20 @@ export class GtkPopover extends HTMLElement {
         if (this._state.open) this._bindDocument();
     }
 
+    /**
+     * Whether `Gtk.Popover:child` is the author's to set. A subclass that builds its own
+     * content (GtkPopoverMenu, GtkEmojiChooser) sets the child itself, as their C does.
+     */
+    protected takesChild(): boolean {
+        return true;
+    }
+
     private _buildOnce() {
         if (this._initialized) return;
         this._initialized = true;
 
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        if (this.takesChild()) bindSlottedChildren(this, [{ name: 'child', into: this }]);
         this.classList.add('adw-popover');
         if (!this.hasAttribute('role')) this.setAttribute('role', 'menu');
         // The `menu` variant is NOT defaulted or inferred here — it is GTK's `.menu`

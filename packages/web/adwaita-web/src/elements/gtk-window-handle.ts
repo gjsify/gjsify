@@ -46,6 +46,8 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 /** `GtkTitlebarGesture`'s three gestures, as `perform_titlebar_action` decides them. */
 export type GtkTitlebarGesture = 'double-click' | 'middle-click' | 'right-click';
 
@@ -146,6 +148,8 @@ export class GtkWindowHandle extends HTMLElement {
     }
 
     connectedCallback() {
+        // The NAME only, for the reason `adw-bin.ts` gives: the child already IS the content.
+        bindSlottedChildren(this, [{ name: 'child', into: this }]);
         this.setAttribute('role', 'generic');
         this.addEventListener('click', this._onClick);
         this.addEventListener('pointerdown', this._onPointerDown);
