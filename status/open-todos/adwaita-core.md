@@ -265,5 +265,8 @@ listed under step 4. The record, in order:
    bundler with its message intact).
    Still open after the flip:
    - ADR 0105 § 2's twin route: a real subclass instead of the hidden twin.
-   - The `findProtoDescriptor` cache in `status/open-todos/node-gi.md` — the emulator numbers above
-     are what it bought, and the remaining ~25x on `set`/`notify` is where to look next.
+   - The remaining ~25x on `set`/`notify` is where to look next. `findProtoDescriptor` is no longer
+     part of it: settled 2026-10-16 with NO cache (gjs resolves prototype mutation live, so a memo
+     has no invalidation story), by bypassing the prototype Proxies' descriptor traps instead —
+     ~8–10 % off `set`/`notify` and ~16–21 % off `emit` on the host. See the addendum in
+     [the perf report](../../docs/reports/2026-10-15-node-gi-set-emit-perf.md).
