@@ -155,15 +155,12 @@ export default async () => {
             expect(calls.length).toBe(0);
         });
 
-        await it('inhibit is refused, naming itself, on a host that cannot guard', () => {
+        await it('inhibit returns 0 and does nothing on a host that cannot guard (gtk_application_inhibit)', () => {
             const app = new TestApplication({ application_id: 'org.gjsify.vec.NoInhibit' });
-            let message = '';
-            try {
-                app.inhibit(null, ApplicationInhibitFlags.LOGOUT, 'x');
-            } catch (e) {
-                message = (e as Error).message;
-            }
-            expect(message.includes('inhibit()')).toBe(true);
+            expect(app.inhibit(null, ApplicationInhibitFlags.LOGOUT, 'x')).toBe(0);
+            expect(app.inhibit(null, ApplicationInhibitFlags.IDLE)).toBe(0);
+            app.uninhibit(0);
+            app.uninhibit(1);
         });
 
         await it('keeps explicit groups and window links separate', () => {
