@@ -74,7 +74,14 @@ import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
 // NS wrappers (`AdwToastOverlay`, `AdwAlertDialog`) pull `@nativescript/core` at
 // module-eval and cannot load off-device — the built `lib/esm` re-export is verified
 // separately.
-import { AdwAlertResponses, AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from '@gjsify/adwaita-core';
+import {
+    AdwAlertResponses,
+    AdwToast,
+    AdwToastQueue,
+    DEFAULT_TOAST_TIMEOUT,
+    Toast,
+    ToastOverlayQueue,
+} from '@gjsify/adwaita-core';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 // Same for the row interaction state machines, specced in the core's `rows.spec.ts`.
 import { ComboState, ExpanderState, SpinState, ToggleGroupState, parseAdjustment } from '@gjsify/adwaita-core';
@@ -301,8 +308,10 @@ class MockNavigationView {
 // timing seam a renderer supplies (NS wraps `setTimeout`).
 class FakeToastScheduler implements ToastScheduler {
     private _next: (() => void) | null = null;
-    schedule(callback: () => void, _ms: number): ToastTimerHandle {
+    lastMs: number | null = null;
+    schedule(callback: () => void, ms: number): ToastTimerHandle {
         this._next = callback;
+        this.lastMs = ms;
         return 1;
     }
     cancel(_handle: ToastTimerHandle): void {
@@ -868,6 +877,28 @@ export default async () => {
             expect(shown).toStrictEqual(['first']); // only one at a time
             scheduler.fire(); // the first auto-dismisses
             expect(shown).toStrictEqual(['first', 'second']); // queue advanced
+        });
+
+        // The queue `AdwToastOverlay.add_toast` drives: `Adw.Toast:timeout` is SECONDS on
+        // this port too, the same unit as libadwaita and the browser overlay.
+        await it('ToastOverlayQueue takes Adw.Toast seconds and emits dismissed', () => {
+            const scheduler = new FakeToastScheduler();
+            const shown: string[] = [];
+            const queue = new ToastOverlayQueue({
+                scheduler,
+                onShow: (t) => shown.push(t.title),
+                onHide: () => {},
+            });
+            const first = new Toast({ title: 'first', timeout: 3 });
+            let dismissed = 0;
+            first.connect('dismissed', () => dismissed++);
+            queue.add_toast(first);
+            queue.add_toast(new Toast({ title: 'second' }));
+            expect(scheduler.lastMs).toBe(3000);
+            first.dismiss();
+            expect(dismissed).toBe(1);
+            expect(shown).toStrictEqual(['first', 'second']);
+            expect(queue.current?.title).toBe('second');
         });
     });
 

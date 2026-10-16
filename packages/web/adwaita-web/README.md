@@ -106,24 +106,28 @@ the composition is an implementation detail.
 ### Toasts are queued, one at a time
 
 `<adw-toast-overlay>` follows `Adw.ToastOverlay`: it shows **exactly one** toast
-and queues the rest FIFO. Each queued toast is shown only after the visible one
-is dismissed — by its timeout, by its close button, by its action button, or by
-`dismiss()`.
+and queues the rest; a `priority: Adw.ToastPriority.HIGH` toast goes ahead of the
+visible one. Each queued toast is shown only after the visible one is dismissed —
+by its timeout, by its close button, by its action button, or by `toast.dismiss()`.
 
 ```typescript
+import { Adw } from '@gjsify/adwaita-web';
+
 const overlay = document.querySelector('adw-toast-overlay');
 
-overlay.addToast('File moved to Trash', { timeout: 3, buttonLabel: 'Undo', onAction: undo });
-overlay.addToast('Second file moved');   // waits its turn — not shown yet
+const toast = new Adw.Toast({ title: 'File moved to Trash', timeout: 3, button_label: 'Undo' });
+toast.connect('button-clicked', undo);
+overlay.add_toast(toast);
+overlay.add_toast(new Adw.Toast({ title: 'Second file moved' }));  // waits its turn
 
 overlay.currentToast?.title;  // 'File moved to Trash'
 overlay.pendingToasts;        // 1
 
-overlay.dismiss();      // show the next queued toast now
-overlay.clearToasts();  // dismiss the visible one and drop the queue
+toast.dismiss();        // show the next queued toast now
+overlay.dismiss_all();  // dismiss the visible one and everything queued
 ```
 
-`addToast()`'s `timeout` is in **seconds** (mirroring `Adw.Toast:timeout`); `0`
+`Adw.Toast:timeout` is in **seconds**; `0`
 keeps the toast until it is dismissed and holds the queue behind it. The
 auto-dismiss runs on the browser's timers by default; assign
 `overlay.scheduler` a custom `ToastScheduler` (the seam `@gjsify/adwaita-core`

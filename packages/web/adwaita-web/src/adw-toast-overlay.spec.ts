@@ -1,12 +1,14 @@
 // DOM-level behaviour tests for <adw-toast-overlay>, in a real browser via the
 // @gjsify/adwaita-web browser test axis.
 //
-// `Adw.ToastOverlay` shows exactly ONE toast at a time and queues the rest FIFO,
+// `Adw.ToastOverlay` shows exactly ONE toast at a time and queues the rest,
 // advancing only when the visible one is dismissed (manually or by its timeout) — the
-// policy `AdwToastQueue` owns in `@gjsify/adwaita-core` and this element composes.
+// policy `ToastOverlayQueue` owns in `@gjsify/adwaita-core` and this element composes.
+// A toast is an `Adw.Toast`, added with `add_toast(toast)` as on GTK.
 //
 // Timing runs through core's injected `ToastScheduler` seam (a virtual clock), so the
 // auto-dismiss lifecycle is deterministic with no real timers.
+import { Toast } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwToastOverlay, ToastScheduler, ToastTimerHandle } from './elements/adw-toast-overlay.js';
@@ -65,12 +67,10 @@ export const AdwToastOverlayTest = async () => {
         await it('shows exactly one toast at a time, in FIFO order', async () => {
             const { overlay, clock, host } = mountOverlay();
 
-            overlay.addToast('First', { timeout: 3 });
-            overlay.addToast('Second', { timeout: 3 });
-            overlay.addToast('Third', { timeout: 3 });
+            overlay.add_toast(new Toast({ title: 'First', timeout: 3 }));
+            overlay.add_toast(new Toast({ title: 'Second', timeout: 3 }));
+            overlay.add_toast(new Toast({ title: 'Third', timeout: 3 }));
 
-            // BEFORE the fix this was ['First', 'Second', 'Third'] — all three
-            // strips mounted at once.
             expect(toastTitles(overlay)).toStrictEqual(['First']);
             expect(overlay.pendingToasts).toBe(2);
             expect(overlay.currentToast?.title).toBe('First');
@@ -96,8 +96,9 @@ export const AdwToastOverlayTest = async () => {
         await it('holds the queue while a sticky toast (timeout 0) is shown', async () => {
             const { overlay, clock, host } = mountOverlay();
 
-            overlay.addToast('Sticky', { timeout: 0 });
-            overlay.addToast('Next', { timeout: 3 });
+            const sticky = new Toast({ title: 'Sticky', timeout: 0 });
+            overlay.add_toast(sticky);
+            overlay.add_toast(new Toast({ title: 'Next', timeout: 3 }));
 
             // No timer was scheduled for the sticky toast, so time does not advance it.
             clock.advance(60_000);
@@ -105,7 +106,7 @@ export const AdwToastOverlayTest = async () => {
             expect(overlay.pendingToasts).toBe(1);
 
             // Dismissing it hands the slot to the queued toast.
-            overlay.dismiss();
+            sticky.dismiss();
             expect(toastTitles(overlay)).toStrictEqual(['Next']);
             expect(overlay.pendingToasts).toBe(0);
 
@@ -115,30 +116,34 @@ export const AdwToastOverlayTest = async () => {
         await it('advances the queue when the close button is pressed', async () => {
             const { overlay, host } = mountOverlay();
 
-            overlay.addToast('First', { timeout: 3 });
-            overlay.addToast('Second', { timeout: 3 });
+            const first = new Toast({ title: 'First', timeout: 3 });
+            let dismissed = 0;
+            first.connect('dismissed', () => {
+                dismissed += 1;
+            });
+            overlay.add_toast(first);
+            overlay.add_toast(new Toast({ title: 'Second', timeout: 3 }));
 
             const close = overlay.querySelector('.adw-toast-close-button') as HTMLButtonElement;
             close.click();
 
+            expect(dismissed).toBe(1);
             expect(toastTitles(overlay)).toStrictEqual(['Second']);
             expect(overlay.pendingToasts).toBe(0);
 
             host.remove();
         });
 
-        await it('runs the action callback and advances the queue', async () => {
+        await it('emits button-clicked and advances the queue', async () => {
             const { overlay, host } = mountOverlay();
 
+            const toast = new Toast({ title: 'File moved to Trash', timeout: 3, button_label: 'Undo' });
             let undone = 0;
-            overlay.addToast('File moved to Trash', {
-                timeout: 3,
-                buttonLabel: 'Undo',
-                onAction: () => {
-                    undone += 1;
-                },
+            toast.connect('button-clicked', () => {
+                undone += 1;
             });
-            overlay.addToast('Second', { timeout: 3 });
+            overlay.add_toast(toast);
+            overlay.add_toast(new Toast({ title: 'Second', timeout: 3 }));
 
             const action = overlay.querySelector('.adw-toast-action-button') as HTMLButtonElement;
             expect(action.textContent).toBe('Undo');
@@ -150,12 +155,51 @@ export const AdwToastOverlayTest = async () => {
             host.remove();
         });
 
-        await it('drops the queued toasts on clearToasts()', async () => {
+        await it('draws no action button without a button_label', async () => {
+            const { overlay, host } = mountOverlay();
+
+            overlay.add_toast(new Toast({ title: 'Saved' }));
+            expect(overlay.querySelector('.adw-toast-action-button')).toBeNull();
+
+            host.remove();
+        });
+
+        await it('renders the title as markup unless use_markup is off', async () => {
+            const { overlay, host } = mountOverlay();
+
+            overlay.add_toast(new Toast({ title: '<b>Bold</b>', timeout: 0 }));
+            expect(overlay.querySelector('.adw-toast-title b')?.textContent).toBe('Bold');
+            overlay.dismiss_all();
+
+            const { overlay: plain, host: plainHost } = mountOverlay();
+            plain.add_toast(new Toast({ title: '<b>Bold</b>', timeout: 0, use_markup: false }));
+            expect(plain.querySelector('.adw-toast-title b')).toBeNull();
+            expect(toastTitles(plain)).toStrictEqual(['<b>Bold</b>']);
+
+            host.remove();
+            plainHost.remove();
+        });
+
+        await it('shows a HIGH priority toast ahead of the current one', async () => {
+            const { overlay, host } = mountOverlay();
+
+            overlay.add_toast(new Toast({ title: 'Normal', timeout: 0 }));
+            const urgent = new Toast({ title: 'Urgent', timeout: 0, priority: 1 });
+            overlay.add_toast(urgent);
+
+            expect(toastTitles(overlay)).toStrictEqual(['Urgent']);
+            urgent.dismiss();
+            expect(toastTitles(overlay)).toStrictEqual(['Normal']);
+
+            host.remove();
+        });
+
+        await it('dismisses the visible toast and the queue on dismiss_all()', async () => {
             const { overlay, clock, host } = mountOverlay();
 
-            overlay.addToast('First', { timeout: 3 });
-            overlay.addToast('Second', { timeout: 3 });
-            overlay.clearToasts();
+            overlay.add_toast(new Toast({ title: 'First', timeout: 3 }));
+            overlay.add_toast(new Toast({ title: 'Second', timeout: 3 }));
+            overlay.dismiss_all();
 
             expect(overlay.currentToast).toBeNull();
             expect(overlay.pendingToasts).toBe(0);

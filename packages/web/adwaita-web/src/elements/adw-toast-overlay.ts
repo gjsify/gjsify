@@ -2,43 +2,33 @@
 // content and shows transient toast strips (title, optional action button, close
 // affordance) layered over the bottom of its own bounds.
 //
-// The QUEUE — the one-at-a-time policy, FIFO ordering and auto-dismiss lifecycle —
-// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link AdwToastQueue};
-// this element composes it and keeps only the DOM half: build the strip on `onShow`,
-// tear it down on `onHide`, run the enter/exit transitions.
+// A toast is an `Adw.Toast` and goes in through `add_toast(toast)`, exactly as on GTK, so a
+// GNOME app's toast code runs here unchanged. The QUEUE — one toast at a time, priority,
+// re-add, auto-dismiss — is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link ToastOverlayQueue}; this element keeps only the DOM half: build the strip on
+// `onShow`, tear it down on `onHide`, run the enter/exit transitions.
 //
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Reference: refs/adwaita-web/adwaita-web/scss/_toast.scss, _toast_overlay.scss
-// Reference: refs/libadwaita/src/adw-toast-overlay.c, adw-toast.c (add_toast queues,
-//   one toast is shown at a time, dismissing advances to the next)
+// Reference: refs/libadwaita/src/adw-toast-overlay.c, adw-toast-widget.c (add_toast queues,
+//   one toast is shown at a time, the button emits button-clicked, activates the action and
+//   dismisses)
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-// Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
-// extended addToast() with action button + close button + options API; the
+// Modifications: Reimplemented as Web Component for @gjsify/adwaita-web; the
 // queue/auto-dismiss state machine composed from @gjsify/adwaita-core.
 
-import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
+import { ToastOverlayQueue } from '@gjsify/adwaita-core';
 
+import { activateWidgetAction } from '../application.js';
+import { renderPangoMarkup } from '../pango-markup.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { createGtkImage } from './gtk-image.js';
-import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
+import type { Toast, ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 
 // The timing seam is re-exported so a consumer can type a custom scheduler for
 // {@link AdwToastOverlay.scheduler} without depending on the core package.
 export type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
-
-/** Options for {@link AdwToastOverlay.addToast}, mirroring Adw.Toast's properties. */
-export interface AdwToastOptions {
-    /** Seconds before the toast auto-dismisses; `0` keeps it until dismissed. Mirrors Adw.Toast:timeout (default 5). */
-    timeout?: number;
-    /** Label for the action button; omitted/empty means no button. Mirrors Adw.Toast:button-label. */
-    buttonLabel?: string;
-    /** Invoked when the action button is pressed. Mirrors the activation of Adw.Toast:action-name. */
-    onAction?: () => void;
-}
-
-/** Default toast lifetime in SECONDS — this element's public unit (Adw.Toast:timeout). */
-const DEFAULT_TIMEOUT_SECONDS = 5;
 
 /**
  * Fallback budget in ms for the exit transition: must stay at or above the
@@ -56,18 +46,16 @@ const domScheduler: ToastScheduler = {
 export class AdwToastOverlay extends HTMLElement {
     private _toasts!: HTMLDivElement;
     private _initialized = false;
-    /** The headless one-at-a-time + FIFO + auto-dismiss state machine (ADR 0004). */
-    private readonly _queue: AdwToastQueue;
+    /** The headless queue of `adw-toast-overlay.c` (ADR 0004). */
+    private readonly _queue: ToastOverlayQueue;
     /** The timing source the queue's auto-dismiss runs on — swappable, see {@link scheduler}. */
     private _scheduler: ToastScheduler = domScheduler;
-    /** The strip currently mounted for {@link AdwToastQueue.current}, if any. */
+    /** The strip currently mounted for {@link ToastOverlayQueue.current}, if any. */
     private _currentEl: HTMLDivElement | null = null;
-    /** Per-toast action callbacks (the core toast descriptor carries only the label). */
-    private readonly _actions = new WeakMap<AdwToast, () => void>();
 
     constructor() {
         super();
-        this._queue = new AdwToastQueue({
+        this._queue = new ToastOverlayQueue({
             // Indirect through `this._scheduler` so the timing source stays
             // swappable after construction (the queue takes its scheduler once).
             scheduler: {
@@ -115,7 +103,7 @@ export class AdwToastOverlay extends HTMLElement {
     }
 
     /** The toast currently on screen, or `null` when nothing is shown. */
-    get currentToast(): AdwToast | null {
+    get currentToast(): Toast | null {
         return this._queue.current;
     }
 
@@ -124,45 +112,21 @@ export class AdwToastOverlay extends HTMLElement {
         return this._queue.pending;
     }
 
-    /**
-     * Show a toast — the web equivalent of Adw.ToastOverlay.add_toast() with a
-     * freshly-built Adw.Toast. Only ONE toast is visible at a time; this one shows
-     * immediately when the slot is free, otherwise it waits its turn.
-     *
-     * `options` is either an {@link AdwToastOptions} bag or, as a legacy shorthand, a
-     * timeout in MILLISECONDS.
-     */
-    addToast(title: string, options: number | AdwToastOptions = {}): void {
-        // Ensure the toast container exists even if addToast() races a not-yet
+    /** `adw_toast_overlay_add_toast`: show `toast` now, or queue it by its priority. */
+    add_toast(toast: Toast): void {
+        // Ensure the toast container exists even if add_toast() races a not-yet
         // connected element (mirrors Adw.ToastOverlay queuing before realize).
         if (!this._toasts) this.connectedCallback();
-
-        // Back-compat: the original signature was addToast(title, timeoutMs).
-        const opts: AdwToastOptions = typeof options === 'number' ? { timeout: options / 1000 } : options;
-
-        // This element's public timeout unit is SECONDS (Adw.Toast:timeout); the
-        // headless descriptor counts milliseconds.
-        const toast = new AdwToast(title, {
-            timeout: (opts.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000,
-            buttonLabel: opts.buttonLabel,
-        });
-        if (opts.onAction) this._actions.set(toast, opts.onAction);
-
-        this._queue.add(toast);
+        this._queue.add_toast(toast);
     }
 
-    /** Dismiss the visible toast early; the next queued toast takes its place. */
-    dismiss(): void {
-        this._queue.dismiss();
-    }
-
-    /** Dismiss the visible toast and discard everything still queued behind it. */
-    clearToasts(): void {
-        this._queue.clear();
+    /** `adw_toast_overlay_dismiss_all`: dismiss every queued toast, then the visible one. */
+    dismiss_all(): void {
+        this._queue.dismiss_all();
     }
 
     /** Build + attach the strip for `toast` — the DOM half of the queue's `onShow`. */
-    private _mountToast(toast: AdwToast): void {
+    private _mountToast(toast: Toast): void {
         const el = document.createElement('div');
         el.className = 'adw-toast';
 
@@ -171,18 +135,20 @@ export class AdwToastOverlay extends HTMLElement {
 
         const titleEl = document.createElement('span');
         titleEl.className = 'adw-toast-title';
-        titleEl.textContent = toast.title;
+        if (toast.use_markup) renderPangoMarkup(titleEl, toast.title);
+        else titleEl.textContent = toast.title;
         wrapper.appendChild(titleEl);
         el.appendChild(wrapper);
 
-        if (toast.hasButton) {
+        if (toast.button_label) {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'adw-toast-action-button';
-            button.textContent = toast.buttonLabel;
+            button.textContent = toast.button_label;
             button.addEventListener('click', () => {
-                this._actions.get(toast)?.();
-                this._queue.dismiss();
+                toast.emit('button-clicked');
+                if (toast.action_name) activateWidgetAction(this, toast.action_name);
+                toast.dismiss();
             });
             el.appendChild(button);
         }
@@ -197,7 +163,7 @@ export class AdwToastOverlay extends HTMLElement {
         close.className = 'adw-toast-close-button';
         close.setAttribute('aria-label', 'Close');
         close.appendChild(createGtkImage('window-close'));
-        close.addEventListener('click', () => this._queue.dismiss());
+        close.addEventListener('click', () => toast.dismiss());
         el.appendChild(close);
 
         this._toasts.appendChild(el);

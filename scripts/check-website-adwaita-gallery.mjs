@@ -469,7 +469,7 @@ const MARKUP_OVERRIDE_LEDGER = {
     'Gtk.DrawingArea':
         '`set_draw_func` is a CALLBACK, and a markup fence cannot install one — the live preview mounts the element exactly as the fence shows it, which is a blank area of the requested size, because with no function installed the widget paints nothing (gtkdrawingarea.c:251-252). So the preview depicts what is declarable and the `web` tab carries the markup that actually paints, script and all.',
     'Adw.Toast':
-        "`<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole API — so the markup that PAINTS a toast in a static preview is the overlay's own internal DOM (`.adw-toast.visible` and friends), which is the one thing a reader must not copy. The preview depicts the result; the tab teaches the call.",
+        "`<adw-toast-overlay>` has no declarative toast child — `add_toast(new Adw.Toast(...))` is the whole API — so the markup that PAINTS a toast in a static preview is the overlay's own internal DOM (`.adw-toast.visible` and friends), which is the one thing a reader must not copy. The preview depicts the result; the tab teaches the call.",
 };
 
 /**
@@ -705,10 +705,6 @@ const paneKindMenu = () => [...PANE_DIVERGENCE_KINDS].map(([kind, means]) => `  
  * down beside this one would be the second copy that drifts.
  */
 const PANE_TEXT_DIVERGENCES = {
-    'Adw.Toast':
-        'property: the port has no Adw.Toast widget at all — showToast() is the whole API and its timeout is ' +
-        'in milliseconds — and the overlay takes its content through set_child() where GTK passes `child` to ' +
-        'the constructor.',
     'Adw.AlertDialog':
         'composition: heading and body are constructor positionals, the response appearance is the NICK ' +
         'rather than an Adw.ResponseAppearance constant, and present() RESOLVES to the chosen response ' +

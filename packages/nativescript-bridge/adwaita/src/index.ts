@@ -121,7 +121,6 @@ export {
     AdwToast,
     AdwToastQueue,
     DEFAULT_TOAST_TIMEOUT,
-    TOAST_BUTTON_CLICKED,
     AdwAlertResponses,
     NOTIFY_RESPONSE,
     ABOUT_CLOSED,

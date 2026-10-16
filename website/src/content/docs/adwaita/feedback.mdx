@@ -40,7 +40,7 @@ desktop.
   <Fragment slot="preview">
     ```html
     <!-- NOT the markup a reader copies, and the only block on the site where the
-         two differ: the `web` fragment below overrides this tab. `addToast()` is
+         two differ: the `web` fragment below overrides this tab. `add_toast()` is
          the whole API — <adw-toast-overlay> has no declarative toast child — so a
          preview can only DEPICT the result, which is the overlay's own internal
          DOM. See AdwWidget.astro's MARKUP_OVERRIDE. -->
@@ -101,14 +101,18 @@ desktop.
     </adw-toast-overlay>
 
     <script type="module">
+        import { Adw } from '@gjsify/adwaita-web';
+
         // Toasts are shown imperatively: the overlay floats them over its content.
         // The timeout is in seconds; a second toast added now would be queued and
         // shown once this one is dismissed.
         const overlay = document.getElementById('overlay');
-        overlay.addToast('File moved to Trash', { timeout: 3, buttonLabel: 'Undo' });
+        const toast = new Adw.Toast({ title: 'File moved to Trash', timeout: 3, buttonLabel: 'Undo' });
+        toast.connect('button-clicked', () => console.log('undo'));
+        overlay.add_toast(toast);
 
         overlay.pendingToasts;  // how many are waiting behind the visible one
-        overlay.dismiss();      // dismiss now and show the next queued toast
+        toast.dismiss();        // dismiss now and show the next queued toast
     </script>
     ```
   </Fragment>
@@ -124,11 +128,12 @@ desktop.
     // The overlay wraps the page content and floats toasts above it.
     const overlay = new Adw.ToastOverlay({ child: content });
 
-    // The NativeScript overlay timer is in milliseconds.
-    overlay.showToast('File moved to Trash', {
-        timeout: 3000,
+    const toast = new Adw.Toast({
+        title: 'File moved to Trash',
+        timeout: 3,
         buttonLabel: 'Undo',
     });
+    overlay.add_toast(toast);
     ```
   </Fragment>
 </AdwWidget>
