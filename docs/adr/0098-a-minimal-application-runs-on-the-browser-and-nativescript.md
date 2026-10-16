@@ -57,6 +57,7 @@ adds, so an application written against stage 1 is never rewritten.**
 | `Gio.ActionGroup`: `has_action`, `list_actions`, `activate_action(name, param)`, `get_action_enabled` | implemented, as the same registry |
 | `connect('startup')`, `connect('activate')`, `vfunc_startup`, `vfunc_activate` | implemented; the first two entries of the vfunc allow-list below |
 | `runAsync(argv)`, `quit()` | implemented (§ 3). `run(argv)` is refused by name: it blocks, and a page cannot |
+| `inhibit(window, flags, reason)`, `uninhibit(cookie)`, `Gtk.ApplicationInhibitFlags` | implemented on the browser only (`gtk_application_inhibit`). While a `LOGOUT` inhibitor is active, `beforeunload` is cancelled, the one hook a page has on Ctrl+Q, closing the tab and reload; the browser words the prompt, so `reason` is accepted and never shown. `SWITCH`, `SUSPEND` and `IDLE` get a cookie and do nothing. Cookies are unique and increasing; an unknown cookie in `uninhibit` is ignored. NativeScript has no unload to guard, so both are refused there by name |
 | `add_window`, `remove_window`, `get_windows()`, `active_window`, `get_active_window()` | implemented. The first window added becomes active; `present()` on a window makes it active |
 | `Adw.ApplicationWindow` / `Gtk.ApplicationWindow` constructed with `application`, `window.application`, `win.` actions | implemented as `add_window` plus a `win` group on the window. UNVERIFIED: whether each port's existing window class has the construct property; the implementing PR measures it |
 

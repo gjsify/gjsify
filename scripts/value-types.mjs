@@ -98,6 +98,12 @@ export const CONSTRUCTIBLE_VALUES = [
         why: 'GJS writes `super({ applicationId, flags: Gio.ApplicationFlags.DEFAULT_FLAGS })`; ADR 0098 accepts only the default and refuses any other flag by name. A flags type, not a widget.',
     },
     {
+        member: 'Gtk.ApplicationInhibitFlags',
+        gir: 'ApplicationInhibitFlags',
+        flags: true,
+        why: 'GJS writes `app.inhibit(window, Gtk.ApplicationInhibitFlags.LOGOUT, reason)` to guard leaving with unsaved changes; on the browser `LOGOUT` guards `beforeunload`, the other flags are accepted and do nothing. A flags type, not a widget.',
+    },
+    {
         member: 'Gio.SimpleActionGroup',
         gir: 'SimpleActionGroup',
         why: "`Gio.SimpleAction`'s container — what `insertActionGroup` (`gtk_widget_insert_action_group`) puts under a prefix such as `source-view`, unreachable without it.",

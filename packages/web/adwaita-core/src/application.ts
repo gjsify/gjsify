@@ -43,6 +43,14 @@ export const ApplicationFlags = {
     REPLACE: 256,
 } as const;
 
+/** `Gtk.ApplicationInhibitFlags`: only `LOGOUT` means anything on a page (`gtk_application_inhibit`). */
+export const ApplicationInhibitFlags = {
+    LOGOUT: 1,
+    SWITCH: 2,
+    SUSPEND: 4,
+    IDLE: 8,
+} as const;
+
 /** What a platform gives the application (ADR 0098 § 3). */
 export interface ApplicationHost {
     readonly name: string;
@@ -64,6 +72,12 @@ export interface ApplicationHost {
      * no resource icons, and startup skips it.
      */
     iconTheme?(): { add_resource_path(path: string): void };
+    /**
+     * `gtk_application_inhibit` with `LOGOUT`: whether leaving the page must be confirmed. Called
+     * with `true` when the first logout inhibitor arrives and `false` when the last one goes. A
+     * platform without it refuses `inhibit()` by name.
+     */
+    guardUnload?(active: boolean): void;
 }
 
 /** `g_application_id_is_valid`: dotted, two or more non-empty elements, none starting with a digit. */
@@ -118,8 +132,6 @@ const GTK_REFUSED_METHODS = [
     'set_app_menu',
     'get_app_menu',
     'get_menu_by_id',
-    'inhibit',
-    'uninhibit',
 ] as const;
 
 interface AppState {
@@ -127,12 +139,15 @@ interface AppState {
     /** `undefined` until construction ends, which derives it from the id unless one was given. */
     resourceBasePath: string | null | undefined;
     windows: object[];
+    /** Cookie to flags of the active `gtk_application_inhibit` calls. */
+    inhibitors: Map<number, number>;
     running: boolean;
     resolve: (code: number) => void;
 }
 
 const STATE = new WeakMap<object, AppState>();
 let defaultApplication: object | null = null;
+let lastCookie = 0;
 
 function rememberDefault(app: object): void {
     defaultApplication ??= app;
@@ -141,7 +156,14 @@ function rememberDefault(app: object): void {
 function stateOf(app: object): AppState {
     let state = STATE.get(app);
     if (state === undefined) {
-        state = { id: null, resourceBasePath: undefined, windows: [], running: false, resolve: () => {} };
+        state = {
+            id: null,
+            resourceBasePath: undefined,
+            windows: [],
+            inhibitors: new Map(),
+            running: false,
+            resolve: () => {},
+        };
         STATE.set(app, state);
     }
     return state;
@@ -412,6 +434,8 @@ export interface GtkApplicationMembers {
     get_windows(): object[];
     add_window(window: object): void;
     remove_window(window: object): void;
+    inhibit(window: object | null, flags: number, reason?: string | null): number;
+    uninhibit(cookie: number): void;
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any
@@ -468,6 +492,36 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
             linkWindow(window, this as never);
         }
 
+        /**
+         * `gtk_application_inhibit`: a `LOGOUT` inhibitor makes the page ask before it is left. The
+         * browser shows its own text, so `reason` is accepted and never displayed. The other flags
+         * mean nothing on a page: they get a cookie and do nothing.
+         */
+        inhibit(_window: object | null, flags: number, _reason?: string | null): number {
+            const host = hostOf(this);
+            if (host.guardUnload === undefined) {
+                throw refuse('inhibit()', `has no meaning on ${host.name}`);
+            }
+            const state = stateOf(this);
+            const before = guarded(state);
+            const cookie = ++lastCookie;
+            state.inhibitors.set(cookie, flags);
+            if (guarded(state) !== before) host.guardUnload(!before);
+            return cookie;
+        }
+
+        /** `gtk_application_uninhibit`: an unknown cookie is ignored (GTK warns). */
+        uninhibit(cookie: number): void {
+            const host = hostOf(this);
+            if (host.guardUnload === undefined) {
+                throw refuse('uninhibit()', `has no meaning on ${host.name}`);
+            }
+            const state = stateOf(this);
+            const before = guarded(state);
+            if (!state.inhibitors.delete(cookie)) return;
+            if (guarded(state) !== before) host.guardUnload(!before);
+        }
+
         /** `gtk_application_remove_window`: the last window to go ends a running application. */
         remove_window(window: object): void {
             const state = stateOf(this);
@@ -480,6 +534,11 @@ export function withGtkApplication<T extends GioApplicationConstructor>(Base: T)
     }
     refuseMembers(GtkApplication.prototype, GTK_REFUSED_METHODS, []);
     return GtkApplication;
+}
+
+function guarded(state: AppState): boolean {
+    for (const flags of state.inhibitors.values()) if (flags & ApplicationInhibitFlags.LOGOUT) return true;
+    return false;
 }
 
 function hasResource(path: string): boolean {
