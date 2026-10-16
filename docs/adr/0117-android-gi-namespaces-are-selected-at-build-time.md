@@ -67,8 +67,9 @@ split, no selection code is written here.
 - **One linked unit.** `libnode_gi.so` names its GI libraries in `DT_NEEDED`; an addon built
   against one GLib and running beside another is a startup crash. Any split must keep the ABI
   contract that the AAR README states as "the addon travels WITH the GI stack".
-- **The sysroot is built by hand and uploaded by a human.** g-ir-scanner has to run target
-  binaries (ADR 0104 track B, #2179), so there is no CI path and no automatic release.
+- **A human uploads the sysroot.** g-ir-scanner has to run target binaries (ADR 0104 track B,
+  #2179); at the time of writing that meant a hand build with no CI path. Since 2026-10-16 CI
+  builds it under qemu-user (§ Amendment), and releases stay manual by choice.
 
 ## Decision
 
@@ -283,8 +284,9 @@ What a later `gjsify/android-sysroot` release must add, for § 1's Soup and TLS 
 
 The rule, unchanged and restated because this ADR is the first thing that will want to break it:
 **a new sysroot release needs Pascal's explicit OK before upload.** g-ir-scanner has to RUN a
-dumper compiled for the target, so there is no CI path (ADR 0104 track B, #2179 option 1b) and the
-artifact is a hand-built binary that every consumer pins by sha256. An agent may prepare the
+dumper compiled for the target (ADR 0104 track B, #2179 option 1b), and the artifact is a binary
+that every consumer pins by sha256. CI can now rebuild it (§ Amendment), but a release is still
+the owner's decision, not a constraint of the build. An agent may prepare the
 recipe, the project list and the digest bump in a branch; the upload and the tag are the owner's
 action. The pin bump in `build-inputs.json` and the licence corpus under
 `<sysroot>/share/licenses` move in the same commit as the digests, because
@@ -339,8 +341,8 @@ baseline.
 - The lockstep surface grows: five packages instead of one, all published from one job, all
   pinning one sysroot, with a startup check that refuses a mixed set by name. That check is the
   price of the split and it is cheaper than the crash it replaces.
-- `@gjsify/gi-runtime-android` is still published BY HAND every release until #2179's CI job
-  exists, and this ADR multiplies that manual step by the number of groups. Stage 1 therefore
+- `@gjsify/gi-runtime-android` was published BY HAND every release before the `release.yml` job landed
+  (#2179, #2187), and this ADR multiplies that manual step by the number of groups. Stage 1 therefore
   lands the `release.yml` job for all of them together or not at all.
 - A GIO module directory on Android is a new mechanism in this repository, and `GIO_MODULE_DIR`
   from `nativeLibraryDir` is the part most likely to break on a future API level. § 3 names static
@@ -362,3 +364,21 @@ baseline.
 Tracked in [status/open-todos/node-gi.md](../../status/open-todos/node-gi.md). Nothing in this ADR
 is implemented; the three stages of § 5 are the work, in that order, each gated by its own
 acceptance test.
+
+## Amendment 2026-10-16: the sysroot has a CI path
+
+Stage 0 of this ADR assumed the sysroot cannot be built in CI because g-ir-scanner must run a
+dumper compiled for the target and a runner has no Android device. That premise is gone.
+[gjsify/android-sysroot](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml) PRs #1–#3 build the prefix on a stock x86_64 runner in a
+`fedora:44` container: `tools/qemu-run` runs the dumper under qemu-user against a bionic runtime
+unpacked from the official system image. Both x86_64 and arm64-v8a are covered, about 8 minutes
+warm per ABI.
+
+The result is byte-identical to release 2026.10.12: all 21 typelibs and all 34 shared objects
+match. The only differences are a licence symlink fixed in c109b50, stale licence files from the
+hand-build tree, and the manifest's `tag`/`buildRoot`/`ndkRoot`.
+
+The workflow uploads a workflow artifact and never creates or edits a release. Releases stay
+manual by choice: the owner's OK per release still applies. Open items live in
+android-sysroot: the pango/freetype2 wraps still float, and a GIR race is worked around. The
+decision above is unchanged and the status stays Proposed.
