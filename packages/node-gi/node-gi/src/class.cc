@@ -44,6 +44,8 @@ static GType UnwrapGType(Napi::Env env, Napi::Value v) {
 static GType TypeNameToGType(const std::string& t) {
   if (t == "string" || t == "utf8") return G_TYPE_STRING;
   if (t == "boolean" || t == "bool") return G_TYPE_BOOLEAN;
+  if (t == "char") return G_TYPE_CHAR;
+  if (t == "uchar") return G_TYPE_UCHAR;
   if (t == "int") return G_TYPE_INT;
   if (t == "uint") return G_TYPE_UINT;
   if (t == "int64") return G_TYPE_INT64;
@@ -94,6 +96,19 @@ static GParamSpec* BuildParamSpec(Napi::Env env, Napi::Object spec, std::string*
     gboolean d = def.IsBoolean() ? def.As<Napi::Boolean>().Value()
                                  : (def.IsNumber() ? NodeGiToBool(def) : FALSE);
     return g_param_spec_boolean(nm, nm, nm, d, flags);
+  }
+  if (type == "char") {
+    return g_param_spec_char(nm, nm, nm, hasMin ? static_cast<gint8>(mn) : G_MININT8,
+                             hasMax ? static_cast<gint8>(mx) : G_MAXINT8,
+                             def.IsNumber() ? static_cast<gint8>(def.As<Napi::Number>().Int32Value()) : 0,
+                             flags);
+  }
+  if (type == "uchar") {
+    return g_param_spec_uchar(nm, nm, nm, hasMin ? static_cast<guint8>(mn) : 0,
+                              hasMax ? static_cast<guint8>(mx) : G_MAXUINT8,
+                              def.IsNumber() ? static_cast<guint8>(def.As<Napi::Number>().Uint32Value())
+                                             : 0,
+                              flags);
   }
   if (type == "int") {
     return g_param_spec_int(nm, nm, nm, hasMin ? static_cast<gint>(mn) : G_MININT,

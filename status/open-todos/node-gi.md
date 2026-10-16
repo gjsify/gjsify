@@ -410,16 +410,20 @@ measured, not assumed — with the disarm deleted the "libuv alive" case fails
 and the "libuv idle" case still passes, which is exactly the boundary.
 
 
-### `@gjsify/node-gi` — `idle_add_once fires exactly once` failed on a stale local build
+### `@gjsify/node-gi` — three tests fail on a fresh build of main (baseline, not from a change)
 
-`test/glib-overrides.test.mjs` `0 !== 1` — the idle never fired within its 8
-`iterateMainContext(true)` calls. Every `test*` script pins `NODE_GI_NATIVE=build`, so the
-test runs the addon in `build/Release`: on a checkout whose build predated the source
-(10 Oct build against 15 Oct sources) it failed 5 runs in 6 standalone, while the staged
-prebuild passed 8 in 8. On a fresh `npm install` build of current main it passed 14 of 14
-standalone (also under 20 busy loops) and in six full `npm test` runs. Rebuild first
-(`npm run build`); not bisected to the commit that changed it, so a recurrence on a FRESH
-build is a real defect.
+Measured on a fresh `node-gyp rebuild` of main (4e08b3692f), each also in isolation and with the
+integer work stashed, so they are baseline defects:
+
+- `test/glib-overrides.test.mjs` `idle_add_once fires exactly once (auto-removed)`: line 104,
+  `assert.equal(n, 1, 'fired once')`, actual 0 — the idle never fires within the 8
+  `iterateMainContext(true)` calls. 3 of 3 runs, also without DISPLAY. An earlier note blamed a
+  stale build; a fresh build reproduces it, so it is a real defect, not bisected yet.
+- `test/canvas2d-bridge.test.mjs`: expected `raf: ticked`, got `raf: idle` (the rest of the
+  golden matches).
+- `test/excalibur-webgl.test.mjs` (capstone): expected `pixel-center: 0,0,255,255` etc., got
+  `engine: started` then `boot-error: timeout waiting for engine frames`. Not checked whether
+  the headless environment (no frame callbacks) is the cause.
 
 ## Storybook probe: node-gi stays alive after `quit()` since #2011
 
@@ -429,18 +433,13 @@ the process after a 5 s grace, which hides the symptom. Open: which source or ha
 gallery stories leave alive after `Adw.Application.quit()` on node-gi. Look for it by bisecting
 the stories added in #2011 with `GJSIFY_STORYBOOK_PROBE_STORY`, then drop the grace exit.
 
-### Integer range: leftovers after the constructor, GValue and array paths
+### Integer range: leftover on the string return path
 
-Constructor properties, `JsToGValue` and IN-array elements now follow GJS (refuse `char`/`uchar`/
-`int64`/`uint64`, wrap `int`/`uint`; arrays wrap on every tag; oracle
-`conformance/programs/integer-gvalue-array.conf.mjs`). Still open:
-
-- `GObject.ParamSpec.char`/`uchar` do not exist, so those tags are only covered through signal
-  emit, not through a constructor property.
-- `gunichar[]` arguments (`GLib.ucs4_to_utf8`) throw a TypeError, so uint32 array elements
-  have no GLib-only conformance row.
-- GList/GSList/GHashTable elements share `ElementToGIArgument` but keep the old coercion; GJS's
-  rule for them is unprobed.
+`GObject.ParamSpec.char`/`uchar`, `gunichar[]` IN arguments and GList/GSList/GHashTable integer
+elements now follow GJS (oracle `conformance/programs/integer-gvalue-array.conf.mjs`). Still
+open: `GLib.ucs4_to_utf8([0x7fffffff])` makes GLib return invalid UTF-8; GJS throws a TypeError
+converting it, node-gi's utf8 return turns the bad bytes into U+FFFD. The conformance sweep skips
+that one value.
 
 ### Android ships ONE payload, and ADR 0117 designs the build-time choice of more
 

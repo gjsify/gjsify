@@ -23,9 +23,7 @@ const bounds = {
     int64: [-(2n ** 63n), 2n ** 63n - 1n],
     uint64: [0n, 2n ** 64n - 1n],
 };
-// node-gi has no ParamSpec.char/uchar factory (open todo), so a char/uchar value is only
-// reachable through a signal argument — the same gjs_value_to_g_value path.
-const propertyTags = ['int', 'uint', 'int64', 'uint64'];
+const propertyTags = ['char', 'uchar', 'int', 'uint', 'int64', 'uint64'];
 const Properties = {};
 for (const tag of propertyTags) {
     const [lo, hi] = bounds[tag];
@@ -124,6 +122,7 @@ for (const tag of Object.keys(bounds)) {
 const arrays = {
     uint8: (v) => GLib.Bytes.new([97, v]).get_data().join(','),
     uint16: (v) => [...GLib.utf16_to_utf8([97, v])[0]].map((c) => c.codePointAt(0)).join(','),
+    unichar: (v) => [...GLib.ucs4_to_utf8([97, v])[0]].map((c) => c.codePointAt(0)).join(','),
     int32: (v) => {
         const keyFile = new GLib.KeyFile();
         keyFile.set_integer_list('g', 'k', [7, v]);
@@ -131,7 +130,14 @@ const arrays = {
     },
 };
 for (const [tag, call] of Object.entries(arrays)) {
-    for (const value of values.filter((v) => typeof v !== 'bigint' || v === 5n)) {
+    // 2**31-1 as a unichar makes g_ucs4_to_utf8 return invalid UTF-8, which gjs refuses with a
+    // TypeError on the way out and node-gi's utf8 return path turns into U+FFFD (open todo).
+    const skip = tag === 'unichar' ? [2 ** 31 - 1] : [];
+    for (const value of values.filter((v) => (typeof v !== 'bigint' || v === 5n) && !skip.includes(v))) {
         print(`array ${tag} ${show(value)} -> ${outcome(() => call(value))}`);
     }
+}
+// A string source for a gunichar[] is split into code points (arg.cpp:584).
+for (const text of ['ab', 'a\u2665\u{1F600}', '']) {
+    print(`array unichar string ${show(text)} -> ${outcome(() => GLib.ucs4_to_utf8(text)[0])}`);
 }
