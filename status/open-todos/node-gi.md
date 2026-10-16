@@ -442,11 +442,6 @@ Constructor properties, `JsToGValue` and IN-array elements now follow GJS (refus
 - GList/GSList/GHashTable elements share `ElementToGIArgument` but keep the old coercion; GJS's
   rule for them is unprobed.
 
-### `@gjsify/node-gi` — `cairo.js` and `gettext.js` still load the addon at import
-
-The NativeScript host loads `libnode_gi.so` lazily, but these two modules still load the addon
-at import, so an app that imports them pays for the library regardless of its engine choice.
-
 ### Android ships ONE payload, and ADR 0117 designs the build-time choice of more
 
 `@gjsify/gi-runtime-android`'s payload is a measurement, not a choice: the `DT_NEEDED` closure

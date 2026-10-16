@@ -49,8 +49,10 @@ function GLib() {
 // lookups still work (they go through GLib, which every addon version has), and
 // the binders are the no-ops they used to be. It is announced once, because a
 // silently untranslated UI is the defect this file exists to close.
-ensureNative();
-const haveLocaleBinders = typeof native.localeCategories === 'function';
+function haveLocaleBinders() {
+    ensureNative();
+    return typeof native.localeCategories === 'function';
+}
 
 let announcedStaleAddon = false;
 function noLocaleBinders(fn) {
@@ -79,6 +81,18 @@ const FALLBACK_CATEGORIES = {
     // The MSVC CRT, which has no LC_MESSAGES — GNU gettext's <libintl.h> picks 1729.
     win32: { ALL: 0, COLLATE: 1, CTYPE: 2, MONETARY: 3, NUMERIC: 4, TIME: 5, MESSAGES: 1729 },
 };
+
+// Resolved on first read, not at import, so a lazy host (NativeScript) that only imports this
+// module has not loaded the addon yet; a failed load throws here, there is no fallback table.
+let categories = null;
+function localeCategories() {
+    if (categories === null) {
+        categories = haveLocaleBinders()
+            ? native.localeCategories()
+            : (FALLBACK_CATEGORIES[globalThis.process?.platform] ?? FALLBACK_CATEGORIES.linux);
+    }
+    return categories;
+}
 
 /** Look up `msgid` in the default domain (the one `textdomain()` last named). */
 export function gettext(msgid) {
@@ -147,13 +161,13 @@ export function domain(domainName) {
  * @returns {string|null} the prior locale name, or null if it could not be set
  */
 export function setlocale(category, locale) {
-    if (!haveLocaleBinders) return noLocaleBinders('setlocale');
+    if (!haveLocaleBinders()) return noLocaleBinders('setlocale');
     return native.setThreadLocale(category, locale ?? null);
 }
 
 /** Set the default text domain, or report it when `domainName` is null. */
 export function textdomain(domainName) {
-    if (!haveLocaleBinders) return noLocaleBinders('textdomain');
+    if (!haveLocaleBinders()) return noLocaleBinders('textdomain');
     return native.textdomain(domainName ?? null);
 }
 
@@ -164,7 +178,7 @@ export function textdomain(domainName) {
  * `gjs_bindtextdomain` does — see the note in private.cc.
  */
 export function bindtextdomain(domainName, dirName) {
-    if (!haveLocaleBinders) return noLocaleBinders('bindtextdomain');
+    if (!haveLocaleBinders()) return noLocaleBinders('bindtextdomain');
     return native.bindtextdomain(domainName, dirName ?? null);
 }
 
@@ -190,9 +204,15 @@ export function bindtextdomainCodeset(_domainName, _codeset) {
  * claiming to address LC_MESSAGES — on two of the three platforms the translation
  * blocker was reported from.
  */
-export const LocaleCategory = haveLocaleBinders
-    ? native.localeCategories()
-    : (FALLBACK_CATEGORIES[globalThis.process?.platform] ?? FALLBACK_CATEGORIES.linux);
+export const LocaleCategory = Object.defineProperties(
+    {},
+    Object.fromEntries(
+        Object.keys(FALLBACK_CATEGORIES.linux).map((name) => [
+            name,
+            { enumerable: true, get: () => localeCategories()[name] },
+        ]),
+    ),
+);
 
 /**
  * The GJS `Gettext` module as a default export — the object shape

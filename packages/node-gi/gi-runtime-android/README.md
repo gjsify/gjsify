@@ -14,11 +14,11 @@ Add it as a dependency and `requireGi` works on the device. No `jniLibs` directo
 }
 ```
 
-> **PUBLISHED BY HAND, every release.** No CI job can build the AAR yet (#2179), so
-> `release.yml` never publishes this package and the closure check reds each train
-> until a maintainer does — [§ Releasing](#releasing). Between the tag and that publish,
-> the train's version of this package does not exist; nothing in this repository pins
-> the name, so the gap costs no other install.
+> **Published by CI, built from a hand-built sysroot.** `release.yml`'s
+> `publish-gi-runtime-android` job cross-builds `libnode_gi.so`, builds the AAR and publishes
+> it on every release that touches node-gi ([§ Releasing](#releasing), #2187). Only the GI
+> prefix it is built from (the sysroot, [gjsify/android-sysroot](https://github.com/gjsify/android-sysroot))
+> is still built by hand.
 
 Tier 3 (experimental). Stage 4 of
 [ADR 0105](../../../docs/adr/0105-real-gobject-backs-the-nativescript-subset-on-android.md).

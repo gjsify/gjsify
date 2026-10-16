@@ -23,16 +23,23 @@
 // (the `Object.assign({}, imports._cairo, cairoNative)` merge shape).
 // Copyright (c) 2010 litl, LLC / GJS contributors. MIT OR LGPL-2.0-or-later.
 
-import native, { ensureNative } from './index.js';
+import native, { ensureNative, onNativeLoaded } from './index.js';
 
-ensureNative();
+// Bound when the addon loads: at import on desktop, on first use on a lazy host (NativeScript).
+// Every call that can run before any cairo object exists goes through `engine()`.
+let c;
 
-const c = native.__cairo;
-if (c === undefined) {
-    throw new Error(
+function missingBinding() {
+    return new Error(
         '@gjsify/node-gi/cairo: the native cairo binding is missing from the addon. ' +
             'Rebuild @gjsify/node-gi (node-gyp rebuild) — the addon must link libcairo.',
     );
+}
+
+function engine() {
+    ensureNative();
+    if (c === undefined) throw missingBinding();
+    return c;
 }
 
 // ---- enums (ported verbatim from refs/gjs/modules/core/_cairo.js) -----------
@@ -143,7 +150,7 @@ function handleOf(x, what) {
 /** cairo drawing context. `new cairo.Context(surface)` wraps `cairo_create`. */
 export class Context {
     constructor(surface) {
-        setHandle(this, c.contextCreate(handleOf(surface, 'cairo.Surface')));
+        setHandle(this, engine().contextCreate(handleOf(surface, 'cairo.Surface')));
     }
 
     save() {
@@ -424,14 +431,14 @@ export class Surface {
 export class ImageSurface extends Surface {
     constructor(format, width, height) {
         super();
-        setHandle(this, c.imageSurfaceCreate(format, width, height));
+        setHandle(this, engine().imageSurfaceCreate(format, width, height));
     }
 
     static create(format, width, height) {
         return new ImageSurface(format, width, height);
     }
     static createFromPNG(filename) {
-        return wrapRaw(ImageSurface, c.imageSurfaceCreateFromPNG(filename));
+        return wrapRaw(ImageSurface, engine().imageSurfaceCreateFromPNG(filename));
     }
 
     getWidth() {
@@ -473,10 +480,10 @@ export class Pattern {
 /** A solid-color pattern (`cairo_pattern_create_rgb[a]`). */
 export class SolidPattern extends Pattern {
     static createRGB(red, green, blue) {
-        return wrapRaw(SolidPattern, c.solidPatternCreateRGB(red, green, blue));
+        return wrapRaw(SolidPattern, engine().solidPatternCreateRGB(red, green, blue));
     }
     static createRGBA(red, green, blue, alpha) {
-        return wrapRaw(SolidPattern, c.solidPatternCreateRGBA(red, green, blue, alpha));
+        return wrapRaw(SolidPattern, engine().solidPatternCreateRGBA(red, green, blue, alpha));
     }
 }
 
@@ -494,7 +501,7 @@ export class Gradient extends Pattern {
 export class LinearGradient extends Gradient {
     constructor(x0, y0, x1, y1) {
         super();
-        setHandle(this, c.linearGradientCreate(x0, y0, x1, y1));
+        setHandle(this, engine().linearGradientCreate(x0, y0, x1, y1));
     }
 }
 
@@ -502,7 +509,7 @@ export class LinearGradient extends Gradient {
 export class RadialGradient extends Gradient {
     constructor(cx0, cy0, radius0, cx1, cy1, radius1) {
         super();
-        setHandle(this, c.radialGradientCreate(cx0, cy0, radius0, cx1, cy1, radius1));
+        setHandle(this, engine().radialGradientCreate(cx0, cy0, radius0, cx1, cy1, radius1));
     }
 }
 
@@ -510,7 +517,7 @@ export class RadialGradient extends Gradient {
 export class SurfacePattern extends Pattern {
     constructor(surface) {
         super();
-        setHandle(this, c.surfacePatternCreate(handleOf(surface, 'cairo.Surface')));
+        setHandle(this, engine().surfacePatternCreate(handleOf(surface, 'cairo.Surface')));
     }
 
     setExtend(extend) {
@@ -556,11 +563,15 @@ function wrapPatternHandle(handle) {
 // a returned/callback cairo pointer into the right JS instance. Surface + Pattern
 // fan out to the concrete subclass by cairo runtime type (mirrors
 // CairoSurface::from_c_ptr / gjs_cairo_pattern_from_pattern).
-c.setup({
-    context: (handle) => wrapRaw(Context, handle),
-    surface: (handle) => wrapRaw(c.surfaceGetType(handle) === SurfaceType.IMAGE ? ImageSurface : Surface, handle),
-    pattern: (handle) => wrapPatternHandle(handle),
-    path: (handle) => wrapRaw(Path, handle),
+onNativeLoaded(() => {
+    if (native.__cairo === undefined) throw missingBinding();
+    c = native.__cairo;
+    c.setup({
+        context: (handle) => wrapRaw(Context, handle),
+        surface: (handle) => wrapRaw(c.surfaceGetType(handle) === SurfaceType.IMAGE ? ImageSurface : Surface, handle),
+        pattern: (handle) => wrapPatternHandle(handle),
+        path: (handle) => wrapRaw(Path, handle),
+    });
 });
 
 // The default export mirrors GJS's ESM `cairo` object (enums + constructors), the

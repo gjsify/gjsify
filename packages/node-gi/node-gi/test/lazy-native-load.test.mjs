@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 
 const index = fileURLToPath(new URL('../index.js', import.meta.url));
 const gi = fileURLToPath(new URL('../gi.js', import.meta.url));
+const cairoJs = fileURLToPath(new URL('../cairo.js', import.meta.url));
+const gettextJs = fileURLToPath(new URL('../gettext.js', import.meta.url));
 
 function run(args, code) {
     const r = spawnSync(process.execPath, [...args, '--input-type=module', '-e', code], {
@@ -44,6 +46,26 @@ describe('lazy native load', () => {
         assert.equal(loaded, false);
         assert.match(a, /node-gi/);
         assert.equal(a, b);
+    });
+
+    it('importing cairo.js and gettext.js on the nativescript host loads nothing', () => {
+        const r = run(
+            ['--conditions=nativescript'],
+            `const m = await import(${JSON.stringify(index)});
+             const cairo = await import(${JSON.stringify(cairoJs)});
+             const gettext = await import(${JSON.stringify(gettextJs)});
+             const first = (fn) => { try { fn(); return 'no throw'; } catch (e) { return e.message.slice(0, 40); } };
+             console.log(JSON.stringify([
+                 m.isNativeLoaded(),
+                 first(() => cairo.ImageSurface.create(0, 1, 1)),
+                 first(() => gettext.LocaleCategory.MESSAGES),
+                 first(() => gettext.setlocale(0, null)),
+             ]));`,
+        );
+        assert.equal(r.status, 0, r.err);
+        const [loaded, ...first] = JSON.parse(r.out);
+        assert.equal(loaded, false);
+        for (const msg of first) assert.match(msg, /node-gi/);
     });
 
     it('desktop hosts still load at import', () => {
