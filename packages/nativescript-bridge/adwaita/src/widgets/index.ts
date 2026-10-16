@@ -318,7 +318,6 @@ export {
     AdwToastOverlay,
     AdwToastQueue,
     DEFAULT_TOAST_TIMEOUT,
-    TOAST_BUTTON_CLICKED,
 } from './adw-toast-overlay.js';
 export type {
     AdwToastOptions,

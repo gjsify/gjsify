@@ -933,12 +933,6 @@ const NS_METHOD_ALIGNMENT = {
     'adw-tab-view.detachPage': {
         own: '`adw_tab_view_transfer_page(page, other_view, position)` moves a page between two views in one call; the port detaches and hands the page record back to the caller instead, because it has no second view to address and no `Adw.TabPage` to move (adw-tab-view.ts).',
     },
-    'adw-toast-overlay.showToast': {
-        own: 'A convenience that builds the `AdwToast` and enqueues it; on GTK a caller writes `new Adw.Toast({ title })` and `add_toast`, which this port ALSO offers. Kept for the XML-adjacent callers that have a string and no toast object.',
-    },
-    'adw-toast-overlay.dismiss': {
-        own: "`dismiss()` is `Adw.Toast`'s, a method of the TOAST; the overlay's only dismissal method is `adw_toast_overlay_dismiss_all`, which empties the queue. This dismisses the CURRENT toast and advances, which is neither: the toast's verb applied through the overlay because the port's queue owns the toast objects.",
-    },
     'adw-preferences-dialog.search': {
         own: PREFERENCES_SEARCH,
     },

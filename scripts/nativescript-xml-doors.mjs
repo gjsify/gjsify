@@ -966,7 +966,7 @@ export function attributeKind(texts, annotation, seen = new Set()) {
  * Every member a class declares, its in-package ancestors included.
  *
  * Getters, setters and methods in one set, because a refusal reason names a member the
- * way a reader would — `GtkDropDown.options`, `AdwToastOverlay.showToast` — without
+ * way a reader would — `GtkDropDown.options`, `AdwToastOverlay.add_toast` — without
  * caring which of the three it is.
  */
 export function membersOf(sources, tag) {

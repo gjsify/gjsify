@@ -58,9 +58,9 @@ than a lint rule nobody runs — measured against upstream's own `getComponentMo
 re-export the class, and the gallery generator THROWS rather than emitting one unprefixed.
 
 Only `View` subclasses are in that map. `AdwAlertDialog` extends `Observable` and
-`AdwToast` is a plain value class, so neither is an element in any dialect — a toast is
-raised by calling `showToast()` on an `AdwToastOverlay`, which IS a `View` and IS in the
-map.
+`Adw.Toast` is a GObject, not a `View`, so neither is an element in any dialect — a toast
+is raised by passing an `Adw.Toast` to `add_toast()` on an `AdwToastOverlay`, which IS a
+`View` and IS in the map.
 
 ## The two doors
 

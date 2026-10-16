@@ -38,12 +38,17 @@ export class ToastNsStory extends StoryView {
 
     private _showToast(): void {
         if (!this._overlay) return;
-        const hasButton = this.args.hasButton as boolean;
-        this._overlay.showToast(this.args.title as string, {
-            // The meta's timeout is in seconds; the NS overlay timer is in ms.
-            timeout: (this.args.timeout as number) * 1000,
-            buttonLabel: hasButton ? (this.args.buttonLabel as string) : undefined,
+
+        const toast = new Adw.Toast({
+            title: this.args.title as string,
+            timeout: this.args.timeout as number,
         });
+
+        if (this.args.hasButton as boolean) {
+            toast.buttonLabel = this.args.buttonLabel as string;
+        }
+
+        this._overlay.add_toast(toast);
     }
 
     updateArgs(_args: StoryArgs): void {

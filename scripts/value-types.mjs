@@ -92,6 +92,17 @@ export const CONSTRUCTIBLE_VALUES = [
         why: "A widget that follows the system appearance writes `Adw.StyleManager.get_default()` and `connect('notify::dark', …)`. The ports carry the read-only subset (`get_default`, `dark`, `get_dark`, `notify::dark`) over the page's / the app's own scheme; forcing a scheme (`color_scheme`) is outside it. A GObject, not a widget.",
     },
     {
+        member: 'Adw.Toast',
+        gir: 'Toast',
+        why: "GJS writes `overlay.add_toast(new Adw.Toast({ title, timeout, button_label }))` and `connect('button-clicked')`. The ports carry `title`, `timeout`, `priority`, `button-label`, `action-name`, `use-markup`, `dismiss()` and the `button-clicked` / `dismissed` signals; `custom-title` and `action-target` are outside it. A GObject, not a widget.",
+    },
+    {
+        member: 'Adw.ToastPriority',
+        gir: 'ToastPriority',
+        enum: true,
+        why: 'GJS writes `priority: Adw.ToastPriority.HIGH` to put a toast ahead of the shown one. An enum, not a widget.',
+    },
+    {
         member: 'Gio.ApplicationFlags',
         gir: 'ApplicationFlags',
         flags: true,
