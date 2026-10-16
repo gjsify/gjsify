@@ -131,7 +131,7 @@ export const AdwApplicationNsTest = async () => {
                 expect(key('O', 5)).toBe(true);
                 expect(key('s', 0)).toBe(false);
                 expect(hits).toStrictEqual(['save', 'open']);
-                (window as unknown as { application: object | null }).application = null;
+                (window as Adw.ApplicationWindow).application = null;
                 expect(stopped).toBe(true);
             } finally {
                 nativePlatformHost.listenKeys = original;

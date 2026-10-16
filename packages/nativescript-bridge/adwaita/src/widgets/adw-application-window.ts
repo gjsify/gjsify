@@ -7,7 +7,7 @@
 // Reference: refs/libadwaita/src/adw-application-window.c (AdwApplicationWindow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { defineWindowApplication } from './application.js';
+import { defineWindowApplication, type GtkApplication } from './application.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwWindowBase } from './window-base.js';
 
@@ -15,7 +15,7 @@ export class AdwApplicationWindow extends AdwWindowBase {
     static readonly GTypeName: string = 'AdwApplicationWindow';
 
     /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
-    declare application: object | null;
+    declare application: GtkApplication | null;
 
     constructor(props?: ConstructProps<AdwApplicationWindow>) {
         super();
