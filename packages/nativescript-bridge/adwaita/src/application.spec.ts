@@ -100,6 +100,37 @@ export const AdwApplicationNsTest = async () => {
             }
             expect(message.includes('added no window')).toBe(true);
         });
+        await it('every window class has application, get_application and set_application', () => {
+            const app = new Adw.Application({ application_id: 'org.gjsify.vec.NsWindowApp' });
+            const other = new Adw.Application({ application_id: 'org.gjsify.vec.NsWindowOther' });
+            for (const Window of [Gtk.Window, Adw.Window, Adw.ApplicationWindow]) {
+                const window = new Window() as unknown as Gtk.WindowCommon<object>;
+                const notified: unknown[] = [];
+                (window as unknown as Gtk.Window).connect('notify::application', (_self, data) =>
+                    notified.push((data as unknown as { value: unknown }).value),
+                );
+                expect(window.get_application()).toBe(null);
+                window.set_application(app as never);
+                expect(window.get_application()).toBe(app);
+                expect(window.application).toBe(app);
+                expect(app.get_windows().includes(window)).toBe(true);
+                window.set_application(other as never);
+                expect(app.get_windows().includes(window)).toBe(false);
+                expect(other.get_windows().includes(window)).toBe(true);
+                window.application = null;
+                expect(window.get_application()).toBe(null);
+                expect(notified).toStrictEqual([app, other, null]);
+            }
+        });
+        await it('a window reaches inhibit through get_application()', () => {
+            const app = new Adw.Application({ application_id: 'org.gjsify.vec.NsWindowInhibit' });
+            const window = new Gtk.Window() as unknown as Gtk.WindowCommon<object>;
+            window.set_application(app as never);
+            const cookie = window.get_application()?.inhibit(window, Gtk.ApplicationInhibitFlags.LOGOUT, 'unsaved');
+            expect(typeof cookie).toBe('number');
+            window.get_application()?.uninhibit(cookie ?? 0);
+            window.set_application(null);
+        });
         // The base `listenPlatformKeys` never delivers (iOS and the unit tests), so the wiring is
         // tested through a host whose `listenKeys` hands over its handler.
         await it('hardware keys delivered to the window run the accelerator', () => {

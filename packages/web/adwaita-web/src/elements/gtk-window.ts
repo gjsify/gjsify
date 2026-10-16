@@ -47,7 +47,7 @@
 // difference a reader of the DOM can see.
 //
 // NOT PORTED, and why — these are the KNOWN_GAPS of this element:
-//   `application`, `child`, `default-widget`, `display` — WIDGET- or
+//   `child`, `default-widget`, `display` — WIDGET- or
 //     DISPLAY-typed, so a slot or an id here rather than an attribute; `child` and
 //     `titlebar` ARE slots and `transient-for` only has to be PRESENT.
 //   `destroy-with-parent` — a DOM node has no destroy, and a page has no parent to destroy.
@@ -98,6 +98,7 @@
 
 import { CloseRequestState, WindowMemberState, type WindowMemberProperty } from '@gjsify/adwaita-core';
 
+import { defineWindowApplication, type GtkApplication } from '../application.js';
 import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
 import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
@@ -145,6 +146,7 @@ export class GtkWindow extends HTMLElement {
         'close-request': 'close-request',
         ...Object.fromEntries(
             [
+                'application',
                 'decorated',
                 'default-height',
                 'default-width',
@@ -162,6 +164,11 @@ export class GtkWindow extends HTMLElement {
             ].map((name) => [`notify::${name}`, `notify::${name}`]),
         ),
     };
+
+    /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
+    declare application: GtkApplication | null;
+    declare get_application: () => GtkApplication | null;
+    declare set_application: (application: GtkApplication | null) => void;
 
     /** `GObject.Object.connect`: installed per instance by `installElementApi`; refuses an undeclared signal. */
     declare connect: (signal: string, handler: (emitter: this, ...args: any[]) => unknown) => number;
@@ -641,3 +648,5 @@ export class GtkWindow extends HTMLElement {
 }
 
 customElements.define('gtk-window', GtkWindow);
+
+defineWindowApplication(GtkWindow.prototype);

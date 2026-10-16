@@ -9,13 +9,12 @@
 // finishes the Activity (Android). iOS has no API to end its own process, so there it only resolves.
 // Android's own lifecycle (`resume`, `suspend`) stays a `@nativescript/core` event (ADR 0098 § 3).
 
-import { Application, GridLayout, type View } from '@nativescript/core';
+import { Application, GridLayout, type Observable, type View } from '@nativescript/core';
 import {
     GioApplicationBase,
     withGtkApplication,
-    applicationOfWindow,
+    defineWindowApplicationMembers,
     dispatchAccelerator,
-    installActionMap,
     type ApplicationHost,
 } from '@gjsify/adwaita-core';
 import { nativePlatformHost } from '../platform-host.js';
@@ -54,6 +53,8 @@ export class AdwApplication extends GtkApplication {
     static readonly GTypeName: string = 'AdwApplication';
 }
 
+export const NOTIFY_APPLICATION = 'notify::application';
+
 type WindowApplication = { add_window(window: object): void; remove_window(window: object): void };
 
 const ACCEL_LISTENERS = new WeakMap<object, () => void>();
@@ -74,23 +75,16 @@ function followAccelerators(window: object, application: WindowApplication | nul
 }
 
 /**
- * `Gtk.Window:application` and the window's `Gio.ActionMap` (`win.` actions) on a window class.
+ * `Gtk.Window:application`, `get_application()` and `set_application()` on a window class.
  * Setting the property is `add_window`, as on GTK; setting it to `null` is `remove_window`.
  */
 export function defineWindowApplication(proto: object): void {
-    installActionMap(proto);
-    Object.defineProperty(proto, 'application', {
-        configurable: true,
-        enumerable: true,
-        get(this: object) {
-            return applicationOfWindow(this);
-        },
-        set(this: object, value: WindowApplication | null) {
-            const current = applicationOfWindow(this) as unknown as WindowApplication | null;
-            if (current === value) return;
-            current?.remove_window(this);
-            value?.add_window(this);
-            followAccelerators(this, value);
-        },
+    defineWindowApplicationMembers(proto, (window, application) => {
+        followAccelerators(window, application);
+        (window as Observable).notify({
+            eventName: NOTIFY_APPLICATION,
+            object: window as Observable,
+            value: application,
+        });
     });
 }

@@ -16,7 +16,7 @@
 //
 // THE `win.` / `app.` PREFIXES. `GtkApplicationWindow` exports window actions under `win.` and
 // application-wide ones under `app.` (:48-56), and any `GtkActionable` inside the window can
-// activate either. `defineWindowApplication` installs the `Gio.ActionMap` half on the prototype
+// activate either. `installActionMap` installs the `Gio.ActionMap` half on the prototype
 // (`add_action`, `lookup_action`, `remove_action`, the `win.` registry); the `Gio.ActionGroup`
 // half stays off because a window's `activate_action` is the widget's. Plain `<gtk-window>` has
 // no ActionMap. What this element adds over it is that map, the strip and the property that shows it.
@@ -26,17 +26,12 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import type { ActionLike } from '@gjsify/adwaita-core';
-import type { GtkApplication } from '../application.js';
+import { installActionMap, type ActionLike } from '@gjsify/adwaita-core';
 import type { DispatchedSignals } from '../signals.js';
 import type { AdwSlot } from '../slotted-children.js';
 import { GtkWindow } from './gtk-window.js';
-import { defineWindowApplication } from '../application.js';
 
 export class GtkApplicationWindow extends GtkWindow {
-    /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
-    declare application: GtkApplication | null;
-
     /** `Gio.ActionMap.add_action`: installed by `installActionMap`; the action is reachable as `win.<name>`. */
     declare add_action: (action: ActionLike) => void;
     /** `Gio.ActionMap.lookup_action`: the window's own action, or `null`. */
@@ -127,4 +122,4 @@ export class GtkApplicationWindow extends GtkWindow {
 
 customElements.define('gtk-application-window', GtkApplicationWindow);
 
-defineWindowApplication(GtkApplicationWindow.prototype);
+installActionMap(GtkApplicationWindow.prototype);

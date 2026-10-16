@@ -24,6 +24,8 @@
 //                  ('notify::focus-widget')` is refused: focus the user moves is unobservable here.
 //   maximized      constant true — the window is the screen. `maximize()` is a no-op; `unmaximize()`
 //                  and `maximized = false` throw. Split-screen or multi-window is not detected.
+//   application    `application` / `get_application()` / `set_application()`: the window joins the
+//                  application's windows, as `gtk_window_set_application` does (`notify::application`).
 //   present()      a no-op: the window the application's `activate` returns is already the root.
 //   hide-on-close  absent; a window here is never hidden, only ended.
 //
@@ -34,6 +36,7 @@ import { CloseRequestState, HandledAccumulator, WindowMemberState } from '@gjsif
 import type { EventData, View } from '@nativescript/core';
 
 import { windowHost } from '../window-host.js';
+import { defineWindowApplication, type GtkApplication } from './application.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwSingleChildBase } from './single-child-base.js';
 import { surfaceSize } from './window-state.js';
@@ -60,6 +63,11 @@ export class GtkWindow extends AdwSingleChildBase {
     private readonly _closeRequest = new CloseRequestState();
     private _unwatchForeground: (() => void) | null = null;
     private _unwatchBack: (() => void) | null = null;
+
+    /** `Gtk.Window:application`: setting it is `add_window` (ADR 0098), set by `defineWindowApplication`. */
+    declare application: GtkApplication | null;
+    declare get_application: () => GtkApplication | null;
+    declare set_application: (application: GtkApplication | null) => void;
 
     constructor(props?: ConstructProps<GtkWindow>) {
         super();
@@ -294,3 +302,5 @@ function popInnermostNavigation(root: View): boolean {
     });
     return taken;
 }
+
+defineWindowApplication(GtkWindow.prototype);
