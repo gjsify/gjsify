@@ -51,6 +51,9 @@ const MIME_BY_EXT: Readonly<Record<string, string>> = {
     '.wasm': 'application/wasm',
 };
 
+/** Owned by `gresourcePlugin`, whatever `loaders` says about `.xml`. */
+const GRESOURCE_SUFFIX = /\.gresource\.xml$/i;
+
 function mimeForExtension(ext: string): string {
     return MIME_BY_EXT[ext.toLowerCase()] ?? 'application/octet-stream';
 }
@@ -83,7 +86,10 @@ export function textLoaderPlugin(options: TextLoaderPluginOptions = {}): Plugin 
     return {
         name: 'gjsify-asset-loader',
         async load(id: string) {
-            if (!filter.test(id)) return null;
+            // User loaders run before the app presets, so an `".xml": "text"` entry would
+            // otherwise hand a `.gresource.xml` import the descriptor's source instead of the
+            // compiled bytes `gresourcePlugin` embeds (ADR 0116 § 1).
+            if (!filter.test(id) || GRESOURCE_SUFFIX.test(id)) return null;
 
             // Determine the extension (lowercase, with leading dot).
             const dotIdx = id.lastIndexOf('.');
