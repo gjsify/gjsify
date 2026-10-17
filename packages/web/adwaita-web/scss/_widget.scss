@@ -50,8 +50,12 @@
   margin-block: auto;
 }
 
+// `data-computed-*` is `gtk_widget_compute_expand` for a child that authored no value: a bin
+// whose descendant expands grows too (gtkboxlayout.c:793). `gtk-box.ts` writes it.
 gtk-box:not([orientation='vertical']) > [hexpand]:not([hexpand='false']),
-gtk-box[orientation='vertical'] > [vexpand]:not([vexpand='false']) {
+gtk-box[orientation='vertical'] > [vexpand]:not([vexpand='false']),
+gtk-box:not([orientation='vertical']) > [data-computed-hexpand],
+gtk-box[orientation='vertical'] > [data-computed-vexpand] {
   flex-grow: 1;
 }
 

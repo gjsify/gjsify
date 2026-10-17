@@ -19,15 +19,34 @@
 // Children are not moved or wrapped: the element IS the flex container, so a child in the
 // light DOM is a child of the layout, which is what `gtk_box_append` means.
 //
+// EXPAND IS THE COMPUTED VALUE, not the attribute: GtkBoxLayout grows a child when
+// `gtk_widget_compute_expand` says so (gtkboxlayout.c:391), and that is true for a bin whose
+// descendant set `hexpand` too. `compute-expand.ts` computes it; the box writes it on each
+// child that authored no value of its own as `data-computed-hexpand` / `-vexpand`, which
+// `_widget.scss` grows like the attribute. A MutationObserver over the box's subtree is the
+// substitute for `gtk_widget_queue_compute_expand`, which walks up from any widget whose
+// expand or visibility changed — so a runtime reparent or a toggled `hexpand` deep inside a
+// child lands one microtask later.
+//
 // Reference: refs/gtk/gtk/gtkbox.c (the three properties, the `box` CSS name)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { normalizeBoxOrientation, normalizeBoxSpacing, type BoxOrientation } from '@gjsify/adwaita-core';
 
+import { computeExpand, explicitExpand, type ExpandOrientation } from '../compute-expand.js';
+
 /** The attributes that carry a property — also the `notify::` roster. */
 const PROPERTY_ATTRIBUTES = ['orientation', 'spacing', 'homogeneous'] as const;
 
+/** The marker per axis a child carries while its computed expand is true. */
+const COMPUTED_EXPAND: Record<ExpandOrientation, string> = {
+    horizontal: 'data-computed-hexpand',
+    vertical: 'data-computed-vexpand',
+};
+
 export class GtkBox extends HTMLElement {
+    private _expandObserver: MutationObserver | null = null;
+
     static get observedAttributes() {
         return [...PROPERTY_ATTRIBUTES];
     }
@@ -61,6 +80,20 @@ export class GtkBox extends HTMLElement {
 
     connectedCallback() {
         this._sync();
+        this._syncComputedExpand();
+        if (this._expandObserver) return;
+        this._expandObserver = new MutationObserver(() => this._syncComputedExpand());
+        this._expandObserver.observe(this, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['hexpand', 'vexpand', 'hidden'],
+        });
+    }
+
+    disconnectedCallback() {
+        this._expandObserver?.disconnect();
+        this._expandObserver = null;
     }
 
     attributeChangedCallback(name: string, old: string | null, value: string | null) {
@@ -81,6 +114,15 @@ export class GtkBox extends HTMLElement {
         // lays out as the GTK default rather than whatever the raw attribute says.
         this.style.flexDirection = this.orientation === 'vertical' ? 'column' : 'row';
         this.style.gap = `${this.spacing}px`;
+    }
+
+    private _syncComputedExpand(): void {
+        for (const child of this.children) {
+            for (const orientation of ['horizontal', 'vertical'] as const) {
+                const grows = explicitExpand(child, orientation) === undefined && computeExpand(child, orientation);
+                child.toggleAttribute(COMPUTED_EXPAND[orientation], grows);
+            }
+        }
     }
 }
 
