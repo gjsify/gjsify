@@ -112,7 +112,14 @@ function main() {
         });
         if (plan.problems.length > 0) fail(`${abi}: ${plan.problems.join('; ')}`);
 
-        graph[abi] = { needed: Object.fromEntries(Object.keys(needed).sort().map((k) => [k, needed[k]])), typelibs };
+        graph[abi] = {
+            needed: Object.fromEntries(
+                Object.keys(needed)
+                    .sort()
+                    .map((k) => [k, needed[k]]),
+            ),
+            typelibs,
+        };
         planned[abi] = {
             libraries: ['libnode_gi.so', ...bundle].sort(),
             system: [...system].sort(),

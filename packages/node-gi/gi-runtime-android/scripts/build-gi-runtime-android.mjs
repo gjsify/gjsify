@@ -371,7 +371,12 @@ export function planGiRoots({ namespaces, typelibs }) {
         if (candidates.length > 1) {
             // Only reachable for a BARE request, since a key names one file. Guessing a
             // version here would pick an ABI for the app by sort order.
-            ambiguous.push(`${requested} (${candidates.map((t) => t.key).sort().join(', ')})`);
+            ambiguous.push(
+                `${requested} (${candidates
+                    .map((t) => t.key)
+                    .sort()
+                    .join(', ')})`,
+            );
             continue;
         }
         const typelib = candidates[0];

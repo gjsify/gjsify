@@ -66,7 +66,15 @@ export default async () => {
             // boilerplate, and every existing project fail.
             const { selected, unscanned } = planGiSelection({
                 declared: [],
-                scanned: ['GLib-2.0', 'GObject-2.0', 'Gio-2.0', 'GioUnix-2.0', 'GLibUnix-2.0', 'GModule-2.0', 'GIRepository-3.0'],
+                scanned: [
+                    'GLib-2.0',
+                    'GObject-2.0',
+                    'Gio-2.0',
+                    'GioUnix-2.0',
+                    'GLibUnix-2.0',
+                    'GModule-2.0',
+                    'GIRepository-3.0',
+                ],
             });
             expect(selected).toStrictEqual([]);
             expect(unscanned).toStrictEqual([]);

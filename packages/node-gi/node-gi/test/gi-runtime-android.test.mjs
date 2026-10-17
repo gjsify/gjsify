@@ -201,10 +201,30 @@ describe('planGiRoots: a requested namespace becomes the seeds that back it', ()
     // `planTypelibSet` blocks the whole set.
     const typelibs = [
         { key: 'GLib-2.0', namespace: 'GLib', sharedLibraries: ['libglib-2.0.so'], dependencies: [] },
-        { key: 'GObject-2.0', namespace: 'GObject', sharedLibraries: ['libgobject-2.0.so'], dependencies: ['GLib-2.0'] },
-        { key: 'HarfBuzz-0.0', namespace: 'HarfBuzz', sharedLibraries: ['libharfbuzz-gobject.so'], dependencies: ['GObject-2.0'] },
-        { key: 'Pango-1.0', namespace: 'Pango', sharedLibraries: ['libpango-1.0.so'], dependencies: ['HarfBuzz-0.0', 'GObject-2.0'] },
-        { key: 'Gtk-4.0', namespace: 'Gtk', sharedLibraries: ['libgtk-4.so'], dependencies: ['Pango-1.0', 'HarfBuzz-0.0'] },
+        {
+            key: 'GObject-2.0',
+            namespace: 'GObject',
+            sharedLibraries: ['libgobject-2.0.so'],
+            dependencies: ['GLib-2.0'],
+        },
+        {
+            key: 'HarfBuzz-0.0',
+            namespace: 'HarfBuzz',
+            sharedLibraries: ['libharfbuzz-gobject.so'],
+            dependencies: ['GObject-2.0'],
+        },
+        {
+            key: 'Pango-1.0',
+            namespace: 'Pango',
+            sharedLibraries: ['libpango-1.0.so'],
+            dependencies: ['HarfBuzz-0.0', 'GObject-2.0'],
+        },
+        {
+            key: 'Gtk-4.0',
+            namespace: 'Gtk',
+            sharedLibraries: ['libgtk-4.so'],
+            dependencies: ['Pango-1.0', 'HarfBuzz-0.0'],
+        },
         { key: 'GLibUnix-2.0', namespace: 'GLibUnix', sharedLibraries: [], dependencies: ['GLib-2.0'] },
         { key: 'Gdk-4.0', namespace: 'Gdk', sharedLibraries: ['libgtk-4.so'], dependencies: ['cairo-1.0'] },
     ];
@@ -218,10 +238,13 @@ describe('planGiRoots: a requested namespace becomes the seeds that back it', ()
         // The measured failure: seeding only libgtk-4.so leaves libharfbuzz-gobject.so
         // out, and `planTypelibSet` then reports HarfBuzz-0.0 as blocked.
         const { seeds } = planGiRoots({ namespaces: ['Gtk'], typelibs });
-        assert.deepEqual(
-            [...seeds].sort(),
-            ['libglib-2.0.so', 'libgobject-2.0.so', 'libgtk-4.so', 'libharfbuzz-gobject.so', 'libpango-1.0.so'],
-        );
+        assert.deepEqual([...seeds].sort(), [
+            'libglib-2.0.so',
+            'libgobject-2.0.so',
+            'libgtk-4.so',
+            'libharfbuzz-gobject.so',
+            'libpango-1.0.so',
+        ]);
     });
 
     it('walks a diamond once and terminates', () => {
@@ -270,7 +293,10 @@ describe('planGiRoots: a requested namespace becomes the seeds that back it', ()
 
     it('REFUSES a bare namespace the prefix has two versions of, rather than guessing', () => {
         // Picking by sort order here would choose an ABI for the app silently.
-        const twoGtk = [...typelibs, { key: 'Gtk-3.0', namespace: 'Gtk', sharedLibraries: ['libgtk-3.so'], dependencies: [] }];
+        const twoGtk = [
+            ...typelibs,
+            { key: 'Gtk-3.0', namespace: 'Gtk', sharedLibraries: ['libgtk-3.so'], dependencies: [] },
+        ];
         assert.throws(() => planGiRoots({ namespaces: ['Gtk'], typelibs: twoGtk }), /Gtk-3\.0, Gtk-4\.0/);
     });
 

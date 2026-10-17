@@ -66,11 +66,7 @@ export function planGiSelection({ declared, scanned }: { declared: string[]; sca
     }
 
     const missing = [
-        ...new Set(
-            scanned
-                .map(namespaceOf)
-                .filter((ns) => !byNamespace.has(ns) && !ALWAYS_PRESENT.has(ns)),
-        ),
+        ...new Set(scanned.map(namespaceOf).filter((ns) => !byNamespace.has(ns) && !ALWAYS_PRESENT.has(ns))),
     ].sort();
     if (missing.length > 0) {
         throw new Error(

@@ -115,5 +115,18 @@ dropped as unbacked. Typelibs are ABI-sensitive in principle: the script declare
 (`arm64-v8a`), compares the ABIs byte for byte and fails on an UNDECLARED divergence (today exactly
 `GLib-2.0.typelib` diverges, by 60 bytes).
 
+What the closure cannot answer is a namespace nothing in `libnode_gi.so`'s link graph reaches —
+GTK, Pango, graphene — which is why ADR 0117 adds a DECLARATION on top of the measurement, not in
+place of it. `--gi-namespaces Ns[,Ns-Version]` (env `NODE_GI_ANDROID_NAMESPACES`) names namespaces
+whose backing libraries enter the walk as SEEDS: walked like a root and bundled like a dependency,
+following each typelib's own `dependencies` so a namespace brings what it needs. Everything after
+that is unchanged — `planTypelibSet` is still the only judge of what ships, and a namespace whose
+backer is missing still fails the build rather than shipping a typelib that dies in `g_module_open`.
+Selecting nothing selects exactly today's payload, which
+`gi-runtime-android/payload-baseline.json` freezes (the pinned prefix's link graph) and
+`test/gi-runtime-android.test.mjs` replays. On the app side the declaration is
+`nativescript.giNamespaces` in `gjsify.config.ts`, and `gjsify build --app nativescript` fails
+naming any GI namespace the emitted bundle imports that the config does not list.
+
 `android-*` still does not enter `gjsify.platforms` (ADR 0104's conformance rule); the package
 declares `runtimes.nativescript: 'native'` and `gjsify.nativescriptPlatforms: ["android"]` instead.

@@ -5,7 +5,9 @@
 > Platform-specific loader gaps, the macOS/Windows GTK bundles and the musl/Bun/Deno
 > measurements are [docs/node-gi-platform-notes.md](../../docs/node-gi-platform-notes.md).
 > Android payload = tier-3 `gi-runtime-android/`: addon + a MEASURED DT_NEEDED closure + its
-> typelibs as ONE gitignored AAR, built never committed; the app opts into the real engine, and
+> typelibs as ONE gitignored AAR, built never committed. What the closure cannot reach is
+> SELECTED: `--gi-namespaces` seeds the walk, `payload-baseline.json` holds the default payload
+> (ADR 0117). The app opts into the real engine, and
 > `@nativescript/vite`'s vendor chunk would evaluate first so import order could not win —
 > `defineNativescriptConfig` keeps one chunk by default (`nativescriptSingleChunk()`,
 > [report](../../docs/reports/2026-10-11-node-gi-nativescript-plugin.md)).

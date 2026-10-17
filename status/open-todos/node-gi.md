@@ -461,6 +461,23 @@ the existing `planTypelibSet` gate, and the default staying today's bytes so ADR
 15.77 / 16.93 MB per ABI and +80 / +105.5 ms cold start do not regress. Three stages, each with an
 acceptance test; stage 1 needs no sysroot change.
 
+**Stage 1a is done** (#PRNUM): `nativescript.giNamespaces` in the app config, a post-bundle gate
+that fails a `--app nativescript` build naming a GI namespace the bundle imports and the config
+omits, and `--gi-namespaces` on the AAR builder, resolved through `planTypelibSet` as designed.
+The default payload is frozen in `gi-runtime-android/payload-baseline.json` and replayed by a host
+test, so "today's apps pay nothing" is a check and not a claim.
+
+Two things stage 1a turned up. The pinned sysroot has the cairo, freetype and fontconfig
+LIBRARIES but no typelib for any of them, so `["Gtk"]` — ADR 0117's own acceptance (b) — fails
+today, as do Gdk, Gsk, Adw, GdkAndroid and Pango; only `Graphene`, `GdkPixbuf` and `GdkPixdata`
+resolve. Generating those three typelibs is the next sysroot task and it needs no new third-party
+code. And `@gjsify/nativescript-vite`, which is how a real app builds, does not run the gate yet —
+only `gjsify build --app nativescript` does.
+
+Stage 1b is the rest of ADR 0117 § 1: `@gjsify/gi-runtime-android-gtk`, the `release.yml` job that
+publishes core and add-ons in lockstep, the startup check against a mixed set, and the
+`nativescript-vite` path.
+
 Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or GnuTLS — the Android
 argument is that p11-kit's trust module sits behind a compiled-in path with no env override and
 Android has no system p11-kit) and the CA store route (`/system/etc/security/cacerts`, plus the
