@@ -15,6 +15,8 @@ export interface StyleManagerLike {
     color_scheme: number;
     get_color_scheme(): number;
     set_color_scheme(scheme: number): void;
+    readonly system_supports_color_schemes: boolean;
+    get_system_supports_color_schemes(): boolean;
 }
 
 /** The part of `Adw` the vectors read. */
@@ -49,6 +51,7 @@ export const STYLE_MANAGER_ROWS = [
     'scheme-force',
     'scheme-notify',
     'scheme-default',
+    'system-schemes',
 ] as const;
 
 export type StyleManagerRow = (typeof STYLE_MANAGER_ROWS)[number];
@@ -194,6 +197,22 @@ export const STYLE_MANAGER_VECTORS: readonly StyleManagerVector[] = [
             return manager.color_scheme;
         },
         shows: 0,
+    },
+    {
+        row: 'system-schemes',
+        rule: 'system_supports_color_schemes is a read-only boolean, the same through the getter',
+        observe({ Adw }) {
+            const manager = Adw.StyleManager.get_default();
+            const value = manager.system_supports_color_schemes;
+            let readonly = false;
+            try {
+                (manager as { system_supports_color_schemes: boolean }).system_supports_color_schemes = !value;
+            } catch {
+                readonly = true;
+            }
+            return [typeof value, manager.get_system_supports_color_schemes() === value, readonly];
+        },
+        shows: ['boolean', true, true],
     },
 ];
 

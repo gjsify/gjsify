@@ -6,6 +6,7 @@ import { STYLE_MANAGER_VECTORS, driveStyleManagerVectors, type AdwStyleLike } fr
 import { describe, expect, it } from '@gjsify/unit';
 
 import * as Adw from './namespace/adw.js';
+import { webStyleSource } from './style-manager.js';
 
 export const StyleManagerTest = async () => {
     const root = document.documentElement;
@@ -26,6 +27,18 @@ export const StyleManagerTest = async () => {
             { describe, it, expect },
         );
         await describe('adwaita-web: Adw.StyleManager door', async () => {
+            await it('system_supports_color_schemes is true where prefers-color-scheme is known', () => {
+                expect(Adw.StyleManager.get_default().system_supports_color_schemes).toBe(true);
+            });
+            await it('a browser that matches neither scheme does not support them', () => {
+                const real = globalThis.matchMedia;
+                globalThis.matchMedia = ((query: string) => ({ matches: false, media: query })) as never;
+                try {
+                    expect(webStyleSource.supportsColorSchemes?.()).toBe(false);
+                } finally {
+                    globalThis.matchMedia = real;
+                }
+            });
             await it('has a vector row for every vector', () => {
                 expect(STYLE_MANAGER_VECTORS.length > 0).toBe(true);
             });

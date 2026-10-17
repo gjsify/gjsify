@@ -52,6 +52,19 @@ export default async () => {
             }
             expect(message.includes('no StyleSource')).toBe(true);
         });
+        await it('system_supports_color_schemes is what the source answers, false without an answer', () => {
+            const answers: boolean[] = [];
+            for (const supports of [true, false, undefined]) {
+                class Probe extends StyleManagerBase {
+                    static override source: StyleSource = {
+                        ...fakeSource(),
+                        ...(supports === undefined ? {} : { supportsColorSchemes: () => supports }),
+                    };
+                }
+                answers.push(Probe.get_default().system_supports_color_schemes);
+            }
+            expect(JSON.stringify(answers)).toBe('[true,false,false]');
+        });
         await it('has a vector row for every vector', () => {
             expect(STYLE_MANAGER_VECTORS.length > 0).toBe(true);
         });

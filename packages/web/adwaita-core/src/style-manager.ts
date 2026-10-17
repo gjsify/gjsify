@@ -1,12 +1,14 @@
 // `Adw.StyleManager`, renderer-free: the SUBSET a widget needs to follow the system appearance —
 // `get_default()`, the read-only `dark` property and `notify::dark`.
 //
-// Also in the subset: `color_scheme` / `set_color_scheme` / `get_color_scheme` and `Adw.ColorScheme`.
+// Also in the subset: `color_scheme` / `set_color_scheme` / `get_color_scheme` and `Adw.ColorScheme`,
+// and the read-only `system_supports_color_schemes`: what the source answers, `false` for a source
+// that cannot tell (libadwaita says `false` when no settings portal reports a scheme).
 // FORCE_LIGHT and FORCE_DARK pin `dark` through the source's `force`; DEFAULT and the two PREFER_*
 // values let the system answer (the subset has no preference of its own to weigh against it).
 //
 // Out of the subset, and so absent (a caller meets `undefined`, not a quiet no-op): `get_for_display`,
-// `system_supports_color_schemes`, `high_contrast`, `accent_color`.
+// `high_contrast`, `accent_color`.
 //
 // A port supplies a {@link StyleSource} as the static `source` of the class it exports; the class
 // reads it and notifies when it changes. `notify::dark` fires only when the value changed, as on GTK
@@ -24,6 +26,8 @@ export interface StyleSource {
     subscribe(changed: () => void): () => void;
     /** Pins the interface dark or light; `null` hands it back to the system. */
     force?(dark: boolean | null): void;
+    /** Whether the platform reports a light/dark preference at all. Absent means it cannot. */
+    supportsColorSchemes?(): boolean;
 }
 
 /** `Adw.ColorScheme`, with the values of the GIR. */
@@ -79,6 +83,14 @@ export class StyleManagerBase extends GObjectObject {
         return this.dark;
     }
 
+    get system_supports_color_schemes(): boolean {
+        return sourceOf(this).supportsColorSchemes?.() ?? false;
+    }
+
+    get_system_supports_color_schemes(): boolean {
+        return this.system_supports_color_schemes;
+    }
+
     get color_scheme(): number {
         return SCHEME.get(this) ?? ColorScheme.DEFAULT;
     }
@@ -106,5 +118,6 @@ export class StyleManagerBase extends GObjectObject {
 
 registerBaseClass(StyleManagerBase as never, 'AdwStyleManager', {}, [
     ParamSpec.boolean('dark', '', '', ParamFlags.READABLE, false),
+    ParamSpec.boolean('system-supports-color-schemes', '', '', ParamFlags.READABLE, false),
     ParamSpec.int('color-scheme', '', '', ParamFlags.READWRITE, 0, 4, 0),
 ]);
