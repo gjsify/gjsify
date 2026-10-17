@@ -461,7 +461,7 @@ the existing `planTypelibSet` gate, and the default staying today's bytes so ADR
 15.77 / 16.93 MB per ABI and +80 / +105.5 ms cold start do not regress. Three stages, each with an
 acceptance test; stage 1 needs no sysroot change.
 
-**Stage 1a is done** (#PRNUM): `nativescript.giNamespaces` in the app config, a post-bundle gate
+**Stage 1a is done** (#2280): `nativescript.giNamespaces` in the app config, a post-bundle gate
 that fails a `--app nativescript` build naming a GI namespace the bundle imports and the config
 omits, and `--gi-namespaces` on the AAR builder, resolved through `planTypelibSet` as designed.
 The default payload is frozen in `gi-runtime-android/payload-baseline.json` and replayed by a host

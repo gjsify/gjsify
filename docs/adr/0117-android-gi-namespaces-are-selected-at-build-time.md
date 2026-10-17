@@ -375,7 +375,7 @@ selection work at all. The § 1 shape is unchanged and 1b implements it as writt
 note that stage 1 lands the `release.yml` job "for all of them together or not at all" belongs to
 1b, and nothing in 1a publishes anything.
 
-**Stage 1a — the selection mechanism.** `nativescript.giNamespaces` in the app config, validated
+**Stage 1a — the selection mechanism** (#2280). `nativescript.giNamespaces` in the app config, validated
 in `packages/infra/cli/src/config.ts`; `planGiSelection`
 (`packages/infra/cli/src/utils/ship/gi-selection.ts`) reconciles it against `scanGiNamespaces` of
 the emitted bundle, as a post-bundle gate in `build.ts` beside the GJS and node ones. On the AAR
