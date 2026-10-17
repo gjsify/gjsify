@@ -46,6 +46,7 @@ import { capabilities } from '../capabilities.js';
 import { observeWindowSize } from '../widgets/breakpoint.js';
 import { type GTypeNamed, gtypeNameOf, gtypeNameOfInstance } from '../widgets/gtype-name.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
+import { authoredParamValue } from './param-values.js';
 import { templateClassFor } from './template-classes.js';
 import {
     gtkPropertyRefusal,
@@ -274,6 +275,10 @@ export interface BuildOptions {
  * a plain accessor, so a setter declared `boolean` is handed `'true'`. Writing the authored
  * boolean instead would drive the construct-props bag — a different door — and would leave
  * the coercion `widgets/xml-values.ts` exists for untested on the trees the website ships.
+ * The exception is a property the APPLICATION declared: when a class `GObject.registerClass`
+ * registered declares a ParamSpec for it, nothing coerces behind the accessor, so the string is
+ * converted by the spec's type first, as `gtk_builder_value_from_string` does, and a value it
+ * cannot parse is refused (`param-values.ts`). Breakpoint setters take the same conversion.
  *
  * AN ATTRIBUTE THAT LANDS NOWHERE IS REFUSED HERE. `instance[name] = value` on a name
  * nothing declares adds a dead own-property and returns, at exit 0 — this surface's own
@@ -542,8 +547,9 @@ function bindThroughEngine(
 /**
  * ADR 0093's `breakpoints`: each setter's `object` resolves to the view built for that id and the
  * write is the one an authored prop takes (the value as its string, which the property's setter
- * coerces). The parent's post-layout size is the size source, which is the window's on a root
- * view; `adwaita-core` picks the breakpoint and the restores.
+ * coerces, or converted by the ParamSpec a registered class declares for it). The parent's
+ * post-layout size is the size source, which is the window's on a root view; `adwaita-core`
+ * picks the breakpoint and the restores.
  *
  * Refused by name, never dropped: a host that is not a view, a setter whose object is not an id of
  * this tree (`template` included), a property the target does not declare, and a condition the
@@ -609,10 +615,14 @@ function wireBreakpoints(
                             (refusal === null ? '' : ` ${refusal}`),
                     );
                 }
+                const text = translated(translate, setter.value, setter.translatable);
+                // Converted here, while the tree is built, so an unparseable value is refused at
+                // build time as GtkBuilder refuses it, not on the first resize that applies it.
+                const registered = authoredParamValue(object, propertyOf(setter.property), text, where);
                 return {
                     object,
                     property: setter.property,
-                    value: { authored: translated(translate, setter.value, setter.translatable) },
+                    value: { authored: registered === null ? String(text) : registered.value },
                 };
             }),
         };
@@ -621,7 +631,7 @@ function wireBreakpoints(
         read: (target, property) => ({ original: readGtkProperty(target, propertyOf(property)) }),
         write(target, property, value) {
             const slot = value as { authored: unknown } | { original: unknown };
-            writeGtkProperty(target, propertyOf(property), 'authored' in slot ? String(slot.authored) : slot.original);
+            writeGtkProperty(target, propertyOf(property), 'authored' in slot ? slot.authored : slot.original);
         },
     });
     observeSize(view, (size) => driver.evaluate(size));
@@ -827,7 +837,9 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
             context.pending.push({ view, element, prop, id: String(value) });
             continue;
         }
-        writeGtkProperty(view, prop, String(translated(context.translate, value, node.translatable?.[authored])));
+        const text = translated(context.translate, value, node.translatable?.[authored]);
+        const registered = authoredParamValue(view, prop, text, `<${element.xmlName} ${authored}="${String(text)}">`);
+        writeGtkProperty(view, prop, registered === null ? String(text) : registered.value);
     }
     // `styles ["card"]` in a `.blp`. Refused like an attribute when the widget has no
     // `styleClasses` setter: writing `className` instead would bypass the class list the
