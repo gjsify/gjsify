@@ -552,6 +552,9 @@ function stubMissingFrameworkPeers(): void {
 
 /** Upstream `@nativescript/vite` TypeScript-check plugin name (see `helpers/typescript-check.js`). */
 const TS_CHECK_PLUGIN = 'ns-typescript-check';
+/** `@nativescript/vite`'s `createXmlLoaderPlugin` names (TS and JS configurations). */
+const XML_LOADER_PLUGINS = new Set(['ns-xml-loader-ts', 'ns-xml-loader-js']);
+const GRESOURCE_SUFFIX = /\.gresource\.xml$/i;
 
 /** First `@nativescript/vite` major that ships native Vite-8 / Rolldown support. */
 const NS_VITE_NATIVE_VITE8_MAJOR = 8;
@@ -736,7 +739,35 @@ export function applyVite8Fixes(config: UserConfig, nsViteMajor?: number): UserC
         }
     }
 
+    // Fix (4): `@nativescript/vite`'s `enforce: 'pre'` XML loader claims EVERY `.xml` as a string
+    // (`const ___XML___ = …`), so a `.gresource.xml` import never reached `gresourcePlugin` and
+    // `Gio.Resource.new_from_data` got the descriptor's source instead of its bytes (ADR 0116
+    // § 1). Its views stay plain `.xml`; only the gresource suffix is handed on. On EITHER line.
+    if (Array.isArray(out.plugins)) out.plugins = skipGresourceInXmlLoaders(out.plugins);
+
     return out;
+}
+
+/**
+ * Wrap every upstream XML loader so its `load` returns `null` for `*.gresource.xml`, preserving
+ * order and nesting. A non-function `load` (an object hook) is left as it is.
+ */
+function skipGresourceInXmlLoaders(plugins: UserConfig['plugins']): UserConfig['plugins'] {
+    if (!Array.isArray(plugins)) return plugins;
+    return plugins.map((entry) => {
+        if (Array.isArray(entry)) return skipGresourceInXmlLoaders(entry) as never;
+        const plugin = entry as Plugin | null;
+        if (!plugin || typeof plugin !== 'object' || !XML_LOADER_PLUGINS.has(plugin.name)) return entry;
+        const load = plugin.load;
+        if (typeof load !== 'function') return entry;
+        return {
+            ...plugin,
+            load(this: unknown, id: string, ...rest: unknown[]) {
+                if (GRESOURCE_SUFFIX.test(id.split('?')[0] ?? id)) return null;
+                return (load as (...args: unknown[]) => unknown).call(this, id, ...rest);
+            },
+        } as never;
+    });
 }
 
 /**
