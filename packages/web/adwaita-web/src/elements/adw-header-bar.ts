@@ -33,8 +33,9 @@ import { bindSlottedChildren } from '../slotted-children.js';
 // Registers <adw-window-title>: the derived centre is one, so importing the bar
 // alone must still define it.
 import './adw-window-title.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwHeaderBar extends HTMLElement {
+export class AdwHeaderBar extends WidgetElement {
     private _initialized = false;
     private _startEl: HTMLDivElement | null = null;
     private _centerEl: HTMLDivElement | null = null;

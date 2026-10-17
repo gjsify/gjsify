@@ -53,6 +53,7 @@ import { createGtkImage } from './gtk-image.js';
 // TypeScript and take the registration with it.
 import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `gtk_adjustment_new (0, 0, 100, 2, 20, 0)` — the adjustment a bare scale button has. */
 const GTK_ADJUSTMENT: AdwAdjustmentInput = {
@@ -63,7 +64,7 @@ const GTK_ADJUSTMENT: AdwAdjustmentInput = {
     pageSize: 0,
 };
 
-export class GtkScaleButton extends HTMLElement {
+export class GtkScaleButton extends WidgetElement {
     private readonly _state = new SpinState();
     private _buttonEl!: HTMLButtonElement;
     private _glyph!: HTMLElement;

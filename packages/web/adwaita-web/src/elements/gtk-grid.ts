@@ -38,8 +38,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { normalizeBoxOrientation, normalizeBoxSpacing, type BoxOrientation } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkGrid extends HTMLElement {
+export class GtkGrid extends WidgetElement {
     static get observedAttributes() {
         return ['column-spacing', 'row-spacing', 'column-homogeneous', 'row-homogeneous', 'orientation'];
     }

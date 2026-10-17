@@ -93,6 +93,7 @@
 
 import type { DispatchedSignals } from '../signals.js';
 import { STACK_PAGE_ATTRIBUTES, pageChildOf } from './gtk-stack-page.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkStackTransitionType`, spelled as the GIR's enum nicks (gtkstack.c:95-121). */
 export type StackTransitionType =
@@ -226,7 +227,7 @@ export interface GtkStackPageInfo {
 /** The five `GtkStackPage` string/boolean properties this element reads off a child. */
 const PAGE_ATTRIBUTES = ['name', 'title', 'icon-name', 'use-underline', 'needs-attention'];
 
-export class GtkStack extends HTMLElement {
+export class GtkStack extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = {
         'notify::visible-child': 'notify::visible-child',

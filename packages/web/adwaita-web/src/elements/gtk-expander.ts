@@ -78,6 +78,7 @@ import { attachRowActivation } from './row-activation.js';
 // elided by TypeScript and take the `customElements.define` with it.
 import './gtk-label.js';
 import type { GtkLabel } from './gtk-label.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `expander { -gtk-icon-source: -gtk-icontheme('pan-end-symbolic') }` (_expanders.scss). */
 const ARROW_ICON = 'pan-end';
@@ -85,7 +86,7 @@ const ARROW_ICON = 'pan-end';
 /** Stable ids for the `aria-controls` relation, which GTK sets on the child itself. */
 let labelChildCounter = 0;
 
-export class GtkExpander extends HTMLElement {
+export class GtkExpander extends WidgetElement {
     private _box!: HTMLDivElement;
     private _titleEl!: HTMLDivElement;
     private _arrowEl!: HTMLElement;

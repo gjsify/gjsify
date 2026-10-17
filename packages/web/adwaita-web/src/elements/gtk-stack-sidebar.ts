@@ -39,6 +39,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import type { GtkStack } from './gtk-stack.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The `GtkStackPageInfo` half this element reads — it never looks inside `child`. */
 interface SidebarPage {
@@ -49,7 +50,7 @@ interface SidebarPage {
     child: HTMLElement;
 }
 
-export class GtkStackSidebar extends HTMLElement {
+export class GtkStackSidebar extends WidgetElement {
     private _stack: GtkStack | null = null;
     private _list!: HTMLDivElement;
     private _initialized = false;

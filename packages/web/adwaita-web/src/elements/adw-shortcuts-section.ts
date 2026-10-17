@@ -27,8 +27,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwShortcutsSection extends HTMLElement {
+export class AdwShortcutsSection extends WidgetElement {
     private _initialized = false;
     private _bodyEl!: HTMLDivElement;
     private _titleEl!: HTMLElement;

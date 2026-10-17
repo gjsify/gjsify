@@ -57,9 +57,10 @@ import {
 } from './view-switcher-dom.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { attachRovingFocus } from './roving-focus.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** A single page. Children of <adw-inline-view-switcher>; consumed at connect time. */
-export class AdwViewStackPage extends HTMLElement {
+export class AdwViewStackPage extends WidgetElement {
     static get observedAttributes() {
         return ['name', 'title', 'icon-name', 'badge-number', 'needs-attention', 'use-underline'];
     }
@@ -75,7 +76,7 @@ export class AdwViewStackPage extends HTMLElement {
     }
 }
 
-export class AdwInlineViewSwitcher extends HTMLElement {
+export class AdwInlineViewSwitcher extends WidgetElement {
     /**
      * The dwell timer, injectable: a property rather than an inline
      * `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })`, so a test can

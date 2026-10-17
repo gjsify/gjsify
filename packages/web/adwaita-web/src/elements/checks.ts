@@ -88,6 +88,7 @@
 import { RadioGroupState, resolveCheckState } from '@gjsify/adwaita-core';
 
 import type { DispatchedSignals } from '../signals.js';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * The document's radio groups. ONE registry, as global as a bare
@@ -104,7 +105,7 @@ const radioGroups = new RadioGroupState();
  * `.adw-check-indicator` and `.adw-check-label`, which are the Adwaita SKIN, and the
  * skin is not what the tag names. It is also not a widget — nothing registers it.
  */
-abstract class AdwCheckBase extends HTMLElement {
+abstract class AdwCheckBase extends WidgetElement {
     protected _input!: HTMLInputElement;
     protected _indicator!: HTMLSpanElement;
     protected _label!: HTMLSpanElement;

@@ -27,8 +27,9 @@
 import { ADW_CLAMP_DEFAULTS, ADW_CLAMP_SIZE_CLASSES, clampAllocate, normalizeClampSize } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwClamp extends HTMLElement {
+export class AdwClamp extends WidgetElement {
     private _resize: ResizeObserver | null = null;
     private _mutations: MutationObserver | null = null;
 

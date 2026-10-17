@@ -31,6 +31,7 @@ import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
+import { TooltipElement } from '../widget-element.js';
 
 /**
  * Attributes whose change means the activatable widget's sensitivity may have
@@ -45,7 +46,7 @@ function isSensitive(widget: HTMLElement): boolean {
     return widget.getAttribute('aria-disabled') !== 'true';
 }
 
-export class AdwActionRow extends HTMLElement {
+export class AdwActionRow extends TooltipElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = { activated: 'activated' };
 

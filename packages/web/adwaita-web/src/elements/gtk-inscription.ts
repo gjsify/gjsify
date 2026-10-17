@@ -95,6 +95,7 @@ import {
     labelYalignAlignItems,
     type LabelWrapMode,
 } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkInscriptionOverflow`, in enum order (gtkinscription.h:44-48). */
 export const INSCRIPTION_OVERFLOW_MODES = ['clip', 'ellipsize-start', 'ellipsize-middle', 'ellipsize-end'] as const;
@@ -150,7 +151,7 @@ function normalizeCount(value: unknown): number {
     return Math.max(0, Math.trunc(parsed));
 }
 
-export class GtkInscription extends HTMLElement {
+export class GtkInscription extends WidgetElement {
     private _initialized = false;
 
     static get observedAttributes() {

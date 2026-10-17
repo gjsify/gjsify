@@ -72,6 +72,7 @@ import {
     normalizeDataGridVariant,
 } from '@gjsify/adwaita-core';
 import type { AdwDataGridColumn, AdwDataGridRow } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 export type {
     AdwDataGridAlign,
@@ -81,7 +82,7 @@ export type {
     AdwDataGridRowVariant,
 } from '@gjsify/adwaita-core';
 
-export class AdwDataGrid extends HTMLElement {
+export class AdwDataGrid extends WidgetElement {
     private _captionEl!: HTMLDivElement;
     private _scrollEl!: HTMLDivElement;
     private _tableEl!: HTMLDivElement;

@@ -32,8 +32,9 @@
 // Reference: refs/gtk/gtk/gtkfixedlayout.c:224-300
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkFixed extends HTMLElement {
+export class GtkFixed extends WidgetElement {
     private _resize: ResizeObserver | null = null;
     private _mutations: MutationObserver | null = null;
 

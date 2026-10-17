@@ -68,6 +68,7 @@ import type { BreakpointSetter } from '@gjsify/adwaita-core';
 
 import { observeAdaptiveSize } from '../breakpoints.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** One authored setter, as it reads in the `breakpoints` attribute. */
 interface AuthoredSetter {
@@ -104,7 +105,7 @@ function parseBreakpoints(raw: string | null): AuthoredBreakpoint[] {
     });
 }
 
-export class AdwBreakpointBin extends HTMLElement {
+export class AdwBreakpointBin extends WidgetElement {
     /** The C's own structure: a list of breakpoints, and at most one picked. */
     private _state = new BreakpointBinState<Element>();
     private _dispose: (() => void) | undefined;

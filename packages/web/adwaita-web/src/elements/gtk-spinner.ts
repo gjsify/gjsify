@@ -43,13 +43,14 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_spinner.scss:1-3 (the disabled rule)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** The radius-7 ring `process-working-symbolic.svg` traces through (1,8)…(15,8). */
 const RADIUS = 7;
 
-export class GtkSpinner extends HTMLElement {
+export class GtkSpinner extends WidgetElement {
     private _initialized = false;
 
     static get observedAttributes() {

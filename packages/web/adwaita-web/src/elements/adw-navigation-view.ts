@@ -57,6 +57,7 @@ import type { AdwNavigationPageProps, NavigationDiagnostic, NavigationStackChang
 import { bindSlottedChildren } from '../slotted-children.js';
 import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The page properties the core owns, read off the element's attributes. */
 function readPageProps(page: AdwNavigationPage): AdwNavigationPageProps {
@@ -64,7 +65,7 @@ function readPageProps(page: AdwNavigationPage): AdwNavigationPageProps {
 }
 
 /** A single navigation page. Children of <adw-navigation-view>. */
-export class AdwNavigationPage extends HTMLElement {
+export class AdwNavigationPage extends WidgetElement {
     /** Set while the owning view writes an attribute back, so the sync cannot recurse. */
     private _syncing = false;
 
@@ -136,7 +137,7 @@ export class AdwNavigationPage extends HTMLElement {
     }
 }
 
-export class AdwNavigationView extends HTMLElement {
+export class AdwNavigationView extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = {
         pushed: 'pushed',

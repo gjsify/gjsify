@@ -30,6 +30,7 @@ import {
     spinnerGeometry,
     spinnerProgressAt,
 } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -52,7 +53,7 @@ function startTicking(): void {
     if (frameHandle === 0 && mapped.size > 0) frameHandle = requestAnimationFrame(tick);
 }
 
-export class AdwSpinner extends HTMLElement {
+export class AdwSpinner extends WidgetElement {
     static get observedAttributes() {
         return ['size'];
     }

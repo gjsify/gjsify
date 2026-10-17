@@ -20,8 +20,9 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkActionBar extends HTMLElement {
+export class GtkActionBar extends WidgetElement {
     private _initialized = false;
     private _startEl: HTMLDivElement | null = null;
     private _centerEl: HTMLDivElement | null = null;

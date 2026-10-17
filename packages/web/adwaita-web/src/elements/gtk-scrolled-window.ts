@@ -93,6 +93,7 @@ import { AdwScrollShading } from '../scroll-shading.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import type { GtkScrollType } from './gtk-scrollbar.js';
 import type { GtkViewport } from './gtk-viewport.js';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * `INDICATOR_FADE_OUT_DELAY` — how long an indicator waits, after the last scroll, before
@@ -198,7 +199,7 @@ function resolveScrollKey(event: KeyboardEvent): { scroll: GtkScrollType; horizo
     }
 }
 
-export class GtkScrolledWindow extends HTMLElement {
+export class GtkScrolledWindow extends WidgetElement {
     private _viewport!: GtkViewport;
     private _bars: Record<'horizontal' | 'vertical', HTMLElement> | null = null;
     /** The size clamps `_writeSize` last wrote, which are the only ones it may clear. */

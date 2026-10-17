@@ -60,11 +60,12 @@ import {
 
 import { createGtkImage } from './gtk-image.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `TIMEOUT_EXPAND` — how long a drag hovers before the row opens (gtktreeexpander.c:717). */
 const TIMEOUT_EXPAND = 500;
 
-export class GtkTreeExpander extends HTMLElement {
+export class GtkTreeExpander extends WidgetElement {
     private _ornaments: HTMLElement[] = [];
     private _expandTimer: ReturnType<typeof setTimeout> | null = null;
     private _initialized = false;

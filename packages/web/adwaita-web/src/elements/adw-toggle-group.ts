@@ -83,9 +83,10 @@ import { ToggleGroupState, keptToggles, toggleIndexOfName } from '@gjsify/adwait
 import { booleanAttribute } from '../attributes.js';
 import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** A single toggle. Children of <adw-toggle-group>; consumed at connect time. */
-export class AdwToggle extends HTMLElement {
+export class AdwToggle extends WidgetElement {
     // `tooltip` joins because `AdwToggle:tooltip` exists upstream (:467) and an
     // icon-only toggle has no other text — `tooltip` is what NAMES it, so it is not a
     // decoration. It produces no disabled or hidden button, which is the invariant
@@ -111,7 +112,7 @@ export class AdwToggle extends HTMLElement {
     }
 }
 
-export class AdwToggleGroup extends HTMLElement {
+export class AdwToggleGroup extends WidgetElement {
     private _innerEl!: HTMLDivElement;
     private _buttons: HTMLButtonElement[] = [];
     /** The headless segment list + guarded selection state machine (ADR 0004). */

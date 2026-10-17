@@ -38,8 +38,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkSearchBar extends HTMLElement {
+export class GtkSearchBar extends WidgetElement {
     private _box!: HTMLDivElement;
     private _center!: HTMLDivElement;
     private _close!: HTMLButtonElement;

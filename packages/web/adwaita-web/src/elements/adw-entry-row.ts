@@ -41,6 +41,7 @@ import { booleanAttribute } from '../attributes.js';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren, type AdwSlottedChildren } from '../slotted-children.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
+import { TooltipElement } from '../widget-element.js';
 
 /**
  * Show/hide a rendered part. `hidden` carries the semantics and is what the conformance
@@ -53,7 +54,7 @@ function setPartVisible(part: HTMLElement, visible: boolean): void {
     part.style.display = visible ? '' : 'none';
 }
 
-export class AdwEntryRow extends HTMLElement {
+export class AdwEntryRow extends TooltipElement {
     /** The headless `update_empty` derivation + apply latch (ADR 0004). */
     protected readonly _state = new EntryRowState();
     protected _input!: HTMLInputElement;

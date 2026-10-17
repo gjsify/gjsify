@@ -68,6 +68,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The seven abbreviated day names, Sunday first — `default_abbreviated_dayname` (:745-757). */
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -99,7 +100,7 @@ const ARROWS: readonly { step: AdwCalendarStep; icon: string; tooltip: string }[
 /** The arrow a cell's disabled state keys off — `calendar_update_navigation_buttons` (:1055-1084). */
 type ArrowName = 'previousMonth' | 'nextMonth' | 'previousYear' | 'nextYear';
 
-export class GtkCalendar extends HTMLElement {
+export class GtkCalendar extends WidgetElement {
     private _headerEl!: HTMLDivElement;
     private _monthEl!: HTMLSpanElement;
     private _yearEl!: HTMLSpanElement;

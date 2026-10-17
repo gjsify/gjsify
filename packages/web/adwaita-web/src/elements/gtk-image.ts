@@ -36,6 +36,7 @@
 import { normalizeIconName } from '@gjsify/adwaita-core';
 
 import { lookupIcon, onIconThemeChanged, type IconRequest } from '../icon-theme.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `url` as one CSS string token, whatever quotes or backslashes it holds. */
 function cssUrl(url: string): string {
@@ -63,7 +64,7 @@ export const MISSING_ICON_NAME = 'image-missing';
  */
 export const COLOR_ICON_CLASS = 'adw-icon-color';
 
-export class GtkImage extends HTMLElement {
+export class GtkImage extends WidgetElement {
     static get observedAttributes() {
         return ['icon-name', 'size'];
     }

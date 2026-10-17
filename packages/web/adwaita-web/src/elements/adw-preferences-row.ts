@@ -47,8 +47,9 @@ import { labelDisplayText, stringIsNotEmpty } from '@gjsify/adwaita-core';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { TooltipElement } from '../widget-element.js';
 
-export class AdwPreferencesRow extends HTMLElement {
+export class AdwPreferencesRow extends TooltipElement {
     private _titleEl!: HTMLSpanElement;
     private _contentEl!: HTMLDivElement;
     private _initialized = false;

@@ -40,8 +40,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import type { DispatchedSignals } from '../signals.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkSwitch extends HTMLElement {
+export class GtkSwitch extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = {
         'notify::active': 'notify::active',

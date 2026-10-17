@@ -50,6 +50,7 @@
 import { normalizeLabelJustify, type LabelJustification } from '@gjsify/adwaita-core';
 
 import { JUSTIFY_TEXT_ALIGN } from './justification.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.WrapMode`'s four nicks, in enum order — Pango's enum, and the DEFAULT is `none`. */
 const WRAP_MODES = ['none', 'char', 'word', 'word-char'] as const;
@@ -83,7 +84,7 @@ export interface GtkTextBufferSubset {
     get_text(): string;
 }
 
-export class GtkTextView extends HTMLElement {
+export class GtkTextView extends WidgetElement {
     private _area!: HTMLTextAreaElement;
     private _initialized = false;
 

@@ -49,6 +49,7 @@ import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
 
 import { createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * Where the popover sits, per `GtkArrowType`. `menuButtonPopupDirection` folds `none`
@@ -65,7 +66,7 @@ const POPOVER_POSITIONS = {
     right: 'end',
 } as const;
 
-export class GtkMenuButton extends HTMLElement {
+export class GtkMenuButton extends WidgetElement {
     private _buttonEl!: HTMLButtonElement;
     private _popoverEl!: GtkPopover;
     private _model: AdwMenuModel = [];

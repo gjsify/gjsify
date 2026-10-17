@@ -54,6 +54,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The `rgba()` string a `GdkRGBA` value paints, as the colour swatch shows it. */
 interface Rgba {
@@ -66,7 +67,7 @@ interface Rgba {
 /** One icon per drag operation, keyed on the `dataTransfer` a browser gives per drag. */
 const ICON_BY_DRAG = new WeakMap<DataTransfer, GtkDragIcon>();
 
-export class GtkDragIcon extends HTMLElement {
+export class GtkDragIcon extends WidgetElement {
     private _pointerX = 0;
     private _pointerY = 0;
     private _dragging = false;

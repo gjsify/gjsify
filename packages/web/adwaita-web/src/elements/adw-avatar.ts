@@ -29,8 +29,9 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { type GtkImage, createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwAvatar extends HTMLElement {
+export class AdwAvatar extends WidgetElement {
     private _textEl!: HTMLSpanElement;
     private _iconEl!: GtkImage;
     private _imageEl!: HTMLImageElement;

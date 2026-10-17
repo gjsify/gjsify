@@ -66,6 +66,7 @@ import { attachRovingFocus } from './roving-focus.js';
 // `gtk-list-box.ts` states at its own: a combined import would be elided and take the
 // registration with it.
 import './gtk-flow-box-child.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkFlowBox:max-children-per-line`'s default — `DEFAULT_MAX_CHILDREN_PER_LINE` (:728). */
 export const ADW_FLOW_BOX_MAX_CHILDREN_PER_LINE = 7;
@@ -73,7 +74,7 @@ export const ADW_FLOW_BOX_MAX_CHILDREN_PER_LINE = 7;
 /** `GtkFlowBox:orientation` — HORIZONTAL by default here, unlike a `GtkListBase` (:3981). */
 export type AdwFlowBoxOrientation = 'horizontal' | 'vertical';
 
-export class GtkFlowBox extends HTMLElement {
+export class GtkFlowBox extends WidgetElement {
     private _children: GtkFlowBoxChild[] = [];
     private _selection: number[] = [];
     /** `priv->selected_child`, `-1` for the C's NULL. */

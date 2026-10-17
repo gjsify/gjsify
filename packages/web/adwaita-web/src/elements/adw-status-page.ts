@@ -14,8 +14,9 @@ import { stringIsNotEmpty } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwStatusPage extends HTMLElement {
+export class AdwStatusPage extends WidgetElement {
     private _iconEl!: GtkImage;
     private _titleEl!: HTMLSpanElement;
     private _descEl!: HTMLSpanElement;

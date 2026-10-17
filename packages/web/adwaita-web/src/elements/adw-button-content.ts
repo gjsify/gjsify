@@ -25,6 +25,7 @@
 import { BUTTON_CONTENT_STYLE_CLASS, buttonContentIconName, buttonContentLabelText } from '@gjsify/adwaita-core';
 
 import { type GtkImage, createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * What `gtk_widget_get_ancestor (…, GTK_TYPE_BUTTON)` looks like in the DOM: a native
@@ -36,7 +37,7 @@ const BUTTON_SELECTOR = 'button, .adw-button';
 /** The split-button node the class is RETARGETED to. */
 const SPLIT_BUTTON_SELECTOR = 'adw-split-button, .adw-split-button';
 
-export class AdwButtonContent extends HTMLElement {
+export class AdwButtonContent extends WidgetElement {
     private _boxEl!: HTMLDivElement;
     private _iconEl!: GtkImage;
     private _labelEl!: HTMLSpanElement;

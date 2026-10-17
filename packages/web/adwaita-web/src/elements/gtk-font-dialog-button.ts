@@ -71,6 +71,7 @@ import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
 
 import './gtk-separator.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkFontLevel`'s four values, under the nicks a string property carries. */
 export type FontLevel = 'family' | 'face' | 'font' | 'features';
@@ -103,7 +104,7 @@ const FACE_GRID: readonly { weight: number; slant: PangoFontDescription['slant']
     { weight: 700, slant: 'italic' },
 ];
 
-export class GtkFontDialogButton extends HTMLElement {
+export class GtkFontDialogButton extends WidgetElement {
     private _buttonEl!: HTMLButtonElement;
     private _labelEl!: HTMLSpanElement;
     private _sizeBoxEl!: HTMLSpanElement;

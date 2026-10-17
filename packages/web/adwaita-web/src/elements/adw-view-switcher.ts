@@ -56,6 +56,7 @@ import {
 } from './view-switcher-dom.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The DOM nodes one page owns — the switcher paints the derived model onto them. */
 interface PageNodes {
@@ -75,9 +76,9 @@ interface PageNodes {
  * switcher watches them with a `MutationObserver` instead — the DOM stand-in for
  * the per-page `notify` C rebinds on.
  */
-export class AdwViewSwitcherPage extends HTMLElement {}
+export class AdwViewSwitcherPage extends WidgetElement {}
 
-export class AdwViewSwitcher extends HTMLElement {
+export class AdwViewSwitcher extends WidgetElement {
     /**
      * The dwell timer, injectable so a test can hand in a clock and drive
      * `VIEW_SWITCHER_DRAG_VECTORS` against the real element. Replace it before the

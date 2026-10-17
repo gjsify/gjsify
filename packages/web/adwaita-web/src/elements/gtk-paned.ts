@@ -69,6 +69,7 @@
 import { glibClamp, normalizeBoxOrientation, type BoxOrientation } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `gtkpaned.c:131` — `HANDLE_EXTRA_SIZE`, how far the hit area reaches past the node. */
 const HANDLE_EXTRA_SIZE = 6;
@@ -162,7 +163,7 @@ export function computePanedPosition(input: PanedPositionInput): PanedPosition {
     return { min, max, position: glibClamp(position, min, max) };
 }
 
-export class GtkPaned extends HTMLElement {
+export class GtkPaned extends WidgetElement {
     private _startEl!: HTMLDivElement;
     private _handleEl!: HTMLDivElement;
     private _endEl!: HTMLDivElement;

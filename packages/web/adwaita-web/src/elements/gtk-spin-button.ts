@@ -34,6 +34,7 @@ import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { createGtkImage } from './gtk-image.js';
 
 import { formatScaleValue } from './gtk-scale.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `EPSILON` in gtkspinbutton.c:64 — the "is the value already at the bound" test. */
 const EPSILON = 1e-10;
@@ -46,7 +47,7 @@ const MAX_TIMER_CALLS = 5;
 /** `Gtk.SpinButtonUpdatePolicy` nicks; `always` is the pspec default (gtkspinbutton.c:472-475). */
 const UPDATE_POLICIES = ['always', 'if-valid'] as const;
 
-export class GtkSpinButton extends HTMLElement {
+export class GtkSpinButton extends WidgetElement {
     private readonly _range = new SpinState();
     private _input!: HTMLInputElement;
     private _down!: HTMLButtonElement;

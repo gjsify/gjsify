@@ -79,6 +79,7 @@ import { tabsRevealed } from '@gjsify/adwaita-core';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type TabChip, createTabChip, refreshTabChip, refreshTabChipClose, scrollChipIntoBar } from '../tab-chip.js';
 import type { AdwTabView } from './adw-tab-view.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `set_view`'s connections: the page list, the selection, and each page's own state. */
 const VIEW_EVENTS = [
@@ -92,7 +93,7 @@ const VIEW_EVENTS = [
 
 /** The CSS classes a chip's own layout reads — the states C puts on the widget. */
 
-export class AdwTabBar extends HTMLElement {
+export class AdwTabBar extends WidgetElement {
     private _boxEl!: HTMLDivElement;
     private _startEl!: HTMLDivElement;
     private _endEl!: HTMLDivElement;

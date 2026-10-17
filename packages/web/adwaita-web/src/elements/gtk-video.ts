@@ -65,6 +65,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss:74-81 (the 64/32 osd icon)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /** The four overlay glyphs, in the order `update_overlay_icon` tests them (gtkvideo.c:626-646). */
 export type VideoOverlayIcon =
@@ -99,7 +100,7 @@ export const READY_ICON = 'media-playback-start-symbolic';
 /** `gtk_video_reveal_controls`' timeout: 3 s (gtkvideo.c:130). */
 export const CONTROLS_HIDE_MS = 3000;
 
-export class GtkVideo extends HTMLElement {
+export class GtkVideo extends WidgetElement {
     private _initialized = false;
     private _overlayIcon!: HTMLButtonElement;
     private _controlsRevealer!: HTMLDivElement;

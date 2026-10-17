@@ -71,13 +71,14 @@ import {
 
 import { createGtkImage } from './gtk-image.js';
 import { AdwModalSurface } from './modal-surface.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** A template label with its mnemonic marker removed — this renderer has no accelerator layer. */
 function rowLabel(key: keyof typeof ADW_ABOUT_DIALOG_LABELS): string {
     return stripMnemonic(ADW_ABOUT_DIALOG_LABELS[key]);
 }
 
-export class AdwAboutDialog extends HTMLElement {
+export class AdwAboutDialog extends WidgetElement {
     private _initialized = false;
 
     // Layout nodes (rebuilt from attributes on each render).

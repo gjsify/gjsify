@@ -32,6 +32,7 @@
 import { glibClamp, labelYalignAlignItems } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.Frame:label-xalign`'s pspec default (gtkframe.c:180-183, and `:253`). */
 const LABEL_XALIGN_DEFAULT = 0;
@@ -42,7 +43,7 @@ function normalizeLabelXalign(value: string | null): number {
     return Number.isFinite(parsed) ? glibClamp(parsed, 0, 1) : LABEL_XALIGN_DEFAULT;
 }
 
-export class GtkFrame extends HTMLElement {
+export class GtkFrame extends WidgetElement {
     private _mutations: MutationObserver | null = null;
 
     static get observedAttributes() {

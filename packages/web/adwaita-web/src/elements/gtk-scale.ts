@@ -43,6 +43,7 @@ import {
     parseAdjustment,
 } from '@gjsify/adwaita-core';
 import type { AdwAdjustment, AdwAdjustmentInput, BoxOrientation } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.PositionType` nicks, as `GtkScale:value-pos` spells them. */
 const VALUE_POSITIONS = ['left', 'right', 'top', 'bottom'] as const;
@@ -90,7 +91,7 @@ export function formatScaleValue(value: number, digits: number): string {
     return text;
 }
 
-export class GtkScale extends HTMLElement {
+export class GtkScale extends WidgetElement {
     /** The headless `Gtk.Adjustment`: the range, the clamp and the two signals (ADR 0004, ADR 0047). */
     private readonly _range = new SpinState();
     private _trough!: HTMLElement;

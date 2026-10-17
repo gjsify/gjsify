@@ -47,6 +47,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { normalizeBoxOrientation, type BoxOrientation } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkLevelBarMode`, spelled as the GIR's enum nicks (:1004-1008). */
 type LevelBarMode = 'continuous' | 'discrete';
@@ -81,7 +82,7 @@ function numberAttribute(element: HTMLElement, name: string, fallback: number): 
     return Number.isFinite(raw) ? raw : fallback;
 }
 
-export class GtkLevelBar extends HTMLElement {
+export class GtkLevelBar extends WidgetElement {
     private _trough!: HTMLSpanElement;
     private _initialized = false;
     /** Offset name → value, kept sorted ascending exactly as the C's `GList` is. */

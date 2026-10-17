@@ -38,6 +38,7 @@
 import { glibClamp, labelYalignAlignItems } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.AspectFrame:ratio`'s pspec range and default (gtkaspectframe.c:124-125, :172-175). */
 const RATIO_MIN = 0.0001;
@@ -58,7 +59,7 @@ function normalizeRatio(value: string | null): number {
     return Number.isFinite(parsed) ? glibClamp(parsed, RATIO_MIN, RATIO_MAX) : RATIO_DEFAULT;
 }
 
-export class GtkAspectFrame extends HTMLElement {
+export class GtkAspectFrame extends WidgetElement {
     static get observedAttributes() {
         return ['ratio', 'xalign', 'yalign', 'obey-child'];
     }

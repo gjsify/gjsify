@@ -37,6 +37,7 @@ import {
 
 import { bindBreakpointSetter } from '../breakpoints.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Detail of the `navigation-push` / `navigation-pop` delegation event. */
 export interface NavigationDelegateDetail {
@@ -46,7 +47,7 @@ export interface NavigationDelegateDetail {
     handled: boolean;
 }
 
-export class AdwNavigationSplitView extends HTMLElement {
+export class AdwNavigationSplitView extends WidgetElement {
     private _sidebarEl!: HTMLDivElement;
     private _contentEl!: HTMLDivElement;
     private _initialized = false;

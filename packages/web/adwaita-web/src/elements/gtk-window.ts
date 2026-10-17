@@ -108,8 +108,9 @@ import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
 import './gtk-window-controls.js';
 import { fillsContainingBlock } from './adw-window-features.js';
 import type { WindowAction } from './gtk-window-controls.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkWindow extends HTMLElement {
+export class GtkWindow extends WidgetElement {
     private _initialized = false;
     /** The `titlebar` strip — `protected` so a subclass can place its own strips around it. */
     protected _titlebar!: HTMLDivElement;

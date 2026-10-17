@@ -81,6 +81,7 @@ import { assertMenuRenderable, ADW_MENU_SURFACE_WEB } from '@gjsify/adwaita-core
 
 import type { AdwTabView, AdwTabViewPage } from './adw-tab-view.js';
 import { createGtkImage, type GtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The thumbnail nodes of one page, kept so a re-render edits them in place. */
 interface Thumbnail {
@@ -98,7 +99,7 @@ interface Thumbnail {
     attention: HTMLDivElement;
 }
 
-export class AdwTabOverview extends HTMLElement {
+export class AdwTabOverview extends WidgetElement {
     private _childEl!: HTMLDivElement;
     private _overviewEl!: HTMLDivElement;
     private _headerEl!: HTMLDivElement;

@@ -43,8 +43,9 @@
 //   arithmetic composed from @gjsify/adwaita-core.
 
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkText extends HTMLElement {
+export class GtkText extends WidgetElement {
     private _input!: HTMLInputElement;
     private _initialized = false;
     private _maxLength = 0;

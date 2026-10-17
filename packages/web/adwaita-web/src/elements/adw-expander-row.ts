@@ -42,8 +42,9 @@ import './gtk-switch.js';
 import type { GtkSwitch } from './gtk-switch.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRowActivation } from './row-activation.js';
+import { TooltipElement } from '../widget-element.js';
 
-export class AdwExpanderRow extends HTMLElement {
+export class AdwExpanderRow extends TooltipElement {
     private _headerEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;

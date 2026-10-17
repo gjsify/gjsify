@@ -31,8 +31,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { AdwMultiLayoutView } from './adw-multi-layout-view.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwLayoutSlot extends HTMLElement {
+export class AdwLayoutSlot extends WidgetElement {
     private _registered = false;
 
     static get observedAttributes() {

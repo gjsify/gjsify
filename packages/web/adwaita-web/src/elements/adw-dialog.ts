@@ -32,6 +32,7 @@
 
 import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Adaptive presentation of the dialog — mirrors Adw.DialogPresentationMode. */
 export type AdwDialogPresentationMode = 'auto' | 'floating' | 'bottom-sheet';
@@ -39,7 +40,7 @@ export type AdwDialogPresentationMode = 'auto' | 'floating' | 'bottom-sheet';
 const DEFAULT_CONTENT_WIDTH = 360;
 const PRESENTATION_MODES: readonly AdwDialogPresentationMode[] = ['auto', 'floating', 'bottom-sheet'];
 
-export class AdwDialog extends HTMLElement {
+export class AdwDialog extends WidgetElement {
     private _initialized = false;
     private _scrimEl!: HTMLDivElement;
     private _boxEl!: HTMLDivElement;

@@ -3,6 +3,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 
+import { Adw, Gtk } from './index.js';
+
 import { mountSharedTree } from './shared-tree-builder.js';
 
 function settle(): Promise<void> {
@@ -99,6 +101,48 @@ export const AdwWidgetVisibleTest = async () => {
             item.visible = false;
             expect(item.getAttribute('visible')).toBe('false');
             expect(item.hasAttribute('hidden')).toBe(true);
+        });
+    });
+
+    await describe('adwaita-web: Gtk.Widget:visible and tooltip-text on the element class', async () => {
+        await it('a created button has visible, get_visible and set_visible, typed on the class', () => {
+            const button: Gtk.Button = new Gtk.Button();
+            expect(button.visible).toBe(true);
+            button.set_visible(false);
+            expect(button.hidden).toBe(true);
+            expect(button.get_visible()).toBe(false);
+            button.visible = true;
+            expect(button.hasAttribute('hidden')).toBe(false);
+        });
+
+        await it('a created widget that is not a button has them too', () => {
+            const box = new Gtk.Box();
+            box.visible = false;
+            expect(box.hidden).toBe(true);
+            expect(box.get_visible()).toBe(false);
+        });
+
+        await it('a button has tooltip_text, tooltipText and get/set_tooltip_text over one attribute', () => {
+            const button = new Gtk.Button();
+            document.body.append(button);
+            expect(button.get_tooltip_text()).toBe(null);
+            button.set_tooltip_text('Copy');
+            expect(button.tooltip_text).toBe('Copy');
+            expect(button.tooltipText).toBe('Copy');
+            expect(button.getAttribute('tooltip-text')).toBe('Copy');
+            expect(button.querySelector('button')?.title).toBe('Copy');
+            button.tooltip_text = null;
+            expect(button.hasAttribute('tooltip-text')).toBe(false);
+            button.remove();
+        });
+
+        await it('a row has them and draws the tooltip on its parts', () => {
+            const row: Adw.ActionRow = new Adw.ActionRow();
+            document.body.append(row);
+            row.set_tooltip_text('Hint');
+            expect(row.get_tooltip_text()).toBe('Hint');
+            expect(row.querySelector('[title="Hint"]') !== null).toBe(true);
+            row.remove();
         });
     });
 };

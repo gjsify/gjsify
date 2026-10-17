@@ -66,6 +66,7 @@ import {
     type AdwAdjustmentInput,
     type BoxOrientation,
 } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 /** The two nodes below GTK's `range` level, spelled as GTK spells them. */
 const TROUGH_CLASS = 'adw-scrollbar-trough';
@@ -112,7 +113,7 @@ const ZERO_ADJUSTMENT: AdwAdjustment = Object.freeze({
     pageSize: 0,
 });
 
-export class GtkScrollbar extends HTMLElement {
+export class GtkScrollbar extends WidgetElement {
     private _trough!: HTMLElement;
     private _slider!: HTMLElement;
     private _observer: ResizeObserver | null = null;

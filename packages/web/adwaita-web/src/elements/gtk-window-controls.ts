@@ -66,6 +66,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.PackType`, spelled as the GIR's enum nicks (gtkwindowcontrols.c:68). */
 type PackSide = 'start' | 'end';
@@ -120,7 +121,7 @@ const WINDOW_ATTRIBUTES = [
 /** `closest` over both window spellings — `Adw.Window` is a `GtkWindow` subclass. */
 const WINDOW_SELECTOR = 'gtk-window, adw-window';
 
-export class GtkWindowControls extends HTMLElement {
+export class GtkWindowControls extends WidgetElement {
     private _initialized = false;
     private _empty = true;
     /** The frame this controls answers to, or `null` outside one (`:257-263`). */

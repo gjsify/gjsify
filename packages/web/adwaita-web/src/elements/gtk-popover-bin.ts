@@ -76,11 +76,12 @@ import './gtk-popover-menu.js';
 
 import type { GtkPopoverMenu } from './gtk-popover-menu.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** How long a press must last to count as a long press — GTK's own default. */
 const LONG_PRESS_MS = 500;
 
-export class GtkPopoverBin extends HTMLElement {
+export class GtkPopoverBin extends WidgetElement {
     private _model: AdwMenuModel = [];
     private _popover: GtkPopoverMenu | null = null;
     private _actions: AdwMenuActions | null = null;

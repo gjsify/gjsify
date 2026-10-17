@@ -65,8 +65,9 @@ import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { stringListSlot } from '../string-list-slot.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
+import { TooltipElement } from '../widget-element.js';
 
-export class AdwComboRow extends HTMLElement {
+export class AdwComboRow extends TooltipElement {
     private _select!: HTMLSelectElement;
     private _valueEl!: HTMLSpanElement;
     /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */

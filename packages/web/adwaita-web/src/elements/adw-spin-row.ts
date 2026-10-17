@@ -42,6 +42,7 @@ import { attributeOf } from '@gjsify/adwaita-core/tags';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js';
+import { TooltipElement } from '../widget-element.js';
 
 /** `Gtk.Adjustment`'s six properties, as `AdwAdjustmentInput` names them. */
 const ADJUSTMENT_FIELDS = ['value', 'lower', 'upper', 'stepIncrement', 'pageIncrement', 'pageSize'] as const;
@@ -63,7 +64,7 @@ function authoredAdjustment(node: Node): AdwAdjustmentInput {
     return input;
 }
 
-export class AdwSpinRow extends HTMLElement {
+export class AdwSpinRow extends TooltipElement {
     private _input!: HTMLInputElement;
     /** The label column — kept for `tooltip-text`, which the browser reads off a PART. */
     private _textEl!: HTMLDivElement;

@@ -49,6 +49,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import type { AdwTabView } from './adw-tab-view.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `update_icon`: a label from ten pages up, because two digits do not fit the plate. */
 const SMALL_LABEL_PAGES = 10;
@@ -57,7 +58,7 @@ const OVERFLOW_PAGES = 100;
 /** What `set_view` connects to: the page list, the selection and each page's attention. */
 const VIEW_EVENTS = ['page-attached', 'page-detached', 'page-updated', 'notify::selected-page'] as const;
 
-export class AdwTabButton extends HTMLElement {
+export class AdwTabButton extends WidgetElement {
     private _button!: HTMLButtonElement;
     private _binEl!: HTMLSpanElement;
     private _labelEl!: HTMLSpanElement;

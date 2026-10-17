@@ -60,7 +60,7 @@ function inheritedDescriptor(el: object, member: string): PropertyDescriptor | u
     return undefined;
 }
 
-function notifyElement(el: HTMLElement, name: string): void {
+export function notifyElement(el: HTMLElement, name: string): void {
     const member = propertyOf(name);
     el.dispatchEvent(
         new CustomEvent(eventOf(el, `notify::${name}`), {
@@ -156,9 +156,17 @@ export function installSensitive(el: HTMLElement): void {
 
 const VISIBLE_INSTALLED = new WeakSet<Element>();
 
-/** Whether `installVisible` gave `el` its `visible` (an element with its own keeps its own). */
+/** The `visible` getters `WidgetElement` puts on its prototype, so a class's own accessor tells apart. */
+export const WIDGET_VISIBLE_GETTERS = new WeakSet<() => boolean>();
+
+/**
+ * Whether `el` has the port's `visible` — from `installVisible` or from `WidgetElement`. An
+ * element with its own `visible` (`<gtk-stack-page>`) keeps its own and answers false.
+ */
 export function hasInstalledVisible(el: Element): boolean {
-    return VISIBLE_INSTALLED.has(el);
+    if (VISIBLE_INSTALLED.has(el)) return true;
+    const getter = inheritedDescriptor(el, 'visible')?.get;
+    return getter !== undefined && WIDGET_VISIBLE_GETTERS.has(getter as () => boolean);
 }
 
 /**

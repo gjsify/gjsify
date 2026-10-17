@@ -50,6 +50,7 @@ import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelect
 
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type TabChip, createTabChip, refreshTabChip, refreshTabChipClose, scrollChipIntoBar } from '../tab-chip.js';
+import { WidgetElement } from '../widget-element.js';
 
 export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
 
@@ -73,7 +74,7 @@ const PAGE_ATTRIBUTES = [
  * moves the children out and discards the element leaves `observedAttributes` with
  * nothing to act on.
  */
-export class AdwTabPage extends HTMLElement {
+export class AdwTabPage extends WidgetElement {
     static get observedAttributes() {
         return PAGE_ATTRIBUTES;
     }
@@ -106,7 +107,7 @@ export class AdwTabPage extends HTMLElement {
     }
 }
 
-export class AdwTabView extends HTMLElement {
+export class AdwTabView extends WidgetElement {
     private readonly _state = new TabViewState<HTMLElement>({
         onClosePage: (page) => this._requestClose(page),
     });

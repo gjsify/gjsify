@@ -41,8 +41,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { glibClamp } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkProgressBar extends HTMLElement {
+export class GtkProgressBar extends WidgetElement {
     private _trough!: HTMLSpanElement;
     private _progress!: HTMLSpanElement;
     private _text!: HTMLSpanElement;

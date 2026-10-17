@@ -25,6 +25,7 @@ import { renderPangoMarkup } from '../pango-markup.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { createGtkImage } from './gtk-image.js';
 import type { Toast, ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 // The timing seam is re-exported so a consumer can type a custom scheduler for
 // {@link AdwToastOverlay.scheduler} without depending on the core package.
@@ -43,7 +44,7 @@ const domScheduler: ToastScheduler = {
     cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-export class AdwToastOverlay extends HTMLElement {
+export class AdwToastOverlay extends WidgetElement {
     private _toasts!: HTMLDivElement;
     private _initialized = false;
     /** The headless queue of `adw-toast-overlay.c` (ADR 0004). */
