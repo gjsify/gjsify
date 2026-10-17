@@ -1,4 +1,4 @@
-// The icon THEME: a name, the compiled subset behind it, and the door for the rest.
+// The icon THEME: a name and the compiled subset behind it.
 //
 // The interesting assertion in here is not that `'list-add-symbolic'` resolves — it is
 // the one that says WHICH document it resolves to. `check-adwaita-icon-masks.mjs`' own
@@ -34,11 +34,7 @@ import {
     compiledIconNames,
     iconValueKind,
     isIconAvailable,
-    registerIcon,
-    registerIcons,
-    registeredIconNames,
     resolveIconSource,
-    unregisterIcon,
 } from './widgets/icon-theme.js';
 
 /** Every glyph the workspace ships, by export name — the oracle for the subset. */
@@ -155,60 +151,6 @@ export default async () => {
 
         await it('draws image-missing for a string that is neither a name nor a document', () => {
             expect(resolveIconSource('not an svg')).toBe(resolveIconSource(ICON_FALLBACK_NAME));
-        });
-    });
-
-    await describe('registerIcon (the door for a glyph outside the subset)', async () => {
-        await it('makes an unresolvable name resolvable, and unregister takes it back', () => {
-            expect(isIconAvailable('weather-clear-symbolic')).toBe(false);
-            registerIcon('weather-clear-symbolic', ALL_GLYPHS.weatherClearSymbolic as string);
-            expect(isIconAvailable('weather-clear-symbolic')).toBe(true);
-            expect(resolveIconSource('weather-clear-symbolic')).toBe(ALL_GLYPHS.weatherClearSymbolic);
-            // Registered under the NORMALIZED name, so both spellings reach it.
-            expect(resolveIconSource('weather-clear')).toBe(ALL_GLYPHS.weatherClearSymbolic);
-            expect(registeredIconNames().includes('weather-clear')).toBe(true);
-
-            expect(unregisterIcon('weather-clear-symbolic')).toBe(true);
-            expect(isIconAvailable('weather-clear-symbolic')).toBe(false);
-            expect(resolveIconSource('weather-clear-symbolic')).toBe(resolveIconSource(ICON_FALLBACK_NAME));
-        });
-
-        await it('registerIcons registers a whole map by name', () => {
-            registerIcons({ 'weather-clear-symbolic': OWN_SVG, 'weather-few-clouds-symbolic': OWN_SVG });
-            expect(isIconAvailable('weather-clear-symbolic')).toBe(true);
-            expect(isIconAvailable('weather-few-clouds-symbolic')).toBe(true);
-            expect(() => registerIcons({ 'weather-storm-symbolic': 'not svg' })).toThrow();
-            unregisterIcon('weather-clear-symbolic');
-            unregisterIcon('weather-few-clouds-symbolic');
-        });
-
-        await it('replaces a glyph the subset already compiles, then gives it back', () => {
-            const compiled = resolveIconSource('list-add-symbolic');
-            registerIcon('list-add-symbolic', OWN_SVG);
-            expect(resolveIconSource('list-add-symbolic')).toBe(OWN_SVG);
-            unregisterIcon('list-add-symbolic');
-            expect(resolveIconSource('list-add-symbolic')).toBe(compiled);
-        });
-
-        await it('THROWS on a name that could never be looked up', () => {
-            // Rather than registering nothing: this is an explicit call, and a
-            // registration that quietly did not happen is the failure mode the whole
-            // module exists to remove. A widget setter takes the other verdict — there
-            // the name came from markup, and `image-missing` is proportionate.
-            for (const name of ['', 'two words', 'org.gnome.Builder']) {
-                expect(() => registerIcon(name, OWN_SVG)).toThrow();
-            }
-        });
-
-        await it('THROWS on a second argument that is not an SVG document', () => {
-            // The measured hazard on the web side: a percent-encoded non-document makes a
-            // well-formed mask that masks NOTHING, an icon strictly worse than an
-            // unregistered one, while availability reports true. Here it would hand the
-            // rasteriser a string with no path data — invisible, silent, and now refused.
-            for (const glyph of ['', 'list-add-symbolic', 'not an svg', '<div>x</div>']) {
-                expect(() => registerIcon('probe-symbolic', glyph)).toThrow();
-            }
-            expect(isIconAvailable('probe-symbolic')).toBe(false);
         });
     });
 

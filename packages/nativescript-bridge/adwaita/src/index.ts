@@ -140,16 +140,12 @@ export {
     insertActionGroup,
     // Interaction + icon helpers
     attachRowPressFeedback,
-    // Icon theme: a NAME resolves through the compiled subset; `registerIcon` adds one.
+    // Icon theme: a NAME resolves through the compiled subset, then the resource paths.
     ICON_FALLBACK_NAME,
     compiledIconNames,
     iconValueKind,
     isIconAvailable,
-    registerIcon,
-    registerIcons,
-    registeredIconNames,
     resolveIconSource,
-    unregisterIcon,
     renderSymbolicIcon,
     extractIconPaths,
     extractPathData,

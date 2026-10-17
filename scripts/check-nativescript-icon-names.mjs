@@ -469,7 +469,7 @@ if (failures.length > 0) {
             `  the name derives. Every entry is in every NativeScript bundle — the header carries\n` +
             `  the measurement.\n` +
             `  To retire one, delete the entry and whatever still names it.\n` +
-            `  A consumer's OWN glyph needs no entry: pass the SVG source, or registerIcon() it.\n` +
+            `  A consumer's OWN glyph needs no entry: pass the SVG source, or ship it in a GResource.\n` +
             `  If the situation is deliberate, add the name to "reviewed" in\n` +
             `  ${toPosixPath(relative(ROOT, LEDGER))} with the reason.\n`,
     );
