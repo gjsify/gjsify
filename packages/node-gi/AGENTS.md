@@ -6,8 +6,9 @@
 > measurements are [docs/node-gi-platform-notes.md](../../docs/node-gi-platform-notes.md).
 > Android payload = tier-3 `gi-runtime-android/`: addon + a MEASURED DT_NEEDED closure + its
 > typelibs as ONE gitignored AAR, built never committed; the app opts into the real engine, and
-> `@nativescript/vite`'s vendor chunk evaluates first so import order cannot win — disable
-> `manualChunks` ([report](../../docs/reports/2026-10-11-node-gi-nativescript-plugin.md)).
+> `@nativescript/vite`'s vendor chunk would evaluate first so import order could not win —
+> `defineNativescriptConfig` keeps one chunk by default (`nativescriptSingleChunk()`,
+> [report](../../docs/reports/2026-10-11-node-gi-nativescript-plugin.md)).
 > The native host loads LAZILY on NativeScript (`LAZY_NATIVE` from `#host`, `ensureNative()` in
 > `index.js`; `gi.js` registers its callbacks via `onNativeLoaded`), so the pure-JS opt-out never
 > maps `libnode_gi.so`; desktop hosts stay eager. A failed lazy load throws on every call

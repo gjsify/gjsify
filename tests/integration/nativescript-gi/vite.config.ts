@@ -40,28 +40,5 @@ export default defineNativescriptConfig(
         resolve: {
             alias: plugin ? [] : [{ find: /^@gjsify\/node-gi\/gi$/, replacement: resolve('app/no-gi-stub.ts') }],
         },
-        build: {
-            rollupOptions: {
-                output: {
-                    // ONE CHUNK, AND THE OPT-IN DEPENDS ON IT.
-                    //
-                    // `@nativescript/vite` puts every `node_modules` module except
-                    // `@nativescript/core` into `vendor.mjs`, which `bundle.mjs` imports as its
-                    // first statement — so ALL of vendor evaluates before ANY app module. The
-                    // engine slot is read in `@gjsify/adwaita-nativescript/gobject`'s module body
-                    // (vendor) and the opt-in call sits in `app/opt-in.ts` (bundle): with the split
-                    // in place, no import order inside the app can make the call win, and the run
-                    // fails with "registered too late" out of an APK that carries the full payload.
-                    // Measured here on 2026-10-11 before this line existed.
-                    //
-                    // Returning `undefined` for every module keeps everything in the entry chunk,
-                    // where plain ESM evaluation order applies and `app/app.ts`'s first import
-                    // decides — the contract ADR 0105 § 4 describes. It is also what upstream
-                    // already does for `@nativescript/core`, for the same reason: its bootstrap
-                    // must not evaluate ahead of the entry.
-                    manualChunks: () => undefined,
-                },
-            },
-        },
     },
 );
