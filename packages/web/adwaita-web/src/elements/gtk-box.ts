@@ -82,7 +82,9 @@ export class GtkBox extends HTMLElement {
         this._sync();
         this._syncComputedExpand();
         if (this._expandObserver) return;
-        this._expandObserver = new MutationObserver(() => this._syncComputedExpand());
+        this._expandObserver = new MutationObserver((records) => {
+            if (records.some(affectsExpand)) this._syncComputedExpand();
+        });
         this._expandObserver.observe(this, {
             childList: true,
             subtree: true,
@@ -124,6 +126,16 @@ export class GtkBox extends HTMLElement {
             }
         }
     }
+}
+
+/**
+ * Text rewritten inside a label (a hex dump does it every frame) adds and removes only text
+ * nodes; no widget came or went, so the computed expand cannot have changed.
+ */
+function affectsExpand(record: MutationRecord): boolean {
+    if (record.type !== 'childList') return true;
+    const isElement = (node: Node): boolean => node.nodeType === Node.ELEMENT_NODE;
+    return [...record.addedNodes].some(isElement) || [...record.removedNodes].some(isElement);
 }
 
 customElements.define('gtk-box', GtkBox);

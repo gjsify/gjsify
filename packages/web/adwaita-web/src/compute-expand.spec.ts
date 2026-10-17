@@ -80,6 +80,26 @@ export const ComputeExpandTest = async () => {
             host.remove();
         });
 
+        await it('rewriting a label text does not recompute, adding a widget does', async () => {
+            const { host } = mount(
+                `<gtk-box>
+                   <adw-bin id="bin"><gtk-box id="inner"><gtk-label id="label">0000</gtk-label><div hexpand></div></gtk-box></adw-bin>
+                 </gtk-box>`,
+            );
+            await settle();
+            const bin = host.querySelector('#bin')!;
+            expect(bin.hasAttribute('data-computed-hexpand')).toBe(true);
+            // Drop the mark by hand: only a recompute would write it back.
+            bin.removeAttribute('data-computed-hexpand');
+            host.querySelector('#label')!.textContent = 'FFFF';
+            await settle();
+            expect(bin.hasAttribute('data-computed-hexpand')).toBe(false);
+            host.querySelector('#inner')!.append(document.createElement('gtk-label'));
+            await settle();
+            expect(bin.hasAttribute('data-computed-hexpand')).toBe(true);
+            host.remove();
+        });
+
         await it('a registered subclass of a bin propagates as its base does', async () => {
             const Bin = customElements.get('adw-bin')!;
             const tag = 'compute-expand-test-bin';
