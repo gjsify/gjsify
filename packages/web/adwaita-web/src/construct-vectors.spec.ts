@@ -106,6 +106,13 @@ function observe(vector: ConstructVector): unknown {
     }
     const { root, unmount } = mountSharedTree(vector.tree);
     try {
+        if (vector.kind === 'accessibility') {
+            // Read off the inner `<button>`, the one that carries the role and is announced.
+            const control = (root.querySelector('#described') as unknown as { button: HTMLButtonElement }).button;
+            return [
+                { label: control.getAttribute('aria-label'), description: control.getAttribute('aria-description') },
+            ];
+        }
         if (vector.kind === 'strings') {
             return [...root.querySelectorAll('option, .adw-drop-down-item-label')].map((node) => node.textContent);
         }
@@ -375,6 +382,42 @@ export const AdwConstructVectorsTest = async () => {
         });
         await it('refuses a breakpoint setter that names a sibling the tree does not carry', () => {
             expect(() => buildWithSiblings({ ...vector('sibling-object'), siblings: [] })).toThrow("id 'beside'");
+        });
+        await it('names a check button on its input, and lets an authored name beat the icon fallback', () => {
+            const { root, unmount } = mountSharedTree({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkCheckButton', id: 'check', accessibility: { label: { value: 'Dark' } } },
+                    {
+                        tag: 'GtkButton',
+                        id: 'icon',
+                        props: { 'icon-name': 'edit-copy-symbolic', 'tooltip-text': 'Copy' },
+                        accessibility: { label: { value: 'Copy the link' } },
+                    },
+                ],
+            });
+            try {
+                const check = root.querySelector('#check')!;
+                const input = check.querySelector('.adw-check-input')!;
+                expect(input.getAttribute('aria-label')).toBe('Dark');
+                expect(input.hasAttribute('aria-description')).toBe(false);
+                check.removeAttribute('aria-label');
+                expect(input.hasAttribute('aria-label')).toBe(false);
+                const icon = root.querySelector('#icon') as unknown as HTMLElement & { button: HTMLButtonElement };
+                expect(icon.button.getAttribute('aria-label')).toBe('Copy the link');
+                icon.removeAttribute('aria-label');
+                expect(icon.button.getAttribute('aria-label')).toBe('Copy');
+            } finally {
+                unmount();
+            }
+        });
+        await it('refuses an accessibility name it has no door for, naming it', () => {
+            const tree: SharedTreeNode = {
+                tag: 'GtkBox',
+                children: [{ tag: 'GtkCheckButton', accessibility: { checked: { value: true } } }],
+            };
+            expect(() => buildSharedTree(tree)).toThrow("'checked'");
+            expect(() => mountSharedTree(tree)).toThrow('cannot be rendered by adwaita-web');
         });
         await it('does not read a registered name for a node that is not extern', () => {
             const el = buildSharedTree({ tag: 'GtkBox', children: [{ tag: 'GtkLabel' }] });

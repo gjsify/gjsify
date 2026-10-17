@@ -554,8 +554,10 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
         set tooltipText(value: string) {
             const view = laidOut(this, 'tooltipText');
             const next = value ?? '';
+            // The tooltip is the description only until a `.blp`'s `accessibility { description }`
+            // writes its own, as GTK's tooltip is the fallback for an unset description.
+            if ((view.accessibilityHint ?? '') === (TOOLTIPS.get(this) ?? '')) view.accessibilityHint = next;
             TOOLTIPS.set(this, next);
-            view.accessibilityHint = next;
             applyNativeTooltip(this, next);
         }
 

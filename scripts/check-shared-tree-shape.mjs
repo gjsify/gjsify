@@ -94,6 +94,8 @@ const MARK = '- translatable?: Record<string, { context?: string }>';
 const STYLES = '- styleClasses?: string[]';
 const PAGE = '- page?: { label?: string; name?: string }';
 const LAYOUT = '- layout?: Record<string, string | number | boolean>';
+const ACCESSIBILITY =
+    '- accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>';
 const EXTERN = '- extern?: true';
 const BINDINGS =
     "- bindings?: Record< string, { source: string; property: string; flags?: ('bidirectional' | " +
@@ -174,6 +176,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -208,6 +211,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -240,6 +244,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -486,6 +491,7 @@ export interface SharedTreeNode {
         }[];
     };
     layout?: Readonly<Record<string, string | number | boolean>>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: readonly {
         readonly name: string;
         readonly detail?: string;
@@ -543,6 +549,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -594,6 +601,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -641,6 +649,7 @@ const VECTORS = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -673,6 +682,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -725,6 +735,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -776,6 +787,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;

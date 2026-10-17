@@ -16,6 +16,7 @@
 
 import { buttonStyleClasses } from '@gjsify/adwaita-core';
 
+import { FORWARDED_ARIA, forwardAccessibleName } from '../accessible.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import type { DispatchedSignals } from '../signals.js';
 import { createGtkImage } from './gtk-image.js';
@@ -48,6 +49,7 @@ export class GtkButton extends TooltipElement {
             'circular',
             'pill',
             'class',
+            ...FORWARDED_ARIA,
         ];
     }
 
@@ -138,13 +140,9 @@ export class GtkButton extends TooltipElement {
         const tooltip = this.getAttribute('tooltip') ?? this.getAttribute('tooltip-text');
         btn.title = tooltip ?? '';
         // An icon-only button has no text content, so screen readers would
-        // announce it as unlabeled. Give it an accessible name — prefer the
-        // tooltip, fall back to the symbolic icon name (WCAG 4.1.2).
-        if (icon && !label) {
-            btn.setAttribute('aria-label', tooltip ?? icon);
-        } else {
-            btn.removeAttribute('aria-label');
-        }
+        // announce it as unlabeled. Give it an accessible name — the one the tree
+        // wrote first, then the tooltip, then the symbolic icon name (WCAG 4.1.2).
+        if (!forwardAccessibleName(this, btn) && icon && !label) btn.setAttribute('aria-label', tooltip ?? icon);
         btn.disabled = this.hasAttribute('disabled');
         this.decorate(btn);
     }

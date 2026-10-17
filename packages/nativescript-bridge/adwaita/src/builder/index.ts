@@ -401,7 +401,7 @@ function buildTree(
     existing?: View,
 ): { root: View | object } & Pick<BuiltTree, 'siblings' | 'objects'> {
     // ADR 0093 § 2: the whole tree against the capability table, before anything is created.
-    assertTreeConstructs('adwaita-nativescript', capabilities, node);
+    assertTreeConstructs('adwaita-nativescript', capabilities, node, Object.keys(ACCESSIBLE_MEMBER_OF));
     const context: BuildContext = {
         ids: new Map(),
         pending: [],
@@ -853,6 +853,7 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
         }
         (view as unknown as Record<string, unknown>).styleClasses = node.styleClasses.join(' ');
     }
+    applyAccessibility(view, node, context);
     // A string list is a list MODEL, never a widget, so items authored on a view have nowhere
     // to go; refused by name, as `buildValue` refuses them on a value class without `append`.
     if (node.extensions?.strings !== undefined) {
@@ -863,6 +864,27 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
     }
     applyResponses(view, element, node, context);
     return view;
+}
+
+/**
+ * The `accessibility { }` names this port has a door for, and the `View` member each is. The
+ * rest (states, relations, `row-index`, …) are refused by name before the build, in
+ * {@link assertTreeConstructs}: no view here reads them, so they would be dropped.
+ */
+const ACCESSIBLE_MEMBER_OF: Readonly<Record<string, 'accessibilityLabel' | 'accessibilityHint'>> = {
+    label: 'accessibilityLabel',
+    description: 'accessibilityHint',
+};
+
+/**
+ * `accessibility { label; description; }` as the view's `accessibilityLabel` /
+ * `accessibilityHint`, through the caller's `translate` like a prop. Written after the props,
+ * so an authored description wins over the hint a button derives from its tooltip.
+ */
+function applyAccessibility(view: View, node: SharedTreeNode, context: BuildContext): void {
+    for (const [name, entry] of Object.entries(node.accessibility ?? {})) {
+        view[ACCESSIBLE_MEMBER_OF[name]] = String(translated(context.translate, entry.value, entry.translatable));
+    }
 }
 
 function buildValue(node: SharedTreeNode, element: Element, probe: object, context: BuildContext): object {
@@ -877,6 +899,12 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object, conte
         throw new Error(
             `<${element.xmlName}> takes no style classes: \`${node.tag}\` is not a widget, so ` +
                 `[${node.styleClasses.join(', ')}] would be dropped.`,
+        );
+    }
+    if (node.accessibility !== undefined) {
+        throw new Error(
+            `<${element.xmlName}> takes no accessibility: \`${node.tag}\` is not a widget, so ` +
+                `${Object.keys(node.accessibility).join(', ')} would be dropped.`,
         );
     }
     const bag: Record<string, unknown> = {};

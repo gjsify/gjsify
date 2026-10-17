@@ -233,7 +233,7 @@ function refuseSiblings(node: SharedTreeNode, door: string): void {
 function buildTree(node: SharedTreeNode, record: BuildRecord): BuiltTree {
     // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
     // created. A refused `layout` is named with its node and the reason the table gives.
-    assertTreeConstructs('adwaita-web', capabilities, node);
+    assertTreeConstructs('adwaita-web', capabilities, node, Object.keys(ARIA_OF));
     if (node.menus !== undefined) record.menus = node.menus;
     const root = buildNode(node, record);
     const siblings = new Map<string, HTMLElement>();
@@ -512,6 +512,29 @@ function writeLook(el: HTMLElement, node: SharedTreeNode, menus?: SharedTreeNode
     // `.blp`'s `styles ["title-1"]` reached the tree and never the page.
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) el.classList.add(...node.styleClasses);
     writeExtensions(el, node);
+    writeAccessibility(el, node);
+}
+
+/**
+ * The `accessibility { }` names this renderer has a door for, and the ARIA attribute each is.
+ * The rest (states, relations, `row-index`, …) are refused by name before the build, in
+ * {@link assertTreeConstructs}: no element here reads them, so they would be dropped.
+ */
+const ARIA_OF: Readonly<Record<string, string>> = {
+    label: 'aria-label',
+    description: 'aria-description',
+};
+
+/**
+ * `accessibility { label; description; }` as the host's `aria-label` / `aria-description`.
+ * Written after the props, so an element that derives a name from its tooltip sees the
+ * authored one first; an element whose role lives on an inner control forwards both
+ * (`accessible.ts`). A translatable value is written as its source text, as a prop's is.
+ */
+function writeAccessibility(el: HTMLElement, node: SharedTreeNode): void {
+    for (const [name, entry] of Object.entries(node.accessibility ?? {})) {
+        el.setAttribute(ARIA_OF[name], String(entry.value));
+    }
 }
 
 /** The `GtkGridLayoutChild` properties `layout { }` may carry, and the CSS Grid line each one is. */
@@ -586,7 +609,7 @@ export interface BuiltTemplateTree {
  */
 export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, host: HTMLElement): BuiltTemplateTree {
     refuseSiblings(tree, 'buildTemplateTree');
-    assertTreeConstructs('adwaita-web', capabilities, tree);
+    assertTreeConstructs('adwaita-web', capabilities, tree, Object.keys(ARIA_OF));
     const record = newRecord(undefined, undefined, scope);
     record.menus = tree.menus;
     if (tree.id !== undefined) record.ids.set(tree.id, host);

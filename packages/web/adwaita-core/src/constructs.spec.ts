@@ -61,6 +61,33 @@ export default async () => {
             expect(message.includes('layout at GtkGrid > GtkLabel[0] — no door for layout')).toBe(true);
         });
 
+        await it('passes an accessibility block whose every name the renderer writes', () => {
+            const vector = CONSTRUCT_VECTORS.find((each) => each.kind === 'accessibility')!;
+            assertTreeConstructs('test', refusing('page'), vector.tree, ['label', 'description']);
+            assertTreeConstructs('test', refusing('page'), vector.tree);
+        });
+
+        await it('refuses an accessibility name the renderer has no door for, by name and node', () => {
+            const tree = {
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkCheckButton', accessibility: { label: { value: 'x' }, checked: { value: true } } },
+                ],
+            };
+            let thrown: unknown;
+            try {
+                assertTreeConstructs('adwaita-web', refusing('page'), tree, ['label', 'description']);
+            } catch (error) {
+                thrown = error;
+            }
+            expect(thrown instanceof UnsupportedConstructError).toBe(true);
+            const refused = (thrown as UnsupportedConstructError).refused;
+            expect(refused.length).toBe(1);
+            expect(refused[0].kind).toBe('accessibility');
+            expect(refused[0].path).toBe('GtkBox > GtkCheckButton[0]');
+            expect(refused[0].reason.includes("'checked'")).toBe(true);
+        });
+
         await it('fails a table that has no row for a kind the tree uses', () => {
             const vector = CONSTRUCT_VECTORS.find((each) => each.kind === 'page')!;
             expect(() => assertTreeConstructs('x', {} as ConstructCapabilities, vector.tree)).toThrow(

@@ -5,6 +5,7 @@
 /** @type {import('./capabilities.d.mts').capabilities} */
 export const capabilities = {
     layout: 'implemented',
+    accessibility: 'implemented',
     strings: 'implemented',
     responses: 'implemented',
     page: 'implemented',

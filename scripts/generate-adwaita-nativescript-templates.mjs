@@ -457,6 +457,7 @@ export interface ExpectNode {
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     /** The signal handlers the node binds, as names — ADR 0093. */
     signals?: {
         name: string;

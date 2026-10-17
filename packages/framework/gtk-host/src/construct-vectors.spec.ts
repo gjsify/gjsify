@@ -11,10 +11,11 @@ import { hostTagOf } from '@gjsify/adwaita-core/tags';
 import { describe, expect, it, on } from '@gjsify/unit';
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { buildSharedTree } from './conformance/index.js';
+import { buildSharedTree, withAtContext } from './conformance/index.js';
 import { capabilities } from './capabilities.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
 import { GTK_HOSTS } from './testing/gate.mjs';
+import type { HostElement } from './types.js';
 
 const hostTree = (node: SharedTreeNode): SharedTreeNode => ({
     ...node,
@@ -24,7 +25,22 @@ const hostTree = (node: SharedTreeNode): SharedTreeNode => ({
 });
 
 function observe(vector: ConstructVector): unknown {
-    const root = buildSharedTree(hostTree(vector.tree)).widget as unknown as Gtk.Widget;
+    const built: HostElement[] = [];
+    const root = buildSharedTree(hostTree(vector.tree), built).widget as unknown as Gtk.Widget;
+    if (vector.kind === 'accessibility') {
+        // GTK has no getter for an ARIA value, only `gtk_test_accessible_has_*`: the value is
+        // the one the host handed `update_property`, read only where the widget holds the slot.
+        const button = built.find((el) => el.descriptor.gtype === 'GtkButton')!;
+        const widget = withAtContext(button.widget as unknown as Gtk.Button);
+        const held = (property: Gtk.AccessibleProperty, name: string) =>
+            Gtk.test_accessible_has_property(widget, property) ? button.accessibility?.[name] : null;
+        return [
+            {
+                label: held(Gtk.AccessibleProperty.LABEL, 'label'),
+                description: held(Gtk.AccessibleProperty.DESCRIPTION, 'description'),
+            },
+        ];
+    }
     if (vector.kind !== 'page') return undefined;
     const stack = root as Gtk.Stack;
     return stack.get_pages().get_n_items() === 0

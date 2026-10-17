@@ -164,6 +164,7 @@ const NODE_FIELDS = new Set([
     'styleClasses',
     'extensions',
     'layout',
+    'accessibility',
     'signals',
     'bindings',
     'breakpoints',
@@ -359,6 +360,27 @@ const validateNode = (node, where, isRoot = true) => {
             problems.push(
                 `${where}: "layout" is ${JSON.stringify(node.layout)}. ADR 0092: a non-empty record of scalars; ` +
                     'absence is what says a node carries none.',
+            );
+        }
+    }
+    if (node.accessibility !== undefined) {
+        const entries =
+            node.accessibility !== null && typeof node.accessibility === 'object'
+                ? Object.entries(node.accessibility)
+                : [];
+        if (
+            entries.length === 0 ||
+            entries.some(
+                ([, entry]) =>
+                    entry === null ||
+                    typeof entry !== 'object' ||
+                    !['string', 'number', 'boolean'].includes(typeof entry.value) ||
+                    Object.keys(entry).some((key) => key !== 'value' && key !== 'translatable'),
+            )
+        ) {
+            problems.push(
+                `${where}: "accessibility" is ${JSON.stringify(node.accessibility)}. A non-empty record of ` +
+                    '`{ value, translatable? }` with a scalar value; absence is what says a node carries none.',
             );
         }
     }
@@ -1355,6 +1377,7 @@ const checkLayout = (job, result) => {
 // the one inside a `GtkStringList` object.
 const USE_ELEMENTS = {
     layout: /<layout>/g,
+    accessibility: /<accessibility>/g,
     strings: /class="GtkStringList"[^>]*>\s*<items>/g,
     responses: /<responses>/g,
     signal: /<signal /g,
@@ -1370,9 +1393,12 @@ const checkUses = (job, result) => {
         used += got;
         // A `bind` inside a sibling root is lost with that root, so the golden may hold more of them.
         const siblingsLost = kind === 'bind' && result.lost.some((loss) => loss.kind === 'sibling-object');
-        // A breakpoint with a setter the tree cannot carry is the loss `breakpoint`, not a use.
+        // A breakpoint with a setter the tree cannot carry is the loss `breakpoint`, not a use, and
+        // an accessibility block with a list-valued relation the loss `accessibility`.
         const keptWanted =
-            kind === 'breakpoint' ? wanted - result.lost.filter((loss) => loss.kind === 'breakpoint').length : wanted;
+            kind === 'breakpoint' || kind === 'accessibility'
+                ? wanted - result.lost.filter((loss) => loss.kind === kind).length
+                : wanted;
         if (siblingsLost ? got > wanted : keptWanted !== got) {
             problems.push(
                 `${job.key}: the oracle wrote ${wanted} element(s) for \`${kind}\` and the projection reports ${got} ` +

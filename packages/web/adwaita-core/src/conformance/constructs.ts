@@ -1,7 +1,7 @@
 // Which template constructs a renderer builds, and the tests that hold the claim — ADR 0093.
 //
 // A construct is something an authored tree can carry that a renderer may not be able to
-// build: `layout` (ADR 0092), a string list or a dialog's responses (ADR 0072), a notebook or
+// build: `layout` (ADR 0092), an `accessibility { }` block, a string list or a dialog's responses (ADR 0072), a notebook or
 // stack `page`. Each renderer package exports a pure-data `./capabilities` table that answers
 // for every kind, and this module is what makes the answer checkable from both sides:
 //
@@ -23,6 +23,7 @@ import { authoredNodes } from './shared-trees.js';
 /** The construct kinds, in the order the tables list them. */
 export const CONSTRUCT_KINDS = [
     'layout',
+    'accessibility',
     'strings',
     'responses',
     'page',
@@ -67,9 +68,20 @@ export function constructUsesOf(root: SharedTreeNode): ConstructUse[] {
     return found;
 }
 
+/** Every node of `root` and its siblings, addressed as {@link constructUsesOf} addresses them. */
+function treeNodesOf(root: SharedTreeNode): { node: SharedTreeNode; path: string }[] {
+    return [
+        ...authoredNodes(root, root.tag),
+        ...(root.siblings ?? []).flatMap((tree, index) =>
+            authoredNodes(tree, `${root.tag} > sibling[${index}] ${tree.tag}`),
+        ),
+    ];
+}
+
 function collectUses(root: SharedTreeNode, address: string, found: ConstructUse[]): void {
     for (const { node, path } of authoredNodes(root, address)) {
         if (node.layout !== undefined) found.push({ kind: 'layout', path });
+        if (node.accessibility !== undefined) found.push({ kind: 'accessibility', path });
         if (node.extensions?.strings !== undefined) found.push({ kind: 'strings', path });
         if (node.extensions?.responses !== undefined) found.push({ kind: 'responses', path });
         if (node.page !== undefined) found.push({ kind: 'page', path });
@@ -100,11 +112,17 @@ export class UnsupportedConstructError extends Error {
  *
  * A table that lacks a kind this tree uses is a defect of the table and says so rather than
  * reading as permission.
+ *
+ * `accessibleNames` narrows an `implemented` `accessibility` row: the block holds properties,
+ * relations and states under one field, and a renderer whose platform has a door for only some
+ * of them lists those, so an entry it would drop is refused by name here instead. Absent means
+ * the renderer writes every name.
  */
 export function assertTreeConstructs(
     renderer: string,
     capabilities: ConstructCapabilities,
     root: SharedTreeNode,
+    accessibleNames?: readonly string[],
 ): void {
     const refused: { kind: ConstructKind; path: string; reason: string }[] = [];
     for (const use of constructUsesOf(root)) {
@@ -113,6 +131,18 @@ export function assertTreeConstructs(
             throw new Error(`${renderer}'s capabilities declare no row for the construct '${use.kind}'.`);
         }
         if (capability !== 'implemented') refused.push({ ...use, reason: capability.refused });
+    }
+    if (accessibleNames !== undefined && capabilities.accessibility === 'implemented') {
+        for (const { node, path } of treeNodesOf(root)) {
+            for (const name of Object.keys(node.accessibility ?? {})) {
+                if (accessibleNames.includes(name)) continue;
+                refused.push({
+                    kind: 'accessibility',
+                    path,
+                    reason: `'${name}' has no accessibility door here; only ${accessibleNames.join(', ')} are written`,
+                });
+            }
+        }
     }
     if (refused.length > 0) throw new UnsupportedConstructError(renderer, refused);
 }
@@ -145,6 +175,25 @@ export const CONSTRUCT_VECTORS: readonly ConstructVector[] = [
             { row: 0, column: 0, columnSpan: 1 },
             { row: 1, column: 1, columnSpan: 2 },
         ],
+    },
+    {
+        kind: 'accessibility',
+        rule: '`accessibility { }` gives a widget its accessible name and description, apart from its own `label`',
+        tree: {
+            tag: 'GtkBox',
+            children: [
+                {
+                    tag: 'GtkButton',
+                    id: 'described',
+                    props: { label: 'Save' },
+                    accessibility: {
+                        label: { value: 'Save the file' },
+                        description: { value: 'Writes it to disk' },
+                    },
+                },
+            ],
+        },
+        shows: [{ label: 'Save the file', description: 'Writes it to disk' }],
     },
     {
         kind: 'strings',

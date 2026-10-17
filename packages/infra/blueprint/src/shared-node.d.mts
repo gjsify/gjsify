@@ -100,6 +100,13 @@ export interface SharedNode {
      */
     layout?: Record<string, string | number | boolean>;
     /**
+     * The `accessibility { }` block, keyed by the ARIA name as the source spells it (`label`,
+     * `description`, `checked`). Never folded into `props`: `label` here is the accessible name,
+     * not the widget's own `label`. Carried only where every value is a scalar; a relation to a
+     * list of objects keeps the block a loss. A renderer refuses a name it has no door for.
+     */
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
+    /**
      * The signal handlers (`clicked => $onClicked()`), in source order and as the source wrote
      * them (ADR 0093). `handler` is a NAME the renderer resolves against a scope object, never
      * code; `name` and `detail` are the two halves of `notify::sensitive`.

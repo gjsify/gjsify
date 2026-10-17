@@ -12,6 +12,7 @@ export const capabilities: ConstructCapabilities = {
         refused:
             "gtk-host's host has no door for a layout-manager child object (ADR 0092); load the .blp through Gtk.Builder instead",
     },
+    accessibility: 'implemented',
     strings: {
         refused:
             "gtk-host's host builds widgets and a Gtk.StringList is not one (ADR 0072); load the .blp through Gtk.Builder instead",

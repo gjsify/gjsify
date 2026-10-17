@@ -58,6 +58,12 @@ export function buildSharedTree(node: SharedTreeNode, built: HostElement[] = [])
 function buildNode(node: SharedTreeNode, built: HostElement[]): HostElement {
     const el = createElement(node.tag, node.props as Record<string, unknown> | undefined);
     built.push(el);
+    // The host's own `accessibility` door (`../accessibility.ts`), which takes every ARIA name
+    // GTK has and refuses the rest by name. Before `materialize`, which replays it.
+    if (node.accessibility !== undefined) {
+        const entries = Object.entries(node.accessibility).map(([name, entry]) => [name, entry.value]);
+        setProp(el, 'accessibility', Object.fromEntries(entries));
+    }
     // Before the children: `insert` parents a REALISED widget, and a construct-only
     // property that never arrives reaches `g_error()` rather than failing cleanly.
     materialize(el);

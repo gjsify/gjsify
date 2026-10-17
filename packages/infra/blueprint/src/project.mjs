@@ -236,6 +236,34 @@ const layoutOf = (extension, tag) => {
 };
 
 /**
+ * The entries of an `accessibility { }` block as `SharedNode.accessibility` holds them, or
+ * `undefined` where an entry is not a scalar.
+ *
+ * Keyed by the ARIA name as the source spells it (`label`, `description`, `checked`), and NOT
+ * folded into `props`: `label` here is the accessible name and `label` on a `GtkButton` is its
+ * text, two different things under one word. Properties, relations and states share the field
+ * because this exit has no ARIA table to tell them apart (only `gtypeName` reaches it); a
+ * renderer refuses the names it has no door for. Values keep their source spelling, as
+ * `layoutOf`'s do, so `pressed: mixed` stays `mixed`. A list value — `labelled-by: [a, b]`,
+ * a relation to objects — has no spelling here, and the whole block stays a loss.
+ *
+ * ONE READER FOR BOTH SEAMS, for `styleClassesOf`'s reason: `lossesOf` and `usesOf` ask it too.
+ *
+ * @param {import('./ast.d.mts').Extension} extension @param {(type: TypeRef, position?: 'object' | 'reference') => string} tag
+ * @returns {NonNullable<SharedNode['accessibility']> | undefined}
+ */
+const accessibilityOf = (extension, tag) => {
+    /** @type {NonNullable<SharedNode['accessibility']>} */
+    const accessibility = {};
+    for (const entry of extension.entries) {
+        const value = scalarOf(entry.value, tag);
+        if (value === undefined) return undefined;
+        accessibility[entry.name] = { value, ...(entry.value.kind === 'string' ? markingOf(entry.value) : {}) };
+    }
+    return accessibility;
+};
+
+/**
  * The simple form of a `bind`, as `SharedNode.bindings` holds it (ADR 0093), or `undefined` for
  * anything that is an expression.
  *
@@ -344,6 +372,8 @@ const projectBody = (body, tag) => {
     const menuModels = {};
     /** @type {SharedNode['layout']} */
     let layout;
+    /** @type {SharedNode['accessibility']} */
+    let accessibility;
     /** @type {{ line: number, order: number, slot?: string, object: ObjectNode }[]} */
     const placed = [];
 
@@ -400,6 +430,10 @@ const projectBody = (body, tag) => {
             const carried = layoutOf(extension, tag);
             if (carried !== undefined) layout = { ...layout, ...carried };
         }
+        if (extension.name === 'accessibility') {
+            const carried = accessibilityOf(extension, tag);
+            if (carried !== undefined) accessibility = { ...accessibility, ...carried };
+        }
         if (extension.name !== 'responses') continue;
         extensions.responses = [...(extensions.responses ?? []), ...responsesOf(extension)];
     }
@@ -433,6 +467,7 @@ const projectBody = (body, tag) => {
         ...(styleClasses.length > 0 ? { styleClasses } : {}),
         ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
         ...(layout !== undefined && Object.keys(layout).length > 0 ? { layout } : {}),
+        ...(accessibility !== undefined && Object.keys(accessibility).length > 0 ? { accessibility } : {}),
         ...(signals === undefined ? {} : { signals }),
         ...(Object.keys(bindings).length > 0 ? { bindings } : {}),
         ...(Object.keys(menuModels).length > 0 ? { menuModels } : {}),
@@ -620,10 +655,12 @@ const lossesOf = (file, tag) => {
                 }
             } else if (value.kind === 'object') walkObject(value.object);
         }
-        // `responses` is carried in `extensions` (ADR 0072) and a scalar `layout` in `layout`
-        // (ADR 0092); every other block is still lost.
+        // `responses` is carried in `extensions` (ADR 0072), a scalar `layout` in `layout`
+        // (ADR 0092) and a scalar `accessibility` in `accessibility`; every other block is
+        // still lost.
         for (const extension of body.extensions) {
             if (extension.name === 'layout' && layoutOf(extension, tag) !== undefined) continue;
+            if (extension.name === 'accessibility' && accessibilityOf(extension, tag) !== undefined) continue;
             if (extension.name !== 'responses') lost.push({ kind: extension.name, line: extension.line });
         }
         // Each list by its own NAME, the way a block extension is, because that is the name a
@@ -699,7 +736,7 @@ const lossesOf = (file, tag) => {
  * Every occurrence of a CARRIED construct, by kind and line (ADR 0093 § 2).
  *
  * The kinds are the ones `SharedNode` has a field for and a renderer may refuse: `layout`,
- * `strings`, `responses`, `extern`, `signal`, `bind` and `breakpoint`. A `page` has no Blueprint spelling that reaches this exit. Each
+ * `accessibility`, `strings`, `responses`, `extern`, `signal`, `bind` and `breakpoint`. A `page` has no Blueprint spelling that reaches this exit. Each
  * question goes to the reader the projection itself fills the field with, so a construct the
  * tree KEEPS is a use here and never a loss, and the two lists cannot disagree about a line.
  *
@@ -722,6 +759,9 @@ const usesOf = (file, tag) => {
         for (const extension of body.extensions) {
             if (extension.name === 'layout' && layoutOf(extension, tag) !== undefined) {
                 uses.push({ kind: 'layout', line: extension.line });
+            }
+            if (extension.name === 'accessibility' && accessibilityOf(extension, tag) !== undefined) {
+                uses.push({ kind: 'accessibility', line: extension.line });
             }
             if (extension.name === 'responses') uses.push({ kind: 'responses', line: extension.line });
         }

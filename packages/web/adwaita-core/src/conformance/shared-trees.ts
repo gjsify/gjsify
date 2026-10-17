@@ -195,6 +195,18 @@ export interface SharedTreeNode {
      */
     layout?: Readonly<Record<string, string | number | boolean>>;
     /**
+     * The `accessibility { }` block, keyed by the ARIA name as the source spells it (`label`,
+     * `description`, `checked`). Never folded into `props`: `label` here is the accessible name,
+     * not the widget's own `label`. Carried only where every value is a scalar; a relation to a
+     * list of objects keeps the block a loss. A renderer refuses a name it has no door for.
+     */
+    accessibility?: Readonly<
+        Record<
+            string,
+            { readonly value: string | number | boolean; readonly translatable?: { readonly context?: string } }
+        >
+    >;
+    /**
      * The signal handlers this node binds (`clicked => $onClicked()`), in source order and spelled
      * as the `.blp` wrote them (ADR 0093).
      *
