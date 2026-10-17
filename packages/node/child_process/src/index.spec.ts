@@ -3,6 +3,7 @@ import { describe, it, expect, on } from '@gjsify/unit';
 import { execSync, execFileSync, spawnSync, exec, execFile, spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
 import {
     SHELL_PWD,
     cat,
@@ -220,6 +221,32 @@ export default async () => {
                 });
             });
             expect(error).toBeDefined();
+        });
+    });
+
+    // Node's `customPromiseExecFunction` (lib/child_process.js): `{ stdout, stderr }`, not `stdout`.
+    await describe('child_process util.promisify(exec | execFile)', async () => {
+        await it('execFile resolves { stdout, stderr } and exposes promise.child', async () => {
+            const promise = promisify(execFile)(...echo('hello'), { encoding: 'utf8' });
+            expect((promise as { child?: unknown }).child).toBeDefined();
+            const { stdout, stderr } = await promise;
+            expect(String(stdout).trim()).toBe('hello');
+            expect(String(stderr)).toBe('');
+        });
+
+        await it('exec resolves { stdout, stderr }', async () => {
+            const { stdout } = await promisify(exec)(shellCmd(echo('hi')), { encoding: 'utf8' });
+            expect(String(stdout).trim()).toBe('hi');
+        });
+
+        await it('rejects with an error carrying stdout and stderr', async () => {
+            const err = await promisify(execFile)(...failWith(3, 'boom'), { encoding: 'utf8' }).then(
+                () => null,
+                (e: { code?: number; stdout?: unknown; stderr?: unknown }) => e,
+            );
+            expect(err?.code).toBe(3);
+            expect(err?.stdout).toBe('');
+            expect(String(err?.stderr).trim()).toBe('boom');
         });
     });
 

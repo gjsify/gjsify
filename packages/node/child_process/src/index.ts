@@ -1008,6 +1008,40 @@ export function execFile(
     });
 }
 
+type ExecCallback = (error: ExecError | null, stdout: string | Buffer, stderr: string | Buffer) => void;
+
+/**
+ * `util.promisify(exec | execFile)` resolves `{ stdout, stderr }`, rejects with the error carrying
+ * both, and exposes the child as `promise.child` — Node's `customPromiseExecFunction`. Without it
+ * the generic promisify resolved with `stdout` alone. The key is the documented
+ * `Symbol.for('nodejs.util.promisify.custom')`, so no `node:util` import is needed.
+ */
+function definePromisifiedExec(orig: (...args: unknown[]) => ChildProcess): void {
+    Object.defineProperty(orig, Symbol.for('nodejs.util.promisify.custom'), {
+        enumerable: false,
+        value: (...args: unknown[]) => {
+            let child!: ChildProcess;
+            const promise = new Promise<{ stdout: string | Buffer; stderr: string | Buffer }>((resolve, reject) => {
+                const callback: ExecCallback = (err, stdout, stderr) => {
+                    if (err !== null) {
+                        err.stdout = stdout;
+                        err.stderr = stderr;
+                        reject(err);
+                    } else {
+                        resolve({ stdout, stderr });
+                    }
+                };
+                child = orig(...args, callback);
+            }) as Promise<{ stdout: string | Buffer; stderr: string | Buffer }> & { child: ChildProcess };
+            promise.child = child;
+            return promise;
+        },
+    });
+}
+
+definePromisifiedExec(_exec as (...args: unknown[]) => ChildProcess);
+definePromisifiedExec(execFile as (...args: unknown[]) => ChildProcess);
+
 /**
  * Execute a file directly without shell (sync). All four Node overloads are
  * accepted, so options as the 2nd positional must not be spread into argv.
