@@ -2,6 +2,8 @@
 // on the root outranks `prefers-color-scheme` (ADR 0078, `isAdwaitaDark`). The behaviour is the
 // core's (`style-manager.ts`); this file is the SOURCE: the root's `class` attribute and the media
 // query are the two things that can flip it. Without a `document` (SSR) it is light and never changes.
+// The system supports color schemes when the browser knows `prefers-color-scheme`: then one of its
+// two values matches; a browser without the feature matches neither.
 
 import { ColorScheme, StyleManagerBase, type StyleSource } from '@gjsify/adwaita-core';
 
@@ -19,6 +21,10 @@ export const webStyleSource: StyleSource = {
             media?.removeEventListener('change', changed);
             observer.disconnect();
         };
+    },
+    supportsColorSchemes() {
+        const matches = (query: string) => globalThis.matchMedia?.(query).matches === true;
+        return matches('(prefers-color-scheme: dark)') || matches('(prefers-color-scheme: light)');
     },
 };
 
