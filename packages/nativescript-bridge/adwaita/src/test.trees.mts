@@ -15,6 +15,7 @@ import { run } from '@gjsify/unit';
 
 import { Canvas2DBridgeNsTest } from './canvas2d/canvas2d-bridge.spec.js';
 import { AdwApplicationNsTest } from './application.spec.js';
+import { GioResourceNsTest } from './gio-resource.spec.js';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
@@ -48,6 +49,7 @@ import { AdwWindowShellNsTest } from './window-shell.spec.js';
 
 run({
     AdwApplicationNsTest,
+    GioResourceNsTest,
     AdwSharedTreesNsTest,
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,

@@ -65,6 +65,7 @@ const subject: ApplicationSubject = {
     SimpleAction: Gio.SimpleAction as unknown as ApplicationSubject['SimpleAction'],
     handlesOpen: Gio.ApplicationFlags.HANDLES_OPEN,
     scene,
+    iconTheme: () => Gtk.IconTheme.get_for_display(null),
 };
 
 const portVectors = APPLICATION_VECTORS.filter((vector) => !vector.rule.includes('in a popover'));

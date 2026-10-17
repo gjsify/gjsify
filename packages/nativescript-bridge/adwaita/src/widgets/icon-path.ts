@@ -463,3 +463,48 @@ export function normalizeArcFlags(d: string): string {
     }
     return out;
 }
+
+const SVG_ROOT_RE = /<svg\b((?:"[^"]*"|'[^']*'|[^"'<>])*)>/;
+
+function rootAttribute(attrs: string, name: string): string | undefined {
+    return new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`)
+        .exec(attrs)
+        ?.slice(1)
+        .find((v) => v !== undefined);
+}
+
+/**
+ * `svg` with its content mapped onto the {@link ADWAITA_ICON_GRID} the rasterisers draw on.
+ *
+ * A compiled glyph is authored on that grid; a symbolic file an application ships need not be.
+ * Its `viewBox`, else its `width` and `height`, is scaled to fit and centred, as GTK fits an SVG
+ * into the requested size. A document already on the grid, or one that names no size, is returned
+ * as it is.
+ */
+export function fitIconToGrid(svg: string): string {
+    const root = SVG_ROOT_RE.exec(svg);
+    if (root === null) return svg;
+    const attrs = root[1] as string;
+    const box = rootAttribute(attrs, 'viewBox')
+        ?.trim()
+        .split(/[\s,]+/)
+        .map(Number);
+    const [x, y, w, h] =
+        box?.length === 4
+            ? box
+            : [
+                  0,
+                  0,
+                  Number.parseFloat(rootAttribute(attrs, 'width') ?? ''),
+                  Number.parseFloat(rootAttribute(attrs, 'height') ?? ''),
+              ];
+    if (![x, y, w, h].every(Number.isFinite) || !(w > 0 && h > 0)) return svg;
+    if (x === 0 && y === 0 && w === ADWAITA_ICON_GRID && h === ADWAITA_ICON_GRID) return svg;
+    const k = ADWAITA_ICON_GRID / Math.max(w, h);
+    const e = (ADWAITA_ICON_GRID - w * k) / 2 - x * k;
+    const f = (ADWAITA_ICON_GRID - h * k) / 2 - y * k;
+    const close = svg.lastIndexOf('</svg>');
+    if (close < root.index) return svg;
+    const start = root.index + root[0].length;
+    return `${svg.slice(0, start)}<g transform="matrix(${k} 0 0 ${k} ${e} ${f})">${svg.slice(start, close)}</g>${svg.slice(close)}`;
+}

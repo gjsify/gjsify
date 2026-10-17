@@ -23,10 +23,10 @@
 // port imports that this file does not export fails the build — measured, by renaming
 // `Button` away: rolldown answers `MISSING_EXPORT "Button" is not exported by ns-core.mts`,
 // exit 1, no bundle. That is the reachable slice held exactly. The other direction is not
-// held by anything: `ListPicker` and `Screen` are in the `.d.ts` and deliberately absent
-// here, because the only modules importing them are `*.android.ts` / `*.ios.ts`, which no
-// off-device bundle resolves. If one of them ever moves into a platform-neutral module the
-// build will say so on the next run.
+// held by anything: `ListPicker` is in the `.d.ts` and deliberately absent here, because the
+// only modules importing it are `*.android.ts` / `*.ios.ts`, which no off-device bundle
+// resolves. If it ever moves into a platform-neutral module the build will say so on the next
+// run, as `Screen` did when the icon lookup started asking for the device scale.
 //
 // WHAT IT IS NOT, and the driver's header says this again where a reader of the result will
 // look: it is not a device and it is not a measurement of NativeScript. It carries no layout
@@ -767,13 +767,22 @@ export class ImageSource {
     constructor(nativeSource?: unknown) {
         this.nativeSource = nativeSource;
     }
+
+    /** Decodes nothing: the source keeps the base64 it was given, for a spec to read back. */
+    static fromBase64Sync(source: string): ImageSource {
+        return new ImageSource({ base64: source });
+    }
 }
 
 export class Image extends View {
     src: string | ImageSource | undefined;
     imageSource: ImageSource | undefined;
     stretch = 'aspectFit';
+    tintColor: string | undefined;
 }
+
+/** One screen at scale 1, the density the port's own sizes are written in. */
+export const Screen = { mainScreen: { scale: 1, widthDIPs: 0, heightDIPs: 0 } };
 
 export class SegmentedBarItem extends Observable {
     title = '';

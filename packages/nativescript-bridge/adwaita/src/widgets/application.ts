@@ -17,11 +17,14 @@ import {
     dispatchAccelerator,
     type ApplicationHost,
 } from '@gjsify/adwaita-core';
+import { IconTheme } from '../namespace/gtk-platform.js';
 import { nativePlatformHost } from '../platform-host.js';
 
 export const nativeScriptHost: ApplicationHost = {
     name: 'adwaita-nativescript',
     requiresWindow: true,
+    // `vfunc_startup` adds `<resource-base-path>/icons/` to it (ADR 0116 § 4).
+    iconTheme: () => IconTheme.get_for_display(null),
     start(body) {
         return new Promise<void>((resolve) => {
             Application.run({
