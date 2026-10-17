@@ -93,6 +93,11 @@ export class AdwComboRow extends TooltipElement {
         this._state.setModel(normalizeComboOptions(value));
     }
 
+    /** `adw_combo_row_set_model`. */
+    set_model(model: AdwListModelInput | null): void {
+        this.model = model ?? [];
+    }
+
     /**
      * The selected index (Adw.ComboRow:selected). PERMISSIVE: an index past the end is
      * accepted and reads back with an empty {@link selectedValue}, mirroring the `guint`
@@ -106,6 +111,14 @@ export class AdwComboRow extends TooltipElement {
 
     set selected(value: number) {
         this.setAttribute('selected', String(value));
+    }
+
+    get_selected(): number {
+        return this.selected;
+    }
+
+    set_selected(position: number): void {
+        this.selected = position;
     }
 
     /**

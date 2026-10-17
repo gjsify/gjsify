@@ -14,6 +14,7 @@
 // reachable only under that entry's `--alias`. The package's AGENTS.md carries the rule.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { driveRowAccessorVectors, type ComboRowLike, type SwitchRowLike } from '@gjsify/adwaita-core/conformance';
 
 import * as Adw from './namespace/adw.js';
 import * as Gtk from './namespace/gtk.js';
@@ -97,4 +98,15 @@ export const AdwGtkValueDoorsNsTest = async () => {
             expect(row.value).toBe(20);
         });
     });
+
+    await driveRowAccessorVectors(
+        {
+            name: 'adwaita-nativescript',
+            isOracle: false,
+            makeComboRow: () => new Adw.ComboRow() as unknown as ComboRowLike,
+            makeSwitchRow: () => new Adw.SwitchRow() as unknown as SwitchRowLike,
+            StringList: Gtk.StringList,
+        },
+        { describe, it, expect },
+    );
 };

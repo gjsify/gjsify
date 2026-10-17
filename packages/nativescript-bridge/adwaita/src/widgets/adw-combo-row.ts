@@ -171,6 +171,11 @@ export class AdwComboRow extends AdwActionRow {
         }
     }
 
+    /** `adw_combo_row_set_model`. */
+    set_model(model: AdwListModelInput | null): void {
+        this.model = model ?? [];
+    }
+
     /**
      * XML inflation: a child at `model` is the row's list — a `Gtk.StringList` is already an
      * `AdwListModelInput`, so it goes through the same setter as the property. Everything
@@ -196,6 +201,14 @@ export class AdwComboRow extends AdwActionRow {
             return;
         }
         this._state.setSelectedIndex(value);
+    }
+
+    get_selected(): number {
+        return this.selected;
+    }
+
+    set_selected(position: number): void {
+        this.selected = position;
     }
 
     /** The selected option's `value`, or `''` when out of range. */

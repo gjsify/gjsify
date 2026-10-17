@@ -81,6 +81,14 @@ export class AdwSwitchRow extends AdwActionRow {
         this._apply(this._switchState.setActive(xmlBoolean(value, false)));
     }
 
+    get_active(): boolean {
+        return this.active;
+    }
+
+    set_active(active: boolean): void {
+        this.active = active;
+    }
+
     /**
      * The row was tapped — invert the state, then emit `activated` like any
      * other action row (adw-switch-row.c:23-27 via the activatable widget).

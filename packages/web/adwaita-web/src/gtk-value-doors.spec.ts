@@ -20,8 +20,10 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import { GtkAdjustment, GtkStringList } from '@gjsify/adwaita-core';
+import { driveRowAccessorVectors, type ComboRowLike, type SwitchRowLike } from '@gjsify/adwaita-core/conformance';
 
 import type { AdwComboRow } from './elements/adw-combo-row.js';
+import type { AdwSwitchRow } from './elements/adw-switch-row.js';
 import type { AdwSpinRow } from './elements/adw-spin-row.js';
 import type { GtkDropDown } from './elements/gtk-drop-down.js';
 
@@ -101,4 +103,15 @@ export const GtkValueDoorsTest = async () => {
             expect(row.value).toBe(16);
         });
     });
+
+    await driveRowAccessorVectors(
+        {
+            name: 'adwaita-web',
+            isOracle: false,
+            makeComboRow: () => mount<AdwComboRow>('adw-combo-row') as unknown as ComboRowLike,
+            makeSwitchRow: () => mount<AdwSwitchRow>('adw-switch-row') as unknown as SwitchRowLike,
+            StringList: GtkStringList,
+        },
+        { describe, it, expect },
+    );
 };
