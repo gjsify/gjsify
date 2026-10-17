@@ -361,9 +361,69 @@ baseline.
 
 ## Implementation
 
-Tracked in [status/open-todos/node-gi.md](../../status/open-todos/node-gi.md). Nothing in this ADR
-is implemented; the three stages of § 5 are the work, in that order, each gated by its own
-acceptance test.
+Tracked in [status/open-todos/node-gi.md](../../status/open-todos/node-gi.md). The three stages of
+§ 5 are the work, in that order, each gated by its own acceptance test.
+
+**Stage 1 is split into 1a and 1b.** § 5 bundles two independent things under one stage: the
+SELECTION MECHANISM, which changes code in this repository, and the PACKAGE SPLIT of § 1, which
+publishes four new npm packages and rewires `release.yml`. 1a is landed; 1b is not.
+
+Splitting it this way because the mechanism is what every later stage builds on and it is testable
+on a host today, while the split is a publishing decision whose first irreversible act — four new
+names on npm, in lockstep with a sysroot pin — should not ride along with the change that makes
+selection work at all. The § 1 shape is unchanged and 1b implements it as written; the Consequences
+note that stage 1 lands the `release.yml` job "for all of them together or not at all" belongs to
+1b, and nothing in 1a publishes anything.
+
+**Stage 1a — the selection mechanism** (#2280). `nativescript.giNamespaces` in the app config, validated
+in `packages/infra/cli/src/config.ts`; `planGiSelection`
+(`packages/infra/cli/src/utils/ship/gi-selection.ts`) reconciles it against `scanGiNamespaces` of
+the emitted bundle, as a post-bundle gate in `build.ts` beside the GJS and node ones. On the AAR
+side, `planGiRoots` turns the requested namespaces into SEEDS — walked and bundled — which
+`planClosure` now accepts next to `roots`, and `planTypelibSet` stays the single judge of what
+ships. `--gi-namespaces` / `NODE_GI_ANDROID_NAMESPACES` drive the same path from the command line.
+
+What 1a found that § 4 and § 5 get wrong:
+
+- **The pinned sysroot has no `cairo-1.0`, `freetype2-2.0` or `fontconfig-2.0` typelib.** It has
+  all three LIBRARIES, which is what § 4's "cairo is already in the prefix" reads off, but
+  introspection data is a separate artifact and the prefix carries none for them. So acceptance
+  (b) cannot be met against today's sysroot: `["Gtk"]` fails in `planTypelibSet` with *Gtk-4.0
+  depends on cairo-1.0, which the source prefix does not provide at all* — and so do `Gdk`, `Gsk`,
+  `Adw`, `GdkAndroid` and `Pango`. That is the gate working, not the selection failing. The three
+  namespaces the prefix can resolve today — `Graphene`, `GdkPixbuf`, `GdkPixdata` — are the
+  positive proof, and generating those three typelibs is 1b's first sysroot task, not stage 2's.
+- **Acceptance (a)'s byte comparison is held one layer below the bytes.** ADR 0110's 15,746,594 B
+  and 16,907,482 B are COMPRESSED zip-entry sizes of a gradle release build; no host test can
+  reproduce them, and a test that needs an APK is a test nobody runs. Instead
+  `gi-runtime-android/payload-baseline.json` freezes the pinned prefix's link graph and the plan
+  the default build makes from it, and `node-gi/test/gi-runtime-android.test.mjs` replays the real
+  planners over it: selecting nothing yields exactly 15 libraries and 7 typelibs per ABI, the same
+  entries ADR 0110 counted at those totals, and selecting `Graphene` only adds. Regenerate the
+  baseline with `scripts/snapshot-payload-baseline.mjs` when the sysroot pin moves.
+- **Selection was unusable without attribution.** `renderNotice` refuses any newly bundled soname
+  with no entry in `licenses/bundled-projects.json`, which the default closure never trips because
+  every library it reaches was already listed. The table now covers every library the pinned
+  prefix can contribute.
+
+- **The scan is a weaker lower bound on this target than § 2 assumed.** `scanGiNamespaces` reads
+  `requireGi` calls by their BINDING to `@gjsify/node-gi/gi`, so it answers only while that import
+  survives into the emitted file. It does on `--app node`, where the specifier is external; it does
+  not when node-gi is bundled in, which is what the Vite path does — the calls are then to an
+  inlined local function and the scan rightly refuses to guess. So on the real Android path the
+  config is not merely the decider, it is for now the only input, and the gate catches the case
+  where the import is external. Lower-bound-ness is what makes that sound rather than broken: an
+  empty scan can only fail to warn, never wrongly fail a build.
+
+Not in 1a, and deliberately: `@gjsify/nativescript-vite` (`defineNativescriptConfig`), which is
+how a real app builds, does not run the gate — only `gjsify build --app nativescript` does. Wiring
+it there is 1b, with `tests/integration/nativescript-gi/` as its subject, and it is the same place
+the scan's blind spot above gets a second input (node-gi's own `requireGi` wrapper can emit the
+`gi://`-style marker ADR 0087 already uses for optional namespaces).
+
+**Stage 1b — the package split.** `@gjsify/gi-runtime-android-gtk` and the `release.yml` job that
+publishes core and add-ons together, the startup check that refuses a mixed set, the three missing
+typelibs in the sysroot, and the `nativescript-vite` path.
 
 ## Amendment 2026-10-16: the sysroot has a CI path
 

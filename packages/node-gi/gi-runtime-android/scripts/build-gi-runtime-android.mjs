@@ -73,6 +73,13 @@ const SYSTEM_PROVIDED = new Map([
     ['liblog.so', 'Android platform (NDK stable ABI)'],
     ['libandroid.so', 'Android platform (NDK stable ABI)'],
     ['libz.so', 'Android platform (NDK stable ABI)'],
+    // Reached only once a `--gi-namespaces` selection seeds GTK: `libgdk` draws into an
+    // `android.graphics.Bitmap` through `libjnigraphics` and `libgsk` has a Vulkan
+    // renderer. Both are NDK stable-ABI platform libraries available from API 24, which
+    // is this AAR's `minSdkVersion`, so bundling either would be a second copy of
+    // something the device already has — and `libvulkan.so` in particular is the driver.
+    ['libjnigraphics.so', 'Android platform (NDK stable ABI, API 24+)'],
+    ['libvulkan.so', 'Android platform (NDK stable ABI, API 24+)'],
     ['libNativeScript.so', 'the NativeScript runtime AAR, already in the APK'],
 ]);
 
@@ -94,7 +101,7 @@ const AAR_MIN_SDK = 24;
  * calls into; everything else the GI prefix offers is shipped if its backing library happens
  * to be in the closure and dropped if not.
  */
-const REQUIRED_NAMESPACES = ['GLib', 'GObject', 'Gio'];
+export const REQUIRED_NAMESPACES = ['GLib', 'GObject', 'Gio'];
 
 const USAGE = `Usage: node scripts/build-gi-runtime-android.mjs [options]
 
@@ -110,6 +117,11 @@ Options (each also read from the env var in brackets):
   --typelib-dir <spec>   where the typelibs are; repeatable, as <abi>=<dir>, or once without an
                          ABI to use one directory for all. Default: <gi-sysroot>/lib/<abi>/
                          girepository-1.0                                      [NODE_GI_ANDROID_TYPELIBS]
+  --gi-namespaces <list> extra GI namespaces this AAR carries, comma- or space-separated, as
+                         \`Ns\` or \`Ns-Version\` (ADR 0117 § 2). Their backing libraries seed the
+                         closure walk, so the typelibs become shippable. Empty — the default —
+                         is the measured core set and byte-identical to a build without the
+                         flag                                                  [NODE_GI_ANDROID_NAMESPACES]
   --license-corpus <dir> optional: <project>/<file> licence texts to embed in the notice. The
                          Android GI prefix ships none, so without this the notice names each
                          project and its upstream and says the text is not embedded.
@@ -133,6 +145,7 @@ function parseArgs(argv) {
         giSysroot: env.NODE_GI_ANDROID_SYSROOT,
         nodeGiLib: env.NODE_GI_ANDROID_LIB,
         typelibDirs: env.NODE_GI_ANDROID_TYPELIBS ? [env.NODE_GI_ANDROID_TYPELIBS] : [],
+        giNamespaces: splitNamespaces(env.NODE_GI_ANDROID_NAMESPACES),
         licenseCorpus: undefined,
         mtime: 315532800,
         out: undefined,
@@ -162,11 +175,12 @@ function parseArgs(argv) {
         }
         const [flag, inline] = arg.split(/=(.*)/s);
         const value = inline ?? argv[i + 1];
-        if (flag === '--abi' || flag === '--typelib-dir' || flag === '--mtime') {
+        if (flag === '--abi' || flag === '--typelib-dir' || flag === '--gi-namespaces' || flag === '--mtime') {
             if (inline === undefined) i++;
             if (value === undefined) fail(`${flag} needs a value`);
             if (flag === '--abi') opts.abis.push(value);
             else if (flag === '--typelib-dir') opts.typelibDirs.push(value);
+            else if (flag === '--gi-namespaces') opts.giNamespaces.push(...splitNamespaces(value));
             else opts.mtime = Number(value);
             continue;
         }
@@ -181,7 +195,22 @@ function parseArgs(argv) {
         if (!(abi in ABIS)) fail(`--abi ${abi}: not one of ${Object.keys(ABIS).join(', ')}`);
     }
     if (!Number.isFinite(opts.mtime)) fail('--mtime must be a number of seconds since the epoch');
+    opts.giNamespaces = [...new Set(opts.giNamespaces)].sort();
     return opts;
+}
+
+/**
+ * `Gtk,Pango` or `Gtk Pango` → `['Gtk', 'Pango']`; an empty or absent value → `[]`.
+ *
+ * Both separators, because this flag is written by hand on a command line AND passed
+ * through by `gjsify build`'s config, where a JSON array arrives joined.
+ */
+function splitNamespaces(value) {
+    if (!value) return [];
+    return value
+        .split(/[,\s]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
 }
 
 /** An NDK tool, by name. Both tools used here are ABI-independent llvm binaries. */
@@ -223,18 +252,32 @@ export function parseNeeded(readelfOutput) {
 /**
  * The transitive DT_NEEDED closure of `roots`, resolved against one prefix.
  *
+ * TWO KINDS OF STARTING POINT, and the difference is whether the payload carries them.
+ * A ROOT is walked and not bundled — `libnode_gi.so` is staged by name elsewhere, so
+ * bundling it again would put two copies in the AAR. A SEED is walked AND bundled: it is
+ * a library nothing in the root's link graph reaches, which is the whole shape ADR 0117
+ * § 2 selects by (`libgtk-4.so.1` is in the prefix and in nobody's DT_NEEDED) and the
+ * same shape the desktop bundles established for librsvg and the GIO modules. Seeding a
+ * library and then not shipping it would reproduce exactly the failure `planTypelibSet`
+ * exists to prevent: a typelib whose backer is advertised and absent.
+ *
  * @param {object} spec
  * @param {string[]} spec.roots sonames to start from (they are not themselves bundled)
+ * @param {string[]} [spec.seeds] sonames to start from that ARE bundled (ADR 0117 § 2)
  * @param {(soname: string) => string[] | null} spec.needed DT_NEEDED of a soname in the
  *   prefix, or `null` when the prefix does not have it
  * @returns {{ bundle: string[], system: string[] }} `bundle` sorted, `system` sorted
  */
-export function planClosure({ roots, needed }) {
+export function planClosure({ roots, seeds = [], needed }) {
     const bundle = new Set();
     const system = new Set();
     const unknown = new Set();
     const rootSet = new Set(roots);
-    const queue = [...roots];
+    // A seed that is ALSO a root stays a root: the explicit "not bundled" wins, or
+    // `--gi-namespaces` naming a namespace backed by `libnode_gi.so` itself would stage
+    // the addon twice.
+    for (const seed of seeds) if (!rootSet.has(seed)) bundle.add(seed);
+    const queue = [...roots, ...bundle];
 
     while (queue.length > 0) {
         const soname = queue.shift();
@@ -270,6 +313,107 @@ export function planClosure({ roots, needed }) {
     }
 
     return { bundle: [...bundle].sort(), system: [...system].sort() };
+}
+
+/**
+ * The seed libraries a requested namespace set is backed by — ADR 0117 § 2 step 1.
+ *
+ * READ FROM THE TYPELIB, NEVER FROM A TABLE, which is `typelib-backers.mjs`'s rule and
+ * the reason it survives three platforms' different leaf names: the `shared_library`
+ * header field holds the exact string GI hands to `g_module_open`, so the leaves this
+ * returns are the ones that have to be in `jni/<abi>/` for the namespace to resolve.
+ *
+ * A HEADER-ONLY NAMESPACE CONTRIBUTES NOTHING AND IS NOT AN ERROR. `GLibUnix-2.0` and
+ * friends bind no library at all; asking for one is a legitimate declaration that the
+ * typelib must ship, and `planTypelibSet` is what decides that — not this function.
+ *
+ * THE WALK FOLLOWS TYPELIB `dependencies`, and leaving that out is not an optimisation
+ * but a build failure. Measured on this prefix with `--gi-namespaces Gtk`: seeding only
+ * the libraries the REQUESTED namespace names reaches `libharfbuzz.so` (via libpango's
+ * DT_NEEDED) and never `libharfbuzz-gobject.so`, which is what `HarfBuzz-0.0.typelib`
+ * declares as its backer and which nothing in the prefix links. `Pango-1.0` depends on
+ * `HarfBuzz-0.0`, so `planTypelibSet` cannot drop it — the build stopped with exactly the
+ * `blocked` message that gate exists for. The repair is a seed, which is the same answer
+ * the darwin bundle reached for `harfbuzz-gobject` and the win32 one for librsvg.
+ *
+ * A DEPENDENCY WITH NO TYPELIB IN THE PREFIX IS SKIPPED HERE, not reported. `Gdk-4.0`
+ * depends on `cairo-1.0` and this prefix ships no `cairo-1.0.typelib` at all; that is a
+ * gap in the sysroot, `planTypelibSet` already names it as "the source prefix does not
+ * provide at all", and a second refusal in this function would be the second mechanism
+ * ADR 0117 § 2 says the selection must not grow.
+ *
+ * @param {object} spec
+ * @param {string[]} spec.namespaces `Ns` or `Ns-Version`, as `giNamespaces` declares them
+ * @param {ReturnType<typeof readTypelibDir>} spec.typelibs the prefix's typelibs
+ * @returns {{ seeds: string[], resolved: { requested: string, key: string }[] }}
+ */
+export function planGiRoots({ namespaces, typelibs }) {
+    const byKey = new Map(typelibs.map((t) => [t.key, t]));
+    const byNamespace = new Map();
+    for (const t of typelibs) {
+        if (!byNamespace.has(t.namespace)) byNamespace.set(t.namespace, []);
+        byNamespace.get(t.namespace).push(t);
+    }
+
+    const seeds = new Set();
+    const seen = new Set();
+    const resolved = [];
+    const missing = [];
+    const ambiguous = [];
+
+    for (const requested of namespaces) {
+        const pinned = byKey.get(requested);
+        const candidates = pinned !== undefined ? [pinned] : (byNamespace.get(requested) ?? []);
+        if (candidates.length === 0) {
+            missing.push(requested);
+            continue;
+        }
+        if (candidates.length > 1) {
+            // Only reachable for a BARE request, since a key names one file. Guessing a
+            // version here would pick an ABI for the app by sort order.
+            ambiguous.push(
+                `${requested} (${candidates
+                    .map((t) => t.key)
+                    .sort()
+                    .join(', ')})`,
+            );
+            continue;
+        }
+        const typelib = candidates[0];
+        resolved.push({ requested, key: typelib.key });
+        // Breadth-first over the typelib dependency graph, seeding every backer on the
+        // way. `seen` is keyed on the typelib key, so a diamond (Gtk and Pango both
+        // reaching HarfBuzz) is walked once and a cycle terminates.
+        const queue = [typelib];
+        for (let i = 0; i < queue.length; i++) {
+            const current = queue[i];
+            if (seen.has(current.key)) continue;
+            seen.add(current.key);
+            for (const leaf of current.sharedLibraries) seeds.add(leaf);
+            for (const dep of current.dependencies) {
+                const next = byKey.get(dep);
+                if (next !== undefined && !seen.has(next.key)) queue.push(next);
+            }
+        }
+    }
+
+    if (missing.length > 0) {
+        // The prefix is pinned by sha256, so this is answerable in the checkout: either
+        // the namespace is spelled wrong or the sysroot has to grow (ADR 0117 § 4).
+        throw new Error(
+            `planGiRoots: the GI prefix has no typelib for ${missing.sort().join(', ')}. ` +
+                `It offers ${[...byNamespace.keys()].sort().join(', ')}. Either the namespace is misspelled, ` +
+                'or it needs a new android-sysroot release (ADR 0117 § 4) before an app can select it.',
+        );
+    }
+    if (ambiguous.length > 0) {
+        throw new Error(
+            `planGiRoots: ${ambiguous.sort().join('; ')} — the prefix has more than one version and the ` +
+                'request does not say which. Declare it as `Ns-Version`.',
+        );
+    }
+
+    return { seeds: [...seeds].sort(), resolved };
 }
 
 /**
@@ -676,7 +820,14 @@ function main() {
             cache.set(soname, answer);
             return answer;
         };
-        const { bundle, system } = planClosure({ roots: ['libnode_gi.so'], needed });
+        // ADR 0117 § 2: the selected namespaces' backing libraries enter the walk as
+        // SEEDS. Nothing in `libnode_gi.so`'s link graph reaches libgtk-4 or libsoup —
+        // that is the whole reason the payload needed a declaration rather than a
+        // measurement — so without this they would be unreachable and their typelibs
+        // would be dropped as unbacked. Read per ABI because the typelib dirs are.
+        const metadata = collectTypelibMetadata(abi, typelibDirs.get(abi));
+        const { seeds, resolved } = planGiRoots({ namespaces: opts.giNamespaces, typelibs: metadata });
+        const { bundle, system } = planClosure({ roots: ['libnode_gi.so'], seeds, needed });
 
         // `--strip-unneeded` and not `--strip-all`: these are shared libraries, and
         // --strip-all on a .so removes the dynamic symbols the loader resolves through.
@@ -697,7 +848,6 @@ function main() {
             perAbiPayload[abi] = { nodeGi, libs };
         }
 
-        const metadata = collectTypelibMetadata(abi, typelibDirs.get(abi));
         const plan = planAbiTypelibs(abi, metadata, bundle);
         perAbiTypelibs[abi] = plan.typelibs;
         report[abi] = {
@@ -705,10 +855,25 @@ function main() {
             system: system.map((soname) => ({ soname, provider: SYSTEM_PROVIDED.get(soname) })),
             typelibs: [...plan.typelibs.keys()],
             droppedTypelibs: plan.dropped,
+            selected: resolved.map((entry) => entry.key),
         };
+        // A SELECTED namespace that still did not survive is reported here and not left to
+        // the dropped list, where it would read as one of the 14 the core never wanted.
+        // `planAbiTypelibs` already fails on the `blocked` case; this is the other one — a
+        // namespace whose own backer the seed walk could not satisfy.
+        const unshipped = resolved
+            .filter((entry) => !plan.typelibs.has(`${entry.key}.typelib`))
+            .map((entry) => entry.key);
+        if (unshipped.length > 0) {
+            fail(
+                `${abi}: ${unshipped.join(', ')} ${unshipped.length === 1 ? 'was' : 'were'} selected but ` +
+                    'did not survive the backer check, so the AAR would advertise a namespace it cannot load.',
+            );
+        }
         console.log(
             `${abi}: libnode_gi.so + ${bundle.length} bundled, ${system.length} system-provided, ` +
-                `${plan.typelibs.size}/${metadata.length} typelibs (dropped, unbacked: ${plan.dropped.join(', ') || 'none'})`,
+                `${plan.typelibs.size}/${metadata.length} typelibs (dropped, unbacked: ${plan.dropped.join(', ') || 'none'})` +
+                (resolved.length > 0 ? `; selected: ${resolved.map((entry) => entry.key).join(', ')}` : ''),
         );
     }
 

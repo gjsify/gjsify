@@ -17,8 +17,28 @@
         "libgio-2.0.so": "glib",
         "libgmodule-2.0.so": "glib",
         "libgirepository-2.0.so": "glib",
+        "libgthread-2.0.so": "glib",
         "libcairo.so": "cairo",
         "libcairo-gobject.so": "cairo",
+        "libcairo-script-interpreter.so": "cairo",
+        "libgtk-4.so": "gtk",
+        "libadwaita-1.so": "libadwaita",
+        "libgdk_pixbuf-2.0.so": "gdk-pixbuf",
+        "libgraphene-1.0.so": "graphene",
+        "libpango-1.0.so": "pango",
+        "libpangocairo-1.0.so": "pango",
+        "libpangoft2-1.0.so": "pango",
+        "libharfbuzz.so": "harfbuzz",
+        "libharfbuzz-gobject.so": "harfbuzz",
+        "libharfbuzz-subset.so": "harfbuzz",
+        "libharfbuzz-gpu.so": "harfbuzz",
+        "libharfbuzz-raster.so": "harfbuzz",
+        "libharfbuzz-vector.so": "harfbuzz",
+        "libfribidi.so": "fribidi",
+        "libepoxy.so": "libepoxy",
+        "libjpeg.so": "libjpeg-turbo",
+        "libturbojpeg.so": "libjpeg-turbo",
+        "libtiff.so": "libtiff",
         "libpixman-1.so": "pixman",
         "libfreetype.so": "freetype",
         "libfontconfig.so": "fontconfig",
@@ -37,6 +57,56 @@
             "name": "cairo",
             "upstream": "https://gitlab.freedesktop.org/cairo/cairo",
             "licenseFiles": ["COPYING", "COPYING-LGPL-2.1", "COPYING-MPL-1.1"]
+        },
+        "gtk": {
+            "name": "GTK (Gtk, Gdk, Gsk, GdkAndroid)",
+            "upstream": "https://gitlab.gnome.org/GNOME/gtk",
+            "licenseFiles": ["COPYING"]
+        },
+        "libadwaita": {
+            "name": "libadwaita",
+            "upstream": "https://gitlab.gnome.org/GNOME/libadwaita",
+            "licenseFiles": ["COPYING"]
+        },
+        "gdk-pixbuf": {
+            "name": "gdk-pixbuf",
+            "upstream": "https://gitlab.gnome.org/GNOME/gdk-pixbuf",
+            "licenseFiles": ["COPYING"]
+        },
+        "graphene": {
+            "name": "Graphene",
+            "upstream": "https://github.com/ebassi/graphene",
+            "licenseFiles": ["LICENSE.txt"]
+        },
+        "pango": {
+            "name": "Pango (Pango, PangoCairo, PangoFT2, PangoFc, PangoOT)",
+            "upstream": "https://gitlab.gnome.org/GNOME/pango",
+            "licenseFiles": ["COPYING"]
+        },
+        "harfbuzz": {
+            "name": "HarfBuzz",
+            "upstream": "https://github.com/harfbuzz/harfbuzz",
+            "licenseFiles": ["COPYING"]
+        },
+        "fribidi": {
+            "name": "GNU FriBidi",
+            "upstream": "https://github.com/fribidi/fribidi",
+            "licenseFiles": ["COPYING"]
+        },
+        "libepoxy": {
+            "name": "libepoxy",
+            "upstream": "https://github.com/anholt/libepoxy",
+            "licenseFiles": ["COPYING"]
+        },
+        "libjpeg-turbo": {
+            "name": "libjpeg-turbo",
+            "upstream": "https://github.com/libjpeg-turbo/libjpeg-turbo",
+            "licenseFiles": ["LICENSE.md"]
+        },
+        "libtiff": {
+            "name": "libtiff",
+            "upstream": "https://gitlab.com/libtiff/libtiff",
+            "licenseFiles": ["LICENSE.md"]
         },
         "pixman": {
             "name": "pixman",

@@ -133,6 +133,30 @@ a fourth answer fails the build.
 Measured against the prefix above: **14 bundled** libraries, **7 system-provided**
 (`libc`, `libm`, `libdl`, `liblog`, `libandroid`, `libz`, `libNativeScript`).
 
+**…and what the closure cannot reach is SELECTED** (ADR 0117). Nothing in `libnode_gi.so`'s
+link graph leads to `libgtk-4.so` or `libgraphene-1.0.so`, so no measurement can decide
+whether an app wants them: `--gi-namespaces Gtk,Graphene` (env
+`NODE_GI_ANDROID_NAMESPACES`, `Ns` or `Ns-Version`) names them, and their backing libraries
+enter the same walk as SEEDS — walked like a root, bundled like a dependency. Each selected
+typelib's own `dependencies` are followed, so a namespace brings what it needs rather than
+tripping `planTypelibSet`'s `blocked` case one library short. A namespace the prefix has no
+typelib for fails the build by name, before anything is staged.
+
+Selecting nothing changes nothing, and that is checked rather than asserted:
+[`payload-baseline.json`](./payload-baseline.json) freezes the pinned prefix's link graph
+and the plan the default build makes from it (15 libraries, 7 typelibs per ABI — the entries
+ADR 0110 counted at 15,746,594 B / 16,907,482 B compressed), and
+`node-gi/test/gi-runtime-android.test.mjs` replays the real planners over it on every run,
+with no NDK and no device. Regenerate it with
+[`scripts/snapshot-payload-baseline.mjs`](./scripts/snapshot-payload-baseline.mjs) when
+`build-inputs.json` moves the sysroot pin.
+
+The pinned prefix resolves `Graphene`, `GdkPixbuf` and `GdkPixdata` today. `Gtk`, `Gdk`,
+`Gsk`, `Adw`, `GdkAndroid` and `Pango` do not: it carries the cairo, freetype and fontconfig
+LIBRARIES but no typelib for any of them, and `planTypelibSet` refuses a namespace whose
+dependency the source prefix cannot provide at all. Generating those three typelibs is a
+sysroot task (ADR 0117 § Implementation, stage 1b).
+
 **The typelib set follows the closure.** The prefix offers 21 typelibs; the libraries
 behind 14 of them are not in the closure (GTK, Pango, HarfBuzz, graphene, libadwaita),
 so they are dropped. Shipping `Gtk-4.0.typelib` anyway would let `requireGi('Gtk')` find

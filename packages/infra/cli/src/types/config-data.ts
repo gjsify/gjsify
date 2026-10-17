@@ -210,6 +210,38 @@ export interface ConfigData {
     format?: ConfigDataFormat;
     /** Config for `gjsify test`. `--entry`, `--outdir`, `--runtime` override these. */
     test?: ConfigDataTest;
+    /** Config for the `nativescript` target — what the APK carries (ADR 0117). */
+    nativescript?: ConfigDataNativescript;
+}
+
+/**
+ * What a NativeScript build decides that no other target has to.
+ *
+ * Its own namespace rather than top-level keys, for the reason `flatpak` and `ship`
+ * have one: these settings mean nothing on `gjs`, `node` or `browser`, and a
+ * top-level `giNamespaces` would read like a bundler option on every target.
+ */
+export interface ConfigDataNativescript {
+    /**
+     * The GI namespaces this APK carries, as `Ns` or `Ns-Version` (ADR 0117 § 2).
+     *
+     * ANDROID HAS NO SYSTEM GI STACK, so unlike a `.deb` there is no `Depends:` that
+     * a host can satisfy: every typelib and every backing `.so` is in the APK or is
+     * not reachable at all. The payload is cross-compiled against a sha256-pinned
+     * sysroot long before an app build, so this list cannot conjure a namespace the
+     * sysroot lacks — it SELECTS from what the sysroot has.
+     *
+     * Declared rather than inferred, and the asymmetry is the point: the scan of the
+     * emitted bundle is a LOWER BOUND (a namespace reached through a computed
+     * specifier is invisible to it), so an imported namespace missing from this list
+     * fails the build by name, while a listed one the scan did not see is only a
+     * warning about a larger-than-necessary APK.
+     *
+     * Unset is not the same as `[]` in intent but is in effect: both mean the
+     * measured core set (GLib, GObject, Gio and friends), which backs the runtime
+     * itself and ships whether or not anything declares it.
+     */
+    giNamespaces?: string[];
 }
 
 /** Optional pointer to a non-default oxc config file. */

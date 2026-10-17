@@ -26,17 +26,21 @@ import {
     aarEntries,
     parseNeeded,
     planClosure,
+    planGiRoots,
     readLicenseCorpus,
     planTypelibs,
     renderAndroidManifest,
     renderNotice,
+    REQUIRED_NAMESPACES,
 } from '../../gi-runtime-android/scripts/build-gi-runtime-android.mjs';
+import { planTypelibSet } from '../../scripts/typelib-backers.mjs';
 import { buildZip, dosDateTime } from '../../scripts/aar-zip.mjs';
 
 const pkgDir = fileURLToPath(new URL('../../gi-runtime-android/', import.meta.url));
 const manifest = JSON.parse(readFileSync(`${pkgDir}package.json`, 'utf8'));
 const licenseTable = JSON.parse(readFileSync(`${pkgDir}licenses/bundled-projects.json`, 'utf8'));
 const declaredDivergence = JSON.parse(readFileSync(`${pkgDir}typelib-abi-divergence.json`, 'utf8'));
+const baseline = JSON.parse(readFileSync(`${pkgDir}payload-baseline.json`, 'utf8'));
 
 /** A GI prefix as the closure walk sees it: DT_NEEDED per soname, `null` outside the prefix. */
 function prefix(libraries) {
@@ -138,6 +142,173 @@ describe('planClosure: what the AAR carries is measured, not listed', () => {
     it('terminates on a dependency cycle', () => {
         const cyclic = { 'a.so': ['b.so'], 'b.so': ['a.so', 'c.so'], 'c.so': ['b.so'] };
         assert.deepEqual(planClosure({ roots: ['a.so'], needed: prefix(cyclic) }).bundle, ['b.so', 'c.so']);
+    });
+
+    // ADR 0117 § 2: a selected namespace's backer is in the prefix and in NOBODY's
+    // DT_NEEDED, so the only way into the payload is to start the walk there as well.
+    const seeded = {
+        ...giPrefix,
+        'libgtk-4.so': ['libgraphene-1.0.so', 'libglib-2.0.so', 'liblog.so'],
+        'libgraphene-1.0.so': ['libm.so'],
+    };
+
+    it('bundles a seed and everything under it, which no root reaches', () => {
+        const { bundle } = planClosure({ roots: ['libnode_gi.so'], seeds: ['libgtk-4.so'], needed: prefix(seeded) });
+        assert.ok(bundle.includes('libgtk-4.so'));
+        assert.ok(bundle.includes('libgraphene-1.0.so'));
+    });
+
+    it('leaves the default closure exactly as it was when nothing is seeded', () => {
+        const withEmpty = planClosure({ roots: ['libnode_gi.so'], seeds: [], needed: prefix(seeded) });
+        const without = planClosure({ roots: ['libnode_gi.so'], needed: prefix(seeded) });
+        assert.deepEqual(withEmpty, without);
+        assert.ok(!without.bundle.includes('libgtk-4.so'));
+    });
+
+    it('keeps a seed that is also a root unbundled, so the addon is not staged twice', () => {
+        // Asking for a namespace backed by libnode_gi.so itself must not put a second
+        // copy of the addon in the AAR.
+        const { bundle } = planClosure({
+            roots: ['libnode_gi.so'],
+            seeds: ['libnode_gi.so'],
+            needed: prefix(giPrefix),
+        });
+        assert.ok(!bundle.includes('libnode_gi.so'));
+    });
+
+    it('still separates system libraries a seed pulls in', () => {
+        const { bundle, system } = planClosure({
+            roots: ['libnode_gi.so'],
+            seeds: ['libgtk-4.so'],
+            needed: prefix(seeded),
+        });
+        assert.ok(system.includes('liblog.so'));
+        assert.ok(!bundle.includes('liblog.so'));
+    });
+
+    it('refuses a seed the prefix does not have', () => {
+        assert.throws(
+            () => planClosure({ roots: ['libnode_gi.so'], seeds: ['libnope.so'], needed: prefix(giPrefix) }),
+            /libnope\.so is not readable/,
+        );
+    });
+});
+
+describe('planGiRoots: a requested namespace becomes the seeds that back it', () => {
+    // Shaped like the pinned Android prefix reads: HarfBuzz backs its typelib with
+    // libharfbuzz-gobject.so, which is NOT what Pango or Gtk link against, so selecting
+    // Gtk without walking the typelib dependency graph leaves that backer unshipped and
+    // `planTypelibSet` blocks the whole set.
+    const typelibs = [
+        { key: 'GLib-2.0', namespace: 'GLib', sharedLibraries: ['libglib-2.0.so'], dependencies: [] },
+        {
+            key: 'GObject-2.0',
+            namespace: 'GObject',
+            sharedLibraries: ['libgobject-2.0.so'],
+            dependencies: ['GLib-2.0'],
+        },
+        {
+            key: 'HarfBuzz-0.0',
+            namespace: 'HarfBuzz',
+            sharedLibraries: ['libharfbuzz-gobject.so'],
+            dependencies: ['GObject-2.0'],
+        },
+        {
+            key: 'Pango-1.0',
+            namespace: 'Pango',
+            sharedLibraries: ['libpango-1.0.so'],
+            dependencies: ['HarfBuzz-0.0', 'GObject-2.0'],
+        },
+        {
+            key: 'Gtk-4.0',
+            namespace: 'Gtk',
+            sharedLibraries: ['libgtk-4.so'],
+            dependencies: ['Pango-1.0', 'HarfBuzz-0.0'],
+        },
+        { key: 'GLibUnix-2.0', namespace: 'GLibUnix', sharedLibraries: [], dependencies: ['GLib-2.0'] },
+        { key: 'Gdk-4.0', namespace: 'Gdk', sharedLibraries: ['libgtk-4.so'], dependencies: ['cairo-1.0'] },
+    ];
+
+    it('seeds the backer the requested namespace names', () => {
+        const { seeds } = planGiRoots({ namespaces: ['Pango'], typelibs });
+        assert.ok(seeds.includes('libpango-1.0.so'));
+    });
+
+    it('seeds the backers of the whole typelib dependency closure', () => {
+        // The measured failure: seeding only libgtk-4.so leaves libharfbuzz-gobject.so
+        // out, and `planTypelibSet` then reports HarfBuzz-0.0 as blocked.
+        const { seeds } = planGiRoots({ namespaces: ['Gtk'], typelibs });
+        assert.deepEqual([...seeds].sort(), [
+            'libglib-2.0.so',
+            'libgobject-2.0.so',
+            'libgtk-4.so',
+            'libharfbuzz-gobject.so',
+            'libpango-1.0.so',
+        ]);
+    });
+
+    it('walks a diamond once and terminates', () => {
+        // Gtk reaches HarfBuzz both directly and through Pango.
+        const { seeds } = planGiRoots({ namespaces: ['Gtk', 'Pango'], typelibs });
+        assert.equal(new Set(seeds).size, seeds.length);
+    });
+
+    it('accepts a pinned Ns-Version as well as a bare Ns', () => {
+        assert.deepEqual(planGiRoots({ namespaces: ['Pango-1.0'], typelibs }).seeds.sort(), [
+            'libglib-2.0.so',
+            'libgobject-2.0.so',
+            'libharfbuzz-gobject.so',
+            'libpango-1.0.so',
+        ]);
+    });
+
+    it('reports which typelib each request resolved to', () => {
+        assert.deepEqual(planGiRoots({ namespaces: ['Gtk'], typelibs }).resolved, [
+            { requested: 'Gtk', key: 'Gtk-4.0' },
+        ]);
+    });
+
+    it('contributes nothing for a header-only namespace, which is not an error', () => {
+        const { seeds, resolved } = planGiRoots({ namespaces: ['GLibUnix'], typelibs });
+        assert.deepEqual(seeds, ['libglib-2.0.so']);
+        assert.deepEqual(resolved, [{ requested: 'GLibUnix', key: 'GLibUnix-2.0' }]);
+    });
+
+    it('FAILS BY NAME on a namespace the prefix has no typelib for', () => {
+        // Soup is the ADR's example: an app imports it, the sysroot does not carry it,
+        // and the alternative is an APK that throws on the import at runtime.
+        assert.throws(() => planGiRoots({ namespaces: ['Soup'], typelibs }), /no typelib for Soup/);
+    });
+
+    it('names every missing namespace at once and lists what is on offer', () => {
+        assert.throws(
+            () => planGiRoots({ namespaces: ['Soup', 'WebKit'], typelibs }),
+            (error) => {
+                assert.match(error.message, /Soup, WebKit/);
+                assert.match(error.message, /Gtk/);
+                return true;
+            },
+        );
+    });
+
+    it('REFUSES a bare namespace the prefix has two versions of, rather than guessing', () => {
+        // Picking by sort order here would choose an ABI for the app silently.
+        const twoGtk = [
+            ...typelibs,
+            { key: 'Gtk-3.0', namespace: 'Gtk', sharedLibraries: ['libgtk-3.so'], dependencies: [] },
+        ];
+        assert.throws(() => planGiRoots({ namespaces: ['Gtk'], typelibs: twoGtk }), /Gtk-3\.0, Gtk-4\.0/);
+    });
+
+    it('skips a dependency with no typelib, leaving planTypelibSet the single judge', () => {
+        // Gdk-4.0 depends on cairo-1.0 and this prefix ships no cairo typelib. Refusing
+        // here would be a second gate for what `planTypelibSet` already names.
+        const { seeds } = planGiRoots({ namespaces: ['Gdk'], typelibs });
+        assert.deepEqual(seeds, ['libgtk-4.so']);
+    });
+
+    it('asks for nothing when no namespace is declared', () => {
+        assert.deepEqual(planGiRoots({ namespaces: [], typelibs }), { seeds: [], resolved: [] });
     });
 });
 
@@ -575,4 +746,88 @@ describe('readLicenseCorpus: a licence file is read or the build stops', () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
+});
+
+describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured', () => {
+    // The one property this whole mechanism has to keep and no diff can show: an app that
+    // names no namespace gets the payload a device was once measured carrying. Replayed
+    // from the frozen link graph rather than re-measured, because measuring needs the NDK
+    // and the sha256-pinned sysroot, and a check that cannot run is not a check.
+    //
+    // The bytes themselves are not reproducible here (ADR 0110 counted COMPRESSED zip
+    // entries of a gradle release build), so what is asserted is the layer below them: the
+    // exact set of entries those bytes account for, and that the recorded totals still add
+    // up entry-wise. A selection bug changes the SET long before it changes a size.
+    const ABIS = ['arm64-v8a', 'x86_64'];
+    const replay = (abi, namespaces) => {
+        const { needed, typelibs } = baseline.graph[abi];
+        const { seeds } = planGiRoots({ namespaces, typelibs });
+        const { bundle, system } = planClosure({
+            roots: ['libnode_gi.so'],
+            seeds,
+            needed: (soname) => (soname in needed ? needed[soname] : null),
+        });
+        const libraries = ['libnode_gi.so', ...bundle];
+        const plan = planTypelibSet({
+            typelibs,
+            libraries: new Set(libraries),
+            caseInsensitive: false,
+            requiredNamespaces: REQUIRED_NAMESPACES,
+        });
+        assert.deepEqual(plan.problems, [], `${abi}: the typelib set is not self-contained`);
+        return {
+            libraries: libraries.sort(),
+            system: [...system].sort(),
+            typelibs: plan.copy.map((typelib) => typelib.name).sort(),
+        };
+    };
+
+    for (const abi of ABIS) {
+        it(`${abi}: the default plan is byte-for-byte the baseline's`, () => {
+            assert.deepEqual(replay(abi, []), baseline.planned[abi]);
+        });
+
+        it(`${abi}: the baseline is the entry set ADR 0110 counted`, () => {
+            const measured = baseline.measured[abi];
+            assert.equal(baseline.planned[abi].libraries.length, measured.libraries);
+            assert.equal(baseline.planned[abi].typelibs.length, measured.typelibs);
+            // The report split the payload total the same way; if these stop agreeing, the
+            // numbers quoted above came from two different builds.
+            assert.equal(measured.libraryBytes + baseline.measured.typelibBytes, measured.payloadBytes);
+        });
+
+        it(`${abi}: an explicit core namespace changes nothing`, () => {
+            // `GLib` is already in the default payload, so naming it is a no-op — the
+            // regression this closes is a selection that bundles a second copy of what the
+            // closure walk already reached, or re-seeds it as a root.
+            assert.deepEqual(replay(abi, ['GLib']), baseline.planned[abi]);
+        });
+
+        it(`${abi}: selecting Graphene only ADDS to the baseline`, () => {
+            // The positive half: the mechanism does change the payload, and never by
+            // dropping something the default carried. Graphene is the cheapest namespace
+            // the pinned prefix can actually resolve (GTK's needs a cairo typelib the
+            // prefix has no introspection data for — ADR 0117's Implementation note).
+            const selected = replay(abi, ['Graphene']);
+            for (const soname of baseline.planned[abi].libraries) {
+                assert.ok(selected.libraries.includes(soname), `${soname} fell out of the payload`);
+            }
+            for (const name of baseline.planned[abi].typelibs) {
+                assert.ok(selected.typelibs.includes(name), `${name} fell out of the payload`);
+            }
+            assert.ok(selected.libraries.includes('libgraphene-1.0.so'));
+            assert.ok(selected.typelibs.includes('Graphene-1.0.typelib'));
+            assert.deepEqual(selected.system, baseline.planned[abi].system);
+        });
+
+        it(`${abi}: a namespace the pinned prefix has no typelib for fails by name`, () => {
+            // The failure an app hits for a dependency that was never cross-compiled. It
+            // has to name the namespace: the alternative is an APK that installs and throws
+            // at the import, on a device, with nothing pointing back at this list.
+            assert.throws(
+                () => replay(abi, ['Soup']),
+                (e) => /planGiRoots: the GI prefix has no typelib for Soup\./.test(e.message),
+            );
+        });
+    }
 });
