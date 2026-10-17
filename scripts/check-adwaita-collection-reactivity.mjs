@@ -807,7 +807,7 @@ for (const renderer of RENDERERS) {
         }
 
         if (renderer.web) {
-            const observed = new Set(observedAttributesByClass(text).byClass.get(className) ?? []);
+            const observed = new Set(observedAttributesByClass(text, join(ROOT, file)).byClass.get(className) ?? []);
             // What `attributeChangedCallback` ACTS on: the attribute names it (or, one hop,
             // a private member it calls) mentions as a literal.
             const acted = attributeBranches(widget);

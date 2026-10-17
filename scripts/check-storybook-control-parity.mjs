@@ -217,7 +217,7 @@ const visited = new Set();
 /** widget file → the properties it lets a caller set; read once per file. */
 const setters = new Map();
 const settersOf = (file) => {
-    if (!setters.has(file)) setters.set(file, settableProperties(readFileSync(join(ROOT, file), 'utf8')));
+    if (!setters.has(file)) setters.set(file, settableProperties(readFileSync(join(ROOT, file), 'utf8'), join(ROOT, file)));
     return setters.get(file);
 };
 

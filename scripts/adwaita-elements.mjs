@@ -348,8 +348,16 @@ export { stripComments };
  * getter. `<adw-wrap-box>` published "observes nothing" over 14 attributes its own
  * `attributeChangedCallback` serves, and the website rendered no attribute pane at
  * all for it while every gate stayed green.
+ *
+ * A list can also be IMPORTED from a sibling module — `...FORWARDED_ARIA` from
+ * `accessible.ts`, which four elements spread and `forwardAccessibleName` iterates, so
+ * the names live once. Given the file's `path`, such a constant is read from the module
+ * the relative import names; without one it stays unresolved and the class unreadable.
+ *
+ * @param {string} text the module source
+ * @param {string} [path] the module's path, to follow its relative imports
  */
-export function observedAttributesByClass(text) {
+export function observedAttributesByClass(text, path) {
     const code = stripComments(text);
     /** @type {Map<string, string[]>} */
     const byClass = new Map();
@@ -365,11 +373,11 @@ export function observedAttributesByClass(text) {
     // A module-level `const NAME = ['a', 'b']` a getter can return by name.
     /** @type {Map<string, string[]>} */
     const constants = new Map();
-    for (const [, name, body] of code.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*(?::[^=]*)?=\s*\[([^\]]*)\]/g)) {
-        constants.set(
-            name,
-            [...body.matchAll(/'([^']+)'/g)].map(([, attr]) => attr),
-        );
+    for (const [name, attrs] of moduleListConstants(code)) constants.set(name, attrs);
+    if (path !== undefined) {
+        for (const [name, attrs] of importedListConstants(code, path)) {
+            if (!constants.has(name)) constants.set(name, attrs);
+        }
     }
 
     const classes = [...code.matchAll(/\bclass\s+((?:Adw|Gtk)[A-Za-z0-9]*)(?:\s+extends\s+([A-Za-z0-9_.]+))?/g)];
@@ -438,6 +446,41 @@ export function observedAttributesByClass(text) {
     return { byClass, unreadable, pending, inherits, extendsBase };
 }
 
+/** Every module-level `const NAME = ['a', 'b']` in comment-stripped `code`. */
+function moduleListConstants(code) {
+    /** @type {Map<string, string[]>} */
+    const constants = new Map();
+    for (const [, name, body] of code.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*(?::[^=]*)?=\s*\[([^\]]*)\]/g)) {
+        constants.set(
+            name,
+            [...body.matchAll(/'([^']+)'/g)].map(([, attr]) => attr),
+        );
+    }
+    return constants;
+}
+
+/**
+ * The list constants `code` imports by name from a RELATIVE module, read from that
+ * module's own exported `const NAME = [...]`. One hop: a re-export is not followed, and
+ * a name it cannot find stays absent, which the caller reports as unreadable.
+ */
+function importedListConstants(code, path) {
+    /** @type {Map<string, string[]>} */
+    const imported = new Map();
+    for (const [, names, spec] of code.matchAll(/\bimport\s*(?:type\s+)?\{([^}]*)\}\s*from\s*'(\.[^']+)'/g)) {
+        const wanted = [...names.matchAll(/\b([A-Z][A-Z0-9_]*)(?:\s+as\s+([A-Z][A-Z0-9_]*))?/g)];
+        if (wanted.length === 0) continue;
+        const source = resolveLocalSource(path, spec);
+        if (source === null) continue;
+        const exported = moduleListConstants(stripComments(readFileSync(source, 'utf8')));
+        for (const [, name, alias] of wanted) {
+            const attrs = exported.get(name);
+            if (attrs !== undefined) imported.set(alias ?? name, attrs);
+        }
+    }
+    return imported;
+}
+
 /**
  * Registered tag → the attributes that tag observes, for the whole web pillar.
  *
@@ -463,7 +506,7 @@ export function observedAttributes(root) {
     const inherits = new Map();
     const badClasses = new Set();
     for (const file of new Set(tags.values())) {
-        const read = observedAttributesByClass(readFileSync(join(root, file), 'utf8'));
+        const read = observedAttributesByClass(readFileSync(join(root, file), 'utf8'), join(root, file));
         sources.set(file, read);
         for (const [klass, attrs] of read.byClass) perClass.set(klass, attrs);
         for (const [klass, base] of read.pending) spreads.set(klass, base);
@@ -522,13 +565,13 @@ export function observedAttributes(root) {
  * carry no `set` accessor at all. Accessors alone: a `setFoo(value)` method is
  * the widget's internal wiring, and a control is bound to a property.
  */
-export const settableProperties = (text) => {
+export const settableProperties = (text, path) => {
     const setters = new Set(
         [...stripComments(text).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name),
     );
     // `show-apply-button` is the attribute; `showApplyButton` is the control name
     // a meta declares. Both spellings go in, so the caller can ask either way.
-    for (const attrs of observedAttributesByClass(text).byClass.values()) {
+    for (const attrs of observedAttributesByClass(text, path).byClass.values()) {
         for (const attr of attrs) {
             setters.add(attr);
             setters.add(attr.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase()));
