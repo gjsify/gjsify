@@ -406,9 +406,20 @@ What 1a found that § 4 and § 5 get wrong:
   every library it reaches was already listed. The table now covers every library the pinned
   prefix can contribute.
 
+- **The scan is a weaker lower bound on this target than § 2 assumed.** `scanGiNamespaces` reads
+  `requireGi` calls by their BINDING to `@gjsify/node-gi/gi`, so it answers only while that import
+  survives into the emitted file. It does on `--app node`, where the specifier is external; it does
+  not when node-gi is bundled in, which is what the Vite path does — the calls are then to an
+  inlined local function and the scan rightly refuses to guess. So on the real Android path the
+  config is not merely the decider, it is for now the only input, and the gate catches the case
+  where the import is external. Lower-bound-ness is what makes that sound rather than broken: an
+  empty scan can only fail to warn, never wrongly fail a build.
+
 Not in 1a, and deliberately: `@gjsify/nativescript-vite` (`defineNativescriptConfig`), which is
 how a real app builds, does not run the gate — only `gjsify build --app nativescript` does. Wiring
-it there is 1b, with `tests/integration/nativescript-gi/` as its subject.
+it there is 1b, with `tests/integration/nativescript-gi/` as its subject, and it is the same place
+the scan's blind spot above gets a second input (node-gi's own `requireGi` wrapper can emit the
+`gi://`-style marker ADR 0087 already uses for optional namespaces).
 
 **Stage 1b — the package split.** `@gjsify/gi-runtime-android-gtk` and the `release.yml` job that
 publishes core and add-ons together, the startup check that refuses a mixed set, the three missing
