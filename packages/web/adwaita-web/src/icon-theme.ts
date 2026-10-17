@@ -13,25 +13,18 @@
 // and `gtk_icon_theme_lookup_icon` returns the first candidate the theme has, else
 // `image-missing` — it never returns NULL (refs/gtk/gtk/gtkicontheme.c, `choose_icon`).
 //
-// This package compiles and registers symbolic glyphs only (`icon-registry.ts`, the
-// stylesheet's `.adw-icon--<name>` masks). The colour half lives here: a map from an EXACT
-// name to an image URL, filled by {@link registerColorIcon}. With the map empty every lookup
-// ends where it ended before this module existed, so nothing that only uses symbolic icons
-// changes.
-//
-// The colour map is keyed by the raw name, not by `normalizeIconName`: an application icon
-// is named after its application ID (`org.gnome.Builder`, adw-about-dialog.c:1215), which is
-// not a CSS token and never could be a mask class, but is a perfectly good Map key.
+// The stylesheet compiles a SUBSET of Adwaita's symbolic glyphs (the `.adw-icon--<name>`
+// masks); that subset is the port's current theme. Everything else — an application's own
+// symbolic glyphs and its full-colour icons alike — comes from GResource files.
 //
 // RESOURCE PATHS (ADR 0116 § 4). The names go through the `Gtk.IconTheme` resource paths an
 // application added (`GtkApplication` adds `<resource-base-path>/icons/` at startup);
 // `@gjsify/adwaita-core`'s `lookupResourceIcon` decides which file answers, as gtkicontheme.c
-// does, and asks this module only whether the stylesheet holds a symbolic glyph. A colour
-// registration stands in hicolor there, as the file an app ships in `hicolor/scalable/apps/`
-// would: the stylesheet's `X-symbolic` answers `X` before it, as Adwaita's does on GNOME. A file
-// answers as a blob URL of its bytes: a symbolic one is drawn as a mask in `currentColor`, the
-// rest as-is. A browser draws SVG and PNG; an XPM or a compressed entry draws `image-missing`
-// with a warning.
+// does, and asks this module only whether the stylesheet holds a symbolic glyph: the
+// stylesheet's `X-symbolic` answers `X` before a resource's colour `X`, as Adwaita's does on
+// GNOME. A file answers as a blob URL of its bytes: a symbolic one is drawn as a mask in
+// `currentColor`, the rest as-is. A browser draws SVG and PNG; an XPM or a compressed entry
+// draws `image-missing` with a warning.
 //
 // Original implementation.
 
@@ -42,14 +35,11 @@ import {
     resources_lookup_data,
     type IconDirection,
 } from '@gjsify/adwaita-core';
-import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 import { IconTheme } from './namespace/gtk-platform.js';
 
 /** What one icon name resolves to, in the order GTK's theme would try it. */
 export type IconLookup =
-    /** A registered full-colour image, drawn as-is. `url` is ready for `url("…")`. */
-    | { kind: 'color'; name: string; url: string }
     /**
      * A file under a `Gtk.IconTheme` resource path; `symbolic` files are masks in `currentColor`.
      * `url` is `null` when the browser cannot draw the file (XPM, compressed): draw `image-missing`.
@@ -61,21 +51,9 @@ export type IconLookup =
     | { kind: 'missing' };
 
 /**
- * Every name GTK's theme treats as a symbolic FILE (gtkicontheme.c `icon_name_is_symbolic`):
- * the directional variants are symbolic too, so none of them is a colour icon.
- */
-const SYMBOLIC_FILE_NAME = /-symbolic(?:-ltr|-rtl)?$/;
-
-/** Schemes a colour icon may be fetched from. Anything else can run script or is unknown. */
-const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'blob:', 'file:']);
-
-const colorIcons = new Map<string, string>();
-
-/**
- * Elements that drew a lookup result and have to redraw when the theme changes. A symbolic
- * registration is live through CSS and needs no redraw, but a colour one is an inline
- * `background-image`, and GTK's own images re-run their lookup on the theme's `changed`
- * signal for the same reason.
+ * Elements that drew a lookup result and have to redraw when the theme changes. A resource
+ * file is an inline `background-image` or mask, and GTK's own images re-run their lookup on
+ * the theme's `changed` signal for the same reason.
  */
 const listeners = new Set<() => void>();
 
@@ -85,11 +63,6 @@ export function onIconThemeChanged(listener: () => void): () => void {
     return () => {
         listeners.delete(listener);
     };
-}
-
-/** Run every subscriber — after any registration that can change a lookup's answer. */
-export function notifyIconThemeChanged(): void {
-    for (const listener of listeners) listener();
 }
 
 /** Whether a symbolic glyph for an already-normalized name is in the cascade. */
@@ -102,11 +75,9 @@ function hasSymbolic(normalized: string): boolean {
  * Resolve `iconName` as `gtk_icon_theme_lookup_by_gicon` would for a `GtkImage`. `null` when
  * no name was given — the state where GTK draws nothing, not `image-missing`.
  *
- * When neither a colour registration nor a resource holds a name, the request is returned as a
- * symbolic one WITHOUT checking the cascade: the mask class falls back to `image-missing`
- * through CSS by itself and corrects itself when a later `registerIcon` lands, which is how
- * `<gtk-image>` behaved before this module. The cascade is read only to choose between a
- * symbolic glyph and a colour entry or file.
+ * When no resource holds a name, the request is returned as a symbolic one WITHOUT checking
+ * the cascade: the mask class falls back to `image-missing` through CSS by itself. The cascade
+ * is read only to choose between a symbolic glyph and a resource file.
  */
 export function lookupIcon(iconName: string | null | undefined, request: IconRequest = {}): IconLookup | null {
     if (iconName === null || iconName === undefined || iconName === '') return null;
@@ -133,7 +104,7 @@ const resourceUrls = new Map<string, string | null>();
 theme.connect('changed', () => {
     for (const url of resourceUrls.values()) if (url !== null) URL.revokeObjectURL(url);
     resourceUrls.clear();
-    notifyIconThemeChanged();
+    for (const listener of listeners) listener();
 });
 
 const RESOURCE_TYPES: Record<string, string> = { '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -159,8 +130,8 @@ function resourceUrl(path: string): string | null {
 }
 
 /**
- * The lookup over the colour registrations and the theme's resource paths; `null` when neither
- * answers any name, a `symbolic` entry when the current theme's glyph comes first.
+ * The lookup over the theme's resource paths; `null` when no resource answers any name, a
+ * `symbolic` entry when the current theme's glyph comes first.
  */
 export function resourceIcon(iconName: string, request: IconRequest): IconLookup | null {
     const match = lookupResourceIcon(theme, {
@@ -170,11 +141,9 @@ export function resourceIcon(iconName: string, request: IconRequest): IconLookup
         },
         scale: request.scale ?? 1,
         themeHas: (name) => hasSymbolic(normalizeIconName(name)),
-        hicolorHas: (name) => colorIcons.has(name),
     });
     if (match === null) return null;
     if (match.kind === 'theme') return { kind: 'symbolic', name: normalizeIconName(match.name) };
-    if (match.kind === 'hicolor') return { kind: 'color', name: match.name, url: colorIcons.get(match.name)! };
     return {
         kind: 'resource',
         name: match.name,
@@ -185,78 +154,19 @@ export function resourceIcon(iconName: string, request: IconRequest): IconLookup
 }
 
 /**
- * Whether `iconName` resolves to something other than `image-missing` — a registered colour
- * icon, a file under a resource path, or a symbolic glyph compiled into the stylesheet or
- * registered at runtime.
+ * Whether `name` draws something other than `image-missing` — a file under a `Gtk.IconTheme`
+ * resource path, or a symbolic glyph compiled into the stylesheet. The name is looked up
+ * exactly as `<gtk-image icon-name>` looks it up.
+ *
+ * Reads the live cascade rather than a generated list, so it answers for a glyph that arrived
+ * by any route, including a consumer's own `--icon-<name>` declaration. It is deliberately the
+ * CUSTOM PROPERTY that is read and not the rendered `mask-image` of a probe element: since
+ * `_icon.scss` gives every icon box the `image-missing` fallback, a rendered mask is never
+ * `none`, and comparing against the fallback would answer `false` for `image-missing` itself.
  */
-export function iconResolves(iconName: string): boolean {
-    const found = lookupIcon(iconName);
+export function isIconAvailable(name: string): boolean {
+    const found = lookupIcon(name);
     if (found === null || found.kind === 'missing') return false;
     if (found.kind === 'resource') return found.url !== null;
-    return found.kind === 'color' || hasSymbolic(found.name);
-}
-
-/** `source` as a URL `background-image` can load, or a thrown reason why not. */
-function colorIconUrl(name: string, source: string): string {
-    if (source.trimStart().startsWith('<')) {
-        const root = new DOMParser().parseFromString(source, 'image/svg+xml').documentElement;
-        if (root.tagName !== 'svg') {
-            throw new TypeError(
-                `registerColorIcon(${JSON.stringify(name)}): the source starts with '<' but parsed ` +
-                    `to <${root.tagName}>, not an <svg> root.`,
-            );
-        }
-        return toDataUri(source);
-    }
-
-    let url: URL;
-    try {
-        url = new URL(source, document.baseURI);
-    } catch {
-        throw new TypeError(`registerColorIcon(${JSON.stringify(name)}): the source is neither SVG source nor a URL.`);
-    }
-    const isImageData = url.protocol === 'data:' && /^data:image\//i.test(url.href);
-    if (!isImageData && !ALLOWED_PROTOCOLS.has(url.protocol)) {
-        throw new TypeError(
-            `registerColorIcon(${JSON.stringify(name)}): ${JSON.stringify(url.protocol)} URLs are not ` +
-                'accepted — use http(s):, blob:, file: or a data:image/ URI.',
-        );
-    }
-    return url.href;
-}
-
-/**
- * Register a FULL-COLOUR icon under `name` — what an application ships in
- * `hicolor/scalable/apps/<app-id>.svg` and GTK finds through its icon theme. Every
- * `<gtk-image>` asking for the name draws the image unrecoloured, the way `AdwAboutDialog`'s
- * `application-icon` does on GNOME.
- *
- * `name` is the EXACT icon name, reverse-DNS application IDs included. A name with a
- * `-symbolic` suffix THROWS: that is the other half of the theme, and {@link registerIcon}
- * is its door. `source` is SVG source, or a URL (resolved against the document) to any
- * image the browser can draw.
- *
- * Re-registering a name replaces the image, and every mounted `<gtk-image>` redraws.
- *
- * CLIENT-SIDE ONLY, like `registerIcon`: it reads `document`.
- */
-export function registerColorIcon(name: string, source: string): void {
-    if (typeof name !== 'string' || name === '' || /\s/.test(name)) {
-        throw new TypeError(
-            `registerColorIcon: ${JSON.stringify(name)} is not an icon name — it must be non-empty ` +
-                'and contain no whitespace.',
-        );
-    }
-    if (SYMBOLIC_FILE_NAME.test(name)) {
-        throw new TypeError(
-            `registerColorIcon: ${JSON.stringify(name)} names a SYMBOLIC icon, which is recoloured ` +
-                'rather than drawn as-is — register it with registerIcon() instead.',
-        );
-    }
-    if (typeof source !== 'string' || source.trim() === '') {
-        throw new TypeError(`registerColorIcon(${JSON.stringify(name)}): the source is empty.`);
-    }
-
-    colorIcons.set(name, colorIconUrl(name, source));
-    notifyIconThemeChanged();
+    return hasSymbolic(found.name);
 }

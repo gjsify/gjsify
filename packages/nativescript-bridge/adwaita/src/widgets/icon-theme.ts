@@ -11,9 +11,9 @@
 // `check-website-adwaita-gallery.mjs` arm 12 counted the cost as its `glyph` kind.
 //
 // THE SHAPE IS THE WEB PILLAR'S, deliberately, because the constraint is the same one.
-// `packages/web/adwaita-web/src/icon-registry.ts` resolves a name against a COMPILED
-// SUBSET of `@gjsify/adwaita-icons` and offers {@link registerIcon} for anything outside
-// it. The subset exists because the whole set does not fit — and on a PHONE bundle that
+// `packages/web/adwaita-web/src/icon-theme.ts` resolves a name against a COMPILED
+// SUBSET of `@gjsify/adwaita-icons` and the resource paths an application added for
+// anything outside it. The subset exists because the whole set does not fit — and on a PHONE bundle that
 // is not a stylesheet argument but a download one. Measured over
 // `packages/web/adwaita-icons/*.ts` (the command is in ADR 0034 § Amendment 18):
 //
@@ -46,8 +46,8 @@
 // control does not offer, so picking "Trash" drew nothing at all.
 //
 // THE SVG-SOURCE DOOR STAYS OPEN. Name resolution is an ADDITION: a consumer with a glyph
-// this map does not carry can still pass the document itself, exactly as before, and
-// {@link registerIcon} makes that glyph resolvable by name for everything downstream.
+// this map does not carry can still pass the document itself, exactly as before, or ship
+// it in a GResource under `<resource-base-path>/icons/` to make it resolvable by name.
 // {@link iconValueKind} is the whole discrimination, and the two grammars are disjoint by
 // construction — an icon NAME is one CSS token (`normalizeIconName`), an SVG document
 // starts with `<`. Nothing guesses.
@@ -55,8 +55,8 @@
 // RESOURCE PATHS (ADR 0116 § 4). A name also goes through the `Gtk.IconTheme` resource paths an
 // application added (`GtkApplication` adds `<resource-base-path>/icons/` at startup);
 // `@gjsify/adwaita-core`'s `lookupResourceIcon` decides which file answers, as gtkicontheme.c
-// does, and asks this module only whether the current theme — the registrations and the
-// compiled subset — holds a symbolic glyph. {@link resolveIconDrawing} is that lookup. A
+// does, and asks this module only whether the current theme — the compiled subset — holds a
+// symbolic glyph. {@link resolveIconDrawing} is that lookup. A
 // symbolic SVG file draws through the same rasteriser as a compiled glyph, a PNG decodes as it is
 // (a `.symbolic.png` tinted in the icon colour). NativeScript decodes no SVG, so a COLOUR SVG, an
 // XPM or a compressed entry draws `image-missing` with a warning.
@@ -176,9 +176,6 @@ const COMPILED_ICONS: Readonly<Record<string, string>> = {
     'view-reveal': viewRevealSymbolic,
 };
 
-/** Glyphs a consumer added at runtime. Beats {@link COMPILED_ICONS} on the same name. */
-const registered = new Map<string, string>();
-
 /**
  * What a caller's icon value IS.
  *
@@ -194,7 +191,7 @@ export type IconValueKind = 'empty' | 'name' | 'source';
  *
  * An SVG document is recognised by its FIRST non-space character being `<`, which admits
  * an XML prolog and a DOCTYPE ahead of the root element (both legitimate in an icon read
- * off a file, and `icon-registry.ts` on the web side takes the same two). An icon name is
+ * off a file). An icon name is
  * whatever `normalizeIconName` accepts: one CSS token once an optional `-symbolic` comes
  * off. Nothing is both, so nothing has to be guessed.
  *
@@ -212,7 +209,7 @@ export function iconValueKind(value: string | null | undefined): IconValueKind {
 /** Whether {@link resolveIconSource} can draw `name` without falling back. */
 export function isIconAvailable(name: string | null | undefined): boolean {
     const resolved = normalizeIconName(name);
-    return resolved !== '' && (registered.has(resolved) || Object.hasOwn(COMPILED_ICONS, resolved));
+    return resolved !== '' && Object.hasOwn(COMPILED_ICONS, resolved);
 }
 
 /** The subset's names, sorted — for a spec or a gate that has to enumerate them. */
@@ -220,75 +217,13 @@ export function compiledIconNames(): string[] {
     return Object.keys(COMPILED_ICONS).sort();
 }
 
-/** The names {@link registerIcon} has added, sorted. */
-export function registeredIconNames(): string[] {
-    return [...registered.keys()].sort();
-}
-
-/**
- * Make `name` resolvable from an Adwaita symbolic SVG source (what
- * `@gjsify/adwaita-icons` exports), for a glyph the compiled subset does not carry.
- *
- *     import { registerIcon } from '@gjsify/adwaita-nativescript';
- *     import { dialogErrorSymbolic } from '@gjsify/adwaita-icons/status';
- *
- *     registerIcon('dialog-error-symbolic', dialogErrorSymbolic);
- *     // …then anywhere: new Adw.StatusPage({ iconName: 'dialog-error-symbolic' })
- *
- * BOTH arguments are checked and a wrong one THROWS, the same verdict the web registry
- * reaches for the same reason: this is an explicit call, and quietly registering
- * something undrawable produces an icon strictly WORSE than an unregistered one — it
- * beats the `image-missing` fallback and draws nothing, while {@link isIconAvailable}
- * reports `true`.
- *
- * The SVG test is LEXICAL, not a parse, and that is a real limit rather than a shortcut:
- * NativeScript has no `DOMParser`, and the rasterisers here read the document with
- * `extractIconPaths`' own scanner. So a well-formed document with no `<svg>` root is
- * refused, and a malformed one inside an `<svg>` is accepted and draws whatever
- * `extractIconPaths` finds in it — which is the same thing it would have drawn had the
- * caller passed it straight to the widget.
- *
- * Registering a name the subset already compiles REPLACES the glyph.
- */
-export function registerIcon(name: string, svg: string): void {
-    const resolved = normalizeIconName(name);
-    if (resolved === '') {
-        throw new TypeError(
-            `registerIcon: ${JSON.stringify(name)} is not usable as an icon name — it has to be a single ` +
-                'CSS token ([A-Za-z0-9_-]+) once an optional `-symbolic` suffix is removed.',
-        );
-    }
-    if (iconValueKind(svg) !== 'source' || !/<svg[\s>]/.test(svg)) {
-        throw new TypeError(
-            `registerIcon: the glyph for ${JSON.stringify(resolved)} has to be Adwaita symbolic SVG SOURCE ` +
-                '(what @gjsify/adwaita-icons exports) — a document whose root element is `<svg>`.',
-        );
-    }
-    registered.set(resolved, svg);
-}
-
-/**
- * {@link registerIcon} for a whole set — `{ 'move-to-window-symbolic': svg, … }`, the shape an
- * app's generated icon module exports, so it registers on import and no app code has to
- * loop. Validation is per entry and throws on the first bad one, after the good ones before
- * it were registered.
- */
-export function registerIcons(icons: Readonly<Record<string, string>>): void {
-    for (const [name, svg] of Object.entries(icons)) registerIcon(name, svg);
-}
-
-/** Drop a registration, so the name falls back to the compiled subset. Test seam. */
-export function unregisterIcon(name: string): boolean {
-    return registered.delete(normalizeIconName(name));
-}
-
 /**
  * A caller's icon value as the SVG document a rasteriser can read.
  *
  * The one function every icon property on this port goes through, so that a name means
  * the same thing on all of them. `''` stays `''` — see {@link IconValueKind}. A source
- * passes through untouched. A name resolves against the registrations, then the compiled
- * subset, then {@link ICON_FALLBACK_NAME}.
+ * passes through untouched. A name resolves against the compiled subset, then
+ * {@link ICON_FALLBACK_NAME}.
  */
 export function resolveIconSource(value: string | null | undefined): string {
     const raw = value ?? '';
@@ -299,7 +234,7 @@ export function resolveIconSource(value: string | null | undefined): string {
             return raw;
         default: {
             const name = normalizeIconName(raw);
-            return registered.get(name) ?? COMPILED_ICONS[name] ?? imageMissingSymbolic;
+            return COMPILED_ICONS[name] ?? imageMissingSymbolic;
         }
     }
 }

@@ -65,7 +65,7 @@ export class GtkImage extends withSignals(Image) {
 
     // The value the CALLER set, name or source, so the getter round-trips it the way
     // `gtk_image_get_icon_name` returns the name that was set. Resolution happens at
-    // render time instead, which is also what makes a late `registerIcon` visible on the
+    // render time instead, which is also what makes a late resource path visible on the
     // next re-render rather than frozen at assignment.
     private _icon = '';
     // Default fill follows the active color scheme (dark fg on light, near-white

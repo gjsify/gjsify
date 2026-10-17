@@ -20,7 +20,7 @@ import {
     BUTTON_CONTENT_TEXT_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 import type { AdwButtonContent } from './elements/adw-button-content.js';
-import { fallbackMask, maskOf } from './icon-registry.spec.js';
+import { fallbackMask, maskOf } from './icon-masks.spec.js';
 
 /** Mount a button content inside a plain Adwaita button, the way the stories do. */
 function mount(attributes: Record<string, string> = {}): {

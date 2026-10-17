@@ -248,16 +248,11 @@ visible: the icon has not silently disappeared, and nothing throws — an icon i
 and neither of the other two Adwaita renderers takes an application down over a glyph. Only
 an **absent or empty** name draws nothing, which is the host declining an icon.
 
-### Registering your own
+### Icons outside the subset
 
-```typescript
-import { registerIcon, isIconAvailable } from '@gjsify/adwaita-web';
-import { dialogErrorSymbolic } from '@gjsify/adwaita-icons/status';
-
-if (!isIconAvailable('dialog-error')) {
-    registerIcon('dialog-error-symbolic', dialogErrorSymbolic);
-}
-```
+A glyph the subset does not compile — a symbolic of your own, or a full-colour application
+icon — comes from the app's GResource, the way GNOME ships it (next section).
+`isIconAvailable(name)` answers whether the compiled subset or a resource path draws a name.
 
 ```html
 <gtk-image icon-name="dialog-error"></gtk-image>
@@ -272,71 +267,6 @@ narrow surface such as an extension popup — a 96px icon, 24px margins and the 
 ```html
 <adw-status-page compact icon="dialog-error" title="No results"></adw-status-page>
 ```
-
-`registerIcon(name, svg)` takes the icon's **SVG source** — exactly what
-`@gjsify/adwaita-icons` exports, and equally any symbolic SVG of your own drawn on the 16px
-Adwaita grid with `fill="currentColor"`. It writes the same pair the build writes: a
-`--icon-<name>` custom property on the document element and a `.adw-icon--<name>` mask rule,
-so from then on the name is indistinguishable from a compiled one — in `<gtk-image>`, in a
-widget attribute, in a hand-written `class="adw-icon adw-icon--dialog-error"`, and in your
-own CSS as `var(--icon-dialog-error)`.
-
-Notes worth having:
-
-- **Register before you mount, where you can.** An icon already in the document shows the
-  fallback until the registration lands. The CSS is live, so it corrects itself on the next
-  style recalculation with no re-render — but there is a visible frame in between.
-- **`registerIcon` needs a live document.** It writes to `document.documentElement` and
-  `document.head`, so calling it at module top level in an SSR/SSG build (an Astro component
-  module, for instance) throws a `ReferenceError` before any page renders. Call it from
-  client-side code — an `onMount`, a `client:load` boundary, a `DOMContentLoaded` handler.
-- **The name is normalized the same way the attribute is**: one optional `-symbolic` suffix
-  comes off, and what is left has to be a single CSS token. `registerIcon` *throws* on a name
-  that is not (`org.gnome.Builder`, `a b`), because a call that silently registers nothing is
-  the failure this whole area exists to end — and because there is no mask class such a name
-  could be given. `<gtk-image>` stays lenient with the same input: the name came from markup,
-  so it draws `image-missing` rather than taking the page down.
-- **Re-registering replaces the glyph** rather than adding a second rule, so a runtime theme
-  switch can call it as often as it likes.
-- `isIconAvailable(name)` reads the live cascade, not a generated list, so it also answers
-  `true` for a glyph you supplied through your own stylesheet's `--icon-<name>`.
-
-### Full-colour icons — an application icon
-
-A symbolic icon is recoloured; an application icon is not. On GNOME,
-`AdwAboutDialog`'s `application-icon` is the application ID, and GTK finds
-`hicolor/scalable/apps/<app-id>.svg` and draws it as it is. The web stand-in for that file is
-`registerColorIcon`:
-
-```typescript
-import { registerColorIcon } from '@gjsify/adwaita-web';
-import appIcon from './icons/org.example.App.svg?raw';
-
-registerColorIcon('org.example.App', appIcon);         // SVG source…
-registerColorIcon('org.example.Other', '/icons/other.png'); // …or an image URL
-```
-
-```html
-<adw-about-dialog application-icon="org.example.App" application-name="Example"></adw-about-dialog>
-```
-
-Every `<gtk-image>` asking for a registered name draws the image unmasked and unrecoloured,
-which covers every widget that draws its icons through it, `<adw-about-dialog>` and
-`<gtk-about-dialog logo-icon-name>` among them. A name is looked up in the order GTK's own
-theme tries it (`g_themed_icon_update_names`, then gtkicontheme.c's theme order). A colour
-registration is hicolor's, so the current theme's symbolic glyph comes first either way:
-
-| Asked for | Tried, in order | Neither found |
-| --- | --- | --- |
-| `X` | symbolic `X-symbolic`, then colour `X` | `image-missing` |
-| `X-symbolic` | symbolic `X-symbolic`, then colour `X` | `image-missing` |
-
-So nothing changes for a name with no colour registration, and a colour `X` shows only where the
-theme has no `X-symbolic` — the same as on GNOME. `registerColorIcon` keys on the
-**exact** name, reverse-DNS IDs included, and *throws* on an empty or spaced name, on a
-`-symbolic` (`-ltr`/`-rtl`) name — that is `registerIcon`'s half — and on a source that is
-neither SVG source nor an `http(s):`, `blob:`, `file:` or `data:image/` URL. A registration
-redraws every mounted `<gtk-image>`, and `isIconAvailable` answers `true` for the name.
 
 ### Icons from the app's GResource (ADR 0116)
 
@@ -356,9 +286,9 @@ the lookup follows `gtkicontheme.c`: hicolor subdirectories (`16x16/apps/`, `sca
 `symbolic/apps/`, …, without a `hicolor/` component) by size and scale, then files directly
 under the path. A compiled symbolic glyph still answers a `-symbolic` name first. A `-symbolic`
 file draws as a mask in `currentColor`, any other SVG or PNG as it is; an XPM or a compressed
-entry draws `image-missing` with a warning. After a colour registration, a resource is the next
-answer, so `registerColorIcon` still wins for its name. If the resource holds `gtk/menus.ui`
-or `gtk/help-overlay.ui` under the base path, startup throws: no builder here reads them yet.
+entry draws `image-missing` with a warning. An application icon (`application-icon="org.example.App"`)
+is a colour file such as `scalable/apps/org.example.App.svg` under the path. If the resource
+holds `gtk/menus.ui` or `gtk/help-overlay.ui` under the base path, startup throws: no builder here reads them yet.
 `add_search_path` stays a record, since there is no file system to search.
 
 ### Why this is a web-only concern
@@ -370,14 +300,14 @@ knowing which one you are on:
 | --- | --- | --- |
 | GTK (`@gjsify/adwaita-app`) | `GtkIconTheme` looks it up in the **system** icon theme at runtime | draws the theme's `image-missing` |
 | NativeScript (`@gjsify/adwaita-nativescript`) | `GtkImage` is handed the **SVG source**, not a name | cannot happen — a missing icon is a missing import |
-| Web (this package) | a **compile-time** subset, the `Gtk.IconTheme` resource paths, plus `registerIcon` / `registerColorIcon` | draws `image-missing` |
+| Web (this package) | a **compile-time** subset, then the `Gtk.IconTheme` resource paths | draws `image-missing` |
 
 All three therefore end on ONE glyph for a name they cannot draw. The web reaches it by two
 routes — no mask class for a known-shaped name, or no usable class for a name like
-`org.gnome.Builder` that no `registerColorIcon` call has answered either.
+`org.gnome.Builder` that no resource path has answered either.
 
 Only the web renderer has a set that can be missing something at runtime, which is why only
-it needs a registration path. `scripts/check-adwaita-icon-masks.mjs` holds the compiled
+it needs a compiled subset beside the resource paths. `scripts/check-adwaita-icon-masks.mjs` holds the compiled
 subset against every name this repository's SHIPPING surfaces emit, in both directions, and
 fails on a compiled glyph that did not come from `@gjsify/adwaita-icons`.
 

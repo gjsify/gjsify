@@ -11,8 +11,7 @@
 //   holds symbolic glyphs; the caller answers for it. `real_choose_icon` first tries the LEADING
 //   symbolic names in every theme, then every name in every theme (theme outer, name inner), then
 //   the unthemed files placed directly under a resource path. So `X` draws the current theme's
-//   `X-symbolic` before hicolor's `X`. A port's own hicolor entries (adwaita-web's
-//   `registerColorIcon`) stand in hicolor, ahead of a resource file of the same name.
+//   `X-symbolic` before hicolor's `X`.
 //
 //   SIZES. One hicolor directory per `Directories` entry of GTK's hicolor.index.theme; entries
 //   with the same size fields share one size bucket in which the first directory holding a name
@@ -341,12 +340,10 @@ export function iconLookupNames(iconName: string, direction: IconDirection): str
     return names;
 }
 
-/** What answered a lookup that a resource path or a port's own hicolor entry took part in. */
+/** What answered a lookup that a resource path took part in. */
 export type ResourceIconMatch =
     /** The port's own theme has the symbolic glyph `name`, and GTK would draw it first. */
     | { readonly kind: 'theme'; readonly name: string }
-    /** The port's own hicolor entry `name` (see {@link ResourceIconRequest.hicolorHas}). */
-    | { readonly kind: 'hicolor'; readonly name: string }
     /** A file in a registered resource; `symbolic` files are recoloured, the rest drawn as-is. */
     | { readonly kind: 'resource'; readonly name: string; readonly path: string; readonly symbolic: boolean };
 
@@ -359,42 +356,30 @@ export interface ResourceIconRequest {
     readonly scale: number;
     /** Whether the port's current theme holds the symbolic glyph `name`; only asked for symbolic names. */
     readonly themeHas: (name: string) => boolean;
-    /**
-     * Whether the port holds `name` in hicolor outside the resource paths (adwaita-web's
-     * `registerColorIcon`, ADR 0115). Such an entry is hicolor's: the current theme answers
-     * before it, and it answers before a resource file of the same name.
-     */
-    readonly hicolorHas?: (name: string) => boolean;
 }
 
 /**
- * Resolve `request` over `theme`'s resource paths in GTK's order. `null` when NO resource or
- * hicolor entry answers any of the names: the lookup is then the port's own theme alone, and
- * `themeHas` was not asked.
+ * Resolve `request` over `theme`'s resource paths in GTK's order. `null` when NO resource
+ * answers any of the names: the lookup is then the port's own theme alone, and `themeHas` was
+ * not asked.
  */
 export function lookupResourceIcon(theme: IconTheme, request: ResourceIconRequest): ResourceIconMatch | null {
     const scan = scanOf(theme);
     const { names, themeHas } = request;
-    const hicolorHas = request.hicolorHas ?? (() => false);
     // `size` is read only once a resource holds one of the names: a port may measure it, and on
     // the web measuring flushes style, which starts CSS transitions mid-render.
     const held = (name: string) =>
         scan.unthemed.has(name) ||
         scan.buckets.some((bucket) => (bucket.icons.get(name)?.suffix ?? Suffix.NONE) !== Suffix.NONE);
-    const own = names.map((name) => hicolorHas(name));
-    const anyHeld = names.some(held);
-    if (!own.includes(true) && !anyHeld) return null;
-    const { size, scale } = anyHeld ? request : { size: 0, scale: 0 };
-    const hicolor = names.map((name) => (anyHeld ? hicolorFile(scan, name, size, scale) : null));
+    if (!names.some(held)) return null;
+    const { size, scale } = request;
+    const hicolor = names.map((name) => hicolorFile(scan, name, size, scale));
     const unthemed = names.map((name) => unthemedFile(scan, name));
-    if (!own.includes(true) && hicolor.every((path) => path === null) && unthemed.every((path) => path === null)) {
-        return null;
-    }
+    if (hicolor.every((path) => path === null) && unthemed.every((path) => path === null)) return null;
 
     const inTheme = (name: string) => isSymbolicName(name) && themeHas(name);
-    /** `theme_lookup_icon` in hicolor: the port's own entry, else the resource file. */
+    /** `theme_lookup_icon` in hicolor: the resource file. */
     const inHicolor = (i: number): ResourceIconMatch | null => {
-        if (own[i]) return { kind: 'hicolor', name: names[i] };
         const path = hicolor[i];
         return path === null ? null : { kind: 'resource', name: names[i], path, symbolic: isSymbolicFile(path) };
     };

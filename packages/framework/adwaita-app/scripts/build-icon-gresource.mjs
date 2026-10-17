@@ -6,8 +6,8 @@
 // repository before this change: `add_resource_path` and `add_search_path` had ZERO hits
 // in every `.ts`/`.js`/`.mjs`/`.tmpl`/`.blp` outside `node_modules`, so every gjsify GTK
 // app drew the host's theme, and on a host with no Adwaita a documented icon name drew
-// GTK's broken-image paintable. The web pillar closed the same hole with `registerIcon()`
-// and a compiled subset; this is the GTK half of that guarantee.
+// GTK's broken-image paintable. The web pillar closed the same hole with a compiled
+// subset; this is the GTK half of that guarantee.
 //
 // WHAT THE RESOURCE PATH DOES AND DOES NOT BUY, measured on this machine against
 // gtk4 with `Gtk.IconTheme.lookup_icon(...).get_file().get_uri()` — the file the widget

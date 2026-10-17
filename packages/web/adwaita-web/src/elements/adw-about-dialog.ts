@@ -20,7 +20,7 @@
 // properties of the same name, hyphenated):
 //   application-name   the application's display name (shown as a title-1)
 //   application-icon   an icon name, by convention the application ID; drawn in
-//                        colour once `registerColorIcon(id, …)` registered it, else
+//                        colour from the app's GResource icons (ADR 0116), else
 //                        as a symbolic glyph or `image-missing` (`<gtk-image>`'s
 //                        lookup); absent one, no icon is drawn
 //   developer-name     the developer / vendor line below the name

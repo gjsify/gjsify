@@ -229,7 +229,8 @@ reads.
   property on the port took an SVG SOURCE, so those panes imported a glyph from
   `@gjsify/adwaita-icons` where the GJS pane writes `'folder-symbolic'`. ADR 0034
   § Amendment 18 gave the port `icon-theme.ts` — a compiled subset plus a `registerIcon()`
-  door, the shape `@gjsify/adwaita-web`'s `icon-registry.ts` already had — and the whole
+  door (since replaced by GResource icons, ADR 0116 § 8), the shape `@gjsify/adwaita-web`
+  already had — and the whole
   kind went at once: `glyph` is 0, eighteen panes lost an import line, and the printed
   distance fell from 481 to 445. The SVG-source door stayed open.
 - *The `composition` entries split two ways.* Four are the `layout.mdx` blocks, where the

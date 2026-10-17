@@ -456,8 +456,8 @@ if (failures.length > 0) {
             `  To make a name resolve, add it to ICONS in\n` +
             `  packages/web/adwaita-web/scripts/build-scss.mjs (one entry, ~1.5 KB of stylesheet).\n` +
             `  To retire one, delete that entry.\n` +
-            `  If the situation is deliberate — a name a consumer registers at runtime with\n` +
-            `  registerIcon(), an entry kept for a reason the tree cannot show — add it to\n` +
+            `  If the situation is deliberate — a name a consumer ships in a GResource, an\n` +
+            `  entry kept for a reason the tree cannot show — add it to\n` +
             `  "reviewed" in ${toPosixPath(relative(ROOT, LEDGER))} with the reason.\n`,
     );
     process.exit(1);

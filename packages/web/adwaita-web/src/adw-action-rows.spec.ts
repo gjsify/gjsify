@@ -28,8 +28,8 @@ import {
 
 import { normalizeIconName } from '@gjsify/adwaita-core';
 
-import { isIconAvailable } from './icon-registry.js';
-import { fallbackMask, maskOf } from './icon-registry.spec.js';
+import { isIconAvailable } from './icon-theme.js';
+import { fallbackMask, maskOf } from './icon-masks.spec.js';
 
 import type { AdwActionRow } from './elements/adw-action-row.js';
 import type { AdwComboRow } from './elements/adw-combo-row.js';

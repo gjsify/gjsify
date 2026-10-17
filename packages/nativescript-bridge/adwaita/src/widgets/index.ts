@@ -368,20 +368,16 @@ export {
 
 // --- Icon theme (names) ---
 // Every icon property here takes an Adwaita icon NAME (`'list-add-symbolic'`) or the
-// symbolic SVG SOURCE. `registerIcon` is the door for a glyph outside the compiled
-// subset — the shape `@gjsify/adwaita-web`'s `icon-registry.ts` already has, and for the
-// same measured reason: the whole `@gjsify/adwaita-icons` barrel does not belong in a
-// phone bundle.
+// symbolic SVG SOURCE. A name outside the compiled subset resolves through the
+// `Gtk.IconTheme` resource paths (ADR 0116 § 4) — the shape `@gjsify/adwaita-web` has, and
+// for the same measured reason: the whole `@gjsify/adwaita-icons` barrel does not belong in
+// a phone bundle.
 export {
     ICON_FALLBACK_NAME,
     compiledIconNames,
     iconValueKind,
     isIconAvailable,
-    registerIcon,
-    registerIcons,
-    registeredIconNames,
     resolveIconSource,
-    unregisterIcon,
 } from './icon-theme.js';
 export type { IconValueKind } from './icon-theme.js';
 

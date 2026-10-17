@@ -14,16 +14,11 @@
 // that was never given draws nothing at all.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { isIconAvailable, registerIcon } from './icon-registry.js';
+import { isIconAvailable } from './icon-theme.js';
 import type { GtkImage } from './elements/gtk-image.js';
 
 /** A name no compiled entry can collide with, for the "not shipped" arm. */
 const ABSENT = 'gjsify-registry-probe';
-
-/** An Adwaita symbolic SVG, small and distinctive — a filled 8px square in the 16px grid. */
-const PROBE_SVG = `<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="http://www.w3.org/2000/svg">
-    <path d="m 4 4 h 8 v 8 h -8 z m 0 0" fill="currentColor"/>
-</svg>`;
 
 function mount(iconName: string | null): { el: GtkImage; host: HTMLElement } {
     const host = document.createElement('div');
@@ -55,7 +50,7 @@ export function fallbackMask(): string {
     return getComputedStyle(document.documentElement).getPropertyValue('--icon-image-missing').trim();
 }
 
-export const AdwIconRegistryTest = async () => {
+export const AdwIconMasksTest = async () => {
     await describe('<gtk-image> resolves a name to a real mask', async () => {
         await it('a compiled name draws its OWN glyph, not the fallback', () => {
             const { el, host } = mount('go-next');
@@ -136,105 +131,14 @@ export const AdwIconRegistryTest = async () => {
         });
     });
 
-    await describe('registerIcon — the documented way out of the compiled set', async () => {
-        await it('reports an unshipped name as unavailable before registration', () => {
+    await describe('isIconAvailable', async () => {
+        await it('answers for the compiled set and nothing else', () => {
             expect(isIconAvailable(ABSENT)).toBe(false);
             // …and a compiled one as available, so the check is not answering `false` to
             // everything. `image-missing` is the case a fallback-comparison would get wrong.
             expect(isIconAvailable('go-next')).toBe(true);
             expect(isIconAvailable('image-missing')).toBe(true);
             expect(isIconAvailable('')).toBe(false);
-        });
-
-        await it('makes the name resolve, on an element that is ALREADY mounted', () => {
-            const { el, host } = mount(ABSENT);
-            const before = maskOf(el);
-            expect(before).toBe(fallbackMask());
-
-            registerIcon(ABSENT, PROBE_SVG);
-
-            const after = maskOf(el);
-            expect(after).not.toBe(before);
-            expect(after).not.toBe(fallbackMask());
-            // The glyph really is the SVG that was handed over: `toDataUri` percent-encodes
-            // it, so the path data survives as `m%204%204`.
-            expect(after.includes('m%204%204')).toBe(true);
-            expect(isIconAvailable(ABSENT)).toBe(true);
-            host.remove();
-        });
-
-        await it('serves an element mounted AFTER the registration too', () => {
-            const { el, host } = mount(`${ABSENT}-symbolic`);
-            // The `-symbolic` suffix is stripped on both sides, so a consumer may spell the
-            // name either way at either end.
-            expect(el.resolvedIconName).toBe(ABSENT);
-            expect(maskOf(el).includes('m%204%204')).toBe(true);
-            host.remove();
-        });
-
-        await it('re-registering REPLACES the glyph without a second rule', () => {
-            const sheet = (document.getElementById('adwaita-web-icon-registry') as HTMLStyleElement).sheet;
-            const rulesBefore = (sheet as CSSStyleSheet).cssRules.length;
-
-            registerIcon(ABSENT, PROBE_SVG.replace('m 4 4 h 8 v 8 h -8 z', 'm 2 2 h 12 v 12 h -12 z'));
-
-            const { el, host } = mount(ABSENT);
-            expect(maskOf(el).includes('m%202%202')).toBe(true);
-            expect((sheet as CSSStyleSheet).cssRules.length).toBe(rulesBefore);
-            host.remove();
-        });
-
-        await it('throws on a name that could never be one CSS class', () => {
-            // Silently registering nothing is the exact failure this area exists to end, and
-            // unlike a render this is an explicit call with a wrong argument.
-            expect(() => registerIcon('org.gnome.Builder', PROBE_SVG)).toThrow();
-            expect(() => registerIcon('a b', PROBE_SVG)).toThrow();
-            expect(() => registerIcon('', PROBE_SVG)).toThrow();
-        });
-
-        await it('throws on a payload that is not SVG source, and registers nothing', () => {
-            // The NAME was checked from the start; the payload was not, and a wrong payload
-            // is worse than no registration at all: `toDataUri` percent-encodes anything, so
-            // the mask comes out well-formed and masks NOTHING, the registered class beats
-            // `:where(.adw-icon)` and switches this PR's fallback off, and `isIconAvailable`
-            // answers `true`. Measured in Firefox before the guard: `'not an svg at all'`
-            // gave `url("data:image/svg+xml,not%20an%20svg%20at%20all")` on a box painted 0 %,
-            // where the unregistered control painted the 30 % image-missing glyph.
-            const REJECTED = 'gjsify-registry-payload-probe';
-            expect(() => registerIcon(REJECTED, 'not an svg at all')).toThrow();
-            expect(() => registerIcon(REJECTED, '')).toThrow();
-            // The likeliest wrong argument of all: what the custom property HOLDS, handed
-            // over instead of what it was made from.
-            expect(() => registerIcon(REJECTED, 'url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E")')).toThrow();
-            expect(isIconAvailable(REJECTED)).toBe(false);
-
-            const { el, host } = mount(REJECTED);
-            expect(maskOf(el)).toBe(fallbackMask());
-            host.remove();
-        });
-
-        await it('rebuilds its rules after the <style> element is taken away', () => {
-            // What an SPA head swap or an Astro view transition does. The record of inserted
-            // rules is module-level and outlives the element it describes, so the early
-            // return above used to skip the insert forever: the custom property was re-set
-            // and the rule that consumes it never came back.
-            const LOST = 'gjsify-registry-sheet-probe';
-            registerIcon(LOST, PROBE_SVG);
-            document.getElementById('adwaita-web-icon-registry')?.remove();
-
-            registerIcon(LOST, PROBE_SVG);
-
-            expect(document.getElementById('adwaita-web-icon-registry')).not.toBe(null);
-            const { el, host } = mount(LOST);
-            expect(maskOf(el).includes('m%204%204')).toBe(true);
-            host.remove();
-
-            // …and the names registered BEFORE the swap are on the rebuilt sheet too. Their
-            // custom properties survived on the document element, so re-issuing only the
-            // one name being registered would leave every earlier icon on the fallback.
-            const { el: earlier, host: earlierHost } = mount(ABSENT);
-            expect(maskOf(earlier)).not.toBe(fallbackMask());
-            earlierHost.remove();
         });
     });
 };

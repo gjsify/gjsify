@@ -94,8 +94,8 @@ why an arbitrary bitmap belongs in [Picture](#picture) instead.
 A CSS mask needs its glyph inlined as a data URI, so the browser element draws a
 subset of `@gjsify/adwaita-icons` — inlining all of it costs about five times the
 size of the stylesheet it would sit in. A name outside that subset draws the
-missing-image glyph, the same as a name the theme cannot resolve. `registerIcon()`
-is the way in for a glyph the package does not ship.
+missing-image glyph, the same as a name the theme cannot resolve. A glyph the package
+does not ship comes from the app's GResource, through `Gtk.IconTheme`'s resource paths.
 </MoreInfo>
 
 ## Picture

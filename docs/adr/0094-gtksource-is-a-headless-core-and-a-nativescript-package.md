@@ -84,8 +84,8 @@ in its `.blp` and registers `Gio.SimpleAction({ name: "copy" })` in a group unde
 parent chain (`widgets/actions.ts`). Not modelled: parameter types, state, `app.`/`win.`
 resolution through an application, accelerators. `tooltip-text` also reaches Android's
 `View.setTooltipText` (API 26, long press; duck-typed, so no `TooltipCompat` and a no-op on older
-devices) beside the accessibility hint, and `registerIcons(map)`
-registers a generated icon module by GNOME name. An icon-only `Gtk.Button` wears
+devices) beside the accessibility hint, and a glyph in the app's GResource
+resolves by GNOME name (ADR 0116 § 4; `registerIcons(map)` is removed, ADR 0116 § 8). An icon-only `Gtk.Button` wears
 `image-button` and `.osd` has a theme rule, so the shared `.blp` renders flat and unlabelled. An app's `native-api-usage.json` must list
 `android.view.View` for `setTooltipText`, besides the `EditText` classes of the editor itself.
 

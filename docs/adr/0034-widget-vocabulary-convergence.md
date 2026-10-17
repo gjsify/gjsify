@@ -3083,7 +3083,8 @@ shared table on purpose: a second table is the copy that drifts.
 
 **The SVG-source door stays open**, and that is a rule rather than a courtesy: a consumer
 with their own icon set never needed a release, and `registerIcon()` now makes such a glyph
-resolvable BY NAME for everything downstream. `iconValueKind` is the entire
+resolvable BY NAME for everything downstream. (ADR 0116 § 8 removed `registerIcon()`; a glyph
+in the app's GResource under `<resource-base-path>/icons/` is resolvable by name instead.) `iconValueKind` is the entire
 discrimination and it decides nothing by guessing — the two grammars are disjoint, an icon
 name being one CSS token and an SVG document starting with `<`. A string that is neither is
 read as a NAME, so it draws `image-missing` rather than handing the rasteriser something

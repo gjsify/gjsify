@@ -1,30 +1,38 @@
 // The colour half of the icon theme, measured through `getComputedStyle` like
-// `icon-registry.spec.ts` measures the symbolic half: a class on the node proves nothing
+// `icon-masks.spec.ts` measures the symbolic half: a class on the node proves nothing
 // about what it paints.
 //
 // The order under test is GLib's (`g_themed_icon_update_names`, which `GtkImage`'s lookup
 // goes through): `X` tries [X, X-symbolic], `X-symbolic` tries [X-symbolic, X], and a name
 // neither answers draws `image-missing`. Over the names the order is gtkicontheme.c's: the
-// current theme (the stylesheet's glyphs) before hicolor, where a colour registration sits.
-// The registry is module-level and outlives a test,
-// so every case registers names of its own.
+// current theme (the stylesheet's glyphs) before hicolor, where an app's resource files sit.
+// Colour icons come from the shared GResource fixture, on the theme's resource path as
+// `GtkApplication` adds `<resource-base-path>/icons/` (ADR 0116 § 4).
+import { ICON_FIXTURE_PATH, gioResourceFixtures } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { COLOR_ICON_CLASS, type GtkImage } from './elements/gtk-image.js';
-import { fallbackMask, maskOf } from './icon-registry.spec.js';
-import { isIconAvailable, registerIcon } from './icon-registry.js';
-import { registerColorIcon } from './icon-theme.js';
+import { fallbackMask, maskOf } from './icon-masks.spec.js';
+import { isIconAvailable } from './icon-theme.js';
+import { Gio, Gtk } from './index.js';
 
-/** A full-colour app icon: a red square on a blue disc, nothing `currentColor` about it. */
-const COLOR_SVG = `<svg height="128" viewBox="0 0 128 128" width="128" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="64" cy="64" r="60" fill="#3584e4"/>
-    <rect x="40" y="40" width="48" height="48" fill="#e01b24"/>
-</svg>`;
+const theme = Gtk.IconTheme.get_for_display(null);
 
-/** A symbolic glyph, distinct from the colour one by its path data. */
-const SYMBOLIC_SVG = `<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="http://www.w3.org/2000/svg">
-    <path d="m 3 3 h 10 v 10 h -10 z m 0 0" fill="currentColor"/>
-</svg>`;
+/** Runs `body` with the fixture's icons on the theme's resource path. */
+async function withIcons(body: () => void): Promise<void> {
+    const resource = Gio.Resource.new_from_data(gioResourceFixtures().icons);
+    Gio.resources_register(resource);
+    const before = theme.get_resource_path();
+    theme.add_resource_path(ICON_FIXTURE_PATH);
+    // `changed` is deferred: let it drop the previous scan's URLs first.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+        body();
+    } finally {
+        theme.set_resource_path(before);
+        Gio.resources_unregister(resource);
+    }
+}
 
 function mount(iconName: string): { el: GtkImage; host: HTMLElement } {
     const host = document.createElement('div');
@@ -40,7 +48,7 @@ function maskClasses(el: HTMLElement): string[] {
     return [...el.classList].filter((c) => c.startsWith('adw-icon--'));
 }
 
-/** True when `el` paints the registered colour image and nothing masked. */
+/** True when `el` paints a resource image as-is and nothing masked. */
 function drawsInColor(el: HTMLElement): boolean {
     const style = getComputedStyle(el);
     return (
@@ -48,66 +56,41 @@ function drawsInColor(el: HTMLElement): boolean {
         maskClasses(el).length === 0 &&
         style.maskImage === 'none' &&
         style.backgroundColor === 'rgba(0, 0, 0, 0)' &&
-        // `#e01b24` survives `toDataUri` as `%23e01b24`.
-        style.backgroundImage.includes('%23e01b24')
+        style.backgroundImage.startsWith('url("blob:')
     );
 }
 
 export const AdwIconThemeTest = async () => {
-    await describe('registerColorIcon — a full-colour icon draws as-is', async () => {
-        await it('a reverse-DNS application id draws its image, unmasked and unfilled', () => {
-            const APP_ID = 'org.gjsify.ColorProbe';
-            registerColorIcon(APP_ID, COLOR_SVG);
-
-            const { el, host } = mount(APP_ID);
-            expect(drawsInColor(el)).toBe(true);
-            expect(isIconAvailable(APP_ID)).toBe(true);
-            host.remove();
+    await describe('a full-colour resource icon draws as-is', async () => {
+        await it('draws its image, unmasked and unfilled', async () => {
+            await withIcons(() => {
+                const { el, host } = mount('flat');
+                expect(drawsInColor(el)).toBe(true);
+                expect(isIconAvailable('flat')).toBe(true);
+                host.remove();
+            });
         });
 
-        await it('an already-mounted element redraws when the registration lands', () => {
-            const APP_ID = 'org.gjsify.LateColorProbe';
-            const { el, host } = mount(APP_ID);
-            // Before: what GTK draws for a name its theme does not have.
-            expect(maskOf(el)).toBe(fallbackMask());
+        await it("AdwAboutDialog's application-icon draws in colour", async () => {
+            await withIcons(() => {
+                const host = document.createElement('div');
+                document.body.appendChild(host);
+                const dialog = document.createElement('adw-about-dialog');
+                dialog.setAttribute('application-icon', 'flat');
+                host.appendChild(dialog);
 
-            registerColorIcon(APP_ID, COLOR_SVG);
-            expect(drawsInColor(el)).toBe(true);
-            host.remove();
-        });
-
-        await it("AdwAboutDialog's application-icon draws in colour", () => {
-            const APP_ID = 'org.gjsify.AboutColorProbe';
-            registerColorIcon(APP_ID, COLOR_SVG);
-
-            const host = document.createElement('div');
-            document.body.appendChild(host);
-            const dialog = document.createElement('adw-about-dialog');
-            dialog.setAttribute('application-icon', APP_ID);
-            host.appendChild(dialog);
-
-            const icon = dialog.querySelector('.adw-about-dialog-icon') as HTMLElement;
-            expect(drawsInColor(icon)).toBe(true);
-            // The 96px box, and NOT a solid square under the image: the about dialog used to
-            // force `background-color: currentColor` on it.
-            expect(getComputedStyle(icon).width).toBe('96px');
-            host.remove();
-        });
-
-        await it('a URL source resolves against the document', () => {
-            const APP_ID = 'org.gjsify.UrlColorProbe';
-            registerColorIcon(APP_ID, 'icons/org.gjsify.UrlColorProbe.svg');
-
-            const { el, host } = mount(APP_ID);
-            const expected = new URL('icons/org.gjsify.UrlColorProbe.svg', document.baseURI).href;
-            expect(el.classList.contains(COLOR_ICON_CLASS)).toBe(true);
-            expect(getComputedStyle(el).backgroundImage).toBe(`url("${expected}")`);
-            host.remove();
+                const icon = dialog.querySelector('.adw-about-dialog-icon') as HTMLElement;
+                expect(drawsInColor(icon)).toBe(true);
+                // The 96px box, and NOT a solid square under the image: the about dialog used to
+                // force `background-color: currentColor` on it.
+                expect(getComputedStyle(icon).width).toBe('96px');
+                host.remove();
+            });
         });
     });
 
     await describe('the lookup order is GThemedIcon’s', async () => {
-        await it('a symbolic icon still masks — a compiled one with no colour entry', () => {
+        await it('a symbolic icon still masks — a compiled one with no resource', () => {
             const { el, host } = mount('go-next-symbolic');
             expect(el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
             expect(maskClasses(el)).toStrictEqual(['adw-icon--go-next']);
@@ -116,72 +99,34 @@ export const AdwIconThemeTest = async () => {
             host.remove();
         });
 
-        await it("the theme's X-symbolic answers X and X-symbolic before the colour X, as on GTK", () => {
-            const NAME = 'gjsify-theme-both-probe';
-            registerColorIcon(NAME, COLOR_SVG);
-            registerIcon(`${NAME}-symbolic`, SYMBOLIC_SVG);
-
-            // gtkicontheme.c `real_choose_icon`: theme outer, name inner, and the colour icon is
-            // hicolor's, so the current theme's `X-symbolic` comes first (ADR 0115 Amendment 2).
-            const plain = mount(NAME);
-            expect(plain.el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
-            expect(maskOf(plain.el).includes('m%203%203')).toBe(true);
-            plain.host.remove();
-
-            const symbolic = mount(`${NAME}-symbolic`);
-            expect(symbolic.el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
-            expect(maskOf(symbolic.el).includes('m%203%203')).toBe(true);
-            expect(getComputedStyle(symbolic.el).backgroundImage).toBe('none');
-            symbolic.host.remove();
+        await it("the theme's X-symbolic answers X before a resource's colour X, as on GTK", async () => {
+            // The fixture ships a colour `16x16/actions/go-next.png`; gtkicontheme.c
+            // `real_choose_icon` goes theme outer, name inner, and the file is hicolor's.
+            await withIcons(() => {
+                const { el, host } = mount('go-next');
+                expect(el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
+                expect(maskClasses(el)).toStrictEqual(['adw-icon--go-next']);
+                host.remove();
+            });
         });
 
-        await it('X-symbolic falls back to the colour X, and back again once X-symbolic lands', () => {
-            const NAME = 'gjsify-theme-fallback-probe';
-            registerColorIcon(NAME, COLOR_SVG);
-
-            const { el, host } = mount(`${NAME}-symbolic`);
-            expect(drawsInColor(el)).toBe(true);
-            expect(isIconAvailable(`${NAME}-symbolic`)).toBe(true);
-
-            registerIcon(NAME, SYMBOLIC_SVG);
-            expect(el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
-            expect(maskOf(el).includes('m%203%203')).toBe(true);
-            host.remove();
+        await it('X-symbolic falls back to the colour X', async () => {
+            await withIcons(() => {
+                const { el, host } = mount('flat-symbolic');
+                expect(drawsInColor(el)).toBe(true);
+                expect(isIconAvailable('flat-symbolic')).toBe(true);
+                host.remove();
+            });
         });
 
         await it('an unknown name draws image-missing', () => {
-            for (const unknown of ['org.gjsify.NeverRegistered', 'gjsify-theme-never-registered']) {
+            for (const unknown of ['org.gjsify.NeverShipped', 'gjsify-theme-never-shipped', 'flat']) {
                 const { el, host } = mount(unknown);
                 expect(el.classList.contains(COLOR_ICON_CLASS)).toBe(false);
                 expect(maskOf(el)).toBe(fallbackMask());
                 expect(isIconAvailable(unknown)).toBe(false);
                 host.remove();
             }
-        });
-    });
-
-    await describe('registerColorIcon rejects what it cannot draw faithfully', async () => {
-        await it('throws on a name that is empty, spaced, or symbolic', () => {
-            expect(() => registerColorIcon('', COLOR_SVG)).toThrow();
-            expect(() => registerColorIcon('a b', COLOR_SVG)).toThrow();
-            // The symbolic half has its own door; GTK's theme treats all three suffixes as
-            // symbolic files.
-            expect(() => registerColorIcon('gjsify-probe-symbolic', COLOR_SVG)).toThrow();
-            expect(() => registerColorIcon('gjsify-probe-symbolic-ltr', COLOR_SVG)).toThrow();
-            expect(() => registerColorIcon('gjsify-probe-symbolic-rtl', COLOR_SVG)).toThrow();
-        });
-
-        await it('throws on a source that is not SVG or an image URL, and registers nothing', () => {
-            const REJECTED = 'org.gjsify.RejectedColorProbe';
-            expect(() => registerColorIcon(REJECTED, '')).toThrow();
-            expect(() => registerColorIcon(REJECTED, '<p>not svg</p>')).toThrow();
-            expect(() => registerColorIcon(REJECTED, 'javascript:alert(1)')).toThrow();
-            expect(() => registerColorIcon(REJECTED, 'data:text/html,<svg></svg>')).toThrow();
-            expect(isIconAvailable(REJECTED)).toBe(false);
-
-            const { el, host } = mount(REJECTED);
-            expect(maskOf(el)).toBe(fallbackMask());
-            host.remove();
         });
     });
 };
