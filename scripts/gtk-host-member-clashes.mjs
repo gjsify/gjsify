@@ -18,7 +18,12 @@ export const NS_SNAPSHOT = 'status/nativescript-base-members.json';
 export const NS_TABLE = 'packages/nativescript-bridge/adwaita/src/widgets/shadowed-properties.ts';
 /** The NativeScript XML writer, which refuses the shadowed names by its own literal list. */
 export const MARKUP = 'packages/web/adwaita-core/src/markup.ts';
-export const WEB_ELEMENT_DIRS = ['packages/web/adwaita-web/src/elements'];
+// The elements' shared base (`WidgetElement`) sits beside them; without it every chain ends at a
+// name the walk does not know and the web arm measures nothing.
+export const WEB_ELEMENT_DIRS = [
+    'packages/web/adwaita-web/src/elements',
+    'packages/web/adwaita-web/src/widget-element.ts',
+];
 export const DOM_SNAPSHOT = 'status/html-element-members.json';
 
 /** `kebab` / `snake` / `camel` → camel, as `propertyOf` spells a GObject property. */
@@ -99,9 +104,10 @@ export function readPortClasses(file, text) {
 export function readAllPortClasses(root, dirs = NS_WIDGET_DIRS) {
     const all = new Map();
     for (const dir of dirs) {
-        for (const entry of readdirSync(join(root, dir))) {
-            if (!entry.endsWith('.ts') || entry.endsWith('.d.ts') || entry.includes('.spec.')) continue;
-            const file = join(dir, entry);
+        // An entry is a directory of class files, or one file.
+        const files = dir.endsWith('.ts') ? [dir] : readdirSync(join(root, dir)).map((entry) => join(dir, entry));
+        for (const file of files) {
+            if (!file.endsWith('.ts') || file.endsWith('.d.ts') || file.includes('.spec.')) continue;
             const text = readFileSync(join(root, file), 'utf8');
             // `import { View as NsView }` — the local alias of a platform class.
             const aliases = new Map([...text.matchAll(/\b(\w+) as (\w+)\b/g)].map(([, real, local]) => [local, real]));
