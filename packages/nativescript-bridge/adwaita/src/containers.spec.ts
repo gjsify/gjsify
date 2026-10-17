@@ -14,7 +14,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { build } from './builder/index.js';
 import * as Adw from './namespace/adw.js';
 import * as Gtk from './namespace/gtk.js';
-import { GridLayout, Label, type LayoutBase, ScrollView, View } from './testing/ns-core.mjs';
+import { ContentView, GridLayout, Label, type LayoutBase, ScrollView, View } from './testing/ns-core.mjs';
 
 const label = (): Label => new Label();
 
@@ -281,9 +281,9 @@ export const AdwContainersNsTest = async () => {
             // NOT the scroll view's content itself — see "THE CHILD IS NOT THE CONTENT".
             // A margin on the platform's scroll content inset and clipped the VIEWPORT,
             // which cut the first and last line of a scrolling sheet at every offset.
-            const box = scrollOf(window).content;
+            const box = scrollOf(window).content as ContentView;
             expect(box === (child as unknown)).toBe(false);
-            expect(childrenOf(box)).toStrictEqual([child]);
+            expect(box.content === (child as unknown)).toBe(true);
             expect(window.child === (child as unknown)).toBe(true);
         });
 
@@ -297,10 +297,10 @@ export const AdwContainersNsTest = async () => {
 
         await it('removing the child empties the content box, never the ScrollView', () => {
             const window = new Gtk.ScrolledWindow();
-            const box = scrollOf(window).content;
+            const box = scrollOf(window).content as ContentView;
             window.child = label() as unknown as never;
             window.child = null;
-            expect(childrenOf(box)).toStrictEqual([]);
+            expect(box.content).toBe(null);
             // The box outlives the child: a scroll view left with no content is the state
             // a later child's margin would reach the platform through.
             expect(scrollOf(window).content).toBe(box);
@@ -347,7 +347,20 @@ export const AdwContainersNsTest = async () => {
             }) as unknown as Gtk.ScrolledWindow;
             expect(window.child instanceof View).toBe(true);
             expect(scrollOf(window).content instanceof Adw.Clamp).toBe(false);
-            expect(childrenOf(scrollOf(window).content)[0] instanceof Adw.Clamp).toBe(true);
+            expect((scrollOf(window).content as ContentView).content instanceof Adw.Clamp).toBe(true);
+        });
+
+        await it('the content box hands its one child the whole viewport', () => {
+            // GtkViewport allocates its child MAX (minimum, viewport size). The platform scroll
+            // view lays its content out viewport-high; a StackLayout there stacked the child at
+            // its measured height instead, and Learn6502's editor — a GtkSource.View in a
+            // ScrolledWindow — was one line high on Android with white below it. A ContentView
+            // lays its one child out over its whole box, on both axes.
+            for (const policy of ['automatic', 'never'] as const) {
+                const window = new Gtk.ScrolledWindow();
+                window.vscrollbarPolicy = policy;
+                expect(scrollOf(window).content instanceof ContentView).toBe(true);
+            }
         });
     });
 

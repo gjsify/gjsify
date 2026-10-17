@@ -660,8 +660,36 @@ export class ScrollView extends View {
     }
 }
 
+/**
+ * Upstream's `content` setter (`ui/content-view/index.ts`) `_removeView`s the old view and
+ * `_addView`s the new one, and `eachChildView` answers that one view — so the tree members see
+ * through it and a view already parented elsewhere is refused, as on a device.
+ */
 export class ContentView extends LayoutBase {
-    content: View = null;
+    #content: View | null = null;
+
+    get content(): View | null {
+        return this.#content;
+    }
+
+    set content(value: View | null) {
+        if (this.#content !== null) PARENTS.delete(this.#content);
+        this.#content = null;
+        if (value) {
+            const parent = PARENTS.get(value);
+            if (parent !== undefined) {
+                throw new Error(
+                    `View already has a parent. View: ${value.constructor.name} Parent: ${parent.constructor.name}`,
+                );
+            }
+            PARENTS.set(value, this);
+            this.#content = value;
+        }
+    }
+
+    eachChildView(callback: (child: View) => boolean): void {
+        if (this.#content !== null) callback(this.#content);
+    }
 }
 
 export class WrapLayout extends LayoutBase {

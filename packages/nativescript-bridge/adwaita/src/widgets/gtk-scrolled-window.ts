@@ -25,6 +25,18 @@
 // its own, so nothing reaches the scroll view, and the child's margins are measured into the
 // length being scrolled like any other content.
 //
+// THE BOX FILLS THE VIEWPORT, AND SO DOES THE CHILD. GtkViewport allocates its child
+// `MAX (minimum, viewport size)` on each axis (`gtk_viewport_size_allocate`), so a child
+// shorter than the window still covers it — a `GtkTextView` in a tall window is tall, and a
+// tap anywhere below the last line lands in it. The platform `ScrollView` already lays its
+// content out at least viewport-high; the box then has to hand that height on. A
+// `StackLayout` does not: it stacks each child at its MEASURED height, and inside a scroll
+// view that is measured unbounded, so it is the content height. MEASURED on Android
+// (Learn6502's editor, a `GtkSource.View` in a `.blp`'s `ScrolledWindow`): the box was laid out
+// 1473 px high and the `EditText` in it 84 px — one line of the editor column, white below,
+// and a tap there reached nothing. A `ContentView` lays its one child out over its whole
+// box, as GTK's viewport does.
+//
 // It is also the one place a scroll viewport's padding can be written without reaching into a
 // consumer's widget, which is what `AdwBottomSheet` does with the gesture inset it must leave
 // after the content (`bottom-sheet-insets.ts`).
@@ -38,7 +50,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { GtkAdjustment } from '@gjsify/adwaita-core';
-import { GridLayout, ScrollView, StackLayout, type View } from '@nativescript/core';
+import { ContentView, GridLayout, ScrollView, type View } from '@nativescript/core';
 
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { builderSlotsOf } from './builder-slots.js';
@@ -60,7 +72,7 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
 
     private readonly _scroll = new ScrollView();
     /** The box the child really goes in — see "THE CHILD IS NOT THE CONTENT" in the header. */
-    private readonly _viewport = new StackLayout();
+    private readonly _viewport = new ContentView();
     private _hscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _vscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _hasFrame = false;
@@ -151,18 +163,15 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     }
 
     protected _adopt(view: View): void {
-        this._viewport.addChild(view);
+        this._viewport.content = view;
     }
 
     protected _release(view: View): void {
-        this._viewport.removeChild(view);
+        if (this._viewport.content === view) this._viewport.content = null;
     }
 
     private _applyOrientation(): void {
         const orientation = scrollOrientationFor(this._hscrollbarPolicy, this._vscrollbarPolicy);
         this._scroll.orientation = orientation;
-        // The box grows along the axis that scrolls and stretches across the other one,
-        // which is what makes the child's margins part of the length being scrolled.
-        this._viewport.orientation = orientation;
     }
 }

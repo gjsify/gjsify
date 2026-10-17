@@ -458,7 +458,7 @@ declare module '@nativescript/core' {
 
     /** A single-child container — `<ContentView>`. */
     export class ContentView extends LayoutBase {
-        content: View;
+        content: View | null;
     }
 
     /** A wheel/list picker — `<ListPicker>`. */
