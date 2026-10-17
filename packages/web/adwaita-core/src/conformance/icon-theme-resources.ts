@@ -136,6 +136,15 @@ export const ICON_THEME_RESOURCE_VECTORS: readonly IconThemeResourceVector[] = [
         shows: ['theme', 'theme'],
     },
     {
+        row: 'symbolic',
+        rule: 'a .symbolic.png answers X and X-symbolic, and is recoloured',
+        observe: lookups([
+            ['tint', 16, 1, null],
+            ['tint-symbolic', 16, 1, null],
+        ]),
+        shows: [file('16x16/apps/tint.symbolic.png', true), file('16x16/apps/tint.symbolic.png', true)],
+    },
+    {
         row: 'suffix',
         rule: 'in one directory a .png beats a .svg; a compressed entry is still found',
         observe: lookups([
