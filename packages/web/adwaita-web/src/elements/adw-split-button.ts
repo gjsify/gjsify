@@ -72,6 +72,7 @@ import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
 
 import { type GtkImage, createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 const VARIANT_CLASSES: Record<string, string> = {
     flat: 'flat',
@@ -118,7 +119,7 @@ const POPOVER_POSITIONS = {
     right: 'end',
 } as const;
 
-export class AdwSplitButton extends HTMLElement {
+export class AdwSplitButton extends WidgetElement {
     private readonly _state = new SplitButtonState();
     private _actionEl!: HTMLButtonElement;
     private _dropdownEl!: HTMLButtonElement;

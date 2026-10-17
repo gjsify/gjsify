@@ -57,8 +57,9 @@ import type { AdwSidebarItemSpec, AdwSidebarSectionSpec, SidebarItemFilter } fro
 import { bindSlottedChildren } from '../slotted-children.js';
 import type { AdwSidebar } from './adw-sidebar.js';
 import type { AdwViewStack } from './adw-view-stack.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwViewSwitcherSidebar extends HTMLElement {
+export class AdwViewSwitcherSidebar extends WidgetElement {
     private _sidebar!: AdwSidebar;
     private _placeholderEl!: HTMLDivElement;
     private _prefixEl!: HTMLDivElement;

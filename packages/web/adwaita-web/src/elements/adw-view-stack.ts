@@ -51,10 +51,11 @@ import { ViewStackState } from '@gjsify/adwaita-core';
 import type { AdwViewStackPageInfo as CorePageInfo, ViewStackStateChange } from '@gjsify/adwaita-core';
 
 import type { DispatchedSignals } from '../signals.js';
+import { WidgetElement } from '../widget-element.js';
 
 export type AdwViewStackPageInfo = CorePageInfo<HTMLElement>;
 
-export class AdwViewStack extends HTMLElement {
+export class AdwViewStack extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = {
         'notify::visible-child': 'notify::visible-child',

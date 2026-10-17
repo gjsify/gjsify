@@ -26,8 +26,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkFlowBoxChild extends HTMLElement {
+export class GtkFlowBoxChild extends WidgetElement {
     private _contentsEl!: HTMLDivElement;
     private _initialized = false;
 

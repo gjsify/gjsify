@@ -85,6 +85,7 @@
 //   :296-306, `play_button_clicked`)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 // The play/pause pair `ui/gtkvideo.ui`'s `play_button` carries, as constants for the same
 // reason the video's four overlay glyphs are constants — `check-adwaita-icon-masks.mjs` finds
@@ -185,7 +186,7 @@ export function mediaTimeToString(seconds: number, remaining = false, forceHour 
     return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
-export class GtkMediaControls extends HTMLElement {
+export class GtkMediaControls extends WidgetElement {
     private _initialized = false;
     private _playButton!: HTMLButtonElement;
     private _timeLabel!: HTMLSpanElement;

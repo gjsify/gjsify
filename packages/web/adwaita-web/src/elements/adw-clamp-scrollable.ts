@@ -53,6 +53,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.ScrollablePolicy`'s three nicks, in enum order. */
 export type ScrollPolicy = 'automatic' | 'always' | 'never';
@@ -64,7 +65,7 @@ const POLICY_OVERFLOW: Record<ScrollPolicy, string> = {
     never: 'hidden',
 };
 
-export class AdwClampScrollable extends HTMLElement {
+export class AdwClampScrollable extends WidgetElement {
     private _resize: ResizeObserver | null = null;
     private _mutations: MutationObserver | null = null;
 

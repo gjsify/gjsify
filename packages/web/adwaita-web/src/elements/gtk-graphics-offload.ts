@@ -42,6 +42,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkGraphicsOffloadEnabled`, spelled as the GIR's enum nicks. */
 type OffloadEnabled = 'enabled' | 'disabled';
@@ -52,7 +53,7 @@ function booleanAttribute(element: HTMLElement, name: string, fallback: boolean)
     return raw !== 'false' && raw !== '0';
 }
 
-export class GtkGraphicsOffload extends HTMLElement {
+export class GtkGraphicsOffload extends WidgetElement {
     private _childEl!: HTMLDivElement;
     private _initialized = false;
 

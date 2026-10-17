@@ -57,6 +57,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import type { AdwLayoutSlot } from './adw-layout-slot.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** One layout: the element itself, plus the name `AdwLayout:name` carries. */
 interface Layout {
@@ -64,7 +65,7 @@ interface Layout {
     readonly content: Element;
 }
 
-export class AdwMultiLayoutView extends HTMLElement {
+export class AdwMultiLayoutView extends WidgetElement {
     /** The C's own tables: layouts in order, children by id, and the current layout. */
     private _layouts: Layout[] = [];
     private _children = new Map<string, Element>();

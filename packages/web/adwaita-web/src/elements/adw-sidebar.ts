@@ -65,6 +65,7 @@ import {
 import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
 import { booleanAttribute } from '../attributes.js';
+import { WidgetElement } from '../widget-element.js';
 
 // The sidebar consumes its declared children and drops them from the tree, so a later
 // `setAttribute` on one cannot find its sidebar with `closest()`. These keep the link —
@@ -74,7 +75,7 @@ const itemBindings = new WeakMap<AdwSidebarItem, { sidebar: AdwSidebar; spec: Ad
 const sectionBindings = new WeakMap<AdwSidebarSection, { sidebar: AdwSidebar; spec: AdwSidebarSectionSpec }>();
 
 /** A single sidebar item. Child of <adw-sidebar-section>; consumed at connect time. */
-export class AdwSidebarItem extends HTMLElement {
+export class AdwSidebarItem extends WidgetElement {
     static get observedAttributes() {
         return [
             'title',
@@ -144,7 +145,7 @@ export class AdwSidebarItem extends HTMLElement {
 }
 
 /** A titled group of items. Child of <adw-sidebar>; consumed at connect time. */
-export class AdwSidebarSection extends HTMLElement {
+export class AdwSidebarSection extends WidgetElement {
     static get observedAttributes() {
         return ['title'];
     }
@@ -158,7 +159,7 @@ export class AdwSidebarSection extends HTMLElement {
     }
 }
 
-export class AdwSidebar extends HTMLElement {
+export class AdwSidebar extends WidgetElement {
     private readonly _state = new SidebarState();
     private _listEl!: HTMLDivElement;
     private _rows: { el: HTMLButtonElement; index: number }[] = [];

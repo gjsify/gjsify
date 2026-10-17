@@ -64,8 +64,9 @@ import { bindSlottedChildren } from '../slotted-children.js';
 // Registers <gtk-window-controls>: `show-title-buttons` builds two of them, so importing
 // the bar alone must still define them.
 import './gtk-window-controls.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkHeaderBar extends HTMLElement {
+export class GtkHeaderBar extends WidgetElement {
     private _initialized = false;
     private _handle!: HTMLDivElement;
     private _box!: HTMLDivElement;

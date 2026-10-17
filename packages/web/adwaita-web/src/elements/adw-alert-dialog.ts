@@ -75,6 +75,7 @@ import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
 import { booleanAttribute } from '../attributes.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Response button appearance — mirrors Adw.ResponseAppearance. */
 export type { AdwResponseAppearance } from '@gjsify/adwaita-core';
@@ -85,7 +86,7 @@ export type { AdwResponseAppearance } from '@gjsify/adwaita-core';
  * `appearance="suggested|destructive"` and `enabled="false"` mirror the
  * GtkBuildable `<response>` element attributes. Consumed at connect time.
  */
-export class AdwAlertResponse extends HTMLElement {
+export class AdwAlertResponse extends WidgetElement {
     static get observedAttributes() {
         return ['id', 'appearance', 'enabled'];
     }
@@ -107,7 +108,7 @@ export interface AdwAlertDialogProps {
     preferWideLayout?: boolean;
 }
 
-export class AdwAlertDialog extends HTMLElement {
+export class AdwAlertDialog extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = {
         response: 'response',

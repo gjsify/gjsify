@@ -32,6 +32,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { normalizeBoxOrientation, normalizeBoxSpacing, type BoxOrientation } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 import { computeExpand, explicitExpand, type ExpandOrientation } from '../compute-expand.js';
 
@@ -44,7 +45,7 @@ const COMPUTED_EXPAND: Record<ExpandOrientation, string> = {
     vertical: 'data-computed-vexpand',
 };
 
-export class GtkBox extends HTMLElement {
+export class GtkBox extends WidgetElement {
     private _expandObserver: MutationObserver | null = null;
 
     static get observedAttributes() {

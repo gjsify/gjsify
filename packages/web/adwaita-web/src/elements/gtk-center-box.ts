@@ -41,6 +41,7 @@
 import { labelYalignAlignItems } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `Gtk.BaselinePosition`'s three nicks, in the order GTK measures them (gtkcenterbox.c:267-271). */
 const BASELINE_POSITIONS = { top: 0, center: 0.5, bottom: 1 } as const;
@@ -51,7 +52,7 @@ export type BaselinePosition = keyof typeof BASELINE_POSITIONS;
 const SHRINK_FIRST = 100;
 const SHRINK_LAST = 1;
 
-export class GtkCenterBox extends HTMLElement {
+export class GtkCenterBox extends WidgetElement {
     static get observedAttributes() {
         return ['baseline-position', 'shrink-center-last'];
     }

@@ -36,9 +36,10 @@ import { CarouselState, carouselClosestSnapPoint, carouselPageAllocation } from 
 import type { CarouselScrollRequest, CarouselScrollSource, CarouselStateChange } from '@gjsify/adwaita-core';
 
 import { attachSwipeDrag, type AdwSwipeDrag } from './swipe-drag.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Common surface an indicator binds to. The concrete element is AdwCarousel. */
-interface CarouselHost extends HTMLElement {
+interface CarouselHost extends WidgetElement {
     readonly nPages: number;
     readonly position: number;
     /** The page the current position settles on, `-1` when empty. */
@@ -70,7 +71,7 @@ function wheelSource(event: WheelEvent): CarouselScrollSource {
     return 'mouse';
 }
 
-export class AdwCarousel extends HTMLElement implements CarouselHost {
+export class AdwCarousel extends WidgetElement implements CarouselHost {
     private readonly _state = new CarouselState({
         // The DOM owns the scroll animation: `scrollTo` only asks, and the
         // scroll handler feeds the ramp back through `setPosition`.
@@ -673,7 +674,7 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     }
 }
 
-abstract class AdwCarouselIndicator extends HTMLElement {
+abstract class AdwCarouselIndicator extends WidgetElement {
     protected _carousel: CarouselHost | null = null;
     protected _initialized = false;
 

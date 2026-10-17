@@ -38,11 +38,12 @@
 //   (`label {}`, `editablelabel > stack > text`)
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /** The C's grace period between a focus leaving the widget and the commit it triggers. */
 const FOCUS_OUT_GRACE_MS = 100;
 
-export class GtkEditableLabel extends HTMLElement {
+export class GtkEditableLabel extends WidgetElement {
     private _label!: HTMLSpanElement;
     private _entry!: HTMLInputElement;
     private _initialized = false;

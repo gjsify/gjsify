@@ -20,11 +20,12 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The attributes a record hands to its child on adoption — `GtkStackPage`'s string/boolean properties. */
 export const STACK_PAGE_ATTRIBUTES = ['name', 'title', 'icon-name', 'needs-attention', 'use-underline'] as const;
 
-export class GtkStackPage extends HTMLElement {
+export class GtkStackPage extends WidgetElement {
     static get observedAttributes() {
         return [...STACK_PAGE_ATTRIBUTES];
     }

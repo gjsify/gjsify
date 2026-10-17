@@ -191,6 +191,22 @@ export const AdwWidgetBaseNsTest = async () => {
         });
     });
 
+    await describe('GtkWidget base properties: tooltip-text', async () => {
+        await it('is `tooltip_text`, `tooltipText` and get/set_tooltip_text over one value, as on GTK', () => {
+            const button = new Gtk.Button();
+            expect(button.tooltip_text).toBe('');
+            expect(button.get_tooltip_text()).toBe('');
+            button.tooltip_text = 'Copy';
+            expect(button.tooltipText).toBe('Copy');
+            expect(button.get_tooltip_text()).toBe('Copy');
+            button.set_tooltip_text('Paste');
+            expect(button.tooltip_text).toBe('Paste');
+            expect((button as unknown as View).accessibilityHint).toBe('Paste');
+            button.tooltipText = 'Cut';
+            expect(button.get_tooltip_text()).toBe('Cut');
+        });
+    });
+
     await describe('GtkWidget base properties: the classes that are not views', async () => {
         await it('answer the GTK defaults on a read and refuse a write by name', () => {
             const dialog = new Adw.AlertDialog();

@@ -73,6 +73,7 @@ import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, AdwMenuPath, AdwMenuSu
 import './gtk-popover-menu.js';
 
 import type { GtkPopoverMenu } from './gtk-popover-menu.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** One bar item: its submenu node, the popover below it, and the DOM that draws both. */
 interface MenuBarItem {
@@ -85,7 +86,7 @@ interface MenuBarItem {
     popover: GtkPopoverMenu;
 }
 
-export class GtkPopoverMenuBar extends HTMLElement {
+export class GtkPopoverMenuBar extends WidgetElement {
     private _model: AdwMenuModel = [];
     private _actions: AdwMenuActions | null = null;
     private _items: MenuBarItem[] = [];

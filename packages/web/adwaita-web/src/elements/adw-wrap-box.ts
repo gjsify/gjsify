@@ -41,6 +41,7 @@ import {
     wrapPolicyFlexShrink,
     type AdwLengthUnit,
 } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * The attributes that carry a property, in the order the C installs them.
@@ -80,7 +81,7 @@ function alignToJustifyContent(align: number): string {
     return 'flex-end';
 }
 
-export class AdwWrapBox extends HTMLElement {
+export class AdwWrapBox extends WidgetElement {
     private _initialized = false;
 
     static get observedAttributes() {

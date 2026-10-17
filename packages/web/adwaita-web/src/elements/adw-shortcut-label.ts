@@ -26,8 +26,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { parseShortcutLabel } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwShortcutLabel extends HTMLElement {
+export class AdwShortcutLabel extends WidgetElement {
     private _initialized = false;
 
     static get observedAttributes() {

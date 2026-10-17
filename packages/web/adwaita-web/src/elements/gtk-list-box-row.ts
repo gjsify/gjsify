@@ -44,8 +44,9 @@
 
 import { bindSlottedChildren } from '../slotted-children.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkListBoxRow extends HTMLElement {
+export class GtkListBoxRow extends WidgetElement {
     private _contentsEl!: HTMLDivElement;
     private _activation?: AdwRowActivation;
     private _initialized = false;

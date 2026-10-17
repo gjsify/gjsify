@@ -78,6 +78,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { JUSTIFY_TEXT_ALIGN } from './justification.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The attributes that carry a property — also the `notify::` roster. */
 const PROPERTY_ATTRIBUTES = [
@@ -96,7 +97,7 @@ const PROPERTY_ATTRIBUTES = [
     'selectable',
 ] as const;
 
-export class GtkLabel extends HTMLElement {
+export class GtkLabel extends WidgetElement {
     /**
      * The rendered text's own box — present while {@link wrap} is set (so it can be pinned
      * to its measured wrap width, see `_remeasure`) OR while {@link ellipsize} is not

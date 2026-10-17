@@ -19,11 +19,12 @@ import { buttonStyleClasses } from '@gjsify/adwaita-core';
 import { bindSlottedChildren } from '../slotted-children.js';
 import type { DispatchedSignals } from '../signals.js';
 import { createGtkImage } from './gtk-image.js';
+import { TooltipElement } from '../widget-element.js';
 
 /** The boolean attributes that select a style class; the mapping lives in the core. */
 const STYLE_ATTRIBUTES = ['flat', 'suggested', 'destructive', 'circular', 'pill'] as const;
 
-export class GtkButton extends HTMLElement {
+export class GtkButton extends TooltipElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = { clicked: 'click' };
 
@@ -51,8 +52,9 @@ export class GtkButton extends HTMLElement {
     }
 
     /**
-     * `Gtk.Button:icon-name` and `Gtk.Widget:tooltip-text`, the GObject spellings: a class that
-     * holds a button as a template child writes `button.icon_name = …`, which must reach the DOM.
+     * `Gtk.Button:icon-name`, the GObject spelling: a class that holds a button as a template
+     * child writes `button.icon_name = …`, which must reach the DOM. `Gtk.Widget:tooltip-text`
+     * comes from `TooltipElement`.
      */
     get icon_name(): string | null {
         return this.getAttribute('icon-name');
@@ -65,18 +67,6 @@ export class GtkButton extends HTMLElement {
     }
     set iconName(value: string | null) {
         this.icon_name = value;
-    }
-    get tooltip_text(): string | null {
-        return this.getAttribute('tooltip-text');
-    }
-    set tooltip_text(value: string | null) {
-        this.reflect('tooltip-text', value);
-    }
-    get tooltipText(): string | null {
-        return this.tooltip_text;
-    }
-    set tooltipText(value: string | null) {
-        this.tooltip_text = value;
     }
 
     private reflect(attribute: string, value: string | null): void {

@@ -25,13 +25,14 @@
 import { derivePreferencesGroupHeader } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** A child that asked to sit in the header rather than in the boxed list. */
 function isHeaderSuffix(node: Node): boolean {
     return node instanceof Element && node.getAttribute('slot') === 'header-suffix';
 }
 
-export class AdwPreferencesGroup extends HTMLElement {
+export class AdwPreferencesGroup extends WidgetElement {
     private _headerEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _descriptionEl!: HTMLSpanElement;

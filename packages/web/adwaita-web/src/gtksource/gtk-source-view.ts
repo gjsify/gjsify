@@ -20,6 +20,7 @@ import type { Buffer, Gutter } from '@gjsify/gtksource-core';
 import { EditorSession, GutterSet, STOP_EMISSION, toBoolean, toNumber } from '@gjsify/gtksource-core';
 
 import { WebEditorDriver } from './web-editor-driver.js';
+import { WidgetElement } from '../widget-element.js';
 
 const STYLE_ID = 'gjsify-gtk-source-view-style';
 
@@ -130,7 +131,7 @@ const OBSERVED_ATTRIBUTES = [
     'bottom-margin',
 ];
 
-export class GtkSourceView extends HTMLElement {
+export class GtkSourceView extends WidgetElement {
     static get observedAttributes(): string[] {
         return OBSERVED_ATTRIBUTES;
     }

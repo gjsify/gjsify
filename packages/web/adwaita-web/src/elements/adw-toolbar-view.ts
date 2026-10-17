@@ -33,8 +33,9 @@ import {
 import { bindEmptySections } from '../empty-sections.js';
 import { AdwScrollShading } from '../scroll-shading.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwToolbarView extends HTMLElement {
+export class AdwToolbarView extends WidgetElement {
     private _topEl!: HTMLDivElement;
     private _contentEl!: HTMLDivElement;
     private _bottomEl!: HTMLDivElement;

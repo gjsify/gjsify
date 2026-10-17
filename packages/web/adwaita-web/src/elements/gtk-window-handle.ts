@@ -47,6 +47,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkTitlebarGesture`'s three gestures, as `perform_titlebar_action` decides them. */
 export type GtkTitlebarGesture = 'double-click' | 'middle-click' | 'right-click';
@@ -114,7 +115,7 @@ function gestureOf(button: number, presses: number): GtkTitlebarGesture | null {
  */
 const DRAG_THRESHOLD = 1;
 
-export class GtkWindowHandle extends HTMLElement {
+export class GtkWindowHandle extends WidgetElement {
     /** The gesture in progress, as `priv->drag_start_x` / `_y` are in the C. */
     private _drag: { pointerId: number; x: number; y: number } | null = null;
 

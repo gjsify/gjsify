@@ -47,6 +47,7 @@
 import { normalizeBoxOrientation, type BoxOrientation } from '@gjsify/adwaita-core';
 
 import type { GtkStack } from './gtk-stack.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The `GtkStackPageInfo` half this element reads — it never looks inside `child`. */
 interface SwitcherPage {
@@ -65,7 +66,7 @@ interface SwitcherButton {
     icon: HTMLElement;
 }
 
-export class GtkStackSwitcher extends HTMLElement {
+export class GtkStackSwitcher extends WidgetElement {
     private _stack: GtkStack | null = null;
     private _initialized = false;
     private _nodes: SwitcherButton[] = [];

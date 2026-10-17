@@ -66,6 +66,7 @@
 import { clampAdjustmentValue, normalizeAdjustment, type AdwAdjustment } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `viewport_set_adjustment_values`'s two fractions of the visible size. */
 const STEP_FRACTION = 0.1;
@@ -94,7 +95,7 @@ function axisAdjustment(clip: HTMLElement, axis: Axis): AdwAdjustment {
     });
 }
 
-export class GtkViewport extends HTMLElement {
+export class GtkViewport extends WidgetElement {
     private _observer: ResizeObserver | null = null;
     private _watch: MutationObserver | null = null;
 

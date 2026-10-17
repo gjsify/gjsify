@@ -67,6 +67,7 @@ import { attachRovingFocus } from './roving-focus.js';
 // server-rendered box and collect its rows. See `adw-expander-row.ts` for why a combined
 // `import { GtkListBoxRow }` would not do it.
 import './gtk-list-box-row.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkListTabBehavior`'s nicks — `cell` behaves as `item` outside a cell-based box. */
 export type GtkListTabBehavior = 'all' | 'item' | 'cell';
@@ -78,7 +79,7 @@ export function normalizeListTabBehavior(raw: string | null | undefined): GtkLis
     return raw !== null && raw !== undefined && TAB_BEHAVIORS.has(raw) ? (raw as GtkListTabBehavior) : 'all';
 }
 
-export class GtkListBox extends HTMLElement {
+export class GtkListBox extends WidgetElement {
     private _rows: GtkListBoxRow[] = [];
     private _selection: number[] = [];
     /** `box->selected_row`, `-1` for the C's NULL. */

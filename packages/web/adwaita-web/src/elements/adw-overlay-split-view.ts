@@ -28,6 +28,7 @@ import {
 import { bindBreakpointSetter } from '../breakpoints.js';
 import type { DispatchedSignals } from '../signals.js';
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * The reveal spring, as a CSS-timed animator: libadwaita animates with a spring
@@ -80,7 +81,7 @@ function readTriStateAttr(element: Element, name: string, fallback: boolean): bo
     return raw !== 'false' && raw !== '0';
 }
 
-export class AdwOverlaySplitView extends HTMLElement {
+export class AdwOverlaySplitView extends WidgetElement {
     /** The GTK signals this element dispatches, which is what a `.blp` `bind` of `show-sidebar` follows. */
     static readonly signals: DispatchedSignals = { 'notify::show-sidebar': 'notify::show-sidebar' };
 

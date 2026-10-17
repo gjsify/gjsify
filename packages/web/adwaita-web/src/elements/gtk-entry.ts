@@ -23,8 +23,9 @@
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 
 import type { DispatchedSignals } from '../signals.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkEntry extends HTMLElement {
+export class GtkEntry extends WidgetElement {
     /**
      * `protected`, not `private`: `GtkPasswordEntry` and `GtkSearchEntry` subclass this
      * element and restyle or wrap the very input it builds (the password field's Caps Lock

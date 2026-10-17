@@ -48,11 +48,12 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The edges `gtk_overlay_child_update_style_classes` can pin a child to. */
 const EDGES = ['left', 'right', 'top', 'bottom'] as const;
 
-export class GtkOverlay extends HTMLElement {
+export class GtkOverlay extends WidgetElement {
     private _childEl!: HTMLDivElement;
     private _layerEl!: HTMLDivElement;
     private _initialized = false;

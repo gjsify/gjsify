@@ -37,6 +37,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_linked.scss:6 (`colorbutton > button`)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /** A `GdkRGBA` — the four channels of `GtkColorDialogButton:rgba`, each 0…1. */
 export interface GdkRgbaValue {
@@ -62,7 +63,7 @@ export interface ColorDialogParameters {
 /** `gtk_color_dialog_button_init`'s own colour: `{ 0.75, 0.25, 0.25, 1.0 }` (:170). */
 const INITIAL_RGBA: GdkRgbaValue = { red: 0.75, green: 0.25, blue: 0.25, alpha: 1 };
 
-export class GtkColorDialogButton extends HTMLElement {
+export class GtkColorDialogButton extends WidgetElement {
     private _buttonEl!: HTMLButtonElement;
     private _swatchEl!: HTMLSpanElement;
     private _inputEl!: HTMLInputElement;

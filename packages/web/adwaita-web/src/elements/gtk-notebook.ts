@@ -70,6 +70,7 @@
 // Reference: refs/gtk/gtk/gtknotebook.c
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkPositionType`, spelled as the GIR's enum nicks. `top` is the property default. */
 export type NotebookTabPos = 'top' | 'bottom' | 'left' | 'right';
@@ -99,7 +100,7 @@ export interface NotebookPageInfo {
     child: HTMLElement;
 }
 
-export class GtkNotebook extends HTMLElement {
+export class GtkNotebook extends WidgetElement {
     private _current: HTMLElement | null = null;
     private _initialized = false;
     private _initializedChildren = new WeakSet<HTMLElement>();

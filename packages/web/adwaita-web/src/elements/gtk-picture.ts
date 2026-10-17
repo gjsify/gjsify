@@ -62,6 +62,7 @@
 //   `gtk_picture_set_content_fit` :1092-1131)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkContentFit`, in enum order — the four nicks the GIR and CSS share. */
 export const PICTURE_CONTENT_FIT_MODES = ['fill', 'contain', 'cover', 'scale-down'] as const;
@@ -82,7 +83,7 @@ export function normalizePictureContentFit(value: unknown): PictureContentFit {
         : DEFAULT_PICTURE_CONTENT_FIT;
 }
 
-export class GtkPicture extends HTMLElement {
+export class GtkPicture extends WidgetElement {
     private _initialized = false;
 
     static get observedAttributes() {

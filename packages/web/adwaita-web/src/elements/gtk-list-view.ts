@@ -68,6 +68,7 @@ import { bindSlottedChildren } from '../slotted-children.js';
 import { stringListSlot } from '../string-list-slot.js';
 
 import { attachRovingFocus } from './roving-focus.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** `GtkListTabBehavior`'s nicks — `cell` behaves as `item` outside a cell-based view. */
 export type GtkListTabBehavior = 'all' | 'item' | 'cell';
@@ -79,7 +80,7 @@ export function normalizeListTabBehavior(raw: string | null | undefined): GtkLis
     return raw !== null && raw !== undefined && TAB_BEHAVIORS.has(raw) ? (raw as GtkListTabBehavior) : 'all';
 }
 
-export class GtkListView extends HTMLElement {
+export class GtkListView extends WidgetElement {
     protected _listEl!: HTMLDivElement;
     protected _rows: HTMLElement[] = [];
     /** The model + selection machine all three views share (ADR 0004, ADR 0089). */

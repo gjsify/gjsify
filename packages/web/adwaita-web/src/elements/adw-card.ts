@@ -5,8 +5,9 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_card.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwCard extends HTMLElement {
+export class AdwCard extends WidgetElement {
     connectedCallback() {
         this.classList.add('adw-card');
     }

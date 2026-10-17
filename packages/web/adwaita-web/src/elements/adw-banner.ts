@@ -21,8 +21,9 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { renderPangoMarkup } from '../pango-markup.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwBanner extends HTMLElement {
+export class AdwBanner extends WidgetElement {
     private _titleEl!: HTMLSpanElement;
     private _button!: HTMLButtonElement;
     private _initialized = false;

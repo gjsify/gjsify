@@ -17,8 +17,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { normalizeBoxOrientation, type BoxOrientation } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
-export class GtkSeparator extends HTMLElement {
+export class GtkSeparator extends WidgetElement {
     static get observedAttributes() {
         return ['orientation'];
     }

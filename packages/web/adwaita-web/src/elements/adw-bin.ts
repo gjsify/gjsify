@@ -31,8 +31,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwBin extends HTMLElement {
+export class AdwBin extends WidgetElement {
     private _observer: MutationObserver | null = null;
 
     /** `Adw.Bin:child` — the one child, or `null`. The last one appended is the one that stays. */

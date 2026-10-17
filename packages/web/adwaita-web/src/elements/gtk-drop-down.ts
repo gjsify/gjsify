@@ -75,6 +75,7 @@ import type { DispatchedSignals } from '../signals.js';
 import { stringListSlot } from '../string-list-slot.js';
 
 import { createGtkImage } from './gtk-image.js';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * A dropdown option — `value` is the stable id, `label` the shown text. An alias of
@@ -83,7 +84,7 @@ import { createGtkImage } from './gtk-image.js';
  */
 export type GtkDropDownOption = AdwComboOption;
 
-export class GtkDropDown extends HTMLElement {
+export class GtkDropDown extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = {
         'notify::selected': 'notify::selected',

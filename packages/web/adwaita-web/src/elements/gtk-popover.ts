@@ -83,6 +83,7 @@
 import { PopoverState, resolvePopoverKey } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Which side of the anchor the surface sits on. */
 export type GtkPopoverPosition = 'bottom' | 'top' | 'start' | 'end';
@@ -109,7 +110,7 @@ const ROLES: readonly GtkPopoverRole[] = [...LIST_ROLES, 'dialog'];
 /** The row selector keyboard navigation walks. */
 const ITEM_SELECTOR = '.adw-popover-item';
 
-export class GtkPopover extends HTMLElement {
+export class GtkPopover extends WidgetElement {
     private readonly _state = new PopoverState();
     private _anchor: HTMLElement | null = null;
     private _initialized = false;

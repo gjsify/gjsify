@@ -58,6 +58,7 @@
 // Reference: refs/gtk/gtk/gtkglarea.c
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /** `GdkGLAPI`'s nicks, as `GdkGLAPINickSet` spells them. */
 const APIS = ['gl', 'gles'] as const;
@@ -85,7 +86,7 @@ function booleanAttribute(element: HTMLElement, name: string, fallback: boolean)
     return raw !== 'false' && raw !== '0';
 }
 
-export class GtkGLArea extends HTMLElement {
+export class GtkGLArea extends WidgetElement {
     private _canvas!: HTMLCanvasElement;
     private _messageEl: HTMLDivElement | null = null;
     private _initialized = false;

@@ -42,8 +42,9 @@ import { applyRowLineClamp, parseRowLinesAttribute } from '../row-line-clamp.js'
 import './gtk-switch.js';
 import { attachRowActivation } from './row-activation.js';
 import type { GtkSwitch } from './gtk-switch.js';
+import { TooltipElement } from '../widget-element.js';
 
-export class AdwSwitchRow extends HTMLElement {
+export class AdwSwitchRow extends TooltipElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = { 'notify::active': 'notify::active' };
 

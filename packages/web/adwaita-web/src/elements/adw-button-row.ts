@@ -27,8 +27,9 @@ import { BUTTON_ROW_ACTIVATABLE, ButtonRowState } from '@gjsify/adwaita-core';
 import { applyRowTooltip } from '../row-tooltip.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRowActivation } from './row-activation.js';
+import { TooltipElement } from '../widget-element.js';
 
-export class AdwButtonRow extends HTMLElement {
+export class AdwButtonRow extends TooltipElement {
     private _contentsEl!: HTMLDivElement;
     private _startIconEl!: GtkImage;
     private _endIconEl!: GtkImage;

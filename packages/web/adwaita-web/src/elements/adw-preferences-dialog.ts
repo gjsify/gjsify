@@ -52,6 +52,7 @@ import type { PreferencesSearchResult, SearchPreferencesOptions } from '@gjsify/
 import { searchPreferencesDom } from '../preferences-search.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
+import { WidgetElement } from '../widget-element.js';
 
 const DEFAULT_CONTENT_WIDTH = 640;
 
@@ -63,7 +64,7 @@ const DEFAULT_CONTENT_WIDTH = 640;
  * / name / use-underline / visible onto the view-stack page, and
  * `create_search_row_subtitle` needs the title back the moment a second page is visible.
  */
-export class AdwPreferencesPage extends HTMLElement {
+export class AdwPreferencesPage extends WidgetElement {
     static get observedAttributes() {
         return ['title', 'icon-name', 'name', 'use-underline', 'open'];
     }
@@ -100,7 +101,7 @@ export class AdwPreferencesPage extends HTMLElement {
     }
 }
 
-export class AdwPreferencesDialog extends HTMLElement {
+export class AdwPreferencesDialog extends WidgetElement {
     private _initialized = false;
     private _scrimEl!: HTMLDivElement;
     private _dialogEl!: HTMLDivElement;

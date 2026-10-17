@@ -25,6 +25,7 @@ import type { AdwViewStack } from './adw-view-stack.js';
 import { applyDescription, applyIndicator, applySwitcherIcon } from './view-switcher-dom.js';
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The DOM nodes one bar button owns — the bar paints the derived model onto them. */
 interface BarButtonNodes {
@@ -34,7 +35,7 @@ interface BarButtonNodes {
     indicator: HTMLSpanElement;
 }
 
-export class AdwViewSwitcherBar extends HTMLElement {
+export class AdwViewSwitcherBar extends WidgetElement {
     private readonly _barState = new ViewSwitcherBarState();
     private _barEl!: HTMLDivElement;
     private _nodes: BarButtonNodes[] = [];

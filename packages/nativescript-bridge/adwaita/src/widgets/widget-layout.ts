@@ -288,6 +288,8 @@ export interface GtkWidgetLayout {
     name: string;
     /** `GtkWidget:tooltip-text` — the accessibility hint, plus a native long-press tooltip on Android. */
     tooltipText: string;
+    /** `GtkWidget:tooltip-text` under its GObject spelling — the same value as `tooltipText`. */
+    tooltip_text: string;
     /** `GtkWidget:width-request` — `minWidth`; `-1` is unset. */
     widthRequest: number;
     /** `GtkWidget:height-request` — `minHeight`; `-1` is unset. */
@@ -324,6 +326,8 @@ export declare abstract class GtkWidgetLayoutMembers {
     set name(value: string | null);
     get tooltipText(): string;
     set tooltipText(value: string);
+    get tooltip_text(): string;
+    set tooltip_text(value: string);
     get widthRequest(): number;
     set widthRequest(value: number | string);
     get heightRequest(): number;
@@ -332,6 +336,10 @@ export declare abstract class GtkWidgetLayoutMembers {
     get_visible(): boolean;
     /** `gtk_widget_set_visible`: the `visible` property. */
     set_visible(visible: boolean): void;
+    /** `gtk_widget_get_tooltip_text`: the `tooltipText` property. */
+    get_tooltip_text(): string;
+    /** `gtk_widget_set_tooltip_text`: the `tooltipText` property. */
+    set_tooltip_text(text: string): void;
     /** `gtk_widget_set_direction`: written to the CSS `direction` a view resolves its margins by; NONE clears it. */
     set_direction(direction: number): void;
     /** `gtk_widget_get_direction`: LTR until set. */
@@ -549,6 +557,24 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
             TOOLTIPS.set(this, next);
             view.accessibilityHint = next;
             applyNativeTooltip(this, next);
+        }
+
+        get tooltip_text(): string {
+            return this.tooltipText;
+        }
+
+        set tooltip_text(value: string) {
+            this.tooltipText = value;
+        }
+
+        /** `gtk_widget_get_tooltip_text`. */
+        get_tooltip_text(): string {
+            return this.tooltipText;
+        }
+
+        /** `gtk_widget_set_tooltip_text`. */
+        set_tooltip_text(text: string): void {
+            this.tooltipText = text;
         }
 
         get widthRequest(): number {

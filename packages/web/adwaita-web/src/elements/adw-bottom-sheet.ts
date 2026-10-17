@@ -66,17 +66,18 @@ import type {
 import { bindSlottedChildren, type AdwSlot } from '../slotted-children.js';
 import { installElementApi } from '../gobject-elements.js';
 import type { DispatchedSignals } from '../signals.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** The persistent content. Child of <adw-bottom-sheet>; consumed at connect time. */
-export class AdwBottomSheetContent extends HTMLElement {}
+export class AdwBottomSheetContent extends WidgetElement {}
 
 /** The slide-up sheet. Child of <adw-bottom-sheet>; consumed at connect time. */
-export class AdwBottomSheetSheet extends HTMLElement {}
+export class AdwBottomSheetSheet extends WidgetElement {}
 
 /** The collapsed bar the sheet morphs out of. Child of <adw-bottom-sheet>. */
-export class AdwBottomSheetBottomBar extends HTMLElement {}
+export class AdwBottomSheetBottomBar extends WidgetElement {}
 
-export class AdwBottomSheet extends HTMLElement {
+export class AdwBottomSheet extends WidgetElement {
     /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
     static readonly signals: DispatchedSignals = { 'notify::open': 'notify::open' };
 

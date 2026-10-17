@@ -22,8 +22,9 @@
 // title/subtitle state composed from @gjsify/adwaita-core.
 
 import { WindowTitleState } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
-export class AdwWindowTitle extends HTMLElement {
+export class AdwWindowTitle extends WidgetElement {
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless title/subtitle pair + change detection (ADR 0004). */

@@ -36,6 +36,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_shortcuts-dialog.scss:16-27
 // Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1+
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * `AdwShortcutsItem:direction` is a `GtkTextDirection`, so it carries `none` beside the
@@ -48,7 +49,7 @@ export type AdwShortcutsItemDirection = 'ltr' | 'rtl' | 'none';
 
 const DIRECTIONS: readonly AdwShortcutsItemDirection[] = ['ltr', 'rtl', 'none'];
 
-export class AdwShortcutsItem extends HTMLElement {
+export class AdwShortcutsItem extends WidgetElement {
     private _initialized = false;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;

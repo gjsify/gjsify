@@ -53,6 +53,7 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import { glibClamp } from '@gjsify/adwaita-core';
+import { WidgetElement } from '../widget-element.js';
 
 /**
  * `GtkDrawingAreaDrawFunc` with the `user_data` / `destroy` pair dropped — see the header.
@@ -78,7 +79,7 @@ function intAttribute(element: HTMLElement, name: string): number {
     return Number.isFinite(raw) ? raw : 0;
 }
 
-export class GtkDrawingArea extends HTMLElement {
+export class GtkDrawingArea extends WidgetElement {
     private _canvas!: HTMLCanvasElement;
     private _context: CanvasRenderingContext2D | null = null;
     private _initialized = false;

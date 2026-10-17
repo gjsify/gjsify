@@ -36,13 +36,14 @@ import { adwaitaEditorTheme, adwaitaHighlightStyle, ensureSourceViewStyleInjecte
 import { formatHexAddress, formatLineNumber, stripSourceWhitespace } from '@gjsify/adwaita-core';
 import { createGtkImage } from '../elements/gtk-image.js';
 import { createCopyGlyph } from './copy-glyph.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Parse a boolean attribute: present (any value but "false") ⇒ true. */
 function boolAttr(value: string | null): boolean {
     return value !== null && value !== 'false';
 }
 
-export class AdwSourceView extends HTMLElement {
+export class AdwSourceView extends WidgetElement {
     private _view?: EditorView;
     private _editorHost!: HTMLDivElement;
     private _copyButton!: HTMLButtonElement;

@@ -60,6 +60,7 @@
 import { easeOutCubic } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
+import { WidgetElement } from '../widget-element.js';
 
 /** Every `GtkRevealerTransitionType` nick, in GIR order. */
 const TRANSITION_TYPES = [
@@ -116,7 +117,7 @@ const RTL_FLIP: Partial<Record<RevealerTransitionType, RevealerTransitionType>> 
     'fade-slide-right': 'fade-slide-left',
 };
 
-export class GtkRevealer extends HTMLElement {
+export class GtkRevealer extends WidgetElement {
     private _clipEl!: HTMLDivElement;
     private _initialized = false;
     /** `current_pos` — 0 hidden, 1 shown. */
