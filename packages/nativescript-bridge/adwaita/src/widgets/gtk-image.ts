@@ -20,7 +20,9 @@
 // {@link iconName} takes an Adwaita icon NAME (`'list-add-symbolic'`, resolved through
 // `icon-theme.ts`' compiled subset) or an Adwaita symbolic SVG SOURCE string (e.g.
 // `panDownSymbolic` from `@gjsify/adwaita-icons`). Both doors, one property — the two
-// grammars are disjoint, and `resolveIconSource` is where that is decided.
+// grammars are disjoint, and `resolveIconSource` is where that is decided. A name also reaches
+// the files under the `Gtk.IconTheme` resource paths (ADR 0116 § 4), which `icon-render.ts`
+// draws: a symbolic SVG recoloured like a compiled glyph, a PNG as it is.
 //
 // SIZE IS TWO PROPERTIES, because it is two on `Gtk.Image` (#1584): {@link iconSize} is
 // the three-member `Gtk.IconSize` enum and {@link pixelSize} is the count of DIPs, with
@@ -34,7 +36,7 @@
 import { Image } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
-import { resolveIconSource } from './icon-theme.js';
+import { drawIcon, onIconsChanged } from './icon-render.js';
 import {
     DEFAULT_ICON_PIXEL_SIZE,
     type GtkIconSizeNick,
@@ -43,7 +45,6 @@ import {
     PIXEL_SIZE_UNSET,
     storedPixelSize,
 } from './gtk-icon-size.js';
-import { renderSymbolicIcon } from './icons.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -77,6 +78,7 @@ export class GtkImage extends withSignals(Image) {
     private _iconSize: GtkIconSizeNick = 'inherit';
     private _pixelSize = PIXEL_SIZE_UNSET;
     private _unsubScheme: (() => void) | null = null;
+    private _unsubIcons: (() => void) | null = null;
 
     constructor(props?: ConstructProps<GtkImage>) {
         super();
@@ -97,10 +99,14 @@ export class GtkImage extends withSignals(Image) {
         this.addEventListener('loaded', () => {
             this._syncThemeColor();
             this._unsubScheme ??= onAdwaitaColorSchemeChanged(() => this._syncThemeColor());
+            // A resource path an application adds changes what a name draws (ADR 0116 § 4).
+            this._unsubIcons ??= onIconsChanged(() => this._render());
         });
         this.addEventListener('unloaded', () => {
             this._unsubScheme?.();
             this._unsubScheme = null;
+            this._unsubIcons?.();
+            this._unsubIcons = null;
         });
 
         applyConstructProps(this, props);
@@ -129,16 +135,14 @@ export class GtkImage extends withSignals(Image) {
     }
 
     private _render(): void {
-        const svg = resolveIconSource(this._icon);
-        if (!svg) return;
-        const source = renderSymbolicIcon(svg, { size: this._renderedSize, color: this._iconColor });
-        if (source) this.imageSource = source;
+        drawIcon(this, this._icon, this._renderedSize, this._iconColor);
     }
 
     /**
      * The icon to render: an Adwaita icon NAME (`'list-add-symbolic'`) or an Adwaita
      * symbolic SVG SOURCE string (e.g. `panDownSymbolic`). A name the compiled subset
-     * does not carry draws the `image-missing` glyph; `''` draws nothing.
+     * does not carry, and no resource path holds, draws the `image-missing` glyph; `''` draws
+     * nothing.
      */
     get iconName(): string {
         return this._icon;

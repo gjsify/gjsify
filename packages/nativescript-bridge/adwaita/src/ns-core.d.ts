@@ -513,6 +513,8 @@ declare module '@nativescript/core' {
         constructor(nativeSource?: unknown);
         readonly width: number;
         readonly height: number;
+        /** Decode a base64 PNG/JPEG. */
+        static fromBase64Sync(source: string): ImageSource;
     }
 
     /** An image view — `<Image>`. */
@@ -523,6 +525,8 @@ declare module '@nativescript/core' {
         imageSource: ImageSource | undefined;
         /** Stretch mode (`'none' | 'aspectFill' | 'aspectFit' | 'fill'`). */
         stretch: string;
+        /** Recolours every opaque pixel (hex string or `Color`); `undefined` draws the image as it is. */
+        tintColor: string | undefined;
     }
 
     /** A connected display. */

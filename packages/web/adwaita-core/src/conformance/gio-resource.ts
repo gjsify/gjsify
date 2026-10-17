@@ -109,9 +109,9 @@ function registered<T>(subject: GioResourceSubject, resources: GioResourceLike[]
 }
 
 /**
- * The web port drives these through its `Gio` door (`adwaita-web/src/gio-resource.spec.ts`);
- * real `gi://Gio` under GJS is the oracle (`gio-resource.gjs.spec.ts`). NativeScript does not
- * expose the subset yet — the second half of ADR 0116 step 3 (#2239).
+ * Both ports drive these through their `Gio` door (`adwaita-web/src/gio-resource.spec.ts`,
+ * `adwaita-nativescript/src/gio-resource.spec.ts`); real `gi://Gio` under GJS is the oracle
+ * (`gio-resource.gjs.spec.ts`).
  */
 export const GIO_RESOURCE_VECTORS: readonly GioResourceVector[] = [
     {

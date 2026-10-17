@@ -52,10 +52,29 @@
 // construction — an icon NAME is one CSS token (`normalizeIconName`), an SVG document
 // starts with `<`. Nothing guesses.
 //
+// RESOURCE PATHS (ADR 0116 § 4). A name also goes through the `Gtk.IconTheme` resource paths an
+// application added (`GtkApplication` adds `<resource-base-path>/icons/` at startup);
+// `@gjsify/adwaita-core`'s `lookupResourceIcon` decides which file answers, as gtkicontheme.c
+// does, and asks this module only whether the current theme — the registrations and the
+// compiled subset — holds a symbolic glyph. {@link resolveIconDrawing} is that lookup. A
+// symbolic SVG file draws through the same rasteriser as a compiled glyph, a PNG decodes as it is
+// (a `.symbolic.png` tinted in the icon colour). NativeScript decodes no SVG, so a COLOUR SVG, an
+// XPM or a compressed entry draws `image-missing` with a warning.
+//
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+ — the icon SVGs.
 // Original implementation.
 
-import { normalizeIconName } from '@gjsify/adwaita-core';
+import {
+    iconLookupNames,
+    lookupResourceIcon,
+    normalizeIconName,
+    resources_lookup_data,
+    type IconDirection,
+    type IconTheme,
+    type ResourceIconMatch,
+} from '@gjsify/adwaita-core';
+
+import { fitIconToGrid } from './icon-path.js';
 
 import {
     contactNewSymbolic,
@@ -283,4 +302,132 @@ export function resolveIconSource(value: string | null | undefined): string {
             return registered.get(name) ?? COMPILED_ICONS[name] ?? imageMissingSymbolic;
         }
     }
+}
+
+/** What an icon value draws as on this port. */
+export type IconDrawing =
+    /** An SVG document for `renderSymbolicIcon`, recoloured in the icon colour. */
+    | { readonly kind: 'svg'; readonly svg: string }
+    /** A PNG file as base64, for `ImageSource.fromBase64Sync`; a `symbolic` one is tinted. */
+    | { readonly kind: 'png'; readonly base64: string; readonly symbolic: boolean };
+
+/** What an image hands its theme besides the name. */
+export interface IconRequest {
+    /** In DIPs. */
+    readonly size: number;
+    /** The device scale; 1 when absent. */
+    readonly scale?: number;
+    readonly direction?: IconDirection;
+}
+
+const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function toBase64(data: Uint8Array): string {
+    let out = '';
+    for (let i = 0; i < data.length; i += 3) {
+        const [a, b = 0, c = 0] = [data[i] as number, data[i + 1], data[i + 2]];
+        const n = (a << 16) | (b << 8) | c;
+        out += BASE64[n >> 18] + BASE64[(n >> 12) & 63];
+        out += i + 1 < data.length ? BASE64[(n >> 6) & 63] : '=';
+        out += i + 2 < data.length ? BASE64[n & 63] : '=';
+    }
+    return out;
+}
+
+/** Drawings of resource files by path, per theme, for the current scan; and who redraws. */
+const themes = new WeakMap<IconTheme, { drawings: Map<string, IconDrawing>; listeners: Set<() => void> }>();
+
+function stateOf(theme: IconTheme) {
+    let state = themes.get(theme);
+    if (state === undefined) {
+        const created = { drawings: new Map<string, IconDrawing>(), listeners: new Set<() => void>() };
+        // One handler per theme, so the drawings are dropped before any image redraws.
+        theme.connect('changed', () => {
+            created.drawings.clear();
+            for (const listener of Array.from(created.listeners)) listener();
+        });
+        themes.set(theme, created);
+        state = created;
+    }
+    return state;
+}
+
+/**
+ * Run `listener` after `theme`'s `changed` signal, once the cached resource drawings are gone —
+ * GTK's images redo their lookup then. Returns the unsubscribe function.
+ */
+export function onIconThemeChanged(theme: IconTheme, listener: () => void): () => void {
+    const { listeners } = stateOf(theme);
+    listeners.add(listener);
+    return () => {
+        listeners.delete(listener);
+    };
+}
+
+const MISSING: IconDrawing = { kind: 'svg', svg: imageMissingSymbolic };
+
+/** The file at `path` as a drawing, or `image-missing` (warned once per scan) when it cannot be. */
+function readResourceDrawing(path: string, symbolic: boolean): IconDrawing {
+    const suffix = path.slice(path.lastIndexOf('.'));
+    if (suffix === '.svg' && !symbolic) {
+        console.warn(
+            `Gtk.IconTheme: ${path} is a colour SVG; NativeScript decodes no SVG and draws one only as a ` +
+                'symbolic icon (ADR 0116 § 4).',
+        );
+        return MISSING;
+    }
+    if (suffix !== '.svg' && suffix !== '.png') {
+        console.warn(`Gtk.IconTheme: ${path} is not an SVG or a PNG, which is all NativeScript draws (ADR 0116 § 4).`);
+        return MISSING;
+    }
+    let data: Uint8Array;
+    try {
+        data = resources_lookup_data(path, 0).get_data();
+    } catch (error) {
+        console.warn(`Gtk.IconTheme: ${path} cannot be drawn: ${(error as Error).message}`);
+        return MISSING;
+    }
+    return suffix === '.svg'
+        ? { kind: 'svg', svg: fitIconToGrid(new TextDecoder().decode(data)) }
+        : { kind: 'png', base64: toBase64(data), symbolic };
+}
+
+/**
+ * Which file under `theme`'s resource paths answers the icon name `name`, or `'theme'`'s glyph
+ * when the current theme answers first; `null` when no resource takes part and the answer is
+ * {@link resolveIconSource}'s alone.
+ */
+export function lookupThemeIcon(theme: IconTheme, name: string, request: IconRequest): ResourceIconMatch | null {
+    return lookupResourceIcon(theme, {
+        names: iconLookupNames(name, request.direction ?? null),
+        size: request.size,
+        scale: request.scale ?? 1,
+        themeHas: (candidate) => isIconAvailable(candidate),
+    });
+}
+
+/**
+ * A caller's icon value as what it draws, with `theme`'s resource paths taking part in the
+ * lookup the way `gtk_icon_theme_lookup_by_gicon` has them take part for a `GtkImage`. `null` for
+ * `''`, as {@link resolveIconSource} answers `''`. Without a resource holding the name the answer
+ * is {@link resolveIconSource}'s.
+ */
+export function resolveIconDrawing(
+    theme: IconTheme,
+    value: string | null | undefined,
+    request: IconRequest,
+): IconDrawing | null {
+    const raw = value ?? '';
+    if (iconValueKind(raw) !== 'name') return raw === '' ? null : { kind: 'svg', svg: raw };
+    const match = lookupThemeIcon(theme, raw, request);
+    if (match === null || match.kind !== 'resource') {
+        return { kind: 'svg', svg: resolveIconSource(match === null ? raw : match.name) };
+    }
+    const { drawings } = stateOf(theme);
+    let drawing = drawings.get(match.path);
+    if (drawing === undefined) {
+        drawing = readResourceDrawing(match.path, match.symbolic);
+        drawings.set(match.path, drawing);
+    }
+    return drawing;
 }

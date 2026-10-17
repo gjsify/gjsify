@@ -104,6 +104,26 @@ platform loses its variant AGAIN** — the word is load-bearing: it has happened
 mode is silent, because the base `icons.ts` returns `null` and a widget with no icon looks like
 a widget whose caller passed none. iOS rasterising is UNVERIFIED ON DEVICE (#1051).
 
+## Icons from the app's GResource (ADR 0116 § 4)
+
+`Gtk.IconTheme` resource paths answer from the resources an app registered through `Gio`, and
+`Gtk.Application` adds `<resource-base-path>/icons/` at startup, as on the web. Which file answers
+is `lookupResourceIcon` in `@gjsify/adwaita-core`, shared with the web and held to vectors real
+GTK runs; the compiled subset and the registrations play the current theme. `GtkImage` and
+`AdwImageButton` draw the answer through `widgets/icon-render.ts`:
+
+| the file | draws as |
+|---|---|
+| `-symbolic.svg` | fitted to the 16 grid, then the rasteriser above, in the icon colour |
+| `.png` | the image as it is |
+| `.symbolic.png` | the image tinted in the icon colour (`Image.tintColor`) |
+| a colour `.svg`, an `.xpm`, a compressed entry | `image-missing` and a warning |
+
+NativeScript decodes no SVG, so a colour SVG has no renderer here. The rasteriser reads only
+`<path>` elements, so a symbolic file drawn with `<rect>` or `<circle>` draws nothing; and a
+tint is one colour, so a `.symbolic.png` loses GTK's success, warning and error colours. A theme
+`changed` drops the decoded files and every loaded image draws again.
+
 ## Still open
 
 - **The XML templates omit their icons.** Four entries in

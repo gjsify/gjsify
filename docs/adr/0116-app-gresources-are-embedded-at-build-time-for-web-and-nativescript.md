@@ -219,6 +219,9 @@ Names are the maintainer's call. These are proposals only.
 3. `Gtk.IconTheme` resource paths and the `GtkApplication` startup path on the web, then on
    NativeScript. Then `registerColorIcon` is removed and ADR 0115's specs move to a resource
    fixture.
+   Status: the web half landed in #2245; the NativeScript half (the `Gio` exports, the lookup,
+   the startup path and drawing PNG and symbolic files) followed. Still open: removing the
+   invented doors with Amendment 1, and moving ADR 0115's specs to a resource fixture.
 4. The other consumers in § 6, one PR each.
 
 ## Amendment 1 (2026-10-16): `registerColorIcon` ships in 0.64.1 and goes with the other doors
