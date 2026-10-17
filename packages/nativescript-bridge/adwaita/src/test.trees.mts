@@ -39,6 +39,7 @@ import { GtkWindowMembersNsTest } from './window-members.spec.js';
 import { GtkWidgetTreeNsTest } from './widget-tree.spec.js';
 import { AdwGtkValueDoorsNsTest } from './gtk-value-doors.spec.js';
 import { AdwRegisterBarrelNsTest } from './register-barrel.spec.js';
+import { AdwParamValuesNsTest } from './param-values.spec.js';
 import { AdwShadowedPropertiesNsTest } from './shadowed-properties.spec.js';
 import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
@@ -78,6 +79,7 @@ run({
     AdwValueListsNsTest,
     AdwBlueprintTreesNsTest,
     AdwBlueprintMarkupNsTest,
+    AdwParamValuesNsTest,
     AdwShadowedPropertiesNsTest,
     AdwGalleryBlueprintsNsTest,
     Canvas2DBridgeNsTest,
