@@ -95,6 +95,7 @@ import { GtkToggleButtonTest } from './gtk-toggle-button.spec.js';
 import { GtkExpanderTest } from './gtk-expander.spec.js';
 import { GtkOverlayTest } from './gtk-overlay.spec.js';
 import { ContainerFillTest } from './container-fill.spec.js';
+import { ComputeExpandTest } from './compute-expand.spec.js';
 import { GtkPanedTest } from './gtk-paned.spec.js';
 import { GtkRevealerTest } from './gtk-revealer.spec.js';
 import { GtkScaleTest } from './gtk-scale.spec.js';
@@ -244,6 +245,7 @@ run({
     GtkExpanderTest,
     GtkOverlayTest,
     ContainerFillTest,
+    ComputeExpandTest,
     GtkPanedTest,
     GtkRevealerTest,
     GtkScaleTest,

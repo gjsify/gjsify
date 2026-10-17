@@ -216,24 +216,24 @@ export const GtkScrolledWindowTest = async () => {
             await fill(el, 10);
             // No request is made until one of the two asks for it: GTK only measures the
             // child when `propagate-natural-*` or a NEVER policy does (gtkscrolledwindow.c:1841-1844).
-            expect(el.viewport.style.minHeight).toBe('');
+            expect(el.viewport.style.height).toBe('');
             // The NATURAL request is the child's `max-content` size, propagated up.
             el.setAttribute('propagate-natural-height', '');
             expect(el.propagateNaturalHeight).toBe(true);
-            expect(el.viewport.style.minHeight).toBe('max-content');
+            expect(el.viewport.style.height).toBe('max-content');
             // A NEVER policy adds the child's MINIMUM request instead — and the natural one
             // is the larger of the two, so it wins when both are asked for. Both are FALSE in
             // the pspec, so their ATTRIBUTE is their presence, as `has-frame` is.
             el.removeAttribute('propagate-natural-height');
             el.setAttribute('vscrollbar-policy', 'never');
-            expect(el.viewport.style.minHeight).toBe('min-content');
+            expect(el.viewport.style.height).toBe('min-content');
             // With both asked for on ONE axis the natural wins, and the other axis keeps
             // its own answer.
             el.setAttribute('propagate-natural-width', '');
-            expect(el.viewport.style.minWidth).toBe('max-content');
-            expect(el.viewport.style.minHeight).toBe('min-content');
+            expect(el.viewport.style.width).toBe('max-content');
+            expect(el.viewport.style.height).toBe('min-content');
             el.setAttribute('propagate-natural-height', '');
-            expect(el.viewport.style.minHeight).toBe('max-content');
+            expect(el.viewport.style.height).toBe('max-content');
             host.remove();
         });
     });

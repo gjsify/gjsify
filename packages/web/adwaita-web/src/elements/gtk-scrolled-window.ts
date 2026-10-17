@@ -148,7 +148,7 @@ const AXES = [
         bar: 'horizontal',
         policy: 'hscrollbar-policy',
         natural: 'propagate-natural-width',
-        cssMin: 'minWidth',
+        cssSize: 'width',
         end: 'left',
         farEnd: 'right',
     },
@@ -157,7 +157,7 @@ const AXES = [
         bar: 'vertical',
         policy: 'vscrollbar-policy',
         natural: 'propagate-natural-height',
-        cssMin: 'minHeight',
+        cssSize: 'height',
         end: 'top',
         farEnd: 'bottom',
     },
@@ -567,8 +567,10 @@ export class GtkScrolledWindow extends HTMLElement {
             // `gtk_scrolled_window_measure`'s request for the CHILD'S size, written on the
             // scrollport that has to ask its parent for it: `propagate-natural-*` is the
             // child's NATURAL size (`max-content`), a NEVER policy is its MINIMUM one
-            // (`min-content`), and the natural is the larger of the two.
-            this._viewport.style[axis.cssMin] = this.hasAttribute(axis.natural)
+            // (`min-content`), and the natural is the larger of the two. It is the SIZE, not
+            // the minimum: `_scrolled_window.scss` holds the scrollport at 0 by default and
+            // fills the cell through `min-*: 100%`, which a minimum here would overwrite.
+            this._viewport.style[axis.cssSize] = this.hasAttribute(axis.natural)
                 ? 'max-content'
                 : policy === 'never'
                   ? 'min-content'

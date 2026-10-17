@@ -71,6 +71,16 @@ adw-overlay-split-view {
     align-self: stretch;
   }
 
+  // Both panes are AdwBins in the C (`content_bin` / `sidebar_bin`,
+  // adw-overlay-split-view.c:1127-1138), allocated the pane's full height (:573-610,
+  // :654-690) — so the pane's widget fills it, as `_bin.scss` does for `<adw-bin>`.
+  .adw-osv-content,
+  .adw-osv-sidebar {
+    > :only-child {
+      flex: 1 1 auto;
+    }
+  }
+
   // Docked — the sidebar sits in the flex row and the hidden part is taken off
   // its own edge by a negative margin the element computes.
   &:not(.collapsed) .adw-osv-sidebar {
