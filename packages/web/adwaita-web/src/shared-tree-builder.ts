@@ -28,7 +28,7 @@
 // into a host `<div>` it was never given.
 //
 // Placed flat under `src/`, at parity with this package's other single-purpose modules
-// (`accent.ts`, `breakpoints.ts`, `icon-registry.ts`) rather than a new `conformance/` or
+// (`accent.ts`, `breakpoints.ts`, `icon-theme.ts`) rather than a new `conformance/` or
 // `builder/` directory for one file: unlike `gtk-host`, this package has no existing
 // `conformance/` home to add to. Exported through the existing barrel, `src/index.ts` — the
 // package's `exports` map ships only `.`, and a new subpath would buy nothing for a module

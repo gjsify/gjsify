@@ -20,7 +20,7 @@ import {
 import { ADW_MENU_SURFACE_WEB, flattenMenu, menuRefusals } from '@gjsify/adwaita-core';
 import type { SplitButtonProperty } from '@gjsify/adwaita-core';
 import type { AdwSplitButton } from './elements/adw-split-button.js';
-import { fallbackMask, maskOf } from './icon-registry.spec.js';
+import { fallbackMask, maskOf } from './icon-masks.spec.js';
 
 /** The GObject properties the element re-emits as `notify::*` CustomEvents. */
 const NOTIFY_PROPERTIES: readonly SplitButtonProperty[] = [

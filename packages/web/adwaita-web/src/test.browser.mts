@@ -65,7 +65,7 @@ import { PangoMarkupTest } from './pango-markup.spec.js';
 import { CopyGlyphTest } from './source-view/copy-glyph.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { GtkImageTest } from './gtk-image.spec.js';
-import { AdwIconRegistryTest } from './icon-registry.spec.js';
+import { AdwIconMasksTest } from './icon-masks.spec.js';
 import { AdwIconThemeTest } from './icon-theme.spec.js';
 import { GioResourceTest } from './gio-resource.spec.js';
 import { GtkSwitchTest } from './gtk-switch.spec.js';
@@ -210,7 +210,7 @@ run({
     CopyGlyphTest,
     AdwButtonContentTest,
     GtkImageTest,
-    AdwIconRegistryTest,
+    AdwIconMasksTest,
     AdwIconThemeTest,
     GioResourceTest,
     GtkSwitchTest,

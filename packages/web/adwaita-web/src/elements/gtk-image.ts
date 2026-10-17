@@ -1,15 +1,15 @@
 // <gtk-image> — the icon node as an element. A symbolic icon is a CSS-masked box whose
 // glyph comes from a generated `.adw-icon--<name>` class and whose colour is
-// `currentColor`, so it themes with whatever contains it. A full-colour icon registered
-// through `registerColorIcon` is the same box with the image as its background and no
+// `currentColor`, so it themes with whatever contains it. A full-colour icon from a
+// `Gtk.IconTheme` resource path is the same box with the image as its background and no
 // mask. Which of the two a name reaches is decided once, in `../icon-theme.ts`, in the
 // order GTK's own theme tries them; the symbolic name derivation and its guard live once
 // in `@gjsify/adwaita-core`'s {@link normalizeIconName}, the markup once here.
 //
 // Attributes:
 //   icon-name — icon name, `-symbolic` suffix optional. A name that is neither a
-//               registered colour icon nor a single CSS token (a space, a quote, an
-//               unregistered reverse-DNS application id) never reaches a class — it
+//               resource file nor a single CSS token (a space, a quote, a reverse-DNS
+//               application id no resource ships) never reaches a class — it
 //               draws {@link MISSING_ICON_NAME}, which is what GTK draws for it, rather
 //               than injecting markup.
 //   size      — rendered edge length in px. Absent leaves the stylesheet's 16px in
@@ -44,9 +44,7 @@ function cssUrl(url: string): string {
 }
 
 /**
- * The generated mask-class prefix — the one place the `--` spelling appears. `icon-registry`
- * builds the same class for a runtime registration and imports it from here rather than
- * spelling it twice.
+ * The generated mask-class prefix — the one place the `--` spelling appears.
  */
 export const MASK_CLASS_PREFIX = 'adw-icon--';
 
@@ -81,8 +79,8 @@ export class GtkImage extends WidgetElement {
 
     /**
      * The name the SYMBOLIC lookup works with — `''` when the icon-name is absent, empty,
-     * or not usable as one CSS token. A registered colour icon can still draw for a name
-     * that answers `''` here (`org.gnome.Builder`); whether a name draws anything but
+     * or not usable as one CSS token. A resource file can still draw for a name that
+     * answers `''` here (`org.gnome.Builder`); whether a name draws anything but
      * `image-missing` is `isIconAvailable`'s question.
      *
      * `''` does NOT mean the box draws nothing: an unusable name that was given still
@@ -153,13 +151,13 @@ export class GtkImage extends WidgetElement {
         const looked = lookupIcon(this.getAttribute('icon-name'), this._request());
         // A resource file the browser cannot draw (XPM, compressed) is GTK's `image-missing`.
         const found = looked?.kind === 'resource' && looked.url === null ? ({ kind: 'missing' } as const) : looked;
-        const asIs = found?.kind === 'color' || (found?.kind === 'resource' && !found.symbolic) ? found.url : null;
+        const asIs = found?.kind === 'resource' && !found.symbolic ? found.url : null;
         const mask = found?.kind === 'resource' && found.symbolic ? found.url : null;
         this.classList.toggle(COLOR_ICON_CLASS, asIs !== null);
         if (asIs !== null) {
             // Drawn as-is: `_icon.scss` drops the mask and the `currentColor` fill for this
-            // modifier, so only the image paints. `url` is a data-URI, a blob or a resolved href;
-            // the quote and backslash escapes keep it one CSS string either way.
+            // modifier, so only the image paints. `url` is a blob URL; the quote and backslash
+            // escapes keep it one CSS string.
             this.style.backgroundImage = cssUrl(asIs);
         } else {
             this.style.removeProperty('background-image');
@@ -178,8 +176,8 @@ export class GtkImage extends WidgetElement {
         if (found?.kind === 'symbolic') {
             this.classList.add(`${MASK_CLASS_PREFIX}${found.name}`);
         } else if (found?.kind === 'missing') {
-            // A name was GIVEN and nothing answers it — not a colour icon, and not one CSS
-            // token (a space, a quote, an unregistered reverse-DNS application id). GTK has
+            // A name was GIVEN and nothing answers it — no resource file, and not one CSS
+            // token (a space, a quote, a reverse-DNS application id no resource ships). GTK has
             // no such state: `gtk_icon_theme_lookup_icon` never returns NULL, it returns the
             // always-available `image-missing` (refs/gtk/gtk/gtkicontheme.c —
             // `gtk_icon_paintable_get_icon_name`'s own docs say so). So the same glyph is
