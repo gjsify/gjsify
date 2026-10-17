@@ -253,6 +253,19 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 });
 
+describe('@gjsify/nativescript-vite nativescriptSingleChunk', () => {
+    it('puts no module in a chunk of its own, so the engine opt-in of the app runs before the port', async () => {
+        const { nativescriptSingleChunk } = await import(LIB_URL);
+        const fn = nativescriptSingleChunk().build.rolldownOptions.output.manualChunks;
+        assert.equal(typeof fn, 'function', 'manualChunks must be a function');
+        // The regression: upstream routes node_modules into vendor.mjs, which evaluates before
+        // any app module — the port then reads the empty engine slot and the app dies at launch.
+        for (const id of ['/p/node_modules/@gjsify/adwaita-nativescript/lib/index.js', '/p/app/engine.ts']) {
+            assert.equal(fn(id), undefined, `${id} must stay in the entry chunk`);
+        }
+    });
+});
+
 describe('@gjsify/nativescript-vite nativescriptSbgBundleSyncFix', () => {
     let nativescriptSbgBundleSyncFix;
 

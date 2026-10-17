@@ -107,7 +107,10 @@ export function defineNativescriptConfig(
         // Stabilise the build output so repeated `ns prepare`/`ns build` runs do
         // not accumulate stale, hashed chunk files the Android SBG then sees as a
         // duplicate native `extends` (see {@link nativescriptSbgBundleSyncFix}).
-        const withSbgFix = mergeConfig(withTransforms, nativescriptSbgBundleSyncFix());
+        const withSbgFix = mergeConfig(
+            mergeConfig(withTransforms, nativescriptSbgBundleSyncFix()),
+            nativescriptSingleChunk(),
+        );
         // Keep the strings and decorators NativeScript's static binding generator reads
         // (see {@link nativescriptReleaseMinify}); a consumer's own `build.minify` wins below.
         const withMinify = mergeConfig(withSbgFix, nativescriptReleaseMinify(withSbgFix));
@@ -157,6 +160,32 @@ export function nativescriptSbgBundleSyncFix(): UserConfig {
                         if (chunk.name && chunk.name.includes('worker')) return '[name].js';
                         return '[name].mjs';
                     },
+                },
+            },
+        },
+    };
+}
+
+/**
+ * Keep the whole app in the entry chunk, so plain ESM evaluation order decides what runs first.
+ *
+ * `@nativescript/vite` moves every `node_modules` module except `@nativescript/core` into
+ * `vendor.mjs`, which `bundle.mjs` imports as its first statement — so ALL of vendor evaluates
+ * before ANY app module. Since ADR 0110 an Android app MUST pick its GObject engine
+ * (`useRealGObjectEngine` / `usePureJsGObjectEngine`) in its own module before
+ * `@gjsify/adwaita-nativescript` loads; with the split, the port (vendor) reads the empty slot
+ * before the app's opt-in (bundle) can run, and the app dies at launch with "No GObject engine was
+ * registered". No import order inside the app can fix that, so the default must. Measured in
+ * `tests/integration/nativescript-gi` on 2026-10-11 and in Learn6502 on 2026-10-17.
+ *
+ * Merged under the user's config: an app that wants the split back sets its own `manualChunks`.
+ */
+export function nativescriptSingleChunk(): UserConfig {
+    return {
+        build: {
+            rolldownOptions: {
+                output: {
+                    manualChunks: (): undefined => undefined,
                 },
             },
         },

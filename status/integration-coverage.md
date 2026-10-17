@@ -258,7 +258,8 @@ the phone. **41/41 green with the opt-in** (SM-G960F, arm64-v8a, NS 9.1.1, `@nat
 4 loader-probe rows, `gobjectEngineName() = real-gio`) and **27/27 green without it** (same APK,
 `GJSIFY_GI_OPT_IN=0`, `engineName = pure-js`) — the two runs differ in a vite `define`, not in
 payload. Findings: `@nativescript/vite`'s vendor chunk evaluates before any app module, so an app
-must disable `manualChunks` for its opt-in to win; and `host.nativescript.js` reached the NS
+must disable `manualChunks` for its opt-in to win (the default of `defineNativescriptConfig` since
+2026-10-17); and `host.nativescript.js` reached the NS
 loader only through webpack's rewritten name (fixed at the core). Report:
 `docs/reports/2026-10-11-node-gi-nativescript-plugin.md`.
 
