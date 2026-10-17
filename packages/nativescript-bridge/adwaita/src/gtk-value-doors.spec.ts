@@ -14,7 +14,12 @@
 // reachable only under that entry's `--alias`. The package's AGENTS.md carries the rule.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { driveRowAccessorVectors, type ComboRowLike, type SwitchRowLike } from '@gjsify/adwaita-core/conformance';
+import {
+    ROW_ACCESSOR_VECTORS,
+    driveRowAccessorVectors,
+    type ComboRowLike,
+    type SwitchRowLike,
+} from '@gjsify/adwaita-core/conformance';
 
 import * as Adw from './namespace/adw.js';
 import * as Gtk from './namespace/gtk.js';
@@ -108,5 +113,6 @@ export const AdwGtkValueDoorsNsTest = async () => {
             StringList: Gtk.StringList,
         },
         { describe, it, expect },
+        ROW_ACCESSOR_VECTORS,
     );
 };
