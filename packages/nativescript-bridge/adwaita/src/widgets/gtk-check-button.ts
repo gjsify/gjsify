@@ -10,19 +10,28 @@
 // emits `toggled` and `activate`. THE LOOK IS STATE CLASSES (`checked`, `inconsistent`)
 // the style list never reports, as `Gtk.ToggleButton`'s `checked` is.
 //
-// WHAT IT DOES NOT DO: `group` (radio exclusivity) is not implemented — it is an object
-// property — so the indicator is always the square check, never the round radio.
+// `group` (write-only, as in GTK) joins another check button's group over the core's
+// `check-group.ts`: activating one member deactivates the others, the active member cannot be
+// tapped off, and a grouped button's indicator wears `radio`, as GTK names the node. A `.blp`
+// writes the group as an id, resolved like any object reference (`builderReferences`).
 //
 // Reference: refs/gtk gtk/gtkcheckbutton.c (GtkCheckButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_checks.scss
 // Copyright (c) The GTK Team and GNOME contributors. LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, type View } from '@nativescript/core';
-import { labelDisplayText } from '@gjsify/adwaita-core';
+import {
+    checkActivationFlips,
+    checkGroupNeighbours,
+    isRadioCheck,
+    labelDisplayText,
+    setCheckGroup,
+} from '@gjsify/adwaita-core';
 import { objectSelectSymbolic } from '@gjsify/adwaita-icons/actions';
 import { builderSlotsOf } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { GtkImage } from './gtk-image.js';
+import { resolveIdReference, type ViewId } from './id-reference.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { AdwStyledLayoutBase } from './styled-layout-base.js';
 import { classNameWith } from './style-classes.js';
@@ -53,6 +62,9 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
 
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 
+    /** `group` names another check button of the same tree — see `./builder-slots.ts`. */
+    static readonly builderReferences: readonly string[] = ['group'];
+
     private readonly _indicator: GridLayout;
     private readonly _mark: GtkImage;
     private readonly _text: Label;
@@ -61,6 +73,8 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
     private _label: string | null = null;
     private _useUnderline = false;
     private _child: View | null = null;
+    /** A `group` written as an id before the button was in a loaded tree. */
+    private _groupId: string | null = null;
 
     constructor(props?: ConstructProps<GtkCheckButton>) {
         super();
@@ -98,8 +112,11 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
         this.addChild(text);
         this._text = text;
 
+        this.addEventListener('loaded', () => this._resolveGroupId());
         attachRowPressFeedback(this);
         this.addEventListener('tap', () => {
+            // The active member of a group cannot be tapped off (gtkcheckbutton.c:395-396).
+            if (!checkActivationFlips(this, this._active)) return;
             this._inconsistent = false;
             this.active = !this._active;
             this._restyle();
@@ -118,10 +135,38 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
     set active(raw: boolean | string) {
         const next = xmlBoolean(raw, this._active);
         if (next === this._active) return;
+        // `set_active (TRUE)` deactivates every member of the group first (gtkcheckbutton.c:955-968).
+        if (next) for (const other of checkGroupNeighbours<GtkCheckButton>(this)) other.active = false;
         this._active = next;
         this._restyle();
         this.notify({ eventName: GTK_CHECK_BUTTON_TOGGLED, object: this });
         this.notify({ eventName: NOTIFY_CHECK_ACTIVE, object: this });
+    }
+
+    /** `Gtk.CheckButton:group` — WRITE-ONLY, as in GTK (`G_PARAM_WRITABLE`). */
+    set group(value: GtkCheckButton | ViewId | null) {
+        if (typeof value === 'string') {
+            // The XML door: an id, resolved once the tree it names into is loaded.
+            this._groupId = value;
+            if (this.isLoaded) this.set_group(resolveIdReference(this, 'group', value, GtkCheckButton));
+            return;
+        }
+        this._groupId = null;
+        this.set_group(value);
+    }
+
+    /** `gtk_check_button_set_group`. */
+    set_group(group: GtkCheckButton | null): void {
+        setCheckGroup(this, group);
+        this._restyle();
+        group?._restyle();
+    }
+
+    private _resolveGroupId(): void {
+        const id = this._groupId;
+        if (id === null) return;
+        this._groupId = null;
+        this.set_group(resolveIdReference(this, 'group', id, GtkCheckButton));
     }
 
     /** `Gtk.CheckButton:inconsistent` — the "partly on" dash. Defaults to `false`. */
@@ -216,7 +261,10 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
         if (this._active) state.push(GTK_CHECK_BUTTON_CHECKED_CLASS);
         if (this._inconsistent) state.push(GTK_CHECK_BUTTON_INCONSISTENT_CLASS);
         this.className = classNameWith(this._ownClass, [...this.styleClasses, ...state]);
-        this._indicator.className = classNameWith('adw-check-indicator', state);
+        this._indicator.className = classNameWith(
+            'adw-check-indicator',
+            isRadioCheck(this) ? [...state, 'radio'] : state,
+        );
         this._mark.visibility = this._active || this._inconsistent ? 'visible' : 'collapse';
     }
 }

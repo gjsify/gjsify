@@ -12,9 +12,10 @@
 // so two scenarios sharing the literal name `colour` would share a selection.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { RADIO_GROUP_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { RADIO_GROUP_VECTORS, driveCheckGroupVectors, type CheckButtonLike } from '@gjsify/adwaita-core/conformance';
 
 import type { GtkCheckButton, AdwRadio } from './elements/checks.js';
+import { buildSharedTree } from './shared-tree-builder.js';
 
 function host(): HTMLElement {
     const el = document.createElement('div');
@@ -352,6 +353,55 @@ export const AdwChecksTest = async () => {
             expect(red.checked).toBe(false);
             expect(green.checked).toBe(true);
             parent.remove();
+        });
+    });
+
+    await describe('<gtk-check-button> group (CHECK_GROUP_VECTORS)', async () => {
+        await driveCheckGroupVectors(
+            {
+                name: 'adwaita-web',
+                isOracle: false,
+                make: () => mountCheckbox().el as unknown as CheckButtonLike,
+                activate: (button) => parts(button as unknown as HTMLElement).indicator.click(),
+                countToggled(button) {
+                    let count = 0;
+                    (button as unknown as HTMLElement).addEventListener('toggled', () => void (count += 1));
+                    return () => count;
+                },
+            },
+            { describe, it, expect },
+        );
+
+        await it('a grouped button draws the radio and its input announces role=radio', () => {
+            const [a, b] = [mountCheckbox().el, mountCheckbox().el];
+            b.set_group(a);
+            expect([a.hasAttribute('radio'), parts(b).input.getAttribute('role')].join()).toBe('true,radio');
+            b.set_group(null);
+            expect([a.hasAttribute('radio'), b.hasAttribute('radio'), parts(b).input.hasAttribute('role')].join()).toBe(
+                'true,false,false',
+            );
+        });
+
+        await it('a projected `group: follow` resolves by id once the tree is in the document', () => {
+            const tree = buildSharedTree({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkCheckButton', id: 'group-follow', props: { active: true } },
+                    { tag: 'GtkCheckButton', id: 'group-dark', props: { group: 'group-follow' } },
+                ],
+            });
+            host().appendChild(tree);
+            const [follow, dark] = ['group-follow', 'group-dark'].map(
+                (id) => document.getElementById(id) as GtkCheckButton,
+            );
+            dark.set_active(true);
+            expect([follow.get_active(), dark.get_active()].join()).toBe('false,true');
+        });
+
+        await it('a group id nothing carries is refused', () => {
+            const el = document.createElement('gtk-check-button') as GtkCheckButton;
+            el.setAttribute('group', 'group-nowhere');
+            expect(() => (el as unknown as { connectedCallback(): void }).connectedCallback()).toThrow();
         });
     });
 };

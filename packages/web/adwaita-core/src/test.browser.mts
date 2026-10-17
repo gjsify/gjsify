@@ -41,6 +41,7 @@ import bannerTestSuite from './banner.spec.js';
 import buttonContentTestSuite from './button-content.spec.js';
 import aboutDialogTestSuite from './about-dialog.spec.js';
 import checksTestSuite from './checks.spec.js';
+import checkGroupTestSuite from './check-group.spec.js';
 import wrapBoxTestSuite from './wrap-box.spec.js';
 import boxTestSuite from './box.spec.js';
 import labelTestSuite from './label.spec.js';
@@ -56,6 +57,7 @@ run({
     bannerTestSuite,
     buttonContentTestSuite,
     checksTestSuite,
+    checkGroupTestSuite,
     breakpointTestSuite,
     colorSchemeTestSuite,
     appearanceTestSuite,

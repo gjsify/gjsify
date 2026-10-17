@@ -49,6 +49,8 @@ import buttonContentTestSuite from './button-content.spec.js';
 import buttonTestSuite from './button.spec.js';
 import aboutDialogTestSuite from './about-dialog.spec.js';
 import checksTestSuite from './checks.spec.js';
+import checkGroupTestSuite from './check-group.spec.js';
+import checkGroupOracleTestSuite from './check-group.gjs.spec.js';
 import wrapBoxTestSuite from './wrap-box.spec.js';
 import boxTestSuite from './box.spec.js';
 import labelTestSuite from './label.spec.js';
@@ -97,6 +99,8 @@ run({
     buttonContentTestSuite,
     buttonTestSuite,
     checksTestSuite,
+    checkGroupTestSuite,
+    checkGroupOracleTestSuite,
     breakpointTestSuite,
     breakpointBinTestSuite,
     breakpointDriverTestSuite,

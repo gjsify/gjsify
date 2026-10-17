@@ -144,6 +144,8 @@ export type { ButtonStyleClassVector } from './button.js';
 // --- Radio-group exclusivity (Adwaita check/radio) vectors ---
 export { RADIO_GROUP_VECTORS } from './checks.js';
 export type { RadioGroupStep, RadioGroupVector } from './checks.js';
+export { CHECK_GROUP_VECTORS, driveCheckGroupVectors } from './check-group.js';
+export type { CheckButtonLike, CheckGroupSubject, CheckGroupVector } from './check-group.js';
 
 // --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
 export { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS, TOGGLE_ACTIVE_NAME_VECTORS } from './rows.js';

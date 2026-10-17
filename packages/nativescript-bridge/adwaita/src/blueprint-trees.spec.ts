@@ -308,6 +308,19 @@ export const AdwBlueprintTreesNsTest = async () => {
     });
 
     await describe('an object reference is resolved by id, and only where the widget says so', async () => {
+        await it('a check button joins the group its `group` id names', () => {
+            const box = built({
+                tag: 'GtkBox',
+                children: [
+                    { tag: 'GtkCheckButton', id: 'follow', props: { active: 'true' } },
+                    { tag: 'GtkCheckButton', id: 'dark', props: { group: 'follow' } },
+                ],
+            });
+            const [follow, dark] = [byId(box, 'follow'), byId(box, 'dark')] as unknown as Gtk.CheckButton[];
+            dark.set_active(true);
+            expect([follow.get_active(), dark.get_active()]).toStrictEqual([false, true]);
+        });
+
         await it('an id nothing in the tree carries is refused', () => {
             expect(() => built({ tag: 'AdwViewSwitcherBar', props: { stack: 'nowhere' } })).toThrow('names no object');
         });
