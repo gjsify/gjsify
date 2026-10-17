@@ -8,9 +8,8 @@
 // documented name drew the broken-image paintable.
 //
 // The other two renderers already close it: `@gjsify/adwaita-web` compiles a subset into
-// its stylesheet with `registerIcon()` as the door
-// (`packages/web/adwaita-web/src/icon-registry.ts`), and the NativeScript port compiles a
-// subset behind the same property name. This is the third, and it is the same shape:
+// its stylesheet (`packages/web/adwaita-web/src/icon-theme.ts`), and the NativeScript port
+// compiles a subset behind the same property name. This is the third, and it is the same shape:
 // same property, same name, same glyph, no dependency on the host.
 //
 // WHAT `add_resource_path` ACTUALLY GUARANTEES, and what it does not. Its own GIR doc is

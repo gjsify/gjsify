@@ -131,7 +131,7 @@ drawn glyph is not determined by the toolkit.** That is deliberate, and this is 
 recorded rather than discovered.
 
 The other two have no host theme to defer to. `@gjsify/adwaita-web` resolves a name against
-its compiled subset in `packages/web/adwaita-web/src/icon-registry.ts`, and the NativeScript
+its compiled subset in `packages/web/adwaita-web/src/icon-theme.ts`, and the NativeScript
 port against its own in `packages/nativescript-bridge/adwaita/src/widgets/icon-theme.ts`
 (ADR 0034 § Amendment 16) — a browser and a phone runtime ship no icon theme, so both always
 draw the shipped Adwaita glyph. GTK does have one, and

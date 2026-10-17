@@ -19,7 +19,8 @@ is a shared function rather than a shared table on purpose: a second table is th
 drifts. `list-add-symbolic` and `list-add` are one glyph on both renderers.
 
 The SVG-source door stays open because it is what a consumer with their own icon set needs;
-`registerIcon(name, svg)` additionally makes such a glyph resolvable BY NAME downstream.
+shipping it in the app's GResource under `<resource-base-path>/icons/` makes it resolvable BY
+NAME (ADR 0116 § 4).
 
 Three answers, deliberately distinct:
 

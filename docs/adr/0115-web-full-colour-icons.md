@@ -4,7 +4,7 @@
 - Date: 2026-10-15
 - Deciders: Pascal Garber
 - Related: [ADR 0034](0034-widget-vocabulary-convergence.md) § Amendment 18 (icons);
-  `packages/web/adwaita-web/src/icon-theme.ts`, `src/icon-registry.ts`, `src/elements/gtk-image.ts`
+  `packages/web/adwaita-web/src/icon-theme.ts`, `src/elements/gtk-image.ts`
 
 ## Context
 
@@ -79,7 +79,8 @@ So:
   through the `<resource-base-path>/icons/` path `GtkApplication` adds at startup.
   `registerColorIcon` is removed before the next stable release; it reached only the `next`
   channel. `registerIcon` and `unregisterIcon` follow once resource paths work on both ports
-  (ADR 0116 § 8).
+  (ADR 0116 § 8). All three are removed now (ADR 0116, Implementation step 3), and this ADR's
+  specs run against a resource fixture.
 - Decision 4 is replaced for resource paths; `add_search_path` stays a record.
 - Decision 1 (one lookup in GThemedIcon order) and Decision 3 (colour rendering in the same box)
   stay unchanged.

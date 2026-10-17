@@ -63,6 +63,6 @@ group on an ancestor with `insertActionGroup('source-view', group)`, and a tap o
 `app.` / `win.` resolution and accelerators are not modelled.
 
 `tooltip-text` also reaches Android's `View.setTooltipText` (long press, API 26) beside the
-accessibility hint. `registerIcons({ 'edit-copy-symbolic': '…' })` registers a generated icon module
-by GNOME name, so an icon-only `Gtk.Button` in a shared `.blp` finds its glyph; such a button wears
+accessibility hint. A glyph outside the compiled subset comes from the app's GResource under
+`<resource-base-path>/icons/` (ADR 0116 § 4), so an icon-only `Gtk.Button` in a shared `.blp` finds it; such a button wears
 the `image-button` class and renders flat and unlabelled.
