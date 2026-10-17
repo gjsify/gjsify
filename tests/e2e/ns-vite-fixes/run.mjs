@@ -24,7 +24,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -799,4 +799,89 @@ describe('@gjsify/nativescript-vite repointCoreAliasEntries (core-alias collisio
             snapshot,
         );
     });
+});
+
+// ADR 0116 §§ 1, 7: `import bytes from './x.gresource.xml'` is the same line on every target, so
+// both Vite presets must embed it like `gjsify build` does. A REAL `vite build` per preset, the
+// bundle imported and its bytes compared with what `glib-compile-resources` makes of the same XML
+// (`compressed="true"` removed, since the web and NativeScript cannot inflate synchronously).
+describe('gjsify Vite presets embed .gresource.xml imports (ADR 0116)', () => {
+    let build;
+    let presets;
+    const tmp = [];
+    const hasTool = (() => {
+        try {
+            execFileSync('glib-compile-resources', ['--version'], { stdio: 'ignore' });
+            return true;
+        } catch {
+            return false;
+        }
+    })();
+    const compile = hasTool ? it : it.skip;
+
+    before(async () => {
+        ({ build } = await import('vite'));
+        presets = await import(new URL('../../../packages/infra/vite-plugin-gjsify/lib/index.js', import.meta.url));
+    });
+
+    after(() => {
+        for (const d of tmp) rmSync(d, { recursive: true, force: true });
+    });
+
+    function fixture() {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-vite-gresource-'));
+        tmp.push(root);
+        mkdirSync(join(root, 'data'), { recursive: true });
+        writeFileSync(join(root, 'data', 'hello.txt'), 'hello gresource\n');
+        const xml = (compressed) =>
+            '<?xml version="1.0" encoding="UTF-8"?>\n<gresources>\n  <gresource prefix="/org/example/App">\n' +
+            `    <file${compressed ? ' compressed="true"' : ''}>hello.txt</file>\n  </gresource>\n</gresources>\n`;
+        writeFileSync(join(root, 'data', 'app.data.gresource.xml'), xml(true));
+        writeFileSync(join(root, 'data', 'expected.gresource.xml'), xml(false));
+        writeFileSync(
+            join(root, 'main.mjs'),
+            "import bytes from './data/app.data.gresource.xml';\nexport default bytes;\n",
+        );
+        execFileSync(
+            'glib-compile-resources',
+            [
+                `--sourcedir=${join(root, 'data')}`,
+                `--target=${join(root, 'expected.gresource')}`,
+                join(root, 'data', 'expected.gresource.xml'),
+            ],
+            { stdio: 'ignore' },
+        );
+        return root;
+    }
+
+    async function bundleOf(root, plugins) {
+        const result = await build({
+            root,
+            configFile: false,
+            logLevel: 'silent',
+            plugins,
+            build: { write: false, minify: false, lib: { entry: join(root, 'main.mjs'), formats: ['es'] } },
+        });
+        const out = (Array.isArray(result) ? result[0] : result).output.find((o) => o.type === 'chunk');
+        assert.ok(out, 'vite produced no JS chunk');
+        const file = join(root, 'bundle.mjs');
+        writeFileSync(file, out.code);
+        return (await import(`${file}?${Date.now()}`)).default;
+    }
+
+    for (const [name, plugins] of [
+        ['gjsifyBrowser', () => presets.gjsifyBrowser()],
+        ['gjsifyNativescript', () => presets.gjsifyNativescript()],
+    ]) {
+        compile(`${name}() builds the import into the compiled bytes`, async () => {
+            const root = fixture();
+            const bytes = await bundleOf(root, plugins());
+            assert.ok(bytes instanceof Uint8Array, 'the default export must be a Uint8Array');
+            assert.deepEqual(
+                Buffer.from(bytes),
+                readFileSync(join(root, 'expected.gresource')),
+                'bytes differ from glib-compile-resources output for the same XML',
+            );
+        });
+    }
 });

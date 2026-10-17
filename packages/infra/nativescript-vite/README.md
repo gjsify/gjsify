@@ -15,7 +15,7 @@ It is a **thin composer** around the upstream `@nativescript/vite` integration. 
 1. **Function-replacement `resolve.alias` entries are dropped.** `@nativescript/vite` registers aliases whose `replacement` is a *function* (platform-`main`, the tsconfig wildcard, `@nativescript/core/.../index` canonicalization). Vite 8's native alias (Rolldown) only accepts string replacements and otherwise fails with `Failed to convert builtin plugin 'ViteAlias' … function replacement into rust type String`. The upstream `nativescript-package-resolver` plugin (a `resolveId` hook, kept) and the string `~/` / `@` aliases (kept) already cover the same resolution, so dropping the function entries is safe.
 2. **The explicit `@rollup/plugin-commonjs` plugin is removed.** It crashes Rolldown with `Cannot read properties of undefined (reading 'currentLoadingModule')`. Rolldown handles CommonJS (`@nativescript/core`'s modules) natively, so the plugin is not needed.
 
-On top of the fixes, it spreads `@gjsify/vite-plugin-gjsify`'s `gjsifyNativescript()` preset: `gi://` → empty module, platform file resolution (`*.android` / `*.ios` / `*.native`), platform defines (`__ANDROID__` / `__IOS__` / `__APPLE__` / `__VISIONOS__` / `__DEV__`), and the node-builtin alias routing (incl. `module` → `@gjsify/module`).
+On top of the fixes, it spreads `@gjsify/vite-plugin-gjsify`'s `gjsifyNativescript()` preset: `gi://` → empty module, `*.gresource.xml` imports embedded as bytes (ADR 0116), platform file resolution (`*.android` / `*.ios` / `*.native`), platform defines (`__ANDROID__` / `__IOS__` / `__APPLE__` / `__VISIONOS__` / `__DEV__`), and the node-builtin alias routing (incl. `module` → `@gjsify/module`).
 
 ## Release-build minifier defaults
 

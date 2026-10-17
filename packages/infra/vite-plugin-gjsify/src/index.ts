@@ -19,6 +19,7 @@
 //                                which is the one kind of difference no amount of
 //                                matching aliases and conditions can paper over.
 //   - blueprintPlugin()        → compile `.blp` GNOME Blueprint files to XML
+//   - gresourcePlugin()        → `import bytes from './x.gresource.xml'` (ADR 0116)
 //   - deepkitPlugin()          → optional Deepkit type reflection (opt-in)
 //   - an inline Vite config hook supplying the browser-target resolve aliases,
 //     conditions, mainFields, defines and build target.
@@ -51,6 +52,7 @@ import {
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
     cssAsStringPlugin,
+    gresourcePlugin,
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
@@ -191,6 +193,9 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
         }) as unknown as Plugin,
         gjsImportsEmptyPlugin() as unknown as Plugin,
         blueprintPlugin(),
+        // `import bytes from './x.gresource.xml'` (ADR 0116 §§ 1, 7): the same `Uint8Array` as
+        // `--app browser`, with `compressed="true"` stripped (no synchronous inflate on the web).
+        gresourcePlugin({ compressed: 'strip' }) as unknown as Plugin,
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         // Opt-in: mirror `--app browser`'s css-as-string so `import css from
         // './x.css'` yields the CSS string in dev too (unify with the native
@@ -213,6 +218,7 @@ export default gjsifyBrowser;
 //
 // What it composes (one-to-one with `--app nativescript`):
 //   - gjsImportsEmptyPlugin() → resolve `@girs/*` / `gi://*` to empty
+//   - gresourcePlugin() → `import bytes from './x.gresource.xml'` (ADR 0116)
 //   - deepkitPlugin() → optional Deepkit reflection (opt-in)
 //   - inline Vite `config` hook setting NS-target aliases, conditions,
 //     mainFields, defines, build target.
@@ -563,6 +569,9 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         nativescriptEngineFirstPlugin(),
         // NO blueprintPlugin — Blueprint is GTK-specific
         // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
+        // `import bytes from './x.gresource.xml'` (ADR 0116 §§ 1, 7), as `--app nativescript`;
+        // no synchronous inflate on NativeScript either, so `compressed="true"` is stripped.
+        gresourcePlugin({ compressed: 'strip' }) as unknown as Plugin,
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         configPlugin,
     ];
