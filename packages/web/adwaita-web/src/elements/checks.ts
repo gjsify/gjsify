@@ -37,7 +37,9 @@
 //   · The active member of a group cannot be clicked off: both the gesture handler and
 //     `real_activate` return early when the button is active AND has a group neighbour
 //     (:395-396, :617-622). `<adw-radio>` gets this from `RadioGroupState`, and
-//     `<gtk-check-button>` cannot reach a group at all here.
+//     `<gtk-check-button>` from `group` / `set_group` over the core's `check-group.ts`. A
+//     grouped `<gtk-check-button>` draws the round radio (the `radio` attribute) and its
+//     input announces `role="radio"`.
 //
 // ONE PLACE THIS PORT DIVERGES, DELIBERATELY AND CITED. GTK does NOT clear
 // `inconsistent` when the user activates the button — `real_activate` only flips
@@ -85,7 +87,14 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Implemented as Web Components for @gjsify/adwaita-web.
 
-import { RadioGroupState, resolveCheckState } from '@gjsify/adwaita-core';
+import {
+    RadioGroupState,
+    checkActivationFlips,
+    checkGroupNeighbours,
+    isRadioCheck,
+    resolveCheckState,
+    setCheckGroup,
+} from '@gjsify/adwaita-core';
 
 import type { DispatchedSignals } from '../signals.js';
 import { WidgetElement } from '../widget-element.js';
@@ -253,14 +262,80 @@ export class GtkCheckButton extends AdwCheckBase {
     };
 
     static get observedAttributes() {
-        return ['checked', 'active', 'indeterminate', 'disabled', 'label'];
+        return ['checked', 'active', 'indeterminate', 'disabled', 'label', 'group'];
     }
 
     protected get inputType(): 'checkbox' {
         return 'checkbox';
     }
 
+    /**
+     * `Gtk.CheckButton:group`, WRITE-ONLY as in GTK (`G_PARAM_WRITABLE`, gtkcheckbutton.c:665-668):
+     * another check button, or its id as a projected `.blp` writes it, or `null` to leave.
+     */
+    set group(value: GtkCheckButton | string | null) {
+        if (typeof value === 'string') {
+            this.setAttribute('group', value);
+            return;
+        }
+        this.set_group(value);
+    }
+
+    /** `gtk_check_button_set_group`. */
+    set_group(group: GtkCheckButton | null): void {
+        setCheckGroup(this, group);
+        this.render();
+        group?.render();
+    }
+
+    get_active(): boolean {
+        return this.checked;
+    }
+
+    set_active(active: boolean): void {
+        this.checked = active;
+    }
+
+    attributeChangedCallback(name: string) {
+        // `set_active (TRUE)` deactivates every member of the group (gtkcheckbutton.c:955-968).
+        if (name === 'checked' && this.checked) {
+            for (const other of checkGroupNeighbours(this)) other.checked = false;
+        }
+        if (name === 'group' && this.isConnected) this._resolveGroup();
+        super.attributeChangedCallback(name);
+    }
+
+    protected onConnected(): void {
+        this._resolveGroup();
+    }
+
+    /** The `group` attribute names a check button by id, looked up once the tree is in a document. */
+    private _resolveGroup(): void {
+        const id = this.getAttribute('group');
+        if (id === null) return;
+        const root = this.getRootNode() as Document | ShadowRoot;
+        const found = root.getElementById?.(id) ?? document.getElementById(id);
+        if (!(found instanceof GtkCheckButton)) {
+            throw new Error(`gtk-check-button group="${id}" names no gtk-check-button in this document`);
+        }
+        this.set_group(found);
+    }
+
+    protected render(): void {
+        if (this._input === undefined) return;
+        super.render();
+        const radio = isRadioCheck(this);
+        this.toggleAttribute('radio', radio);
+        if (radio) this._input.setAttribute('role', 'radio');
+        else this._input.removeAttribute('role');
+    }
+
     protected activate(): void {
+        // The active member of a group cannot be activated off (gtkcheckbutton.c:395-396, :617-622).
+        if (!checkActivationFlips(this, this.checked)) {
+            this.render();
+            return;
+        }
         // HTML's pre-click activation steps clear `indeterminate` before the toggle, so a
         // user can always reach a definite state. GTK does NOT: `gtk_check_button_real_activate`
         // only flips `active` (gtkcheckbutton.c:617-628) and says turning the inconsistent

@@ -8,11 +8,9 @@
 // NativeScript has no exclusivity at all — and {@link resolveCheckState}, because
 // indeterminate is a third state rather than a second flag.
 //
-// `GtkCheckButton` group semantics (`gtk_check_button_set_group`, whether a fresh group
-// starts with a member active) and the exact meaning of `GtkCheckButton:inconsistent`
-// are NOT modelled: they are GTK, `refs/gtk` is empty here and libadwaita vendors no
-// `adw-checkbox.c`. A fresh group reports "nothing selected"; indeterminate is whatever
-// the caller sets.
+// `GtkCheckButton:group` (`gtk_check_button_set_group`) is modelled in `check-group.ts`,
+// against real Gtk; {@link RadioGroupState} is the `<adw-radio name>` door. A fresh group
+// reports "nothing selected"; indeterminate is whatever the caller sets.
 //
 // The stylesheet IS vendored, and {@link resolveCheckState}'s precedence is read off
 // it: `check:checked` draws `check.svg`, `radio:checked` draws `bullet.svg`, then

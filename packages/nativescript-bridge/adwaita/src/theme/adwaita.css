@@ -1671,6 +1671,11 @@ Page.adw-window {
     background-color: #3584e4;
 }
 
+/* A grouped check button draws the round radio (`radio { border-radius: 100% }`). */
+.adw-check-indicator.radio {
+    border-radius: 10;
+}
+
 .adw-check-label {
     font-size: 15;
     color: rgba(0, 0, 0, 0.8);

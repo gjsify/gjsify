@@ -131,6 +131,7 @@ export type { AdwButtonStyleClass } from './button.js';
 // --- Checks + radio-group exclusivity (Adwaita check/radio) ---
 export { RadioGroupState, resolveCheckState } from './checks.js';
 export type { AdwCheckState, RadioGroupChange, RadioGroupListener } from './checks.js';
+export { checkActivationFlips, checkGroupNeighbours, isRadioCheck, setCheckGroup } from './check-group.js';
 
 // --- Responsive breakpoints (Adw.Breakpoint / Adw.BreakpointCondition) ---
 export { AdwBreakpoint, evaluateBreakpointCondition, parseBreakpointCondition } from './breakpoint.js';

@@ -3,6 +3,7 @@
 // pixels: the double has no layout pass and no CSS engine.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { driveCheckGroupVectors, type CheckButtonLike } from '@gjsify/adwaita-core/conformance';
 
 import { DRAWING_AREA_REFUSAL } from './widgets/gtk-drawing-area.js';
 import * as Gtk from './namespace/gtk.js';
@@ -64,7 +65,35 @@ export const GtkControlsNsTest = async () => {
             (check as unknown as { active: string }).active = 'true';
             expect(check.active).toBe(true);
         });
+
+        await it('a grouped button wears `radio` on its indicator, as GTK names the node', () => {
+            const [a, b] = [new Gtk.CheckButton(), new Gtk.CheckButton()];
+            b.set_group(a);
+            const indicator = (check: Gtk.CheckButton) =>
+                (check as unknown as { _indicator: { className: string } })._indicator.className;
+            expect([indicator(a), indicator(b)]).toStrictEqual([
+                'adw-check-indicator radio',
+                'adw-check-indicator radio',
+            ]);
+            b.set_group(null);
+            expect(indicator(b)).toBe('adw-check-indicator');
+        });
     });
+
+    await driveCheckGroupVectors(
+        {
+            name: 'adwaita-nativescript',
+            isOracle: false,
+            make: () => new Gtk.CheckButton() as unknown as CheckButtonLike,
+            activate: (button) => tap(button),
+            countToggled(button) {
+                let count = 0;
+                (button as unknown as Gtk.CheckButton).connect('toggled', () => void (count += 1));
+                return () => count;
+            },
+        },
+        { describe, it, expect },
+    );
 
     await describe('Gtk.Separator', async () => {
         await it('is horizontal by default', () => {
