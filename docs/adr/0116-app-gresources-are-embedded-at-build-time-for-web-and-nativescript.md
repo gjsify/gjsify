@@ -212,7 +212,9 @@ Names are the maintainer's call. These are proposals only.
 ## Implementation (if accepted)
 
 1. The bundler loader or generated module, the build-option rules of § 2, and a test that embeds
-   Learn6502's XML.
+   Learn6502's XML. Done for `gjsify build` (#2240, #2241) and for the Vite presets
+   `gjsifyBrowser()` / `gjsifyNativescript()`, so nativescript-vite and the browser dev server import
+   the same bytes.
 2. The GVDB reader and the § 3 subset in the shared core, with specs that run against bytes
    `glib-compile-resources` produced. The same specs run under GJS against real GIO, as the
    oracle.
