@@ -670,6 +670,70 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
     });
 });
 
+// The bundler context imports every XML page, code-behind and barrel BEFORE the main module,
+// so an engine opt-in imported first from `app.ts` still ran after the port had read the empty
+// slot. The engine-first plugin prepends the opt-in module to the bundler context itself.
+describe('gjsifyNativescript engine-first E2E', () => {
+    let gjsifyNativescript;
+    const tmp = [];
+    const BUNDLER_CONTEXT_ID = '\0virtual:ns-bundler-context';
+    const UPSTREAM_CODE = '// generated bundler context\n(function () {})();';
+
+    before(async () => {
+        const url = new URL('../../../packages/infra/vite-plugin-gjsify/lib/index.js', import.meta.url);
+        ({ gjsifyNativescript } = await import(url));
+    });
+
+    after(() => {
+        for (const d of tmp) rmSync(d, { recursive: true, force: true });
+    });
+
+    function run(files) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-engine-first-'));
+        tmp.push(root);
+        for (const [rel, src] of Object.entries(files)) {
+            mkdirSync(join(root, rel, '..'), { recursive: true });
+            writeFileSync(join(root, rel), src);
+        }
+        const plugins = gjsifyNativescript();
+        let code = UPSTREAM_CODE;
+        for (const name of ['gjsify-nativescript-xmlns-barrels', 'gjsify-nativescript-engine-first']) {
+            const plugin = plugins.find((p) => p && p.name === name);
+            assert.ok(plugin, `${name} missing from gjsifyNativescript()`);
+            plugin.configResolved({ root });
+            code = plugin.transform(code, BUNDLER_CONTEXT_ID)?.code ?? code;
+        }
+        return code;
+    }
+
+    it('imports the opt-in module first, ahead of the xmlns barrels', () => {
+        const out = run({
+            'app/engine.ts':
+                "import { useRealGObjectEngine } from '@gjsify/adwaita-gobject-native';\nuseRealGObjectEngine(r);\n",
+            'app/app.ts': "import './engine';\n",
+            'app/main.xml': '<Page xmlns:w="~/widgets/index" />\n',
+            'app/widgets/index.ts': 'export class W {}\n',
+            'app/types.d.ts': "import '@gjsify/adwaita-gobject-native';\n",
+        });
+        assert.ok(out.startsWith('import "/app/engine.ts";\n'), `opt-in must be the first import, got:\n${out}`);
+        assert.ok(out.includes('"/app/widgets/index.ts"'), 'the xmlns barrel stays imported');
+        assert.ok(!out.includes('/app/app.ts'), 'a module that only imports the opt-in is not hoisted');
+        assert.ok(!out.includes('types.d.ts'), 'declaration files are skipped');
+    });
+
+    it('also hoists a deliberate pure-JS opt-in', () => {
+        const out = run({
+            'app/engine.ts':
+                "import { usePureJsGObjectEngine } from '@gjsify/adwaita-core';\nusePureJsGObjectEngine();\n",
+        });
+        assert.ok(out.startsWith('import "/app/engine.ts";'), out);
+    });
+
+    it('is a no-op for an app without an opt-in', () => {
+        assert.equal(run({ 'app/app.ts': 'export {};\n' }), UPSTREAM_CODE);
+    });
+});
+
 // `@nativescript/vite`'s base config aliases @nativescript/core to
 // `<project>/../../packages/core` whenever that path exists, WITHOUT verifying the
 // directory's package name — so in a monorepo whose own `packages/core` is a different

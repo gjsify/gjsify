@@ -85,6 +85,14 @@ import './engine-opt-in.js'; // FIRST import — it must be EVALUATED before the
 import { Application } from '@gjsify/adwaita-nativescript';
 ```
 
+`app.ts`'s first import is not enough on its own under `@nativescript/vite`: its generated entry
+imports every XML page, code-behind and barrel (`virtual:ns-bundler-context`) BEFORE the main
+module, and any of those may reach the port. `defineNativescriptConfig` therefore keeps the app in
+one chunk (`nativescriptSingleChunk()` — upstream's `vendor.mjs` would evaluate first too), and
+`gjsifyNativescript()` prepends every app module that imports `@gjsify/adwaita-gobject-native` or
+calls `usePureJsGObjectEngine()` to that bundler context. Keep the opt-in in its own small module,
+as above: whatever else it imports is hoisted along with it.
+
 "Default" here does NOT mean the port builds the real engine when the app stayed silent — it
 cannot, for the tier reason below. It means an Android build with an empty slot is treated as a
 MISSING decision: `engineForTarget` throws at the port's module load and names both calls. That

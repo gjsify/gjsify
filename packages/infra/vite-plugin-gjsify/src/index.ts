@@ -403,6 +403,82 @@ function nativescriptXmlnsBarrelsPlugin(): Plugin {
 }
 
 /**
+ * The app modules that pick the GObject engine (ADR 0110): those importing
+ * `@gjsify/adwaita-gobject-native` or calling `usePureJsGObjectEngine`. Root-relative
+ * specs, sorted, so the generated import order is deterministic.
+ */
+function collectEngineOptIns(appDir: string, root: string): string[] {
+    const optInRe = /from\s*["']@gjsify\/adwaita-gobject-native["']|\busePureJsGObjectEngine\s*\(/;
+    const specs: string[] = [];
+    const walk = (dir: string): void => {
+        let entries: string[];
+        try {
+            entries = readdirSync(dir);
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            if (entry === 'node_modules') continue;
+            const full = nodePath.join(dir, entry);
+            let isDir: boolean;
+            try {
+                isDir = statSync(full).isDirectory();
+            } catch {
+                continue;
+            }
+            if (isDir) {
+                walk(full);
+                continue;
+            }
+            if (!/\.(?:[cm]?[jt]s)$/.test(entry) || /\.d\.[cm]?ts$/.test(entry)) continue;
+            let src: string;
+            try {
+                src = readFileSync(full, 'utf8');
+            } catch {
+                continue;
+            }
+            if (optInRe.test(src)) specs.push('/' + nodePath.relative(root, full).split(nodePath.sep).join('/'));
+        }
+    };
+    walk(appDir);
+    return specs.sort();
+}
+
+/**
+ * Evaluate the app's GObject-engine opt-in before ANY other app module.
+ *
+ * ADR 0110 makes an Android app pick its engine in a module evaluated before
+ * `@gjsify/adwaita-nativescript`. The natural place — `app.ts`'s first import — is too
+ * late: `@nativescript/vite`'s generated entry imports `virtual:ns-bundler-context`
+ * BEFORE the main module, and that context eagerly imports every XML page, its
+ * code-behind and (via the xmlns plugin) every barrel — all of which reach the port.
+ * So the port read the empty slot and the app died at launch with "No GObject engine
+ * was registered", whatever `app.ts` did. Measured in Learn6502 on 2026-10-17.
+ *
+ * Prepends a side-effect import of each opt-in module to the bundler context; it is
+ * registered after the xmlns plugin, so its import ends up first.
+ */
+function nativescriptEngineFirstPlugin(): Plugin {
+    const BUNDLER_CONTEXT_ID = '\0virtual:ns-bundler-context';
+    let root = process.cwd();
+    let appDir: string | undefined;
+    return {
+        name: 'gjsify-nativescript-engine-first',
+        configResolved(config) {
+            root = config.root || process.cwd();
+            appDir = ['app', 'src'].map((dir) => nodePath.join(root, dir)).find((dir) => existsSync(dir));
+        },
+        transform(code, id) {
+            if (id !== BUNDLER_CONTEXT_ID || !appDir) return null;
+            const optIns = collectEngineOptIns(appDir, root);
+            if (optIns.length === 0) return null;
+            const imports = optIns.map((spec) => `import ${JSON.stringify(spec)};`).join('\n');
+            return { code: `${imports}\n${code}`, map: null };
+        },
+    };
+}
+
+/**
  * Returns the Vite plugin array that brings `gjsify build --app nativescript`'s
  * NS-target transforms to a Vite project (dev + build). Spread it into a
  * Vite config's `plugins`:
@@ -482,6 +558,9 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // ns-bundler-context leaves unregistered (its tree-shaking gap for
         // barrels with no `.xml` sibling). Reproduces webpack's xml-namespace-loader.
         nativescriptXmlnsBarrelsPlugin(),
+        // The app's GObject-engine opt-in (ADR 0110) ahead of everything the bundler
+        // context imports. AFTER the xmlns plugin, so its prepend lands on top.
+        nativescriptEngineFirstPlugin(),
         // NO blueprintPlugin — Blueprint is GTK-specific
         // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
