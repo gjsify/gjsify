@@ -73,6 +73,11 @@ export class AdwViewStack extends HTMLElement {
         // Subscribing touches no attributes and no children, so it is legal in a
         // custom element constructor — unlike anything DOM-shaped.
         this._state.subscribe((change) => this._onStateChange(change));
+        // A page moved out by plain DOM (`otherBox.append(page)`) is `gtk_widget_unparent`
+        // reaching the stack's `remove`: `stack_remove` (adw-view-stack.c:1184-1205) drops
+        // the page, so it must not stay in the model or keep the stack's marks elsewhere.
+        // Observing the element itself touches no attribute and no child.
+        new MutationObserver((records) => this._onChildrenRemoved(records)).observe(this, { childList: true });
     }
 
     get pages(): readonly AdwViewStackPageInfo[] {
@@ -217,6 +222,7 @@ export class AdwViewStack extends HTMLElement {
         const content = this._state.pages[this._state.indexOfName(name)]?.content;
         if (!this._state.removePage(name)) return false;
         content?.remove();
+        if (content) clearPageMarks(content);
         this._applyVisibility();
         this._reflectName();
         this._emitItemsChanged();
@@ -271,6 +277,25 @@ export class AdwViewStack extends HTMLElement {
         );
     }
 
+    private _onChildrenRemoved(records: MutationRecord[]): void {
+        let changed = false;
+        for (const record of records) {
+            for (const node of record.removedNodes) {
+                // Re-appended into this same stack (a reorder) is still a child.
+                if (!(node instanceof HTMLElement) || node.parentElement === this) continue;
+                const page = this._state.pages.find((p) => p.content === node);
+                if (page === undefined) continue;
+                this._state.removePage(page.name);
+                clearPageMarks(node);
+                changed = true;
+            }
+        }
+        if (!changed) return;
+        this._applyVisibility();
+        this._reflectName();
+        this._emitItemsChanged();
+    }
+
     private _applyVisibility(): void {
         const selected = this._state.visibleIndex;
         this._state.pages.forEach((page, index) => {
@@ -299,3 +324,15 @@ export class AdwViewStack extends HTMLElement {
 }
 
 customElements.define('adw-view-stack', AdwViewStack);
+
+/**
+ * What the stack wrote on a page's content, taken back once it is no longer a page: the
+ * class, the name, `active-view` and the `hidden` that is `gtk_widget_set_child_visible`
+ * (adw-view-stack.c:1138) — a child-visible flag the stack owns, which `gtk_widget_unparent`
+ * resets, not the widget's own visibility.
+ */
+function clearPageMarks(content: HTMLElement): void {
+    content.classList.remove('adw-view-stack-child', 'active-view');
+    delete content.dataset.name;
+    content.hidden = false;
+}
