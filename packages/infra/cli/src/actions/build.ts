@@ -30,6 +30,8 @@ import { collectEntryPaths, describeJsxConfig, findJsxEntryPoint, jsxConfigMissi
 import { giSystemProbes } from '../utils/gi-runtime-paths.js';
 import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
+import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
+import { planGiSelection } from '../utils/ship/gi-selection.js';
 import { DEP_CHANGE_LOCKFILES } from '../utils/package-inputs.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';
@@ -483,6 +485,54 @@ export class BuildAction {
             const code = (item as { code?: string }).code;
             if (typeof code !== 'string' || code.length === 0) continue;
             assertNodeBundleGlobalsShimmed(code, item.fileName ? `${label} (${item.fileName})` : label);
+        }
+    }
+
+    /**
+     * Post-bundle gate for `--app nativescript`: every GI namespace the emitted
+     * bundle loads has to be one the APK was told to carry (ADR 0117 § 2).
+     *
+     * THE ORACLE IS THE EMITTED FILE, like the two gates above and for the same
+     * reason — that is the artifact that gets installed. What it reads there is a
+     * LOWER BOUND, which is why only one direction is fatal: a namespace the scan
+     * found and the config omits WILL be missing from the APK, while a namespace the
+     * config names and the scan missed may simply be reached in a way no static read
+     * can see (`planGiSelection` carries the full argument).
+     *
+     * Android is the one target where this is not advice. A `.deb` that under-declares
+     * its typelibs can still be fixed by installing a package; an APK carries its
+     * whole GI stack or does without it.
+     */
+    private assertNativescriptGiSelected(
+        result: RolldownOutput,
+        outfile: string | undefined,
+        outdir: string | undefined,
+    ) {
+        const label = outfile ?? outdir ?? 'the nativescript bundle';
+        const scanned = new Set<string>();
+        for (const item of result.output ?? []) {
+            if (item.type !== 'chunk') continue;
+            const code = (item as { code?: string }).code;
+            if (typeof code !== 'string' || code.length === 0) continue;
+            for (const namespace of scanGiNamespaces(code)) scanned.add(namespace);
+        }
+        let selection;
+        try {
+            selection = planGiSelection({
+                declared: this.configData.nativescript?.giNamespaces ?? [],
+                scanned: [...scanned],
+            });
+        } catch (error) {
+            // Re-thrown with the artifact in it: `planGiSelection` is pure and knows
+            // the namespaces but not which file they were read from.
+            throw new Error(`gjsify build: ${label}: ${(error as Error).message}`);
+        }
+        for (const namespace of selection.unscanned) {
+            console.warn(
+                `[gjsify] --app nativescript: nativescript.giNamespaces declares ${namespace}, which ` +
+                    `${label} does not appear to import. The APK carries it anyway — drop it if nothing ` +
+                    'needs it, since every selected namespace costs APK size.',
+            );
         }
     }
 
@@ -1046,6 +1096,14 @@ export class BuildAction {
         // `--globals none` opts out of the mechanism, so it opts out of the gate.
         if (app === 'node' && autoMode && !pluginOpts.nodeGiGlobalsInject) {
             this.assertNodeOutputGlobals(writeResult, outfile, outdir);
+        }
+
+        // Refuse to hand back a `--app nativescript` bundle that imports a GI namespace
+        // the APK will not carry. The payload is selected from a pinned sysroot at
+        // package-build time (ADR 0117), so there is no host to fall back on: the
+        // alternative to this gate is an APK that installs and throws at the import.
+        if (app === 'nativescript') {
+            this.assertNativescriptGiSelected(writeResult, outfile, outdir);
         }
 
         // Browser HTML entry: emit the processed `index.html` beside the bundle

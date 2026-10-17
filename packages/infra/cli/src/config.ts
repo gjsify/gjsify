@@ -350,6 +350,29 @@ export class Config {
                     'through @gjsify/node-gi, so neither needs a widget renderer standing in for it.',
             );
         }
+        // And the same rule once more for the namespace selection, which only an
+        // Android payload can act on: on every other target `gi://` is answered by a
+        // system typelib or by `requireGi`, so a list here would be read, validated
+        // and then change nothing about the artifact.
+        if (configData.nativescript?.giNamespaces !== undefined && configData.app !== 'nativescript') {
+            throw new Error(
+                `gjsify build: nativescript.giNamespaces has no effect on --app ${configData.app}. ` +
+                    'It selects what an Android APK carries (ADR 0117); every other target resolves ' +
+                    '`gi://` against a GI stack the host already has.',
+            );
+        }
+        for (const entry of configData.nativescript?.giNamespaces ?? []) {
+            // `Ns` or `Ns-Version`, because that is what the AAR builder resolves
+            // against the typelib names in the sysroot. A free-form string here
+            // surfaces as "the prefix has no typelib for …" hours later, naming the
+            // typo rather than the shape.
+            if (!/^[A-Za-z][A-Za-z\d_]*(-\d+(\.\d+)*)?$/.test(entry)) {
+                throw new Error(
+                    `gjsify build: nativescript.giNamespaces entry "${entry}" is not a GI namespace. ` +
+                        'Write it as `Gtk` or `Gtk-4.0`.',
+                );
+            }
+        }
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
         // Fallback applied post-merge (not as a yargs `default:`) so a
         // `globals` declared in package.json#gjsify / `.gjsifyrc.*` survives —
