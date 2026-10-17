@@ -1,0 +1,1167 @@
+{
+  "$comment": [
+    "The pinned GI prefix as the AAR build sees it, and what selecting NOTHING plans out",
+    "of it. Written by scripts/snapshot-payload-baseline.mjs; replayed by node-gi/test/",
+    "gi-runtime-android.test.mjs, which is the only check that ADR 0117 selection left the",
+    "default payload alone. Regenerate when build-inputs.json moves the sysroot pin.",
+    "measured: what ADR 0110 stage C counted in the release split APKs, per ABI, as",
+    "COMPRESSED zip-entry sizes (docs/reports/2026-10-15-adr-0110-gates.md). The entry",
+    "counts are checkable here; the byte totals are not reproducible on a host and are",
+    "recorded so the entries they account for cannot change unnoticed."
+  ],
+  "sysroot": {
+    "repository": "gjsify/android-sysroot",
+    "tag": "2026.10.13"
+  },
+  "measured": {
+    "report": "docs/reports/2026-10-15-adr-0110-gates.md",
+    "stage": "C — the release split APKs, entry accounting by scripts/apk-size.mjs",
+    "arm64-v8a": { "payloadBytes": 15746594, "libraryBytes": 15541128, "libraries": 15, "typelibs": 7 },
+    "x86_64": { "payloadBytes": 16907482, "libraryBytes": 16702016, "libraries": 15, "typelibs": 7 },
+    "typelibBytes": 205466
+  },
+  "planned": {
+    "arm64-v8a": {
+      "libraries": [
+        "libcairo-gobject.so",
+        "libcairo.so",
+        "libffi.so",
+        "libfontconfig.so",
+        "libfreetype.so",
+        "libgio-2.0.so",
+        "libgirepository-2.0.so",
+        "libglib-2.0.so",
+        "libgmodule-2.0.so",
+        "libgobject-2.0.so",
+        "libintl.so",
+        "libnode_gi.so",
+        "libpixman-1.so",
+        "libpng16.so",
+        "libxml2.so"
+      ],
+      "system": [
+        "libNativeScript.so",
+        "libandroid.so",
+        "libc.so",
+        "libdl.so",
+        "libm.so",
+        "libz.so"
+      ],
+      "typelibs": [
+        "GIRepository-3.0.typelib",
+        "GLib-2.0.typelib",
+        "GLibUnix-2.0.typelib",
+        "GModule-2.0.typelib",
+        "GObject-2.0.typelib",
+        "Gio-2.0.typelib",
+        "GioUnix-2.0.typelib"
+      ]
+    },
+    "x86_64": {
+      "libraries": [
+        "libcairo-gobject.so",
+        "libcairo.so",
+        "libffi.so",
+        "libfontconfig.so",
+        "libfreetype.so",
+        "libgio-2.0.so",
+        "libgirepository-2.0.so",
+        "libglib-2.0.so",
+        "libgmodule-2.0.so",
+        "libgobject-2.0.so",
+        "libintl.so",
+        "libnode_gi.so",
+        "libpixman-1.so",
+        "libpng16.so",
+        "libxml2.so"
+      ],
+      "system": [
+        "libNativeScript.so",
+        "libandroid.so",
+        "libc.so",
+        "libdl.so",
+        "libm.so",
+        "libz.so"
+      ],
+      "typelibs": [
+        "GIRepository-3.0.typelib",
+        "GLib-2.0.typelib",
+        "GLibUnix-2.0.typelib",
+        "GModule-2.0.typelib",
+        "GObject-2.0.typelib",
+        "Gio-2.0.typelib",
+        "GioUnix-2.0.typelib"
+      ]
+    }
+  },
+  "graph": {
+    "arm64-v8a": {
+      "needed": {
+        "libNativeScript.so": null,
+        "libadwaita-1.so": [
+          "libglib-2.0.so",
+          "libintl.so",
+          "libfribidi.so",
+          "libgio-2.0.so",
+          "libgobject-2.0.so",
+          "libgtk-4.so",
+          "libpango-1.0.so",
+          "libgraphene-1.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libandroid.so": null,
+        "libc.so": null,
+        "libcairo-gobject.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libcairo.so",
+          "libc.so"
+        ],
+        "libcairo-script-interpreter.so": [
+          "libfontconfig.so",
+          "libfreetype.so",
+          "libcairo.so",
+          "libm.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libcairo.so": [
+          "libpng16.so",
+          "libfontconfig.so",
+          "libfreetype.so",
+          "libpixman-1.so",
+          "libm.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libdl.so": null,
+        "libepoxy.so": [
+          "libdl.so",
+          "libc.so"
+        ],
+        "libffi.so": [
+          "libc.so"
+        ],
+        "libfontconfig.so": [
+          "libfreetype.so",
+          "libxml2.so",
+          "libintl.so",
+          "libc.so"
+        ],
+        "libfreetype.so": [
+          "libpng16.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libfribidi.so": [
+          "libc.so"
+        ],
+        "libgdk_pixbuf-2.0.so": [
+          "libglib-2.0.so",
+          "libintl.so",
+          "libgobject-2.0.so",
+          "libgmodule-2.0.so",
+          "libgio-2.0.so",
+          "libpng16.so",
+          "libjpeg.so",
+          "libjnigraphics.so",
+          "libc.so"
+        ],
+        "libgio-2.0.so": [
+          "libglib-2.0.so",
+          "libintl.so",
+          "libgobject-2.0.so",
+          "libgmodule-2.0.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libgirepository-2.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libgmodule-2.0.so",
+          "libffi.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libglib-2.0.so": [
+          "libintl.so",
+          "libc.so"
+        ],
+        "libgmodule-2.0.so": [
+          "libglib-2.0.so",
+          "libdl.so",
+          "libc.so"
+        ],
+        "libgobject-2.0.so": [
+          "libffi.so",
+          "libglib-2.0.so",
+          "libc.so"
+        ],
+        "libgraphene-1.0.so": [
+          "libgobject-2.0.so",
+          "libglib-2.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libgtk-4.so": [
+          "libgmodule-2.0.so",
+          "libglib-2.0.so",
+          "libintl.so",
+          "libgobject-2.0.so",
+          "libgio-2.0.so",
+          "libpangocairo-1.0.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libfontconfig.so",
+          "libcairo.so",
+          "libpng16.so",
+          "libpango-1.0.so",
+          "libharfbuzz-subset.so",
+          "libcairo-gobject.so",
+          "libgdk_pixbuf-2.0.so",
+          "libepoxy.so",
+          "libgraphene-1.0.so",
+          "libpangoft2-1.0.so",
+          "libtiff.so",
+          "libjpeg.so",
+          "libcairo-script-interpreter.so",
+          "libm.so",
+          "libvulkan.so",
+          "libandroid.so",
+          "liblog.so",
+          "libc.so"
+        ],
+        "libharfbuzz-gobject.so": [
+          "libharfbuzz.so",
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libc.so"
+        ],
+        "libharfbuzz-subset.so": [
+          "libharfbuzz.so",
+          "libc.so"
+        ],
+        "libharfbuzz.so": [
+          "libfreetype.so",
+          "libglib-2.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libintl.so": [
+          "libc.so"
+        ],
+        "libjnigraphics.so": null,
+        "libjpeg.so": [
+          "libc.so"
+        ],
+        "liblog.so": null,
+        "libm.so": null,
+        "libnode_gi.so": [
+          "libgirepository-2.0.so",
+          "libgobject-2.0.so",
+          "libglib-2.0.so",
+          "libgio-2.0.so",
+          "libgmodule-2.0.so",
+          "libcairo.so",
+          "libcairo-gobject.so",
+          "libffi.so",
+          "libintl.so",
+          "libandroid.so",
+          "libNativeScript.so",
+          "libm.so",
+          "libdl.so",
+          "libc.so"
+        ],
+        "libpango-1.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libgio-2.0.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libpangocairo-1.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libharfbuzz.so",
+          "libfontconfig.so",
+          "libcairo.so",
+          "libpango-1.0.so",
+          "libpangoft2-1.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libpangoft2-1.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libgio-2.0.so",
+          "libharfbuzz.so",
+          "libfreetype.so",
+          "libfontconfig.so",
+          "libpango-1.0.so",
+          "libc.so"
+        ],
+        "libpixman-1.so": [
+          "libm.so",
+          "libc.so"
+        ],
+        "libpng16.so": [
+          "libz.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libtiff.so": [
+          "libjpeg.so",
+          "libm.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libvulkan.so": null,
+        "libxml2.so": [
+          "libm.so",
+          "libz.so",
+          "libdl.so",
+          "libc.so"
+        ],
+        "libz.so": null
+      },
+      "typelibs": [
+        {
+          "name": "Adw-1.typelib",
+          "namespace": "Adw",
+          "version": "1",
+          "key": "Adw-1",
+          "sharedLibraries": [
+            "libadwaita-1.so"
+          ],
+          "dependencies": [
+            "Gio-2.0",
+            "Gtk-4.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GIRepository-3.0.typelib",
+          "namespace": "GIRepository",
+          "version": "3.0",
+          "key": "GIRepository-3.0",
+          "sharedLibraries": [
+            "libgirepository-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0",
+            "GModule-2.0",
+            "GObject-2.0",
+            "Gio-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GLib-2.0.typelib",
+          "namespace": "GLib",
+          "version": "2.0",
+          "key": "GLib-2.0",
+          "sharedLibraries": [
+            "libgobject-2.0.so",
+            "libglib-2.0.so"
+          ],
+          "dependencies": [],
+          "major": 4
+        },
+        {
+          "name": "GLibUnix-2.0.typelib",
+          "namespace": "GLibUnix",
+          "version": "2.0",
+          "key": "GLibUnix-2.0",
+          "sharedLibraries": [
+            "libgobject-2.0.so",
+            "libglib-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GModule-2.0.typelib",
+          "namespace": "GModule",
+          "version": "2.0",
+          "key": "GModule-2.0",
+          "sharedLibraries": [
+            "libgmodule-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GObject-2.0.typelib",
+          "namespace": "GObject",
+          "version": "2.0",
+          "key": "GObject-2.0",
+          "sharedLibraries": [
+            "libgobject-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gdk-4.0.typelib",
+          "namespace": "Gdk",
+          "version": "4.0",
+          "key": "Gdk-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "GdkPixbuf-2.0",
+            "Gio-2.0",
+            "Pango-1.0",
+            "PangoCairo-1.0",
+            "cairo-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GdkAndroid-4.0.typelib",
+          "namespace": "GdkAndroid",
+          "version": "4.0",
+          "key": "GdkAndroid-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "Gdk-4.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GdkPixbuf-2.0.typelib",
+          "namespace": "GdkPixbuf",
+          "version": "2.0",
+          "key": "GdkPixbuf-2.0",
+          "sharedLibraries": [
+            "libgdk_pixbuf-2.0.so"
+          ],
+          "dependencies": [
+            "GModule-2.0",
+            "Gio-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GdkPixdata-2.0.typelib",
+          "namespace": "GdkPixdata",
+          "version": "2.0",
+          "key": "GdkPixdata-2.0",
+          "sharedLibraries": [
+            "libgdk_pixbuf-2.0.so"
+          ],
+          "dependencies": [
+            "GdkPixbuf-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gio-2.0.typelib",
+          "namespace": "Gio",
+          "version": "2.0",
+          "key": "Gio-2.0",
+          "sharedLibraries": [
+            "libgio-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0",
+            "GModule-2.0",
+            "GObject-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GioUnix-2.0.typelib",
+          "namespace": "GioUnix",
+          "version": "2.0",
+          "key": "GioUnix-2.0",
+          "sharedLibraries": [
+            "libgio-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0",
+            "GModule-2.0",
+            "GObject-2.0",
+            "Gio-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Graphene-1.0.typelib",
+          "namespace": "Graphene",
+          "version": "1.0",
+          "key": "Graphene-1.0",
+          "sharedLibraries": [
+            "libgraphene-1.0.so"
+          ],
+          "dependencies": [
+            "GObject-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gsk-4.0.typelib",
+          "namespace": "Gsk",
+          "version": "4.0",
+          "key": "Gsk-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "Gdk-4.0",
+            "Graphene-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gtk-4.0.typelib",
+          "namespace": "Gtk",
+          "version": "4.0",
+          "key": "Gtk-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "Gdk-4.0",
+            "Gsk-4.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "HarfBuzz-0.0.typelib",
+          "namespace": "HarfBuzz",
+          "version": "0.0",
+          "key": "HarfBuzz-0.0",
+          "sharedLibraries": [
+            "libharfbuzz-gobject.so",
+            "libharfbuzz.so"
+          ],
+          "dependencies": [
+            "GObject-2.0",
+            "freetype2-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Pango-1.0.typelib",
+          "namespace": "Pango",
+          "version": "1.0",
+          "key": "Pango-1.0",
+          "sharedLibraries": [
+            "libpango-1.0.so"
+          ],
+          "dependencies": [
+            "GObject-2.0",
+            "Gio-2.0",
+            "HarfBuzz-0.0",
+            "cairo-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoCairo-1.0.typelib",
+          "namespace": "PangoCairo",
+          "version": "1.0",
+          "key": "PangoCairo-1.0",
+          "sharedLibraries": [
+            "libpangocairo-1.0.so"
+          ],
+          "dependencies": [
+            "GObject-2.0",
+            "Pango-1.0",
+            "cairo-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoFT2-1.0.typelib",
+          "namespace": "PangoFT2",
+          "version": "1.0",
+          "key": "PangoFT2-1.0",
+          "sharedLibraries": [
+            "libpangoft2-1.0.so"
+          ],
+          "dependencies": [
+            "PangoFc-1.0",
+            "freetype2-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoFc-1.0.typelib",
+          "namespace": "PangoFc",
+          "version": "1.0",
+          "key": "PangoFc-1.0",
+          "sharedLibraries": [
+            "libpangoft2-1.0.so"
+          ],
+          "dependencies": [
+            "Pango-1.0",
+            "fontconfig-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoOT-1.0.typelib",
+          "namespace": "PangoOT",
+          "version": "1.0",
+          "key": "PangoOT-1.0",
+          "sharedLibraries": [
+            "libpangoft2-1.0.so"
+          ],
+          "dependencies": [
+            "PangoFc-1.0",
+            "freetype2-2.0"
+          ],
+          "major": 4
+        }
+      ]
+    },
+    "x86_64": {
+      "needed": {
+        "libNativeScript.so": null,
+        "libadwaita-1.so": [
+          "libglib-2.0.so",
+          "libintl.so",
+          "libfribidi.so",
+          "libgio-2.0.so",
+          "libgobject-2.0.so",
+          "libgtk-4.so",
+          "libpango-1.0.so",
+          "libgraphene-1.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libandroid.so": null,
+        "libc.so": null,
+        "libcairo-gobject.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libcairo.so",
+          "libc.so"
+        ],
+        "libcairo-script-interpreter.so": [
+          "libfontconfig.so",
+          "libfreetype.so",
+          "libcairo.so",
+          "libm.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libcairo.so": [
+          "libpng16.so",
+          "libfontconfig.so",
+          "libfreetype.so",
+          "libpixman-1.so",
+          "libm.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libdl.so": null,
+        "libepoxy.so": [
+          "libdl.so",
+          "libc.so"
+        ],
+        "libffi.so": [
+          "libc.so"
+        ],
+        "libfontconfig.so": [
+          "libfreetype.so",
+          "libxml2.so",
+          "libintl.so",
+          "libc.so"
+        ],
+        "libfreetype.so": [
+          "libpng16.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libfribidi.so": [
+          "libc.so"
+        ],
+        "libgdk_pixbuf-2.0.so": [
+          "libglib-2.0.so",
+          "libintl.so",
+          "libgobject-2.0.so",
+          "libgmodule-2.0.so",
+          "libgio-2.0.so",
+          "libpng16.so",
+          "libjpeg.so",
+          "libjnigraphics.so",
+          "libc.so"
+        ],
+        "libgio-2.0.so": [
+          "libglib-2.0.so",
+          "libintl.so",
+          "libgobject-2.0.so",
+          "libgmodule-2.0.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libgirepository-2.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libgmodule-2.0.so",
+          "libffi.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libglib-2.0.so": [
+          "libintl.so",
+          "libc.so"
+        ],
+        "libgmodule-2.0.so": [
+          "libglib-2.0.so",
+          "libdl.so",
+          "libc.so"
+        ],
+        "libgobject-2.0.so": [
+          "libffi.so",
+          "libglib-2.0.so",
+          "libc.so"
+        ],
+        "libgraphene-1.0.so": [
+          "libgobject-2.0.so",
+          "libglib-2.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libgtk-4.so": [
+          "libgmodule-2.0.so",
+          "libglib-2.0.so",
+          "libintl.so",
+          "libgobject-2.0.so",
+          "libgio-2.0.so",
+          "libpangocairo-1.0.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libfontconfig.so",
+          "libcairo.so",
+          "libpng16.so",
+          "libpango-1.0.so",
+          "libharfbuzz-subset.so",
+          "libcairo-gobject.so",
+          "libgdk_pixbuf-2.0.so",
+          "libepoxy.so",
+          "libgraphene-1.0.so",
+          "libpangoft2-1.0.so",
+          "libtiff.so",
+          "libjpeg.so",
+          "libcairo-script-interpreter.so",
+          "libm.so",
+          "libvulkan.so",
+          "libandroid.so",
+          "liblog.so",
+          "libc.so"
+        ],
+        "libharfbuzz-gobject.so": [
+          "libharfbuzz.so",
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libc.so"
+        ],
+        "libharfbuzz-subset.so": [
+          "libharfbuzz.so",
+          "libc.so"
+        ],
+        "libharfbuzz.so": [
+          "libfreetype.so",
+          "libglib-2.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libintl.so": [
+          "libc.so"
+        ],
+        "libjnigraphics.so": null,
+        "libjpeg.so": [
+          "libc.so"
+        ],
+        "liblog.so": null,
+        "libm.so": null,
+        "libnode_gi.so": [
+          "libgirepository-2.0.so",
+          "libgobject-2.0.so",
+          "libglib-2.0.so",
+          "libgio-2.0.so",
+          "libgmodule-2.0.so",
+          "libcairo.so",
+          "libcairo-gobject.so",
+          "libffi.so",
+          "libintl.so",
+          "libandroid.so",
+          "libNativeScript.so",
+          "libm.so",
+          "libdl.so",
+          "libc.so"
+        ],
+        "libpango-1.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libgio-2.0.so",
+          "libfribidi.so",
+          "libharfbuzz.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libpangocairo-1.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libharfbuzz.so",
+          "libfontconfig.so",
+          "libcairo.so",
+          "libpango-1.0.so",
+          "libpangoft2-1.0.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libpangoft2-1.0.so": [
+          "libglib-2.0.so",
+          "libgobject-2.0.so",
+          "libgio-2.0.so",
+          "libharfbuzz.so",
+          "libfreetype.so",
+          "libfontconfig.so",
+          "libpango-1.0.so",
+          "libc.so"
+        ],
+        "libpixman-1.so": [
+          "libm.so",
+          "libc.so"
+        ],
+        "libpng16.so": [
+          "libz.so",
+          "libm.so",
+          "libc.so"
+        ],
+        "libtiff.so": [
+          "libjpeg.so",
+          "libm.so",
+          "libz.so",
+          "libc.so"
+        ],
+        "libvulkan.so": null,
+        "libxml2.so": [
+          "libm.so",
+          "libz.so",
+          "libdl.so",
+          "libc.so"
+        ],
+        "libz.so": null
+      },
+      "typelibs": [
+        {
+          "name": "Adw-1.typelib",
+          "namespace": "Adw",
+          "version": "1",
+          "key": "Adw-1",
+          "sharedLibraries": [
+            "libadwaita-1.so"
+          ],
+          "dependencies": [
+            "Gio-2.0",
+            "Gtk-4.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GIRepository-3.0.typelib",
+          "namespace": "GIRepository",
+          "version": "3.0",
+          "key": "GIRepository-3.0",
+          "sharedLibraries": [
+            "libgirepository-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0",
+            "GModule-2.0",
+            "GObject-2.0",
+            "Gio-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GLib-2.0.typelib",
+          "namespace": "GLib",
+          "version": "2.0",
+          "key": "GLib-2.0",
+          "sharedLibraries": [
+            "libgobject-2.0.so",
+            "libglib-2.0.so"
+          ],
+          "dependencies": [],
+          "major": 4
+        },
+        {
+          "name": "GLibUnix-2.0.typelib",
+          "namespace": "GLibUnix",
+          "version": "2.0",
+          "key": "GLibUnix-2.0",
+          "sharedLibraries": [
+            "libgobject-2.0.so",
+            "libglib-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GModule-2.0.typelib",
+          "namespace": "GModule",
+          "version": "2.0",
+          "key": "GModule-2.0",
+          "sharedLibraries": [
+            "libgmodule-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GObject-2.0.typelib",
+          "namespace": "GObject",
+          "version": "2.0",
+          "key": "GObject-2.0",
+          "sharedLibraries": [
+            "libgobject-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gdk-4.0.typelib",
+          "namespace": "Gdk",
+          "version": "4.0",
+          "key": "Gdk-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "GdkPixbuf-2.0",
+            "Gio-2.0",
+            "Pango-1.0",
+            "PangoCairo-1.0",
+            "cairo-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GdkAndroid-4.0.typelib",
+          "namespace": "GdkAndroid",
+          "version": "4.0",
+          "key": "GdkAndroid-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "Gdk-4.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GdkPixbuf-2.0.typelib",
+          "namespace": "GdkPixbuf",
+          "version": "2.0",
+          "key": "GdkPixbuf-2.0",
+          "sharedLibraries": [
+            "libgdk_pixbuf-2.0.so"
+          ],
+          "dependencies": [
+            "GModule-2.0",
+            "Gio-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GdkPixdata-2.0.typelib",
+          "namespace": "GdkPixdata",
+          "version": "2.0",
+          "key": "GdkPixdata-2.0",
+          "sharedLibraries": [
+            "libgdk_pixbuf-2.0.so"
+          ],
+          "dependencies": [
+            "GdkPixbuf-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gio-2.0.typelib",
+          "namespace": "Gio",
+          "version": "2.0",
+          "key": "Gio-2.0",
+          "sharedLibraries": [
+            "libgio-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0",
+            "GModule-2.0",
+            "GObject-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "GioUnix-2.0.typelib",
+          "namespace": "GioUnix",
+          "version": "2.0",
+          "key": "GioUnix-2.0",
+          "sharedLibraries": [
+            "libgio-2.0.so"
+          ],
+          "dependencies": [
+            "GLib-2.0",
+            "GModule-2.0",
+            "GObject-2.0",
+            "Gio-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Graphene-1.0.typelib",
+          "namespace": "Graphene",
+          "version": "1.0",
+          "key": "Graphene-1.0",
+          "sharedLibraries": [
+            "libgraphene-1.0.so"
+          ],
+          "dependencies": [
+            "GObject-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gsk-4.0.typelib",
+          "namespace": "Gsk",
+          "version": "4.0",
+          "key": "Gsk-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "Gdk-4.0",
+            "Graphene-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Gtk-4.0.typelib",
+          "namespace": "Gtk",
+          "version": "4.0",
+          "key": "Gtk-4.0",
+          "sharedLibraries": [
+            "libgtk-4.so"
+          ],
+          "dependencies": [
+            "Gdk-4.0",
+            "Gsk-4.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "HarfBuzz-0.0.typelib",
+          "namespace": "HarfBuzz",
+          "version": "0.0",
+          "key": "HarfBuzz-0.0",
+          "sharedLibraries": [
+            "libharfbuzz-gobject.so",
+            "libharfbuzz.so"
+          ],
+          "dependencies": [
+            "GObject-2.0",
+            "freetype2-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "Pango-1.0.typelib",
+          "namespace": "Pango",
+          "version": "1.0",
+          "key": "Pango-1.0",
+          "sharedLibraries": [
+            "libpango-1.0.so"
+          ],
+          "dependencies": [
+            "GObject-2.0",
+            "Gio-2.0",
+            "HarfBuzz-0.0",
+            "cairo-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoCairo-1.0.typelib",
+          "namespace": "PangoCairo",
+          "version": "1.0",
+          "key": "PangoCairo-1.0",
+          "sharedLibraries": [
+            "libpangocairo-1.0.so"
+          ],
+          "dependencies": [
+            "GObject-2.0",
+            "Pango-1.0",
+            "cairo-1.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoFT2-1.0.typelib",
+          "namespace": "PangoFT2",
+          "version": "1.0",
+          "key": "PangoFT2-1.0",
+          "sharedLibraries": [
+            "libpangoft2-1.0.so"
+          ],
+          "dependencies": [
+            "PangoFc-1.0",
+            "freetype2-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoFc-1.0.typelib",
+          "namespace": "PangoFc",
+          "version": "1.0",
+          "key": "PangoFc-1.0",
+          "sharedLibraries": [
+            "libpangoft2-1.0.so"
+          ],
+          "dependencies": [
+            "Pango-1.0",
+            "fontconfig-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "PangoOT-1.0.typelib",
+          "namespace": "PangoOT",
+          "version": "1.0",
+          "key": "PangoOT-1.0",
+          "sharedLibraries": [
+            "libpangoft2-1.0.so"
+          ],
+          "dependencies": [
+            "PangoFc-1.0",
+            "freetype2-2.0"
+          ],
+          "major": 4
+        }
+      ]
+    }
+  }
+}

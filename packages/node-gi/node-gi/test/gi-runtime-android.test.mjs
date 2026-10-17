@@ -31,13 +31,16 @@ import {
     planTypelibs,
     renderAndroidManifest,
     renderNotice,
+    REQUIRED_NAMESPACES,
 } from '../../gi-runtime-android/scripts/build-gi-runtime-android.mjs';
+import { planTypelibSet } from '../../scripts/typelib-backers.mjs';
 import { buildZip, dosDateTime } from '../../scripts/aar-zip.mjs';
 
 const pkgDir = fileURLToPath(new URL('../../gi-runtime-android/', import.meta.url));
 const manifest = JSON.parse(readFileSync(`${pkgDir}package.json`, 'utf8'));
 const licenseTable = JSON.parse(readFileSync(`${pkgDir}licenses/bundled-projects.json`, 'utf8'));
 const declaredDivergence = JSON.parse(readFileSync(`${pkgDir}typelib-abi-divergence.json`, 'utf8'));
+const baseline = JSON.parse(readFileSync(`${pkgDir}payload-baseline.json`, 'utf8'));
 
 /** A GI prefix as the closure walk sees it: DT_NEEDED per soname, `null` outside the prefix. */
 function prefix(libraries) {
@@ -717,4 +720,88 @@ describe('readLicenseCorpus: a licence file is read or the build stops', () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
+});
+
+describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured', () => {
+    // The one property this whole mechanism has to keep and no diff can show: an app that
+    // names no namespace gets the payload a device was once measured carrying. Replayed
+    // from the frozen link graph rather than re-measured, because measuring needs the NDK
+    // and the sha256-pinned sysroot, and a check that cannot run is not a check.
+    //
+    // The bytes themselves are not reproducible here (ADR 0110 counted COMPRESSED zip
+    // entries of a gradle release build), so what is asserted is the layer below them: the
+    // exact set of entries those bytes account for, and that the recorded totals still add
+    // up entry-wise. A selection bug changes the SET long before it changes a size.
+    const ABIS = ['arm64-v8a', 'x86_64'];
+    const replay = (abi, namespaces) => {
+        const { needed, typelibs } = baseline.graph[abi];
+        const { seeds } = planGiRoots({ namespaces, typelibs });
+        const { bundle, system } = planClosure({
+            roots: ['libnode_gi.so'],
+            seeds,
+            needed: (soname) => (soname in needed ? needed[soname] : null),
+        });
+        const libraries = ['libnode_gi.so', ...bundle];
+        const plan = planTypelibSet({
+            typelibs,
+            libraries: new Set(libraries),
+            caseInsensitive: false,
+            requiredNamespaces: REQUIRED_NAMESPACES,
+        });
+        assert.deepEqual(plan.problems, [], `${abi}: the typelib set is not self-contained`);
+        return {
+            libraries: libraries.sort(),
+            system: [...system].sort(),
+            typelibs: plan.copy.map((typelib) => typelib.name).sort(),
+        };
+    };
+
+    for (const abi of ABIS) {
+        it(`${abi}: the default plan is byte-for-byte the baseline's`, () => {
+            assert.deepEqual(replay(abi, []), baseline.planned[abi]);
+        });
+
+        it(`${abi}: the baseline is the entry set ADR 0110 counted`, () => {
+            const measured = baseline.measured[abi];
+            assert.equal(baseline.planned[abi].libraries.length, measured.libraries);
+            assert.equal(baseline.planned[abi].typelibs.length, measured.typelibs);
+            // The report split the payload total the same way; if these stop agreeing, the
+            // numbers quoted above came from two different builds.
+            assert.equal(measured.libraryBytes + baseline.measured.typelibBytes, measured.payloadBytes);
+        });
+
+        it(`${abi}: an explicit core namespace changes nothing`, () => {
+            // `GLib` is already in the default payload, so naming it is a no-op — the
+            // regression this closes is a selection that bundles a second copy of what the
+            // closure walk already reached, or re-seeds it as a root.
+            assert.deepEqual(replay(abi, ['GLib']), baseline.planned[abi]);
+        });
+
+        it(`${abi}: selecting Graphene only ADDS to the baseline`, () => {
+            // The positive half: the mechanism does change the payload, and never by
+            // dropping something the default carried. Graphene is the cheapest namespace
+            // the pinned prefix can actually resolve (GTK's needs a cairo typelib the
+            // prefix has no introspection data for — ADR 0117's Implementation note).
+            const selected = replay(abi, ['Graphene']);
+            for (const soname of baseline.planned[abi].libraries) {
+                assert.ok(selected.libraries.includes(soname), `${soname} fell out of the payload`);
+            }
+            for (const name of baseline.planned[abi].typelibs) {
+                assert.ok(selected.typelibs.includes(name), `${name} fell out of the payload`);
+            }
+            assert.ok(selected.libraries.includes('libgraphene-1.0.so'));
+            assert.ok(selected.typelibs.includes('Graphene-1.0.typelib'));
+            assert.deepEqual(selected.system, baseline.planned[abi].system);
+        });
+
+        it(`${abi}: a namespace the pinned prefix has no typelib for fails by name`, () => {
+            // The failure an app hits for a dependency that was never cross-compiled. It
+            // has to name the namespace: the alternative is an APK that installs and throws
+            // at the import, on a device, with nothing pointing back at this list.
+            assert.throws(
+                () => replay(abi, ['Soup']),
+                (e) => /planGiRoots: the GI prefix has no typelib for Soup\./.test(e.message),
+            );
+        });
+    }
 });

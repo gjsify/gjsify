@@ -101,7 +101,7 @@ const AAR_MIN_SDK = 24;
  * calls into; everything else the GI prefix offers is shipped if its backing library happens
  * to be in the closure and dropped if not.
  */
-const REQUIRED_NAMESPACES = ['GLib', 'GObject', 'Gio'];
+export const REQUIRED_NAMESPACES = ['GLib', 'GObject', 'Gio'];
 
 const USAGE = `Usage: node scripts/build-gi-runtime-android.mjs [options]
 
