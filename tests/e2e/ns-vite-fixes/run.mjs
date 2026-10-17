@@ -10,6 +10,7 @@
 //      (reading 'currentLoadingModule')`, and Rolldown handles CommonJS natively.
 //   3. The vite-side `ns-typescript-check` plugin, on EITHER version line — a bundler is
 //      not a type-checker, and `gjsify tsc` is the gate.
+// and by handing `*.gresource.xml` past the upstream `ns-xml-loader-*` (ADR 0116 § 1).
 //
 // CI-safe by construction: no `@nativescript/vite`, no `nativescript` CLI, none of the NS
 // toolchain. A SYNTHETIC config reproduces every rejected shape, so the composer's contract
@@ -141,6 +142,25 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
             ['nativescript-package-resolver', 'vite:esbuild', 'nested-keeper'],
             'non-ts-check plugins (incl. the nested sibling) were not preserved after the strip',
         );
+    });
+
+    it("hands '.gresource.xml' past the upstream XML loader, keeps its views (ADR 0116 § 1)", () => {
+        const xmlLoader = (name) => ({
+            name,
+            enforce: 'pre',
+            load: (id) => (id.endsWith('.xml') ? `export default ${JSON.stringify(id)};` : null),
+        });
+        const fixed = applyVite8Fixes({
+            plugins: [xmlLoader('ns-xml-loader-ts'), [xmlLoader('ns-xml-loader-js')], xmlLoader('other-xml')],
+        });
+        const [ts, [js], other] = fixed.plugins;
+        for (const p of [ts, js]) {
+            assert.equal(p.enforce, 'pre', `${p.name} lost its enforce`);
+            assert.equal(p.load('/app/data/app.data.gresource.xml'), null, `${p.name} claimed a gresource`);
+            assert.equal(p.load('/app/data/app.data.gresource.xml?import'), null, `${p.name} claimed ?import`);
+            assert.equal(p.load('/app/main-page.xml'), 'export default "/app/main-page.xml";');
+        }
+        assert.notEqual(other.load('/app/x.gresource.xml'), null, 'a plugin outside @nativescript/vite was wrapped');
     });
 
     it("removes every 'commonjs' plugin (incl. nested), keeps all others", () => {
