@@ -22,7 +22,7 @@ export default async () => {
     await describe('planGiSelection', async () => {
         await it('selects exactly what the config declares', async () => {
             const { selected } = planGiSelection({ declared: ['Gtk', 'Adw'], scanned: ['Gtk'] });
-            expect(selected).toEqual(['Adw', 'Gtk']);
+            expect(selected).toStrictEqual(['Adw', 'Gtk']);
         });
 
         await it('FAILS naming a namespace the bundle imports and the config omits', async () => {
@@ -43,21 +43,21 @@ export default async () => {
             // The config pins the ABI (`Gtk-4.0`); the bundle's specifier may carry no
             // version at all. Comparing the raw strings would fail a correct project.
             const { selected, unscanned } = planGiSelection({ declared: ['Gtk-4.0'], scanned: ['Gtk'] });
-            expect(selected).toEqual(['Gtk-4.0']);
-            expect(unscanned).toEqual([]);
+            expect(selected).toStrictEqual(['Gtk-4.0']);
+            expect(unscanned).toStrictEqual([]);
         });
 
         await it('compares by NAMESPACE the other way round too', async () => {
             const { unscanned } = planGiSelection({ declared: ['Gtk'], scanned: ['Gtk-4.0'] });
-            expect(unscanned).toEqual([]);
+            expect(unscanned).toStrictEqual([]);
         });
 
         await it('reports a configured namespace the scan did not see, without failing', async () => {
             // Bigger APK than necessary, or a namespace reached in a way the scanner
             // cannot see. Either way the build goes on.
             const { selected, unscanned } = planGiSelection({ declared: ['Gtk', 'Soup'], scanned: ['Gtk'] });
-            expect(selected).toEqual(['Gtk', 'Soup']);
-            expect(unscanned).toEqual(['Soup']);
+            expect(selected).toStrictEqual(['Gtk', 'Soup']);
+            expect(unscanned).toStrictEqual(['Soup']);
         });
 
         await it('never asks for the core namespaces the runtime already carries', async () => {
@@ -68,31 +68,31 @@ export default async () => {
                 declared: [],
                 scanned: ['GLib-2.0', 'GObject-2.0', 'Gio-2.0', 'GioUnix-2.0', 'GLibUnix-2.0', 'GModule-2.0', 'GIRepository-3.0'],
             });
-            expect(selected).toEqual([]);
-            expect(unscanned).toEqual([]);
+            expect(selected).toStrictEqual([]);
+            expect(unscanned).toStrictEqual([]);
         });
 
         await it('still selects a core namespace a project chooses to declare', async () => {
             const { selected } = planGiSelection({ declared: ['GLib'], scanned: [] });
-            expect(selected).toEqual(['GLib']);
+            expect(selected).toStrictEqual(['GLib']);
         });
 
         await it('asks for nothing when neither side names anything', async () => {
             // The default build: no config key, no GI import. This is the case ADR 0110's
             // measured payload belongs to, so it must stay exactly empty.
-            expect(planGiSelection({ declared: [], scanned: [] })).toEqual({ selected: [], unscanned: [] });
+            expect(planGiSelection({ declared: [], scanned: [] })).toStrictEqual({ selected: [], unscanned: [] });
         });
 
         await it('deduplicates and sorts, so the same config always plans the same build', async () => {
             const { selected } = planGiSelection({ declared: ['Gtk', 'Adw', 'Gtk'], scanned: [] });
-            expect(selected).toEqual(['Adw', 'Gtk']);
+            expect(selected).toStrictEqual(['Adw', 'Gtk']);
         });
 
         await it('treats a bare and a pinned declaration of one namespace as one selection', async () => {
             // Passing both to the AAR builder would make `planGiRoots` resolve the same
             // namespace twice; harmless there, but the plan should be the honest set.
             const { selected } = planGiSelection({ declared: ['Gtk-4.0', 'Gtk'], scanned: [] });
-            expect(selected).toEqual(['Gtk-4.0']);
+            expect(selected).toStrictEqual(['Gtk-4.0']);
         });
     });
 };
