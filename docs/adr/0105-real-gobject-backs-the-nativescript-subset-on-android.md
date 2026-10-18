@@ -165,7 +165,7 @@ stage 4 ships a loadable prebuild.
 - Whether the node-gi GObject namespace matches GJS's `registerClass` meta keys closely enough
   for the vectors; the first oracle run answers it.
 - GTK on the device (C′) and a GJS port (A).
-- Which route replaces the twin by a real subclass (§ 2).
+- Which route replaces the twin by a real subclass (§ 2): decided 2026-10-18, none; the twin stays.
 
 ## Implementation
 
@@ -249,25 +249,20 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    16.93 MB (x86_64) compressed per split, +80 ms cold start on the x86_64 emulator. Not measured:
    arm64 cold start from a release APK.
 
-### Open: the twin route (§ 2), options and a recommendation
+### Decided 2026-10-18 (owner): test first, the twin stays
 
-Status 2026-10-18: this is an OWNER DECISION, not a missing implementation. § 2 names two routes
-and decides neither; nothing in stages 0-4 or ADR 0110 chose one, and the code has only the twin
-(`packages/nativescript-bridge/gobject`, lazy twin built on first use).
+The owner chose to run the inversion spike before deciding. Result, on the emulator and a
+Galaxy S9: it does not work. The widget can be a real `GObject.registerClass` subclass owning its
+`View`, with `instanceof GObject.Object`, properties, `notify`, signals, `Gio.ListStore` identity
+and finalization all holding. But NativeScript's `_addView` requires `instanceof ViewBase`, and
+`registerClass` refuses a `View` base, so the two prototype chains cannot merge. Layout accepts
+only the unwrap `widget.view`, which every consumer would have to adopt: a consumer-visible API
+change. Inversion also buys only ~1.4x on `set`/`notify` and ~1.6x on emit.
 
-- **Keep the twin (status quo).** No consumer reaches the twin object, only the engine interface,
-  so nothing is blocked. Cost is measured (ADR 0110 gates report): construction is free, USE is
-  ~5x read, ~45-99x `set`/`notify`, ~20-45x emit; the perf work continues in the todo.
-- **Invert ownership: the widget is a GObject subclass that owns its `View`.** The only route
-  that keeps NativeScript's layout and widgets. Open question that gates it: whether NativeScript
-  layout accepts a non-`View` wrapper. That is a spike (one widget, one layout pass on the
-  emulator), not a design discussion; the result decides the route.
-- **C′: widgets are real GTK subclasses by construction.** Already exists as ADR 0104's separate
-  opt-in track (GTK on a Worker). It is a different product (GTK rendering, not NativeScript
-  widgets), so it does not replace the twin for NativeScript apps.
+- **The twin stays permanently**; perf work on the twin continues (see the todo).
+- **C′ (ADR 0104)** stays the answer for apps that want real GTK widgets.
+- Lifetime rule found: a signal handler that captures `this` is never collected on node-gi
+  (a C-JS closure cycle). Twin exposure is untested.
 
-Recommendation: keep the twin and do not start either route until a consumer needs a widget to
-BE a `GObject.Object` (`instanceof`, passing it to a native API). If that need appears, run the
-inversion spike first; C′ stays the answer for apps that want real GTK. No measurement was run
-for this entry.
-
+[Report](../reports/2026-10-18-adr-0105-inversion-spike.md). Probe:
+`tests/integration/nativescript-gi/app/specs/inversion.ts`.

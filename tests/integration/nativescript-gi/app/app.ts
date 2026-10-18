@@ -21,6 +21,7 @@ import fileChooserVectors from './specs/file-chooser.js';
 import { viewsSpec } from './specs/views.js';
 import { storybookSpec } from './specs/storybook.js';
 import benchSpec from './specs/bench.js';
+import inversionSpec from './specs/inversion.js';
 
 /**
  * The engine THIS leg claims to run on, derived from the opt-in define alone — the two legs are
@@ -78,6 +79,7 @@ async function runSuite(): Promise<void> {
                 await viewsSpec(engine)();
                 await storybookSpec(engine)();
             }
+            if (optedIn) await inversionSpec();
             // LAST, and only when the build asked for it: it is seconds long and the runs that
             // measure cold start must not carry it. `specs/bench.ts` says why it is a define.
             if (__GJSIFY_GI_BENCH__) await benchSpec();
