@@ -16,6 +16,6 @@ export default {
     bundlerConfigPath: 'vite.config.ts',
     android: {
         v8Flags: '--expose_gc',
-        markingMode: 'none',
+        markingMode: (process.env.GJSIFY_GI_MARKING ?? 'none') as 'none' | 'full',
     },
 } as NativeScriptConfig;
