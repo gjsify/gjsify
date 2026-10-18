@@ -86,6 +86,8 @@ export class AdwCarousel extends withSignals(GridLayout) {
     private readonly _views = new Map<string, View>();
     private _nextPageId = 0;
     private _pageWidth = DEFAULT_CAROUSEL_PAGE_WIDTH;
+    /** Whether the scroll now being issued glides — `scroll_to`'s `animate`. */
+    private _animateScroll = true;
 
     constructor(props?: ConstructProps<AdwCarousel>) {
         super();
@@ -202,12 +204,38 @@ export class AdwCarousel extends withSignals(GridLayout) {
      * resolves it through the same `_idOf` they use; a view this carousel does not hold
      * is refused, which is C's precondition — and it is what a bound indicator calls
      * with `pages[i]` when a marker is tapped, as `adw-carousel-indicator-dots.c` does.
-     * The INDEX door is {@link position}.
+     * The INDEX door is {@link position}. The model lands at once either way; `animate`
+     * only decides whether the `ScrollView` glides there or jumps.
      */
-    scroll_to(page: View): void {
+    scroll_to(page: View, animate = true): void {
         const id = this._idOf(page);
         if (id === null) return;
-        this._scrollToIndex(this._state.indexOf(id));
+        this._animateScroll = animate;
+        try {
+            this._scrollToIndex(this._state.indexOf(id));
+        } finally {
+            this._animateScroll = true;
+        }
+    }
+
+    /**
+     * `adw_carousel_get_nth_page` (adw-carousel.c:1610-1621) — the page at `n`. Past the
+     * last page C's precondition fails and returns NULL, so this returns `null`.
+     */
+    get_nth_page(n: number): View | null {
+        if (!Number.isInteger(n) || n < 0 || n >= this._state.nPages) return null;
+        const id = this._state.ids[n];
+        return (id === undefined ? undefined : this._views.get(id)) ?? null;
+    }
+
+    /** `adw_carousel_get_n_pages` (adw-carousel.c:1632). */
+    get_n_pages(): number {
+        return this._state.nPages;
+    }
+
+    /** `adw_carousel_get_position` (adw-carousel.c:1661-1666) — the {@link position} property. */
+    get_position(): number {
+        return this._state.position;
     }
 
     /** One keynav step — `navigate_to_direction` (adw-carousel.c:475-508). */
@@ -301,7 +329,10 @@ export class AdwCarousel extends withSignals(GridLayout) {
     /** Run the scroll the state asked for. */
     private _performScroll(request: CarouselScrollRequest): void {
         this._sync.expect(request.position);
-        this._scroller.scrollToHorizontalOffset(carouselScrollOffset(request.position, this._distance()), true);
+        this._scroller.scrollToHorizontalOffset(
+            carouselScrollOffset(request.position, this._distance()),
+            this._animateScroll,
+        );
     }
 
     /**

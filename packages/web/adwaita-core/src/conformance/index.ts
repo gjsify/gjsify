@@ -748,6 +748,8 @@ export { GLIB_URI_ROWS, GLIB_URI_VECTORS, driveGLibUriVectors } from './glib-uri
 export type { GLibUriLike, GLibUriRow, GLibUriSubject, GLibUriVector } from './glib-uri.js';
 export { GIO_APP_INFO_ROWS, GIO_APP_INFO_VECTORS, driveGioAppInfoVectors } from './gio-app-info.js';
 export type { GioAppInfoNamespaces, GioAppInfoRow, GioAppInfoSubject, GioAppInfoVector } from './gio-app-info.js';
+export { CAROUSEL_DOOR_VECTORS, driveCarouselDoorVectors } from './carousel-doors.js';
+export type { CarouselDoorLike, CarouselDoorSubject, CarouselDoorVector } from './carousel-doors.js';
 export { STYLE_MANAGER_ROWS, STYLE_MANAGER_VECTORS, driveStyleManagerVectors } from './style-manager.js';
 export type {
     AdwStyleLike,
