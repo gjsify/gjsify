@@ -159,7 +159,9 @@ export const AdwConstructVectorsTest = async () => {
                 children: [{ tag: 'GtkButton', signals: [signal] }],
             });
             const scope = { onX: () => {} };
-            expect(() => mountSharedTree(on({ name: 'map', handler: 'onX' }), { scope })).toThrow("no signal 'map'");
+            expect(() => mountSharedTree(on({ name: 'toggled', handler: 'onX' }), { scope })).toThrow(
+                "no signal 'toggled'",
+            );
             expect(() => mountSharedTree(on({ name: 'clicked', handler: 'onX', flags: ['after'] }), { scope })).toThrow(
                 'plain handlers only',
             );

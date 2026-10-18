@@ -2,7 +2,8 @@
 // widget carry them and so does a plain `document.createElement()`, not only a built tree.
 //
 // `WidgetElement` is `HTMLElement` plus `gtk_widget_get_visible` / `gtk_widget_set_visible` over
-// the DOM's `hidden` attribute, TRUE until hidden as GtkWidget's default is; `installVisible`
+// the DOM's `hidden` attribute, TRUE until hidden as GtkWidget's default is, and the `map` /
+// `unmap` signals with `gtk_widget_get_mapped` (`widget-mapping.ts`); `installVisible`
 // (`gobject-elements.ts`) gives the same to a class that does not extend it. It notifies only
 // where the element declares `notify::visible`. A subclass with its own `visible`
 // (`<gtk-stack-page>`, `<adw-sidebar>`) keeps its own.
@@ -16,9 +17,13 @@
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
 import { WIDGET_VISIBLE_GETTERS, notifyElement } from './gobject-elements.js';
-import { dispatchedSignalsOf } from './signals.js';
+import { dispatchedSignalsOf, type DispatchedSignals } from './signals.js';
+import { isMapped } from './widget-mapping.js';
 
 export class WidgetElement extends HTMLElement {
+    /** `Gtk.Widget::map` / `::unmap`, which every subclass inherits (`dispatchedSignalsOf`). */
+    static readonly signals: DispatchedSignals = { map: 'map', unmap: 'unmap' };
+
     /** `Gtk.Widget:visible`. */
     get visible(): boolean {
         return !this.hidden;
@@ -35,6 +40,10 @@ export class WidgetElement extends HTMLElement {
     /** `gtk_widget_set_visible`. */
     set_visible(visible: boolean): void {
         this.visible = visible;
+    }
+    /** `gtk_widget_get_mapped`: on screen, which is in the document and rendered. */
+    get_mapped(): boolean {
+        return isMapped(this);
     }
 }
 

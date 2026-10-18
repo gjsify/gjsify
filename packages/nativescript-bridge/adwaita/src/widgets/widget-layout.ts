@@ -87,6 +87,7 @@ import { xmlBoolean } from './xml-values.js';
 import { insertActionGroup } from './actions.js';
 import { focusView, isViewFocused } from '../window-source.js';
 import { applyNativeTooltip } from './native-tooltip.js';
+import { isMapped } from './widget-mapping.js';
 import type { ActionGroupLike } from '@gjsify/adwaita-core';
 
 /**
@@ -336,6 +337,8 @@ export declare abstract class GtkWidgetLayoutMembers {
     get_visible(): boolean;
     /** `gtk_widget_set_visible`: the `visible` property. */
     set_visible(visible: boolean): void;
+    /** `gtk_widget_get_mapped`: loaded, and visible with every ancestor. */
+    get_mapped(): boolean;
     /** `gtk_widget_get_tooltip_text`: the `tooltipText` property. */
     get_tooltip_text(): string;
     /** `gtk_widget_set_tooltip_text`: the `tooltipText` property. */
@@ -485,6 +488,11 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
         /** `gtk_widget_set_visible`. */
         set_visible(visible: boolean): void {
             this.visible = visible;
+        }
+
+        /** `gtk_widget_get_mapped` (`widget-mapping.ts`). */
+        get_mapped(): boolean {
+            return isMapped(this);
         }
 
         /** `gtk_widget_set_direction`: written to the CSS `direction` a view resolves its margins by; NONE clears it. */

@@ -310,11 +310,11 @@ export const GtkWindowTest = async () => {
             const { el, host } = mount();
             let message = '';
             try {
-                el.connect('map', () => {});
+                el.connect('toggled', () => {});
             } catch (error) {
                 message = (error as Error).message;
             }
-            expect(message.includes("'map'")).toBe(true);
+            expect(message.includes("'toggled'")).toBe(true);
             host.remove();
         });
 

@@ -55,6 +55,7 @@ import type { EventData, Observable } from '@nativescript/core';
 
 import { camelProperty, readGtkProperty, writeGtkProperty } from './shadowed-properties.js';
 import { withGtkWidgetLayout } from './widget-layout.js';
+import { watchMapping, WIDGET_SIGNALS } from './widget-mapping.js';
 
 /** The shape of `HandledAccumulator` (adwaita-core) a signal payload may carry; read structurally. */
 interface HandledAccumulatorLike {
@@ -66,6 +67,8 @@ interface HandledAccumulatorLike {
 interface Handler {
     readonly eventName: string;
     readonly listener: (data: EventData) => void;
+    /** Ends the `map` / `unmap` watch a handler of either started. */
+    readonly unwatch?: () => void;
 }
 
 /**
@@ -110,6 +113,21 @@ export interface GObjectSignals {
 }
 
 /**
+ * Every signal `ctor` emits: the own `emittedSignals` of each class up its chain, base first.
+ * A class declares only what it adds, so `GtkButton`'s `clicked` does not hide `map`.
+ */
+export function emittedSignalsOf(ctor: unknown): readonly string[] {
+    const chain: unknown[] = [];
+    for (let at = ctor; typeof at === 'function'; at = Object.getPrototypeOf(at)) chain.unshift(at);
+    const all = new Set<string>();
+    for (const each of chain) {
+        if (!Object.hasOwn(each as object, 'emittedSignals')) continue;
+        for (const name of (each as { emittedSignals: readonly string[] }).emittedSignals) all.add(name);
+    }
+    return [...all];
+}
+
+/**
  * A constructor the mixin can wrap: anything that is an `Observable`, abstract or not.
  *
  * `any[]` and not `unknown[]`: TypeScript accepts a mixin base only as a constructor with a
@@ -129,6 +147,9 @@ export type ObservableConstructor = abstract new (...args: any[]) => Observable;
  */
 export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
     abstract class WithSignals extends withGtkWidgetLayout(Base) implements GObjectSignals {
+        /** What every widget emits; a class's own list adds to it (`emittedSignalsOf`). */
+        static readonly emittedSignals: readonly string[] = WIDGET_SIGNALS;
+
         connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
             // One wrapper per connect, so two handlers sharing a callback stay two
             // handlers — `removeEventListener(name, callback)` would drop both.
@@ -149,7 +170,8 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
                 handlers = new Map();
                 HANDLERS.set(this, handlers);
             }
-            handlers.set(id, { eventName, listener });
+            const unwatch = WIDGET_SIGNALS.includes(eventName) ? watchMapping(this) : undefined;
+            handlers.set(id, { eventName, listener, unwatch });
             this.addEventListener(eventName, listener);
             return id;
         }
@@ -164,6 +186,7 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase) {
                 );
             }
             this.removeEventListener(handler.eventName, handler.listener);
+            handler.unwatch?.();
             HANDLERS.get(this)?.delete(handlerId);
         }
 

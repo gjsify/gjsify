@@ -46,6 +46,7 @@ import { capabilities } from '../capabilities.js';
 import { observeWindowSize } from '../widgets/breakpoint.js';
 import { type GTypeNamed, gtypeNameOf, gtypeNameOfInstance } from '../widgets/gtype-name.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
+import { emittedSignalsOf } from '../widgets/signals.js';
 import { authoredParamValue } from './param-values.js';
 import { templateClassFor } from './template-classes.js';
 import {
@@ -468,7 +469,7 @@ function bindProperty(bind: PendingBind, context: BuildContext): void {
     }
     const sourceProp = propertyOf(sourceProperty);
     const targetProp = propertyOf(property);
-    const emitted = (from.constructor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const emitted = emittedSignalsOf(from.constructor);
     const notification = `notify::${sourceProperty}`;
     if (!hasGtkProperty(from, sourceProp) || !emitted.includes(notification)) {
         throw new Error(
@@ -534,7 +535,7 @@ function bindThroughEngine(
 ): void {
     const { target, from, property, sourceProperty, flags, where } = bind;
     const engine = engineFlags(flags, where);
-    const emitted = (target.constructor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const emitted = emittedSignalsOf(target.constructor);
     if (engine.includes('bidirectional') && !emitted.includes(`notify::${property}`)) {
         throw new Error(
             `${where}: bidirectional, but ${target.constructor.name} does not emit 'notify::${property}', so the ` +
@@ -697,7 +698,7 @@ function buildNode(node: SharedTreeNode, context: BuildContext, existing?: View)
  */
 function bindSignals(built: object, element: Element, node: SharedTreeNode, context: BuildContext): void {
     if (node.signals === undefined) return;
-    const emitted = (element.ctor as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const emitted = emittedSignalsOf(element.ctor);
     const connectable = built as Partial<{ connect(name: string, callback: (...args: unknown[]) => void): number }>;
     for (const signal of node.signals) {
         const name = signal.detail === undefined ? signal.name : `${signal.name}::${signal.detail}`;

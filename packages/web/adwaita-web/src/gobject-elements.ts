@@ -17,6 +17,7 @@
 import { attributeOf, propertyOf } from '@gjsify/adwaita-core/tags';
 
 import { dispatchedSignalsOf } from './signals.js';
+import { watchMapping } from './widget-mapping.js';
 
 type Handler = (emitter: HTMLElement, ...args: unknown[]) => unknown;
 
@@ -122,7 +123,12 @@ export function listenElement(el: HTMLElement, signal: string, handler: Handler)
         }
     };
     el.addEventListener(event, listener);
-    return () => el.removeEventListener(event, listener);
+    // `map` / `unmap` have no DOM event behind them: the element is watched while one is connected.
+    const unwatch = signal === 'map' || signal === 'unmap' ? watchMapping(el) : undefined;
+    return () => {
+        el.removeEventListener(event, listener);
+        unwatch?.();
+    };
 }
 
 export function dispatchElement(el: HTMLElement, signal: string, args: readonly unknown[]): void {

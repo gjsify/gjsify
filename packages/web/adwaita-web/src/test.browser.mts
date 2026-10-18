@@ -28,6 +28,7 @@ import { AdwMultiLayoutViewTest } from './adw-multi-layout-view.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { GtkSourceViewTest } from './gtksource/gtk-source-view.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
+import { WidgetMapTest } from './widget-map.spec.js';
 import { AdwWindowTest } from './adw-window.spec.js';
 import { AdwShortcutsTest } from './adw-shortcuts.spec.js';
 import { AdwApplicationWindowTest } from './adw-application-window.spec.js';
@@ -299,6 +300,7 @@ run({
     AdwDataGridTest,
     GtkSourceViewTest,
     AdwDialogTest,
+    WidgetMapTest,
     AdwWindowTest,
     AdwShortcutsTest,
     AdwApplicationWindowTest,
