@@ -15,6 +15,7 @@ export const Display = gdk.Display;
 export const Clipboard = gdk.Clipboard;
 export const ContentProvider = gdk.ContentProvider;
 export const ContentFormats = gdk.ContentFormats;
+export const AppLaunchContext = gdk.AppLaunchContext;
 
 export const CURRENT_TIME = GDK_PLATFORM_CURRENT_TIME;
 export const {

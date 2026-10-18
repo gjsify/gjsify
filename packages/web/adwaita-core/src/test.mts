@@ -80,6 +80,8 @@ import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
 import glibUriTestSuite from './glib-uri.spec.js';
 import glibUriOracleTestSuite from './glib-uri.gjs.spec.js';
+import gioAppInfoTestSuite from './gio-app-info.spec.js';
+import gioAppInfoOracleTestSuite from './gio-app-info.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
 import rowAccessorsOracleTestSuite from './row-accessors.gjs.spec.js';
@@ -173,6 +175,8 @@ run({
     glibPathsOracleTestSuite,
     glibUriTestSuite,
     glibUriOracleTestSuite,
+    gioAppInfoTestSuite,
+    gioAppInfoOracleTestSuite,
     styleManagerTestSuite,
     styleManagerOracleTestSuite,
     rowAccessorsOracleTestSuite,

@@ -24,6 +24,7 @@ import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import gtkPlatformNsTest from './gtk-platform.spec.js';
+import gioNsTest from './gio.spec.js';
 import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
 import { PopupMenuWidgetsNsTest } from './popup-menu-widgets.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
@@ -75,6 +76,7 @@ run({
     GtkButtonActionsNsTest,
     GtkMenuTreeNsTest,
     gtkPlatformNsTest,
+    gioNsTest,
     PopupMenuWidgetsNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,

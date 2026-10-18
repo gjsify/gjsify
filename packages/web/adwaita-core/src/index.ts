@@ -428,7 +428,15 @@ export type {
 
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
-export { ContentFormats, ContentProvider, Clipboard, Display, createGdk, widgetDisplayMembers } from './gdk.js';
+export {
+    AppLaunchContext as GdkAppLaunchContext,
+    ContentFormats,
+    ContentProvider,
+    Clipboard,
+    Display,
+    createGdk,
+    widgetDisplayMembers,
+} from './gdk.js';
 export {
     CURRENT_TIME,
     CssProvider,
@@ -1148,5 +1156,7 @@ export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegister
 export type { EngineTarget, GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
 export { uriEscapeString } from './glib-uri.js';
+export { AppLaunchContext as GioAppLaunchContext, createAppInfo, uriPeekScheme } from './gio-app-info.js';
+export type { GioAppInfo } from './gio-app-info.js';
 export { ColorScheme, StyleManagerBase } from './style-manager.js';
 export type { StyleSource } from './style-manager.js';
