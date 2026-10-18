@@ -7,6 +7,8 @@
 // in `glib-paths.ts` of the core; the host has no filesystem, so `get_current_dir()` is `"/"` and
 // `get_system_data_dirs()` is `[]`. A port that knows better replaces the member in its own file.
 //
+// `uri_escape_string` is the core's `glib-uri.ts`, a pure function over UTF-8 bytes.
+//
 // `Bytes` and `Error` are the ADR 0100 subset a `Gio.File` reads and fails with (`get_data`,
 // `matches`, `code`, `message`), re-exported from the core's `glib-bytes.ts` / `glib-error.ts`.
 //
@@ -21,6 +23,7 @@ import {
     getCurrentDir,
     getSystemDataDirs,
     MAXUINT32 as GLIB_MAXUINT32,
+    uriEscapeString,
 } from '@gjsify/adwaita-core';
 
 const glib = createGLibTimers();
@@ -40,3 +43,4 @@ export const MAXUINT32 = GLIB_MAXUINT32;
 export const build_filenamev = buildFilenamev;
 export const get_current_dir = getCurrentDir;
 export const get_system_data_dirs = getSystemDataDirs;
+export const uri_escape_string = uriEscapeString;

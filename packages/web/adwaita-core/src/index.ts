@@ -1147,5 +1147,6 @@ export type {
 export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
 export type { EngineTarget, GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
+export { uriEscapeString } from './glib-uri.js';
 export { ColorScheme, StyleManagerBase } from './style-manager.js';
 export type { StyleSource } from './style-manager.js';

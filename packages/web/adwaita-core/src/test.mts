@@ -78,6 +78,8 @@ import gdkOracleTestSuite from './gdk.gjs.spec.js';
 import gtkPlatformTestSuite from './gtk-platform.spec.js';
 import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
+import glibUriTestSuite from './glib-uri.spec.js';
+import glibUriOracleTestSuite from './glib-uri.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
 import rowAccessorsOracleTestSuite from './row-accessors.gjs.spec.js';
@@ -169,6 +171,8 @@ run({
     gtkPlatformTestSuite,
     glibPathsTestSuite,
     glibPathsOracleTestSuite,
+    glibUriTestSuite,
+    glibUriOracleTestSuite,
     styleManagerTestSuite,
     styleManagerOracleTestSuite,
     rowAccessorsOracleTestSuite,
