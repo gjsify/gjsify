@@ -216,6 +216,11 @@ export default async () => {
                 '<screenshot type="default" xml:lang="de">',
             ).replace(/<screenshot>\n/, '<screenshot xml:lang="de">\n');
             expect(await rules(onlyGerman)).toContain('screenshot-no-english');
+            const twins = GOOD.replaceAll(
+                /(<image type="source">(shot\d?)\.png<\/image>)/g,
+                '$1\n      <image type="source" xml:lang="de">$2-de.png</image>',
+            );
+            expect(await rules(twins)).not.toContain('screenshot-no-english');
             expect(await rules(patch('<screenshot type="default">', '<screenshot>'))).toContain(
                 'screenshot-default-not-first',
             );

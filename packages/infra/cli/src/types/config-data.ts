@@ -353,10 +353,14 @@ export interface AppMetadata {
     /**
      * App-store screenshots. `url` must be an absolute HTTPS URL to a PNG;
      * `environment` lets Flathub group by desktop; the first entry defaults to
-     * `type="default"`.
+     * `type="default"`. `localizedUrls` maps a language code (`de`, `pt_BR`)
+     * to a screenshot of the app in that language; each becomes an extra
+     * `<image xml:lang="…">`, so software centres show the user's language
+     * and fall back to `url`.
      */
     screenshots?: Array<{
         url: string;
+        localizedUrls?: Record<string, string>;
         caption?: string;
         captionTranslatorHint?: string;
         environment?: 'plasma' | 'gnome' | 'cli';
