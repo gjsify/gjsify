@@ -325,6 +325,45 @@ export const GtkLabelTest = async () => {
             host.remove();
         });
 
+        // GtkLabel's wrapping MINIMUM is its longest word, not the width it first wrapped
+        // at. A pinned `width` made the measured block the label's min-content, so a card
+        // around it in a narrower pane (Learn6502's preferences: 343px) grew past the pane.
+        await it('lets a wrapped label shrink below the width it first wrapped at', () => {
+            const long = 'word '.repeat(60).trim();
+            const { el, host } = mount(long);
+            host.style.display = 'flex';
+            const card = document.createElement('div');
+            host.appendChild(card);
+            card.appendChild(el);
+            el.wrap = true;
+            const first = el.querySelector('.adw-label-text')!.getBoundingClientRect().width;
+            expect(first > 300).toBe(true);
+            host.style.width = '200px';
+            expect(card.getBoundingClientRect().width <= 200).toBe(true);
+            expect(el.getBoundingClientRect().width <= 200).toBe(true);
+            host.remove();
+        });
+
+        // gtk_label_measure: a wrapping label's minimum is its widest word, its natural
+        // width the text on one line (capped only by `max-width-chars`).
+        await it('gives a wrapped label its widest word as minimum, one line as natural', () => {
+            const long = 'word '.repeat(60).trim();
+            const { el, host } = mount(long);
+            el.wrap = true;
+            const word = mount('word');
+            const wordWidth = textRect(word.el).width;
+            word.host.remove();
+            const line = mount(long);
+            line.host.style.width = 'max-content';
+            const lineWidth = textRect(line.el).width;
+            line.host.remove();
+            host.style.width = 'min-content';
+            expect(el.getBoundingClientRect().width <= Math.ceil(wordWidth) + 1).toBe(true);
+            host.style.width = 'max-content';
+            expect(Math.abs(el.getBoundingClientRect().width - lineWidth) <= 1).toBe(true);
+            host.remove();
+        });
+
         await it('is not selectable unless asked, as GtkLabel', () => {
             const { el, host } = mount('Hi');
             expect(getComputedStyle(el).userSelect).toBe('none');
