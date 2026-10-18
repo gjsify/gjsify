@@ -472,9 +472,12 @@ export async function lintMetainfo(xml: string, options: QualityOptions = {}): P
             'at least one screenshot is expected',
         );
     } else {
+        // A screenshot with an untagged image plus `<image xml:lang="de">` twins is English: the
+        // twins are alternatives, and the untagged one is what a non-German user sees.
+        const englishTag = (t: string): boolean => t === '' || langBase(t) === 'en';
         const isEnglish = (s: Node): boolean => {
-            const tags = [lang(s), ...kids(s, 'image').map(lang)];
-            return tags.every((t) => t === '' || langBase(t) === 'en');
+            const images = kids(s, 'image').map(lang);
+            return englishTag(lang(s)) && (images.length === 0 || images.some(englishTag));
         };
         if (!shots.some(isEnglish)) {
             add(

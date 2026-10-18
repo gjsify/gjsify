@@ -225,6 +225,9 @@ function renderMetainfo(inputs: AppMetadataInputs, kind: 'desktop-application' |
             const envAttr = s.environment ? ` environment="${escapeXml(s.environment)}"` : '';
             lines.push(`    <screenshot${typeAttr}${envAttr}>`);
             lines.push(`      <image>${escapeXml(s.url)}</image>`);
+            for (const [lang, url] of Object.entries(s.localizedUrls ?? {})) {
+                lines.push(`      <image xml:lang="${escapeXml(lang)}">${escapeXml(url)}</image>`);
+            }
             if (s.caption) {
                 pushTranslatorHint(lines, s.captionTranslatorHint, '      ');
                 lines.push(`      <caption>${escapeXml(s.caption)}</caption>`);

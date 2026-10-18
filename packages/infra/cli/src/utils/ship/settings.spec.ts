@@ -116,6 +116,36 @@ export default async () => {
             );
         });
 
+        await it('renders localised screenshot twins as xml:lang images', async () => {
+            const resolved = resolveShipSettings(
+                input({
+                    ship: {
+                        appId: 'org.example.Hello',
+                        summary: 'Summary',
+                        homepageUrl: 'https://example.org',
+                        screenshots: [
+                            {
+                                url: 'https://example.org/shot.png',
+                                localizedUrls: { de: 'https://example.org/shot-de.png' },
+                                caption: 'The overview',
+                            },
+                        ],
+                    },
+                }),
+            );
+            const xml = renderMetainfoApp({
+                appId: resolved.settings.appId,
+                name: resolved.settings.name,
+                command: resolved.settings.binaryName,
+                kind: resolved.settings.kind,
+                metadata: resolved.metadata,
+                configKey: 'gjsify.ship',
+                copyrightYear: 2026,
+            });
+            expect(xml).toContain('<image>https://example.org/shot.png</image>');
+            expect(xml).toContain('<image xml:lang="de">https://example.org/shot-de.png</image>');
+        });
+
         await it('lets an explicit gjsify.ship licence win over package.json', async () => {
             const resolved = resolveShipSettings(
                 input({
